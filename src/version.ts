@@ -1,4 +1,13 @@
 /**
+ * @fileoverview Version configuration module for Climpt CLI
+ * 
+ * This module exports the VERSION constant used throughout the application
+ * to maintain consistency with the breakdown package version.
+ * 
+ * @module version
+ */
+
+/**
  * Version configuration for Climpt CLI
  * 
  * This version should match the version specified in deno.json.

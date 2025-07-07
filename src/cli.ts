@@ -1,3 +1,12 @@
+/**
+ * @fileoverview CLI module for Climpt - A wrapper around the breakdown package
+ * 
+ * This module provides the main entry point for the Climpt CLI application,
+ * which serves as a wrapper around the @tettuan/breakdown JSR package.
+ * 
+ * @module cli
+ */
+
 import { VERSION } from "./version.ts";
 
 /**
