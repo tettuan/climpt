@@ -1,52 +1,35 @@
-import type { CliOptions } from "./types.ts";
-import { parseArgs } from "./utils.ts";
-
-const VERSION = "0.1.0";
-
-export function printHelp(): void {
-  console.log(`
-climpt v${VERSION}
-
-A CLI tool for managing prompts and AI interactions
-
-Usage:
-  climpt [options] [command]
-
-Options:
-  --version, -v    Show version number
-  --help, -h       Show help
-  --verbose        Enable verbose logging
-
-Commands:
-  prompt           Manage prompts
-  config           Manage configuration
-  run              Run a prompt
-
-Examples:
-  climpt --version
-  climpt prompt list
-  climpt config set provider openai
-  climpt run my-prompt
-`);
-}
-
-export function printVersion(): void {
-  console.log(`climpt v${VERSION}`);
-}
-
-export function main(args: string[] = []): void {
-  const options = parseArgs(args) as CliOptions;
-
-  if (options.version || options.v) {
-    printVersion();
-    return;
+/**
+ * Main entry point for the Climpt CLI application.
+ * This function serves as a wrapper around the breakdown package,
+ * providing a unified interface for AI development instruction tools.
+ * 
+ * @param _args - Command line arguments passed to the CLI
+ * @returns Promise that resolves when the command execution is complete
+ * 
+ * @example
+ * ```typescript
+ * import { main } from "./cli.ts";
+ * 
+ * // Execute with command line arguments
+ * await main(["init"]);
+ * await main(["to", "project", "--config=custom"]);
+ * ```
+ */
+export async function main(_args: string[] = []): Promise<void> {
+  try {
+    // Dynamic import of breakdown package
+    const breakdown = await import("jsr:@tettuan/breakdown");
+    
+    // Call the runBreakdown function with arguments
+    if (breakdown.runBreakdown) {
+      await breakdown.runBreakdown(_args);
+    } else {
+      console.log("runBreakdown function not found in breakdown package");
+      console.log("Available exports:", Object.keys(breakdown));
+    }
+    
+  } catch (error) {
+    console.error("Failed to execute breakdown:", error);
+    Deno.exit(1);
   }
-
-  if (options.help || options.h) {
-    printHelp();
-    return;
-  }
-
-  // Default behavior
-  console.log("Welcome to climpt! Use --help for usage information.");
 }
