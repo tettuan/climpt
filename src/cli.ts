@@ -1,8 +1,4 @@
-/**
- * Version constant that matches the breakdown package version
- * This ensures version consistency between climpt and the underlying breakdown package
- */
-export const VERSION = "1.1.3";
+import { VERSION } from "./version.ts";
 
 /**
  * Main entry point for the Climpt CLI application.
