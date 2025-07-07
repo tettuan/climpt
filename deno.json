@@ -1,0 +1,47 @@
+{
+  "name": "@aidevtool/climpt",
+  "version": "0.1.0",
+  "description": "A CLI tool for managing prompts and AI interactions",
+  "license": "MIT",
+  "author": "tettuan",
+  "homepage": "https://github.com/tettuan/climpt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tettuan/climpt.git"
+  },
+  "keywords": [
+    "cli",
+    "prompt",
+    "ai",
+    "tool"
+  ],
+  "exports": {
+    ".": "./mod.ts",
+    "./cli": "./cli.ts"
+  },
+  "exclude": [
+    "node_modules",
+    ".git",
+    "tests/",
+    "*_test.ts",
+    "*.test.ts",
+    "*.md"
+  ],
+  "tasks": {
+    "dev": "deno run --allow-read --allow-write --watch cli.ts",
+    "build": "deno compile --allow-read --allow-write --output ./dist/climpt cli.ts",
+    "test": "deno test --allow-read --allow-write '**/*_test.ts'"
+  },
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom", "es2022"],
+    "strict": true
+  },
+  "fmt": {
+    "include": ["src/", "*.ts", "*.json"],
+    "exclude": ["dist/", "node_modules/", "tests/", "*_test.ts"]
+  },
+  "lint": {
+    "include": ["src/", "*.ts"],
+    "exclude": ["dist/", "node_modules/", "tests/", "*_test.ts"]
+  }
+}
