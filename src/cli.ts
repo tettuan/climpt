@@ -17,8 +17,8 @@
  */
 export async function main(_args: string[] = []): Promise<void> {
   try {
-    // Dynamic import of breakdown package
-    const breakdown = await import("jsr:@tettuan/breakdown");
+    // Dynamic import of breakdown package with explicit version constraint
+    const breakdown = await import("jsr:@tettuan/breakdown@^1.1.3");
     
     // Call the runBreakdown function with arguments
     if (breakdown.runBreakdown) {
