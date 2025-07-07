@@ -1,4 +1,10 @@
 /**
+ * Version constant that matches the breakdown package version
+ * This ensures version consistency between climpt and the underlying breakdown package
+ */
+export const VERSION = "1.1.3";
+
+/**
  * Main entry point for the Climpt CLI application.
  * 
  * Climpt is a command-line interface tool that serves as a wrapper around the 
@@ -95,7 +101,7 @@
 export async function main(_args: string[] = []): Promise<void> {
   try {
     // Dynamic import of breakdown package with explicit version constraint
-    const breakdown = await import("jsr:@tettuan/breakdown@^1.1.3");
+    const breakdown = await import(`jsr:@tettuan/breakdown@^${VERSION}`);
     
     // Call the runBreakdown function with arguments
     if (breakdown.runBreakdown) {
