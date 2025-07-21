@@ -29,7 +29,12 @@
   "exclude": [
     "node_modules",
     ".git",
-    "CLAUDE.md"
+    ".github/",
+    ".vscode/",
+    ".gitignore",
+    "CLAUDE.md",
+    "tests/",
+    "deno.lock"
   ],
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
