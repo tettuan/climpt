@@ -19,10 +19,16 @@
     ".": "./mod.ts",
     "./cli": "./cli.ts"
   },
+  "include": [
+    "README.md",
+    "LICENSE",
+    "mod.ts",
+    "cli.ts",
+    "src/"
+  ],
   "exclude": [
     "node_modules",
-    ".git",
-    "*.md"
+    ".git"
   ],
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
