@@ -28,7 +28,8 @@
   ],
   "exclude": [
     "node_modules",
-    ".git"
+    ".git",
+    "CLAUDE.md"
   ],
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
