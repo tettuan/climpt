@@ -15,15 +15,19 @@ This tool is designed to work in conjunction with AI Coding agents, specifically
 Climpt is primarily designed to be used as a CLI tool. You can install it using the official Deno/JSR method:
 
 ```bash
-deno install -A -f --global climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env -f --global climpt jsr:@aidevtool/climpt
 ```
 
-- `-A`: Allow all permissions (recommended)
+- `--allow-read`: Allow reading files and directories (required for input files)
+- `--allow-write`: Allow writing files and directories (required for output generation)
+- `--allow-net`: Allow network access (required for downloading breakdown package from JSR)
+- `--allow-env`: Allow environment variable access (required for configuration)
 - `-f`: Force overwrite existing command
 - `--global`: Install globally
 - `climpt`: Command name
 
 > **Note:**  
+> While `-A` (allow all permissions) can be used for convenience, it's recommended to use specific permission flags as shown above for better security.  
 > The CLI module must be specified as `jsr:@aidevtool/climpt`.  
 > This is based on the `exports` configuration in `deno.json`.
 
@@ -161,7 +165,7 @@ climpt defect task --from=<improvement_request.md> -o=<task_defect_dir>
 To update to the latest version, simply run the same installation command again:
 
 ```bash
-deno install -A -f --global climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env -f --global climpt jsr:@aidevtool/climpt
 ```
 
 ### Uninstall
@@ -190,7 +194,7 @@ deno uninstall --root .deno climpt
 If you want to use the climpt command only within a specific project, you can install it to `.deno/bin` using the `--root` option:
 
 ```bash
-deno install -A -f --global --root .deno -n climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env -f --global --root .deno -n climpt jsr:@aidevtool/climpt
 ```
 
 After installation, add the bin directory to your PATH:
@@ -207,8 +211,11 @@ Climpt is designed as a lightweight wrapper around the `@tettuan/breakdown` pack
 
 ## Requirements
 
-- Deno 1.40 or later
+- Deno 2.0 or later (recommended)
+- Deno 1.40 or later (minimum)
 - Internet connection (for JSR package downloads)
+
+> **Note:** Deno 2.0 is recommended for the best performance and latest features.
 
 ## License
 
