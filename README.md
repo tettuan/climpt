@@ -70,19 +70,19 @@ The Climpt tool provides access to the following main commands from the breakdow
 ### Project Decomposition
 
 ```bash
-climpt to project <written_project_summary.md> -o <project_dir>
+climpt to project -f=<written_project_summary.md> -o=<project_dir>
 ```
 
 ### Issue Decomposition
 
 ```bash
-climpt to issue <project_summary.md|written_issue.md> -o <issue_dir>
+climpt to issue -f=<project_summary.md|written_issue.md> -o=<issue_dir>
 ```
 
 ### Task Decomposition
 
 ```bash
-climpt to task <issue.md|written_task.md> -o <tasks_dir>
+climpt to task -f=<issue.md|written_task.md> -o=<tasks_dir>
 ```
 
 ### Markdown Summary Generation
@@ -90,7 +90,7 @@ climpt to task <issue.md|written_task.md> -o <tasks_dir>
 **Project Summary** - Generate project overview from unorganized information:
 
 ```bash
-echo "<messy_something>" | climpt summary project -o <project_summary.md>
+echo "<messy_something>" | climpt summary project -o=<project_summary.md>
 ```
 
 **Issue Summary** - Generate issue from task groups:
@@ -110,7 +110,7 @@ climpt summary task --from=<unorganized_tasks.md> -o=<task_markdown_dir>
 **Project-level defect analysis**
 
 ```bash
-tail -100 "<error_log_file>" | climpt defect project -o <project_defect.md>
+tail -100 "<error_log_file>" | climpt defect project -o=<project_defect.md>
 ```
 
 **Issue-level defect analysis**
@@ -130,10 +130,10 @@ climpt defect task --from=<improvement_request.md> -o=<task_defect_dir>
 ### 1. From Unorganized Information to Project Implementation
 
 ```bash
-echo "<messy_something>" | climpt summary project -o <project_summary.md>
-climpt to project <project_summary.md> -o <project_dir>
-climpt to issue <project_summary.md> -o <issue_dir>
-climpt to task <issue.md> -o <tasks_dir>
+echo "<messy_something>" | climpt summary project -o=<project_summary.md>
+climpt to project -f=<project_summary.md> -o=<project_dir>
+climpt to issue -f=<project_summary.md> -o=<issue_dir>
+climpt to task -f=<issue.md> -o=<tasks_dir>
 ```
 
 ### 2. Creating Issues from Task Groups
@@ -141,13 +141,13 @@ climpt to task <issue.md> -o <tasks_dir>
 ```bash
 climpt summary issue --from=<aggregated_tasks.md> --input=task -o=<issue_markdown_dir>
 # Edit generated issues as needed
-climpt to task <issue.md> -o <tasks_dir>
+climpt to task -f=<issue.md> -o=<tasks_dir>
 ```
 
 ### 3. Generating Fix Tasks from Defect Information
 
 ```bash
-tail -100 "<error_log_file>" | climpt defect project -o <project_defect.md>
+tail -100 "<error_log_file>" | climpt defect project -o=<project_defect.md>
 climpt defect issue --from=<project_defect.md> -o=<issue_defect_dir>
 climpt defect task --from=<issue_defect.md> -o=<task_defect_dir>
 ```
