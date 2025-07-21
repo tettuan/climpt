@@ -16,8 +16,7 @@
     "tool"
   ],
   "exports": {
-    ".": "./mod.ts",
-    "./cli": "./cli.ts"
+    ".": "./mod.ts"
   },
   "include": [
     "README.md",

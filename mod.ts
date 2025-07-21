@@ -52,3 +52,9 @@
 
 // Export main CLI functionality
 export { main } from "./src/cli.ts";
+
+// Execute main function when mod.ts is run directly
+if (import.meta.main) {
+  const { main } = await import("./src/cli.ts");
+  await main(Deno.args);
+}

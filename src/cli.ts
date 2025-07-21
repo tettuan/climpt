@@ -7,7 +7,8 @@
  * @module cli
  */
 
-import { VERSION } from "./version.ts";
+// Import the breakdown package statically
+import { runBreakdown } from "jsr:@tettuan/breakdown@^1.2.0";
 
 /**
  * Main entry point for the Climpt CLI application.
@@ -105,17 +106,8 @@ import { VERSION } from "./version.ts";
  */
 export async function main(_args: string[] = []): Promise<void> {
   try {
-    // Dynamic import of breakdown package with explicit version constraint
-    const breakdown = await import(`jsr:@tettuan/breakdown@^${VERSION}`);
-    
     // Call the runBreakdown function with arguments
-    if (breakdown.runBreakdown) {
-      await breakdown.runBreakdown(_args);
-    } else {
-      console.log("runBreakdown function not found in breakdown package");
-      console.log("Available exports:", Object.keys(breakdown));
-    }
-    
+    await runBreakdown(_args);
   } catch (error) {
     console.error("Failed to execute breakdown:", error);
     Deno.exit(1);
