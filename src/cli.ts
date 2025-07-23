@@ -8,7 +8,15 @@
  */
 
 // Import the breakdown package statically
-import { runBreakdown } from "jsr:@tettuan/breakdown@^1.2.0";
+// Import the breakdown package dynamically using the version from version.ts
+import { VERSION } from "./version.ts";
+
+let runBreakdown: (args: string[]) => Promise<void>;
+
+async function importBreakdown() {
+  const mod = await import(`jsr:@tettuan/breakdown@^${VERSION}`);
+  runBreakdown = mod.runBreakdown;
+}
 
 /**
  * Main entry point for the Climpt CLI application.
@@ -106,6 +114,9 @@ import { runBreakdown } from "jsr:@tettuan/breakdown@^1.2.0";
  */
 export async function main(_args: string[] = []): Promise<void> {
   try {
+    if (!runBreakdown) {
+      await importBreakdown();
+    }
     // Call the runBreakdown function with arguments
     await runBreakdown(_args);
   } catch (error) {
