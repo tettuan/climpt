@@ -15,9 +15,16 @@ This tool is designed to work in conjunction with AI Coding agents, specifically
 Climpt is primarily designed to be used as a CLI tool. You can install it using the official Deno/JSR method:
 
 ```bash
-deno install --allow-read --allow-write --allow-net --allow-env -f --global climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
 ```
 
+- `--allow-read`: Allow reading files and directories (required for input files)
+- `--allow-write`: Allow writing files and directories (required for output generation)
+- `--allow-net`: Allow network access (required for downloading breakdown package from JSR)
+- `--allow-env`: Allow environment variable access (required for configuration)
+- `-f`: Force overwrite existing command
+- `--global`: Install globally
+- `climpt`: Command name
 
 > **Note:**  
 > While `-A` (allow all permissions) can be used for convenience, it's recommended to use specific permission flags as shown above for better security.  
@@ -46,12 +53,14 @@ Climpt provides access to all breakdown package functionality through a simple w
 
 To provide a standardized way to express development requirements, bridging the gap between human-written specifications and AI-interpretable instructions.
 
+## Process Overview
 
 This tool itself does not generate documents based on rules. It supports AI document generation by providing prompts and structured formats that are easy for AI to interpret and handle.
 
 ## Available Commands
 
 The Climpt tool provides access to the following main commands from the breakdown package:
+
 | Command | Description                                                | Project                              | Issue                      | Task                       |
 | ------- | ---------------------------------------------------------- | ------------------------------------ | -------------------------- | -------------------------- |
 | to      | Convert input Markdown to next layer format               | Decompose to project                 | Decompose project to issue | Decompose issue to task    |
@@ -156,7 +165,7 @@ climpt defect task --from=<improvement_request.md> -o=<task_defect_dir>
 To update to the latest version, simply run the same installation command again:
 
 ```bash
-deno install --allow-read --allow-write --allow-net --allow-env -f --global climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
 ```
 
 ### Uninstall
@@ -167,17 +176,7 @@ deno install --allow-read --allow-write --allow-net --allow-env -f --global clim
 deno uninstall climpt
 ```
 
-
 #### For local (project) installation
-
-To install climpt only for this project (not globally), use:
-
-```bash
-deno install --allow-read --allow-write --allow-net --allow-env -f --global --root .deno -n climpt jsr:@aidevtool/climpt
-```
-- This installs climpt into the project's `.deno/bin` directory.
-
-To uninstall from the project:
 
 ```bash
 deno uninstall --root .deno climpt
@@ -195,7 +194,7 @@ deno uninstall --root .deno climpt
 If you want to use the climpt command only within a specific project, you can install it to `.deno/bin` using the `--root` option:
 
 ```bash
-deno install --allow-read --allow-write --allow-net --allow-env -f --global --root .deno -n climpt jsr:@aidevtool/climpt
+deno install --allow-read --allow-write --allow-net --allow-env --global --root .deno -n climpt jsr:@aidevtool/climpt
 ```
 
 After installation, add the bin directory to your PATH:
