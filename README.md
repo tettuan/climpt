@@ -176,7 +176,17 @@ deno install --allow-read --allow-write --allow-net --allow-env -f --global clim
 deno uninstall climpt
 ```
 
+
 #### For local (project) installation
+
+To install climpt only for this project (not globally), use:
+
+```bash
+deno install --allow-read --allow-write --allow-net --allow-env -f --global --root .deno -n climpt jsr:@aidevtool/climpt
+```
+- This installs climpt into the project's `.deno/bin` directory.
+
+To uninstall from the project:
 
 ```bash
 deno uninstall --root .deno climpt
