@@ -18,13 +18,6 @@ Climpt is primarily designed to be used as a CLI tool. You can install it using 
 deno install --allow-read --allow-write --allow-net --allow-env -f --global climpt jsr:@aidevtool/climpt
 ```
 
-- `--allow-read`: Allow reading files and directories (required for input files)
-- `--allow-write`: Allow writing files and directories (required for output generation)
-- `--allow-net`: Allow network access (required for downloading breakdown package from JSR)
-- `--allow-env`: Allow environment variable access (required for configuration)
-- `-f`: Force overwrite existing command
-- `--global`: Install globally
-- `climpt`: Command name
 
 > **Note:**  
 > While `-A` (allow all permissions) can be used for convenience, it's recommended to use specific permission flags as shown above for better security.  
@@ -53,14 +46,12 @@ Climpt provides access to all breakdown package functionality through a simple w
 
 To provide a standardized way to express development requirements, bridging the gap between human-written specifications and AI-interpretable instructions.
 
-## Process Overview
 
 This tool itself does not generate documents based on rules. It supports AI document generation by providing prompts and structured formats that are easy for AI to interpret and handle.
 
 ## Available Commands
 
 The Climpt tool provides access to the following main commands from the breakdown package:
-
 | Command | Description                                                | Project                              | Issue                      | Task                       |
 | ------- | ---------------------------------------------------------- | ------------------------------------ | -------------------------- | -------------------------- |
 | to      | Convert input Markdown to next layer format               | Decompose to project                 | Decompose project to issue | Decompose issue to task    |
