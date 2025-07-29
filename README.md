@@ -20,20 +20,54 @@ deno install --allow-read --allow-write --allow-net --allow-env --global climpt 
 
 - `--allow-read`: Allow reading files and directories (required for input files)
 - `--allow-write`: Allow writing files and directories (required for output generation)
+
+# Climpt
+
+A CLI tool for managing prompts and AI interactions - a wrapper around the breakdown package.
+
+## Overview
+
+Climpt allows you to select from a set of prepared prompts and call the desired prompt with a single command, outputting the result. You can pass values to be inserted into the prompt as command-line arguments.
+
+Example usage:
+```sh
+# Create new tests based on a bug report
+cat bug_report.md | climpt-build new test --input=bug
+
+# Detailed breakdown from issue to task
+climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+```
+
+Climpt provides a unified interface for AI-assisted development instruction tools, enabling the creation, management, and execution of development instructions interpretable by AI systems using TypeScript and JSON Schema.
+
+This tool is designed to work in conjunction with AI coding agents, especially optimized for Cursor and Claude. The underlying AI model is assumed to be Claude, but the syntax and structure are designed to be easily interpretable by other AI models as well.
+
+## Installation
+
+### Recommended: Install as CLI
+
+Climpt is primarily intended to be used as a CLI tool. You can install it using the official Deno/JSR method:
+
+```bash
+deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
+```
+
+- `--allow-read`: Allow reading files and directories (required for input files)
+- `--allow-write`: Allow writing files and directories (required for output generation)
 - `--allow-net`: Allow network access (required for downloading breakdown package from JSR)
 - `--allow-env`: Allow environment variable access (required for configuration)
 - `-f`: Force overwrite existing command
 - `--global`: Install globally
 - `climpt`: Command name
 
-> **Note:**  
-> While `-A` (allow all permissions) can be used for convenience, it's recommended to use specific permission flags as shown above for better security.  
-> The CLI module must be specified as `jsr:@aidevtool/climpt`.  
+> **Note:**
+> While `-A` (allow all permissions) can be used for convenience, it is recommended to use specific permission flags as shown above for better security.
+> The CLI module must be specified as `jsr:@aidevtool/climpt`.
 > This is based on the `exports` configuration in `deno.json`.
 
 ## Usage
 
-Once installed, you can use climpt commands directly:
+After installation, you can use the climpt command directly:
 
 ```bash
 climpt --help
@@ -42,6 +76,8 @@ climpt to project --config=custom
 ```
 
 Climpt provides access to all breakdown package functionality through a simple wrapper interface.
+(In the future, feature development itself will be migrated from Breakdown to Climpt.)
+
 ## Key Features
 
 - Optimized Markdown conversion prompts
@@ -53,112 +89,116 @@ Climpt provides access to all breakdown package functionality through a simple w
 
 To provide a standardized way to express development requirements, bridging the gap between human-written specifications and AI-interpretable instructions.
 
-## Process Overview
-
 This tool itself does not generate documents based on rules. It supports AI document generation by providing prompts and structured formats that are easy for AI to interpret and handle.
 
-## Available Commands
+## Use Cases
 
-The Climpt tool provides access to the following main commands from the breakdown package:
+Select from various prompts and obtain the desired prompt with a single command. The main use cases are:
 
-| Command | Description                                                | Project                              | Issue                      | Task                       |
-| ------- | ---------------------------------------------------------- | ------------------------------------ | -------------------------- | -------------------------- |
-| to      | Convert input Markdown to next layer format               | Decompose to project                 | Decompose project to issue | Decompose issue to task    |
-| summary | Generate new Markdown or specified layer Markdown         | Generate project overview           | Generate issue overview    | Generate task overview     |
-| defect  | Generate fixes from error logs or defect information      | Generate project info from defects  | Generate issue from defects| Generate task from defects |
+- Centralized management of patterned prompts
+- Dynamic invocation from CLI agents like Claude Code
+- Building processing flows by mediating prompts in chained operations
+- Using refined prompt sets for specific implementation domains
+- Letting the coding agent choose prompts
 
-### Project Decomposition
+Additional use cases include:
 
-```bash
-climpt to project -f=<written_project_summary.md> -o=<project_dir>
-```
+- Guiding and stabilizing code generated by coding agents
+- Executing highly abstract implementations with reproducibility
 
-### Issue Decomposition
-
-```bash
-climpt to issue -f=<project_summary.md|written_issue.md> -o=<issue_dir>
-```
-
-### Task Decomposition
-
-```bash
-climpt to task -f=<issue.md|written_task.md> -o=<tasks_dir>
-```
-
-### Markdown Summary Generation
-
-**Project Summary** - Generate project overview from unorganized information:
-
-```bash
-echo "<messy_something>" | climpt summary project -o=<project_summary.md>
-```
-
-**Issue Summary** - Generate issue from task groups:
-
-```bash
-climpt summary issue --from=<aggregated_tasks.md> --input=task -o=<issue_markdown_dir>
-```
-
-**Task Summary** - Generate organized tasks from unorganized task information:
-
-```bash
-climpt summary task --from=<unorganized_tasks.md> -o=<task_markdown_dir>
-```
-
-### Fix Generation from Defect Information
-
-**Project-level defect analysis**
-
-```bash
-tail -100 "<error_log_file>" | climpt defect project -o=<project_defect.md>
-```
-
-**Issue-level defect analysis**
-
-```bash
-climpt defect issue --from=<bug_report.md> -o=<issue_defect_dir>
-```
-
-**Task-level defect analysis**
-
-```bash
-climpt defect task --from=<improvement_request.md> -o=<task_defect_dir>
-```
-
-## Use Case Patterns
-
-### 1. From Unorganized Information to Project Implementation
-
-```bash
-echo "<messy_something>" | climpt summary project -o=<project_summary.md>
-climpt to project -f=<project_summary.md> -o=<project_dir>
-climpt to issue -f=<project_summary.md> -o=<issue_dir>
-climpt to task -f=<issue.md> -o=<tasks_dir>
-```
-
-### 2. Creating Issues from Task Groups
-
-```bash
-climpt summary issue --from=<aggregated_tasks.md> --input=task -o=<issue_markdown_dir>
-# Edit generated issues as needed
-climpt to task -f=<issue.md> -o=<tasks_dir>
-```
-
-### 3. Generating Fix Tasks from Defect Information
-
-```bash
-tail -100 "<error_log_file>" | climpt defect project -o=<project_defect.md>
-climpt defect issue --from=<project_defect.md> -o=<issue_defect_dir>
-climpt defect task --from=<issue_defect.md> -o=<task_defect_dir>
-```
-
-### 4. Creating Fix Proposals from Improvement Requests
-
-```bash
-climpt defect task --from=<improvement_request.md> -o=<task_defect_dir>
-```
+Deno is used for advanced usage. Climpt is optimized and provided as multiple Deno execution commands. The prepared execution commands can switch profiles.
 
 ## Setup
+
+### Initial Setup
+
+Climpt requires `.agent/climpt/config/default-app.yml`.
+Usually, running `climpt init` at the project root will generate this file.
+
+You can also install it at any hierarchy, such as under `tests/`. However, it is more convenient to manage multiple executables under `.deno/bin/*`.
+
+### Multiple Installation Configuration
+
+Profile switching is done with the `--config` option. When calling Deno, add `--config=profilename`.
+
+This enables the following:
+
+First, prepare multiple calls with different `--config` under `.deno/bin`.
+
+```
+.deno/bin
+├── climpt-arch         # --config=arch
+├── climpt-breakdown    # --config=breakdown
+├── climpt-build        # --config=build
+├── climpt-diagnose     # --config=diagnose
+├── climpt-research     # --config=research
+├── climpt-setup        # --config=setup
+└── climpt-verify       # --config=verify
+```
+
+Next, prepare corresponding configuration files. The * part of `*-app.yml` is the profile name. You can change the accepted argument specification for each profile. For example, `arch` can run `climpt-arch optimize go`, but you can make it so that `climpt-setup optimize go` cannot be executed.
+
+```
+.agent/climpt
+├── config
+│   ├── arch-app.yml
+│   ├── arch-user.yml
+│   ├── breakdown-app.yml
+│   ├── breakdown-user.yml
+│   ├── build-app.yml
+│   ├── build-user.yml
+```
+
+Finally, prepare template prompts. The location of prompts can be switched by configuration, so you can change the storage hierarchy for each profile. In the example below, the same `prompts/` hierarchy is divided by profile name.
+
+```
+.agent/climpt
+├── prompts
+│   ├── arch
+│   │   └── optimize
+│   │       └── go
+│   │           └── f_default.md
+│   ├── breakdown
+│   │   └── to
+│   │       ├── issue
+│   │       │   ├── f_default.md
+│   │       │   ├── f_detailed.md
+│   ├── diagnose
+│   │   └── trace
+│   │       └── stack
+│   │           └── f_test.md
+│   ├── setup
+│   │   └── climpt
+│   │       └── list
+│   │           └── f_default.md
+```
+
+### Operation
+
+Add frequently used prompt files to the prompt hierarchy. Important prompts for the project should be placed under Git management.
+
+Prompts can use template variables for substitution.
+
+``````markdown
+# Error Handling Policy
+
+Errors are categorized by type, and policies are considered. Then, files are separated by error type and saved to the output destination. The maximum number of lines per file is {uv-max-line-num}.
+
+Output destination: `{destination_path}`
+
+
+# Error Content
+
+`````
+{input_text}
+`````
+``````
+
+When you run the following CLI against the above template, the values will be replaced:
+
+```
+echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+```
 
 ### Update
 
@@ -186,7 +226,7 @@ deno uninstall --root .deno climpt
 ### Notes
 
 - The climpt command automatically uses `cli.ts` as the entry point due to the `bin` configuration in `deno.json`.
-- Deno 1.40 or later is recommended.
+- Deno 2.4 or later is recommended.
 - For detailed usage instructions, refer to the "Usage" section above.
 
 ### Local Installation to Project Directory
@@ -211,11 +251,10 @@ Climpt is designed as a lightweight wrapper around the `@tettuan/breakdown` pack
 
 ## Requirements
 
-- Deno 2.0 or later (recommended)
-- Deno 1.40 or later (minimum)
+- Deno 2.4 or later (recommended)
 - Internet connection (for JSR package downloads)
 
-> **Note:** Deno 2.0 is recommended for the best performance and latest features.
+> **Note:** Deno 2.x is recommended.
 
 ## License
 
