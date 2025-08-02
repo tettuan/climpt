@@ -18,4 +18,4 @@
  * This ensures consistency between the breakdown package version
  * and the climpt wrapper version.
  */
-export const VERSION = "1.3.3";
+export const VERSION = "1.3.4";
