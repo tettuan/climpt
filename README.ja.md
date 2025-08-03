@@ -170,6 +170,10 @@ Deno の呼び出し時に、 `--config=profilename` を付与します。
 
 プロンプトには、置換のためのテンプレート変数を用いることができます。
 
+#### プロンプト実装サンプル
+
+実際のプロンプト実装例として、[`examples/prompts/list/usage/f_default.md`](/examples/prompts/list/usage/f_default.md) を参照してください。このファイルは、Climptで利用可能なコマンド一覧を生成するためのプロンプトテンプレートの実装サンプルです。フロントマターの設定方法、テンプレート変数の使用方法、JSON Schemaを用いた構造化出力の定義方法などが含まれています。
+
 ``````markdown
 # エラー対処方針
 

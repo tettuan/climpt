@@ -179,6 +179,10 @@ Add frequently used prompt files to the prompt hierarchy. Important prompts for 
 
 Prompts can use template variables for substitution.
 
+#### Prompt Implementation Sample
+
+For an actual prompt implementation example, please refer to [`examples/prompts/list/usage/f_default.md`](/examples/prompts/list/usage/f_default.md). This file is a sample implementation of a prompt template for generating a list of available commands in Climpt. It includes examples of frontmatter configuration, template variable usage, and structured output definition using JSON Schema.
+
 ``````markdown
 # Error Handling Policy
 
