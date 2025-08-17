@@ -9,7 +9,7 @@
         "--allow-net",
         "--allow-env",
         "--allow-run",
-        "/Users/tettuan/github/climpt/src/mcp/index.ts"
+        "jsr:@aidevtool/climpt/mcp"
       ]
     }
   }
