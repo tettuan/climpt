@@ -42,7 +42,7 @@ let AVAILABLE_CONFIGS: string[] = [];
  *
  * @type {Array<{c1: string, c2: string, c3: string}>}
  */
-let VALID_COMMANDS: Array<{c1: string, c2: string, c3: string}> = [];
+let VALID_COMMANDS: Array<{ c1: string; c2: string; c3: string }> = [];
 
 try {
   // Try to load config from current working directory first
@@ -73,7 +73,7 @@ try {
 
 /**
  * Validates if a command is available in the registry.
- * 
+ *
  * @param {string} config - The configuration name (c1)
  * @param {string[]} args - The command arguments to validate
  * @returns {boolean} True if command is valid, false otherwise
@@ -89,7 +89,7 @@ function validateCommand(config: string, args: string[]): boolean {
   }
 
   const [c2, c3] = args;
-  return VALID_COMMANDS.some(cmd => 
+  return VALID_COMMANDS.some((cmd) =>
     cmd.c1 === config && cmd.c2 === c2 && cmd.c3 === c3
   );
 }
@@ -154,10 +154,11 @@ server.setRequestHandler(
     }
 
     const input = args?.input || "";
-    
+
     // 空のinputの場合はデフォルトメッセージを使用
-    const promptText = input.trim() || `Please help me with ${name} related tasks.`;
-    
+    const promptText = input.trim() ||
+      `Please help me with ${name} related tasks.`;
+
     // Ensure promptText is never empty to prevent API errors
     if (!promptText.trim()) {
       throw new Error("Prompt text cannot be empty after processing");
@@ -238,12 +239,14 @@ server.setRequestHandler(
     // コマンドバリデーション
     if (!validateCommand(name, commandArgs)) {
       const availableCommands = VALID_COMMANDS
-        .filter(cmd => cmd.c1 === name)
-        .map(cmd => `${cmd.c2} ${cmd.c3}`)
-        .join(', ');
-      
+        .filter((cmd) => cmd.c1 === name)
+        .map((cmd) => `${cmd.c2} ${cmd.c3}`)
+        .join(", ");
+
       throw new Error(
-        `Invalid command: ${commandArgs.join(' ')}. Available commands for ${name}: ${availableCommands}`
+        `Invalid command: ${
+          commandArgs.join(" ")
+        }. Available commands for ${name}: ${availableCommands}`,
       );
     }
 
