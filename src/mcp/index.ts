@@ -21,14 +21,14 @@ console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
 let AVAILABLE_CONFIGS: string[] = [];
 
 try {
-  const configPath = new URL("../../climpt-tools-config.json", import.meta.url);
+  const configPath = new URL("../../.agent/climpt/registry.json", import.meta.url);
   const configText = await Deno.readTextFile(configPath);
   const config = JSON.parse(configText);
-  AVAILABLE_CONFIGS = config.availableConfigs || [];
+  AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
   console.error(`⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs from external file:`, AVAILABLE_CONFIGS);
 } catch (error) {
   console.error("⚠️ Failed to load config file, using defaults:", error);
-  AVAILABLE_CONFIGS = ["project", "summary", "defect", "git", "research"];
+  AVAILABLE_CONFIGS = ["code", "docs", "git", "meta", "spec", "test"];
 }
 
 const server = new Server(

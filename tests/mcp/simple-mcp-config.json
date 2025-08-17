@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "simple-test": {
+      "command": "deno",
+      "args": [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        "--allow-net",
+        "--allow-env",
+        "/Users/tettuan/github/climpt/simple-mcp-test.ts"
+      ]
+    }
+  }
+}
