@@ -65,16 +65,16 @@ CompoundTarget := Object "-" TargetModifier ;
 
 ### 2.2 C3L Parsing Rules
 
-1. **Split by spaces** → Must have exactly 3 tokens (before options)
-2. **Preserve hyphens** within each token
-3. **Validate** against C3L domain-action-target matrix
+1. **Split by spaces** → Must have exactly 3 tokens (before options)  
+2. **Preserve hyphens** within each token  
+3. **Validate** against the C3L domain-action-target matrix
 
 ---
 
-## 3. Functional Domains (対象の性質による分類)
+## 3. Functional Domains (Classification by Object Nature)
 
-CLIのドメインは「**何を扱うか**」で分類される。  
-以下に標準ドメインを定義する。
+CLI domains are classified by **what kind of object they operate on**.  
+The standard domains are defined as follows:
 
 ### 3.1 Code & Data
 | Domain | Purpose |
@@ -171,10 +171,10 @@ climpt-sec scan-quick vulnerabilities
 
 ```bash
 # ❌ Not C3L compliant
-climpt create api          # Missing domain prefix
-climpt-code create         # Only 2 words
-climpt-code create secure api  # 4 words (space in between)
-create-api-for-service     # No climpt prefix
+climpt create api                  # Missing domain prefix
+climpt-code create                 # Only 2 words
+climpt-code create secure api      # 4 words (space in between)
+create-api-for-service             # No climpt prefix
 ```
 
 ---

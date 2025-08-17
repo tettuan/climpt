@@ -70,6 +70,241 @@ Climptはbreakdownパッケージの全機能にシンプルなラッパーイ�
 
 このツール自体はルールに基づくドキュメント生成は行いません。AIによるドキュメント生成を支援するため、AIが解釈・処理しやすいプロンプトや構造化フォーマットを提供します。
 
+## MCP（Model Context Protocol）サーバー
+
+Climptには、ClaudeなどのAIアシスタントがコマンドレジストリと直接対話し、標準化されたプロトコルを通じて開発タスクを実行できるようにする組み込みMCPサーバーが含まれています。
+
+**重要**: MCPを使用する場合、`.deno/bin`ディレクトリは**不要**です。MCPサーバーはローカルCLIバイナリを必要とせず、プロトコルを通じて直接コマンドを実行します。
+
+### MCP機能
+
+- **動的ツール読み込み**: `.agent/climpt/registry.json`から利用可能なツールを自動的に読み込み
+- **完全なコマンドレジストリアクセス**: すべてのClimptコマンド（code、docs、git、meta、spec、test）が利用可能
+- **グレースフルフォールバック**: 設定が利用できない場合は標準ツールにデフォルト
+- **JSRディストリビューション**: ローカルインストールなしでJSRから直接実行可能
+- **バイナリ依存なし**: `.deno/bin`インストールなしで動作
+
+### MCP設定
+
+ClaudeまたはCursorの設定（`.mcp.json`または`~/.claude.json`）でMCPサーバーを設定:
+
+```json
+{
+  "mcpServers": {
+    "climpt": {
+      "command": "deno",
+      "args": [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        "--allow-net",
+        "--allow-env",
+        "--allow-run",
+        "jsr:@aidevtool/climpt/mcp"
+      ]
+    }
+  }
+}
+```
+
+### レジストリ設定
+
+MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます。このファイルはC3L（Climpt 3-word Language）仕様に従って、利用可能なツールとそのコマンドマッピングを定義します。
+
+#### レジストリファイルスキーマ
+
+```typescript
+{
+  "tools": {
+    // ツール定義配列 - 各ツールはclimpt-{name}として利用可能
+    "availableConfigs": [
+      {
+        "name": string,        // ツール識別子（例: "git", "spec", "test"）
+        "description": string, // 人間が読める説明
+        "usage": string       // 使用例パターン
+      }
+    ],
+    
+    // コマンドレジストリ - 利用可能なすべてのC3Lコマンドを定義
+    "commands": [
+      {
+        "c1": string,         // ドメイン/カテゴリ（git, spec, test, code, docs, meta）
+        "c2": string,         // アクション/ディレクティブ（create, analyze, execute など）
+        "c3": string,         // ターゲット/レイヤー（refinement-issue, quality-metrics など）
+        "description": string // コマンドの説明
+      }
+    ]
+  }
+}
+```
+
+#### 完全なレジストリテンプレート
+
+```json
+{
+  "tools": {
+    "availableConfigs": [
+      {
+        "name": "git",
+        "description": "Gitオペレーションとリポジトリ管理",
+        "usage": "climpt-git create refinement-issue --from=requirements.md"
+      },
+      {
+        "name": "spec",
+        "description": "仕様分析と管理",
+        "usage": "climpt-spec analyze quality-metrics --input=spec.md"
+      },
+      {
+        "name": "test",
+        "description": "テストと検証オペレーション",
+        "usage": "climpt-test execute integration-suite --config=test.yml"
+      },
+      {
+        "name": "code",
+        "description": "コード生成と開発タスク",
+        "usage": "climpt-code create implementation --from=design.md"
+      },
+      {
+        "name": "docs",
+        "description": "ドキュメント生成と管理",
+        "usage": "climpt-docs generate api-reference --format=markdown"
+      },
+      {
+        "name": "meta",
+        "description": "メタオペレーションとコマンド管理",
+        "usage": "climpt-meta list available-commands"
+      }
+    ],
+    "commands": [
+      // Gitコマンド
+      {
+        "c1": "git",
+        "c2": "create",
+        "c3": "refinement-issue",
+        "description": "要件ドキュメントからリファインメント課題を作成"
+      },
+      {
+        "c1": "git",
+        "c2": "analyze",
+        "c3": "commit-history",
+        "description": "コミット履歴を分析してインサイトを生成"
+      },
+      
+      // Specコマンド
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "quality-metrics",
+        "description": "仕様の品質と完全性を分析"
+      },
+      {
+        "c1": "spec",
+        "c2": "validate",
+        "c3": "requirements",
+        "description": "要件を標準に対して検証"
+      },
+      
+      // Testコマンド
+      {
+        "c1": "test",
+        "c2": "execute",
+        "c3": "integration-suite",
+        "description": "統合テストスイートを実行"
+      },
+      {
+        "c1": "test",
+        "c2": "generate",
+        "c3": "unit-tests",
+        "description": "仕様からユニットテストを生成"
+      },
+      
+      // Codeコマンド
+      {
+        "c1": "code",
+        "c2": "create",
+        "c3": "implementation",
+        "description": "設計ドキュメントから実装を作成"
+      },
+      {
+        "c1": "code",
+        "c2": "refactor",
+        "c3": "architecture",
+        "description": "パターンに基づいてコードアーキテクチャをリファクタリング"
+      },
+      
+      // Docsコマンド
+      {
+        "c1": "docs",
+        "c2": "generate",
+        "c3": "api-reference",
+        "description": "APIリファレンスドキュメントを生成"
+      },
+      {
+        "c1": "docs",
+        "c2": "update",
+        "c3": "user-guide",
+        "description": "ユーザーガイドドキュメントを更新"
+      },
+      
+      // Metaコマンド
+      {
+        "c1": "meta",
+        "c2": "list",
+        "c3": "available-commands",
+        "description": "利用可能なすべてのClimptコマンドをリスト"
+      },
+      {
+        "c1": "meta",
+        "c2": "resolve",
+        "c3": "command-definition",
+        "description": "コマンド定義を解決して表示"
+      }
+    ]
+  }
+}
+```
+
+**読み込みプロセス**:
+1. サーバーは起動時に`.agent/climpt/registry.json`を読み込む
+2. `availableConfigs`から動的にツールを作成
+3. ファイルが見つからない場合はデフォルトにフォールバック
+4. 各ツールは`climpt-{name}`として利用可能
+
+**フィールドの説明**:
+- `name`: コマンドで使用される識別子（例: `climpt-git`）
+- `description`: AIアシスタントがツール選択時に表示される説明
+- `usage`: 典型的な使用方法を示す例
+- `c1/c2/c3`: コマンド構造のC3L仕様に従う
+- コマンドはc1/c2/c3パターンを使用してマッチング
+
+**クイックスタート**:
+テンプレートファイルをプロジェクトにコピー:
+```bash
+cp examples/mcp/registry.template.json .agent/climpt/registry.json
+```
+
+完全なテンプレートファイルは[`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)で利用可能
+
+### MCPサーバーの実行
+
+MCPサーバーを直接実行することもできます:
+
+```bash
+# JSRから（推奨）
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/climpt/mcp
+
+# 開発用にローカルで
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./src/mcp/index.ts
+```
+
+MCPサーバーは、AIアシスタントにClimptの全機能への構造化されたアクセスを提供し、以下を可能にします:
+- プログラマティックに開発タスクを実行
+- 完全なコマンドレジストリへのアクセス
+- ドキュメントの生成と管理
+- Gitオペレーションの実行
+- 仕様の分析
+- テストと検証の実行
+
 ## ユースケース
 
 多様なプロンプトを使い分け、望んだプロンプトを1行のコマンドで取得します。

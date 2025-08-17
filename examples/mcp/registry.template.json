@@ -1,0 +1,110 @@
+{
+  "tools": {
+    "availableConfigs": [
+      {
+        "name": "git",
+        "description": "Git operations and repository management",
+        "usage": "climpt-git create refinement-issue --from=requirements.md"
+      },
+      {
+        "name": "spec",
+        "description": "Specification analysis and management",
+        "usage": "climpt-spec analyze quality-metrics --input=spec.md"
+      },
+      {
+        "name": "test",
+        "description": "Testing and verification operations",
+        "usage": "climpt-test execute integration-suite --config=test.yml"
+      },
+      {
+        "name": "code",
+        "description": "Code generation and development tasks",
+        "usage": "climpt-code create implementation --from=design.md"
+      },
+      {
+        "name": "docs",
+        "description": "Documentation generation and management",
+        "usage": "climpt-docs generate api-reference --format=markdown"
+      },
+      {
+        "name": "meta",
+        "description": "Meta operations and command management",
+        "usage": "climpt-meta list available-commands"
+      }
+    ],
+    "commands": [
+      {
+        "c1": "git",
+        "c2": "create",
+        "c3": "refinement-issue",
+        "description": "Create a refinement issue from requirements documentation"
+      },
+      {
+        "c1": "git",
+        "c2": "analyze",
+        "c3": "commit-history",
+        "description": "Analyze commit history and generate insights"
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "quality-metrics",
+        "description": "Analyze specification quality and completeness"
+      },
+      {
+        "c1": "spec",
+        "c2": "validate",
+        "c3": "requirements",
+        "description": "Validate requirements against standards"
+      },
+      {
+        "c1": "test",
+        "c2": "execute",
+        "c3": "integration-suite",
+        "description": "Execute integration test suite"
+      },
+      {
+        "c1": "test",
+        "c2": "generate",
+        "c3": "unit-tests",
+        "description": "Generate unit tests from specifications"
+      },
+      {
+        "c1": "code",
+        "c2": "create",
+        "c3": "implementation",
+        "description": "Create implementation from design documents"
+      },
+      {
+        "c1": "code",
+        "c2": "refactor",
+        "c3": "architecture",
+        "description": "Refactor code architecture based on patterns"
+      },
+      {
+        "c1": "docs",
+        "c2": "generate",
+        "c3": "api-reference",
+        "description": "Generate API reference documentation"
+      },
+      {
+        "c1": "docs",
+        "c2": "update",
+        "c3": "user-guide",
+        "description": "Update user guide documentation"
+      },
+      {
+        "c1": "meta",
+        "c2": "list",
+        "c3": "available-commands",
+        "description": "List all available Climpt commands"
+      },
+      {
+        "c1": "meta",
+        "c2": "resolve",
+        "c3": "command-definition",
+        "description": "Resolve and display command definitions"
+      }
+    ]
+  }
+}
