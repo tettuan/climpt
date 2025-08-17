@@ -40,7 +40,7 @@ try {
   // Try to load config from current working directory first
   let configPath = ".agent/climpt/registry.json";
   let configText: string;
-  
+
   try {
     configText = await Deno.readTextFile(configPath);
   } catch {
@@ -49,7 +49,7 @@ try {
     configPath = `${homeDir}/.agent/climpt/registry.json`;
     configText = await Deno.readTextFile(configPath);
   }
-  
+
   const config = JSON.parse(configText);
   AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
   console.error(
