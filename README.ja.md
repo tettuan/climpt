@@ -115,15 +115,11 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
 
 ```typescript
 {
+  "version": string,           // レジストリバージョン（例: "1.0.0"）
+  "description": string,       // レジストリ全体の説明
   "tools": {
-    // ツール定義配列 - 各ツールはclimpt-{name}として利用可能
-    "availableConfigs": [
-      {
-        "name": string,        // ツール識別子（例: "git", "spec", "test"）
-        "description": string, // 人間が読める説明
-        "usage": string       // 使用例パターン
-      }
-    ],
+    // ツール名の配列 - 各ツールはclimpt-{name}として利用可能
+    "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
     
     // コマンドレジストリ - 利用可能なすべてのC3Lコマンドを定義
     "commands": [
@@ -131,7 +127,15 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c1": string,         // ドメイン/カテゴリ（git, spec, test, code, docs, meta）
         "c2": string,         // アクション/ディレクティブ（create, analyze, execute など）
         "c3": string,         // ターゲット/レイヤー（refinement-issue, quality-metrics など）
-        "description": string // コマンドの説明
+        "description": string,// コマンドの説明
+        "usage": string,      // 使用方法と例
+        "options": {          // このコマンドで利用可能なオプション
+          "input": string[],     // サポートされる入力形式
+          "adaptation": string[], // 処理モード
+          "input_file": boolean[],  // ファイル入力サポート
+          "stdin": boolean[],       // 標準入力サポート
+          "destination": boolean[]  // 出力先指定サポート
+        }
       }
     ]
   }
@@ -142,38 +146,16 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
 
 ```json
 {
+  "version": "1.0.0",
+  "description": "Climpt MCPサーバーとコマンドレジストリの包括的設定",
   "tools": {
     "availableConfigs": [
-      {
-        "name": "git",
-        "description": "Gitオペレーションとリポジトリ管理",
-        "usage": "climpt-git create refinement-issue --from=requirements.md"
-      },
-      {
-        "name": "spec",
-        "description": "仕様分析と管理",
-        "usage": "climpt-spec analyze quality-metrics --input=spec.md"
-      },
-      {
-        "name": "test",
-        "description": "テストと検証オペレーション",
-        "usage": "climpt-test execute integration-suite --config=test.yml"
-      },
-      {
-        "name": "code",
-        "description": "コード生成と開発タスク",
-        "usage": "climpt-code create implementation --from=design.md"
-      },
-      {
-        "name": "docs",
-        "description": "ドキュメント生成と管理",
-        "usage": "climpt-docs generate api-reference --format=markdown"
-      },
-      {
-        "name": "meta",
-        "description": "メタオペレーションとコマンド管理",
-        "usage": "climpt-meta list available-commands"
-      }
+      "code",
+      "docs",
+      "git",
+      "meta",
+      "spec",
+      "test"
     ],
     "commands": [
       // Gitコマンド
@@ -181,7 +163,15 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c1": "git",
         "c2": "create",
         "c3": "refinement-issue",
-        "description": "要件ドキュメントからリファインメント課題を作成"
+        "description": "要件ドキュメントからリファインメント課題を作成",
+        "usage": "要件ドキュメントからリファインメント課題を作成します。\n例: climpt-git create refinement-issue -f requirements.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "git",
@@ -271,11 +261,19 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
 4. 各ツールは`climpt-{name}`として利用可能
 
 **フィールドの説明**:
-- `name`: コマンドで使用される識別子（例: `climpt-git`）
-- `description`: AIアシスタントがツール選択時に表示される説明
-- `usage`: 典型的な使用方法を示す例
-- `c1/c2/c3`: コマンド構造のC3L仕様に従う
-- コマンドはc1/c2/c3パターンを使用してマッチング
+- `version`: レジストリスキーマのバージョン
+- `description`: レジストリ全体の説明
+- `availableConfigs`: `climpt-{name}`コマンドとして利用可能になるツール名の配列
+- `commands`: C3L仕様に従ったコマンド定義の配列
+  - `c1/c2/c3`: コマンド構造（ドメイン/アクション/ターゲット）
+  - `description`: コマンドの目的
+  - `usage`: 使用方法と例
+  - `options`: 各コマンドで利用可能なオプション
+    - `input`: サポートされる入力形式（例: ["JSON", "YAML", "MD"]）
+    - `adaptation`: 処理モード（例: ["default", "detailed"]）
+    - `input_file`: ファイル入力がサポートされているか（[true] または [false]）
+    - `stdin`: 標準入力がサポートされているか（[true] または [false]）
+    - `destination`: 出力先を指定できるか（[true] または [false]）
 
 **クイックスタート**:
 テンプレートファイルをプロジェクトにコピー:

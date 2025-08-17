@@ -136,15 +136,11 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 
 ```typescript
 {
+  "version": string,           // Registry version (e.g., "1.0.0")
+  "description": string,       // Overall registry description
   "tools": {
-    // Tool definitions array - each becomes available as climpt-{name}
-    "availableConfigs": [
-      {
-        "name": string,        // Tool identifier (e.g., "git", "spec", "test")
-        "description": string, // Human-readable description
-        "usage": string       // Example usage pattern
-      }
-    ],
+    // Tool names array - each becomes available as climpt-{name}
+    "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
     
     // Command registry - defines all available C3L commands
     "commands": [
@@ -152,7 +148,15 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c1": string,         // Domain/category (git, spec, test, code, docs, meta)
         "c2": string,         // Action/directive (create, analyze, execute, etc.)
         "c3": string,         // Target/layer (refinement-issue, quality-metrics, etc.)
-        "description": string // Command description
+        "description": string,// Command description
+        "usage": string,      // Usage instructions and examples
+        "options": {          // Available options for this command
+          "input": string[],     // Supported input formats
+          "adaptation": string[], // Processing modes
+          "input_file": boolean[],  // File input support
+          "stdin": boolean[],       // Standard input support
+          "destination": boolean[]  // Output destination support
+        }
       }
     ]
   }
@@ -163,38 +167,16 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 
 ```json
 {
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      {
-        "name": "git",
-        "description": "Git operations and repository management",
-        "usage": "climpt-git create refinement-issue --from=requirements.md"
-      },
-      {
-        "name": "spec",
-        "description": "Specification analysis and management",
-        "usage": "climpt-spec analyze quality-metrics --input=spec.md"
-      },
-      {
-        "name": "test",
-        "description": "Testing and verification operations",
-        "usage": "climpt-test execute integration-suite --config=test.yml"
-      },
-      {
-        "name": "code",
-        "description": "Code generation and development tasks",
-        "usage": "climpt-code create implementation --from=design.md"
-      },
-      {
-        "name": "docs",
-        "description": "Documentation generation and management",
-        "usage": "climpt-docs generate api-reference --format=markdown"
-      },
-      {
-        "name": "meta",
-        "description": "Meta operations and command management",
-        "usage": "climpt-meta list available-commands"
-      }
+      "code",
+      "docs",
+      "git",
+      "meta",
+      "spec",
+      "test"
     ],
     "commands": [
       // Git commands
@@ -202,7 +184,15 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c1": "git",
         "c2": "create",
         "c3": "refinement-issue",
-        "description": "Create a refinement issue from requirements documentation"
+        "description": "Create a refinement issue from requirements documentation",
+        "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "git",
@@ -292,11 +282,19 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 4. Each tool becomes available as `climpt-{name}`
 
 **Field Descriptions**:
-- `name`: Identifier used in the command (e.g., `climpt-git`)
-- `description`: Shown to AI assistants for tool selection
-- `usage`: Example command demonstrating typical usage
-- `c1/c2/c3`: Follow C3L specification for command structure
-- Commands are matched using the c1/c2/c3 pattern
+- `version`: Registry schema version
+- `description`: Overall registry description
+- `availableConfigs`: Array of tool names that become available as `climpt-{name}` commands
+- `commands`: Array of command definitions following C3L specification
+  - `c1/c2/c3`: Command structure (domain/action/target)
+  - `description`: Command purpose
+  - `usage`: Usage instructions with examples
+  - `options`: Available options for each command
+    - `input`: Supported input formats (e.g., ["JSON", "YAML", "MD"])
+    - `adaptation`: Processing modes (e.g., ["default", "detailed"])
+    - `input_file`: Whether file input is supported ([true] or [false])
+    - `stdin`: Whether standard input is supported ([true] or [false])
+    - `destination`: Whether output destination can be specified ([true] or [false])
 
 **Quick Start**:
 Copy the template file to your project:
