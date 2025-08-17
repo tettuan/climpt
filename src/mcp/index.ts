@@ -121,6 +121,9 @@ server.setRequestHandler(
     }
 
     const input = args?.input || "";
+    
+    // 空のinputの場合はデフォルトメッセージを使用
+    const promptText = input.trim() || `Please help me with ${name} related tasks.`;
 
     return {
       description: `climpt ${name} プロンプト`,
@@ -129,7 +132,7 @@ server.setRequestHandler(
           role: "user",
           content: {
             type: "text",
-            text: input,
+            text: promptText,
           },
         },
       ],
