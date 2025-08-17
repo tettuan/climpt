@@ -12,11 +12,12 @@ import {
   type ListPromptsRequest,
   type ListToolsRequest,
 } from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
+import { CLIMPT_VERSION } from "../version.ts";
 
 const server = new Server(
   {
     name: "climpt-mcp",
-    version: "1.0.0",
+    version: CLIMPT_VERSION,
   },
   {
     capabilities: {
