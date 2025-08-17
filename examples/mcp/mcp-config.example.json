@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "climpt": {
+      "command": "deno",
+      "args": [
+        "run",
+        "--allow-read",
+        "--allow-write",
+        "--allow-net",
+        "--allow-env",
+        "--allow-run",
+        "jsr:@aidevtool/climpt/mcp"
+      ]
+    }
+  }
+}

@@ -16,14 +16,18 @@
     "tool"
   ],
   "exports": {
-    ".": "./mod.ts"
+    ".": "./mod.ts",
+    "./cli": "./cli.ts",
+    "./mcp": "./mcp.ts"
   },
   "include": [
     "README.md",
     "LICENSE",
     "mod.ts",
     "cli.ts",
-    "src/"
+    "mcp.ts",
+    "src/",
+    ".agent/"
   ],
   "exclude": [
     "node_modules",

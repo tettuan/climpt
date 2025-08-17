@@ -85,3 +85,6 @@ tmp/*
 
 # Deno compiled binaries
 debug*.ts
+.deno/
+.claude/
+.mcp.json
