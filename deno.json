@@ -36,7 +36,6 @@
     ".vscode/",
     ".gitignore",
     "CLAUDE.md",
-    "tests/",
     "deno.lock"
   ],
   "tasks": {

@@ -1,109 +1,183 @@
 {
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      {
-        "name": "git",
-        "description": "Git operations and repository management",
-        "usage": "climpt-git create refinement-issue --from=requirements.md"
-      },
-      {
-        "name": "spec",
-        "description": "Specification analysis and management",
-        "usage": "climpt-spec analyze quality-metrics --input=spec.md"
-      },
-      {
-        "name": "test",
-        "description": "Testing and verification operations",
-        "usage": "climpt-test execute integration-suite --config=test.yml"
-      },
-      {
-        "name": "code",
-        "description": "Code generation and development tasks",
-        "usage": "climpt-code create implementation --from=design.md"
-      },
-      {
-        "name": "docs",
-        "description": "Documentation generation and management",
-        "usage": "climpt-docs generate api-reference --format=markdown"
-      },
-      {
-        "name": "meta",
-        "description": "Meta operations and command management",
-        "usage": "climpt-meta list available-commands"
-      }
+      "code",
+      "docs",
+      "git",
+      "meta",
+      "spec",
+      "test"
     ],
     "commands": [
       {
         "c1": "git",
         "c2": "create",
         "c3": "refinement-issue",
-        "description": "Create a refinement issue from requirements documentation"
+        "description": "Create a refinement issue from requirements documentation",
+        "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "git",
         "c2": "analyze",
         "c3": "commit-history",
-        "description": "Analyze commit history and generate insights"
+        "description": "Analyze commit history and generate insights",
+        "usage": "Analyze git commit history to identify patterns.\nExample: climpt-git analyze commit-history --adaptation=detailed",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "spec",
         "c2": "analyze",
         "c3": "quality-metrics",
-        "description": "Analyze specification quality and completeness"
+        "description": "Analyze specification quality and completeness",
+        "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md",
+        "options": {
+          "input": ["MD", "YAML"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [true],
+          "destination": [true]
+        }
       },
       {
         "c1": "spec",
         "c2": "validate",
         "c3": "requirements",
-        "description": "Validate requirements against standards"
+        "description": "Validate requirements against standards",
+        "usage": "Validate requirement documents against standards.\nExample: climpt-spec validate requirements -f requirements.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "test",
         "c2": "execute",
         "c3": "integration-suite",
-        "description": "Execute integration test suite"
+        "description": "Execute integration test suite",
+        "usage": "Execute integration test suites.\nExample: climpt-test execute integration-suite --config=test.yml",
+        "options": {
+          "input": ["YAML", "JSON"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "test",
         "c2": "generate",
         "c3": "unit-tests",
-        "description": "Generate unit tests from specifications"
+        "description": "Generate unit tests from specifications",
+        "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/",
+        "options": {
+          "input": ["MD", "CODE"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "code",
         "c2": "create",
         "c3": "implementation",
-        "description": "Create implementation from design documents"
+        "description": "Create implementation from design documents",
+        "usage": "Generate implementation code from design docs.\nExample: climpt-code create implementation -f design.md -o src/",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "code",
         "c2": "refactor",
         "c3": "architecture",
-        "description": "Refactor code architecture based on patterns"
+        "description": "Refactor code architecture based on patterns",
+        "usage": "Refactor existing code architecture.\nExample: climpt-code refactor architecture --adaptation=detailed",
+        "options": {
+          "input": ["CODE"],
+          "adaptation": ["default", "detailed", "compact"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "docs",
         "c2": "generate",
         "c3": "api-reference",
-        "description": "Generate API reference documentation"
+        "description": "Generate API reference documentation",
+        "usage": "Generate API documentation from code.\nExample: climpt-docs generate api-reference -f src/ -o docs/api/",
+        "options": {
+          "input": ["CODE"],
+          "adaptation": ["default", "detailed"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
       },
       {
         "c1": "docs",
         "c2": "update",
         "c3": "user-guide",
-        "description": "Update user guide documentation"
+        "description": "Update user guide documentation",
+        "usage": "Update existing user guide docs.\nExample: climpt-docs update user-guide -f guide.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [true],
+          "destination": [true]
+        }
       },
       {
         "c1": "meta",
         "c2": "list",
         "c3": "available-commands",
-        "description": "List all available Climpt commands"
+        "description": "List all available Climpt commands",
+        "usage": "List all available commands in the registry.\nExample: climpt-meta list available-commands",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
       },
       {
         "c1": "meta",
         "c2": "resolve",
         "c3": "command-definition",
-        "description": "Resolve and display command definitions"
+        "description": "Resolve and display command definitions",
+        "usage": "Resolve command definitions from registry.\nExample: climpt-meta resolve command-definition --input=git/create",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [true],
+          "destination": [false]
+        }
       }
     ]
   }
