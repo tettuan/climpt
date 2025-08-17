@@ -83,6 +83,9 @@ tmp/*
 /.worktree-*
 /.worktree-*/
 
+.serena
+.serena/
+
 # Deno compiled binaries
 debug*.ts
 .deno/

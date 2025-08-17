@@ -12,13 +12,25 @@ import { BREAKDOWN_VERSION } from "./version.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
-async function importBreakdown() {
+/**
+ * Dynamically imports the breakdown package with the specified version.
+ * This function lazily loads the breakdown module to improve startup performance
+ * and ensure version consistency.
+ *
+ * @returns {Promise<void>} A promise that resolves when the module is loaded
+ * @internal
+ */
+async function importBreakdown(): Promise<void> {
   const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
   runBreakdown = mod.runBreakdown;
 }
 
 /**
  * Main entry point for the Climpt CLI application.
+ *
+ * This function serves as the primary interface for executing Climpt commands.
+ * It dynamically loads the breakdown package and delegates command execution
+ * to the appropriate handlers.
  *
  * Climpt is a command-line interface tool that serves as a wrapper around the
  * `@tettuan/breakdown` JSR package. It provides a unified interface for AI-assisted
