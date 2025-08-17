@@ -14,6 +14,23 @@ import {
 } from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
 import { CLIMPT_VERSION } from "../version.ts";
 
+console.error("🚀 MCP Server starting...");
+console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
+
+// 設定ファイルから利用可能な設定を読み込み
+let AVAILABLE_CONFIGS: string[] = [];
+
+try {
+  const configPath = new URL("../../climpt-tools-config.json", import.meta.url);
+  const configText = await Deno.readTextFile(configPath);
+  const config = JSON.parse(configText);
+  AVAILABLE_CONFIGS = config.availableConfigs || [];
+  console.error(`⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs from external file:`, AVAILABLE_CONFIGS);
+} catch (error) {
+  console.error("⚠️ Failed to load config file, using defaults:", error);
+  AVAILABLE_CONFIGS = ["project", "summary", "defect", "git", "research"];
+}
+
 const server = new Server(
   {
     name: "climpt-mcp",
@@ -29,237 +46,144 @@ const server = new Server(
 
 // プロンプト一覧を返す
 server.setRequestHandler(ListPromptsRequestSchema, async (_request: ListPromptsRequest) => {
-  return {
-    prompts: [
+  console.error("📋 ListPromptsRequest received");
+  const prompts = AVAILABLE_CONFIGS.map(config => ({
+    name: config,
+    description: `climpt ${config} プロンプト`,
+    arguments: [
       {
-        name: "project",
-        description: "プロジェクト要件をGitHub Issuesに分解",
-        arguments: [
-          {
-            name: "input",
-            description: "プロジェクトの要件説明（必須）",
-            required: true,
-          },
-          {
-            name: "outputFormat",
-            description: "出力形式 (markdown | json | yaml)",
-            required: false,
-          },
-        ],
-      },
-      {
-        name: "summary",
-        description: "タスクや情報を要約",
-        arguments: [
-          {
-            name: "input",
-            description: "要約したい内容（必須）",
-            required: true,
-          },
-          {
-            name: "type",
-            description: "要約タイプ (task | document | log)",
-            required: false,
-          },
-        ],
-      },
-      {
-        name: "defect",
-        description: "エラーログから修正タスクを生成",
-        arguments: [
-          {
-            name: "input",
-            description: "エラーログや不具合報告（必須）",
-            required: true,
-          },
-          {
-            name: "priority",
-            description: "優先度 (low | medium | high | critical)",
-            required: false,
-          },
-        ],
+        name: "input",
+        description: "入力内容",
+        required: true,
       },
     ],
-  };
+  }));
+
+  return { prompts };
 });
 
 // プロンプトの実行
 server.setRequestHandler(GetPromptRequestSchema, async (request: GetPromptRequest) => {
   const { name, arguments: args } = request.params;
+  console.error(`🎯 GetPromptRequest received for: ${name}`);
 
-  if (name === "project") {
-    const input = args?.input || "";
-    const outputFormat = args?.outputFormat || "markdown";
-    
-    return {
-      description: "プロジェクトをIssuesに分解",
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `以下のプロジェクト要件をGitHub Issuesに分解してください。出力形式: ${outputFormat}\n\n${input}`,
-          },
-        },
-      ],
-    };
+  // 利用可能な設定かチェック
+  if (!AVAILABLE_CONFIGS.includes(name)) {
+    throw new Error(`Unknown prompt: ${name}`);
   }
-  
-  if (name === "summary") {
-    const input = args?.input || "";
-    const type = args?.type || "task";
-    
-    return {
-      description: "内容を要約",
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `以下の${type}を要約してください：\n\n${input}`,
-          },
-        },
-      ],
-    };
-  }
-  
-  if (name === "defect") {
-    const input = args?.input || "";
-    const priority = args?.priority || "medium";
-    
-    return {
-      description: "エラーログから修正タスクを生成",
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: `以下のエラーログや不具合報告から修正タスクを生成してください（優先度: ${priority}）：\n\n${input}`,
-          },
-        },
-      ],
-    };
-  }
-  
-  throw new Error(`Unknown prompt: ${name}`);
-});
 
-// ツール一覧を返す
-server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsRequest) => {
+  const input = args?.input || "";
+  
   return {
-    tools: [
+    description: `climpt ${name} プロンプト`,
+    messages: [
       {
-        name: "breakdown",
-        description: "climpt breakdown コマンドを実行",
-        inputSchema: {
-          type: "object",
-          properties: {
-            command: {
-              type: "string",
-              enum: ["project", "summary", "defect"],
-              description: "実行するbreakdownコマンド",
-            },
-            input: {
-              type: "string",
-              description: "入力内容",
-            },
-            options: {
-              type: "object",
-              properties: {
-                outputFormat: {
-                  type: "string",
-                  enum: ["markdown", "json", "yaml"],
-                  description: "出力形式",
-                },
-                outputDir: {
-                  type: "string",
-                  description: "出力ディレクトリ",
-                },
-              },
-            },
-          },
-          required: ["command", "input"],
+        role: "user",
+        content: {
+          type: "text",
+          text: input,
         },
       },
     ],
   };
 });
 
+
+// ツール一覧を返す
+server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsRequest) => {
+  console.error("🔧 ListToolsRequest received");
+  
+  const tools = AVAILABLE_CONFIGS.map(config => ({
+    name: config,
+    description: `climpt ${config} コマンドを実行 (--config=${config})`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        args: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: `${config}コマンドの引数`,
+        },
+      },
+      required: ["args"],
+    },
+  }));
+
+  return { tools };
+});
+
 // ツールの実行
 server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
   const { name, arguments: args } = request.params;
+  console.error(`⚡ CallToolRequest received for: ${name}`);
 
-  if (name === "breakdown") {
-    const { command, input, options } = args as {
-      command: string;
-      input: string;
-      options?: {
-        outputFormat?: string;
-        outputDir?: string;
-      };
-    };
+  // 利用可能な設定かチェック
+  if (!AVAILABLE_CONFIGS.includes(name)) {
+    throw new Error(`Unknown tool: ${name}`);
+  }
 
-    // climptコマンドを実行 (climpt-gitと同じパターン)
-    const cmd = new Deno.Command("deno", {
-      args: [
-        "run",
-        "--allow-read",
-        "--allow-write",
-        "--allow-env",
-        "--allow-run",
-        "--allow-net",
-        "--no-config",
-        "jsr:@aidevtool/climpt",
-        "--config=" + command,
-        "-",
-      ],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
+  const { args: commandArgs } = args as {
+    args: string[];
+  };
 
-    const process = cmd.spawn();
-    const writer = process.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(input));
-    await writer.close();
+  // 汎用的なclimptコマンド実行
+  const cmd = new Deno.Command("deno", {
+    args: [
+      "run",
+      "--allow-read",
+      "--allow-write",
+      "--allow-env",
+      "--allow-run",
+      "--allow-net",
+      "--no-config",
+      "jsr:@aidevtool/climpt",
+      `--config=${name}`,
+      ...commandArgs,
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
 
-    const output = await process.output();
-    const outputText = new TextDecoder().decode(output.stdout);
-    const errorText = new TextDecoder().decode(output.stderr);
+  const output = await cmd.output();
+  const outputText = new TextDecoder().decode(output.stdout);
+  const errorText = new TextDecoder().decode(output.stderr);
 
-    if (!output.success) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error executing climpt: ${errorText}`,
-          },
-        ],
-      };
-    }
-
+  if (!output.success) {
     return {
       content: [
         {
           type: "text",
-          text: outputText,
+          text: `Error executing climpt ${name}: ${errorText}`,
         },
       ],
     };
   }
 
-  throw new Error(`Unknown tool: ${name}`);
+  return {
+    content: [
+      {
+        type: "text",
+        text: outputText,
+      },
+    ],
+  };
 });
 
 // MCP サーバーを起動
 async function main() {
+  console.error("🔌 Connecting to StdioServerTransport...");
   const transport = new StdioServerTransport();
+  console.error("✅ Transport created, connecting server...");
   await server.connect(transport);
+  console.error("🎉 MCP Server connected and ready!");
 }
 
 if (import.meta.main) {
+  console.error("📝 Script is main module, starting server...");
   main().catch((error) => {
-    console.error("Server error:", error);
+    console.error("❌ Server error:", error);
     Deno.exit(1);
   });
 }

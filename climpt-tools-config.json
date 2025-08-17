@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "availableConfigs": [
+    "project",
+    "summary", 
+    "defect",
+    "git",
+    "research"
+  ],
+  "description": "MCP server configuration for climpt tools"
+}
