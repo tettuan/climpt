@@ -124,6 +124,11 @@ server.setRequestHandler(
     
     // 空のinputの場合はデフォルトメッセージを使用
     const promptText = input.trim() || `Please help me with ${name} related tasks.`;
+    
+    // Ensure promptText is never empty to prevent API errors
+    if (!promptText.trim()) {
+      throw new Error("Prompt text cannot be empty after processing");
+    }
 
     return {
       description: `climpt ${name} プロンプト`,
