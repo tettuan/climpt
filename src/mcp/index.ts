@@ -1,5 +1,16 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 
+/**
+ * @fileoverview MCP Server implementation for Climpt
+ *
+ * This module implements a Model Context Protocol (MCP) server that provides
+ * AI assistants with access to Climpt's command registry and execution capabilities.
+ * The server dynamically loads tool configurations from a registry file and
+ * exposes them as both prompts and tools through the MCP protocol.
+ *
+ * @module mcp/index
+ */
+
 import { Server } from "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js";
 import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js";
 import {
@@ -17,7 +28,12 @@ import { CLIMPT_VERSION } from "../version.ts";
 console.error("🚀 MCP Server starting...");
 console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
 
-// 設定ファイルから利用可能な設定を読み込み
+/**
+ * Available tool configurations loaded from registry.json.
+ * Defaults to standard configs if registry file is not found.
+ *
+ * @type {string[]}
+ */
 let AVAILABLE_CONFIGS: string[] = [];
 
 try {
@@ -50,7 +66,13 @@ const server = new Server(
   },
 );
 
-// プロンプト一覧を返す
+/**
+ * Handler for listing available prompts.
+ * Returns a list of prompts based on available configurations.
+ *
+ * @param {ListPromptsRequest} _request - The request for listing prompts
+ * @returns {Object} Object containing array of prompt definitions
+ */
 server.setRequestHandler(
   ListPromptsRequestSchema,
   (_request: ListPromptsRequest) => {
@@ -71,7 +93,14 @@ server.setRequestHandler(
   },
 );
 
-// プロンプトの実行
+/**
+ * Handler for executing a specific prompt.
+ * Retrieves and executes the prompt with the given name and arguments.
+ *
+ * @param {GetPromptRequest} request - The request containing prompt name and arguments
+ * @returns {Object} Object containing prompt description and messages
+ * @throws {Error} If the requested prompt is not in available configurations
+ */
 server.setRequestHandler(
   GetPromptRequestSchema,
   (request: GetPromptRequest) => {
@@ -100,7 +129,13 @@ server.setRequestHandler(
   },
 );
 
-// ツール一覧を返す
+/**
+ * Handler for listing available tools.
+ * Returns a list of tools based on available configurations.
+ *
+ * @param {ListToolsRequest} _request - The request for listing tools
+ * @returns {Object} Object containing array of tool definitions with schemas
+ */
 server.setRequestHandler(
   ListToolsRequestSchema,
   (_request: ListToolsRequest) => {
@@ -128,7 +163,14 @@ server.setRequestHandler(
   },
 );
 
-// ツールの実行
+/**
+ * Handler for executing a tool.
+ * Runs the specified Climpt command with the provided arguments.
+ *
+ * @param {CallToolRequest} request - The request containing tool name and arguments
+ * @returns {Promise<Object>} Promise resolving to tool execution result
+ * @throws {Error} If the requested tool is not in available configurations
+ */
 server.setRequestHandler(
   CallToolRequestSchema,
   async (request: CallToolRequest) => {
@@ -188,8 +230,18 @@ server.setRequestHandler(
   },
 );
 
-// MCP サーバーを起動
-async function main() {
+/**
+ * Main function to start the MCP server.
+ * Initializes the stdio transport and connects the server.
+ *
+ * @returns {Promise<void>} Promise that resolves when server is connected
+ * @example
+ * ```typescript
+ * import main from "./mcp/index.ts";
+ * await main();
+ * ```
+ */
+async function main(): Promise<void> {
   console.error("🔌 Connecting to StdioServerTransport...");
   const transport = new StdioServerTransport();
   console.error("✅ Transport created, connecting server...");
