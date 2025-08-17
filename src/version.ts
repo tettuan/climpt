@@ -15,7 +15,7 @@
  * 1. This CLIMPT_VERSION constant
  * 2. The "version" field in deno.json
  */
-export const CLIMPT_VERSION = "1.5.0";
+export const CLIMPT_VERSION = "1.5.1";
 
 /**
  * Version of the breakdown package to use
