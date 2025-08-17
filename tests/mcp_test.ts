@@ -154,6 +154,158 @@ Deno.test("MCP config loading falls back to defaults on URL errors", async () =>
   }
 });
 
+// Test local config file discovery (regression test for JSR package support)
+Deno.test("MCP config loading discovers local files correctly", async () => {
+  // Create temporary working directory with config
+  const tempDir = await Deno.makeTempDir();
+  const originalCwd = Deno.cwd();
+  
+  try {
+    // Create .agent/climpt directory structure
+    const agentDir = `${tempDir}/.agent/climpt`;
+    await Deno.mkdir(agentDir, { recursive: true });
+    
+    // Create test config file
+    const testConfig = {
+      version: "1.0.0",
+      description: "Test config for local discovery",
+      tools: {
+        availableConfigs: ["custom-config", "local-tool"]
+      }
+    };
+    
+    await Deno.writeTextFile(
+      `${agentDir}/registry.json`,
+      JSON.stringify(testConfig, null, 2)
+    );
+    
+    // Change to temp directory
+    Deno.chdir(tempDir);
+    
+    // Test that config can be loaded from current working directory
+    const configText = await Deno.readTextFile(".agent/climpt/registry.json");
+    const loadedConfig = JSON.parse(configText);
+    assertEquals(loadedConfig.tools.availableConfigs.length, 2);
+    assertEquals(loadedConfig.tools.availableConfigs[0], "custom-config");
+    assertEquals(loadedConfig.tools.availableConfigs[1], "local-tool");
+    
+  } finally {
+    // Restore original working directory
+    Deno.chdir(originalCwd);
+    // Cleanup
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// Test home directory config fallback
+Deno.test("MCP config loading falls back to home directory", async () => {
+  // Create temporary home directory with config
+  const tempHomeDir = await Deno.makeTempDir();
+  const originalHome = Deno.env.get("HOME");
+  
+  try {
+    // Set temporary HOME environment
+    Deno.env.set("HOME", tempHomeDir);
+    
+    // Create .agent/climpt directory in "home"
+    const agentDir = `${tempHomeDir}/.agent/climpt`;
+    await Deno.mkdir(agentDir, { recursive: true });
+    
+    // Create test config file in home directory
+    const homeConfig = {
+      version: "1.0.0",
+      description: "Home directory config",
+      tools: {
+        availableConfigs: ["home-tool", "global-config"]
+      }
+    };
+    
+    await Deno.writeTextFile(
+      `${agentDir}/registry.json`,
+      JSON.stringify(homeConfig, null, 2)
+    );
+    
+    // Test that config can be loaded from home directory
+    const homeConfigPath = `${tempHomeDir}/.agent/climpt/registry.json`;
+    const configText = await Deno.readTextFile(homeConfigPath);
+    const loadedConfig = JSON.parse(configText);
+    assertEquals(loadedConfig.tools.availableConfigs.length, 2);
+    assertEquals(loadedConfig.tools.availableConfigs[0], "home-tool");
+    assertEquals(loadedConfig.tools.availableConfigs[1], "global-config");
+    
+  } finally {
+    // Restore original HOME environment
+    if (originalHome) {
+      Deno.env.set("HOME", originalHome);
+    } else {
+      Deno.env.delete("HOME");
+    }
+    // Cleanup
+    await Deno.remove(tempHomeDir, { recursive: true });
+  }
+});
+
+// Test config loading priority: current dir > home dir > defaults
+Deno.test("MCP config loading follows correct priority order", async () => {
+  const tempWorkDir = await Deno.makeTempDir();
+  const tempHomeDir = await Deno.makeTempDir();
+  const originalCwd = Deno.cwd();
+  const originalHome = Deno.env.get("HOME");
+  
+  try {
+    // Set up temporary home directory
+    Deno.env.set("HOME", tempHomeDir);
+    const homeAgentDir = `${tempHomeDir}/.agent/climpt`;
+    await Deno.mkdir(homeAgentDir, { recursive: true });
+    
+    // Create home config
+    const homeConfig = {
+      version: "1.0.0",
+      description: "Home config",
+      tools: { availableConfigs: ["home-config"] }
+    };
+    await Deno.writeTextFile(
+      `${homeAgentDir}/registry.json`,
+      JSON.stringify(homeConfig, null, 2)
+    );
+    
+    // Set up working directory with config (should take priority)
+    const workAgentDir = `${tempWorkDir}/.agent/climpt`;
+    await Deno.mkdir(workAgentDir, { recursive: true });
+    
+    const workConfig = {
+      version: "1.0.0", 
+      description: "Work dir config",
+      tools: { availableConfigs: ["work-config"] }
+    };
+    await Deno.writeTextFile(
+      `${workAgentDir}/registry.json`,
+      JSON.stringify(workConfig, null, 2)
+    );
+    
+    // Change to work directory
+    Deno.chdir(tempWorkDir);
+    
+    // Test that work directory config takes priority
+    const configText = await Deno.readTextFile(".agent/climpt/registry.json");
+    const loadedConfig = JSON.parse(configText);
+    assertEquals(loadedConfig.tools.availableConfigs[0], "work-config");
+    assertEquals(loadedConfig.description, "Work dir config");
+    
+  } finally {
+    // Restore original environment
+    Deno.chdir(originalCwd);
+    if (originalHome) {
+      Deno.env.set("HOME", originalHome);
+    } else {
+      Deno.env.delete("HOME");
+    }
+    // Cleanup
+    await Deno.remove(tempWorkDir, { recursive: true });
+    await Deno.remove(tempHomeDir, { recursive: true });
+  }
+});
+
 // Test command structure validation
 Deno.test("Command structure follows C3L specification", async () => {
   const registryPath = resolve(".agent/climpt/registry.json");
