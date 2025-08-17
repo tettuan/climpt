@@ -111,4 +111,11 @@
  * await mcpServer();
  * ```
  */
+import main from "./src/mcp/index.ts";
+
 export { default } from "./src/mcp/index.ts";
+
+// Auto-start MCP server when run as main module
+if (import.meta.main) {
+  await main();
+}
