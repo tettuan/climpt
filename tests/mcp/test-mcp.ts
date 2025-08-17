@@ -2,6 +2,11 @@
 
 import { Client } from "npm:@modelcontextprotocol/sdk@0.7.0/client/index.js";
 import { StdioClientTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/client/stdio.js";
+import {
+  ListPromptsResultSchema,
+  GetPromptResultSchema,
+  ListToolsResultSchema,
+} from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
 
 async function testMCPServer() {
   console.log("Starting MCP Server test...\n");
@@ -38,7 +43,7 @@ async function testMCPServer() {
     const promptsResponse = await client.request({
       method: "prompts/list",
       params: {},
-    });
+    }, ListPromptsResultSchema);
     console.log("Available prompts:", JSON.stringify(promptsResponse, null, 2));
     console.log();
 
@@ -53,7 +58,7 @@ async function testMCPServer() {
           outputFormat: "markdown",
         },
       },
-    });
+    }, GetPromptResultSchema);
     console.log("Project prompt result:", JSON.stringify(projectPrompt, null, 2));
     console.log();
 
@@ -62,7 +67,7 @@ async function testMCPServer() {
     const toolsResponse = await client.request({
       method: "tools/list",
       params: {},
-    });
+    }, ListToolsResultSchema);
     console.log("Available tools:", JSON.stringify(toolsResponse, null, 2));
     console.log();
 

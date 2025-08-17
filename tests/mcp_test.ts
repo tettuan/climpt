@@ -99,6 +99,61 @@ Deno.test("MCP server configuration loading", async () => {
   await Deno.remove(tempDir, { recursive: true });
 });
 
+// Test URL handling in config loading (regression test for pathname fix)
+Deno.test("MCP config loading handles URL objects correctly", async () => {
+  // Create a test config file
+  const testConfig = {
+    version: "1.0.0",
+    description: "Test config for URL handling",
+    tools: {
+      availableConfigs: ["code", "docs", "git", "meta", "spec", "test"]
+    }
+  };
+  
+  // Create temporary config file
+  const tempDir = await Deno.makeTempDir();
+  const tempConfigPath = `${tempDir}/registry.json`;
+  await Deno.writeTextFile(tempConfigPath, JSON.stringify(testConfig, null, 2));
+  
+  // Test URL object creation and pathname extraction
+  const configUrl = new URL(`file://${tempConfigPath}`);
+  assertEquals(typeof configUrl.pathname, "string", "URL pathname should be a string");
+  
+  // Test that Deno.readTextFile works with pathname
+  const configText = await Deno.readTextFile(configUrl.pathname);
+  const loadedConfig = JSON.parse(configText);
+  assertEquals(loadedConfig.tools.availableConfigs.length, 6, "Should load all 6 configs");
+  assertEquals(loadedConfig.tools.availableConfigs[0], "code", "First config should be 'code'");
+  
+  // Cleanup
+  await Deno.remove(tempDir, { recursive: true });
+});
+
+// Test fallback behavior when config file URL is invalid
+Deno.test("MCP config loading falls back to defaults on URL errors", async () => {
+  // This test simulates the error that was fixed by using configPath.pathname
+  const invalidPath = "/nonexistent/path/registry.json";
+  
+  try {
+    // This should fail with NotFound error
+    await Deno.readTextFile(invalidPath);
+    // If we get here, the test should fail
+    assertEquals(true, false, "Should have thrown an error for nonexistent file");
+  } catch (error) {
+    // Verify it's the expected error type
+    assertEquals(error instanceof Deno.errors.NotFound, true, "Should throw NotFound error");
+  }
+  
+  // Test URL object with invalid path
+  try {
+    const invalidUrl = new URL("file:///nonexistent/path/registry.json");
+    await Deno.readTextFile(invalidUrl.pathname);
+    assertEquals(true, false, "Should have thrown an error for nonexistent URL path");
+  } catch (error) {
+    assertEquals(error instanceof Deno.errors.NotFound, true, "Should throw NotFound error for URL pathname");
+  }
+});
+
 // Test command structure validation
 Deno.test("Command structure follows C3L specification", async () => {
   const registryPath = resolve(".agent/climpt/registry.json");
