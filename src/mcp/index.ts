@@ -41,7 +41,7 @@ try {
     "../../.agent/climpt/registry.json",
     import.meta.url,
   );
-  const configText = await Deno.readTextFile(configPath);
+  const configText = await Deno.readTextFile(configPath.pathname);
   const config = JSON.parse(configText);
   AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
   console.error(
