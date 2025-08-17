@@ -36,6 +36,14 @@ console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
  */
 let AVAILABLE_CONFIGS: string[] = [];
 
+/**
+ * Valid commands loaded from registry.json.
+ * Used for command validation.
+ *
+ * @type {Array<{c1: string, c2: string, c3: string}>}
+ */
+let VALID_COMMANDS: Array<{c1: string, c2: string, c3: string}> = [];
+
 try {
   // Try to load config from current working directory first
   let configPath = ".agent/climpt/registry.json";
@@ -52,13 +60,38 @@ try {
 
   const config = JSON.parse(configText);
   AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
+  VALID_COMMANDS = config.tools?.commands || [];
   console.error(
-    `⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs from ${configPath}:`,
+    `⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs and ${VALID_COMMANDS.length} commands from ${configPath}:`,
     AVAILABLE_CONFIGS,
   );
 } catch (error) {
   console.error("⚠️ Failed to load config file, using defaults:", error);
   AVAILABLE_CONFIGS = ["code", "docs", "git", "meta", "spec", "test"];
+  VALID_COMMANDS = [];
+}
+
+/**
+ * Validates if a command is available in the registry.
+ * 
+ * @param {string} config - The configuration name (c1)
+ * @param {string[]} args - The command arguments to validate
+ * @returns {boolean} True if command is valid, false otherwise
+ */
+function validateCommand(config: string, args: string[]): boolean {
+  if (VALID_COMMANDS.length === 0) {
+    // If no commands loaded, allow all for backward compatibility
+    return true;
+  }
+
+  if (args.length < 2) {
+    return false;
+  }
+
+  const [c2, c3] = args;
+  return VALID_COMMANDS.some(cmd => 
+    cmd.c1 === config && cmd.c2 === c2 && cmd.c3 === c3
+  );
 }
 
 const server = new Server(
@@ -201,6 +234,18 @@ server.setRequestHandler(
     const { args: commandArgs } = args as {
       args: string[];
     };
+
+    // コマンドバリデーション
+    if (!validateCommand(name, commandArgs)) {
+      const availableCommands = VALID_COMMANDS
+        .filter(cmd => cmd.c1 === name)
+        .map(cmd => `${cmd.c2} ${cmd.c3}`)
+        .join(', ');
+      
+      throw new Error(
+        `Invalid command: ${commandArgs.join(' ')}. Available commands for ${name}: ${availableCommands}`
+      );
+    }
 
     // 汎用的なclimptコマンド実行
     const cmd = new Deno.Command("deno", {
