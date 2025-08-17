@@ -13,10 +13,10 @@
     "commands": [
       {
         "c1": "git",
-        "c2": "create",
-        "c3": "refinement-issue",
-        "description": "Create a refinement issue from requirements documentation",
-        "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "c2": "group-commit",
+        "c3": "unstaged-changes",
+        "description": "Create a group commit for unstaged changes",
+        "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
