@@ -7,14 +7,13 @@
  * @module cli
  */
 
-// Import the breakdown package statically
 // Import the breakdown package dynamically using the version from version.ts
-import { VERSION } from "./version.ts";
+import { BREAKDOWN_VERSION } from "./version.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
 async function importBreakdown() {
-  const mod = await import(`jsr:@tettuan/breakdown@^${VERSION}`);
+  const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
   runBreakdown = mod.runBreakdown;
 }
 

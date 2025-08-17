@@ -1,21 +1,26 @@
 /**
  * @fileoverview Version configuration module for Climpt CLI
  *
- * This module exports the VERSION constant used throughout the application
- * to maintain consistency with the breakdown package version.
+ * This module exports version constants for both Climpt CLI and the
+ * breakdown package dependency.
  *
  * @module version
  */
 
 /**
- * Version configuration for Climpt CLI
+ * Version of the Climpt CLI wrapper
  *
  * This version should match the version specified in deno.json.
  * When updating the version, make sure to update both:
- * 1. This VERSION constant
+ * 1. This CLIMPT_VERSION constant
  * 2. The "version" field in deno.json
- *
- * This ensures consistency between the breakdown package version
- * and the climpt wrapper version.
  */
-export const VERSION = "1.4.1";
+export const CLIMPT_VERSION = "1.5.0";
+
+/**
+ * Version of the breakdown package to use
+ *
+ * This specifies which version of @tettuan/breakdown JSR package
+ * should be imported and used by the Climpt CLI.
+ */
+export const BREAKDOWN_VERSION = "1.4.1";

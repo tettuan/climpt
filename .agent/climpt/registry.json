@@ -1,0 +1,434 @@
+{
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
+  "tools": {
+    "availableConfigs": [
+      "code",
+      "docs", 
+      "git",
+      "meta",
+      "spec",
+      "test"
+    ],
+    "option_definitions": {
+      "input": [
+        {
+          "value": "-",
+          "description": "入力形式指定なし"
+        },
+        {
+          "value": "JSON",
+          "description": "JSON形式での入力処理"
+        },
+        {
+          "value": "YAML", 
+          "description": "YAML形式での入力処理"
+        },
+        {
+          "value": "CODE",
+          "description": "ソースコード形式での入力処理"
+        },
+        {
+          "value": "MD",
+          "description": "Markdown形式での入力処理"
+        }
+      ],
+      "adaptation": [
+        {
+          "value": "default",
+          "description": "標準的な処理方式"
+        },
+        {
+          "value": "detailed",
+          "description": "詳細な分析を含む処理"
+        },
+        {
+          "value": "compact", 
+          "description": "簡潔な形式での処理"
+        }
+      ],
+      "input_file": [
+        {
+          "value": true,
+          "description": "ファイル入力が必要（✓）"
+        },
+        {
+          "value": false,
+          "description": "ファイル入力は不要（-）"
+        }
+      ],
+      "stdin": [
+        {
+          "value": true,
+          "description": "標準入力を使用可能（✓）"
+        },
+        {
+          "value": false,
+          "description": "標準入力は使用しない（-）"
+        }
+      ],
+      "destination": [
+        {
+          "value": true,
+          "description": "出力先指定が可能（✓）"
+        },
+        {
+          "value": false,
+          "description": "出力先指定は不要（-）"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "c1": "code",
+        "c2": "register", 
+        "c3": "dev-task",
+        "description": "開発タスク登録 - 仕様を開発タスクへ登録する",
+        "usage": "開発タスクの仕様ファイルを指定して登録します。\n例: climpt-code register dev-task -f ./specs/task-001.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "docs",
+        "c2": "generate-robust",
+        "c3": "instruction-doc", 
+        "description": "Climpt プロンプト作成指示書 - 短い指示文からでも、既存情報を補完して高再現性の指示書を作成",
+        "usage": "指示内容を標準入力で渡し、既存ドキュメントを参照して指示書を生成します。\n例: echo '新機能を追加したい' | climpt-docs generate-robust instruction-doc -f ./existing-doc.md -o ./instruction.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [true],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "create",
+        "c3": "refinement-issue",
+        "description": "詳細化Issue作成 - 要求や要件の詳細化のためのGitHub Issueを作成",
+        "usage": "詳細化対象のドキュメントファイルを指定してGitHub Issueを作成します。\n例: climpt-git create refinement-issue -f ./docs/requirements.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"], 
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "create",
+        "c3": "verification-issue",
+        "description": "検証Issue作成 - 仕様検証のためのGitHub Issueを作成",
+        "usage": "GitHub IssueのURLまたは番号を標準入力で渡し、検証対象の仕様ドキュメントを指定してIssueを作成します。\n例: echo '#123' | climpt-git create verification-issue -f ./specs/feature.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true], 
+          "stdin": [true],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "decide-branch",
+        "c3": "working-branch",
+        "description": "ブランチ作成の判断と実行指示 - 作業内容に応じて適切なブランチを作成または選択",
+        "usage": "作業内容の概要を標準入力で渡してブランチ作成の判断を行います。\n例: echo 'ユーザー認証機能追加' | climpt-git decide-branch working-branch",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [true],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "find-oldest",
+        "c3": "descendant-branch",
+        "description": "最も古い派生ブランチの検索 - 現在のブランチから派生した最も古いブランチを見つける",
+        "usage": "現在のブランチから派生した最も古いブランチを検索します。\n例: climpt-git find-oldest descendant-branch",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "group-commit",
+        "c3": "unstaged-changes",
+        "description": "意味的近さでコミットを分けて実施する - Gitコミットを、ファイルの変更内容の近さ単位でグループ化",
+        "usage": "ステージされていない変更を意味的な近さでグループ化してコミットします。\n例: climpt-git group-commit unstaged-changes",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "list-select",
+        "c3": "pr-branch",
+        "description": "プルリクエスト用ブランチの選択 - プルリクエスト作成のためのブランチを一覧から選択",
+        "usage": "プルリクエスト作成のためのブランチを一覧から選択します。\n例: climpt-git list-select pr-branch",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "merge-up",
+        "c3": "base-branch",
+        "description": "ベースブランチへのマージアップ - 現在のブランチをベースブランチにマージアップ",
+        "usage": "現在のブランチをベースブランチにマージアップします。\n例: climpt-git merge-up base-branch",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "meta",
+        "c2": "build-list",
+        "c3": "command-registry",
+        "description": "Climpt コマンドレジストリの構築 - 使用可能な Climpt コマンドの一覧を作成し、登録",
+        "usage": "使用可能なClimptコマンドの一覧を作成し、レジストリに登録します。\n例: climpt-meta build-list command-registry",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "meta",
+        "c2": "resolve",
+        "c3": "registered-commands",
+        "description": "登録済みコマンドの解決 - climpt-* コマンドを話すための実行。登録済みコマンドを解決し、再帰的に実行",
+        "usage": "登録済みコマンドを解決し、再帰的に実行します。\n例: climpt-meta resolve registered-commands",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [false],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "ambiguity",
+        "description": "Ambiguity（曖昧さ）の数理評価 - 要求文書の曖昧さを数値化して評価",
+        "usage": "対象のMarkdownファイルの曖昧さを数値化して評価します。\n例: climpt-spec analyze ambiguity -f ./docs/requirements.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "precision",
+        "description": "Precision（精度）の数理評価 - 要求文書の精度を数値化して評価",
+        "usage": "対象のMarkdownファイルの精度を数値化して評価します。\n例: climpt-spec analyze precision -f ./docs/requirements.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "approved-requests",
+        "description": "承認済み要求分析 - 承認済みの要求を分析して要件化の準備を行う",
+        "usage": "承認済み要求ドキュメントを分析して要件化の準備を行います。\n例: climpt-spec analyze approved-requests -f ./docs/approved-requests.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "approved-requirements",
+        "description": "承認済み要件分析 - 承認済みの要件を分析して仕様化の準備を行う",
+        "usage": "承認済み要件ドキュメントを分析して仕様化の準備を行います。\n例: climpt-spec analyze approved-requirements -f ./docs/approved-requirements.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "quality-metrics",
+        "description": "品質メトリクス分析 - 要求・要件・仕様の品質を数値化して評価",
+        "usage": "評価対象のドキュメントファイルを指定し、品質メトリクスを分析して結果を出力します。\n例: climpt-spec analyze quality-metrics -f ./docs/requirements.md -o ./analysis-report.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "scope-breakdown",
+        "description": "スコープ分解分析 - 要求の論点を分解して詳細化が必要な箇所を特定",
+        "usage": "要求ドキュメントの論点を分解して詳細化が必要な箇所を特定し、結果を出力します。\n例: climpt-spec analyze scope-breakdown -f ./docs/requirements.md -o ./breakdown-result.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "create",
+        "c3": "design-doc",
+        "description": "設計ドキュメント作成 - 要件から仕様設計ドキュメントを作成",
+        "usage": "要件ドキュメントから仕様設計ドキュメントを作成します。\n例: climpt-spec create design-doc -f ./docs/requirements.md -o ./docs/design.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "define",
+        "c3": "use-cases",
+        "description": "ユースケース定義 - 要求からユースケースを定義",
+        "usage": "要求ドキュメントからユースケースを定義します。\n例: climpt-spec define use-cases -f ./docs/requirements.md -o ./docs/use-cases.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "init",
+        "c3": "frontmatter",
+        "description": "要求フロントマター項目埋め込み指示書 - 要求作成プロセスにおいて、ドキュメントのフロントマターを体系的に構築",
+        "usage": "要求ドキュメントのフロントマターを体系的に構築し、更新後のドキュメントを出力します。\n例: climpt-spec init frontmatter -f ./docs/request.md -o ./docs/request-with-frontmatter.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "refine", 
+        "c3": "section",
+        "description": "セクション詳細化 - ドキュメントの特定セクションを詳細化",
+        "usage": "詳細化したいセクション名を標準入力で指定し、対象ドキュメントから該当セクションを詳細化します。\n例: echo '要件定義' | climpt-spec refine section -f ./docs/requirements.md -o ./docs/requirements-detailed.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [true], 
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "request",
+        "c3": "approval",
+        "description": "承認要求 - 要求・要件・仕様の承認を要求",
+        "usage": "承認対象のドキュメントファイルを指定して承認を要求します。\n例: climpt-spec request approval -f ./docs/requirements.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [false]
+        }
+      },
+      {
+        "c1": "spec",
+        "c2": "validate",
+        "c3": "consistency",
+        "description": "整合性検証 - ドキュメント間の整合性を検証",
+        "usage": "検証対象のドキュメントファイルを指定し、整合性を検証して結果を出力します。\n例: climpt-spec validate consistency -f ./docs/requirements.md -o ./validation-report.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "test",
+        "c2": "analyze",
+        "c3": "test-results",
+        "description": "テスト結果分析 - テスト実行結果を分析して改善点を特定",
+        "usage": "テスト結果ファイルを分析して改善点を特定し、分析レポートを出力します。\n例: climpt-test analyze test-results -f ./test-results.json -o ./analysis-report.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "test",
+        "c2": "execute",
+        "c3": "verification-plan",
+        "description": "仕様検証計画実行指示書 - GitHub Issueに記載された検証タスクに基づいて、仕様の検証を体系的に実行",
+        "usage": "GitHub IssueのURLまたは番号を標準入力で指定し、検証対象の仕様ドキュメントに基づいて検証を実行します。\n例: echo '#456' | climpt-test execute verification-plan -f ./specs/feature.md -o ./verification-report.md",
+        "options": {
+          "input": ["-"],
+          "adaptation": ["default"],
+          "input_file": [true],
+          "stdin": [true],
+          "destination": [true]
+        }
+      }
+    ]
+  }
+}
