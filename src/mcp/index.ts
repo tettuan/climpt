@@ -37,15 +37,23 @@ console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
 let AVAILABLE_CONFIGS: string[] = [];
 
 try {
-  const configPath = new URL(
-    "../../.agent/climpt/registry.json",
-    import.meta.url,
-  );
-  const configText = await Deno.readTextFile(configPath.pathname);
+  // Try to load config from current working directory first
+  let configPath = ".agent/climpt/registry.json";
+  let configText: string;
+
+  try {
+    configText = await Deno.readTextFile(configPath);
+  } catch {
+    // If not found in current directory, try user's home directory
+    const homeDir = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+    configPath = `${homeDir}/.agent/climpt/registry.json`;
+    configText = await Deno.readTextFile(configPath);
+  }
+
   const config = JSON.parse(configText);
   AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
   console.error(
-    `⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs from external file:`,
+    `⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs from ${configPath}:`,
     AVAILABLE_CONFIGS,
   );
 } catch (error) {
