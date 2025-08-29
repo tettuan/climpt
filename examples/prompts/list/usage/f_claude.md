@@ -3,14 +3,15 @@ title: Climpt Available Commands List Generation (Claude Code Version)
 description: Generates available commands list using Claude Code with shell scripting. Lists prompt files mechanically with sh, then analyzes each file content using claude -p in a loop.
 usage: climpt list usage --adaptation=claude-code
 ---
+# 指示書: 実行可能なClimptコマンドの登録
 
-# Implementation Tasks
+以下の指示に従い「Execution Plan」を遂行しなさい。
+
 
 Create a list of available Climpt commands using Claude Code with shell automation.
 
 ## What is Climpt
 
-Deno JSR @https://jsr.io/@aidevtool/climpt.
 A tool designed to output prompts via CLI.
 Replaces variables in prompt templates based on values passed as parameters.
 
@@ -45,18 +46,19 @@ Generated on: $(date)
 EOF
 ```
 
-## Step 2: Discover Executable Commands
+## Step 2: Discover Available Commands
 
-Use shell to find all executable commands:
+Use shell to find all available commands from prompts directory:
 
 ```bash
-# Find all climpt-* executables
-ls -1 .deno/bin/climpt-* 2>/dev/null | while read cmd; do
-    command_name=$(basename "$cmd")
-    echo "## $command_name" >> .agent/climpt/tools-list.md
-    echo "" >> .agent/climpt/tools-list.md
-    echo "|directive|layer|input(-i)|adaptation(-a)|input_text_file(-f)|input_text(STDIN)|destination(-o)|" >> .agent/climpt/tools-list.md
-    echo "|---|---|---|---|---|---|---|" >> .agent/climpt/tools-list.md
+# Find all command directories in prompts folder
+ls -1 .agent/climpt/prompts/ | while read command_name; do
+    if [ -d ".agent/climpt/prompts/$command_name" ]; then
+        echo "## climpt-$command_name" >> .agent/climpt/tools-list.md
+        echo "" >> .agent/climpt/tools-list.md
+        echo "|directive|layer|input(-i)|adaptation(-a)|input_text_file(-f)|input_text(STDIN)|destination(-o)|" >> .agent/climpt/tools-list.md
+        echo "|---|---|---|---|---|---|---|" >> .agent/climpt/tools-list.md
+    fi
 done
 ```
 
@@ -65,16 +67,13 @@ done
 For each command, find associated prompt files:
 
 ```bash
-# Process each command directory
-for cmd_dir in .deno/bin/climpt-*; do
-    if [ -f "$cmd_dir" ]; then
-        command_name=$(basename "$cmd_dir" | sed 's/climpt-//')
+# Process each command directory from prompts folder
+for command_name in $(ls -1 .agent/climpt/prompts/); do
+    if [ -d ".agent/climpt/prompts/$command_name" ]; then
         prompt_base=".agent/climpt/prompts/$command_name"
         
         # Find all prompt files for this command
-        if [ -d "$prompt_base" ]; then
-            find "$prompt_base" -name "f_*.md" -type f | sort > /tmp/prompt_files_$command_name.txt
-        fi
+        find "$prompt_base" -name "f_*.md" -type f | sort > /tmp/prompt_files_$command_name.txt
     fi
 done
 ```
@@ -85,34 +84,35 @@ Loop through prompt files and analyze with claude -p:
 
 ```bash
 # Process each command's prompt files
-for cmd_dir in .deno/bin/climpt-*; do
-    command_name=$(basename "$cmd_dir" | sed 's/climpt-//')
-    prompt_list_file="/tmp/prompt_files_$command_name.txt"
-    
-    if [ -f "$prompt_list_file" ]; then
-        while IFS= read -r prompt_file; do
-            # Extract path components
-            rel_path=${prompt_file#.agent/climpt/prompts/}
-            
-            # Parse directive/layer/input/adaptation from path
-            # Format: <command>/<directive>/<layer>/f_<input>_<adaptation>.md
-            directive=$(echo "$rel_path" | cut -d'/' -f2)
-            layer=$(echo "$rel_path" | cut -d'/' -f3)
-            filename=$(basename "$prompt_file")
-            
-            # Extract input and adaptation from filename
-            input_part=$(echo "$filename" | sed 's/^f_//' | sed 's/_.*$//')
-            adaptation_part=$(echo "$filename" | sed 's/^f_[^_]*_//' | sed 's/\.md$//')
-            
-            # If no underscore, adaptation is empty
-            if [ "$input_part" = "${filename#f_}" ]; then
-                input_part="default"
-                adaptation_part=""
-            fi
-            
-            # Store file info for claude processing
-            echo "$prompt_file|$command_name|$directive|$layer|$input_part|$adaptation_part" >> /tmp/prompt_analysis_queue.txt
-        done < "$prompt_list_file"
+for command_name in $(ls -1 .agent/climpt/prompts/); do
+    if [ -d ".agent/climpt/prompts/$command_name" ]; then
+        prompt_list_file="/tmp/prompt_files_$command_name.txt"
+        
+        if [ -f "$prompt_list_file" ]; then
+            while IFS= read -r prompt_file; do
+                # Extract path components
+                rel_path=${prompt_file#.agent/climpt/prompts/}
+                
+                # Parse directive/layer/input/adaptation from path
+                # Format: <command>/<directive>/<layer>/f_<input>_<adaptation>.md
+                directive=$(echo "$rel_path" | cut -d'/' -f2)
+                layer=$(echo "$rel_path" | cut -d'/' -f3)
+                filename=$(basename "$prompt_file")
+                
+                # Extract input and adaptation from filename
+                input_part=$(echo "$filename" | sed 's/^f_//' | sed 's/_.*$//')
+                adaptation_part=$(echo "$filename" | sed 's/^f_[^_]*_//' | sed 's/\.md$//')
+                
+                # If no underscore, adaptation is empty
+                if [ "$input_part" = "${filename#f_}" ]; then
+                    input_part="default"
+                    adaptation_part=""
+                fi
+                
+                # Store file info for claude processing
+                echo "$prompt_file|$command_name|$directive|$layer|$input_part|$adaptation_part" >> /tmp/prompt_analysis_queue.txt
+            done < "$prompt_list_file"
+        fi
     fi
 done
 ```
@@ -137,7 +137,7 @@ Analyze this Climpt prompt file and extract the following information in JSON fo
 2. Find all template variables in the format {variable_name} and identify:
    - Which correspond to standard options:
      - {input_text} → STDIN input
-     - {input_file} or similar → -f/--from option
+     - {file} or similar → -f/--from option
      - {destination_path} → -o/--destination option
      - {uv-*} → --uv-* user variables
    
@@ -151,7 +151,7 @@ Analyze this Climpt prompt file and extract the following information in JSON fo
   },
   "variables": ["list of {variable} names found"],
   "options": {
-    "has_input_file": boolean,
+    "has_file": boolean,
     "has_stdin": boolean,
     "has_destination": boolean,
     "user_variables": ["list of uv-* variables"]
@@ -162,21 +162,21 @@ File to analyze:
 CLAUDE_PROMPT
 
     # Parse claude's JSON response and update the markdown table
-    has_input_file=$(jq -r '.options.has_input_file' /tmp/claude_result.json)
+    has_file=$(jq -r '.options.has_file' /tmp/claude_result.json)
     has_stdin=$(jq -r '.options.has_stdin' /tmp/claude_result.json)
     has_destination=$(jq -r '.options.has_destination' /tmp/claude_result.json)
     title=$(jq -r '.frontmatter.title // ""' /tmp/claude_result.json)
     description=$(jq -r '.frontmatter.description // ""' /tmp/claude_result.json)
     
     # Convert boolean to checkmark
-    [ "$has_input_file" = "true" ] && input_file_mark="✓" || input_file_mark="-"
+    [ "$has_file" = "true" ] && file_mark="✓" || file_mark="-"
     [ "$has_stdin" = "true" ] && stdin_mark="✓" || stdin_mark="-"
     [ "$has_destination" = "true" ] && dest_mark="✓" || dest_mark="-"
     [ -n "$adaptation" ] && adapt_mark="$adaptation" || adapt_mark="-"
     [ -n "$input" ] && input_mark="$input" || input_mark="-"
     
     # Append to command's table
-    echo "| $directive | $layer | $input_mark | $adapt_mark | $input_file_mark | $stdin_mark | $dest_mark |" >> /tmp/table_${cmd}.txt
+    echo "| $directive | $layer | $input_mark | $adapt_mark | $file_mark | $stdin_mark | $dest_mark |" >> /tmp/table_${cmd}.txt
     
     # Store details for later
     if [ -n "$title" ] || [ -n "$description" ]; then
@@ -195,30 +195,30 @@ Combine all parts into the final markdown file:
 
 ```bash
 # Assemble the final output
-for cmd_dir in .deno/bin/climpt-*; do
-    command_name=$(basename "$cmd_dir" | sed 's/climpt-//')
-    
-    # Add command section header
-    echo "## climpt-$command_name" >> .agent/climpt/tools-list.md
-    echo "" >> .agent/climpt/tools-list.md
-    
-    # Add table header
-    echo "|directive|layer|input(-i)|adaptation(-a)|input_text_file(-f)|input_text(STDIN)|destination(-o)|" >> .agent/climpt/tools-list.md
-    echo "|---|---|---|---|---|---|---|" >> .agent/climpt/tools-list.md
-    
-    # Add table rows
-    if [ -f "/tmp/table_climpt-${command_name}.txt" ]; then
-        cat "/tmp/table_climpt-${command_name}.txt" >> .agent/climpt/tools-list.md
+for command_name in $(ls -1 .agent/climpt/prompts/); do
+    if [ -d ".agent/climpt/prompts/$command_name" ]; then
+        # Add command section header
+        echo "## climpt-$command_name" >> .agent/climpt/tools-list.md
+        echo "" >> .agent/climpt/tools-list.md
+        
+        # Add table header
+        echo "|directive|layer|input(-i)|adaptation(-a)|input_text_file(-f)|input_text(STDIN)|destination(-o)|" >> .agent/climpt/tools-list.md
+        echo "|---|---|---|---|---|---|---|" >> .agent/climpt/tools-list.md
+        
+        # Add table rows
+        if [ -f "/tmp/table_${command_name}.txt" ]; then
+            cat "/tmp/table_${command_name}.txt" >> .agent/climpt/tools-list.md
+        fi
+        
+        echo "" >> .agent/climpt/tools-list.md
+        
+        # Add command details
+        if [ -f "/tmp/details_${command_name}.txt" ]; then
+            cat "/tmp/details_${command_name}.txt" >> .agent/climpt/tools-list.md
+        fi
+        
+        echo "" >> .agent/climpt/tools-list.md
     fi
-    
-    echo "" >> .agent/climpt/tools-list.md
-    
-    # Add command details
-    if [ -f "/tmp/details_climpt-${command_name}.txt" ]; then
-        cat "/tmp/details_climpt-${command_name}.txt" >> .agent/climpt/tools-list.md
-    fi
-    
-    echo "" >> .agent/climpt/tools-list.md
 done
 
 # Cleanup temporary files
@@ -231,7 +231,10 @@ rm -f /tmp/details_*.txt
 
 ## Output Destination
 
-`.agent/climpt/tools-list.md`
+出力先: `.agent/climpt/tools-list.md`
+
+作成後に `.agent/climpt/registry.json` へ変換する。(変換形式は「Registry File」を見ること。)
+
 
 ## Execution Summary
 
@@ -249,18 +252,146 @@ This Claude Code version:
 - **Clear separation**: Shell for file operations, Claude for content analysis
 - **Debugging friendly**: Intermediate results in /tmp for inspection
 
-## Example Usage
 
-To execute this entire process:
+# Registry File
 
-```bash
-# Make it executable and run
-chmod +x generate_tools_list.sh
-./generate_tools_list.sh
+```json:Schema
+{
+  "version": string,           // Registry version (e.g., "1.0.0")
+  "description": string,       // Overall registry description
+  "tools": {
+    // Tool names array - each becomes available as climpt-{name}
+    "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
+    
+    // Command registry - defines all available C3L commands
+    "commands": [
+      {
+        "c1": string,         // Domain/category (git, spec, test, code, docs, meta)
+        "c2": string,         // Action/directive (create, analyze, execute, etc.)
+        "c3": string,         // Target/layer (refinement-issue, quality-metrics, etc.)
+        "description": string,// Command description
+        "usage": string,      // Usage instructions and examples
+        "options": {          // Available options for this command
+          "input": string[],     // Supported input formats
+          "adaptation": string[], // Processing modes
+          "file": boolean[],  // File input support
+          "stdin": boolean[],       // Standard input support
+          "destination": boolean[]  // Output destination support
+        }
+      }
+    ]
+  }
+}
 ```
 
-Or run directly in Claude Code:
-```bash
-# Execute the complete workflow
-bash -c "$(cat examples/prompts/list/usage/f_claude_code.md | sed -n '/^```bash$/,/^```$/p' | sed '/^```/d')"
+
+```json:Template
+{
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
+  "tools": {
+    "availableConfigs": [
+      "code",
+      "docs",
+      "git",
+      "meta",
+      "spec",
+      "test"
+    ],
+    "commands": [
+      // Git commands
+      {
+        "c1": "git",
+        "c2": "create",
+        "c3": "refinement-issue",
+        "description": "Create a refinement issue from requirements documentation",
+        "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "options": {
+          "input": ["MD"],
+          "adaptation": ["default", "detailed"],
+          "file": [true],
+          "stdin": [false],
+          "destination": [true]
+        }
+      },
+      {
+        "c1": "git",
+        "c2": "analyze",
+        "c3": "commit-history",
+        "description": "Analyze commit history and generate insights"
+      },
+      
+      // Spec commands
+      {
+        "c1": "spec",
+        "c2": "analyze",
+        "c3": "quality-metrics",
+        "description": "Analyze specification quality and completeness"
+      },
+      {
+        "c1": "spec",
+        "c2": "validate",
+        "c3": "requirements",
+        "description": "Validate requirements against standards"
+      },
+      
+      // Test commands
+      {
+        "c1": "test",
+        "c2": "execute",
+        "c3": "integration-suite",
+        "description": "Execute integration test suite"
+      },
+      {
+        "c1": "test",
+        "c2": "generate",
+        "c3": "unit-tests",
+        "description": "Generate unit tests from specifications"
+      },
+      
+      // Code commands
+      {
+        "c1": "code",
+        "c2": "create",
+        "c3": "implementation",
+        "description": "Create implementation from design documents"
+      },
+      {
+        "c1": "code",
+        "c2": "refactor",
+        "c3": "architecture",
+        "description": "Refactor code architecture based on patterns"
+      },
+      
+      // Docs commands
+      {
+        "c1": "docs",
+        "c2": "generate",
+        "c3": "api-reference",
+        "description": "Generate API reference documentation"
+      },
+      {
+        "c1": "docs",
+        "c2": "update",
+        "c3": "user-guide",
+        "description": "Update user guide documentation"
+      },
+      
+      // Meta commands
+      {
+        "c1": "meta",
+        "c2": "list",
+        "c3": "available-commands",
+        "description": "List all available Climpt commands"
+      },
+      {
+        "c1": "meta",
+        "c2": "resolve",
+        "c3": "command-definition",
+        "description": "Resolve and display command definitions"
+      }
+    ]
+  }
+}
 ```
+(JSONにコメントは入れられないので除去すること。)

@@ -153,7 +153,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "options": {          // Available options for this command
           "input": string[],     // Supported input formats
           "adaptation": string[], // Processing modes
-          "input_file": boolean[],  // File input support
+          "file": boolean[],  // File input support
           "stdin": boolean[],       // Standard input support
           "destination": boolean[]  // Output destination support
         }
@@ -189,7 +189,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -292,7 +292,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
   - `options`: Available options for each command
     - `input`: Supported input formats (e.g., ["JSON", "YAML", "MD"])
     - `adaptation`: Processing modes (e.g., ["default", "detailed"])
-    - `input_file`: Whether file input is supported ([true] or [false])
+    - `file`: Whether file input is supported ([true] or [false])
     - `stdin`: Whether standard input is supported ([true] or [false])
     - `destination`: Whether output destination can be specified ([true] or [false])
 

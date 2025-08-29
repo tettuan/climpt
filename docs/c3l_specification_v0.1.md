@@ -33,7 +33,7 @@ Where:
 ### 1.2 Options & Inputs (Canonical Order)
 
 ```
--i=<o1> -a=<o2> -f=<input_file> --uv-<name>=<value>... <<< "STDIN"
+-i=<o1> -a=<o2> -f=<file> --uv-<name>=<value>... <<< "STDIN"
 ```
 
 * `-i=<o1>`: **primary input type/mode** (e.g., `SQL`, `JSON`, `SCHEMA`, `TEXT`, `CSV`, `YAML`, `MD`, `CODE`)

@@ -39,7 +39,7 @@ Prompts: `.agent/climpt/prompts/**/f_*.md`
 ## Options List
 
 input_text : STDIN
-input_file : --from, -f
+input_text_file : --from, -f
 destination_path : --destination, -o
 uv-* : --uv-*
 
