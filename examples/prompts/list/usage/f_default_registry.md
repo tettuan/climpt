@@ -31,7 +31,7 @@ Where:
 
 Analyze the following sources to build the registry:
 
-1. **Executable commands**: `.deno/bin/climpt-*`
+1. **Prompt directories**: `.agent/climpt/prompts/*/`
 2. **Configuration files**: `.agent/climpt/config/*.yml`
 3. **Prompt templates**: `.agent/climpt/prompts/**/f_*.md`
 4. **C3L specification**: `docs/c3l_specification_v0.4.md` (if exists)
@@ -49,8 +49,8 @@ From this structure, derive:
 ## Generation Steps
 
 ### Step 1: Tool Discovery
-1. Scan `.deno/bin/climpt-*` for available tools
-2. Extract tool names (e.g., `climpt-git` → tool name: `git`)
+1. Scan `.agent/climpt/prompts/*/` for available tools
+2. Extract tool names from directory names (e.g., `git` directory → tool name: `git`)
 3. Read configuration files for tool descriptions
 
 ### Step 2: Command Mapping

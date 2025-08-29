@@ -132,7 +132,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "options": {          // このコマンドで利用可能なオプション
           "input": string[],     // サポートされる入力形式
           "adaptation": string[], // 処理モード
-          "input_file": boolean[],  // ファイル入力サポート
+          "file": boolean[],  // ファイル入力サポート
           "stdin": boolean[],       // 標準入力サポート
           "destination": boolean[]  // 出力先指定サポート
         }
@@ -168,7 +168,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -271,7 +271,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
   - `options`: 各コマンドで利用可能なオプション
     - `input`: サポートされる入力形式（例: ["JSON", "YAML", "MD"]）
     - `adaptation`: 処理モード（例: ["default", "detailed"]）
-    - `input_file`: ファイル入力がサポートされているか（[true] または [false]）
+    - `file`: ファイル入力がサポートされているか（[true] または [false]）
     - `stdin`: 標準入力がサポートされているか（[true] または [false]）
     - `destination`: 出力先を指定できるか（[true] または [false]）
 

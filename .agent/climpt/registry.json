@@ -20,7 +20,7 @@
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -34,7 +34,7 @@
         "options": {
           "input": ["-"],
           "adaptation": ["default", "detailed"],
-          "input_file": [false],
+          "file": [false],
           "stdin": [false],
           "destination": [true]
         }
@@ -48,7 +48,7 @@
         "options": {
           "input": ["MD", "YAML"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [true],
           "destination": [true]
         }
@@ -62,7 +62,7 @@
         "options": {
           "input": ["MD"],
           "adaptation": ["default"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -76,7 +76,7 @@
         "options": {
           "input": ["YAML", "JSON"],
           "adaptation": ["default"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -90,7 +90,7 @@
         "options": {
           "input": ["MD", "CODE"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -104,7 +104,7 @@
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -118,7 +118,7 @@
         "options": {
           "input": ["CODE"],
           "adaptation": ["default", "detailed", "compact"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -132,7 +132,7 @@
         "options": {
           "input": ["CODE"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
@@ -146,7 +146,7 @@
         "options": {
           "input": ["MD"],
           "adaptation": ["default"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [true],
           "destination": [true]
         }
@@ -160,7 +160,7 @@
         "options": {
           "input": ["-"],
           "adaptation": ["default"],
-          "input_file": [false],
+          "file": [false],
           "stdin": [false],
           "destination": [false]
         }
@@ -174,7 +174,7 @@
         "options": {
           "input": ["-"],
           "adaptation": ["default"],
-          "input_file": [false],
+          "file": [false],
           "stdin": [true],
           "destination": [false]
         }

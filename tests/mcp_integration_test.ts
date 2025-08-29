@@ -117,8 +117,8 @@ Deno.test("Command options have valid values", async () => {
           }
           
           // Check boolean arrays only contain booleans
-          for (const bool of command.options.input_file) {
-            assertEquals(typeof bool, "boolean", "input_file should contain booleans");
+          for (const bool of command.options.file) {
+            assertEquals(typeof bool, "boolean", "file should contain booleans");
           }
           for (const bool of command.options.stdin) {
             assertEquals(typeof bool, "boolean", "stdin should contain booleans");
