@@ -137,7 +137,7 @@ Analyze this Climpt prompt file and extract the following information in JSON fo
 2. Find all template variables in the format {variable_name} and identify:
    - Which correspond to standard options:
      - {input_text} → STDIN input
-     - {input_file} or similar → -f/--from option
+     - {file} or similar → -f/--from option
      - {destination_path} → -o/--destination option
      - {uv-*} → --uv-* user variables
    
@@ -151,7 +151,7 @@ Analyze this Climpt prompt file and extract the following information in JSON fo
   },
   "variables": ["list of {variable} names found"],
   "options": {
-    "has_input_file": boolean,
+    "has_file": boolean,
     "has_stdin": boolean,
     "has_destination": boolean,
     "user_variables": ["list of uv-* variables"]
@@ -162,21 +162,21 @@ File to analyze:
 CLAUDE_PROMPT
 
     # Parse claude's JSON response and update the markdown table
-    has_input_file=$(jq -r '.options.has_input_file' /tmp/claude_result.json)
+    has_file=$(jq -r '.options.has_file' /tmp/claude_result.json)
     has_stdin=$(jq -r '.options.has_stdin' /tmp/claude_result.json)
     has_destination=$(jq -r '.options.has_destination' /tmp/claude_result.json)
     title=$(jq -r '.frontmatter.title // ""' /tmp/claude_result.json)
     description=$(jq -r '.frontmatter.description // ""' /tmp/claude_result.json)
     
     # Convert boolean to checkmark
-    [ "$has_input_file" = "true" ] && input_file_mark="✓" || input_file_mark="-"
+    [ "$has_file" = "true" ] && file_mark="✓" || file_mark="-"
     [ "$has_stdin" = "true" ] && stdin_mark="✓" || stdin_mark="-"
     [ "$has_destination" = "true" ] && dest_mark="✓" || dest_mark="-"
     [ -n "$adaptation" ] && adapt_mark="$adaptation" || adapt_mark="-"
     [ -n "$input" ] && input_mark="$input" || input_mark="-"
     
     # Append to command's table
-    echo "| $directive | $layer | $input_mark | $adapt_mark | $input_file_mark | $stdin_mark | $dest_mark |" >> /tmp/table_${cmd}.txt
+    echo "| $directive | $layer | $input_mark | $adapt_mark | $file_mark | $stdin_mark | $dest_mark |" >> /tmp/table_${cmd}.txt
     
     # Store details for later
     if [ -n "$title" ] || [ -n "$description" ]; then
@@ -274,7 +274,7 @@ This Claude Code version:
         "options": {          // Available options for this command
           "input": string[],     // Supported input formats
           "adaptation": string[], // Processing modes
-          "input_file": boolean[],  // File input support
+          "file": boolean[],  // File input support
           "stdin": boolean[],       // Standard input support
           "destination": boolean[]  // Output destination support
         }
@@ -309,7 +309,7 @@ This Claude Code version:
         "options": {
           "input": ["MD"],
           "adaptation": ["default", "detailed"],
-          "input_file": [true],
+          "file": [true],
           "stdin": [false],
           "destination": [true]
         }
