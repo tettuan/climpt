@@ -104,7 +104,7 @@ while (true) {
         
         if (message.result && message.id === 2) {
           console.log("📋 Got prompts list!");
-          console.log("Available prompts:", message.result.prompts?.map((p: any) => p.name));
+          console.log("Available prompts:", message.result.prompts?.map((p: { name: string }) => p.name));
           
           // ツール一覧を要求
           const listToolsMessage = JSON.stringify({
@@ -120,7 +120,7 @@ while (true) {
         
         if (message.result && message.id === 3) {
           console.log("🔧 Got tools list!");
-          console.log("Available tools:", message.result.tools?.map((t: any) => t.name));
+          console.log("Available tools:", message.result.tools?.map((t: { name: string }) => t.name));
           
           console.log("🎉 All tests completed successfully!");
           await writer.close();

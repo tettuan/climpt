@@ -24,7 +24,7 @@ const server = new Server(
 );
 
 // Simple ping tool
-server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsRequest) => {
+server.setRequestHandler(ListToolsRequestSchema, (_request: ListToolsRequest) => {
   console.error("📋 ListToolsRequest received");
   return {
     tools: [
@@ -46,7 +46,7 @@ server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsReque
   };
 });
 
-server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
+server.setRequestHandler(CallToolRequestSchema, (request: CallToolRequest) => {
   const { name, arguments: args } = request.params;
   console.error(`🔧 CallToolRequest received for: ${name}`);
   console.error(`📥 Arguments:`, JSON.stringify(args));
