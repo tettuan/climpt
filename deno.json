@@ -41,7 +41,7 @@
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
-    "ci": "deno run --allow-read --allow-write --allow-net --allow-env jsr:@aidevtool/ci"
+    "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci"
   },
   "compilerOptions": {
     "lib": ["deno.ns", "dom", "es2022"],
