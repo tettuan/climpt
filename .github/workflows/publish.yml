@@ -1,13 +1,14 @@
 name: Publish
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   publish:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
