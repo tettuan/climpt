@@ -96,11 +96,11 @@ Deno.test("Command options have valid values", async () => {
     if (registry.tools?.commands) {
       for (const command of registry.tools.commands) {
         if (command.options) {
-          // Check input values are valid
+          // Check input values are valid (input layer types)
           for (const input of command.options.input) {
-            const validInputs = ["-", "JSON", "YAML", "CODE", "MD"];
+            const validInputs = ["default", "yaml", "json", "code", "bug"];
             assertEquals(
-              validInputs.includes(input) || input === "-",
+              validInputs.includes(input),
               true,
               `Invalid input type: ${input}`
             );
