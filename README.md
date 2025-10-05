@@ -4,29 +4,6 @@ A CLI tool for managing prompts and AI interactions - a wrapper around the break
 
 ## Overview
 
-Climpt is a command-line interface tool that serves as a wrapper around the `@tettuan/breakdown` JSR package. It provides a unified interface for AI-assisted development instruction tools, enabling developers to create, manage, and execute development instructions using TypeScript and JSON Schema for AI system interpretation.
-
-This tool is designed to work in conjunction with AI Coding agents, specifically optimized for Cursor (the author's primary tool). The underlying AI model is assumed to be Claude-4-sonnet, though the syntax and structure are designed to be easily interpretable by other AI models.
-
-## Installation
-
-### Recommended: Install as CLI
-
-Climpt is primarily designed to be used as a CLI tool. You can install it using the official Deno/JSR method:
-
-```bash
-deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
-```
-
-- `--allow-read`: Allow reading files and directories (required for input files)
-- `--allow-write`: Allow writing files and directories (required for output generation)
-
-# Climpt
-
-A CLI tool for managing prompts and AI interactions - a wrapper around the breakdown package.
-
-## Overview
-
 Climpt allows you to select from a set of prepared prompts and call the desired prompt with a single command, outputting the result. You can pass values to be inserted into the prompt as command-line arguments.
 
 Example usage:
@@ -36,6 +13,7 @@ cat bug_report.md | climpt-build new test --input=bug
 
 # Detailed breakdown from issue to task
 climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+
 ```
 
 Climpt provides a unified interface for AI-assisted development instruction tools, enabling the creation, management, and execution of development instructions interpretable by AI systems using TypeScript and JSON Schema.
@@ -67,16 +45,154 @@ deno install --allow-read --allow-write --allow-net --allow-env --global climpt 
 
 ## Usage
 
+### Basic Commands
+
 After installation, you can use the climpt command directly:
 
 ```bash
+# Display help
 climpt --help
+
+# Generate initial configuration files
 climpt init
-climpt to project --config=custom
+
+# Check version
+climpt --version
 ```
 
 Climpt provides access to all breakdown package functionality through a simple wrapper interface.
 (In the future, feature development itself will be migrated from Breakdown to Climpt.)
+
+### Command Syntax
+
+Climpt commands follow this syntax:
+
+```bash
+climpt-<profile> <directive> <layer> [options]
+```
+
+**Components:**
+- `<profile>`: Profile name (e.g., git, breakdown, build)
+- `<directive>`: Action to execute (e.g., create, analyze, trace)
+- `<layer>`: Target layer (e.g., refinement-issue, quality-metrics)
+- `[options]`: Various options
+
+### Options Reference
+
+#### Input/Output Options
+
+| Option | Short | Description | Corresponding Variable |
+|--------|-------|-------------|----------------------|
+| `--from` | `-f` | Specify input file | `{input_text_file}` |
+| `--destination` | `-o` | Specify output destination (file or directory) | `{destination_path}` |
+| (STDIN) | - | Receive data from standard input | `{input_text}` |
+
+#### Processing Mode Options
+
+| Option | Short | Description | Purpose |
+|--------|-------|-------------|---------|
+| `--input` | `-i` | Specify input layer type | Used for prompt file selection (defaults to "default" if not specified) |
+| `--adaptation` | `-a` | Specify prompt type | Prompt variation selection |
+
+Searches for prompt file named `f_<input>_<adaptation>.md`.
+
+#### Custom Variable Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--uv-*` | Specify user-defined variables | `--uv-max-line-num=100` |
+
+#### System Options
+
+| Option | Description |
+|--------|-------------|
+| `--help` | Display help message |
+| `--version` | Display version information |
+| `--config` | Specify profile to use |
+
+### Template Variables and Options Mapping
+
+Correspondence between variables used in prompt templates and CLI options:
+
+| Template Variable | CLI Option | Description | Required |
+|------------------|------------|-------------|----------|
+| `{input_text}` | STDIN | Text from standard input | ✗ |
+| `{input_text_file}` | `-f`, `--from` | Input file path | ✗ |
+| `{destination_path}` | `-o`, `--destination` | Output destination path | ✗ |
+| `{uv-*}` | `--uv-*` | Custom variables (any name) | ✗ |
+
+**Note:** The `-f`/`--from` option and STDIN work independently and can be used simultaneously.
+
+### Usage Examples
+
+#### 1. Using Standard Input
+
+```bash
+# Generate error handling policy from error logs
+echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+```
+
+#### 2. Using File Input
+
+```bash
+# Create refinement issue from requirements document
+climpt-git create refinement-issue -f=requirements.md -o=./issues/
+
+# Break down issue to tasks in detailed mode
+climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+```
+
+#### 3. Combining Standard Input and File Input
+
+```bash
+# Build new tests based on bug report
+cat bug_report.md | climpt-build new test --input=bug
+```
+
+#### 4. Switching Profiles
+
+```bash
+# Use architecture optimization prompts
+climpt-arch optimize go -f=current_design.md
+
+# Use setup prompts
+climpt-setup climpt list
+```
+
+### Prompt File Structure
+
+Prompt files are placed following these rules:
+
+```
+.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<input>_<adaptation>.md
+```
+
+**Naming Conventions:**
+- `f_default.md`: Default prompt (no `--input` or `--adaptation` specified)
+- `f_<input>.md`: For specific input type (e.g., `f_code.md`)
+- `f_<input>_<adaptation>.md`: Combination of input type and processing mode (e.g., `f_default_strict.md`)
+
+**Frontmatter Example:**
+
+```yaml
+---
+title: Determine new Git branch and create working branch
+input_text: Specify work content within 30 characters
+description: Select and create appropriate branch based on branch strategy
+options:
+  input: ["default"]
+  adaptation: []
+  input_text: true
+  input_file: false
+  destination_path: false
+---
+```
+
+### Error Handling
+
+- **File not found:** Check prompt file path and naming conventions
+- **Permission errors:** Verify required permissions (`--allow-read`, `--allow-write`, etc.)
+- **Missing configuration:** Run `climpt init` to generate `.agent/climpt/config/default-app.yml`
 
 ## Key Features
 
@@ -141,7 +257,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
   "tools": {
     // Tool names array - each becomes available as climpt-{name}
     "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
-    
+
     // Command registry - defines all available C3L commands
     "commands": [
       {
@@ -151,11 +267,11 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "description": string,// Command description
         "usage": string,      // Usage instructions and examples
         "options": {          // Available options for this command
-          "input": string[],     // Supported input formats
-          "adaptation": string[], // Processing modes
-          "file": boolean[],  // File input support
-          "stdin": boolean[],       // Standard input support
-          "destination": boolean[]  // Output destination support
+          "input": string[],     // Input layer type (used for prompt file selection)
+          "adaptation": string[], // Prompt type (used for prompt variation selection)
+          "file": boolean,  // File input support
+          "stdin": boolean,       // Standard input support
+          "destination": boolean  // Output destination support
         }
       }
     ]
@@ -187,11 +303,11 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "description": "Create a refinement issue from requirements documentation",
         "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -200,7 +316,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c3": "commit-history",
         "description": "Analyze commit history and generate insights"
       },
-      
+
       // Spec commands
       {
         "c1": "spec",
@@ -214,7 +330,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c3": "requirements",
         "description": "Validate requirements against standards"
       },
-      
+
       // Test commands
       {
         "c1": "test",
@@ -228,7 +344,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c3": "unit-tests",
         "description": "Generate unit tests from specifications"
       },
-      
+
       // Code commands
       {
         "c1": "code",
@@ -242,7 +358,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c3": "architecture",
         "description": "Refactor code architecture based on patterns"
       },
-      
+
       // Docs commands
       {
         "c1": "docs",
@@ -256,7 +372,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c3": "user-guide",
         "description": "Update user guide documentation"
       },
-      
+
       // Meta commands
       {
         "c1": "meta",
@@ -290,11 +406,11 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
   - `description`: Command purpose
   - `usage`: Usage instructions with examples
   - `options`: Available options for each command
-    - `input`: Supported input formats (e.g., ["JSON", "YAML", "MD"])
-    - `adaptation`: Processing modes (e.g., ["default", "detailed"])
-    - `file`: Whether file input is supported ([true] or [false])
-    - `stdin`: Whether standard input is supported ([true] or [false])
-    - `destination`: Whether output destination can be specified ([true] or [false])
+    - `input`: Input layer type (used for prompt file selection, defaults to "default" if not specified) (e.g., ["default", "code", "bug"])
+    - `adaptation`: Prompt type (used for prompt variation selection) (e.g., ["default", "detailed", "strict"])
+    - `file`: Whether file input is supported (true or false)
+    - `stdin`: Whether standard input is supported (true or false)
+    - `destination`: Whether output destination can be specified (true or false)
 
 **Quick Start**:
 Copy the template file to your project:
@@ -316,15 +432,9 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aid
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./src/mcp/index.ts
 ```
 
-The MCP server provides AI assistants with structured access to all Climpt functionality, enabling them to:
-- Execute development tasks programmatically
-- Access the complete command registry
-- Generate and manage documentation
-- Perform Git operations
-- Analyze specifications
-- Run tests and verifications
+The MCP server provides AI assistants with structured access to all Climpt functionality.
 
-## Use Cases
+## Climpt Use Cases
 
 Select from various prompts and obtain the desired prompt with a single command. The main use cases are:
 
@@ -348,7 +458,55 @@ Deno is used for advanced usage. Climpt is optimized and provided as multiple De
 Climpt requires `.agent/climpt/config/default-app.yml`.
 Usually, running `climpt init` at the project root will generate this file.
 
-You can also install it at any hierarchy, such as under `tests/`. However, it is more convenient to manage multiple executables under `.deno/bin/*`.
+You can also install it at any hierarchy, such as under `tests/`. However, the recommended approach is to prepare multiple executables under `.deno/bin/*`, which provides better convenience for management than scattering them in various locations.
+
+Furthermore, by placing them under `.deno/bin/*` with alternative names like `subagent-*` or `inspector-*`, you can also support Sub-Agents.
+
+### Configuration File Structure
+
+Climpt uses two types of configuration files:
+
+#### app.yml (Application Configuration)
+
+Defines the directory locations for prompts and schemas.
+
+```yaml
+# Example: .agent/climpt/config/git-app.yml
+working_dir: ".agent/climpt"
+app_prompt:
+  base_dir: "prompts/git"
+app_schema:
+  base_dir: "schema/git"
+```
+
+#### user.yml (User Configuration)
+
+Customizes default values and behavior for options. Particularly useful for setting `destination` prefixes.
+
+```yaml
+# Example: .agent/climpt/config/git-user.yml
+options:
+  destination:
+    prefix: "output/git"  # Automatically prepended to paths specified with -o
+```
+
+**Configuration Priority:**
+1. Command-line options (highest priority)
+2. `user.yml` settings
+3. `app.yml` settings
+4. Default values
+
+**Destination Prefix Behavior Example:**
+
+```bash
+# With prefix: "output/git" set in user.yml
+climpt-git create issue -o=tasks/task1.md
+# Actual output: output/git/tasks/task1.md
+
+# Without prefix configuration
+climpt-git create issue -o=tasks/task1.md
+# Actual output: tasks/task1.md
+```
 
 ### Multiple Installation Configuration
 
@@ -488,7 +646,7 @@ Climpt is designed as a lightweight wrapper around the `@tettuan/breakdown` pack
 
 ## Requirements
 
-- Deno 2.4 or later (recommended)
+- Deno 2.5 or later (recommended)
 - Internet connection (for JSR package downloads)
 
 > **Note:** Deno 2.x is recommended.
