@@ -74,11 +74,11 @@ Deno.test("MCP server configuration loading", async () => {
           description: "Run unit tests",
           usage: "Test usage",
           options: {
-            input: ["-"],
+            input: ["default"],
             adaptation: ["default"],
-            file: [false],
-            stdin: [false],
-            destination: [false]
+            file: false,
+            stdin: false,
+            destination: false
           }
         }
       ]
@@ -337,12 +337,13 @@ Deno.test("Command structure follows C3L specification", async () => {
           assertExists(command.options.stdin, "Options should have stdin field");
           assertExists(command.options.destination, "Options should have destination field");
           
-          // Check that options are arrays
+          // Check that input and adaptation are arrays
           assertEquals(Array.isArray(command.options.input), true, "input should be array");
           assertEquals(Array.isArray(command.options.adaptation), true, "adaptation should be array");
-          assertEquals(Array.isArray(command.options.file), true, "file should be array");
-          assertEquals(Array.isArray(command.options.stdin), true, "stdin should be array");
-          assertEquals(Array.isArray(command.options.destination), true, "destination should be array");
+          // Check that file, stdin, destination are booleans
+          assertEquals(typeof command.options.file, "boolean", "file should be boolean");
+          assertEquals(typeof command.options.stdin, "boolean", "stdin should be boolean");
+          assertEquals(typeof command.options.destination, "boolean", "destination should be boolean");
         }
       }
     }
