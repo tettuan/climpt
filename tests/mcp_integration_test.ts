@@ -12,7 +12,7 @@ Deno.test("MCP tool names match availableConfigs", async () => {
     const commands = registry.tools?.commands || [];
     
     // Check that all c1 values in commands are in availableConfigs
-    const c1Values = new Set(commands.map((cmd: any) => cmd.c1));
+    const c1Values = new Set(commands.map((cmd: { c1: string }) => cmd.c1));
     
     for (const c1 of c1Values) {
       assertEquals(
@@ -71,7 +71,7 @@ Deno.test("Registry template has correct structure", async () => {
 });
 
 // Test MCP server default configuration fallback
-Deno.test("MCP server defaults when registry is missing", async () => {
+Deno.test("MCP server defaults when registry is missing", () => {
   // This test simulates what happens when registry.json doesn't exist
   const defaultTools = ["code", "docs", "git", "meta", "spec", "test"];
   
