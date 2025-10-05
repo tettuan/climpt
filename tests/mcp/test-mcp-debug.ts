@@ -74,22 +74,22 @@ let initReceived = false;
 while (true) {
   const { value, done } = await reader.read();
   if (done) break;
-  
+
   buffer += new TextDecoder().decode(value);
   const lines = buffer.split("\n");
   buffer = lines[lines.length - 1];
-  
+
   for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i].trim();
     if (line) {
       try {
         const message = JSON.parse(line);
         console.log("📨 Received:", JSON.stringify(message, null, 2));
-        
+
         if (message.result && message.id === 1 && !initReceived) {
           console.log("✅ Server initialized successfully!");
           initReceived = true;
-          
+
           // プロンプト一覧を要求
           const listPromptsMessage = JSON.stringify({
             jsonrpc: "2.0",
@@ -97,15 +97,18 @@ while (true) {
             method: "prompts/list",
             params: {},
           }) + "\n";
-          
+
           console.log("📤 Requesting prompts list...");
           await writer.write(new TextEncoder().encode(listPromptsMessage));
         }
-        
+
         if (message.result && message.id === 2) {
           console.log("📋 Got prompts list!");
-          console.log("Available prompts:", message.result.prompts?.map((p: any) => p.name));
-          
+          console.log(
+            "Available prompts:",
+            message.result.prompts?.map((p: { name: string }) => p.name),
+          );
+
           // ツール一覧を要求
           const listToolsMessage = JSON.stringify({
             jsonrpc: "2.0",
@@ -113,21 +116,23 @@ while (true) {
             method: "tools/list",
             params: {},
           }) + "\n";
-          
+
           console.log("📤 Requesting tools list...");
           await writer.write(new TextEncoder().encode(listToolsMessage));
         }
-        
+
         if (message.result && message.id === 3) {
           console.log("🔧 Got tools list!");
-          console.log("Available tools:", message.result.tools?.map((t: any) => t.name));
-          
+          console.log(
+            "Available tools:",
+            message.result.tools?.map((t: { name: string }) => t.name),
+          );
+
           console.log("🎉 All tests completed successfully!");
           await writer.close();
           process.kill();
           Deno.exit(0);
         }
-        
       } catch (e) {
         console.log("❌ Error parsing JSON:", e, "Line:", line);
       }

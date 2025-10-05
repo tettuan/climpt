@@ -8,7 +8,7 @@
  */
 
 // Import the breakdown package dynamically using the version from version.ts
-import { CLIMPT_VERSION, BREAKDOWN_VERSION } from "./version.ts";
+import { BREAKDOWN_VERSION, CLIMPT_VERSION } from "./version.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -128,7 +128,7 @@ async function importBreakdown(): Promise<void> {
 export async function main(_args: string[] = []): Promise<void> {
   try {
     // Handle version argument
-    if (_args.includes('-v') || _args.includes('--version')) {
+    if (_args.includes("-v") || _args.includes("--version")) {
       console.log(`Climpt v${CLIMPT_VERSION}`);
       console.log(`└── Breakdown v${BREAKDOWN_VERSION}`);
       return;

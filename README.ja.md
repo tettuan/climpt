@@ -39,23 +39,161 @@ deno install --allow-read --allow-write --allow-net --allow-env --global climpt 
 - `--global`: グローバルにインストール
 - `climpt`: コマンド名
 
-> **注意:**  
-> 便利さのために`-A`（全権限許可）を使うこともできますが、セキュリティのため上記のように特定の権限フラグを使うことを推奨します。  
-> CLIモジュールは`jsr:@aidevtool/climpt`として指定してください。  
+> **注意:**
+> 便利さのために`-A`（全権限許可）を使うこともできますが、セキュリティのため上記のように特定の権限フラグを使うことを推奨します。
+> CLIモジュールは`jsr:@aidevtool/climpt`として指定してください。
 > これは`deno.json`の`exports`設定に基づいています。
 
 ## 使い方
 
+### 基本コマンド
+
 インストール後、climptコマンドを直接使用できます:
 
 ```bash
+# ヘルプを表示
 climpt --help
+
+# 初期設定ファイルを生成
 climpt init
-climpt to project --config=custom
+
+# バージョン確認
+climpt --version
 ```
 
 Climptはbreakdownパッケージの全機能にシンプルなラッパーインターフェースを通じてアクセスできます。
 （将来的には、機能開発自体をBreakdownからClimptへ移行する予定です。）
+
+### コマンド構文
+
+Climptコマンドは以下の構文に従います:
+
+```bash
+climpt-<profile> <directive> <layer> [options]
+```
+
+**構成要素:**
+- `<profile>`: プロファイル名（例: git, breakdown, build）
+- `<directive>`: 実行するアクション（例: create, analyze, trace）
+- `<layer>`: ターゲット層（例: refinement-issue, quality-metrics）
+- `[options]`: 各種オプション
+
+### オプション一覧
+
+#### 入力/出力オプション
+
+| オプション | 短縮形 | 説明 | 対応する変数 |
+|---------|------|------|------------|
+| `--from` | `-f` | 入力ファイルを指定 | `{input_text_file}` |
+| `--destination` | `-o` | 出力先を指定（ファイルまたはディレクトリ） | `{destination_path}` |
+| (STDIN) | - | 標準入力からデータを受け取る | `{input_text}` |
+
+#### 処理モードオプション
+
+| オプション | 短縮形 | 説明 | 用途 |
+|---------|------|------|------|
+| `--input` | `-i` | 入力レイヤーの種類を指定 | プロンプトファイル選択に使用(指定がないときは "default" ） |
+| `--adaptation` | `-a` | プロンプトの種類を指定 | プロンプトのバリエーション選択 |
+
+プロンプトファイル名 `f_<input>_<adaptation>.md` を探します。　
+
+#### カスタム変数オプション
+
+| オプション | 説明 | 例 |
+|---------|------|-----|
+| `--uv-*` | ユーザー定義変数を指定 | `--uv-max-line-num=100` |
+
+#### システムオプション
+
+| オプション | 説明 |
+|---------|------|
+| `--help` | ヘルプメッセージを表示 |
+| `--version` | バージョン情報を表示 |
+| `--config` | 使用するプロファイルを指定 |
+
+### テンプレート変数とオプションの対応表
+
+プロンプトテンプレート内で使用できる変数とCLIオプションの対応:
+
+| テンプレート変数 | CLIオプション | 説明 | 必須 |
+|---------------|-------------|------|------|
+| `{input_text}` | STDIN | 標準入力からのテキスト | ✗ |
+| `{input_text_file}` | `-f`, `--from` | 入力ファイルのパス | ✗ |
+| `{destination_path}` | `-o`, `--destination` | 出力先のパス | ✗ |
+| `{uv-*}` | `--uv-*` | カスタム変数（任意の名前） | ✗ |
+
+**注意:** `-f`/`--from` オプションと STDIN は独立して動作し、両方を同時に使用できます。
+
+### 使用例
+
+#### 1. 標準入力を使用する
+
+```bash
+# エラーログから対処方針を生成
+echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+```
+
+#### 2. ファイルから入力する
+
+```bash
+# 要件ドキュメントからリファインメント課題を作成
+climpt-git create refinement-issue -f=requirements.md -o=./issues/
+
+# 詳細モードで課題をタスクに分解
+climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+```
+
+#### 3. 標準入力とファイル入力を組み合わせる
+
+```bash
+# バグレポートから新規テストを構築
+cat bug_report.md | climpt-build new test --input=bug
+```
+
+#### 4. プロファイルを切り替える
+
+```bash
+# アーキテクチャ最適化プロンプトを使用
+climpt-arch optimize go -f=current_design.md
+
+# セットアップ用プロンプトを使用
+climpt-setup climpt list
+```
+
+### プロンプトファイルの構造
+
+プロンプトファイルは以下のルールに従って配置されます:
+
+```
+.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<input>_<adaptation>.md
+```
+
+**命名規則:**
+- `f_default.md`: デフォルトプロンプト（`--input`と`--adaptation`の指定なし）
+- `f_<input>.md`: 特定の入力タイプ用（例: `f_code.md`）
+- `f_<input>_<adaptation>.md`: 入力タイプと処理モードの組み合わせ（例: `f_default_strict.md`）
+
+**フロントマター例:**
+
+```yaml
+---
+title: Git branch の新規立ち上げ判断と、新ブランチ作成
+input_text: 今回の作業内容を30文字以内で指定
+description: ブランチ戦略に基づいて適切なブランチを選択・作成
+options:
+  input: ["default"]
+  adaptation: []
+  input_text: true
+  input_file: false
+  destination_path: false
+---
+```
+
+### エラーハンドリング
+
+- **ファイルが見つからない:** プロンプトファイルのパスと命名規則を確認
+- **権限エラー:** 必要な権限（`--allow-read`, `--allow-write`など）を確認
+- **設定ファイル不足:** `climpt init`を実行して`.agent/climpt/config/default-app.yml`を生成
 
 ## 主な特徴
 
@@ -120,7 +258,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
   "tools": {
     // ツール名の配列 - 各ツールはclimpt-{name}として利用可能
     "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
-    
+
     // コマンドレジストリ - 利用可能なすべてのC3Lコマンドを定義
     "commands": [
       {
@@ -130,11 +268,11 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "description": string,// コマンドの説明
         "usage": string,      // 使用方法と例
         "options": {          // このコマンドで利用可能なオプション
-          "input": string[],     // サポートされる入力形式
-          "adaptation": string[], // 処理モード
-          "file": boolean[],  // ファイル入力サポート
-          "stdin": boolean[],       // 標準入力サポート
-          "destination": boolean[]  // 出力先指定サポート
+          "input": string[],     // 入力レイヤーの種類（プロンプトファイル選択に使用）
+          "adaptation": string[], // プロンプトの種類（プロンプトのバリエーション選択）
+          "file": boolean,  // ファイル入力サポート
+          "stdin": boolean,       // 標準入力サポート
+          "destination": boolean  // 出力先指定サポート
         }
       }
     ]
@@ -166,11 +304,11 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "description": "要件ドキュメントからリファインメント課題を作成",
         "usage": "要件ドキュメントからリファインメント課題を作成します。\n例: climpt-git create refinement-issue -f requirements.md",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -179,7 +317,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c3": "commit-history",
         "description": "コミット履歴を分析してインサイトを生成"
       },
-      
+
       // Specコマンド
       {
         "c1": "spec",
@@ -193,7 +331,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c3": "requirements",
         "description": "要件を標準に対して検証"
       },
-      
+
       // Testコマンド
       {
         "c1": "test",
@@ -207,7 +345,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c3": "unit-tests",
         "description": "仕様からユニットテストを生成"
       },
-      
+
       // Codeコマンド
       {
         "c1": "code",
@@ -221,7 +359,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c3": "architecture",
         "description": "パターンに基づいてコードアーキテクチャをリファクタリング"
       },
-      
+
       // Docsコマンド
       {
         "c1": "docs",
@@ -235,7 +373,7 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
         "c3": "user-guide",
         "description": "ユーザーガイドドキュメントを更新"
       },
-      
+
       // Metaコマンド
       {
         "c1": "meta",
@@ -269,11 +407,11 @@ MCPサーバーは`.agent/climpt/registry.json`から設定を読み込みます
   - `description`: コマンドの目的
   - `usage`: 使用方法と例
   - `options`: 各コマンドで利用可能なオプション
-    - `input`: サポートされる入力形式（例: ["JSON", "YAML", "MD"]）
-    - `adaptation`: 処理モード（例: ["default", "detailed"]）
-    - `file`: ファイル入力がサポートされているか（[true] または [false]）
-    - `stdin`: 標準入力がサポートされているか（[true] または [false]）
-    - `destination`: 出力先を指定できるか（[true] または [false]）
+    - `input`: 入力レイヤーの種類（プロンプトファイル選択に使用、指定がないときは "default"）（例: ["default", "code", "bug"]）
+    - `adaptation`: プロンプトの種類（プロンプトのバリエーション選択）（例: ["default", "detailed", "strict"]）
+    - `file`: ファイル入力がサポートされているか（true または false）
+    - `stdin`: 標準入力がサポートされているか（true または false）
+    - `destination`: 出力先を指定できるか（true または false）
 
 **クイックスタート**:
 テンプレートファイルをプロジェクトにコピー:
@@ -295,15 +433,9 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aid
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./src/mcp/index.ts
 ```
 
-MCPサーバーは、AIアシスタントにClimptの全機能への構造化されたアクセスを提供し、以下を可能にします:
-- プログラマティックに開発タスクを実行
-- 完全なコマンドレジストリへのアクセス
-- ドキュメントの生成と管理
-- Gitオペレーションの実行
-- 仕様の分析
-- テストと検証の実行
+MCPサーバーは、AIアシスタントにClimptの全機能への構造化されたアクセスを提供します。
 
-## ユースケース
+## Climp のユースケース
 
 多様なプロンプトを使い分け、望んだプロンプトを1行のコマンドで取得します。
 主に、以下のユースケースを想定しています。
@@ -331,7 +463,55 @@ Climptは、`.agent/climpt/config/default-app.yml` を必要とします。
 通常は、プロジェクト直下にて `climpt init` することで生成されます。
 
 任意の階層化へインストールすることもできます。例えば tests/ 配下で init することも可能です。
-ただし、`.deno/bin/*` に複数の実行ファイルを用意するほうが、利便性高く管理できます。
+推奨は、`.deno/bin/*` に複数の実行ファイルを用意する方法です。各所へ点在するよりも、利便性高く管理できます。
+
+さらに、 `.deno/bin/*` 配下へ `subagent-*` や `inspector-*` といった別名で配置すると、Sub-Agent に対応させることもできます。
+
+### 設定ファイル構成
+
+Climptは2種類の設定ファイルを使用します:
+
+#### app.yml（アプリケーション設定）
+
+プロンプトとスキーマの配置ディレクトリを定義します。
+
+```yaml
+# .agent/climpt/config/git-app.yml の例
+working_dir: ".agent/climpt"
+app_prompt:
+  base_dir: "prompts/git"
+app_schema:
+  base_dir: "schema/git"
+```
+
+#### user.yml（ユーザー設定）
+
+オプションのデフォルト値や動作をカスタマイズします。特に`destination`のプレフィックスを設定できます。
+
+```yaml
+# .agent/climpt/config/git-user.yml の例
+options:
+  destination:
+    prefix: "output/git"  # -o で指定したパスの前に自動的に追加されるプレフィックス
+```
+
+**設定の優先順位:**
+1. コマンドラインオプション（最優先）
+2. `user.yml` の設定
+3. `app.yml` の設定
+4. デフォルト値
+
+**destinationプレフィックスの動作例:**
+
+```bash
+# user.yml で prefix: "output/git" を設定している場合
+climpt-git create issue -o=tasks/task1.md
+# 実際の出力先: output/git/tasks/task1.md
+
+# プレフィックス未設定の場合
+climpt-git create issue -o=tasks/task1.md
+# 実際の出力先: tasks/task1.md
+```
 
 ### 複数インストール設定
 
@@ -481,7 +661,7 @@ Climptは`@tettuan/breakdown`パッケージの軽量ラッパーとして設計
 
 ## 必要要件
 
-- Deno 2.4以降（推奨）
+- Deno 2.5以降（推奨）
 - インターネット接続（JSRパッケージのダウンロードに必要）
 
 > **注意:** Deno 2.xを推奨します。

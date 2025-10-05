@@ -18,11 +18,11 @@
         "description": "Create a group commit for unstaged changes",
         "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -32,11 +32,11 @@
         "description": "Analyze commit history and generate insights",
         "usage": "Analyze git commit history to identify patterns.\nExample: climpt-git analyze commit-history --adaptation=detailed",
         "options": {
-          "input": ["-"],
+          "input": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": [false],
-          "stdin": [false],
-          "destination": [true]
+          "file": false,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -46,11 +46,11 @@
         "description": "Analyze specification quality and completeness",
         "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md",
         "options": {
-          "input": ["MD", "YAML"],
+          "input": ["default", "yaml"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [true],
-          "destination": [true]
+          "file": true,
+          "stdin": true,
+          "destination": true
         }
       },
       {
@@ -60,11 +60,11 @@
         "description": "Validate requirements against standards",
         "usage": "Validate requirement documents against standards.\nExample: climpt-spec validate requirements -f requirements.md",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -74,11 +74,11 @@
         "description": "Execute integration test suite",
         "usage": "Execute integration test suites.\nExample: climpt-test execute integration-suite --config=test.yml",
         "options": {
-          "input": ["YAML", "JSON"],
+          "input": ["yaml", "json"],
           "adaptation": ["default"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -88,11 +88,11 @@
         "description": "Generate unit tests from specifications",
         "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/",
         "options": {
-          "input": ["MD", "CODE"],
+          "input": ["default", "code"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -102,11 +102,11 @@
         "description": "Create implementation from design documents",
         "usage": "Generate implementation code from design docs.\nExample: climpt-code create implementation -f design.md -o src/",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -116,11 +116,11 @@
         "description": "Refactor code architecture based on patterns",
         "usage": "Refactor existing code architecture.\nExample: climpt-code refactor architecture --adaptation=detailed",
         "options": {
-          "input": ["CODE"],
+          "input": ["code"],
           "adaptation": ["default", "detailed", "compact"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -130,11 +130,11 @@
         "description": "Generate API reference documentation",
         "usage": "Generate API documentation from code.\nExample: climpt-docs generate api-reference -f src/ -o docs/api/",
         "options": {
-          "input": ["CODE"],
+          "input": ["code"],
           "adaptation": ["default", "detailed"],
-          "file": [true],
-          "stdin": [false],
-          "destination": [true]
+          "file": true,
+          "stdin": false,
+          "destination": true
         }
       },
       {
@@ -144,11 +144,11 @@
         "description": "Update user guide documentation",
         "usage": "Update existing user guide docs.\nExample: climpt-docs update user-guide -f guide.md",
         "options": {
-          "input": ["MD"],
+          "input": ["default"],
           "adaptation": ["default"],
-          "file": [true],
-          "stdin": [true],
-          "destination": [true]
+          "file": true,
+          "stdin": true,
+          "destination": true
         }
       },
       {
@@ -158,11 +158,11 @@
         "description": "List all available Climpt commands",
         "usage": "List all available commands in the registry.\nExample: climpt-meta list available-commands",
         "options": {
-          "input": ["-"],
+          "input": ["default"],
           "adaptation": ["default"],
-          "file": [false],
-          "stdin": [false],
-          "destination": [false]
+          "file": false,
+          "stdin": false,
+          "destination": false
         }
       },
       {
@@ -172,11 +172,11 @@
         "description": "Resolve and display command definitions",
         "usage": "Resolve command definitions from registry.\nExample: climpt-meta resolve command-definition --input=git/create",
         "options": {
-          "input": ["-"],
+          "input": ["default"],
           "adaptation": ["default"],
-          "file": [false],
-          "stdin": [true],
-          "destination": [false]
+          "file": false,
+          "stdin": true,
+          "destination": false
         }
       }
     ]
