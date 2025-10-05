@@ -2,11 +2,11 @@
 
 import { Server } from "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js";
 import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js";
-import { 
-  ListToolsRequestSchema,
+import {
+  type CallToolRequest,
   CallToolRequestSchema,
   type ListToolsRequest,
-  type CallToolRequest,
+  ListToolsRequestSchema,
 } from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
 
 console.error("🧪 Simple MCP Test Server starting...");
@@ -24,27 +24,30 @@ const server = new Server(
 );
 
 // Simple ping tool
-server.setRequestHandler(ListToolsRequestSchema, (_request: ListToolsRequest) => {
-  console.error("📋 ListToolsRequest received");
-  return {
-    tools: [
-      {
-        name: "ping",
-        description: "Simple ping test",
-        inputSchema: {
-          type: "object",
-          properties: {
-            message: {
-              type: "string",
-              description: "Message to echo back",
+server.setRequestHandler(
+  ListToolsRequestSchema,
+  (_request: ListToolsRequest) => {
+    console.error("📋 ListToolsRequest received");
+    return {
+      tools: [
+        {
+          name: "ping",
+          description: "Simple ping test",
+          inputSchema: {
+            type: "object",
+            properties: {
+              message: {
+                type: "string",
+                description: "Message to echo back",
+              },
             },
+            required: ["message"],
           },
-          required: ["message"],
         },
-      },
-    ],
-  };
-});
+      ],
+    };
+  },
+);
 
 server.setRequestHandler(CallToolRequestSchema, (request: CallToolRequest) => {
   const { name, arguments: args } = request.params;
