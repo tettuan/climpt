@@ -46,10 +46,10 @@ const toolCallMessage = JSON.stringify({
       command: "summary",
       input: "This is a test summary request.",
       options: {
-        outputFormat: "markdown"
-      }
-    }
-  }
+        outputFormat: "markdown",
+      },
+    },
+  },
 }) + "\n";
 
 const reader = process.stdout.getReader();
@@ -84,38 +84,40 @@ setTimeout(async () => {
 while (true) {
   const { value, done } = await reader.read();
   if (done) break;
-  
+
   buffer += new TextDecoder().decode(value);
   const lines = buffer.split("\n");
   buffer = lines[lines.length - 1];
-  
+
   for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i].trim();
     if (line) {
       try {
         const message = JSON.parse(line);
-        console.log(`📨 Response ${message.id}:`, JSON.stringify(message, null, 2));
-        
+        console.log(
+          `📨 Response ${message.id}:`,
+          JSON.stringify(message, null, 2),
+        );
+
         if (message.result && message.id === 1 && !initReceived) {
           console.log("✅ Server initialized! Calling breakdown tool...");
           initReceived = true;
           await writer.write(new TextEncoder().encode(toolCallMessage));
         }
-        
+
         if (message.result && message.id === 2) {
           console.log("🎉 Tool call completed successfully!");
           await writer.close();
           process.kill();
           Deno.exit(0);
         }
-        
+
         if (message.error) {
           console.log("❌ Error received:", message.error);
           await writer.close();
           process.kill();
           Deno.exit(1);
         }
-        
       } catch (e) {
         console.log("❌ Error parsing JSON:", e, "Line:", line);
       }

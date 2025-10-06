@@ -8,7 +8,7 @@
  */
 
 // Import the breakdown package dynamically using the version from version.ts
-import { BREAKDOWN_VERSION } from "./version.ts";
+import { BREAKDOWN_VERSION, CLIMPT_VERSION } from "./version.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -48,6 +48,8 @@ async function importBreakdown(): Promise<void> {
  * - `to <type> <layer>` - Convert input Markdown to next layer format
  * - `summary <type>` - Generate new Markdown or specified layer Markdown
  * - `defect <type>` - Generate fixes from error logs or defect information
+ * - `--version` or `-v` - Show Climpt and Breakdown version information
+ * - `--help` - Show help message
  * - `version` - Show version information
  * - `help` - Show help message
  *
@@ -125,6 +127,13 @@ async function importBreakdown(): Promise<void> {
  */
 export async function main(_args: string[] = []): Promise<void> {
   try {
+    // Handle version argument
+    if (_args.includes("-v") || _args.includes("--version")) {
+      console.log(`Climpt v${CLIMPT_VERSION}`);
+      console.log(`└── Breakdown v${BREAKDOWN_VERSION}`);
+      return;
+    }
+
     if (!runBreakdown) {
       await importBreakdown();
     }

@@ -49,21 +49,21 @@ setTimeout(async () => {
 while (true) {
   const { value, done } = await reader.read();
   if (done) break;
-  
+
   buffer += new TextDecoder().decode(value);
   const lines = buffer.split("\n");
   buffer = lines[lines.length - 1];
-  
+
   for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i].trim();
     if (line) {
       try {
         const message = JSON.parse(line);
         console.log("📨 Received:", JSON.stringify(message, null, 2));
-        
+
         if (message.result && message.id === 1) {
           console.log("✅ Server initialized successfully!");
-          
+
           // プロンプト一覧を要求
           const listPromptsMessage = JSON.stringify({
             jsonrpc: "2.0",
@@ -71,10 +71,10 @@ while (true) {
             method: "prompts/list",
             params: {},
           }) + "\n";
-          
+
           await writer.write(new TextEncoder().encode(listPromptsMessage));
         }
-        
+
         if (message.result && message.id === 2) {
           console.log("✅ Got prompts list!");
           await writer.close();

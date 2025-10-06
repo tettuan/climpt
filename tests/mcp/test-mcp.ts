@@ -3,8 +3,8 @@
 import { Client } from "npm:@modelcontextprotocol/sdk@0.7.0/client/index.js";
 import { StdioClientTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/client/stdio.js";
 import {
-  ListPromptsResultSchema,
   GetPromptResultSchema,
+  ListPromptsResultSchema,
   ListToolsResultSchema,
 } from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
 
@@ -31,7 +31,7 @@ async function testMCPServer() {
     },
     {
       capabilities: {},
-    }
+    },
   );
 
   try {
@@ -59,7 +59,10 @@ async function testMCPServer() {
         },
       },
     }, GetPromptResultSchema);
-    console.log("Project prompt result:", JSON.stringify(projectPrompt, null, 2));
+    console.log(
+      "Project prompt result:",
+      JSON.stringify(projectPrompt, null, 2),
+    );
     console.log();
 
     // ツール一覧を取得

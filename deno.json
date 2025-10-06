@@ -40,7 +40,13 @@
   ],
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
-    "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts"
+    "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
+    "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci"
+  },
+  "imports": {
+    "@modelcontextprotocol/sdk/server": "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js",
+    "@modelcontextprotocol/sdk/server/stdio": "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js",
+    "@modelcontextprotocol/sdk/types": "npm:@modelcontextprotocol/sdk@0.7.0/types.js"
   },
   "compilerOptions": {
     "lib": ["deno.ns", "dom", "es2022"],
