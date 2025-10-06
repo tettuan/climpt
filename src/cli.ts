@@ -125,8 +125,84 @@ async function importBreakdown(): Promise<void> {
  * await main(["--help"]);
  * ```
  */
+/**
+ * Display Climpt help message
+ * @internal
+ */
+function showHelp(): void {
+  console.log(
+    `Climpt v${CLIMPT_VERSION} - AI-Assisted Development Instruction Tool
+
+A CLI wrapper around the @tettuan/breakdown JSR package for managing prompts
+and AI interactions.
+
+Usage:
+  climpt [command] [options]
+  climpt-<profile> <directive> <layer> [options]
+
+Basic Commands:
+  init                    Initialize breakdown configuration
+  --help, -h              Show this help message
+  --version, -v           Show Climpt and Breakdown version information
+
+Command Syntax:
+  climpt-<profile> <directive> <layer> [options]
+
+  Components:
+    <profile>    Profile name (e.g., git, breakdown, build)
+    <directive>  Action to execute (e.g., create, analyze, trace)
+    <layer>      Target layer (e.g., refinement-issue, quality-metrics)
+    [options]    Various options
+
+Options:
+  Input/Output:
+    -f, --from=<file>           Specify input file
+    -o, --destination=<path>    Specify output destination
+    (STDIN)                     Receive data from standard input
+
+  Processing Mode:
+    -i, --input=<layer>         Specify input layer type (default: "default")
+    -a, --adaptation=<type>     Specify prompt type/variation
+
+  Custom Variables:
+    --uv-<name>=<value>         Define user variables (e.g., --uv-max-line-num=100)
+
+  System:
+    --config=<prefix>           Use custom config prefix
+    --help, -h                  Show this help message
+    --version, -v               Show version information
+
+Examples:
+  # Initialize configuration
+  climpt init
+
+  # Create refinement issue from requirements
+  climpt-git create refinement-issue -f=requirements.md -o=./issues/
+
+  # Break down issue to tasks
+  climpt-breakdown to task -i=issue -f=issue.md -a=detailed --uv-storypoint=5
+
+  # Generate from standard input
+  echo "error log" | climpt-diagnose trace stack -i=test -o=./output
+
+MCP Server:
+  Climpt supports Model Context Protocol (MCP) for AI assistant integration.
+  For details: https://jsr.io/@aidevtool/climpt
+
+Documentation:
+  https://github.com/tettuan/climpt
+`,
+  );
+}
+
 export async function main(_args: string[] = []): Promise<void> {
   try {
+    // Handle help argument
+    if (_args.includes("-h") || _args.includes("--help")) {
+      showHelp();
+      return;
+    }
+
     // Handle version argument
     if (_args.includes("-v") || _args.includes("--version")) {
       console.log(`Climpt v${CLIMPT_VERSION}`);
