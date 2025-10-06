@@ -130,7 +130,8 @@ async function importBreakdown(): Promise<void> {
  * @internal
  */
 function showHelp(): void {
-  console.log(`Climpt v${CLIMPT_VERSION} - AI-Assisted Development Instruction Tool
+  console.log(
+    `Climpt v${CLIMPT_VERSION} - AI-Assisted Development Instruction Tool
 
 A CLI wrapper around the @tettuan/breakdown JSR package for managing prompts
 and AI interactions.
@@ -190,7 +191,8 @@ MCP Server:
 
 Documentation:
   https://github.com/tettuan/climpt
-`);
+`,
+  );
 }
 
 export async function main(_args: string[] = []): Promise<void> {
