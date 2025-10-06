@@ -11,8 +11,8 @@
  * @module mcp/index
  */
 
-import { Server } from "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js";
-import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js";
+import { Server } from "@modelcontextprotocol/sdk/server";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import {
   type CallToolRequest,
   CallToolRequestSchema,
@@ -22,7 +22,7 @@ import {
   ListPromptsRequestSchema,
   type ListToolsRequest,
   ListToolsRequestSchema,
-} from "npm:@modelcontextprotocol/sdk@0.7.0/types.js";
+} from "@modelcontextprotocol/sdk/types";
 import { CLIMPT_VERSION } from "../version.ts";
 
 console.error("🚀 MCP Server starting...");
