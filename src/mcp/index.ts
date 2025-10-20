@@ -151,7 +151,7 @@ server.setRequestHandler(
             options: {
               type: "array",
               description:
-                "Optional command-line options from describe result (e.g., ['-f=file.txt']). These are passed directly to the command.",
+                "Optional command-line options from describe result. IMPORTANT: Use = to connect option and value as single string (e.g., ['-f=file.txt'], not ['-f', 'file.txt']). This follows registry.json format. These are passed directly to the command.",
               items: {
                 type: "string",
               },

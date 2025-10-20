@@ -522,7 +522,7 @@ Based on the detailed information obtained from describe, pass the four required
 - `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
 - `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
 - `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
-- `options` (optional): Array of command-line options from describe result (e.g., `['-f=file.txt']`)
+- `options` (optional): Array of command-line options from describe result. **Important**: Use `=` to connect option and value as single string (e.g., `['-f=file.txt']`, not `['-f', 'file.txt']`). This follows registry.json format.
 - `stdin` (optional): Standard input content to be passed to the command
 
 **Behavior:**
