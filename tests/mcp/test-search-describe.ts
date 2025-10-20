@@ -11,10 +11,7 @@ import {
   assertExists,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import type { Command } from "../../src/mcp/types.ts";
-import {
-  describeCommand,
-  searchCommands,
-} from "../../src/mcp/similarity.ts";
+import { describeCommand, searchCommands } from "../../src/mcp/similarity.ts";
 
 /**
  * Load registry for testing
@@ -128,7 +125,9 @@ Deno.test("describe: returns empty array for non-existent command", () => {
   const results = describeCommand(commands, c1, c2, c3);
 
   assertEquals(results.length, 0);
-  console.log("✅ Describe correctly returns empty array for non-existent command");
+  console.log(
+    "✅ Describe correctly returns empty array for non-existent command",
+  );
 });
 
 Deno.test("describe: returns all variants when multiple options exist", () => {
