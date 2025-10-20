@@ -215,9 +215,9 @@ Climpt includes a built-in MCP server that enables AI assistants like Claude to 
 
 ### MCP Features
 
+- **Command Search**: Semantic search using cosine similarity to find commands based on natural language descriptions
+- **Command Details**: Retrieve complete command definitions including all options and variations
 - **Dynamic Tool Loading**: Automatically loads available tools from `.agent/climpt/registry.json`
-- **Full Command Registry Access**: All Climpt commands (code, docs, git, meta, spec, test) are available
-- **Graceful Fallback**: Defaults to standard tools when configuration is unavailable
 - **JSR Distribution**: Can be run directly from JSR without local installation
 - **No Binary Dependencies**: Works without `.deno/bin` installation
 
@@ -419,6 +419,99 @@ cp examples/mcp/registry.template.json .agent/climpt/registry.json
 ```
 
 A complete template file is available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
+
+### Available MCP Tools
+
+The MCP server provides the following tools:
+
+#### `search` Tool
+
+Searches for commands using semantic similarity based on natural language descriptions.
+
+**Arguments:**
+- `query` (required): English description of the desired command
+
+**Behavior:**
+- Searches registry.json using `c1 + c2 + c3 + description` as the search target
+- Uses cosine similarity to rank results
+- Returns top 3 most similar commands
+- Each result includes `c1`, `c2`, `c3`, `description`, and similarity `score`
+
+**Example:**
+```json
+{
+  "tool": "search",
+  "arguments": {
+    "query": "commit changes to git repository"
+  }
+}
+
+// Response
+{
+  "results": [
+    {
+      "c1": "git",
+      "c2": "group-commit",
+      "c3": "unstaged-changes",
+      "description": "Create a group commit for unstaged changes",
+      "score": 0.338
+    },
+    {
+      "c1": "git",
+      "c2": "analyze",
+      "c3": "commit-history",
+      "description": "Analyze commit history and generate insights",
+      "score": 0.183
+    }
+  ]
+}
+```
+
+#### `describe` Tool
+
+Retrieves complete command definitions from the registry.
+
+**Arguments:**
+- `c1` (required): Domain name (e.g., git, spec, test)
+- `c2` (required): Action name (e.g., create, analyze)
+- `c3` (required): Target name (e.g., refinement-issue, quality-metrics)
+
+**Behavior:**
+- Returns all matching records from registry.json
+- Preserves complete JSON structure including all options
+- Returns multiple records if the same c1/c2/c3 exists with different options
+
+**Example:**
+```json
+{
+  "tool": "describe",
+  "arguments": {
+    "c1": "git",
+    "c2": "group-commit",
+    "c3": "unstaged-changes"
+  }
+}
+
+// Response
+{
+  "commands": [
+    {
+      "c1": "git",
+      "c2": "group-commit",
+      "c3": "unstaged-changes",
+      "description": "Create a group commit for unstaged changes",
+      "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
+      "options": {
+        "input": ["default"],
+        "adaptation": ["default", "detailed"],
+        "file": true,
+        "stdin": false,
+        "destination": true
+      }
+    }
+  ]
+}
+```
 
 ### Running the MCP Server
 

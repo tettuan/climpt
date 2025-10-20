@@ -4,9 +4,9 @@
  * @fileoverview MCP Server implementation for Climpt
  *
  * This module implements a Model Context Protocol (MCP) server that provides
- * AI assistants with access to Climpt's command registry and execution capabilities.
- * The server dynamically loads tool configurations from a registry file and
- * exposes them as both prompts and tools through the MCP protocol.
+ * AI assistants with semantic search and command discovery capabilities.
+ * The server dynamically loads command definitions from a registry file and
+ * provides two core tools: search (semantic similarity) and describe (detailed lookup).
  *
  * @module mcp/index
  */
@@ -16,36 +16,25 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import {
   type CallToolRequest,
   CallToolRequestSchema,
-  type GetPromptRequest,
-  GetPromptRequestSchema,
-  type ListPromptsRequest,
-  ListPromptsRequestSchema,
   type ListToolsRequest,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types";
 import { CLIMPT_VERSION } from "../version.ts";
+import type { Command, Registry } from "./types.ts";
+import { describeCommand, searchCommands } from "./similarity.ts";
 
 console.error("🚀 MCP Server starting...");
 console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
 
 /**
- * Available tool configurations loaded from registry.json.
- * Defaults to standard configs if registry file is not found.
- *
- * @type {string[]}
+ * Valid commands loaded from registry.json.
  */
-let AVAILABLE_CONFIGS: string[] = [];
+let VALID_COMMANDS: Command[] = [];
 
 /**
- * Valid commands loaded from registry.json.
- * Used for command validation.
- *
- * @type {Array<{c1: string, c2: string, c3: string}>}
+ * Load registry configuration
  */
-let VALID_COMMANDS: Array<{ c1: string; c2: string; c3: string }> = [];
-
 try {
-  // Try to load config from current working directory first
   let configPath = ".agent/climpt/registry.json";
   let configText: string;
 
@@ -58,40 +47,14 @@ try {
     configText = await Deno.readTextFile(configPath);
   }
 
-  const config = JSON.parse(configText);
-  AVAILABLE_CONFIGS = config.tools?.availableConfigs || [];
+  const config: Registry = JSON.parse(configText);
   VALID_COMMANDS = config.tools?.commands || [];
   console.error(
-    `⚙️ Loaded ${AVAILABLE_CONFIGS.length} configs and ${VALID_COMMANDS.length} commands from ${configPath}:`,
-    AVAILABLE_CONFIGS,
+    `⚙️ Loaded ${VALID_COMMANDS.length} commands from ${configPath}`,
   );
 } catch (error) {
-  console.error("⚠️ Failed to load config file, using defaults:", error);
-  AVAILABLE_CONFIGS = ["code", "docs", "git", "meta", "spec", "test"];
+  console.error("⚠️ Failed to load config file:", error);
   VALID_COMMANDS = [];
-}
-
-/**
- * Validates if a command is available in the registry.
- *
- * @param {string} config - The configuration name (c1)
- * @param {string[]} args - The command arguments to validate
- * @returns {boolean} True if command is valid, false otherwise
- */
-function validateCommand(config: string, args: string[]): boolean {
-  if (VALID_COMMANDS.length === 0) {
-    // If no commands loaded, allow all for backward compatibility
-    return true;
-  }
-
-  if (args.length < 2) {
-    return false;
-  }
-
-  const [c2, c3] = args;
-  return VALID_COMMANDS.some((cmd) =>
-    cmd.c1 === config && cmd.c2 === c2 && cmd.c3 === c3
-  );
 }
 
 const server = new Server(
@@ -101,113 +64,60 @@ const server = new Server(
   },
   {
     capabilities: {
-      prompts: {},
       tools: {},
     },
   },
 );
 
 /**
- * Handler for listing available prompts.
- * Returns a list of prompts based on available configurations.
- *
- * @param {ListPromptsRequest} _request - The request for listing prompts
- * @returns {Object} Object containing array of prompt definitions
- */
-server.setRequestHandler(
-  ListPromptsRequestSchema,
-  (_request: ListPromptsRequest) => {
-    console.error("📋 ListPromptsRequest received");
-    const prompts = AVAILABLE_CONFIGS.map((config) => ({
-      name: config,
-      description: `climpt ${config} プロンプト`,
-      arguments: [
-        {
-          name: "input",
-          description: "入力内容",
-          required: true,
-        },
-      ],
-    }));
-
-    return { prompts };
-  },
-);
-
-/**
- * Handler for executing a specific prompt.
- * Retrieves and executes the prompt with the given name and arguments.
- *
- * @param {GetPromptRequest} request - The request containing prompt name and arguments
- * @returns {Object} Object containing prompt description and messages
- * @throws {Error} If the requested prompt is not in available configurations
- */
-server.setRequestHandler(
-  GetPromptRequestSchema,
-  (request: GetPromptRequest) => {
-    const { name, arguments: args } = request.params;
-    console.error(`🎯 GetPromptRequest received for: ${name}`);
-
-    // 利用可能な設定かチェック
-    if (!AVAILABLE_CONFIGS.includes(name)) {
-      throw new Error(`Unknown prompt: ${name}`);
-    }
-
-    const input = args?.input || "";
-
-    // 空のinputの場合はデフォルトメッセージを使用
-    const promptText = input.trim() ||
-      `Please help me with ${name} related tasks.`;
-
-    // Ensure promptText is never empty to prevent API errors
-    if (!promptText.trim()) {
-      throw new Error("Prompt text cannot be empty after processing");
-    }
-
-    return {
-      description: `climpt ${name} プロンプト`,
-      messages: [
-        {
-          role: "user",
-          content: {
-            type: "text",
-            text: promptText,
-          },
-        },
-      ],
-    };
-  },
-);
-
-/**
  * Handler for listing available tools.
- * Returns a list of tools based on available configurations.
- *
- * @param {ListToolsRequest} _request - The request for listing tools
- * @returns {Object} Object containing array of tool definitions with schemas
+ * Returns search and describe tools.
  */
 server.setRequestHandler(
   ListToolsRequestSchema,
   (_request: ListToolsRequest) => {
     console.error("🔧 ListToolsRequest received");
 
-    const tools = AVAILABLE_CONFIGS.map((config) => ({
-      name: config,
-      description: `climpt ${config} コマンドを実行 (--config=${config})`,
-      inputSchema: {
-        type: "object",
-        properties: {
-          args: {
-            type: "array",
-            items: {
+    const tools = [
+      {
+        name: "search",
+        description:
+          "Search for commands using semantic similarity based on natural language descriptions",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: {
               type: "string",
+              description: "English description of the desired command",
             },
-            description: `${config}コマンドの引数`,
           },
+          required: ["query"],
         },
-        required: ["args"],
       },
-    }));
+      {
+        name: "describe",
+        description:
+          "Retrieve complete command definitions including all options and variations",
+        inputSchema: {
+          type: "object",
+          properties: {
+            c1: {
+              type: "string",
+              description: "Domain name (e.g., git, spec, test)",
+            },
+            c2: {
+              type: "string",
+              description: "Action name (e.g., create, analyze)",
+            },
+            c3: {
+              type: "string",
+              description: "Target name (e.g., refinement-issue, quality-metrics)",
+            },
+          },
+          required: ["c1", "c2", "c3"],
+        },
+      },
+    ];
 
     return { tools };
   },
@@ -215,11 +125,7 @@ server.setRequestHandler(
 
 /**
  * Handler for executing a tool.
- * Runs the specified Climpt command with the provided arguments.
- *
- * @param {CallToolRequest} request - The request containing tool name and arguments
- * @returns {Promise<Object>} Promise resolving to tool execution result
- * @throws {Error} If the requested tool is not in available configurations
+ * Handles both search and describe commands.
  */
 server.setRequestHandler(
   CallToolRequestSchema,
@@ -227,83 +133,86 @@ server.setRequestHandler(
     const { name, arguments: args } = request.params;
     console.error(`⚡ CallToolRequest received for: ${name}`);
 
-    // 利用可能な設定かチェック
-    if (!AVAILABLE_CONFIGS.includes(name)) {
-      throw new Error(`Unknown tool: ${name}`);
-    }
+    try {
+      if (name === "search") {
+        const { query } = args as { query: string };
 
-    const { args: commandArgs } = args as {
-      args: string[];
-    };
+        if (!query || typeof query !== "string") {
+          throw new Error("query parameter is required and must be a string");
+        }
 
-    // コマンドバリデーション
-    if (!validateCommand(name, commandArgs)) {
-      const availableCommands = VALID_COMMANDS
-        .filter((cmd) => cmd.c1 === name)
-        .map((cmd) => `${cmd.c2} ${cmd.c3}`)
-        .join(", ");
+        const results = searchCommands(VALID_COMMANDS, query);
 
-      throw new Error(
-        `Invalid command: ${
-          commandArgs.join(" ")
-        }. Available commands for ${name}: ${availableCommands}`,
-      );
-    }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ results }, null, 2),
+            },
+          ],
+        };
+      } else if (name === "describe") {
+        const { c1, c2, c3 } = args as { c1: string; c2: string; c3: string };
 
-    // 汎用的なclimptコマンド実行
-    const cmd = new Deno.Command("deno", {
-      args: [
-        "run",
-        "--allow-read",
-        "--allow-write",
-        "--allow-env",
-        "--allow-run",
-        "--allow-net",
-        "--no-config",
-        "jsr:@aidevtool/climpt",
-        `--config=${name}`,
-        ...commandArgs,
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
+        if (!c1 || !c2 || !c3) {
+          throw new Error("c1, c2, and c3 parameters are all required");
+        }
 
-    const output = await cmd.output();
-    const outputText = new TextDecoder().decode(output.stdout);
-    const errorText = new TextDecoder().decode(output.stderr);
+        const commands = describeCommand(VALID_COMMANDS, c1, c2, c3);
 
-    if (!output.success) {
+        if (commands.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    error: `No commands found for c1="${c1}", c2="${c2}", c3="${c3}"`,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ commands }, null, 2),
+            },
+          ],
+        };
+      } else {
+        throw new Error(`Unknown tool: ${name}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error executing tool ${name}:`, error);
       return {
         content: [
           {
             type: "text",
-            text: `Error executing climpt ${name}: ${errorText}`,
+            text: JSON.stringify(
+              {
+                error: error instanceof Error
+                  ? error.message
+                  : "Unknown error occurred",
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
     }
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: outputText,
-        },
-      ],
-    };
   },
 );
 
 /**
  * Main function to start the MCP server.
  * Initializes the stdio transport and connects the server.
- *
- * @returns {Promise<void>} Promise that resolves when server is connected
- * @example
- * ```typescript
- * import main from "./mcp/index.ts";
- * await main();
- * ```
  */
 async function main(): Promise<void> {
   console.error("🔌 Connecting to StdioServerTransport...");
