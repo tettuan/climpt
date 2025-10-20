@@ -53,7 +53,7 @@ describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`
 - `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs, meta）
 - `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute, generate）
 - `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
-- `options` (オプション): describeから得たコマンドラインオプションの配列（例: `['-f', 'file.txt', '--verbose']`）
+- `options` (オプション): describeから得たコマンドラインオプションの配列（例: `['-f=file.txt']`）
 - `stdin` (オプション): コマンドに渡す標準入力の内容
 
 **動作:**
@@ -85,14 +85,14 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
   "c1": "code",
   "c2": "analyze",
   "c3": "complexity",
-  "options": ["-f", "src/main.ts", "--verbose"],
+  "options": ["-f=src/main.ts"],
   "stdin": "console.log('test');"
 }
 ```
 
 実行されるコマンド:
 ```bash
-deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f src/main.ts --verbose
+deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts
 ```
 （標準入力から `console.log('test');` が渡される）
 

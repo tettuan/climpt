@@ -522,7 +522,7 @@ Based on the detailed information obtained from describe, pass the four required
 - `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
 - `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
 - `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
-- `options` (optional): Array of command-line options from describe result (e.g., `['-f', 'file.txt', '--verbose']`)
+- `options` (optional): Array of command-line options from describe result (e.g., `['-f=file.txt']`)
 - `stdin` (optional): Standard input content to be passed to the command
 
 **Behavior:**
@@ -563,7 +563,7 @@ Based on the detailed information obtained from describe, pass the four required
     "c1": "code",
     "c2": "analyze",
     "c3": "complexity",
-    "options": ["-f", "src/main.ts", "--verbose"],
+    "options": ["-f=src/main.ts"],
     "stdin": "console.log('test');"
   }
 }
@@ -574,7 +574,7 @@ Based on the detailed information obtained from describe, pass the four required
   "exitCode": 0,
   "stdout": "# Code Analysis Instructions...",
   "stderr": "",
-  "command": "deno run jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f src/main.ts --verbose"
+  "command": "deno run jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts"
 }
 ```
 

@@ -151,7 +151,7 @@ server.setRequestHandler(
             options: {
               type: "array",
               description:
-                "Optional command-line options from describe result (e.g., ['-f', 'file.txt', '--verbose']). These are passed directly to the command.",
+                "Optional command-line options from describe result (e.g., ['-f=file.txt']). These are passed directly to the command.",
               items: {
                 type: "string",
               },
