@@ -36,7 +36,8 @@
     ".vscode/",
     ".gitignore",
     "CLAUDE.md",
-    "deno.lock"
+    "deno.lock",
+    "tmp/"
   ],
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
