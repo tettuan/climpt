@@ -12,7 +12,6 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import type { Command } from "../../src/mcp/types.ts";
 import {
-  cosineSimilarity,
   describeCommand,
   searchCommands,
 } from "../../src/mcp/similarity.ts";

@@ -133,7 +133,7 @@ server.setRequestHandler(
  */
 server.setRequestHandler(
   CallToolRequestSchema,
-  async (request: CallToolRequest) => {
+  (request: CallToolRequest) => {
     const { name, arguments: args } = request.params;
     console.error(`⚡ CallToolRequest received for: ${name}`);
 
