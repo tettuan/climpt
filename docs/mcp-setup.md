@@ -46,7 +46,9 @@ searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンド�
 ```
 
 ### `execute`
-describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`, `<c3>` の4つを必ず渡し、かつ、describeから得られたオプション引数（`-*`/`--*` 形式のオプション引数と、STDIN）も含めて実行します。オプションに渡す値も作成してから execute へ渡してください。execute の結果は指示書であるため、得られた指示に従って進めてください。
+describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`, `<c3>` の4つを必ず渡し、かつ、describeから得られたオプション引数（`-*`/`--*` 形式）も含めて実行します。オプションに渡す値も作成してから execute へ渡してください。execute の結果は指示書であるため、得られた指示に従って進めてください。
+
+**注意:** STDINサポートが必要な場合は、MCPではなくCLIから直接climptコマンドを実行してください。
 
 **引数:**
 - `agent` (必須): C3L仕様のエージェント名（例: 'climpt', 'inspector', 'auditor'）。Agent-Domainモデルにおけるエージェント（自律実行者）に対応
@@ -54,12 +56,10 @@ describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`
 - `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute, generate）
 - `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
 - `options` (オプション): describeから得たコマンドラインオプションの配列（例: `['-f=file.txt']`）
-- `stdin` (オプション): コマンドに渡す標準入力の内容
 
 **動作:**
 - C3L v0.5 仕様に従い `--config` パラメータを構築: `agent === "climpt"` の場合は `--config=<c1>`、それ以外は `--config=<agent>-<c1>`
 - `deno run jsr:@aidevtool/climpt --config=... <c2> <c3> [options]` を実行
-- stdin が指定されている場合は標準入力経由でデータを渡す
 - stdout, stderr, 終了コードを含む実行結果を返却
 - 実行結果には指示内容が含まれており、その指示に従って次の作業を進める
 
@@ -78,15 +78,14 @@ describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=git group-commit unstaged-changes
 ```
 
-**使用例（オプションとSTDIN付き）:**
+**使用例（オプション付き）:**
 ```json
 {
   "agent": "inspector",
   "c1": "code",
   "c2": "analyze",
   "c3": "complexity",
-  "options": ["-f=src/main.ts"],
-  "stdin": "console.log('test');"
+  "options": ["-f=src/main.ts"]
 }
 ```
 
@@ -94,7 +93,6 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts
 ```
-（標準入力から `console.log('test');` が渡される）
 
 ## セットアップ手順
 

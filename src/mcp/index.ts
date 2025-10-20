@@ -124,7 +124,7 @@ server.setRequestHandler(
       {
         name: "execute",
         description:
-          "Based on the detailed information obtained from describe, pass the four required parameters: <agent-name>, <c1>, <c2>, <c3>. Also include option arguments (-*/--* format) and STDIN obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.",
+          "Based on the detailed information obtained from describe, pass the four required parameters: <agent-name>, <c1>, <c2>, <c3>. Also include option arguments (-*/--* format) obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed. Note: If you need STDIN support, execute the climpt command directly via CLI instead of using MCP.",
         inputSchema: {
           type: "object",
           properties: {
@@ -155,11 +155,6 @@ server.setRequestHandler(
               items: {
                 type: "string",
               },
-            },
-            stdin: {
-              type: "string",
-              description:
-                "Optional standard input content to be passed to the command via STDIN.",
             },
           },
           required: ["agent", "c1", "c2", "c3"],
@@ -235,13 +230,12 @@ server.setRequestHandler(
           ],
         };
       } else if (name === "execute") {
-        const { agent, c1, c2, c3, options, stdin } = args as {
+        const { agent, c1, c2, c3, options } = args as {
           agent: string;
           c1: string;
           c2: string;
           c3: string;
           options?: string[];
-          stdin?: string;
         };
 
         if (!agent || !c1 || !c2 || !c3) {
@@ -273,23 +267,11 @@ server.setRequestHandler(
           commandArgs.push(...options);
         }
 
-        // Configure command with stdin if provided
-        const commandOptions: {
-          args: string[];
-          stdout: "piped";
-          stderr: "piped";
-          stdin?: "piped";
-        } = {
+        const command = new Deno.Command("deno", {
           args: commandArgs,
           stdout: "piped",
           stderr: "piped",
-        };
-
-        if (stdin) {
-          commandOptions.stdin = "piped";
-        }
-
-        const command = new Deno.Command("deno", commandOptions);
+        });
 
         const optionsStr = options && options.length > 0
           ? ` ${options.join(" ")}`
@@ -297,22 +279,8 @@ server.setRequestHandler(
         console.error(
           `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
         );
-        if (stdin) {
-          console.error(`📝 With STDIN: ${stdin.substring(0, 100)}...`);
-        }
 
-        // Execute command
-        let process;
-        if (stdin) {
-          process = command.spawn();
-          const writer = process.stdin.getWriter();
-          await writer.write(new TextEncoder().encode(stdin));
-          await writer.close();
-        } else {
-          process = command.spawn();
-        }
-
-        const { code, stdout, stderr } = await process.output();
+        const { code, stdout, stderr } = await command.output();
         const stdoutText = new TextDecoder().decode(stdout);
         const stderrText = new TextDecoder().decode(stderr);
 

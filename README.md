@@ -515,7 +515,9 @@ Pass the c1, c2, c3 identifiers from search results. Returns all matching comman
 
 #### `execute` Tool
 
-Based on the detailed information obtained from describe, pass the four required parameters: `<agent-name>`, `<c1>`, `<c2>`, `<c3>`. Also include option arguments (`-*`/`--*` format) and STDIN obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.
+Based on the detailed information obtained from describe, pass the four required parameters: `<agent-name>`, `<c1>`, `<c2>`, `<c3>`. Also include option arguments (`-*`/`--*` format) obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.
+
+**Note:** If you need STDIN support, execute the climpt command directly via CLI instead of using MCP.
 
 **Arguments:**
 - `agent` (required): Agent name from C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the Agent-Domain model where agent is the autonomous executor.
@@ -523,12 +525,10 @@ Based on the detailed information obtained from describe, pass the four required
 - `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
 - `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
 - `options` (optional): Array of command-line options from describe result (e.g., `['-f=file.txt']`)
-- `stdin` (optional): Standard input content to be passed to the command
 
 **Behavior:**
 - Constructs `--config` parameter following C3L v0.5: `agent === "climpt"` ? `c1` : `agent-c1`
 - Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3 [options]`
-- Passes stdin if provided
 - Returns stdout, stderr, exit code, and executed command string
 - The output contains instructions to follow
 
@@ -554,7 +554,7 @@ Based on the detailed information obtained from describe, pass the four required
 }
 ```
 
-**Example (With Options and STDIN):**
+**Example (With Options):**
 ```json
 {
   "tool": "execute",
@@ -563,8 +563,7 @@ Based on the detailed information obtained from describe, pass the four required
     "c1": "code",
     "c2": "analyze",
     "c3": "complexity",
-    "options": ["-f=src/main.ts"],
-    "stdin": "console.log('test');"
+    "options": ["-f=src/main.ts"]
   }
 }
 
