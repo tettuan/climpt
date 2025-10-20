@@ -171,7 +171,8 @@ server.setRequestHandler(
                 type: "text",
                 text: JSON.stringify(
                   {
-                    error: `No commands found for c1="${c1}", c2="${c2}", c3="${c3}"`,
+                    error:
+                      `No commands found for c1="${c1}", c2="${c2}", c3="${c3}"`,
                   },
                   null,
                   2,

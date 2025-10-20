@@ -79,8 +79,8 @@ export function searchCommands(
   const results: SearchResult[] = [];
   for (const cmd of uniqueCommands.values()) {
     // Combine c1, c2, c3, and description for search target
-    const searchTarget =
-      `${cmd.c1} ${cmd.c2} ${cmd.c3} ${cmd.description}`.toLowerCase();
+    const searchTarget = `${cmd.c1} ${cmd.c2} ${cmd.c3} ${cmd.description}`
+      .toLowerCase();
     const score = cosineSimilarity(query, searchTarget);
 
     results.push({
