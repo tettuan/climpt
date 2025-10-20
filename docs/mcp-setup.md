@@ -53,7 +53,7 @@ describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`
 - `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs, meta）
 - `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute, generate）
 - `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
-- `options` (オプション): describeから得たコマンドラインオプションの配列。**重要**: オプションと値は `=` で結合した1つの文字列として指定すること（例: `['-f=file.txt']`。`['-f', 'file.txt']` ではない）。これは registry.json の形式に従います。
+- `options` (オプション): describeから得たコマンドラインオプションの配列（例: `['-f=file.txt']`）
 - `stdin` (オプション): コマンドに渡す標準入力の内容
 
 **動作:**
