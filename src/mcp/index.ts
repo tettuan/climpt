@@ -275,7 +275,8 @@ server.setRequestHandler(
                   exitCode: code,
                   stdout: stdoutText,
                   stderr: stderrText,
-                  command: `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
+                  command:
+                    `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
                 },
                 null,
                 2,
