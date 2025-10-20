@@ -513,6 +513,43 @@ Pass the c1, c2, c3 identifiers from search results. Returns all matching comman
 }
 ```
 
+#### `execute` Tool
+
+Pass the climpt, c1, c2, c3 identifiers to execute the selected command. Runs the command using deno with appropriate config parameters and returns the output. The config parameter is constructed based on climpt value: if climpt='climpt' then --config=c1, otherwise --config=climpt-c1.
+
+**Arguments:**
+- `climpt` (required): Config prefix identifier (e.g., 'climpt', 'inspector'). Used to construct the --config parameter.
+- `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
+
+**Behavior:**
+- Constructs `--config` parameter: `climpt === "climpt"` ? `c1` : `climpt-c1`
+- Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3`
+- Returns stdout, stderr, and exit code
+
+**Example:**
+```json
+{
+  "tool": "execute",
+  "arguments": {
+    "climpt": "climpt",
+    "c1": "git",
+    "c2": "group-commit",
+    "c3": "unstaged-changes"
+  }
+}
+
+// Response
+{
+  "success": true,
+  "exitCode": 0,
+  "stdout": "...",
+  "stderr": "",
+  "command": "deno run jsr:@aidevtool/climpt --config=git group-commit unstaged-changes"
+}
+```
+
 ### Running the MCP Server
 
 You can also run the MCP server directly:

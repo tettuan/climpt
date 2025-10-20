@@ -1,9 +1,13 @@
 /**
- * @fileoverview Minimal test suite for MCP search and describe tools
+ * @fileoverview Minimal test suite for MCP tools
  *
  * Tests the core use cases:
  * 1. Search: Find commands using natural language queries
  * 2. Describe: Get detailed command definitions by c1/c2/c3
+ * 3. Execute: Tested via integration tests in tests/mcp_test.ts
+ *
+ * Note: Execute tool tests are primarily integration tests that verify
+ * the command construction and execution logic, tested separately.
  */
 
 import {

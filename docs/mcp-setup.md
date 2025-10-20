@@ -45,6 +45,36 @@ searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンド�
 }
 ```
 
+### `execute`
+describeで確認したコマンドを実際に実行します。`climpt`, `c1`, `c2`, `c3`を渡すと、適切な`--config`パラメータを構築してclimptコマンドを実行し、結果を返します。
+
+**引数:**
+- `climpt` (必須): 設定プレフィックス識別子（例: 'climpt', 'inspector'）
+- `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs, meta）
+- `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute, generate）
+- `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
+
+**動作:**
+- `climpt === "climpt"` の場合: `--config=<c1>` を使用
+- `climpt !== "climpt"` の場合: `--config=<climpt>-<c1>` を使用（例: `--config=inspector-git`）
+- `deno run jsr:@aidevtool/climpt --config=... <c2> <c3>` を実行
+- stdout, stderr, 終了コードを含む実行結果を返却
+
+**使用例:**
+```json
+{
+  "climpt": "climpt",
+  "c1": "git",
+  "c2": "group-commit",
+  "c3": "unstaged-changes"
+}
+```
+
+実行されるコマンド:
+```bash
+deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=git group-commit unstaged-changes
+```
+
 ## セットアップ手順
 
 ### 1. リポジトリのクローン

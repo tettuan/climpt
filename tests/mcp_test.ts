@@ -499,3 +499,36 @@ Deno.test("MCP server has required dependencies", async () => {
     "Should handle CallToolRequest",
   );
 });
+
+// Test MCP server implements all three tools
+Deno.test("MCP server implements search, describe, and execute tools", async () => {
+  const mcpIndexContent = await Deno.readTextFile("src/mcp/index.ts");
+
+  // Check for search tool
+  assertStringIncludes(
+    mcpIndexContent,
+    'name: "search"',
+    "Should implement search tool",
+  );
+
+  // Check for describe tool
+  assertStringIncludes(
+    mcpIndexContent,
+    'name: "describe"',
+    "Should implement describe tool",
+  );
+
+  // Check for execute tool
+  assertStringIncludes(
+    mcpIndexContent,
+    'name: "execute"',
+    "Should implement execute tool",
+  );
+
+  // Check for execute handler
+  assertStringIncludes(
+    mcpIndexContent,
+    'name === "execute"',
+    "Should have execute handler",
+  );
+});

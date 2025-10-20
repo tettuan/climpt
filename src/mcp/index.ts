@@ -121,6 +121,37 @@ server.setRequestHandler(
           required: ["c1", "c2", "c3"],
         },
       },
+      {
+        name: "execute",
+        description:
+          "Pass the climpt, c1, c2, c3 identifiers to execute the selected command. Runs the command using deno with appropriate config parameters and returns the output. The config parameter is constructed based on climpt value: if climpt='climpt' then --config=c1, otherwise --config=climpt-c1.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            climpt: {
+              type: "string",
+              description:
+                "Config prefix identifier (e.g., 'climpt', 'inspector'). Used to construct the --config parameter.",
+            },
+            c1: {
+              type: "string",
+              description:
+                "Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)",
+            },
+            c2: {
+              type: "string",
+              description:
+                "Action identifier from describe result (e.g., create, analyze, execute, generate)",
+            },
+            c3: {
+              type: "string",
+              description:
+                "Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)",
+            },
+          },
+          required: ["climpt", "c1", "c2", "c3"],
+        },
+      },
     ];
 
     return { tools };
@@ -129,11 +160,11 @@ server.setRequestHandler(
 
 /**
  * Handler for executing a tool.
- * Handles both search and describe commands.
+ * Handles search, describe, and execute commands.
  */
 server.setRequestHandler(
   CallToolRequestSchema,
-  (request: CallToolRequest) => {
+  async (request: CallToolRequest) => {
     const { name, arguments: args } = request.params;
     console.error(`⚡ CallToolRequest received for: ${name}`);
 
@@ -187,6 +218,68 @@ server.setRequestHandler(
             {
               type: "text",
               text: JSON.stringify({ commands }, null, 2),
+            },
+          ],
+        };
+      } else if (name === "execute") {
+        const { climpt, c1, c2, c3 } = args as {
+          climpt: string;
+          c1: string;
+          c2: string;
+          c3: string;
+        };
+
+        if (!climpt || !c1 || !c2 || !c3) {
+          throw new Error(
+            "climpt, c1, c2, and c3 parameters are all required",
+          );
+        }
+
+        // Construct config parameter based on climpt value
+        const configParam = climpt === "climpt" ? c1 : `${climpt}-${c1}`;
+
+        // Execute command using Deno.Command
+        const command = new Deno.Command("deno", {
+          args: [
+            "run",
+            "--allow-read",
+            "--allow-write",
+            "--allow-env",
+            "--allow-run",
+            "--allow-net",
+            "--no-config",
+            "jsr:@aidevtool/climpt",
+            `--config=${configParam}`,
+            c2,
+            c3,
+          ],
+          stdout: "piped",
+          stderr: "piped",
+        });
+
+        console.error(
+          `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
+        );
+
+        const { code, stdout, stderr } = await command.output();
+        const stdoutText = new TextDecoder().decode(stdout);
+        const stderrText = new TextDecoder().decode(stderr);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: code === 0,
+                  exitCode: code,
+                  stdout: stdoutText,
+                  stderr: stderrText,
+                  command: `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
