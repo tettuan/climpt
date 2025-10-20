@@ -6,15 +6,15 @@ Climpt MCP ServerはClaude Codeのslashコマンドから`climpt`の機能を利
 ## 利用可能なコマンド
 
 ### `search`
-英語のクエリを送信すると、説明が最も近いコマンドを3つ返します。
+実行したいコマンドを簡潔に説明して渡すと、コサイン類似度で説明文から近いコマンドを3つ返します。受け取った結果から最適なコマンドを選べます。
 
 **引数:**
-- `query` (必須): コマンドを検索するための英語の説明文
+- `query` (必須): 実行したいことの簡潔な説明（例: 'commit changes to git', 'generate API documentation', 'run tests'）
 
 **動作:**
-- registry.jsonから`c1 + c2 + c3 + description`の文字列を対象に類似度計算を実行
-- コサイン類似度に基づいて上位3つのコマンドを返却
-- 返却値には各コマンドの`c1`, `c2`, `c3`, `description`を含む
+- registry.jsonから`c1 + c2 + c3 + description`の文字列を対象にコサイン類似度を計算
+- 類似度上位3つのコマンドを返却
+- 返却値には各コマンドの`c1`, `c2`, `c3`, `description`, `score`を含む
 
 **使用例:**
 ```json
@@ -24,17 +24,17 @@ Climpt MCP ServerはClaude Codeのslashコマンドから`climpt`の機能を利
 ```
 
 ### `describe`
-コマンドの詳細情報を取得します。
+searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンドの説明文を全て返します。その中から最適な使用法やオプションの組み合わせを知ることができ、オプションの使い方も選べます。
 
 **引数:**
-- `c1` (必須): ドメイン名（例: git, spec, test）
-- `c2` (必須): アクション名（例: create, analyze）
-- `c3` (必須): ターゲット名（例: refinement-issue, quality-metrics）
+- `c1` (必須): searchから得たドメイン識別子（例: git, spec, test, code, docs, meta）
+- `c2` (必須): searchから得たアクション識別子（例: create, analyze, execute, generate）
+- `c3` (必須): searchから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
 
 **動作:**
 - 指定された`c1`, `c2`, `c3`に一致するregistry.jsonの全レコードを返却
 - 同じc1,c2,c3でオプションが異なる複数のレコードが存在する場合、全て返却
-- JSON構造を完全に維持して返却
+- 使用方法、利用可能なオプション、ファイル/標準入力/出力先サポートを含む完全なJSON構造を返却
 
 **使用例:**
 ```json

@@ -426,10 +426,10 @@ The MCP server provides the following tools:
 
 #### `search` Tool
 
-Searches for commands using semantic similarity based on natural language descriptions.
+Pass a brief description of the command you want to execute. Finds the 3 most similar commands using cosine similarity against command descriptions. You can then select the most appropriate command from the results.
 
 **Arguments:**
-- `query` (required): English description of the desired command
+- `query` (required): Brief description of what you want to do (e.g., 'commit changes to git', 'generate API documentation', 'run tests')
 
 **Behavior:**
 - Searches registry.json using `c1 + c2 + c3 + description` as the search target
@@ -469,17 +469,17 @@ Searches for commands using semantic similarity based on natural language descri
 
 #### `describe` Tool
 
-Retrieves complete command definitions from the registry.
+Pass the c1, c2, c3 identifiers from search results. Returns all matching command details including usage instructions and available options. You can then choose the optimal option combination for your use case.
 
 **Arguments:**
-- `c1` (required): Domain name (e.g., git, spec, test)
-- `c2` (required): Action name (e.g., create, analyze)
-- `c3` (required): Target name (e.g., refinement-issue, quality-metrics)
+- `c1` (required): Domain identifier from search result (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from search result (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from search result (e.g., unstaged-changes, quality-metrics, unit-tests)
 
 **Behavior:**
 - Returns all matching records from registry.json
-- Preserves complete JSON structure including all options
-- Returns multiple records if the same c1/c2/c3 exists with different options
+- Preserves complete JSON structure including usage, options, and file/stdin/destination support
+- Returns multiple records if the same c1/c2/c3 exists with different option variations
 
 **Example:**
 ```json

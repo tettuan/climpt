@@ -82,13 +82,14 @@ server.setRequestHandler(
       {
         name: "search",
         description:
-          "Search for commands using semantic similarity based on natural language descriptions",
+          "Pass a brief description of the command you want to execute. Finds the 3 most similar commands using cosine similarity against command descriptions. You can then select the most appropriate command from the results.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "English description of the desired command",
+              description:
+                "Brief description of what you want to do. Example: 'commit changes to git', 'generate API documentation', 'run tests'",
             },
           },
           required: ["query"],
@@ -97,21 +98,24 @@ server.setRequestHandler(
       {
         name: "describe",
         description:
-          "Retrieve complete command definitions including all options and variations",
+          "Pass the c1, c2, c3 identifiers from search results. Returns all matching command details including usage instructions and available options. You can then choose the optimal option combination for your use case.",
         inputSchema: {
           type: "object",
           properties: {
             c1: {
               type: "string",
-              description: "Domain name (e.g., git, spec, test)",
+              description:
+                "Domain identifier from search result (e.g., git, spec, test, code, docs, meta)",
             },
             c2: {
               type: "string",
-              description: "Action name (e.g., create, analyze)",
+              description:
+                "Action identifier from search result (e.g., create, analyze, execute, generate)",
             },
             c3: {
               type: "string",
-              description: "Target name (e.g., refinement-issue, quality-metrics)",
+              description:
+                "Target identifier from search result (e.g., unstaged-changes, quality-metrics, unit-tests)",
             },
           },
           required: ["c1", "c2", "c3"],
