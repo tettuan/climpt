@@ -515,25 +515,29 @@ Pass the c1, c2, c3 identifiers from search results. Returns all matching comman
 
 #### `execute` Tool
 
-Pass the climpt, c1, c2, c3 identifiers to execute the selected command. Runs the command using deno with appropriate config parameters and returns the output. The config parameter is constructed based on climpt value: if climpt='climpt' then --config=c1, otherwise --config=climpt-c1.
+Based on the detailed information obtained from describe, pass the four required parameters: `<agent-name>`, `<c1>`, `<c2>`, `<c3>`. Also include option arguments (`-*`/`--*` format) and STDIN obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.
 
 **Arguments:**
-- `climpt` (required): Config prefix identifier (e.g., 'climpt', 'inspector'). Used to construct the --config parameter.
+- `agent` (required): Agent name from C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the Agent-Domain model where agent is the autonomous executor.
 - `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
 - `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
 - `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
+- `options` (optional): Array of command-line options from describe result (e.g., `['-f', 'file.txt', '--verbose']`)
+- `stdin` (optional): Standard input content to be passed to the command
 
 **Behavior:**
-- Constructs `--config` parameter: `climpt === "climpt"` ? `c1` : `climpt-c1`
-- Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3`
-- Returns stdout, stderr, and exit code
+- Constructs `--config` parameter following C3L v0.5: `agent === "climpt"` ? `c1` : `agent-c1`
+- Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3 [options]`
+- Passes stdin if provided
+- Returns stdout, stderr, exit code, and executed command string
+- The output contains instructions to follow
 
-**Example:**
+**Example (Basic):**
 ```json
 {
   "tool": "execute",
   "arguments": {
-    "climpt": "climpt",
+    "agent": "climpt",
     "c1": "git",
     "c2": "group-commit",
     "c3": "unstaged-changes"
@@ -544,9 +548,33 @@ Pass the climpt, c1, c2, c3 identifiers to execute the selected command. Runs th
 {
   "success": true,
   "exitCode": 0,
-  "stdout": "...",
+  "stdout": "# Instructions for Git Group Commit...",
   "stderr": "",
   "command": "deno run jsr:@aidevtool/climpt --config=git group-commit unstaged-changes"
+}
+```
+
+**Example (With Options and STDIN):**
+```json
+{
+  "tool": "execute",
+  "arguments": {
+    "agent": "inspector",
+    "c1": "code",
+    "c2": "analyze",
+    "c3": "complexity",
+    "options": ["-f", "src/main.ts", "--verbose"],
+    "stdin": "console.log('test');"
+  }
+}
+
+// Response
+{
+  "success": true,
+  "exitCode": 0,
+  "stdout": "# Code Analysis Instructions...",
+  "stderr": "",
+  "command": "deno run jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f src/main.ts --verbose"
 }
 ```
 

@@ -124,14 +124,14 @@ server.setRequestHandler(
       {
         name: "execute",
         description:
-          "Pass the climpt, c1, c2, c3 identifiers to execute the selected command. Runs the command using deno with appropriate config parameters and returns the output. The config parameter is constructed based on climpt value: if climpt='climpt' then --config=c1, otherwise --config=climpt-c1.",
+          "Based on the detailed information obtained from describe, pass the four required parameters: <agent-name>, <c1>, <c2>, <c3>. Also include option arguments (-*/--* format) and STDIN obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.",
         inputSchema: {
           type: "object",
           properties: {
-            climpt: {
+            agent: {
               type: "string",
               description:
-                "Config prefix identifier (e.g., 'climpt', 'inspector'). Used to construct the --config parameter.",
+                "Agent name from C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the Agent-Domain model where agent is the autonomous executor.",
             },
             c1: {
               type: "string",
@@ -148,8 +148,21 @@ server.setRequestHandler(
               description:
                 "Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)",
             },
+            options: {
+              type: "array",
+              description:
+                "Optional command-line options from describe result (e.g., ['-f', 'file.txt', '--verbose']). These are passed directly to the command.",
+              items: {
+                type: "string",
+              },
+            },
+            stdin: {
+              type: "string",
+              description:
+                "Optional standard input content to be passed to the command via STDIN.",
+            },
           },
-          required: ["climpt", "c1", "c2", "c3"],
+          required: ["agent", "c1", "c2", "c3"],
         },
       },
     ];
@@ -222,46 +235,84 @@ server.setRequestHandler(
           ],
         };
       } else if (name === "execute") {
-        const { climpt, c1, c2, c3 } = args as {
-          climpt: string;
+        const { agent, c1, c2, c3, options, stdin } = args as {
+          agent: string;
           c1: string;
           c2: string;
           c3: string;
+          options?: string[];
+          stdin?: string;
         };
 
-        if (!climpt || !c1 || !c2 || !c3) {
+        if (!agent || !c1 || !c2 || !c3) {
           throw new Error(
-            "climpt, c1, c2, and c3 parameters are all required",
+            "agent, c1, c2, and c3 parameters are all required",
           );
         }
 
-        // Construct config parameter based on climpt value
-        const configParam = climpt === "climpt" ? c1 : `${climpt}-${c1}`;
+        // Construct config parameter based on agent value (C3L v0.5 specification)
+        const configParam = agent === "climpt" ? c1 : `${agent}-${c1}`;
 
-        // Execute command using Deno.Command
-        const command = new Deno.Command("deno", {
-          args: [
-            "run",
-            "--allow-read",
-            "--allow-write",
-            "--allow-env",
-            "--allow-run",
-            "--allow-net",
-            "--no-config",
-            "jsr:@aidevtool/climpt",
-            `--config=${configParam}`,
-            c2,
-            c3,
-          ],
+        // Build command arguments
+        const commandArgs = [
+          "run",
+          "--allow-read",
+          "--allow-write",
+          "--allow-env",
+          "--allow-run",
+          "--allow-net",
+          "--no-config",
+          "jsr:@aidevtool/climpt",
+          `--config=${configParam}`,
+          c2,
+          c3,
+        ];
+
+        // Add optional arguments if provided
+        if (options && Array.isArray(options) && options.length > 0) {
+          commandArgs.push(...options);
+        }
+
+        // Configure command with stdin if provided
+        const commandOptions: {
+          args: string[];
+          stdout: "piped";
+          stderr: "piped";
+          stdin?: "piped";
+        } = {
+          args: commandArgs,
           stdout: "piped",
           stderr: "piped",
-        });
+        };
 
+        if (stdin) {
+          commandOptions.stdin = "piped";
+        }
+
+        const command = new Deno.Command("deno", commandOptions);
+
+        const optionsStr = options && options.length > 0
+          ? ` ${options.join(" ")}`
+          : "";
         console.error(
-          `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
+          `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
         );
+        if (stdin) {
+          console.error(`📝 With STDIN: ${stdin.substring(0, 100)}...`);
+        }
 
-        const { code, stdout, stderr } = await command.output();
+        // Execute command
+        let process;
+        if (stdin) {
+          process = command.spawn();
+          const writer = process.stdin.getWriter();
+          await writer.write(new TextEncoder().encode(stdin));
+          await writer.close();
+        } else {
+          process = command.spawn();
+        }
+
+        const { code, stdout, stderr } = await process.output();
         const stdoutText = new TextDecoder().decode(stdout);
         const stderrText = new TextDecoder().decode(stderr);
 
@@ -276,7 +327,7 @@ server.setRequestHandler(
                   stdout: stdoutText,
                   stderr: stderrText,
                   command:
-                    `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}`,
+                    `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
                 },
                 null,
                 2,
