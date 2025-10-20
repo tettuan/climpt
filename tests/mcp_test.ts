@@ -490,12 +490,12 @@ Deno.test("MCP server has required dependencies", async () => {
   );
   assertStringIncludes(
     mcpIndexContent,
-    "ListPromptsRequest",
-    "Should handle ListPromptsRequest",
+    "ListToolsRequest",
+    "Should handle ListToolsRequest",
   );
   assertStringIncludes(
     mcpIndexContent,
-    "ListToolsRequest",
-    "Should handle ListToolsRequest",
+    "CallToolRequest",
+    "Should handle CallToolRequest",
   );
 });
