@@ -215,9 +215,9 @@ Climpt includes a built-in MCP server that enables AI assistants like Claude to 
 
 ### MCP Features
 
+- **Command Search**: Semantic search using cosine similarity to find commands based on natural language descriptions
+- **Command Details**: Retrieve complete command definitions including all options and variations
 - **Dynamic Tool Loading**: Automatically loads available tools from `.agent/climpt/registry.json`
-- **Full Command Registry Access**: All Climpt commands (code, docs, git, meta, spec, test) are available
-- **Graceful Fallback**: Defaults to standard tools when configuration is unavailable
 - **JSR Distribution**: Can be run directly from JSR without local installation
 - **No Binary Dependencies**: Works without `.deno/bin` installation
 
@@ -419,6 +419,163 @@ cp examples/mcp/registry.template.json .agent/climpt/registry.json
 ```
 
 A complete template file is available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
+
+### Available MCP Tools
+
+The MCP server provides the following tools:
+
+#### `search` Tool
+
+Pass a brief description of the command you want to execute. Finds the 3 most similar commands using cosine similarity against command descriptions. You can then select the most appropriate command from the results.
+
+**Arguments:**
+- `query` (required): Brief description of what you want to do (e.g., 'commit changes to git', 'generate API documentation', 'run tests')
+
+**Behavior:**
+- Searches registry.json using `c1 + c2 + c3 + description` as the search target
+- Uses cosine similarity to rank results
+- Returns top 3 most similar commands
+- Each result includes `c1`, `c2`, `c3`, `description`, and similarity `score`
+
+**Example:**
+```json
+{
+  "tool": "search",
+  "arguments": {
+    "query": "commit changes to git repository"
+  }
+}
+
+// Response
+{
+  "results": [
+    {
+      "c1": "git",
+      "c2": "group-commit",
+      "c3": "unstaged-changes",
+      "description": "Create a group commit for unstaged changes",
+      "score": 0.338
+    },
+    {
+      "c1": "git",
+      "c2": "analyze",
+      "c3": "commit-history",
+      "description": "Analyze commit history and generate insights",
+      "score": 0.183
+    }
+  ]
+}
+```
+
+#### `describe` Tool
+
+Pass the c1, c2, c3 identifiers from search results. Returns all matching command details including usage instructions and available options. You can then choose the optimal option combination for your use case.
+
+**Arguments:**
+- `c1` (required): Domain identifier from search result (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from search result (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from search result (e.g., unstaged-changes, quality-metrics, unit-tests)
+
+**Behavior:**
+- Returns all matching records from registry.json
+- Preserves complete JSON structure including usage, options, and file/stdin/destination support
+- Returns multiple records if the same c1/c2/c3 exists with different option variations
+
+**Example:**
+```json
+{
+  "tool": "describe",
+  "arguments": {
+    "c1": "git",
+    "c2": "group-commit",
+    "c3": "unstaged-changes"
+  }
+}
+
+// Response
+{
+  "commands": [
+    {
+      "c1": "git",
+      "c2": "group-commit",
+      "c3": "unstaged-changes",
+      "description": "Create a group commit for unstaged changes",
+      "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
+      "options": {
+        "input": ["default"],
+        "adaptation": ["default", "detailed"],
+        "file": true,
+        "stdin": false,
+        "destination": true
+      }
+    }
+  ]
+}
+```
+
+#### `execute` Tool
+
+Based on the detailed information obtained from describe, pass the four required parameters: `<agent-name>`, `<c1>`, `<c2>`, `<c3>`. Also include option arguments (`-*`/`--*` format) obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.
+
+**Note:** If you need STDIN support, execute the climpt command directly via CLI instead of using MCP.
+
+**Arguments:**
+- `agent` (required): Agent name from C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the Agent-Domain model where agent is the autonomous executor.
+- `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
+- `options` (optional): Array of command-line options from describe result (e.g., `['-f=file.txt']`)
+
+**Behavior:**
+- Constructs `--config` parameter following C3L v0.5: `agent === "climpt"` ? `c1` : `agent-c1`
+- Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3 [options]`
+- Returns stdout, stderr, exit code, and executed command string
+- The output contains instructions to follow
+
+**Example (Basic):**
+```json
+{
+  "tool": "execute",
+  "arguments": {
+    "agent": "climpt",
+    "c1": "git",
+    "c2": "group-commit",
+    "c3": "unstaged-changes"
+  }
+}
+
+// Response
+{
+  "success": true,
+  "exitCode": 0,
+  "stdout": "# Instructions for Git Group Commit...",
+  "stderr": "",
+  "command": "deno run jsr:@aidevtool/climpt --config=git group-commit unstaged-changes"
+}
+```
+
+**Example (With Options):**
+```json
+{
+  "tool": "execute",
+  "arguments": {
+    "agent": "inspector",
+    "c1": "code",
+    "c2": "analyze",
+    "c3": "complexity",
+    "options": ["-f=src/main.ts"]
+  }
+}
+
+// Response
+{
+  "success": true,
+  "exitCode": 0,
+  "stdout": "# Code Analysis Instructions...",
+  "stderr": "",
+  "command": "deno run jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts"
+}
+```
 
 ### Running the MCP Server
 
