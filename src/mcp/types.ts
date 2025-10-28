@@ -43,3 +43,22 @@ export interface Registry {
     commands: Command[];
   };
 }
+
+/**
+ * MCP configuration structure
+ * Maps agent names to their registry.json paths
+ */
+export interface MCPConfig {
+  registries: {
+    [agentName: string]: string;
+  };
+}
+
+/**
+ * Default MCP configuration
+ */
+export const DEFAULT_MCP_CONFIG: MCPConfig = {
+  registries: {
+    "climpt": ".agent/climpt/registry.json",
+  },
+};
