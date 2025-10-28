@@ -43,7 +43,9 @@ const REGISTRY_CACHE = new Map<string, Command[]>();
 async function loadOrCreateMCPConfig(): Promise<MCPConfig> {
   const configPaths = [
     ".agent/climpt/mcp/config.json",
-    `${Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ""}/.agent/climpt/mcp/config.json`,
+    `${
+      Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ""
+    }/.agent/climpt/mcp/config.json`,
   ];
 
   // Try to load existing config
@@ -112,7 +114,10 @@ async function loadRegistryForAgent(agentName: string): Promise<Command[]> {
     );
     return commands;
   } catch (error) {
-    console.error(`⚠️ Failed to load registry for agent '${agentName}':`, error);
+    console.error(
+      `⚠️ Failed to load registry for agent '${agentName}':`,
+      error,
+    );
     return [];
   }
 }
