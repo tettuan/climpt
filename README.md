@@ -1,24 +1,25 @@
 # Climpt
 
-A CLI tool for managing prompts and AI interactions - a wrapper around the breakdown package.
+A CLI tool for managing prompts and AI interactions - a wrapper for the breakdown package.
 
 ## Overview
 
-Climpt allows you to select from a set of prepared prompts and call the desired prompt with a single command, outputting the result. You can pass values to be inserted into the prompt as command-line arguments.
+Climpt allows you to organize pre-configured prompts, invoke the desired prompt with a single command, and output the result.
+You can pass values as arguments to be inserted into the prompt when invoked.
 
-Example usage:
+Execution examples:
 ```sh
-# Create new tests based on a bug report
-cat bug_report.md | climpt-build new test --input=bug
+# Build new tests based on bug reports
+cat bug_report.md | climpt-buld new test --input=bug
 
-# Detailed breakdown from issue to task
+# Detailed breakdown from issue to tasks
 climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 
 ```
 
-Climpt provides a unified interface for AI-assisted development instruction tools, enabling the creation, management, and execution of development instructions interpretable by AI systems using TypeScript and JSON Schema.
+Provides a unified interface for AI-assisted development instruction tools, enabling creation, management, and execution of development instructions that AI systems can interpret using TypeScript and JSON Schema.
 
-This tool is designed to work in conjunction with AI coding agents, especially optimized for Cursor and Claude. The underlying AI model is assumed to be Claude, but the syntax and structure are designed to be easily interpretable by other AI models as well.
+This tool is designed to work with AI coding agents and is optimized specifically for Cursor and Claude. While the underlying AI model is assumed to be Claude, the syntax and structure are designed to be easily interpreted by other AI models as well.
 
 ## Installation
 
@@ -30,17 +31,17 @@ Climpt is primarily intended to be used as a CLI tool. You can install it using 
 deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
 ```
 
-- `--allow-read`: Allow reading files and directories (required for input files)
-- `--allow-write`: Allow writing files and directories (required for output generation)
-- `--allow-net`: Allow network access (required for downloading breakdown package from JSR)
-- `--allow-env`: Allow environment variable access (required for configuration)
-- `-f`: Force overwrite existing command
+- `--allow-read`: Allows reading files and directories (required for input files)
+- `--allow-write`: Allows writing files and directories (required for output generation)
+- `--allow-net`: Allows network access (required for downloading breakdown package from JSR)
+- `--allow-env`: Allows environment variable access (required for configuration)
+- `-f`: Override existing command
 - `--global`: Install globally
 - `climpt`: Command name
 
 > **Note:**
-> While `-A` (allow all permissions) can be used for convenience, it is recommended to use specific permission flags as shown above for better security.
-> The CLI module must be specified as `jsr:@aidevtool/climpt`.
+> For convenience, you can use `-A` (allow all permissions), but for security, we recommend using specific permission flags as shown above.
+> Specify the CLI module as `jsr:@aidevtool/climpt`.
 > This is based on the `exports` configuration in `deno.json`.
 
 ## Usage
@@ -50,18 +51,18 @@ deno install --allow-read --allow-write --allow-net --allow-env --global climpt 
 After installation, you can use the climpt command directly:
 
 ```bash
-# Display help
+# Show help
 climpt --help
 
-# Generate initial configuration files
+# Generate initial configuration file
 climpt init
 
 # Check version
 climpt --version
 ```
 
-Climpt provides access to all breakdown package functionality through a simple wrapper interface.
-(In the future, feature development itself will be migrated from Breakdown to Climpt.)
+Climpt provides access to all features of the breakdown package through a simple wrapper interface.
+(In the future, we plan to migrate feature development itself from Breakdown to Climpt.)
 
 ### Command Syntax
 
@@ -77,24 +78,24 @@ climpt-<profile> <directive> <layer> [options]
 - `<layer>`: Target layer (e.g., refinement-issue, quality-metrics)
 - `[options]`: Various options
 
-### Options Reference
+### Options List
 
 #### Input/Output Options
 
 | Option | Short | Description | Corresponding Variable |
-|--------|-------|-------------|----------------------|
+|---------|------|------|------------|
 | `--from` | `-f` | Specify input file | `{input_text_file}` |
 | `--destination` | `-o` | Specify output destination (file or directory) | `{destination_path}` |
 | (STDIN) | - | Receive data from standard input | `{input_text}` |
 
 #### Processing Mode Options
 
-| Option | Short | Description | Purpose |
-|--------|-------|-------------|---------|
+| Option | Short | Description | Usage |
+|---------|------|------|------|
 | `--input` | `-i` | Specify input layer type | Used for prompt file selection (defaults to "default" if not specified) |
 | `--adaptation` | `-a` | Specify prompt type | Prompt variation selection |
 
-Searches for prompt file named `f_<input>_<adaptation>.md`.
+Searches for prompt file name `f_<input>_<adaptation>.md`.
 
 #### Custom Variable Options
 
@@ -110,65 +111,65 @@ Searches for prompt file named `f_<input>_<adaptation>.md`.
 | `--version` | Display version information |
 | `--config` | Specify profile to use |
 
-### Template Variables and Options Mapping
+### Template Variables and Option Correspondence
 
-Correspondence between variables used in prompt templates and CLI options:
+Correspondence between variables usable in prompt templates and CLI options:
 
 | Template Variable | CLI Option | Description | Required |
-|------------------|------------|-------------|----------|
+|---------------|-------------|------|------|
 | `{input_text}` | STDIN | Text from standard input | ✗ |
-| `{input_text_file}` | `-f`, `--from` | Input file path | ✗ |
-| `{destination_path}` | `-o`, `--destination` | Output destination path | ✗ |
+| `{input_text_file}` | `-f`, `--from` | Path to input file | ✗ |
+| `{destination_path}` | `-o`, `--destination` | Path to output destination | ✗ |
 | `{uv-*}` | `--uv-*` | Custom variables (any name) | ✗ |
 
-**Note:** The `-f`/`--from` option and STDIN work independently and can be used simultaneously.
+**Note:** The `-f`/`--from` option and STDIN operate independently and can be used simultaneously.
 
 ### Usage Examples
 
 #### 1. Using Standard Input
 
 ```bash
-# Generate error handling policy from error logs
+# Generate troubleshooting plan from error log
 echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
 ```
 
-#### 2. Using File Input
+#### 2. Input from File
 
 ```bash
 # Create refinement issue from requirements document
 climpt-git create refinement-issue -f=requirements.md -o=./issues/
 
-# Break down issue to tasks in detailed mode
+# Break down issue into tasks in detailed mode
 climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 ```
 
 #### 3. Combining Standard Input and File Input
 
 ```bash
-# Build new tests based on bug report
+# Build new tests from bug report
 cat bug_report.md | climpt-build new test --input=bug
 ```
 
 #### 4. Switching Profiles
 
 ```bash
-# Use architecture optimization prompts
+# Use architecture optimization prompt
 climpt-arch optimize go -f=current_design.md
 
-# Use setup prompts
+# Use setup prompt
 climpt-setup climpt list
 ```
 
 ### Prompt File Structure
 
-Prompt files are placed following these rules:
+Prompt files are placed according to the following rules:
 
 ```
 .agent/climpt/prompts/<profile>/<directive>/<layer>/f_<input>_<adaptation>.md
 ```
 
 **Naming Conventions:**
-- `f_default.md`: Default prompt (no `--input` or `--adaptation` specified)
+- `f_default.md`: Default prompt (no `--input` and `--adaptation` specified)
 - `f_<input>.md`: For specific input type (e.g., `f_code.md`)
 - `f_<input>_<adaptation>.md`: Combination of input type and processing mode (e.g., `f_default_strict.md`)
 
@@ -176,9 +177,9 @@ Prompt files are placed following these rules:
 
 ```yaml
 ---
-title: Determine new Git branch and create working branch
+title: Determine new git branch creation and create new branch
 input_text: Specify work content within 30 characters
-description: Select and create appropriate branch based on branch strategy
+description: Select and create appropriate branch based on branching strategy
 options:
   input: ["default"]
   adaptation: []
@@ -192,33 +193,36 @@ options:
 
 - **File not found:** Check prompt file path and naming conventions
 - **Permission errors:** Verify required permissions (`--allow-read`, `--allow-write`, etc.)
-- **Missing configuration:** Run `climpt init` to generate `.agent/climpt/config/default-app.yml`
+- **Missing configuration file:** Run `climpt init` to generate `.agent/climpt/config/default-app.yml`
 
 ## Key Features
 
 - Optimized Markdown conversion prompts
 - JSON Schema syntax for AI systems
-- Wrapper interface for the breakdown package
+- Wrapper interface for breakdown package
 - Support for various output formats (Markdown/JSON/YAML)
 
 ## Purpose
 
-To provide a standardized way to express development requirements, bridging the gap between human-written specifications and AI-interpretable instructions.
+To express development requirements in a standardized way, bridging the gap between human-written specifications and AI-interpretable instructions.
 
-This tool itself does not generate documents based on rules. It supports AI document generation by providing prompts and structured formats that are easy for AI to interpret and handle.
+This tool itself does not perform rule-based document generation. It provides prompts and structured formats that are easy for AI to interpret and process, in order to support AI-driven document generation.
 
 ## MCP (Model Context Protocol) Server
 
-Climpt includes a built-in MCP server that enables AI assistants like Claude to interact directly with the command registry and execute development tasks through a standardized protocol.
+Climpt includes a built-in MCP server that allows AI assistants like Claude to interact directly with the command registry and execute development tasks through a standardized protocol.
 
-**Important**: When using MCP, the `.deno/bin` directory is **not required**. The MCP server executes commands directly through the protocol without needing local CLI binaries.
+**Important**: When using MCP, the `.deno/bin` directory is **not required**. The MCP server executes commands directly through the protocol without requiring local CLI binaries.
 
 ### MCP Features
 
-- **Command Search**: Semantic search using cosine similarity to find commands based on natural language descriptions
-- **Command Details**: Retrieve complete command definitions including all options and variations
 - **Dynamic Tool Loading**: Automatically loads available tools from `.agent/climpt/registry.json`
-- **JSR Distribution**: Can be run directly from JSR without local installation
+- **Full Command Registry Access**: All Climpt commands (code, docs, git, meta, spec, test) are available
+- **Multiple Registry Support** (v1.6.1+): Manage and switch between multiple agent registries
+- **Registry Configuration Management**: Configuration-based registry management via `.agent/climpt/mcp/config.json`
+- **Performance Optimization**: Fast responses through registry caching
+- **Graceful Fallback**: Defaults to standard tools when configuration is unavailable
+- **JSR Distribution**: Run directly from JSR without local installation
 - **No Binary Dependencies**: Works without `.deno/bin` installation
 
 ### MCP Configuration
@@ -244,9 +248,57 @@ Configure the MCP server in your Claude or Cursor settings (`.mcp.json` or `~/.c
 }
 ```
 
+### Multiple Registry Configuration (v1.6.1+)
+
+From v1.6.1, the MCP server can manage multiple agent registries.
+
+#### MCP Config Setup
+
+Define multiple agents and their registry paths in `.agent/climpt/mcp/config.json`:
+
+```json
+{
+  "registries": {
+    "climpt": ".agent/climpt/registry.json",
+    "inspector": ".agent/inspector/registry.json",
+    "auditor": ".agent/auditor/registry.json"
+  }
+}
+```
+
+**Configuration Location Priority:**
+1. Current directory: `.agent/climpt/mcp/config.json`
+2. Home directory: `~/.agent/climpt/mcp/config.json`
+3. Default configuration (automatically created)
+
+**Default Configuration:**
+Automatically created when MCP starts:
+```json
+{
+  "registries": {
+    "climpt": ".agent/climpt/registry.json"
+  }
+}
+```
+
+#### Specifying Agent in Tools
+
+The `search` and `describe` tools allow you to switch registries using the optional `agent` parameter:
+
+```javascript
+// Search in climpt registry (default)
+search({ query: "commit changes" })
+
+// Search in inspector registry
+search({ query: "analyze code quality", agent: "inspector" })
+
+// Get details from auditor registry
+describe({ c1: "test", c2: "run", c3: "unit", agent: "auditor" })
+```
+
 ### Registry Configuration
 
-The MCP server loads its configuration from `.agent/climpt/registry.json`. This file defines available tools and their command mappings following the C3L (Climpt 3-word Language) specification.
+The MCP server reads configuration from each agent's `.agent/{agent}/registry.json`. This file defines available tools and their command mappings according to the C3L (Climpt 3-word Language) specification.
 
 #### Registry File Schema
 
@@ -255,7 +307,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
   "version": string,           // Registry version (e.g., "1.0.0")
   "description": string,       // Overall registry description
   "tools": {
-    // Tool names array - each becomes available as climpt-{name}
+    // Array of tool names - each tool is available as climpt-{name}
     "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
 
     // Command registry - defines all available C3L commands
@@ -265,13 +317,13 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c2": string,         // Action/directive (create, analyze, execute, etc.)
         "c3": string,         // Target/layer (refinement-issue, quality-metrics, etc.)
         "description": string,// Command description
-        "usage": string,      // Usage instructions and examples
-        "options": {          // Available options for this command
-          "input": string[],     // Input layer type (used for prompt file selection)
-          "adaptation": string[], // Prompt type (used for prompt variation selection)
+        "usage": string,      // Usage and examples
+        "options": {          // Options available for this command
+          "input": string[],     // Input layer types (used for prompt file selection)
+          "adaptation": string[], // Prompt types (prompt variation selection)
           "file": boolean,  // File input support
           "stdin": boolean,       // Standard input support
-          "destination": boolean  // Output destination support
+          "destination": boolean  // Output destination specification support
         }
       }
     ]
@@ -284,7 +336,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 ```json
 {
   "version": "1.0.0",
-  "description": "Climpt comprehensive configuration for MCP server and command registry",
+  "description": "Comprehensive configuration for Climpt MCP server and command registry",
   "tools": {
     "availableConfigs": [
       "code",
@@ -300,8 +352,8 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c1": "git",
         "c2": "create",
         "c3": "refinement-issue",
-        "description": "Create a refinement issue from requirements documentation",
-        "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "description": "Create refinement issues from requirements documents",
+        "usage": "Creates refinement issues from requirements documents.\nExample: climpt-git create refinement-issue -f requirements.md",
         "options": {
           "input": ["default"],
           "adaptation": ["default", "detailed"],
@@ -314,7 +366,7 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
         "c1": "git",
         "c2": "analyze",
         "c3": "commit-history",
-        "description": "Analyze commit history and generate insights"
+        "description": "Analyze commit history to generate insights"
       },
 
       // Spec commands
@@ -392,10 +444,10 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 ```
 
 **Loading Process**:
-1. Server reads `.agent/climpt/registry.json` at startup
+1. Server loads `.agent/climpt/registry.json` on startup
 2. Dynamically creates tools from `availableConfigs`
-3. Falls back to defaults if file is missing
-4. Each tool becomes available as `climpt-{name}`
+3. Falls back to defaults if file not found
+4. Each tool is available as `climpt-{name}`
 
 **Field Descriptions**:
 - `version`: Registry schema version
@@ -403,11 +455,11 @@ The MCP server loads its configuration from `.agent/climpt/registry.json`. This 
 - `availableConfigs`: Array of tool names that become available as `climpt-{name}` commands
 - `commands`: Array of command definitions following C3L specification
   - `c1/c2/c3`: Command structure (domain/action/target)
-  - `description`: Command purpose
-  - `usage`: Usage instructions with examples
-  - `options`: Available options for each command
-    - `input`: Input layer type (used for prompt file selection, defaults to "default" if not specified) (e.g., ["default", "code", "bug"])
-    - `adaptation`: Prompt type (used for prompt variation selection) (e.g., ["default", "detailed", "strict"])
+  - `description`: Purpose of the command
+  - `usage`: Usage and examples
+  - `options`: Options available for each command
+    - `input`: Input layer types (used for prompt file selection, defaults to "default" if not specified) (e.g., ["default", "code", "bug"])
+    - `adaptation`: Prompt types (prompt variation selection) (e.g., ["default", "detailed", "strict"])
     - `file`: Whether file input is supported (true or false)
     - `stdin`: Whether standard input is supported (true or false)
     - `destination`: Whether output destination can be specified (true or false)
@@ -418,164 +470,7 @@ Copy the template file to your project:
 cp examples/mcp/registry.template.json .agent/climpt/registry.json
 ```
 
-A complete template file is available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
-
-### Available MCP Tools
-
-The MCP server provides the following tools:
-
-#### `search` Tool
-
-Pass a brief description of the command you want to execute. Finds the 3 most similar commands using cosine similarity against command descriptions. You can then select the most appropriate command from the results.
-
-**Arguments:**
-- `query` (required): Brief description of what you want to do (e.g., 'commit changes to git', 'generate API documentation', 'run tests')
-
-**Behavior:**
-- Searches registry.json using `c1 + c2 + c3 + description` as the search target
-- Uses cosine similarity to rank results
-- Returns top 3 most similar commands
-- Each result includes `c1`, `c2`, `c3`, `description`, and similarity `score`
-
-**Example:**
-```json
-{
-  "tool": "search",
-  "arguments": {
-    "query": "commit changes to git repository"
-  }
-}
-
-// Response
-{
-  "results": [
-    {
-      "c1": "git",
-      "c2": "group-commit",
-      "c3": "unstaged-changes",
-      "description": "Create a group commit for unstaged changes",
-      "score": 0.338
-    },
-    {
-      "c1": "git",
-      "c2": "analyze",
-      "c3": "commit-history",
-      "description": "Analyze commit history and generate insights",
-      "score": 0.183
-    }
-  ]
-}
-```
-
-#### `describe` Tool
-
-Pass the c1, c2, c3 identifiers from search results. Returns all matching command details including usage instructions and available options. You can then choose the optimal option combination for your use case.
-
-**Arguments:**
-- `c1` (required): Domain identifier from search result (e.g., git, spec, test, code, docs, meta)
-- `c2` (required): Action identifier from search result (e.g., create, analyze, execute, generate)
-- `c3` (required): Target identifier from search result (e.g., unstaged-changes, quality-metrics, unit-tests)
-
-**Behavior:**
-- Returns all matching records from registry.json
-- Preserves complete JSON structure including usage, options, and file/stdin/destination support
-- Returns multiple records if the same c1/c2/c3 exists with different option variations
-
-**Example:**
-```json
-{
-  "tool": "describe",
-  "arguments": {
-    "c1": "git",
-    "c2": "group-commit",
-    "c3": "unstaged-changes"
-  }
-}
-
-// Response
-{
-  "commands": [
-    {
-      "c1": "git",
-      "c2": "group-commit",
-      "c3": "unstaged-changes",
-      "description": "Create a group commit for unstaged changes",
-      "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
-      "options": {
-        "input": ["default"],
-        "adaptation": ["default", "detailed"],
-        "file": true,
-        "stdin": false,
-        "destination": true
-      }
-    }
-  ]
-}
-```
-
-#### `execute` Tool
-
-Based on the detailed information obtained from describe, pass the four required parameters: `<agent-name>`, `<c1>`, `<c2>`, `<c3>`. Also include option arguments (`-*`/`--*` format) obtained from describe. Create values for options before passing to execute. The result from execute is an instruction document - follow the obtained instructions to proceed.
-
-**Note:** If you need STDIN support, execute the climpt command directly via CLI instead of using MCP.
-
-**Arguments:**
-- `agent` (required): Agent name from C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the Agent-Domain model where agent is the autonomous executor.
-- `c1` (required): Domain identifier from describe result (e.g., git, spec, test, code, docs, meta)
-- `c2` (required): Action identifier from describe result (e.g., create, analyze, execute, generate)
-- `c3` (required): Target identifier from describe result (e.g., unstaged-changes, quality-metrics, unit-tests)
-- `options` (optional): Array of command-line options from describe result (e.g., `['-f=file.txt']`)
-
-**Behavior:**
-- Constructs `--config` parameter following C3L v0.5: `agent === "climpt"` ? `c1` : `agent-c1`
-- Executes: `deno run jsr:@aidevtool/climpt --config=... c2 c3 [options]`
-- Returns stdout, stderr, exit code, and executed command string
-- The output contains instructions to follow
-
-**Example (Basic):**
-```json
-{
-  "tool": "execute",
-  "arguments": {
-    "agent": "climpt",
-    "c1": "git",
-    "c2": "group-commit",
-    "c3": "unstaged-changes"
-  }
-}
-
-// Response
-{
-  "success": true,
-  "exitCode": 0,
-  "stdout": "# Instructions for Git Group Commit...",
-  "stderr": "",
-  "command": "deno run jsr:@aidevtool/climpt --config=git group-commit unstaged-changes"
-}
-```
-
-**Example (With Options):**
-```json
-{
-  "tool": "execute",
-  "arguments": {
-    "agent": "inspector",
-    "c1": "code",
-    "c2": "analyze",
-    "c3": "complexity",
-    "options": ["-f=src/main.ts"]
-  }
-}
-
-// Response
-{
-  "success": true,
-  "exitCode": 0,
-  "stdout": "# Code Analysis Instructions...",
-  "stderr": "",
-  "command": "deno run jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts"
-}
-```
+Complete template file available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
 
 ### Running the MCP Server
 
@@ -593,31 +488,35 @@ The MCP server provides AI assistants with structured access to all Climpt funct
 
 ## Climpt Use Cases
 
-Select from various prompts and obtain the desired prompt with a single command. The main use cases are:
+Switch between diverse prompts and get the desired prompt with a single command.
+Primarily designed for the following use cases:
 
-- Centralized management of patterned prompts
-- Dynamic invocation from CLI agents like Claude Code
-- Building processing flows by mediating prompts in chained operations
-- Using refined prompt sets for specific implementation domains
-- Letting the coding agent choose prompts
+- Want to centrally manage the use of patterned prompts
+- Want to dynamically invoke from CLI agents like Claude Code
+- Want to build processing flows by mediating prompts in processing chains
+- Want to use specific refined prompt sets for specific implementation domains
+- Want Coding Agents to select prompts
 
-Additional use cases include:
+Also, as applied use cases, the following scenarios are anticipated:
 
-- Guiding and stabilizing code generated by coding agents
-- Executing highly abstract implementations with reproducibility
+- Want to guide and stabilize the code generated by Coding Agents
+- Want to execute high-abstraction implementations with high reproducibility
 
-Deno is used for advanced usage. Climpt is optimized and provided as multiple Deno execution commands. The prepared execution commands can switch profiles.
+For application purposes, we use Deno.
+Climpt is prepared and optimized as multiple Deno execution commands.
+The prepared execution commands can switch profiles.
 
 ## Setup
 
-### Initial Setup
+### Initial Configuration
 
 Climpt requires `.agent/climpt/config/default-app.yml`.
-Usually, running `climpt init` at the project root will generate this file.
+Normally, it is generated by running `climpt init` in the project root.
 
-You can also install it at any hierarchy, such as under `tests/`. However, the recommended approach is to prepare multiple executables under `.deno/bin/*`, which provides better convenience for management than scattering them in various locations.
+You can also install it in any hierarchical location. For example, it's possible to init under tests/.
+The recommended approach is to prepare multiple executable files in `.deno/bin/*`. This is more convenient and manageable than having them scattered in various places.
 
-Furthermore, by placing them under `.deno/bin/*` with alternative names like `subagent-*` or `inspector-*`, you can also support Sub-Agents.
+Furthermore, by placing them under `.deno/bin/*` with different names like `subagent-*` or `inspector-*`, you can also support Sub-Agents.
 
 ### Configuration File Structure
 
@@ -625,10 +524,10 @@ Climpt uses two types of configuration files:
 
 #### app.yml (Application Configuration)
 
-Defines the directory locations for prompts and schemas.
+Defines the placement directories for prompts and schemas.
 
 ```yaml
-# Example: .agent/climpt/config/git-app.yml
+# Example of .agent/climpt/config/git-app.yml
 working_dir: ".agent/climpt"
 app_prompt:
   base_dir: "prompts/git"
@@ -638,40 +537,41 @@ app_schema:
 
 #### user.yml (User Configuration)
 
-Customizes default values and behavior for options. Particularly useful for setting `destination` prefixes.
+Customize option default values and behavior. In particular, you can set a prefix for `destination`.
 
 ```yaml
-# Example: .agent/climpt/config/git-user.yml
+# Example of .agent/climpt/config/git-user.yml
 options:
   destination:
-    prefix: "output/git"  # Automatically prepended to paths specified with -o
+    prefix: "output/git"  # Prefix automatically added before paths specified with -o
 ```
 
 **Configuration Priority:**
 1. Command-line options (highest priority)
-2. `user.yml` settings
-3. `app.yml` settings
+2. `user.yml` configuration
+3. `app.yml` configuration
 4. Default values
 
 **Destination Prefix Behavior Example:**
 
 ```bash
-# With prefix: "output/git" set in user.yml
+# If prefix: "output/git" is set in user.yml
 climpt-git create issue -o=tasks/task1.md
-# Actual output: output/git/tasks/task1.md
+# Actual output destination: output/git/tasks/task1.md
 
-# Without prefix configuration
+# Without prefix configured
 climpt-git create issue -o=tasks/task1.md
-# Actual output: tasks/task1.md
+# Actual output destination: tasks/task1.md
 ```
 
 ### Multiple Installation Configuration
 
-Profile switching is done with the `--config` option. When calling Deno, add `--config=profilename`.
+Profile switching is done with the `--config` option.
+When calling Deno, add `--config=profilename`.
 
-This enables the following:
+This achieves the following:
 
-First, prepare multiple calls with different `--config` under `.deno/bin`.
+First, prepare multiple invocations with different --config under .deno/bin.
 
 ```
 .deno/bin
@@ -684,7 +584,9 @@ First, prepare multiple calls with different `--config` under `.deno/bin`.
 └── climpt-verify       # --config=verify
 ```
 
-Next, prepare corresponding configuration files. The * part of `*-app.yml` is the profile name. You can change the accepted argument specification for each profile. For example, `arch` can run `climpt-arch optimize go`, but you can make it so that `climpt-setup optimize go` cannot be executed.
+Next, prepare multiple corresponding configurations. The * part of `*-app.yml` is the profile name.
+You can change the accepted argument specifications for each profile.
+For example, `arch` can execute `climpt-arch optimize go`, but you can create a situation where `climpt-setup optimize go` cannot be executed.
 
 ```
 .agent/climpt
@@ -697,7 +599,9 @@ Next, prepare corresponding configuration files. The * part of `*-app.yml` is th
 │   ├── build-user.yml
 ```
 
-Finally, prepare template prompts. The location of prompts can be switched by configuration, so you can change the storage hierarchy for each profile. In the example below, the same `prompts/` hierarchy is divided by profile name.
+Finally, prepare template prompts.
+The prompt placement location can be switched in the configuration. Therefore, you can change the storage hierarchy for each profile.
+In the example below, the same prompts/ hierarchy is organized by profile name.
 
 ```
 .agent/climpt
@@ -721,20 +625,23 @@ Finally, prepare template prompts. The location of prompts can be switched by co
 │   │           └── f_default.md
 ```
 
-### Operation
+### Operations
 
-Add frequently used prompt files to the prompt hierarchy. Important prompts for the project should be placed under Git management.
+Add frequently used prompt files to the prompt hierarchy.
+Place prompts that are important to the project under Git management.
 
-Prompts can use template variables for substitution.
+Prompts can use template variables for replacement.
 
 #### Prompt Implementation Sample
 
-For an actual prompt implementation example, please refer to [`examples/prompts/list/usage/f_default.md`](/examples/prompts/list/usage/f_default.md). This file is a sample implementation of a prompt template for generating a list of available commands in Climpt. It includes examples of frontmatter configuration, template variable usage, and structured output definition using JSON Schema.
+For an actual prompt implementation example, refer to [`examples/prompts/list/usage/f_default.md`](/examples/prompts/list/usage/f_default.md). This file is an implementation sample of a prompt template for generating a list of available commands in Climpt. It includes frontmatter configuration methods, template variable usage, and structured output definition using JSON Schema.
 
 ``````markdown
-# Error Handling Policy
+# Error Troubleshooting Plan
 
-Errors are categorized by type, and policies are considered. Then, files are separated by error type and saved to the output destination. The maximum number of lines per file is {uv-max-line-num}.
+Classify errors by type and consider a plan.
+After that, separate by error type into files and save to the output destination.
+The maximum number of lines to write in one file is {uv-max-line-num}.
 
 Output destination: `{destination_path}`
 
@@ -746,7 +653,7 @@ Output destination: `{destination_path}`
 `````
 ``````
 
-When you run the following CLI against the above template, the values will be replaced:
+When the following CLI is executed against the above template, the values are replaced:
 
 ```
 echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
@@ -754,7 +661,7 @@ echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc -
 
 ### Update
 
-To update to the latest version, simply run the same installation command again:
+To update to the latest version, run the same installation command again:
 
 ```bash
 deno install --allow-read --allow-write --allow-net --allow-env --global climpt jsr:@aidevtool/climpt
@@ -762,13 +669,13 @@ deno install --allow-read --allow-write --allow-net --allow-env --global climpt 
 
 ### Uninstall
 
-#### For global installation
+#### For Global Installation
 
 ```bash
 deno uninstall climpt
 ```
 
-#### For local (project) installation
+#### For Local (Project) Installation
 
 ```bash
 deno uninstall --root .deno climpt
@@ -777,9 +684,9 @@ deno uninstall --root .deno climpt
 
 ### Notes
 
-- The climpt command automatically uses `cli.ts` as the entry point due to the `bin` configuration in `deno.json`.
+- The climpt command automatically uses `cli.ts` as the entry point via the `bin` configuration in `deno.json`.
 - Deno 2.4 or later is recommended.
-- For detailed usage instructions, refer to the "Usage" section above.
+- For detailed usage, refer to the "Usage" section.
 
 ### Local Installation to Project Directory
 
@@ -795,16 +702,16 @@ After installation, add the bin directory to your PATH:
 export PATH="$(pwd)/.deno/bin:$PATH"
 ```
 
-To make this setting persistent, add it to your shell configuration file (e.g., `~/.zshrc` or `~/.bashrc`).
+To make this configuration permanent, add it to your shell configuration file (e.g., `~/.zshrc` or `~/.bashrc`).
 
 ## Architecture
 
-Climpt is designed as a lightweight wrapper around the `@tettuan/breakdown` package, providing a unified CLI interface while maintaining all the functionality of the underlying breakdown tools.
+Climpt is designed as a lightweight wrapper for the `@tettuan/breakdown` package, providing a unified CLI interface while maintaining all features of the underlying breakdown tool.
 
 ## Requirements
 
 - Deno 2.5 or later (recommended)
-- Internet connection (for JSR package downloads)
+- Internet connection (required for downloading JSR packages)
 
 > **Note:** Deno 2.x is recommended.
 
@@ -814,4 +721,4 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-This project is a wrapper around the breakdown package. For core functionality improvements, please refer to the breakdown package repository.
+This project is a wrapper for the breakdown package. For core feature improvements, refer to the breakdown package repository.
