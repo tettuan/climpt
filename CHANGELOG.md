@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2025-01-22
+
+### Added
+- Multiple registry support for MCP with config-based management
+- New configuration file `.agent/climpt/mcp/config.json` for managing agent registries
+- Optional `agent` parameter to search and describe tools for registry selection
+- Registry caching system for improved performance
+- Auto-creation of default MCP config on first startup
+- Comprehensive test suite for multi-registry functionality
+
+### Changed
+- Enhanced MCP server initialization with dynamic registry loading
+- Improved registry loading to support multiple agent configurations
+
 ## [1.6.0] - 2025-01-22
 
 ### Added
