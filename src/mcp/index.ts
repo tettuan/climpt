@@ -20,42 +20,116 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types";
 import { CLIMPT_VERSION } from "../version.ts";
-import type { Command, Registry } from "./types.ts";
+import type { Command, MCPConfig, Registry } from "./types.ts";
+import { DEFAULT_MCP_CONFIG } from "./types.ts";
 import { describeCommand, searchCommands } from "./similarity.ts";
 
 console.error("🚀 MCP Server starting...");
 console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
 
 /**
- * Valid commands loaded from registry.json.
+ * MCP configuration loaded from config.json
  */
-let VALID_COMMANDS: Command[] = [];
+let MCP_CONFIG: MCPConfig = DEFAULT_MCP_CONFIG;
 
 /**
- * Load registry configuration
+ * Registry cache: Maps agent name to their commands
  */
-try {
-  let configPath = ".agent/climpt/registry.json";
-  let configText: string;
+const REGISTRY_CACHE = new Map<string, Command[]>();
 
-  try {
-    configText = await Deno.readTextFile(configPath);
-  } catch {
-    // If not found in current directory, try user's home directory
-    const homeDir = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
-    configPath = `${homeDir}/.agent/climpt/registry.json`;
-    configText = await Deno.readTextFile(configPath);
+/**
+ * Load or create MCP config.json
+ */
+async function loadOrCreateMCPConfig(): Promise<MCPConfig> {
+  const configPaths = [
+    ".agent/climpt/mcp/config.json",
+    `${
+      Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ""
+    }/.agent/climpt/mcp/config.json`,
+  ];
+
+  // Try to load existing config
+  for (const configPath of configPaths) {
+    try {
+      const configText = await Deno.readTextFile(configPath);
+      const config = JSON.parse(configText) as MCPConfig;
+      console.error(`⚙️ Loaded MCP config from ${configPath}`);
+      return config;
+    } catch {
+      // Continue to next path
+    }
   }
 
-  const config: Registry = JSON.parse(configText);
-  VALID_COMMANDS = config.tools?.commands || [];
-  console.error(
-    `⚙️ Loaded ${VALID_COMMANDS.length} commands from ${configPath}`,
-  );
-} catch (error) {
-  console.error("⚠️ Failed to load config file:", error);
-  VALID_COMMANDS = [];
+  // Create default config if not found
+  const defaultConfigPath = ".agent/climpt/mcp/config.json";
+  try {
+    await Deno.mkdir(".agent/climpt/mcp", { recursive: true });
+    await Deno.writeTextFile(
+      defaultConfigPath,
+      JSON.stringify(DEFAULT_MCP_CONFIG, null, 2),
+    );
+    console.error(`✨ Created default MCP config at ${defaultConfigPath}`);
+    return DEFAULT_MCP_CONFIG;
+  } catch (error) {
+    console.error("⚠️ Failed to create MCP config:", error);
+    return DEFAULT_MCP_CONFIG;
+  }
 }
+
+/**
+ * Load registry for a specific agent
+ */
+async function loadRegistryForAgent(agentName: string): Promise<Command[]> {
+  // Check cache first
+  if (REGISTRY_CACHE.has(agentName)) {
+    return REGISTRY_CACHE.get(agentName)!;
+  }
+
+  const registryPath = MCP_CONFIG.registries[agentName];
+  if (!registryPath) {
+    console.error(`⚠️ No registry path configured for agent: ${agentName}`);
+    return [];
+  }
+
+  try {
+    let configText: string;
+
+    try {
+      configText = await Deno.readTextFile(registryPath);
+    } catch {
+      // If not found in current directory, try user's home directory
+      const homeDir = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+      const homePath = `${homeDir}/${registryPath}`;
+      configText = await Deno.readTextFile(homePath);
+    }
+
+    const config: Registry = JSON.parse(configText);
+    const commands = config.tools?.commands || [];
+
+    // Cache the commands
+    REGISTRY_CACHE.set(agentName, commands);
+
+    console.error(
+      `⚙️ Loaded ${commands.length} commands for agent '${agentName}' from ${registryPath}`,
+    );
+    return commands;
+  } catch (error) {
+    console.error(
+      `⚠️ Failed to load registry for agent '${agentName}':`,
+      error,
+    );
+    return [];
+  }
+}
+
+/**
+ * Initialize MCP server: load config and default registry
+ */
+MCP_CONFIG = await loadOrCreateMCPConfig();
+
+// Load default registry for climpt
+const defaultCommands = await loadRegistryForAgent("climpt");
+console.error(`✅ Initialized with ${defaultCommands.length} default commands`);
 
 const server = new Server(
   {
@@ -91,6 +165,11 @@ server.setRequestHandler(
               description:
                 "Brief description of what you want to do. Example: 'commit changes to git', 'generate API documentation', 'run tests'",
             },
+            agent: {
+              type: "string",
+              description:
+                "Optional agent name to search in (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if not specified.",
+            },
           },
           required: ["query"],
         },
@@ -116,6 +195,11 @@ server.setRequestHandler(
               type: "string",
               description:
                 "Target identifier from search result (e.g., unstaged-changes, quality-metrics, unit-tests)",
+            },
+            agent: {
+              type: "string",
+              description:
+                "Optional agent name to describe from (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if not specified.",
             },
           },
           required: ["c1", "c2", "c3"],
@@ -178,30 +262,77 @@ server.setRequestHandler(
 
     try {
       if (name === "search") {
-        const { query } = args as { query: string };
+        const { query, agent } = args as { query: string; agent?: string };
 
         if (!query || typeof query !== "string") {
           throw new Error("query parameter is required and must be a string");
         }
 
-        const results = searchCommands(VALID_COMMANDS, query);
+        const agentName = agent || "climpt";
+        const commands = await loadRegistryForAgent(agentName);
+
+        if (commands.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    error: `No commands found for agent '${agentName}'`,
+                    agent: agentName,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        const results = searchCommands(commands, query);
 
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({ results }, null, 2),
+              text: JSON.stringify({ results, agent: agentName }, null, 2),
             },
           ],
         };
       } else if (name === "describe") {
-        const { c1, c2, c3 } = args as { c1: string; c2: string; c3: string };
+        const { c1, c2, c3, agent } = args as {
+          c1: string;
+          c2: string;
+          c3: string;
+          agent?: string;
+        };
 
         if (!c1 || !c2 || !c3) {
           throw new Error("c1, c2, and c3 parameters are all required");
         }
 
-        const commands = describeCommand(VALID_COMMANDS, c1, c2, c3);
+        const agentName = agent || "climpt";
+        const allCommands = await loadRegistryForAgent(agentName);
+
+        if (allCommands.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    error: `No commands found for agent '${agentName}'`,
+                    agent: agentName,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+
+        const commands = describeCommand(allCommands, c1, c2, c3);
 
         if (commands.length === 0) {
           return {
@@ -211,7 +342,8 @@ server.setRequestHandler(
                 text: JSON.stringify(
                   {
                     error:
-                      `No commands found for c1="${c1}", c2="${c2}", c3="${c3}"`,
+                      `No commands found for c1="${c1}", c2="${c2}", c3="${c3}" in agent '${agentName}'`,
+                    agent: agentName,
                   },
                   null,
                   2,
@@ -225,7 +357,7 @@ server.setRequestHandler(
           content: [
             {
               type: "text",
-              text: JSON.stringify({ commands }, null, 2),
+              text: JSON.stringify({ commands, agent: agentName }, null, 2),
             },
           ],
         };

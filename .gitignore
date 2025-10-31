@@ -92,4 +92,7 @@ debug*.ts
 .claude/
 .mcp.json
 
+# MCP runtime config
+.agent/climpt/mcp/
+
 
