@@ -38,7 +38,18 @@ let MCP_CONFIG: MCPConfig = DEFAULT_MCP_CONFIG;
 const REGISTRY_CACHE = new Map<string, Command[]>();
 
 /**
- * Load or create MCP config.json
+ * Load or create MCP configuration file.
+ *
+ * Attempts to load the MCP configuration from standard locations:
+ * 1. `.agent/climpt/mcp/config.json` (project-specific)
+ * 2. `~/.agent/climpt/mcp/config.json` (user-specific)
+ *
+ * If no configuration file is found, creates a default configuration
+ * in the project directory.
+ *
+ * @returns Promise that resolves to the loaded or default MCP configuration
+ *
+ * @internal
  */
 async function loadOrCreateMCPConfig(): Promise<MCPConfig> {
   const configPaths = [
@@ -77,7 +88,17 @@ async function loadOrCreateMCPConfig(): Promise<MCPConfig> {
 }
 
 /**
- * Load registry for a specific agent
+ * Load command registry for a specific agent.
+ *
+ * Loads and caches command definitions from the registry file specified
+ * in the MCP configuration. The function first checks the cache, then
+ * attempts to load from the configured registry path in both the current
+ * directory and the user's home directory.
+ *
+ * @param agentName - Name of the agent whose registry to load (e.g., 'climpt', 'inspector')
+ * @returns Promise that resolves to an array of commands for the agent
+ *
+ * @internal
  */
 async function loadRegistryForAgent(agentName: string): Promise<Command[]> {
   // Check cache first
@@ -145,7 +166,16 @@ const server = new Server(
 
 /**
  * Handler for listing available tools.
- * Returns search and describe tools.
+ *
+ * Responds to MCP ListToolsRequest by returning the available tools:
+ * - **search**: Semantic search for commands using natural language
+ * - **describe**: Get detailed information about specific commands
+ * - **execute**: Execute commands with specified parameters
+ *
+ * @param _request - The ListToolsRequest (unused)
+ * @returns Object containing array of available tools with their schemas
+ *
+ * @internal
  */
 server.setRequestHandler(
   ListToolsRequestSchema,
@@ -252,7 +282,18 @@ server.setRequestHandler(
 
 /**
  * Handler for executing a tool.
- * Handles search, describe, and execute commands.
+ *
+ * Processes MCP CallToolRequest for the three available tools:
+ * - **search**: Performs semantic search across commands
+ * - **describe**: Retrieves detailed command information
+ * - **execute**: Runs the specified command and returns results
+ *
+ * @param request - The CallToolRequest containing tool name and arguments
+ * @returns Promise that resolves to tool execution results with content array
+ *
+ * @throws Error if required parameters are missing or tool name is unknown
+ *
+ * @internal
  */
 server.setRequestHandler(
   CallToolRequestSchema,
@@ -451,7 +492,29 @@ server.setRequestHandler(
 
 /**
  * Main function to start the MCP server.
- * Initializes the stdio transport and connects the server.
+ *
+ * Initializes the Model Context Protocol (MCP) server with stdio transport
+ * and connects it to enable AI assistant interactions. The server loads
+ * command registries from configuration files and provides semantic search
+ * capabilities for discovering and executing development commands.
+ *
+ * This function:
+ * 1. Loads MCP configuration from `.agent/climpt/mcp/config.json`
+ * 2. Initializes command registries for configured agents
+ * 3. Sets up stdio transport for communication
+ * 4. Connects the server and starts listening for requests
+ *
+ * @returns Promise that resolves when the server is connected and ready
+ *
+ * @throws Error if the server fails to initialize or connect
+ *
+ * @example
+ * ```typescript
+ * import main from "./src/mcp/index.ts";
+ *
+ * // Start the MCP server
+ * await main();
+ * ```
  */
 async function main(): Promise<void> {
   console.error("🔌 Connecting to StdioServerTransport...");
