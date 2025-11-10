@@ -416,25 +416,29 @@ server.setRequestHandler(
         const stdoutText = new TextDecoder().decode(stdout);
         const stderrText = new TextDecoder().decode(stderr);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: code === 0,
-                  exitCode: code,
-                  stdout: stdoutText,
-                  stderr: stderrText,
-                  command:
-                    `deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        // MCP specification: Return clean output to users, hiding internal implementation details
+        // On success: return stdout content directly
+        // On failure: return stderr with isError flag
+        if (code === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: stdoutText,
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: stderrText || `Command failed with exit code ${code}`,
+              },
+            ],
+            isError: true,
+          };
+        }
       } else {
         throw new Error(`Unknown tool: ${name}`);
       }
