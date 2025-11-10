@@ -276,14 +276,10 @@ server.setRequestHandler(
             content: [
               {
                 type: "text",
-                text: JSON.stringify(
-                  {
-                    error: `No commands found for agent '${agentName}'`,
-                    agent: agentName,
-                  },
-                  null,
-                  2,
-                ),
+                text: JSON.stringify({
+                  error: `No commands found for agent '${agentName}'`,
+                  agent: agentName,
+                }),
               },
             ],
           };
@@ -295,7 +291,7 @@ server.setRequestHandler(
           content: [
             {
               type: "text",
-              text: JSON.stringify({ results, agent: agentName }, null, 2),
+              text: JSON.stringify({ results, agent: agentName }),
             },
           ],
         };
@@ -319,14 +315,10 @@ server.setRequestHandler(
             content: [
               {
                 type: "text",
-                text: JSON.stringify(
-                  {
-                    error: `No commands found for agent '${agentName}'`,
-                    agent: agentName,
-                  },
-                  null,
-                  2,
-                ),
+                text: JSON.stringify({
+                  error: `No commands found for agent '${agentName}'`,
+                  agent: agentName,
+                }),
               },
             ],
           };
@@ -339,15 +331,11 @@ server.setRequestHandler(
             content: [
               {
                 type: "text",
-                text: JSON.stringify(
-                  {
-                    error:
-                      `No commands found for c1="${c1}", c2="${c2}", c3="${c3}" in agent '${agentName}'`,
-                    agent: agentName,
-                  },
-                  null,
-                  2,
-                ),
+                text: JSON.stringify({
+                  error:
+                    `No commands found for c1="${c1}", c2="${c2}", c3="${c3}" in agent '${agentName}'`,
+                  agent: agentName,
+                }),
               },
             ],
           };
@@ -357,7 +345,7 @@ server.setRequestHandler(
           content: [
             {
               type: "text",
-              text: JSON.stringify({ commands, agent: agentName }, null, 2),
+              text: JSON.stringify({ commands, agent: agentName }),
             },
           ],
         };
@@ -448,17 +436,14 @@ server.setRequestHandler(
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                error: error instanceof Error
-                  ? error.message
-                  : "Unknown error occurred",
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify({
+              error: error instanceof Error
+                ? error.message
+                : "Unknown error occurred",
+            }),
           },
         ],
+        isError: true,
       };
     }
   },
