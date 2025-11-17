@@ -244,6 +244,22 @@ server.setRequestHandler(
           required: ["agent", "c1", "c2", "c3"],
         },
       },
+      {
+        name: "reload",
+        description:
+          "Clear the registry cache and reload command definitions from registry.json files. Use this when you have updated registry.json and want to refresh the command definitions without restarting the MCP server. You can reload all agents or a specific agent.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            agent: {
+              type: "string",
+              description:
+                "Optional agent name to reload (e.g., 'climpt', 'inspector'). If not specified, clears cache for all agents and reloads all agents defined in MCP config file (.agent/climpt/mcp/config.json). This handles cases where agents are added, removed, or modified in the configuration.",
+            },
+          },
+          required: [],
+        },
+      },
     ];
 
     return { tools };
@@ -425,6 +441,86 @@ server.setRequestHandler(
               },
             ],
             isError: true,
+          };
+        }
+      } else if (name === "reload") {
+        const { agent } = args as { agent?: string };
+
+        if (agent) {
+          // Reload specific agent
+          REGISTRY_CACHE.delete(agent);
+          console.error(`🔄 Cleared cache for agent: ${agent}`);
+
+          const commands = await loadRegistryForAgent(agent);
+          const message = commands.length > 0
+            ? `Successfully reloaded ${commands.length} commands for agent '${agent}'`
+            : `No commands found for agent '${agent}' - please check the registry path in MCP config`;
+
+          console.error(`✅ ${message}`);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  agent,
+                  commandCount: commands.length,
+                  message,
+                }),
+              },
+            ],
+          };
+        } else {
+          // Clear all caches and reload all configured agents
+          const cacheSize = REGISTRY_CACHE.size;
+          REGISTRY_CACHE.clear();
+          console.error(
+            `🔄 Cleared cache for all agents (${cacheSize} agents)`,
+          );
+
+          // Reload all agents defined in MCP_CONFIG
+          const configuredAgents = Object.keys(MCP_CONFIG.registries);
+          const reloadResults: Array<{
+            agent: string;
+            commandCount: number;
+            success: boolean;
+          }> = [];
+
+          for (const agentName of configuredAgents) {
+            const commands = await loadRegistryForAgent(agentName);
+            reloadResults.push({
+              agent: agentName,
+              commandCount: commands.length,
+              success: commands.length > 0,
+            });
+            console.error(
+              `✅ Reloaded ${commands.length} commands for agent '${agentName}'`,
+            );
+          }
+
+          const totalCommands = reloadResults.reduce(
+            (sum, result) => sum + result.commandCount,
+            0,
+          );
+          const message =
+            `Cleared cache for all agents and reloaded ${configuredAgents.length} agents with ${totalCommands} total commands`;
+
+          console.error(`✅ ${message}`);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  clearedAgents: cacheSize,
+                  reloadedAgents: reloadResults,
+                  totalCommands,
+                  message,
+                }),
+              },
+            ],
           };
         }
       } else {

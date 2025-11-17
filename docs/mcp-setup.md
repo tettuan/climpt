@@ -1,23 +1,32 @@
 # Climpt MCP Server セットアップガイド
 
 ## 概要
-Climpt MCP ServerはClaude Codeのslashコマンドから`climpt`の機能を利用できるようにするMCP (Model Context Protocol) サーバーです。
+
+Climpt MCP ServerはClaude
+Codeのslashコマンドから`climpt`の機能を利用できるようにするMCP (Model Context
+Protocol) サーバーです。
 
 ## 利用可能なコマンド
 
 ### `search`
+
 実行したいコマンドを簡潔に説明して渡すと、コサイン類似度で説明文から近いコマンドを3つ返します。受け取った結果から最適なコマンドを選べます。
 
 **引数:**
-- `query` (必須): 実行したいことの簡潔な説明（例: 'commit changes to git', 'generate API documentation', 'run tests'）
-- `agent` (オプション): 検索対象のエージェント名（例: 'climpt', 'inspector'）。省略時は 'climpt' が使用されます
+
+- `query` (必須): 実行したいことの簡潔な説明（例: 'commit changes to git',
+  'generate API documentation', 'run tests'）
+- `agent` (オプション): 検索対象のエージェント名（例: 'climpt',
+  'inspector'）。省略時は 'climpt' が使用されます
 
 **動作:**
+
 - 指定されたエージェントのregistry.jsonから`c1 + c2 + c3 + description`の文字列を対象にコサイン類似度を計算
 - 類似度上位3つのコマンドを返却
 - 返却値には各コマンドの`c1`, `c2`, `c3`, `description`, `score`を含む
 
 **使用例（基本）:**
+
 ```json
 {
   "query": "commit changes to git repository"
@@ -25,6 +34,7 @@ Climpt MCP ServerはClaude Codeのslashコマンドから`climpt`の機能を利
 ```
 
 **使用例（エージェント指定）:**
+
 ```json
 {
   "query": "analyze code quality",
@@ -33,20 +43,30 @@ Climpt MCP ServerはClaude Codeのslashコマンドから`climpt`の機能を利
 ```
 
 ### `describe`
-searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンドの説明文を全て返します。その中から最適な使用法やオプションの組み合わせを知ることができ、オプションの使い方も選べます。
+
+searchで受け取った`c1`, `c2`,
+`c3`を渡すと、一致するコマンドの説明文を全て返します。その中から最適な使用法やオプションの組み合わせを知ることができ、オプションの使い方も選べます。
 
 **引数:**
-- `c1` (必須): searchから得たドメイン識別子（例: git, spec, test, code, docs, meta）
-- `c2` (必須): searchから得たアクション識別子（例: create, analyze, execute, generate）
-- `c3` (必須): searchから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
-- `agent` (オプション): 検索対象のエージェント名（例: 'climpt', 'inspector'）。省略時は 'climpt' が使用されます
+
+- `c1` (必須): searchから得たドメイン識別子（例: git, spec, test, code, docs,
+  meta）
+- `c2` (必須): searchから得たアクション識別子（例: create, analyze, execute,
+  generate）
+- `c3` (必須): searchから得たターゲット識別子（例: unstaged-changes,
+  quality-metrics, unit-tests）
+- `agent` (オプション): 検索対象のエージェント名（例: 'climpt',
+  'inspector'）。省略時は 'climpt' が使用されます
 
 **動作:**
-- 指定されたエージェントのregistry.jsonから、指定された`c1`, `c2`, `c3`に一致する全レコードを返却
+
+- 指定されたエージェントのregistry.jsonから、指定された`c1`, `c2`,
+  `c3`に一致する全レコードを返却
 - 同じc1,c2,c3でオプションが異なる複数のレコードが存在する場合、全て返却
 - 使用方法、利用可能なオプション、ファイル/標準入力/出力先サポートを含む完全なJSON構造を返却
 
 **使用例（基本）:**
+
 ```json
 {
   "c1": "git",
@@ -56,6 +76,7 @@ searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンド�
 ```
 
 **使用例（エージェント指定）:**
+
 ```json
 {
   "c1": "code",
@@ -66,24 +87,39 @@ searchで受け取った`c1`, `c2`, `c3`を渡すと、一致するコマンド�
 ```
 
 ### `execute`
-describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`, `<c3>` の4つを必ず渡し、かつ、describeから得られたオプション引数（`-*`/`--*` 形式）も含めて実行します。オプションに渡す値も作成してから execute へ渡してください。execute の結果は指示書であるため、得られた指示に従って進めてください。
 
-**注意:** STDINサポートが必要な場合は、MCPではなくCLIから直接climptコマンドを実行してください。
+describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`, `<c3>`
+の4つを必ず渡し、かつ、describeから得られたオプション引数（`-*`/`--*`
+形式）も含めて実行します。オプションに渡す値も作成してから execute
+へ渡してください。execute
+の結果は指示書であるため、得られた指示に従って進めてください。
+
+**注意:**
+STDINサポートが必要な場合は、MCPではなくCLIから直接climptコマンドを実行してください。
 
 **引数:**
-- `agent` (必須): C3L仕様のエージェント名（例: 'climpt', 'inspector', 'auditor'）。Agent-Domainモデルにおけるエージェント（自律実行者）に対応
-- `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs, meta）
-- `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute, generate）
-- `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes, quality-metrics, unit-tests）
-- `options` (オプション): describeから得たコマンドラインオプションの配列（例: `['-f=file.txt']`）
+
+- `agent` (必須): C3L仕様のエージェント名（例: 'climpt', 'inspector',
+  'auditor'）。Agent-Domainモデルにおけるエージェント（自律実行者）に対応
+- `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs,
+  meta）
+- `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute,
+  generate）
+- `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes,
+  quality-metrics, unit-tests）
+- `options` (オプション): describeから得たコマンドラインオプションの配列（例:
+  `['-f=file.txt']`）
 
 **動作:**
-- C3L v0.5 仕様に従い `--config` パラメータを構築: `agent === "climpt"` の場合は `--config=<c1>`、それ以外は `--config=<agent>-<c1>`
+
+- C3L v0.5 仕様に従い `--config` パラメータを構築: `agent === "climpt"` の場合は
+  `--config=<c1>`、それ以外は `--config=<agent>-<c1>`
 - `deno run jsr:@aidevtool/climpt --config=... <c2> <c3> [options]` を実行
 - stdout, stderr, 終了コードを含む実行結果を返却
 - 実行結果には指示内容が含まれており、その指示に従って次の作業を進める
 
 **使用例（基本）:**
+
 ```json
 {
   "agent": "climpt",
@@ -94,11 +130,13 @@ describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`
 ```
 
 実行されるコマンド:
+
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=git group-commit unstaged-changes
 ```
 
 **使用例（オプション付き）:**
+
 ```json
 {
   "agent": "inspector",
@@ -110,13 +148,81 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
 ```
 
 実行されるコマンド:
+
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts
+```
+
+### `reload`
+
+registry.jsonを更新した後、MCPサーバーを再起動せずにキャッシュをクリアして再読み込みします。全てのエージェントのキャッシュをクリアするか、特定のエージェントのみクリアするかを選択できます。
+
+**引数:**
+
+- `agent` (オプション): 再読み込みするエージェント名（例: 'climpt',
+  'inspector'）。省略時は全エージェントのキャッシュをクリアし、MCP設定ファイルに定義されている全エージェントを再読み込みします
+
+**動作:**
+
+- エージェント指定時:
+  指定されたエージェントのキャッシュをクリアし、registry.jsonから再読み込み
+- エージェント未指定時:
+  全エージェントのキャッシュをクリアし、MCP設定ファイル（`.agent/climpt/mcp/config.json`）に定義されている全エージェントのregistry.jsonを再読み込み
+- エージェントが廃止された場合や新規追加された場合でも、設定ファイルに基づいて正しく更新される
+- 再読み込み後のコマンド数と成功メッセージを返却
+
+**使用例（特定エージェント）:**
+
+```json
+{
+  "agent": "climpt"
+}
+```
+
+**返却例（特定エージェント）:**
+
+```json
+{
+  "success": true,
+  "agent": "climpt",
+  "commandCount": 42,
+  "message": "Successfully reloaded 42 commands for agent 'climpt'"
+}
+```
+
+**使用例（全エージェント）:**
+
+```json
+{}
+```
+
+**返却例（全エージェント）:**
+
+```json
+{
+  "success": true,
+  "clearedAgents": 2,
+  "reloadedAgents": [
+    {
+      "agent": "climpt",
+      "commandCount": 42,
+      "success": true
+    },
+    {
+      "agent": "inspector",
+      "commandCount": 15,
+      "success": true
+    }
+  ],
+  "totalCommands": 57,
+  "message": "Cleared cache for all agents and reloaded 2 agents with 57 total commands"
+}
 ```
 
 ## セットアップ手順
 
 ### 1. リポジトリのクローン
+
 ```bash
 git clone https://github.com/tettuan/climpt.git
 cd climpt
@@ -126,8 +232,8 @@ cd climpt
 
 複数のエージェントのregistryを使用する場合、`.agent/climpt/mcp/config.json`を作成します。
 
-**デフォルト設定:**
-MCPサーバー起動時に自動的に作成されます：
+**デフォルト設定:** MCPサーバー起動時に自動的に作成されます：
+
 ```json
 {
   "registries": {
@@ -137,6 +243,7 @@ MCPサーバー起動時に自動的に作成されます：
 ```
 
 **複数エージェント設定例:**
+
 ```json
 {
   "registries": {
@@ -148,6 +255,7 @@ MCPサーバー起動時に自動的に作成されます：
 ```
 
 **設定場所の優先順位:**
+
 1. カレントディレクトリ: `.agent/climpt/mcp/config.json`
 2. ホームディレクトリ: `~/.agent/climpt/mcp/config.json`
 3. デフォルト設定（自動作成）
@@ -189,6 +297,7 @@ Claude Codeの設定ファイル（`~/.claude/claude_settings.json`）に以下�
 MCPサーバーは以下のツールを提供します：
 
 ### `search` ツール
+
 ```javascript
 // 使用例: コマンド検索
 {
@@ -213,6 +322,7 @@ MCPサーバーは以下のツールを提供します：
 ```
 
 ### `describe` ツール
+
 ```javascript
 // 使用例: コマンド詳細取得
 {
@@ -242,11 +352,13 @@ MCPサーバーは以下のツールを提供します：
 ## トラブルシューティング
 
 ### サーバーが起動しない場合
+
 - Denoがインストールされているか確認: `deno --version`
 - パスが正しいか確認
 - 権限フラグが適切か確認
 
 ### コマンドが認識されない場合
+
 - Claude Codeを再起動
 - 設定ファイルのJSON構文を確認
 - MCPサーバー名が`climpt`になっているか確認
@@ -254,15 +366,18 @@ MCPサーバーは以下のツールを提供します：
 ## 開発者向け情報
 
 ### ローカルでのテスト
+
 ```bash
 # MCPサーバーを直接起動してテスト
 deno run --allow-read --allow-write --allow-net --allow-env src/mcp/index.ts
 ```
 
 ### デバッグ
+
 環境変数`DEBUG=mcp*`を設定することで詳細なログを確認できます。
 
 ## 参考リンク
+
 - [MCP SDK for TypeScript](https://jsr.io/@modelcontextprotocol/sdk)
 - [Climpt Repository](https://github.com/tettuan/climpt)
 - [Breakdown Package](https://jsr.io/@tettuan/breakdown)
