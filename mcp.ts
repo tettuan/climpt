@@ -113,6 +113,29 @@
  */
 import main from "./src/mcp/index.ts";
 
+/**
+ * Default export of the MCP server main function.
+ *
+ * This function initializes and starts the Model Context Protocol (MCP) server
+ * for Climpt, enabling AI assistants to interact with development tools through
+ * a standardized protocol.
+ *
+ * The server provides four main tools:
+ * - **search**: Find commands using natural language queries
+ * - **describe**: Get detailed information about specific commands
+ * - **execute**: Run commands with specified parameters
+ * - **reload**: Clear cache and reload registry.json without restarting
+ *
+ * @returns Promise that resolves when the server is successfully started
+ *
+ * @example
+ * ```typescript
+ * import mcpServer from "jsr:@aidevtool/climpt/mcp";
+ *
+ * // Start the MCP server
+ * await mcpServer();
+ * ```
+ */
 export { default } from "./src/mcp/index.ts";
 
 // Auto-start MCP server when run as main module
