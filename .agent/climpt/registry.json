@@ -22,7 +22,11 @@
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
-          "destination": true
+          "destination": true,
+          "uv": {
+            "scope": "Scope of changes to include (e.g., 'feature', 'bugfix')",
+            "prefix": "Commit message prefix (e.g., 'feat:', 'fix:')"
+          }
         }
       },
       {
@@ -44,13 +48,17 @@
         "c2": "analyze",
         "c3": "quality-metrics",
         "description": "Analyze specification quality and completeness",
-        "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md",
+        "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md --uv-threshold=80",
         "options": {
           "input": ["default", "yaml"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": true,
-          "destination": true
+          "destination": true,
+          "uv": {
+            "threshold": "Quality threshold percentage (e.g., '80')",
+            "format": "Output format (e.g., 'json', 'markdown')"
+          }
         }
       },
       {
@@ -86,13 +94,17 @@
         "c2": "generate",
         "c3": "unit-tests",
         "description": "Generate unit tests from specifications",
-        "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/",
+        "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/ --uv-coverage=90",
         "options": {
           "input": ["default", "code"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
-          "destination": true
+          "destination": true,
+          "uv": {
+            "coverage": "Target test coverage percentage (e.g., '90')",
+            "framework": "Test framework to use (e.g., 'deno', 'jest')"
+          }
         }
       },
       {
