@@ -14,7 +14,7 @@
 
 - **ベースコマンド**: 固有プロジェクトのCLIツール名（例: `climpt-data`）
 - **サブコマンド**: 処理対象の動作（例: `fetch`, `analyze`, `render`）
-- **オプション**: 短縮形・ロング形（例: `-i=SQL`, `--uv-market=JP`）
+- **オプション**: 短縮形・ロング形（例: `-e=SQL`, `--uv-market=JP`）
 - **パラメータ**: 実行モード、対象範囲、出力形式など
 - **インラインプロンプト**: AIエージェントに解釈させる自然言語指示
 
@@ -54,7 +54,7 @@
 
 | パラメータ       | 型      | 必須 | 説明                           | 例                  |
 |----------------|--------|------|--------------------------------|---------------------|
-| `-i`, `--input` | ENUM   | Yes  | 入力形式 (SQL, CSV, JSON)      | `-i=SQL`            |
+| `-e`, `--edition` | ENUM   | Yes  | 入力形式 (SQL, CSV, JSON)      | `-e=SQL`            |
 | `-a`, `--agg`   | ENUM   | No   | 集計モード (full, compact)     | `-a=compact`        |
 | `-f`, `--file`  | PATH   | No   | 入力ファイルパス               | `-f=query.sql`      |
 | `--uv-market`   | ENUM   | No   | 市場コード                     | `--uv-market=JP`    |
@@ -66,10 +66,10 @@
 
 ```
 # 最新1ヶ月の株価をJP市場から取得
-climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
+climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
 
 # 特定銘柄の2023年データを分析
-climpt-data analyze trends -i=CSV --symbol=7203 <<< "analyze year 2023"
+climpt-data analyze trends -e=CSV --symbol=7203 <<< "analyze year 2023"
 
 # 生成したチャートをPNG形式で出力
 climpt-data render chart --format=png <<< "daily close prices"

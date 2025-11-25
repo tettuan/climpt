@@ -384,8 +384,8 @@ Deno.test("Command structure follows C3L specification", async () => {
         // Check options structure if present
         if (command.options) {
           assertExists(
-            command.options.input,
-            "Options should have input field",
+            command.options.edition,
+            "Options should have edition field",
           );
           assertExists(
             command.options.adaptation,
@@ -401,11 +401,11 @@ Deno.test("Command structure follows C3L specification", async () => {
             "Options should have destination field",
           );
 
-          // Check that input and adaptation are arrays
+          // Check that edition and adaptation are arrays
           assertEquals(
-            Array.isArray(command.options.input),
+            Array.isArray(command.options.edition),
             true,
-            "input should be array",
+            "edition should be array",
           );
           assertEquals(
             Array.isArray(command.options.adaptation),

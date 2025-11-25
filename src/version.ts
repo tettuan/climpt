@@ -22,7 +22,7 @@
  * console.log(`Climpt version: ${CLIMPT_VERSION}`);
  * ```
  */
-export const CLIMPT_VERSION = "1.7.1";
+export const CLIMPT_VERSION = "1.8.0";
 
 /**
  * Version of the breakdown package to use.
@@ -37,4 +37,4 @@ export const CLIMPT_VERSION = "1.7.1";
  * const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.4.1";
+export const BREAKDOWN_VERSION = "1.6.0";
