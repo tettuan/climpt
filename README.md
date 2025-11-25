@@ -10,10 +10,10 @@ You can pass values as arguments to be inserted into the prompt when invoked.
 Execution examples:
 ```sh
 # Build new tests based on bug reports
-cat bug_report.md | climpt-buld new test --input=bug
+cat bug_report.md | climpt-buld new test --edition=bug
 
 # Detailed breakdown from issue to tasks
-climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+climpt-breakdown to task --edition=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 
 ```
 
@@ -92,10 +92,10 @@ climpt-<profile> <directive> <layer> [options]
 
 | Option | Short | Description | Usage |
 |---------|------|------|------|
-| `--input` | `-i` | Specify input layer type | Used for prompt file selection (defaults to "default" if not specified) |
+| `--edition` | `-e` | Specify input layer type | Used for prompt file selection (defaults to "default" if not specified) |
 | `--adaptation` | `-a` | Specify prompt type | Prompt variation selection |
 
-Searches for prompt file name `f_<input>_<adaptation>.md`.
+Searches for prompt file name `f_<edition>_<adaptation>.md`.
 
 #### Custom Variable Options
 
@@ -130,7 +130,7 @@ Correspondence between variables usable in prompt templates and CLI options:
 
 ```bash
 # Generate troubleshooting plan from error log
-echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+echo "something error" | climpt-diagnose trace stack --edition=test -o=./tmp/abc --uv-max-line-num=3
 ```
 
 #### 2. Input from File
@@ -140,14 +140,14 @@ echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc -
 climpt-git create refinement-issue -f=requirements.md -o=./issues/
 
 # Break down issue into tasks in detailed mode
-climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+climpt-breakdown to task --edition=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 ```
 
 #### 3. Combining Standard Input and File Input
 
 ```bash
 # Build new tests from bug report
-cat bug_report.md | climpt-build new test --input=bug
+cat bug_report.md | climpt-build new test --edition=bug
 ```
 
 #### 4. Switching Profiles
@@ -165,13 +165,13 @@ climpt-setup climpt list
 Prompt files are placed according to the following rules:
 
 ```
-.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<input>_<adaptation>.md
+.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<edition>_<adaptation>.md
 ```
 
 **Naming Conventions:**
-- `f_default.md`: Default prompt (no `--input` and `--adaptation` specified)
-- `f_<input>.md`: For specific input type (e.g., `f_code.md`)
-- `f_<input>_<adaptation>.md`: Combination of input type and processing mode (e.g., `f_default_strict.md`)
+- `f_default.md`: Default prompt (no `--edition` and `--adaptation` specified)
+- `f_<edition>.md`: For specific edition type (e.g., `f_code.md`)
+- `f_<edition>_<adaptation>.md`: Combination of edition type and processing mode (e.g., `f_default_strict.md`)
 
 **Frontmatter Example:**
 
@@ -181,7 +181,7 @@ title: Determine new git branch creation and create new branch
 input_text: Specify work content within 30 characters
 description: Select and create appropriate branch based on branching strategy
 options:
-  input: ["default"]
+  edition: ["default"]
   adaptation: []
   input_text: true
   input_file: false
@@ -319,7 +319,7 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
         "description": string,// Command description
         "usage": string,      // Usage and examples
         "options": {          // Options available for this command
-          "input": string[],     // Input layer types (used for prompt file selection)
+          "edition": string[],   // Edition types (used for prompt file selection)
           "adaptation": string[], // Prompt types (prompt variation selection)
           "file": boolean,  // File input support
           "stdin": boolean,       // Standard input support
@@ -355,7 +355,7 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
         "description": "Create refinement issues from requirements documents",
         "usage": "Creates refinement issues from requirements documents.\nExample: climpt-git create refinement-issue -f requirements.md",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -458,7 +458,7 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
   - `description`: Purpose of the command
   - `usage`: Usage and examples
   - `options`: Options available for each command
-    - `input`: Input layer types (used for prompt file selection, defaults to "default" if not specified) (e.g., ["default", "code", "bug"])
+    - `edition`: Edition types (used for prompt file selection, defaults to "default" if not specified) (e.g., ["default", "code", "bug"])
     - `adaptation`: Prompt types (prompt variation selection) (e.g., ["default", "detailed", "strict"])
     - `file`: Whether file input is supported (true or false)
     - `stdin`: Whether standard input is supported (true or false)
@@ -656,7 +656,7 @@ Output destination: `{destination_path}`
 When the following CLI is executed against the above template, the values are replaced:
 
 ```
-echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+echo "something error" | climpt-diagnose trace stack --edition=test -o=./tmp/abc --uv-max-line-num=3
 ```
 
 ### Update
