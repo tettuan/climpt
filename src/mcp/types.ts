@@ -40,9 +40,9 @@ export interface Command {
    */
   options?: {
     /**
-     * Input parameter names that can be provided to the command
+     * Edition parameter names that can be provided to the command
      */
-    input?: string[];
+    edition?: string[];
 
     /**
      * Adaptation parameter names for command customization
