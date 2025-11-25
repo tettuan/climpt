@@ -72,7 +72,7 @@ async function importBreakdown(): Promise<void> {
  * ### Summary Generation
  * ```bash
  * echo "<messy_something>" | climpt summary project -o <project_summary.md>
- * climpt summary issue --from=<aggregated_tasks.md> --input=task -o=<issue_markdown_dir>
+ * climpt summary issue --from=<aggregated_tasks.md> --edition=task -o=<issue_markdown_dir>
  * climpt summary task --from=<unorganized_tasks.md> -o=<task_markdown_dir>
  * ```
  *
@@ -94,7 +94,7 @@ async function importBreakdown(): Promise<void> {
  *
  * ### Creating Issues from Task Groups
  * ```bash
- * climpt summary issue --from=<aggregated_tasks.md> --input=task -o=<issue_markdown_dir>
+ * climpt summary issue --from=<aggregated_tasks.md> --edition=task -o=<issue_markdown_dir>
  * climpt to task <issue.md> -o <tasks_dir>
  * ```
  *
@@ -161,7 +161,7 @@ Options:
     (STDIN)                     Receive data from standard input
 
   Processing Mode:
-    -i, --input=<layer>         Specify input layer type (default: "default")
+    -e, --edition=<layer>       Specify input layer type (default: "default")
     -a, --adaptation=<type>     Specify prompt type/variation
 
   Custom Variables:
@@ -180,10 +180,10 @@ Examples:
   climpt-git create refinement-issue -f=requirements.md -o=./issues/
 
   # Break down issue to tasks
-  climpt-breakdown to task -i=issue -f=issue.md -a=detailed --uv-storypoint=5
+  climpt-breakdown to task -e=issue -f=issue.md -a=detailed --uv-storypoint=5
 
   # Generate from standard input
-  echo "error log" | climpt-diagnose trace stack -i=test -o=./output
+  echo "error log" | climpt-diagnose trace stack -e=test -o=./output
 
 MCP Server:
   Climpt supports Model Context Protocol (MCP) for AI assistant integration.

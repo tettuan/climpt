@@ -10,10 +10,10 @@ Climptは、事前に用意したプロンプト群を使い分け、望んだ�
 実行例:
 ```sh
 # Bugレポートに基づいた新規テスト構築
-cat bug_report.md | climpt-buld new test --input=bug
+cat bug_report.md | climpt-buld new test --edition=bug
 
 # 課題からタスクへの詳細なブレークダウン
-climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+climpt-breakdown to task --edition=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 
 ```
 
@@ -92,10 +92,10 @@ climpt-<profile> <directive> <layer> [options]
 
 | オプション | 短縮形 | 説明 | 用途 |
 |---------|------|------|------|
-| `--input` | `-i` | 入力レイヤーの種類を指定 | プロンプトファイル選択に使用(指定がないときは "default" ） |
+| `--edition` | `-e` | 入力レイヤーの種類を指定 | プロンプトファイル選択に使用(指定がないときは "default" ） |
 | `--adaptation` | `-a` | プロンプトの種類を指定 | プロンプトのバリエーション選択 |
 
-プロンプトファイル名 `f_<input>_<adaptation>.md` を探します。　
+プロンプトファイル名 `f_<edition>_<adaptation>.md` を探します。
 
 #### カスタム変数オプション
 
@@ -130,7 +130,7 @@ climpt-<profile> <directive> <layer> [options]
 
 ```bash
 # エラーログから対処方針を生成
-echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+echo "something error" | climpt-diagnose trace stack --edition=test -o=./tmp/abc --uv-max-line-num=3
 ```
 
 #### 2. ファイルから入力する
@@ -140,14 +140,14 @@ echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc -
 climpt-git create refinement-issue -f=requirements.md -o=./issues/
 
 # 詳細モードで課題をタスクに分解
-climpt-breakdown to task --input=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
+climpt-breakdown to task --edition=issue --from=github_issue_123.md --adaptation=detailed --uv-storypoint=5
 ```
 
 #### 3. 標準入力とファイル入力を組み合わせる
 
 ```bash
 # バグレポートから新規テストを構築
-cat bug_report.md | climpt-build new test --input=bug
+cat bug_report.md | climpt-build new test --edition=bug
 ```
 
 #### 4. プロファイルを切り替える
@@ -165,13 +165,13 @@ climpt-setup climpt list
 プロンプトファイルは以下のルールに従って配置されます:
 
 ```
-.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<input>_<adaptation>.md
+.agent/climpt/prompts/<profile>/<directive>/<layer>/f_<edition>_<adaptation>.md
 ```
 
 **命名規則:**
-- `f_default.md`: デフォルトプロンプト（`--input`と`--adaptation`の指定なし）
-- `f_<input>.md`: 特定の入力タイプ用（例: `f_code.md`）
-- `f_<input>_<adaptation>.md`: 入力タイプと処理モードの組み合わせ（例: `f_default_strict.md`）
+- `f_default.md`: デフォルトプロンプト（`--edition`と`--adaptation`の指定なし）
+- `f_<edition>.md`: 特定のエディションタイプ用（例: `f_code.md`）
+- `f_<edition>_<adaptation>.md`: エディションタイプと処理モードの組み合わせ（例: `f_default_strict.md`）
 
 **フロントマター例:**
 
@@ -181,7 +181,7 @@ title: Git branch の新規立ち上げ判断と、新ブランチ作成
 input_text: 今回の作業内容を30文字以内で指定
 description: ブランチ戦略に基づいて適切なブランチを選択・作成
 options:
-  input: ["default"]
+  edition: ["default"]
   adaptation: []
   input_text: true
   input_file: false
@@ -319,7 +319,7 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
         "description": string,// コマンドの説明
         "usage": string,      // 使用方法と例
         "options": {          // このコマンドで利用可能なオプション
-          "input": string[],     // 入力レイヤーの種類（プロンプトファイル選択に使用）
+          "edition": string[],   // エディションタイプ（プロンプトファイル選択に使用）
           "adaptation": string[], // プロンプトの種類（プロンプトのバリエーション選択）
           "file": boolean,  // ファイル入力サポート
           "stdin": boolean,       // 標準入力サポート
@@ -355,7 +355,7 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
         "description": "要件ドキュメントからリファインメント課題を作成",
         "usage": "要件ドキュメントからリファインメント課題を作成します。\n例: climpt-git create refinement-issue -f requirements.md",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -458,7 +458,7 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
   - `description`: コマンドの目的
   - `usage`: 使用方法と例
   - `options`: 各コマンドで利用可能なオプション
-    - `input`: 入力レイヤーの種類（プロンプトファイル選択に使用、指定がないときは "default"）（例: ["default", "code", "bug"]）
+    - `edition`: エディションタイプ（プロンプトファイル選択に使用、指定がないときは "default"）（例: ["default", "code", "bug"]）
     - `adaptation`: プロンプトの種類（プロンプトのバリエーション選択）（例: ["default", "detailed", "strict"]）
     - `file`: ファイル入力がサポートされているか（true または false）
     - `stdin`: 標準入力がサポートされているか（true または false）
@@ -658,7 +658,7 @@ Deno の呼び出し時に、 `--config=profilename` を付与します。
 上記のテンプレートに対し、以下のCLIを実行すると、値が置き換わります。
 
 ```
-echo "something error" | climpt-diagnose trace stack --input=test -o=./tmp/abc --uv-max-line-num=3
+echo "something error" | climpt-diagnose trace stack --edition=test -o=./tmp/abc --uv-max-line-num=3
 ```
 
 ### アップデート

@@ -10,7 +10,7 @@
 * **Deterministic prompt generation** from a canonical 3-words command shape.
 * **Human-readable SVO/SVOO semantics**, machine-parseable grammar.
 * **Stable interface** for AI agents via a *handoff prompt* template and JSON payload.
-* **Composable variables** via `-i`, `-a`, `-f`, `--uv-*`, and `STDIN`.
+* **Composable variables** via `-e`, `-a`, `-f`, `--uv-*`, and `STDIN`.
 * **Reproducibility**: canonical ordering & normalization rules.
 * **Safety**: prompt-injection resistance, escaping/quoting rules.
 
@@ -33,23 +33,23 @@ Where:
 ### 1.2 Options & Inputs (Canonical Order)
 
 ```
--i=<o1> -a=<o2> -f=<file> --uv-<name>=<value>... <<< "STDIN"
+-e=<o1> -a=<o2> -f=<file> --uv-<name>=<value>... <<< "STDIN"
 ```
 
-* `-i=<o1>`: **primary input type/mode** (e.g., `SQL`, `JSON`, `SCHEMA`, `TEXT`, `CSV`, `YAML`, `MD`, `CODE`)
+* `-e=<o1>`: **primary edition type/mode** (e.g., `SQL`, `JSON`, `SCHEMA`, `TEXT`, `CSV`, `YAML`, `MD`, `CODE`)
 * `-a=<o2>`: **additional mode/variant** (free-form or enum per command)
 * `-f=<path>`: **file payload** path (relative/absolute)
 * `--uv-<name>=<value>`: **user variable(s)**; repeatable
 * `<<< "..."`: **STDIN heredoc** short free text
 
-> **Normalization**: Parser accepts any option order but **emits** canonical order: `-i`, `-a`, `-f`, `--uv-*` (sorted by variable name), then `STDIN`.
+> **Normalization**: Parser accepts any option order but **emits** canonical order: `-e`, `-a`, `-f`, `--uv-*` (sorted by variable name), then `STDIN`.
 
 ### 1.3 Examples
 
 ```
-climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
-climpt-report generate summary -i=JSON --uv-scope=release --uv-format=md <<< "focus on risk"
-climpt-code transform schema -i=SCHEMA -f=domain.yaml --uv-target=go <<< "repository pattern"
+climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
+climpt-report generate summary -e=JSON --uv-scope=release --uv-format=md <<< "focus on risk"
+climpt-code transform schema -e=SCHEMA -f=domain.yaml --uv-target=go <<< "repository pattern"
 ```
 
 ---
@@ -64,7 +64,7 @@ climpt-code transform schema -i=SCHEMA -f=domain.yaml --uv-target=go <<< "reposi
 Mapping intuition:
 
 * *SVO*: `climpt-data fetch prices` → “(Data agent) fetch (prices)”
-* *SVOO*: `-i=SQL -a=compact` → additional/secondary objects/constraints
+* *SVOO*: `-e=SQL -a=compact` → additional/secondary objects/constraints
 
 ---
 
@@ -78,8 +78,8 @@ Verb          := Ident ;          (* c2 *)
 Object        := Ident ;          (* c3 *)
 
 Clauses       := (WS Option)* (WS Var)* (WS File)? ;  (* input order free; normalized on emit *)
-Option        := InputOpt | AddOpt ;
-InputOpt      := "-i=" Value ;   (* primary input type/mode *)
+Option        := EditionOpt | AddOpt ;
+EditionOpt    := "-e=" Value ;   (* primary edition type/mode *)
 AddOpt        := "-a=" Value ;   (* additional mode/variant *)
 File          := "-f=" Path ;
 Var           := "--uv-" VarName "=" Value ;
@@ -109,7 +109,7 @@ WS            := /\s+/ ;
 
 ## 4. Typing & Validation
 
-### 4.1 Input Types (`-i`)
+### 4.1 Edition Types (`-e`)
 
 Enumerated baseline: `SQL | JSON | SCHEMA | TEXT | CSV | YAML | MD | CODE`.
 
@@ -135,18 +135,18 @@ Enumerated baseline: `SQL | JSON | SCHEMA | TEXT | CSV | YAML | MD | CODE`.
 ### 4.5 Compatibility Matrix (excerpt)
 
 ```
-Category  Verb        Object    -i         -a            Required
+Category  Verb        Object    -e         -a            Required
 --------- ----------  --------  ---------- ------------- --------
-data      fetch       prices    SQL|JSON   compact|full  -i
+data      fetch       prices    SQL|JSON   compact|full  -e
 report    generate    summary   JSON|TEXT  daily|weekly  (none)
-code      transform   schema    SCHEMA     go|ts|rust    -i
+code      transform   schema    SCHEMA     go|ts|rust    -e
 ```
 
 ---
 
 ## 5. Canonical Emission & Normalization
 
-* Option order: `-i`, `-a`, `-f`, then sorted `--uv-*` (by `name` ASC).
+* Option order: `-e`, `-a`, `-f`, then sorted `--uv-*` (by `name` ASC).
 * Quoting: prefer **double quotes**; escape `"` and `\` inside.
 * Whitespace: collapse multiple spaces to single in emission.
 * Idempotence: `emit(parse(cmd)) == canonical(cmd)`.
@@ -163,7 +163,7 @@ code      transform   schema    SCHEMA     go|ts|rust    -i
   "c1": "data",
   "c2": "fetch",
   "c3": "prices",
-  "options": { "i": "SQL", "a": "compact", "f": "query.sql" },
+  "options": { "e": "SQL", "a": "compact", "f": "query.sql" },
   "uv": { "market": "JP" },
   "stdin": "latest month"
 }
@@ -187,7 +187,7 @@ code      transform   schema    SCHEMA     go|ts|rust    -i
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "i": {"type": "string"},
+        "e": {"type": "string"},
         "a": {"type": "string"},
         "f": {"type": "string"}
       }
@@ -215,7 +215,7 @@ code      transform   schema    SCHEMA     go|ts|rust    -i
 C1: <c1>
 C2: <c2>
 C3: <c3>
-I:  <options.i>
+E:  <options.e>
 A:  <options.a>
 F:  <options.f>
 UV: <uv as key=value, comma-separated, sorted>
@@ -228,7 +228,7 @@ You are the <c1> agent performing action <c2> on <c3>.
 Execute the task precisely as specified by SVO/SVOO semantics above.
 
 # INPUTS
-- Primary Input (-i): <options.i>
+- Primary Edition (-e): <options.e>
 - Additional (-a): <options.a>
 - File (-f): <resolved file content or a summary directive>
 - Variables (--uv-*): <expanded list>
@@ -266,21 +266,21 @@ Execute the task precisely as specified by SVO/SVOO semantics above.
 ### 8.1 Pipe Handoff (simple)
 
 ```bash
-PROMPT=$(climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month")
+PROMPT=$(climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month")
 claude-code --prompt "$PROMPT"
 ```
 
 ### 8.2 Direct Pipe
 
 ```bash
-climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP \
+climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP \
   <<< "latest month" | claude-code --prompt -
 ```
 
 ### 8.3 File Handoff
 
 ```bash
-climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP \
+climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP \
   <<< "latest month" > .climpt/handoff/2025-08-14T12-00Z.txt
 claude-code --prompt-file .climpt/handoff/2025-08-14T12-00Z.txt
 ```
@@ -331,7 +331,7 @@ E100 ParseError        unrecognized token near <...>
 E110 MissingC1C2C3     command must be 3-words
 E120 InvalidIdent      identifier does not match ^[a-z][a-z0-9_-]*$
 E130 OptionCollision   duplicate option; last-wins normalization applied
-E200 ValidationError   incompatible -i/-a for <c1>/<c2>/<c3>
+E200 ValidationError   incompatible -e/-a for <c1>/<c2>/<c3>
 E300 FileNotFound      cannot resolve -f path
 E310 FileTooLarge      exceeds CLIMPT_MAX_FILE_BYTES
 E900 InternalError     unexpected condition; please report
@@ -346,14 +346,14 @@ E900 InternalError     unexpected condition; please report
 ### 11.1 Valid
 
 ```
-IN : climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
-OUT: climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
-AST: { c1:"data", c2:"fetch", c3:"prices", options:{i:"SQL",a:"compact",f:"query.sql"}, uv:{market:"JP"}, stdin:"latest month" }
+IN : climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
+OUT: climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
+AST: { c1:"data", c2:"fetch", c3:"prices", options:{e:"SQL",a:"compact",f:"query.sql"}, uv:{market:"JP"}, stdin:"latest month" }
 ```
 
 ```
-IN : climpt-report generate summary --uv-scope=release -i=JSON <<< "focus on risk"
-OUT: climpt-report generate summary -i=JSON --uv-scope=release <<< "focus on risk"
+IN : climpt-report generate summary --uv-scope=release -e=JSON <<< "focus on risk"
+OUT: climpt-report generate summary -e=JSON --uv-scope=release <<< "focus on risk"
 ```
 
 ### 11.2 Invalid
@@ -364,7 +364,7 @@ ERR: E110 MissingC1C2C3 (verb/object order invalid)
 ```
 
 ```
-IN : climpt-data fetch prices -i=
+IN : climpt-data fetch prices -e=
 ERR: E100 ParseError (empty value)
 ```
 
@@ -402,7 +402,7 @@ Category: code
 
 ```Makefile
 fetch-prices:
-	climpt-data fetch prices -i=SQL -a=compact -f=query.sql --uv-market=$(MARKET) <<< "latest month" \
+	climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=$(MARKET) <<< "latest month" \
 	| claude-code --prompt -
 ```
 
@@ -410,7 +410,7 @@ fetch-prices:
 # GitHub Actions (excerpt)
 - name: Generate release summary
   run: |
-    climpt-report generate summary -i=JSON --uv-scope=release \
+    climpt-report generate summary -e=JSON --uv-scope=release \
       -f=out/report.json <<< "concise" | claude-code --prompt - > SUMMARY.md
 ```
 
@@ -426,7 +426,7 @@ fetch-prices:
 
 ## 16. Quick Reference
 
-* **Shape**: `climpt-<c1> <c2> <c3> -i=<o1> -a=<o2> -f=<file> --uv-<k>=<v>... <<< "stdin"`
+* **Shape**: `climpt-<c1> <c2> <c3> -e=<o1> -a=<o2> -f=<file> --uv-<k>=<v>... <<< "stdin"`
 * **Best practice**: keep `STDIN` short; use `-f` for large payloads; use UVs for knobs.
 * **Security**: quote everything; never pass secrets verbatim.
 

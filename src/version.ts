@@ -37,4 +37,4 @@ export const CLIMPT_VERSION = "1.7.1";
  * const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.4.1";
+export const BREAKDOWN_VERSION = "1.6.0";
