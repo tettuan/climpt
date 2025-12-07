@@ -1,7 +1,17 @@
 ---
+c1: climpt-git
+c2: list-select
+c3: pr-branch
 title: 現存のPRとブランチをリスト化して、次に作業する対象を選ぶ
-properties:
-  C3L-Version: 0.3
+description: ローカル・リモートブランチとPRを一覧化し、次に作業すべき対象を自動選択する
+usage: climpt-git list-select pr-branch
+c3l_version: "0.5"
+options:
+  edition: ["default"]
+  adaptation: ["default"]
+  file: false
+  stdin: false
+  destination: false
 ---
 
 # 指示: 現存のPRとブランチをリスト化して、次に作業する対象を選ぶ

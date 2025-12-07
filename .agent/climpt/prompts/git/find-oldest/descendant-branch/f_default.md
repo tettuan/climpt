@@ -1,7 +1,17 @@
 ---
+c1: climpt-git
+c2: find-oldest
+c3: descendant-branch
 title: Git関連ブランチ探索とマージ処理実行
-properties:
-  C3L-Version: 0.5
+description: 現在のブランチから派生した子孫・兄弟ブランチを探索し、最古の関連ブランチをマージ処理する
+usage: climpt-git find-oldest descendant-branch
+c3l_version: "0.5"
+options:
+  edition: ["default"]
+  adaptation: ["default", "detailed"]
+  file: false
+  stdin: false
+  destination: false
 ---
 
 # 指示書:Git関連ブランチ探索とマージ処理実行

@@ -1,7 +1,17 @@
 ---
+c1: climpt-git
+c2: group-commit
+c3: unstaged-changes
 title: 意味的近さでコミットを分けて実施する
-properties:
-  C3L-Version: 0.3
+description: ファイルの変更内容の意味的な近さでグループ化し、複数回のコミットを連続実行する
+usage: climpt-git group-commit unstaged-changes
+c3l_version: "0.5"
+options:
+  edition: ["default"]
+  adaptation: ["default", "detailed"]
+  file: true
+  stdin: false
+  destination: true
 ---
 
 # 指示

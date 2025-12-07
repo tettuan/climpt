@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "climpt-registry-schema",
+  "title": "Climpt Registry Schema",
+  "description": "Schema for generating registry.json from prompt frontmatter",
+  "type": "object",
+  "x-template": "registry.template.json",
+  "x-template-items": "command.template.json",
+  "required": ["version", "description", "tools"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "description": {
+      "type": "string",
+      "default": "Climpt comprehensive configuration for MCP server and command registry"
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["availableConfigs", "commands"],
+      "properties": {
+        "availableConfigs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "x-derived-from": "tools.commands[].c1",
+          "x-derived-unique": true,
+          "description": "Unique list of domains derived from c1 values"
+        },
+        "commands": {
+          "type": "array",
+          "x-frontmatter-part": true,
+          "items": {
+            "$ref": "command.schema.json"
+          },
+          "description": "Array of command definitions from frontmatter"
+        }
+      }
+    }
+  }
+}
