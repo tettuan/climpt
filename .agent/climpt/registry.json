@@ -4,7 +4,8 @@
   "tools": {
     "availableConfigs": [
       "climpt-code",
-      "climpt-git"
+      "climpt-git",
+      "climpt-meta"
     ],
     "commands": [
       {
@@ -116,6 +117,25 @@
           "file": false,
           "stdin": false,
           "destination": false
+        }
+      },
+      {
+        "c1": "climpt-meta",
+        "c2": "build",
+        "c3": "frontmatter",
+        "description": "Generate C3L v0.5 compliant frontmatter for Climpt instruction files",
+        "usage": "climpt-meta build frontmatter",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": true
         }
       }
     ]

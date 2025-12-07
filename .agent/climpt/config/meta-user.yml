@@ -1,0 +1,7 @@
+# Breakdown Configuration
+params:
+  two:
+    directiveType:
+      pattern: "^(build)$"
+    layerType:
+      pattern: "^(frontmatter)$"
