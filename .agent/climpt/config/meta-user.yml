@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(build)$"
+      pattern: "^(build|create)$"
     layerType:
-      pattern: "^(frontmatter)$"
+      pattern: "^(frontmatter|instruction)$"

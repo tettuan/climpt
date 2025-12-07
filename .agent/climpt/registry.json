@@ -137,6 +137,25 @@
           "stdin": true,
           "destination": true
         }
+      },
+      {
+        "c1": "climpt-meta",
+        "c2": "create",
+        "c3": "instruction",
+        "description": "Create a new Climpt instruction file following C3L specification with all required configurations",
+        "usage": "climpt-meta create instruction",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": true
+        }
       }
     ]
   }
