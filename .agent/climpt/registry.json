@@ -3,180 +3,138 @@
   "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      "code",
-      "docs",
-      "git",
-      "meta",
-      "spec",
-      "test"
+      "climpt-git",
+      "climpt-meta"
     ],
     "commands": [
       {
-        "c1": "git",
+        "c1": "climpt-git",
+        "c2": "decide-branch",
+        "c3": "working-branch",
+        "description": "Decide whether to create a new branch or continue on the current branch based on task content",
+        "usage": "climpt-git decide-branch working-branch",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-git",
+        "c2": "find-oldest",
+        "c3": "descendant-branch",
+        "description": "Find descendant and sibling branches from the current branch and merge the oldest related branch",
+        "usage": "climpt-git find-oldest descendant-branch",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-git",
         "c2": "group-commit",
         "c3": "unstaged-changes",
-        "description": "Create a group commit for unstaged changes",
-        "usage": "Create a group commit for unstaged changes.\nExample: climpt-git group-commit unstaged-changes -f requirements.md",
+        "description": "Group file changes by semantic proximity and execute multiple commits sequentially",
+        "usage": "climpt-git group-commit unstaged-changes",
         "options": {
-          "edition": ["default"],
-          "adaptation": ["default", "detailed"],
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
           "file": true,
           "stdin": false,
           "destination": true
         }
       },
       {
-        "c1": "git",
-        "c2": "analyze",
-        "c3": "commit-history",
-        "description": "Analyze commit history and generate insights",
-        "usage": "Analyze git commit history to identify patterns.\nExample: climpt-git analyze commit-history --adaptation=detailed",
+        "c1": "climpt-git",
+        "c2": "list-select",
+        "c3": "pr-branch",
+        "description": "List local and remote branches with PRs, then auto-select the next target to work on",
+        "usage": "climpt-git list-select pr-branch",
         "options": {
-          "edition": ["default"],
-          "adaptation": ["default", "detailed"],
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
           "file": false,
           "stdin": false,
-          "destination": true
+          "destination": false
         }
       },
       {
-        "c1": "spec",
-        "c2": "analyze",
-        "c3": "quality-metrics",
-        "description": "Analyze specification quality and completeness",
-        "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md",
+        "c1": "climpt-git",
+        "c2": "merge-up",
+        "c3": "base-branch",
+        "description": "Merge a derived working branch back into its parent working branch",
+        "usage": "climpt-git merge-up base-branch",
         "options": {
-          "edition": ["default", "yaml"],
-          "adaptation": ["default", "detailed"],
-          "file": true,
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-meta",
+        "c2": "build",
+        "c3": "frontmatter",
+        "description": "Generate C3L v0.5 compliant frontmatter for Climpt instruction files",
+        "usage": "climpt-meta build frontmatter",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
+          "file": false,
           "stdin": true,
           "destination": true
         }
       },
       {
-        "c1": "spec",
-        "c2": "validate",
-        "c3": "requirements",
-        "description": "Validate requirements against standards",
-        "usage": "Validate requirement documents against standards.\nExample: climpt-spec validate requirements -f requirements.md",
-        "options": {
-          "edition": ["default"],
-          "adaptation": ["default"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "test",
-        "c2": "execute",
-        "c3": "integration-suite",
-        "description": "Execute integration test suite",
-        "usage": "Execute integration test suites.\nExample: climpt-test execute integration-suite --config=test.yml",
-        "options": {
-          "edition": ["yaml", "json"],
-          "adaptation": ["default"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "test",
-        "c2": "generate",
-        "c3": "unit-tests",
-        "description": "Generate unit tests from specifications",
-        "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/",
-        "options": {
-          "edition": ["default", "code"],
-          "adaptation": ["default", "detailed"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "code",
+        "c1": "climpt-meta",
         "c2": "create",
-        "c3": "implementation",
-        "description": "Create implementation from design documents",
-        "usage": "Generate implementation code from design docs.\nExample: climpt-code create implementation -f design.md -o src/",
+        "c3": "instruction",
+        "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",
+        "usage": "climpt-meta create instruction",
         "options": {
-          "edition": ["default"],
-          "adaptation": ["default", "detailed"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "code",
-        "c2": "refactor",
-        "c3": "architecture",
-        "description": "Refactor code architecture based on patterns",
-        "usage": "Refactor existing code architecture.\nExample: climpt-code refactor architecture --adaptation=detailed",
-        "options": {
-          "edition": ["code"],
-          "adaptation": ["default", "detailed", "compact"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "docs",
-        "c2": "generate",
-        "c3": "api-reference",
-        "description": "Generate API reference documentation",
-        "usage": "Generate API documentation from code.\nExample: climpt-docs generate api-reference -f src/ -o docs/api/",
-        "options": {
-          "edition": ["code"],
-          "adaptation": ["default", "detailed"],
-          "file": true,
-          "stdin": false,
-          "destination": true
-        }
-      },
-      {
-        "c1": "docs",
-        "c2": "update",
-        "c3": "user-guide",
-        "description": "Update user guide documentation",
-        "usage": "Update existing user guide docs.\nExample: climpt-docs update user-guide -f guide.md",
-        "options": {
-          "edition": ["default"],
-          "adaptation": ["default"],
-          "file": true,
-          "stdin": true,
-          "destination": true
-        }
-      },
-      {
-        "c1": "meta",
-        "c2": "list",
-        "c3": "available-commands",
-        "description": "List all available Climpt commands",
-        "usage": "List all available commands in the registry.\nExample: climpt-meta list available-commands",
-        "options": {
-          "edition": ["default"],
-          "adaptation": ["default"],
-          "file": false,
-          "stdin": false,
-          "destination": false
-        }
-      },
-      {
-        "c1": "meta",
-        "c2": "resolve",
-        "c3": "command-definition",
-        "description": "Resolve and display command definitions",
-        "usage": "Resolve command definitions from registry.\nExample: climpt-meta resolve command-definition --edition=git/create",
-        "options": {
-          "edition": ["default"],
-          "adaptation": ["default"],
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
           "file": false,
           "stdin": true,
-          "destination": false
+          "destination": true
         }
       }
     ]

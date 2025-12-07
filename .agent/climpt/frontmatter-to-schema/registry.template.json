@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
+  "tools": {
+    "availableConfigs": "{tools.availableConfigs}",
+    "commands": "{@items}"
+  }
+}
