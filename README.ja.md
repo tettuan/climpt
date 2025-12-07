@@ -307,13 +307,13 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
   "version": string,           // レジストリバージョン（例: "1.0.0"）
   "description": string,       // レジストリ全体の説明
   "tools": {
-    // ツール名の配列 - 各ツールはclimpt-{name}として利用可能
-    "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
+    // ツール名の配列 - C3L v0.5形式（climpt-{domain}）
+    "availableConfigs": string[],  // ["climpt-git", "climpt-meta"]
 
     // コマンドレジストリ - 利用可能なすべてのC3Lコマンドを定義
     "commands": [
       {
-        "c1": string,         // ドメイン/カテゴリ（git, spec, test, code, docs, meta）
+        "c1": string,         // ドメイン/カテゴリ - C3L v0.5形式（climpt-git, climpt-meta）
         "c2": string,         // アクション/ディレクティブ（create, analyze, execute など）
         "c3": string,         // ターゲット/レイヤー（refinement-issue, quality-metrics など）
         "description": string,// コマンドの説明
@@ -339,104 +339,65 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
   "description": "Climpt MCPサーバーとコマンドレジストリの包括的設定",
   "tools": {
     "availableConfigs": [
-      "code",
-      "docs",
-      "git",
-      "meta",
-      "spec",
-      "test"
+      "climpt-git",
+      "climpt-meta"
     ],
     "commands": [
-      // Gitコマンド
       {
-        "c1": "git",
-        "c2": "create",
-        "c3": "refinement-issue",
-        "description": "要件ドキュメントからリファインメント課題を作成",
-        "usage": "要件ドキュメントからリファインメント課題を作成します。\n例: climpt-git create refinement-issue -f requirements.md",
+        "c1": "climpt-git",
+        "c2": "decide-branch",
+        "c3": "working-branch",
+        "description": "タスク内容に基づいて新規ブランチを作成するか現在のブランチで続行するかを決定",
+        "usage": "climpt-git decide-branch working-branch",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default"],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-git",
+        "c2": "merge-up",
+        "c3": "base-branch",
+        "description": "派生した作業ブランチを親作業ブランチにマージ",
+        "usage": "climpt-git merge-up base-branch",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default"],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-meta",
+        "c2": "build",
+        "c3": "frontmatter",
+        "description": "Climpt指示ファイル用のC3L v0.5準拠フロントマターを生成",
+        "usage": "climpt-meta build frontmatter",
         "options": {
           "edition": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": true,
-          "stdin": false,
+          "file": false,
+          "stdin": true,
           "destination": true
         }
       },
       {
-        "c1": "git",
-        "c2": "analyze",
-        "c3": "commit-history",
-        "description": "コミット履歴を分析してインサイトを生成"
-      },
-
-      // Specコマンド
-      {
-        "c1": "spec",
-        "c2": "analyze",
-        "c3": "quality-metrics",
-        "description": "仕様の品質と完全性を分析"
-      },
-      {
-        "c1": "spec",
-        "c2": "validate",
-        "c3": "requirements",
-        "description": "要件を標準に対して検証"
-      },
-
-      // Testコマンド
-      {
-        "c1": "test",
-        "c2": "execute",
-        "c3": "integration-suite",
-        "description": "統合テストスイートを実行"
-      },
-      {
-        "c1": "test",
-        "c2": "generate",
-        "c3": "unit-tests",
-        "description": "仕様からユニットテストを生成"
-      },
-
-      // Codeコマンド
-      {
-        "c1": "code",
+        "c1": "climpt-meta",
         "c2": "create",
-        "c3": "implementation",
-        "description": "設計ドキュメントから実装を作成"
-      },
-      {
-        "c1": "code",
-        "c2": "refactor",
-        "c3": "architecture",
-        "description": "パターンに基づいてコードアーキテクチャをリファクタリング"
-      },
-
-      // Docsコマンド
-      {
-        "c1": "docs",
-        "c2": "generate",
-        "c3": "api-reference",
-        "description": "APIリファレンスドキュメントを生成"
-      },
-      {
-        "c1": "docs",
-        "c2": "update",
-        "c3": "user-guide",
-        "description": "ユーザーガイドドキュメントを更新"
-      },
-
-      // Metaコマンド
-      {
-        "c1": "meta",
-        "c2": "list",
-        "c3": "available-commands",
-        "description": "利用可能なすべてのClimptコマンドをリスト"
-      },
-      {
-        "c1": "meta",
-        "c2": "resolve",
-        "c3": "command-definition",
-        "description": "コマンド定義を解決して表示"
+        "c3": "instruction",
+        "description": "C3L仕様に従って、標準入力から新しいClimpt指示ファイルを作成",
+        "usage": "climpt-meta create instruction",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default", "detailed"],
+          "file": false,
+          "stdin": true,
+          "destination": true
+        }
       }
     ]
   }
@@ -452,7 +413,7 @@ MCPサーバーは各エージェントの`.agent/{agent}/registry.json`から�
 **フィールドの説明**:
 - `version`: レジストリスキーマのバージョン
 - `description`: レジストリ全体の説明
-- `availableConfigs`: `climpt-{name}`コマンドとして利用可能になるツール名の配列
+- `availableConfigs`: C3L v0.5形式のツール名の配列（例: `climpt-git`, `climpt-meta`）
 - `commands`: C3L仕様に従ったコマンド定義の配列
   - `c1/c2/c3`: コマンド構造（ドメイン/アクション/ターゲット）
   - `description`: コマンドの目的

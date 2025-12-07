@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2025-12-07
+
+### Changed
+- Refactored registry generation to use `@aidevtool/frontmatter-to-schema` package
+- Standardized all prompt descriptions to English
+
+### Added
+- `climpt-meta build frontmatter` command for generating C3L v0.5 compliant frontmatter
+- `climpt-meta create instruction` command for creating new instruction files
+- Registry generation script (`scripts/generate-registry.ts`)
+- Frontmatter-to-schema configuration files
+
+### Removed
+- `climpt-code` domain (moved to separate project)
+
 ## [1.8.0] - 2025-11-26
 
 ### Changed
