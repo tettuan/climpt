@@ -13,7 +13,8 @@
 import { transformFiles } from "@aidevtool/frontmatter-to-schema";
 
 const baseDir = Deno.cwd();
-const SCHEMA_PATH = `${baseDir}/.agent/climpt/frontmatter-to-schema/registry.schema.json`;
+const SCHEMA_PATH =
+  `${baseDir}/.agent/climpt/frontmatter-to-schema/registry.schema.json`;
 const INPUT_PATTERN = `${baseDir}/.agent/climpt/prompts/**/*.md`;
 const OUTPUT_PATH = `${baseDir}/.agent/climpt/registry.json`;
 
@@ -22,7 +23,8 @@ console.log(`  Schema: ${SCHEMA_PATH}`);
 console.log(`  Input: ${INPUT_PATTERN}`);
 console.log(`  Output: ${OUTPUT_PATH}`);
 
-const TEMPLATE_PATH = `${baseDir}/.agent/climpt/frontmatter-to-schema/registry.template.json`;
+const TEMPLATE_PATH =
+  `${baseDir}/.agent/climpt/frontmatter-to-schema/registry.template.json`;
 
 const result = await transformFiles({
   schema: SCHEMA_PATH,
