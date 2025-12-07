@@ -3,7 +3,7 @@ c1: climpt-meta
 c2: create
 c3: instruction
 title: Create New Climpt Instruction
-description: Create a new Climpt instruction file following C3L specification with all required configurations
+description: Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations
 usage: climpt-meta create instruction
 c3l_version: "0.5"
 options:
@@ -29,11 +29,30 @@ Create a new Climpt instruction file following the C3L specification. This proce
 
 ## Input
 
-Provide via stdin:
+This command receives input via stdin. Provide the following information through stdin:
+
 - Purpose and description of the new instruction
 - Target domain (code, git, meta, data, infra, etc.)
 - Action verb (what the command does)
 - Target object (what the command acts upon)
+
+### Usage Example
+
+```bash
+# Provide input via stdin using echo or heredoc
+echo "Create a command to analyze code complexity in the code domain" | climpt-meta create instruction
+
+# Or use heredoc for multi-line input
+climpt-meta create instruction << 'EOF'
+Purpose: Analyze and report code complexity metrics
+Domain: code
+Action: analyze
+Target: complexity
+Description: Calculate cyclomatic complexity and provide improvement suggestions
+EOF
+```
+
+The stdin input is used to determine c1 (domain), c2 (action), c3 (target) and generate the appropriate instruction file structure.
 
 ## Step 1: Find and Review C3L Specification
 
@@ -108,28 +127,24 @@ Example for `climpt-git group-commit unstaged-changes`:
 - `f_default.md` - Default edition
 - `f_detailed.md` - Detailed edition (if needed)
 
-### Frontmatter Template
+### Generate Frontmatter
 
-```yaml
----
-c1: <agent>-<domain>
-c2: <action>
-c3: <target>
-title: <Human Readable Title in English>
-description: <Command description in English>
-usage: <c1> <c2> <c3>
-c3l_version: "0.5"
-options:
-  edition:
-    - default
-  adaptation:
-    - default
-    - detailed
-  file: false      # Set true if accepts file input (-f)
-  stdin: false     # Set true if accepts stdin input
-  destination: false  # Set true if supports output destination (-o)
----
+Use `climpt-meta build frontmatter` to generate C3L v0.5 compliant frontmatter:
+
+```bash
+# Generate frontmatter from stdin input
+echo "Domain: code, Action: analyze, Target: complexity, Purpose: Calculate cyclomatic complexity" | climpt-meta build frontmatter
+
+# Or use heredoc
+climpt-meta build frontmatter << 'EOF'
+Domain: code
+Action: analyze
+Target: complexity
+Purpose: Calculate cyclomatic complexity and provide improvement suggestions
+EOF
 ```
+
+The `build frontmatter` command generates valid YAML frontmatter following C3L v0.5 specification with all required fields (c1, c2, c3, title, description, usage, options).
 
 **IMPORTANT**: All frontmatter values MUST be in English.
 

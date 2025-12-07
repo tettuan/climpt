@@ -3,7 +3,7 @@ c1: climpt-git
 c2: list-select
 c3: pr-branch
 title: 現存のPRとブランチをリスト化して、次に作業する対象を選ぶ
-description: ローカル・リモートブランチとPRを一覧化し、次に作業すべき対象を自動選択する
+description: List local and remote branches with PRs, then auto-select the next target to work on
 usage: climpt-git list-select pr-branch
 c3l_version: "0.5"
 options:

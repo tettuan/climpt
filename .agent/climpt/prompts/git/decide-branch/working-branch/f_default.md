@@ -3,7 +3,7 @@ c1: climpt-git
 c2: decide-branch
 c3: working-branch
 title: git branch の新規立ち上げ判断と、新ブランチ作成
-description: 作業内容に基づいて新ブランチを作成するか、現在のブランチで継続するかを判断する
+description: Decide whether to create a new branch or continue on the current branch based on task content
 usage: climpt-git decide-branch working-branch
 c3l_version: "0.5"
 options:

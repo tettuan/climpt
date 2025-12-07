@@ -3,35 +3,15 @@
   "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      "climpt-code",
       "climpt-git",
       "climpt-meta"
     ],
     "commands": [
       {
-        "c1": "climpt-code",
-        "c2": "review",
-        "c3": "pull-request",
-        "description": "Pull Requestの変更内容をレビューし、改善提案やバグの指摘を行う",
-        "usage": "climpt-code review pull-request",
-        "options": {
-          "edition": [
-            "default"
-          ],
-          "adaptation": [
-            "default",
-            "detailed"
-          ],
-          "file": true,
-          "stdin": false,
-          "destination": false
-        }
-      },
-      {
         "c1": "climpt-git",
         "c2": "decide-branch",
         "c3": "working-branch",
-        "description": "作業内容に基づいて新ブランチを作成するか、現在のブランチで継続するかを判断する",
+        "description": "Decide whether to create a new branch or continue on the current branch based on task content",
         "usage": "climpt-git decide-branch working-branch",
         "options": {
           "edition": [
@@ -49,7 +29,7 @@
         "c1": "climpt-git",
         "c2": "find-oldest",
         "c3": "descendant-branch",
-        "description": "現在のブランチから派生した子孫・兄弟ブランチを探索し、最古の関連ブランチをマージ処理する",
+        "description": "Find descendant and sibling branches from the current branch and merge the oldest related branch",
         "usage": "climpt-git find-oldest descendant-branch",
         "options": {
           "edition": [
@@ -68,7 +48,7 @@
         "c1": "climpt-git",
         "c2": "group-commit",
         "c3": "unstaged-changes",
-        "description": "ファイルの変更内容の意味的な近さでグループ化し、複数回のコミットを連続実行する",
+        "description": "Group file changes by semantic proximity and execute multiple commits sequentially",
         "usage": "climpt-git group-commit unstaged-changes",
         "options": {
           "edition": [
@@ -87,7 +67,7 @@
         "c1": "climpt-git",
         "c2": "list-select",
         "c3": "pr-branch",
-        "description": "ローカル・リモートブランチとPRを一覧化し、次に作業すべき対象を自動選択する",
+        "description": "List local and remote branches with PRs, then auto-select the next target to work on",
         "usage": "climpt-git list-select pr-branch",
         "options": {
           "edition": [
@@ -105,7 +85,7 @@
         "c1": "climpt-git",
         "c2": "merge-up",
         "c3": "base-branch",
-        "description": "作業ブランチから派生した作業ブランチを、元の作業ブランチへマージする",
+        "description": "Merge a derived working branch back into its parent working branch",
         "usage": "climpt-git merge-up base-branch",
         "options": {
           "edition": [
@@ -142,7 +122,7 @@
         "c1": "climpt-meta",
         "c2": "create",
         "c3": "instruction",
-        "description": "Create a new Climpt instruction file following C3L specification with all required configurations",
+        "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",
         "usage": "climpt-meta create instruction",
         "options": {
           "edition": [
