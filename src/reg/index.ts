@@ -23,6 +23,18 @@ export interface GenerateOptions {
 }
 
 /**
+ * Result from registry generation
+ */
+export interface GenerateResult {
+  /** Number of documents processed */
+  processedDocuments: number;
+  /** Path to the output file */
+  outputPath: string;
+  /** Execution time in milliseconds */
+  executionTime: number;
+}
+
+/**
  * Default paths relative to baseDir
  */
 const DEFAULTS = {
@@ -63,7 +75,7 @@ async function fileExists(path: string): Promise<boolean> {
  */
 async function fetchFromJsr(
   jsrRelativePath: string,
-  filename: string
+  filename: string,
 ): Promise<string> {
   const url = import.meta.resolve(jsrRelativePath);
 
@@ -100,7 +112,7 @@ async function fetchFromJsr(
 async function resolveWithFallback(
   localPath: string,
   jsrPath: string,
-  filename: string
+  filename: string,
 ): Promise<{ path: string; isTemp: boolean }> {
   if (await fileExists(localPath)) {
     return { path: localPath, isTemp: false };
@@ -138,7 +150,9 @@ async function cleanupTemp(paths: { path: string; isTemp: boolean }[]) {
  * @param options - Generation options
  * @returns Result with processed documents count and output path
  */
-export async function generateRegistry(options: GenerateOptions = {}) {
+export async function generateRegistry(
+  options: GenerateOptions = {},
+): Promise<GenerateResult> {
   const baseDir = options.baseDir ?? Deno.cwd();
 
   const localSchema = options.schema ?? `${baseDir}/${DEFAULTS.schema}`;
@@ -156,7 +170,7 @@ export async function generateRegistry(options: GenerateOptions = {}) {
     const schemaResolved = await resolveWithFallback(
       localSchema,
       JSR_PATHS.schema,
-      "registry.schema.json"
+      "registry.schema.json",
     );
     tempPaths.push(schemaResolved);
     schema = schemaResolved.path;
@@ -164,7 +178,7 @@ export async function generateRegistry(options: GenerateOptions = {}) {
     const templateResolved = await resolveWithFallback(
       localTemplate,
       JSR_PATHS.template,
-      "registry.template.json"
+      "registry.template.json",
     );
     tempPaths.push(templateResolved);
     template = templateResolved.path;

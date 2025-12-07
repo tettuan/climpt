@@ -52,7 +52,7 @@
 import { main } from "./src/reg/index.ts";
 
 export { generateRegistry } from "./src/reg/index.ts";
-export type { GenerateOptions } from "./src/reg/index.ts";
+export type { GenerateOptions, GenerateResult } from "./src/reg/index.ts";
 
 if (import.meta.main) {
   await main();
