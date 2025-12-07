@@ -32,8 +32,8 @@ Deno.test("registry.json exists and has valid structure", async () => {
       "availableConfigs should be an array",
     );
 
-    // Check expected tools are present
-    const expectedTools = ["code", "docs", "git", "meta", "spec", "test"];
+    // Check expected tools are present (C3L v0.5 format: climpt-{domain})
+    const expectedTools = ["climpt-code", "climpt-git"];
     for (const tool of expectedTools) {
       assertEquals(
         registry.tools.availableConfigs.includes(tool),
@@ -373,8 +373,8 @@ Deno.test("Command structure follows C3L specification", async () => {
         assertExists(command.c2, "Command must have c2 (action)");
         assertExists(command.c3, "Command must have c3 (target)");
 
-        // Check c1 is a valid domain
-        const validDomains = ["code", "docs", "git", "meta", "spec", "test"];
+        // Check c1 is a valid domain (C3L v0.5 format: climpt-{domain})
+        const validDomains = ["climpt-code", "climpt-git"];
         assertEquals(
           validDomains.includes(command.c1),
           true,
