@@ -16,6 +16,10 @@ PR作成してからリモートMergeする。その後ローカル反映する�
 mainはdevelopからのみマージ可: `other-branch -> develop -> main`
 リリース時もローカル develop から リリースブランチを作成して行う。
 
+## 2.0 リリース
+`feature/release-2.0` ブランチが 2.0 リリースのベースブランチ（developに相当）。
+作業ブランチは `feature/release-2.0` から派生させ、PRも `feature/release-2.0` へマージする。
+
 # リリース手順
 
 0. developブランチへ全ての作業ブランチを統合する（リリースに必要な変更に限る）
