@@ -18,7 +18,8 @@
   "exports": {
     ".": "./mod.ts",
     "./cli": "./cli.ts",
-    "./mcp": "./mcp.ts"
+    "./mcp": "./mcp.ts",
+    "./reg": "./reg.ts"
   },
   "include": [
     "README.md",
@@ -26,6 +27,7 @@
     "mod.ts",
     "cli.ts",
     "mcp.ts",
+    "reg.ts",
     "src/",
     ".agent/"
   ],

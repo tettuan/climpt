@@ -433,6 +433,30 @@ cp examples/mcp/registry.template.json .agent/climpt/registry.json
 
 Complete template file available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
 
+### Registry Generation
+
+Generate or update `registry.json` from prompt frontmatter:
+
+```bash
+# Via JSR (recommended)
+deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
+
+# Local repository (using deno task)
+deno task generate-registry
+```
+
+Options:
+- `--base=<dir>` - Base directory
+- `--schema=<path>` - Schema file path
+- `--input=<pattern>` - Input glob pattern
+- `--output=<path>` - Output file path
+- `--template=<path>` - Template file path
+
+This uses `@aidevtool/frontmatter-to-schema` to:
+1. Read prompts from `.agent/climpt/prompts/**/*.md`
+2. Extract frontmatter and transform using `.agent/climpt/frontmatter-to-schema/registry.schema.json`
+3. Output to `.agent/climpt/registry.json`
+
 ### Running the MCP Server
 
 You can also run the MCP server directly:
