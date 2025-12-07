@@ -18,7 +18,7 @@
         "description": "Create a refinement issue from requirements documentation",
         "usage": "Create refinement issues from requirement documents.\nExample: climpt-git create refinement-issue -f requirements.md",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -32,7 +32,7 @@
         "description": "Analyze commit history and generate insights",
         "usage": "Analyze git commit history to identify patterns.\nExample: climpt-git analyze commit-history --adaptation=detailed",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default", "detailed"],
           "file": false,
           "stdin": false,
@@ -46,7 +46,7 @@
         "description": "Analyze specification quality and completeness",
         "usage": "Analyze specifications for quality metrics.\nExample: climpt-spec analyze quality-metrics -f spec.md",
         "options": {
-          "input": ["default", "yaml"],
+          "edition": ["default", "yaml"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": true,
@@ -60,7 +60,7 @@
         "description": "Validate requirements against standards",
         "usage": "Validate requirement documents against standards.\nExample: climpt-spec validate requirements -f requirements.md",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default"],
           "file": true,
           "stdin": false,
@@ -74,7 +74,7 @@
         "description": "Execute integration test suite",
         "usage": "Execute integration test suites.\nExample: climpt-test execute integration-suite --config=test.yml",
         "options": {
-          "input": ["yaml", "json"],
+          "edition": ["yaml", "json"],
           "adaptation": ["default"],
           "file": true,
           "stdin": false,
@@ -88,7 +88,7 @@
         "description": "Generate unit tests from specifications",
         "usage": "Generate unit tests from spec files.\nExample: climpt-test generate unit-tests -f spec.md -o tests/",
         "options": {
-          "input": ["default", "code"],
+          "edition": ["default", "code"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -102,7 +102,7 @@
         "description": "Create implementation from design documents",
         "usage": "Generate implementation code from design docs.\nExample: climpt-code create implementation -f design.md -o src/",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -116,7 +116,7 @@
         "description": "Refactor code architecture based on patterns",
         "usage": "Refactor existing code architecture.\nExample: climpt-code refactor architecture --adaptation=detailed",
         "options": {
-          "input": ["code"],
+          "edition": ["code"],
           "adaptation": ["default", "detailed", "compact"],
           "file": true,
           "stdin": false,
@@ -130,7 +130,7 @@
         "description": "Generate API reference documentation",
         "usage": "Generate API documentation from code.\nExample: climpt-docs generate api-reference -f src/ -o docs/api/",
         "options": {
-          "input": ["code"],
+          "edition": ["code"],
           "adaptation": ["default", "detailed"],
           "file": true,
           "stdin": false,
@@ -144,7 +144,7 @@
         "description": "Update user guide documentation",
         "usage": "Update existing user guide docs.\nExample: climpt-docs update user-guide -f guide.md",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default"],
           "file": true,
           "stdin": true,
@@ -158,7 +158,7 @@
         "description": "List all available Climpt commands",
         "usage": "List all available commands in the registry.\nExample: climpt-meta list available-commands",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default"],
           "file": false,
           "stdin": false,
@@ -170,9 +170,9 @@
         "c2": "resolve",
         "c3": "command-definition",
         "description": "Resolve and display command definitions",
-        "usage": "Resolve command definitions from registry.\nExample: climpt-meta resolve command-definition --input=git/create",
+        "usage": "Resolve command definitions from registry.\nExample: climpt-meta resolve command-definition --edition=git/create",
         "options": {
-          "input": ["default"],
+          "edition": ["default"],
           "adaptation": ["default"],
           "file": false,
           "stdin": true,

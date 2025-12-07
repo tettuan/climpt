@@ -125,13 +125,13 @@ Deno.test("Command options have valid values", async () => {
     if (registry.tools?.commands) {
       for (const command of registry.tools.commands) {
         if (command.options) {
-          // Check input values are valid (input layer types)
-          for (const input of command.options.input) {
-            const validInputs = ["default", "yaml", "json", "code", "bug"];
+          // Check edition values are valid (edition layer types)
+          for (const edition of command.options.edition) {
+            const validEditions = ["default", "yaml", "json", "code", "bug"];
             assertEquals(
-              validInputs.includes(input),
+              validEditions.includes(edition),
               true,
-              `Invalid input type: ${input}`,
+              `Invalid edition type: ${edition}`,
             );
           }
 

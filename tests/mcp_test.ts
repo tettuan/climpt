@@ -32,8 +32,8 @@ Deno.test("registry.json exists and has valid structure", async () => {
       "availableConfigs should be an array",
     );
 
-    // Check expected tools are present
-    const expectedTools = ["code", "docs", "git", "meta", "spec", "test"];
+    // Check expected tools are present (C3L v0.5 format: climpt-{domain})
+    const expectedTools = ["climpt-git", "climpt-meta"];
     for (const tool of expectedTools) {
       assertEquals(
         registry.tools.availableConfigs.includes(tool),
@@ -373,8 +373,8 @@ Deno.test("Command structure follows C3L specification", async () => {
         assertExists(command.c2, "Command must have c2 (action)");
         assertExists(command.c3, "Command must have c3 (target)");
 
-        // Check c1 is a valid domain
-        const validDomains = ["code", "docs", "git", "meta", "spec", "test"];
+        // Check c1 is a valid domain (C3L v0.5 format: climpt-{domain})
+        const validDomains = ["climpt-git", "climpt-meta"];
         assertEquals(
           validDomains.includes(command.c1),
           true,
@@ -384,8 +384,8 @@ Deno.test("Command structure follows C3L specification", async () => {
         // Check options structure if present
         if (command.options) {
           assertExists(
-            command.options.input,
-            "Options should have input field",
+            command.options.edition,
+            "Options should have edition field",
           );
           assertExists(
             command.options.adaptation,
@@ -401,11 +401,11 @@ Deno.test("Command structure follows C3L specification", async () => {
             "Options should have destination field",
           );
 
-          // Check that input and adaptation are arrays
+          // Check that edition and adaptation are arrays
           assertEquals(
-            Array.isArray(command.options.input),
+            Array.isArray(command.options.edition),
             true,
-            "input should be array",
+            "edition should be array",
           );
           assertEquals(
             Array.isArray(command.options.adaptation),
