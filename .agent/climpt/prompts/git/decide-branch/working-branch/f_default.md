@@ -1,5 +1,17 @@
 ---
+c1: climpt-git
+c2: decide-branch
+c3: working-branch
 title: git branch の新規立ち上げ判断と、新ブランチ作成
+description: Decide whether to create a new branch or continue on the current branch based on task content
+usage: climpt-git decide-branch working-branch
+c3l_version: "0.5"
+options:
+  edition: ["default"]
+  adaptation: ["default"]
+  file: false
+  stdin: true
+  destination: false
 input_text: 今回の作業内容を30文字以内で指定
 ---
 指示「採用ステップ」に基づき、どのGitブランチ名を採用するか、定める。採用ステップを実行した後に、ブランチの作成判断と移動を行うこと。そのまま現在のブランチを採用する可能性もある。
