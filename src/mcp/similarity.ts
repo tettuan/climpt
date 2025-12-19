@@ -1,10 +1,8 @@
 /**
  * @fileoverview Semantic similarity search for commands
- *
- * This module provides functions for searching and retrieving commands
- * based on semantic similarity using cosine similarity algorithm.
- *
  * @module mcp/similarity
+ *
+ * **SHARED MODULE** - Used by MCP server, mod.ts exports, and external consumers via JSR.
  */
 
 import type { Command, SearchResult } from "./types.ts";
