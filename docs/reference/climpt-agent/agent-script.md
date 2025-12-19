@@ -17,7 +17,7 @@
 ### 使用方法
 
 ```bash
-deno run --allow-read --allow-write --allow-net --allow-env --allow-run \
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
   climpt-agent.ts \
   --agent=<name> \
   --c1=<c1> \
@@ -39,7 +39,7 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run \
 ### 実行例
 
 ```bash
-deno run --allow-read --allow-write --allow-net --allow-env --allow-run \
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
   climpt-agent.ts \
   --agent=climpt \
   --c1=climpt-git \
@@ -102,15 +102,28 @@ async function getClimptPrompt(cmd: ClimptCommand): Promise<string>
 
 Climpt CLI を実行して指示プロンプトを取得します。
 
+**c1 から config への変換:**
+
+c1 は C3L 命名規則で `climpt-git` のような形式ですが、Climpt CLI の `--config` パラメータは `git` を期待します。そのため、`climpt-` プレフィックスを除去して config 名に変換します。
+
+| c1 | config |
+|----|--------|
+| `climpt-git` | `git` |
+| `climpt-meta` | `meta` |
+
 **実行されるコマンド:**
 
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config \
   jsr:@aidevtool/climpt \
-  --config=<c1> \
+  --config=<configName>  # c1 から "climpt-" を除去した値
   <c2> \
   <c3>
 ```
+
+**例:**
+- c1=`climpt-git`, c2=`group-commit`, c3=`unstaged-changes`
+- → `--config=git group-commit unstaged-changes`
 
 #### runSubAgent
 

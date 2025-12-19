@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys
 
 /**
  * @fileoverview Climpt Agent - Dynamic sub-agent builder using Claude Agent SDK
@@ -18,11 +18,20 @@ import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
 /**
  * Command parameters for Climpt execution
+ *
+ * C3L (Command 3-Level) Structure:
+ * - agent: MCP server identifier (e.g., "climpt", "inspector")
+ * - c1: Domain identifier (e.g., "git", "meta", "spec")
+ * - c2: Action identifier (e.g., "group-commit", "build")
+ * - c3: Target identifier (e.g., "unstaged-changes", "frontmatter")
+ *
+ * Full command format: <agent> <c1> <c2> <c3>
+ * Sub-agent name format: <agent>-<c1>-<c2>-<c3>
  */
 interface ClimptCommand {
-  /** Agent name - always "climpt" for Climpt MCP server */
+  /** Agent name - MCP server identifier (e.g., "climpt", "inspector") */
   agent: string;
-  /** Domain identifier (command group) - e.g., "climpt-git", "climpt-meta" */
+  /** Domain identifier - e.g., "git", "meta", "spec" */
   c1: string;
   /** Action identifier - e.g., "group-commit", "build" */
   c2: string;
@@ -34,33 +43,33 @@ interface ClimptCommand {
 
 /**
  * Generate sub-agent name following C3L naming convention
- * Format: <c1>-<c2>-<c3>
+ * Format: <agent>-<c1>-<c2>-<c3>
  *
  * @example
  * // Returns "climpt-git-group-commit-unstaged-changes"
- * generateSubAgentName({ agent: "climpt", c1: "climpt-git", c2: "group-commit", c3: "unstaged-changes" })
+ * generateSubAgentName({ agent: "climpt", c1: "git", c2: "group-commit", c3: "unstaged-changes" })
  */
 function generateSubAgentName(cmd: ClimptCommand): string {
-  return `${cmd.c1}-${cmd.c2}-${cmd.c3}`;
+  return `${cmd.agent}-${cmd.c1}-${cmd.c2}-${cmd.c3}`;
 }
 
 /**
  * Execute Climpt command via CLI and get the instruction prompt
  *
  * Climpt CLI is invoked via jsr:@aidevtool/climpt with the following format:
- * deno run jsr:@aidevtool/climpt --config=<configName> <c2> <c3> [options]
+ * deno run jsr:@aidevtool/climpt --config=<configParam> <c2> <c3> [options]
  *
- * Note: c1 follows C3L naming "climpt-git" but Climpt CLI expects "git" as config name.
- * This function strips the "climpt-" prefix to get the config name.
+ * Config parameter construction (C3L v0.5 specification):
+ * - If agent is "climpt": configParam = c1 (e.g., "git")
+ * - Otherwise: configParam = agent-c1 (e.g., "inspector-git")
  *
  * @param cmd - Command parameters
  * @returns The instruction prompt text
  */
 async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
-  // Extract config name from c1 (e.g., "climpt-git" -> "git", "climpt-meta" -> "meta")
-  // c1 in C3L format is "climpt-<domain>", but Climpt CLI expects just "<domain>"
-  const configName = cmd.c1.startsWith("climpt-") ? cmd.c1.slice(7) : cmd.c1;
-  const configParam = cmd.agent === "climpt" ? configName : `${cmd.agent}-${configName}`;
+  // Construct config parameter based on C3L v0.5 specification
+  // If agent is "climpt", use c1 directly; otherwise prepend agent
+  const configParam = cmd.agent === "climpt" ? cmd.c1 : `${cmd.agent}-${cmd.c1}`;
 
   const commandArgs = [
     "run",
