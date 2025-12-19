@@ -1,98 +1,199 @@
 # Climpt Agent Plugin
 
-Climpt Agent は Claude Code の Skill として動作し、開発タスクを Climpt コマンドに委譲する自律エージェントです。
+A Claude Code Plugin that delegates development tasks to Climpt commands through AI-assisted workflows.
 
-## 機能
+## Overview
 
-- **自然言語からのコマンド検索**: ユーザーの意図に基づいて最適な Climpt コマンドを自動検索
-- **動的 Sub-agent 生成**: C3L 命名規則に基づいて実行時に Sub-agent を動的生成
-- **Climpt MCP 連携**: MCP サーバー経由で Climpt コマンドを検索・実行
+Climpt Agent integrates with Claude Code to provide:
 
-## 前提条件
+- **Automatic Command Discovery**: Natural language requests are matched to Climpt commands
+- **Dynamic Sub-agent Generation**: Commands are executed through dynamically created sub-agents
+- **MCP Integration**: Seamless communication with Climpt's command registry
 
-- Deno 2.x (推奨 2.4.4+)
+## Prerequisites
+
+- Deno 2.x (recommended 2.4.4+)
 - Claude Code
 - Climpt CLI (`jsr:@aidevtool/climpt`)
 
-## インストール
+## Installation
 
-### 1. Marketplace として登録
+### Step 1: Add Marketplace
 
 ```bash
-/plugin marketplace add <path-to-climpt-plugins>
+/plugin marketplace add https://github.com/tettuan/climpt-marketplace
 ```
 
-### 2. プラグインをインストール
+### Step 2: Install Plugin
 
 ```bash
 /plugin install climpt-agent
 ```
 
-### 3. Claude Code を再起動
+### Step 3: Restart Claude Code
 
-## 使用方法
+Restart Claude Code to load the new plugin.
 
-以下のようなリクエストで Skill が自動発動します：
+### Alternative: Local Installation
 
-### Git 操作
+For development or testing:
 
-- 「変更をコミットして」 → `climpt-git group-commit unstaged-changes`
-- 「ブランチを決めて」 → `climpt-git decide-branch working-branch`
-- 「PRブランチを選択して」 → `climpt-git list-select pr-branch`
+```bash
+# Clone the repository
+git clone https://github.com/tettuan/climpt.git
 
-### Meta 操作
+# Add local marketplace
+/plugin marketplace add /path/to/climpt/climpt-plugins
+```
 
-- 「frontmatter を生成して」 → `climpt-meta build frontmatter`
-- 「instruction を作成して」 → `climpt-meta create instruction`
+## Usage
 
-## ディレクトリ構造
+The Skill automatically activates when you make requests that match Climpt commands.
+
+### Git Operations
+
+| Request | Command |
+|---------|---------|
+| "Commit my changes" | `climpt-git group-commit unstaged-changes` |
+| "Decide on a branch" | `climpt-git decide-branch working-branch` |
+| "Select PR branch" | `climpt-git list-select pr-branch` |
+| "Merge up to parent" | `climpt-git merge-up base-branch` |
+| "Find oldest branch" | `climpt-git find-oldest descendant-branch` |
+
+### Meta Operations
+
+| Request | Command |
+|---------|---------|
+| "Generate frontmatter" | `climpt-meta build frontmatter` |
+| "Create instruction" | `climpt-meta create instruction` |
+
+## Architecture
 
 ```
 climpt-plugins/
 ├── .claude-plugin/
-│   └── plugin.json           # Plugin manifest
+│   ├── plugin.json           # Plugin manifest
+│   └── marketplace.json      # Marketplace registration
 ├── skills/
 │   └── delegate-climpt-agent/
-│       ├── SKILL.md          # Skill 定義
+│       ├── SKILL.md          # Skill definition
 │       └── scripts/
-│           └── climpt-agent.ts   # Agent script
-├── .mcp.json                 # MCP サーバー設定
+│           └── climpt-agent.ts   # Agent script (optional)
+├── .mcp.json                 # MCP server configuration
 └── README.md
 ```
 
-## コンポーネント
+### Components
 
-### SKILL.md
+#### plugin.json
 
-Claude が Skill を発動する条件を定義。`description` フィールドがトリガー条件となります。
+Plugin manifest defining metadata:
 
-### climpt-agent.ts
+```json
+{
+  "name": "climpt-agent",
+  "version": "1.0.0",
+  "description": "Delegate tasks to Climpt Agent for AI-assisted development workflows",
+  "author": {
+    "name": "tettuan",
+    "url": "https://github.com/tettuan"
+  }
+}
+```
 
-Claude Agent SDK を使用して動的 Sub-agent を生成・実行するスクリプト。
+#### SKILL.md
 
-### .mcp.json
+Defines when Claude should trigger the Skill. The `description` field is used for matching user requests.
 
-Climpt MCP サーバーの設定。`search`, `describe`, `execute`, `reload` ツールを提供。
+```yaml
+---
+name: delegate-climpt-agent
+description: Delegates development tasks to Climpt Agent...
+---
+```
 
-## C3L 命名規則
+#### .mcp.json
 
-コマンドは C3L (Command 3-Level) 命名規則に従います：
+MCP server configuration providing `search`, `describe`, `execute`, and `reload` tools:
 
-| Level | Description | Example |
-|-------|-------------|---------|
-| `c1` | ドメイン識別子 | `climpt-git`, `climpt-meta` |
-| `c2` | アクション識別子 | `group-commit`, `build` |
-| `c3` | ターゲット識別子 | `unstaged-changes`, `frontmatter` |
+```json
+{
+  "mcpServers": {
+    "climpt": {
+      "command": "deno",
+      "args": ["run", "--allow-read", "...", "jsr:@aidevtool/climpt/mcp"]
+    }
+  }
+}
+```
 
-Sub-agent 名は `<c1>-<c2>-<c3>` 形式で生成されます。
+## C3L Naming Convention
 
-## ドキュメント
+Commands follow the C3L (Command 3-Level) specification:
 
-- [Overview](../docs/reference/climpt-agent/overview.md) - 概要とアーキテクチャ
-- [Skill 仕様](../docs/reference/climpt-agent/skill-specification.md) - SKILL.md の詳細仕様
-- [Agent Script 仕様](../docs/reference/climpt-agent/agent-script.md) - climpt-agent.ts の詳細仕様
-- [MCP 連携](../docs/reference/climpt-agent/mcp-integration.md) - MCP サーバーとの連携仕様
+| Level | Description | Examples |
+|-------|-------------|----------|
+| `agent` | MCP server identifier | `climpt`, `inspector` |
+| `c1` | Domain identifier | `git`, `meta`, `spec` |
+| `c2` | Action identifier | `group-commit`, `build` |
+| `c3` | Target identifier | `unstaged-changes`, `frontmatter` |
 
-## ライセンス
+Sub-agent names follow the format: `<agent>-<c1>-<c2>-<c3>`
+
+Examples:
+- `climpt-git-group-commit-unstaged-changes`
+- `climpt-meta-build-frontmatter`
+
+## Workflow
+
+When a user makes a request:
+
+1. **Search**: `mcp__climpt__search` finds matching commands
+2. **Describe**: `mcp__climpt__describe` retrieves command details
+3. **Execute**: `mcp__climpt__execute` returns the instruction prompt
+4. **Follow**: Claude follows the instruction to complete the task
+
+## Troubleshooting
+
+### Plugin Not Found
+
+Verify marketplace registration:
+```bash
+/plugin marketplace list
+```
+
+### Skill Not Triggering
+
+1. Check if the plugin is installed: `/plugin list`
+2. Ensure request matches Skill description
+3. Try using explicit keywords like "commit", "branch", "frontmatter"
+
+### MCP Connection Issues
+
+Verify MCP server is running:
+```bash
+deno run --allow-read --allow-write --allow-net --allow-env jsr:@aidevtool/climpt/mcp
+```
+
+## Development
+
+### Creating New Skills
+
+See [skills/README.md](skills/README.md) for Agent SDK documentation and skill creation guidelines.
+
+### Testing Changes
+
+1. Make changes to SKILL.md or scripts
+2. Reload the plugin: `/plugin reload climpt-agent`
+3. Test with a matching request
+
+## Related Documentation
+
+- [Climpt Main Documentation](../README.md)
+- [Skills & Agent SDK](skills/README.md)
+- [C3L Specification](../docs/reference/c3l/)
+- [MCP Integration](../docs/reference/mcp/)
+
+## License
 
 MIT
