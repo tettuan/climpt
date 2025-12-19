@@ -30,8 +30,8 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `--agent` | Yes | エージェント名 (常に `"climpt"`) |
-| `--c1` | Yes | ドメイン識別子 (例: `climpt-git`) |
+| `--agent` | Yes | MCP サーバー識別子 (例: `"climpt"`, `"inspector"`) |
+| `--c1` | Yes | ドメイン識別子 (例: `git`, `meta`) |
 | `--c2` | Yes | アクション識別子 (例: `group-commit`) |
 | `--c3` | Yes | ターゲット識別子 (例: `unstaged-changes`) |
 | `--options` | No | カンマ区切りのオプション |
@@ -42,7 +42,7 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
   climpt-agent.ts \
   --agent=climpt \
-  --c1=climpt-git \
+  --c1=git \
   --c2=group-commit \
   --c3=unstaged-changes
 ```
@@ -75,14 +75,14 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 function generateSubAgentName(cmd: ClimptCommand): string
 ```
 
-C3L 命名規則に基づいて Sub-agent 名を生成します。
+C3L 命名規則に基づいて Sub-agent 名を生成します。形式: `<agent>-<c1>-<c2>-<c3>`
 
 **入力:**
 
 ```typescript
 {
   agent: "climpt",
-  c1: "climpt-git",
+  c1: "git",
   c2: "group-commit",
   c3: "unstaged-changes"
 }
@@ -102,27 +102,24 @@ async function getClimptPrompt(cmd: ClimptCommand): Promise<string>
 
 Climpt CLI を実行して指示プロンプトを取得します。
 
-**c1 から config への変換:**
+**config パラメータ構築:**
 
-c1 は C3L 命名規則で `climpt-git` のような形式ですが、Climpt CLI の `--config` パラメータは `git` を期待します。そのため、`climpt-` プレフィックスを除去して config 名に変換します。
-
-| c1 | config |
-|----|--------|
-| `climpt-git` | `git` |
-| `climpt-meta` | `meta` |
+C3L v0.5 仕様に基づき、config パラメータを構築します:
+- `agent` が `"climpt"` の場合: `configParam = c1` (例: `"git"`)
+- それ以外の場合: `configParam = ${agent}-${c1}` (例: `"inspector-git"`)
 
 **実行されるコマンド:**
 
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config \
   jsr:@aidevtool/climpt \
-  --config=<configName>  # c1 から "climpt-" を除去した値
+  --config=<configParam>
   <c2> \
   <c3>
 ```
 
 **例:**
-- c1=`climpt-git`, c2=`group-commit`, c3=`unstaged-changes`
+- agent=`climpt`, c1=`git`, c2=`group-commit`, c3=`unstaged-changes`
 - → `--config=git group-commit unstaged-changes`
 
 #### runSubAgent

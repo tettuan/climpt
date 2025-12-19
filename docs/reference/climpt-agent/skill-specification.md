@@ -51,7 +51,7 @@ mcp__climpt__search({
 ```json
 [
   {
-    "c1": "climpt-git",
+    "c1": "git",
     "c2": "group-commit",
     "c3": "unstaged-changes",
     "description": "Group file changes by semantic proximity...",
@@ -65,7 +65,7 @@ mcp__climpt__search({
 ```
 mcp__climpt__describe({
   "agent": "climpt",
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "group-commit",
   "c3": "unstaged-changes"
 })
@@ -84,7 +84,7 @@ mcp__climpt__describe({
 
 ```json
 {
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "group-commit",
   "c3": "unstaged-changes",
   "description": "Group file changes by semantic proximity...",
@@ -104,7 +104,7 @@ mcp__climpt__describe({
 ```
 mcp__climpt__execute({
   "agent": "climpt",
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "group-commit",
   "c3": "unstaged-changes",
   "options": {}
@@ -133,7 +133,8 @@ Commands follow the C3L (Command 3-Level) naming convention:
 
 | Level | Description | Pattern | Examples |
 |-------|-------------|---------|----------|
-| `c1` | ドメイン識別子 | `climpt-<domain>` | `climpt-git`, `climpt-meta` |
+| `agent` | MCP サーバー識別子 | - | `climpt`, `inspector` |
+| `c1` | ドメイン識別子 | `<domain>` | `git`, `meta`, `spec` |
 | `c2` | アクション識別子 | `<verb>-<modifier>?` | `group-commit`, `build`, `create` |
 | `c3` | ターゲット識別子 | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
 
@@ -142,16 +143,16 @@ Commands follow the C3L (Command 3-Level) naming convention:
 **Sub-agent 名生成:**
 
 ```
-<c1>-<c2>-<c3>
+<agent>-<c1>-<c2>-<c3>
 ```
 
 **例:**
 
-| c1 | c2 | c3 | Sub-agent Name |
-|----|----|----|----------------|
-| `climpt-git` | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
-| `climpt-meta` | `build` | `frontmatter` | `climpt-meta-build-frontmatter` |
-| `climpt-meta` | `create` | `instruction` | `climpt-meta-create-instruction` |
+| agent | c1 | c2 | c3 | Sub-agent Name |
+|-------|----|----|-----|----------------|
+| `climpt` | `git` | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
+| `climpt` | `meta` | `build` | `frontmatter` | `climpt-meta-build-frontmatter` |
+| `climpt` | `meta` | `create` | `instruction` | `climpt-meta-create-instruction` |
 
 ## 発動条件
 

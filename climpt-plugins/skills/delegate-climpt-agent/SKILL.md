@@ -33,7 +33,7 @@ Use `mcp__climpt__describe` with the matched c1, c2, c3 from search results:
 ```
 mcp__climpt__describe({
   "agent": "climpt",
-  "c1": "<command-group>",
+  "c1": "<domain>",
   "c2": "<action>",
   "c3": "<target>"
 })
@@ -51,7 +51,7 @@ Use `mcp__climpt__execute` to get the instruction prompt:
 ```
 mcp__climpt__execute({
   "agent": "climpt",
-  "c1": "<command-group>",
+  "c1": "<domain>",
   "c2": "<action>",
   "c3": "<target>",
   "options": {}
@@ -60,7 +60,7 @@ mcp__climpt__execute({
 
 The execute tool returns the instruction document (prompt). Use this prompt to guide the task execution.
 
-> **Note**: `agent` is always `"climpt"`. Command groups like `climpt-git` are specified via `c1`.
+> **Note**: `agent` is always `"climpt"`. Domain is specified via `c1` (e.g., `"git"`, `"meta"`).
 
 ## Command Reference
 
@@ -68,13 +68,16 @@ Commands follow the C3L naming convention:
 
 | Level | Description | Examples |
 |-------|-------------|----------|
-| `c1` | Domain identifier (command group) | `climpt-git`, `climpt-meta` |
+| `agent` | MCP server identifier | `climpt`, `inspector` |
+| `c1` | Domain identifier | `git`, `meta`, `spec` |
 | `c2` | Action identifier | `group-commit`, `build`, `create` |
 | `c3` | Target identifier | `unstaged-changes`, `frontmatter`, `instruction` |
 
+Sub-agent name format: `<agent>-<c1>-<c2>-<c3>`
+
 ### Example Commands
 
-#### Git Operations (climpt-git)
+#### Git Operations (c1: git)
 
 | c2 | c3 | Description |
 |----|-----|-------------|
@@ -84,7 +87,7 @@ Commands follow the C3L naming convention:
 | `list-select` | `pr-branch` | List branches with PRs and select next target |
 | `merge-up` | `base-branch` | Merge derived branches up to parent branch |
 
-#### Meta Operations (climpt-meta)
+#### Meta Operations (c1: meta)
 
 | c2 | c3 | Description |
 |----|-----|-------------|
@@ -96,12 +99,12 @@ Commands follow the C3L naming convention:
 When executing commands, a sub-agent is dynamically created with the name format:
 
 ```
-<c1>-<c2>-<c3>
+<agent>-<c1>-<c2>-<c3>
 ```
 
 Examples:
-- `climpt-git-group-commit-unstaged-changes`
-- `climpt-meta-build-frontmatter`
+- `climpt-git-group-commit-unstaged-changes` (agent=climpt, c1=git)
+- `climpt-meta-build-frontmatter` (agent=climpt, c1=meta)
 
 ## When to Use This Skill
 

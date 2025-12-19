@@ -78,14 +78,14 @@ mcp__climpt__search({
 ```json
 [
   {
-    "c1": "climpt-git",
+    "c1": "git",
     "c2": "group-commit",
     "c3": "unstaged-changes",
     "description": "Group file changes by semantic proximity and execute multiple commits sequentially",
     "score": 0.92
   },
   {
-    "c1": "climpt-git",
+    "c1": "git",
     "c2": "decide-branch",
     "c3": "working-branch",
     "description": "Analyze task content and decide whether to create a new branch",
@@ -133,7 +133,7 @@ interface CommandDescription {
 ```
 mcp__climpt__describe({
   "agent": "climpt",
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "group-commit",
   "c3": "unstaged-changes"
 })
@@ -150,7 +150,7 @@ mcp__climpt__describe({
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `agent` | string | Yes | - | エージェント名 (`"climpt"`) |
-| `c1` | string | Yes | - | ドメイン識別子 |
+| `c1` | string | Yes | - | ドメイン識別子 (例: `"git"`, `"meta"`) |
 | `c2` | string | Yes | - | アクション識別子 |
 | `c3` | string | Yes | - | ターゲット識別子 |
 | `options` | object | No | `{}` | コマンドオプション |
@@ -164,7 +164,7 @@ mcp__climpt__describe({
 ```
 mcp__climpt__execute({
   "agent": "climpt",
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "group-commit",
   "c3": "unstaged-changes",
   "options": {}
@@ -229,7 +229,7 @@ interface Command {
 
 ### 現在のコマンド一覧
 
-#### climpt-git
+#### c1: git
 
 | c2 | c3 | Description |
 |----|-----|-------------|
@@ -239,7 +239,7 @@ interface Command {
 | `list-select` | `pr-branch` | PR付きブランチ一覧から次のターゲット選択 |
 | `merge-up` | `base-branch` | 派生ブランチを親ブランチにマージ |
 
-#### climpt-meta
+#### c1: meta
 
 | c2 | c3 | Description |
 |----|-----|-------------|
