@@ -1,53 +1,61 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys
 
 /**
- * @fileoverview Climpt Agent - Dynamic sub-agent builder using Claude Agent SDK
+ * @fileoverview Climpt Agent - Multi-stage workflow sub-agent builder
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/climpt-agent
  *
- * This script:
- * 1. Receives C3L command parameters (agent, c1, c2, c3, options)
- * 2. Calls Climpt CLI to get the instruction prompt
- * 3. Dynamically constructs a sub-agent with the prompt
- * 4. Runs the sub-agent using Claude Agent SDK
+ * This script implements a multi-stage workflow:
+ * 1. Receives a natural language query describing the task
+ * 2. Searches the command registry using shared MCP utilities
+ * 3. Gets command details (describe)
+ * 4. Executes the command to get the instruction prompt
+ * 5. Runs a sub-agent using Claude Agent SDK with the prompt
  */
 
-// Claude Agent SDK is only available as npm package (no JSR version)
-// Deno 2.x uses npm: specifier
+// Claude Agent SDK (npm package)
 import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
+// Shared MCP utilities from climpt package
+import {
+  type Command,
+  describeCommand,
+  loadMCPConfig,
+  loadRegistryForAgent,
+  searchCommands,
+  type SearchResult,
+} from "jsr:@aidevtool/climpt";
+
+// =============================================================================
+// Types
+// =============================================================================
+
 /**
- * Command parameters for Climpt execution
- *
- * C3L (Command 3-Level) Structure:
- * - agent: MCP server identifier (e.g., "climpt", "inspector")
- * - c1: Domain identifier (e.g., "git", "meta", "spec")
- * - c2: Action identifier (e.g., "group-commit", "build")
- * - c3: Target identifier (e.g., "unstaged-changes", "frontmatter")
- *
- * Full command format: <agent> <c1> <c2> <c3>
- * Sub-agent name format: <agent>-<c1>-<c2>-<c3>
+ * Command parameters for execution
  */
 interface ClimptCommand {
-  /** Agent name - MCP server identifier (e.g., "climpt", "inspector") */
   agent: string;
-  /** Domain identifier - e.g., "git", "meta", "spec" */
   c1: string;
-  /** Action identifier - e.g., "group-commit", "build" */
   c2: string;
-  /** Target identifier - e.g., "unstaged-changes", "frontmatter" */
   c3: string;
-  /** Optional command options */
   options?: string[];
 }
 
 /**
+ * CLI arguments
+ */
+interface CliArgs {
+  query?: string;
+  agent: string;
+  options: string[];
+}
+
+// =============================================================================
+// Command Execution
+// =============================================================================
+
+/**
  * Generate sub-agent name following C3L naming convention
- * Format: <agent>-<c1>-<c2>-<c3>
- *
- * @example
- * // Returns "climpt-git-group-commit-unstaged-changes"
- * generateSubAgentName({ agent: "climpt", c1: "git", c2: "group-commit", c3: "unstaged-changes" })
  */
 function generateSubAgentName(cmd: ClimptCommand): string {
   return `${cmd.agent}-${cmd.c1}-${cmd.c2}-${cmd.c3}`;
@@ -55,20 +63,8 @@ function generateSubAgentName(cmd: ClimptCommand): string {
 
 /**
  * Execute Climpt command via CLI and get the instruction prompt
- *
- * Climpt CLI is invoked via jsr:@aidevtool/climpt with the following format:
- * deno run jsr:@aidevtool/climpt --config=<configParam> <c2> <c3> [options]
- *
- * Config parameter construction (C3L v0.5 specification):
- * - If agent is "climpt": configParam = c1 (e.g., "git")
- * - Otherwise: configParam = agent-c1 (e.g., "inspector-git")
- *
- * @param cmd - Command parameters
- * @returns The instruction prompt text
  */
 async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
-  // Construct config parameter based on C3L v0.5 specification
-  // If agent is "climpt", use c1 directly; otherwise prepend agent
   const configParam = cmd.agent === "climpt" ? cmd.c1 : `${cmd.agent}-${cmd.c1}`;
 
   const commandArgs = [
@@ -107,39 +103,25 @@ async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
 
 /**
  * Run Claude Agent SDK with the obtained prompt
- *
- * API Reference (Official documentation):
- * - query({ prompt, options }): Returns AsyncGenerator of SDKMessage
- * - Options.settingSources: Default is [] (loads nothing)
- * - Options.allowedTools: Array of allowed tool names
- *
- * @param agentName - Name for the sub-agent (for logging)
- * @param prompt - The instruction prompt from Climpt
- * @param cwd - Working directory for the sub-agent
  */
 async function runSubAgent(
   agentName: string,
   prompt: string,
   cwd: string,
 ): Promise<void> {
-  // Official API: Use Options type (not ClaudeAgentOptions)
   const options: Options = {
     cwd,
-    // settingSources: Default is [] (loads nothing from filesystem)
-    // Load project settings when needed
     settingSources: ["project"],
-    // Allowed tools for the sub-agent
     allowedTools: [
-      "Skill", // Can invoke other Skills
-      "Read", // File reading
-      "Write", // File writing
-      "Edit", // File editing
-      "Bash", // Shell command execution
-      "Glob", // File pattern matching
-      "Grep", // Text search
-      "Task", // Sub-agent spawning
+      "Skill",
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Glob",
+      "Grep",
+      "Task",
     ],
-    // Use Claude Code's system prompt
     systemPrompt: {
       type: "preset",
       preset: "claude_code",
@@ -148,13 +130,11 @@ async function runSubAgent(
 
   console.error(`Starting sub-agent: ${agentName}`);
 
-  // Official API: query({ prompt, options }) format
   const queryResult = query({
     prompt,
     options,
   });
 
-  // Stream messages from AsyncGenerator
   for await (const message of queryResult) {
     handleMessage(message);
   }
@@ -162,16 +142,10 @@ async function runSubAgent(
 
 /**
  * Handle SDK message types
- *
- * Message types:
- * - assistant: Claude's response content
- * - result: Final result (success or error)
- * - system: System messages (init, etc.)
  */
 function handleMessage(message: SDKMessage): void {
   switch (message.type) {
     case "assistant":
-      // Assistant response
       if (message.message.content) {
         for (const block of message.message.content) {
           if (block.type === "text") {
@@ -181,7 +155,6 @@ function handleMessage(message: SDKMessage): void {
       }
       break;
     case "result":
-      // Final result
       if (message.subtype === "success") {
         console.error(`Completed. Cost: $${message.total_cost_usd.toFixed(4)}`);
       } else {
@@ -192,7 +165,6 @@ function handleMessage(message: SDKMessage): void {
       }
       break;
     case "system":
-      // System message (init, etc.)
       if (message.subtype === "init") {
         console.error(
           `Session: ${message.session_id}, Model: ${message.model}`,
@@ -202,76 +174,136 @@ function handleMessage(message: SDKMessage): void {
   }
 }
 
+// =============================================================================
+// CLI Argument Parsing
+// =============================================================================
+
 /**
  * Parse command line arguments
- *
- * Expected format:
- * --agent=<agent> --c1=<c1> --c2=<c2> --c3=<c3> [--options=<opt1,opt2,...>]
  */
-function parseArgs(args: string[]): ClimptCommand {
-  const cmd: ClimptCommand = {
-    agent: "",
-    c1: "",
-    c2: "",
-    c3: "",
+function parseArgs(args: string[]): CliArgs {
+  const result: CliArgs = {
+    agent: "climpt",
     options: [],
   };
 
   for (const arg of args) {
-    if (arg.startsWith("--agent=")) {
-      cmd.agent = arg.slice(8);
-    } else if (arg.startsWith("--c1=")) {
-      cmd.c1 = arg.slice(5);
-    } else if (arg.startsWith("--c2=")) {
-      cmd.c2 = arg.slice(5);
-    } else if (arg.startsWith("--c3=")) {
-      cmd.c3 = arg.slice(5);
+    if (arg.startsWith("--query=")) {
+      result.query = arg.slice(8);
+    } else if (arg.startsWith("--agent=")) {
+      result.agent = arg.slice(8);
     } else if (arg.startsWith("--options=")) {
-      cmd.options = arg.slice(10).split(",");
+      result.options = arg.slice(10).split(",");
     }
   }
 
-  return cmd;
+  return result;
 }
 
 /**
- * Validate required parameters
+ * Validate CLI arguments
  */
-function validateCommand(cmd: ClimptCommand): void {
-  if (!cmd.agent || !cmd.c1 || !cmd.c2 || !cmd.c3) {
+function validateArgs(args: CliArgs): void {
+  if (!args.query) {
     console.error(
-      "Usage: climpt-agent.ts --agent=<name> --c1=<c1> --c2=<c2> --c3=<c3> [--options=...]",
+      "Usage: climpt-agent.ts --query=\"<natural language query>\" [--agent=<name>] [--options=...]",
     );
     console.error("");
     console.error("Parameters:");
-    console.error('  --agent  Agent name (always "climpt")');
-    console.error("  --c1     Domain identifier (e.g., climpt-git, climpt-meta)");
-    console.error("  --c2     Action identifier (e.g., group-commit, build)");
-    console.error("  --c3     Target identifier (e.g., unstaged-changes, frontmatter)");
+    console.error(
+      '  --query   Natural language description of what you want to do (required)',
+    );
+    console.error('  --agent   Agent name (default: "climpt")');
     console.error("  --options  Comma-separated list of options (optional)");
+    console.error("");
+    console.error("Example:");
+    console.error('  climpt-agent.ts --query="commit my changes"');
     Deno.exit(1);
   }
 }
 
+// =============================================================================
+// Main Workflow
+// =============================================================================
+
 /**
- * Main entry point
+ * Main entry point - Multi-stage workflow
+ *
+ * Uses shared MCP utilities from climpt package:
+ * - searchCommands(): Find matching command using cosine similarity
+ * - describeCommand(): Get command details
  */
 async function main(): Promise<void> {
-  // Parse command line arguments
-  const cmd = parseArgs(Deno.args);
+  const args = parseArgs(Deno.args);
+  validateArgs(args);
 
-  // Validate required parameters
-  validateCommand(cmd);
+  console.error(`🔍 Searching for: "${args.query}"`);
 
-  // Generate sub-agent name using C3L naming
+  // Step 1: Load configuration and registry
+  const mcpConfig = await loadMCPConfig();
+  const commands = await loadRegistryForAgent(mcpConfig, args.agent);
+
+  if (commands.length === 0) {
+    console.error(`❌ No commands found for agent '${args.agent}'`);
+    Deno.exit(1);
+  }
+
+  // Step 2: Search for matching commands (using shared utility)
+  const searchResults: SearchResult[] = searchCommands(commands, args.query!);
+
+  if (searchResults.length === 0) {
+    console.error(`❌ No matching commands found for query: "${args.query}"`);
+    Deno.exit(1);
+  }
+
+  // Select the best match
+  const bestMatch = searchResults[0];
+  console.error(
+    `✅ Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
+  );
+  console.error(`   Description: ${bestMatch.description}`);
+
+  if (searchResults.length > 1) {
+    console.error("   Other candidates:");
+    for (let i = 1; i < searchResults.length; i++) {
+      const r = searchResults[i];
+      console.error(
+        `   - ${r.c1} ${r.c2} ${r.c3} (score: ${r.score.toFixed(3)})`,
+      );
+    }
+  }
+
+  // Step 3: Describe the command (using shared utility)
+  const matchedCommands = describeCommand(
+    commands,
+    bestMatch.c1,
+    bestMatch.c2,
+    bestMatch.c3,
+  );
+
+  if (matchedCommands.length > 0 && matchedCommands[0].options) {
+    console.error("   Available options:", JSON.stringify(matchedCommands[0].options));
+  }
+
+  // Step 4: Create command and execute
+  const cmd: ClimptCommand = {
+    agent: args.agent,
+    c1: bestMatch.c1,
+    c2: bestMatch.c2,
+    c3: bestMatch.c3,
+    options: args.options,
+  };
+
   const subAgentName = generateSubAgentName(cmd);
-  console.error(`Generated sub-agent name: ${subAgentName}`);
+  console.error(`🤖 Generated sub-agent name: ${subAgentName}`);
 
-  // Get prompt from Climpt
-  console.error(`Fetching prompt for: ${cmd.c1} ${cmd.c2} ${cmd.c3}`);
+  // Step 5: Get prompt from Climpt CLI
+  console.error(
+    `📝 Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
+  );
   const prompt = await getClimptPrompt(cmd);
 
-  // Run sub-agent with the prompt
+  // Step 6: Run sub-agent
   const cwd = Deno.cwd();
   await runSubAgent(subAgentName, prompt, cwd);
 }
@@ -279,7 +311,7 @@ async function main(): Promise<void> {
 // Execute main
 if (import.meta.main) {
   main().catch((error) => {
-    console.error("Error:", error.message);
+    console.error("❌ Error:", error.message);
     Deno.exit(1);
   });
 }

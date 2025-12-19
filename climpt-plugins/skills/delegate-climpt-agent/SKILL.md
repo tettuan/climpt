@@ -9,48 +9,52 @@ Development task delegation through Climpt's command registry.
 
 ## Overview
 
-This Skill connects Claude Code to Climpt by spawning independent sub-agents using Claude Agent SDK. When a user's request matches a Climpt command, this Skill searches the command registry to identify the appropriate command, then executes the `climpt-agent.ts` script to create an isolated sub-agent that handles the task.
+This Skill connects Claude Code to Climpt by spawning independent sub-agents using Claude Agent SDK. When a user's request matches a Climpt command, this Skill creates a short query text that describes the user's intent, then executes the `climpt-agent.ts` script. The script internally handles the multi-stage workflow (search → describe → execute) and runs an isolated sub-agent to complete the task.
 
 ## Workflow
 
-### Step 1: Search for matching commands
+### Step 1: Create query text
 
-Use `mcp__climpt__search` to find commands that match the user's intent:
+Analyze the user's request and create a short, descriptive query text in English. The query should capture the essence of what the user wants to do.
 
-```
-mcp__climpt__search({
-  "query": "<user's intent>",
-  "agent": "climpt"
-})
-```
-
-The search returns matching commands with similarity scores. Select the best match based on the score and description.
+Examples:
+- "変更をコミットして" → "commit my changes"
+- "新しいブランチを作成" → "create new branch"
+- "frontmatterを生成" → "generate frontmatter"
+- "古いブランチを削除" → "delete old branches"
 
 ### Step 2: Execute sub-agent script
 
-Run `scripts/climpt-agent.ts` with C3L parameters to spawn an independent sub-agent:
+Run `scripts/climpt-agent.ts` with the query to spawn an independent sub-agent:
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
   scripts/climpt-agent.ts \
-  --agent=climpt \
-  --c1=<domain> \
-  --c2=<action> \
-  --c3=<target> \
+  --query="<query text>" \
+  [--agent=climpt] \
   [--options=<opt1,opt2,...>]
 ```
 
-The script:
-1. Calls Climpt CLI to retrieve the instruction prompt
-2. Creates a sub-agent using Claude Agent SDK
-3. Runs the sub-agent with the prompt to complete the task
+Parameters:
+- `--query`: Natural language description of what to do (required)
+- `--agent`: Agent name (default: "climpt")
+- `--options`: Comma-separated list of additional options (optional)
+
+The script automatically:
+1. Loads the command registry
+2. Searches for matching commands using cosine similarity
+3. Selects the best match and gets command details
+4. Executes Climpt CLI to get the instruction prompt
+5. Runs a sub-agent with the prompt to complete the task
 
 ### Example: Commit Changes
+
+User request: "変更をコミットして"
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
   scripts/climpt-agent.ts \
-  --agent=climpt --c1=git --c2=group-commit --c3=unstaged-changes
+  --query="commit my changes"
 ```
 
 This spawns sub-agent `climpt-git-group-commit-unstaged-changes` which:
@@ -58,17 +62,14 @@ This spawns sub-agent `climpt-git-group-commit-unstaged-changes` which:
 - Groups files by semantic proximity
 - Executes commits with appropriate messages
 
-### Optional: Get command details
+### Example: Generate Frontmatter
 
-Use `mcp__climpt__describe` to preview command options before execution:
+User request: "frontmatterを生成して"
 
-```
-mcp__climpt__describe({
-  "agent": "climpt",
-  "c1": "<domain>",
-  "c2": "<action>",
-  "c3": "<target>"
-})
+```bash
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
+  scripts/climpt-agent.ts \
+  --query="generate frontmatter"
 ```
 
 ## Command Reference
@@ -84,24 +85,24 @@ Commands follow the C3L naming convention:
 
 Sub-agent name format: `<agent>-<c1>-<c2>-<c3>`
 
-### Example Commands
+### Available Commands
 
 #### Git Operations (c1: git)
 
-| c2 | c3 | Description |
-|----|-----|-------------|
-| `group-commit` | `unstaged-changes` | Group file changes by semantic proximity and commit |
-| `decide-branch` | `working-branch` | Decide whether to create a new branch based on task content |
-| `find-oldest` | `descendant-branch` | Find and merge the oldest related branch |
-| `list-select` | `pr-branch` | List branches with PRs and select next target |
-| `merge-up` | `base-branch` | Merge derived branches up to parent branch |
+| c2 | c3 | Description | Query Examples |
+|----|-----|-------------|----------------|
+| `group-commit` | `unstaged-changes` | Group file changes by semantic proximity and commit | "commit changes", "git commit" |
+| `decide-branch` | `working-branch` | Decide whether to create a new branch based on task content | "decide branch", "need new branch" |
+| `find-oldest` | `descendant-branch` | Find and merge the oldest related branch | "find oldest branch", "merge oldest" |
+| `list-select` | `pr-branch` | List branches with PRs and select next target | "list pr branches", "select pr" |
+| `merge-up` | `base-branch` | Merge derived branches up to parent branch | "merge up", "merge to parent" |
 
 #### Meta Operations (c1: meta)
 
-| c2 | c3 | Description |
-|----|-----|-------------|
-| `build` | `frontmatter` | Generate C3L v0.5 compliant frontmatter |
-| `create` | `instruction` | Create new instruction file |
+| c2 | c3 | Description | Query Examples |
+|----|-----|-------------|----------------|
+| `build` | `frontmatter` | Generate C3L v0.5 compliant frontmatter | "generate frontmatter", "build frontmatter" |
+| `create` | `instruction` | Create new instruction file | "create instruction", "new instruction" |
 
 ## Dynamic Sub-agent
 
@@ -128,18 +129,19 @@ Use this Skill when the user:
 ## Error Handling
 
 ### Search returns no results
+The script will exit with an error if no matching command is found. In this case:
 1. Inform the user that no matching Climpt command was found
 2. Suggest alternative approaches or ask for clarification
-3. Consider using `mcp__climpt__reload` if the registry might be outdated
+3. Try rephrasing the query with different keywords
 
 ### Script execution fails
 1. Check that Deno is installed and accessible
 2. Verify Claude Agent SDK is available (`npm:@anthropic-ai/claude-agent-sdk`)
 3. Ensure all required permissions are granted (--allow-read, --allow-write, etc.)
-4. Check script path is relative to the skill directory
+4. Check that registry.json exists at `.agent/climpt/registry.json`
 
 ### Sub-agent errors
 The sub-agent runs independently and reports its own errors. Check:
 1. Working directory is correct
 2. Required tools are available in `allowedTools`
-3. Climpt CLI can access the command registry
+3. The instruction prompt was successfully retrieved
