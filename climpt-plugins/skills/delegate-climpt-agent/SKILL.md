@@ -9,7 +9,7 @@ Development task delegation through Climpt's command registry.
 
 ## Overview
 
-This Skill connects Claude Code to Climpt, an AI-assisted CLI tool that provides structured prompts for development workflows. When a user's request matches a Climpt command, this Skill searches the command registry, retrieves the appropriate instruction prompt, and executes it.
+This Skill connects Claude Code to Climpt by spawning independent sub-agents using Claude Agent SDK. When a user's request matches a Climpt command, this Skill searches the command registry to identify the appropriate command, then executes the `climpt-agent.ts` script to create an isolated sub-agent that handles the task.
 
 ## Workflow
 
@@ -26,9 +26,41 @@ mcp__climpt__search({
 
 The search returns matching commands with similarity scores. Select the best match based on the score and description.
 
-### Step 2: Get command details
+### Step 2: Execute sub-agent script
 
-Use `mcp__climpt__describe` with the matched c1, c2, c3 from search results:
+Run `scripts/climpt-agent.ts` with C3L parameters to spawn an independent sub-agent:
+
+```bash
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
+  scripts/climpt-agent.ts \
+  --agent=climpt \
+  --c1=<domain> \
+  --c2=<action> \
+  --c3=<target> \
+  [--options=<opt1,opt2,...>]
+```
+
+The script:
+1. Calls Climpt CLI to retrieve the instruction prompt
+2. Creates a sub-agent using Claude Agent SDK
+3. Runs the sub-agent with the prompt to complete the task
+
+### Example: Commit Changes
+
+```bash
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
+  scripts/climpt-agent.ts \
+  --agent=climpt --c1=git --c2=group-commit --c3=unstaged-changes
+```
+
+This spawns sub-agent `climpt-git-group-commit-unstaged-changes` which:
+- Analyzes unstaged changes
+- Groups files by semantic proximity
+- Executes commits with appropriate messages
+
+### Optional: Get command details
+
+Use `mcp__climpt__describe` to preview command options before execution:
 
 ```
 mcp__climpt__describe({
@@ -38,29 +70,6 @@ mcp__climpt__describe({
   "c3": "<target>"
 })
 ```
-
-This provides detailed information about the command including:
-- Full description
-- Usage instructions
-- Available options (edition, adaptation, file, stdin, destination)
-
-### Step 3: Execute command
-
-Use `mcp__climpt__execute` to get the instruction prompt:
-
-```
-mcp__climpt__execute({
-  "agent": "climpt",
-  "c1": "<domain>",
-  "c2": "<action>",
-  "c3": "<target>",
-  "options": {}
-})
-```
-
-The execute tool returns the instruction document (prompt). Use this prompt to guide the task execution.
-
-> **Note**: `agent` is always `"climpt"`. Domain is specified via `c1` (e.g., `"git"`, `"meta"`).
 
 ## Command Reference
 
@@ -118,7 +127,19 @@ Use this Skill when the user:
 
 ## Error Handling
 
-If a search returns no results:
+### Search returns no results
 1. Inform the user that no matching Climpt command was found
 2. Suggest alternative approaches or ask for clarification
 3. Consider using `mcp__climpt__reload` if the registry might be outdated
+
+### Script execution fails
+1. Check that Deno is installed and accessible
+2. Verify Claude Agent SDK is available (`npm:@anthropic-ai/claude-agent-sdk`)
+3. Ensure all required permissions are granted (--allow-read, --allow-write, etc.)
+4. Check script path is relative to the skill directory
+
+### Sub-agent errors
+The sub-agent runs independently and reports its own errors. Check:
+1. Working directory is correct
+2. Required tools are available in `allowedTools`
+3. Climpt CLI can access the command registry
