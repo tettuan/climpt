@@ -1,0 +1,14 @@
+{
+  "name": "climpt-marketplace",
+  "owner": {
+    "name": "tettuan",
+    "url": "https://github.com/tettuan"
+  },
+  "plugins": [
+    {
+      "name": "climpt-agent",
+      "source": "https://github.com/tettuan/climpt-marketplace",
+      "description": "Delegate tasks to Climpt Agent for AI-assisted development workflows"
+    }
+  ]
+}

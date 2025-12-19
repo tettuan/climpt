@@ -1,5 +1,5 @@
 ---
-c1: climpt-git
+c1: git
 c2: list-select
 c3: pr-branch
 title: 現存のPRとブランチをリスト化して、次に作業する対象を選ぶ

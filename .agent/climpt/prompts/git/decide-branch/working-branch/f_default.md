@@ -1,5 +1,5 @@
 ---
-c1: climpt-git
+c1: git
 c2: decide-branch
 c3: working-branch
 title: git branch の新規立ち上げ判断と、新ブランチ作成
