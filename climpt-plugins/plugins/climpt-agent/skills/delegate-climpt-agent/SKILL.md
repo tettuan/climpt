@@ -1,6 +1,6 @@
 ---
 name: delegate-climpt-agent
-description: Internal skill for delegate-climpt-agent subagent. Delegates development tasks to Climpt Agent for git operations (commit, branch, PR), instruction creation, frontmatter generation, and development workflows. Use when working within the delegate-climpt-agent subagent context.
+description: Use PROACTIVELY when user mentions 'climpt', 'climpt-agent', or requests git operations (commit, branch, PR), instruction creation, frontmatter generation, or any Climpt development workflow. Delegates to Climpt Agent which spawns isolated sub-agents for AI-assisted task execution.
 ---
 
 # Delegate Climpt Agent

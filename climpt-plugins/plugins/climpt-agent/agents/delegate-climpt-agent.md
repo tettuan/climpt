@@ -1,6 +1,6 @@
 ---
 name: delegate-climpt-agent
-description: Use this agent PROACTIVELY when user explicitly requests 'delegate-climpt-agent', 'climpt-agent', or 'climpt'. MUST BE USED for all git operations (commits, branches, PRs), creating instructions, generating frontmatter, or any development workflow using Climpt commands. This agent delegates to the climpt-agent plugin for AI-assisted development task automation.
+description: Internal agent for manual invocation only. Prefer using the delegate-climpt-agent skill instead. Delegates development tasks to Climpt Agent for git operations, instruction creation, and frontmatter generation.
 tools: Read, Bash, Write
 model: inherit
 skills: delegate-climpt-agent
