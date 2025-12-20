@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "agents": {
+    "climpt": {
+      "systemPromptTemplate": "iterate-agent/prompts/default.md",
+      "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "permissionMode": "acceptEdits"
+    }
+  },
+  "github": {
+    "tokenEnvVar": "GITHUB_TOKEN",
+    "apiVersion": "2022-11-28"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents",
+    "maxFiles": 100,
+    "format": "jsonl"
+  }
+}
