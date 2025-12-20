@@ -127,6 +127,7 @@ async function runAgentLoop(
         allowedTools: agentConfig.allowedTools,
         permissionMode: agentConfig.permissionMode,
         systemPrompt: systemPrompt,
+        settingSources: ["user", "project"], // Load Skills from filesystem
       },
     });
 
