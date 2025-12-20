@@ -38,7 +38,6 @@ let MCP_CONFIG: MCPConfig = DEFAULT_MCP_CONFIG;
  */
 const REGISTRY_CACHE = new Map<string, Command[]>();
 
-
 /**
  * Load command registry for a specific agent with caching.
  *
