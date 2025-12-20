@@ -12,19 +12,78 @@
  * 5. Runs a sub-agent using Claude Agent SDK with the prompt
  */
 
+// Standard library
+import { ensureDir } from "jsr:@std/fs";
+import { join } from "jsr:@std/path";
+
 // Claude Agent SDK (npm package)
 import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
-// Shared MCP utilities from climpt package
+// Shared MCP utilities from climpt repository (relative import)
 import {
-  type Command,
   describeCommand,
+  searchCommands,
+} from "../../../../../../src/mcp/similarity.ts";
+import type { Command, SearchResult } from "../../../../../../src/mcp/types.ts";
+import {
   loadMCPConfig,
   loadRegistryForAgent,
-  searchCommands,
-  type SearchResult,
-} from "jsr:@aidevtool/climpt";
+} from "../../../../../../src/mcp/registry.ts";
+
+// =============================================================================
+// Logger
+// =============================================================================
+
+/**
+ * Logger that writes to both stderr and file
+ */
+class Logger {
+  private logFile: Deno.FsFile | null = null;
+  private logPath: string = "";
+
+  async init(logDir: string): Promise<void> {
+    await ensureDir(logDir);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    this.logPath = join(logDir, `climpt-agent-${timestamp}.log`);
+    this.logFile = await Deno.open(this.logPath, {
+      write: true,
+      create: true,
+      truncate: true,
+    });
+    await this.write(`[${new Date().toISOString()}] Log started: ${this.logPath}`);
+  }
+
+  async write(message: string): Promise<void> {
+    const line = `${message}\n`;
+    console.error(message);
+    if (this.logFile) {
+      await this.logFile.write(new TextEncoder().encode(line));
+    }
+  }
+
+  async writeSection(title: string, content: string): Promise<void> {
+    const separator = "=".repeat(60);
+    await this.write(`\n${separator}`);
+    await this.write(`${title}`);
+    await this.write(separator);
+    await this.write(content);
+  }
+
+  async close(): Promise<void> {
+    if (this.logFile) {
+      await this.write(`[${new Date().toISOString()}] Log ended`);
+      this.logFile.close();
+      this.logFile = null;
+    }
+  }
+
+  getLogPath(): string {
+    return this.logPath;
+  }
+}
+
+const logger = new Logger();
 
 // =============================================================================
 // Types
@@ -128,7 +187,7 @@ async function runSubAgent(
     },
   };
 
-  console.error(`Starting sub-agent: ${agentName}`);
+  await logger.write(`🚀 Starting sub-agent: ${agentName}`);
 
   const queryResult = query({
     prompt,
@@ -136,39 +195,38 @@ async function runSubAgent(
   });
 
   for await (const message of queryResult) {
-    handleMessage(message);
+    await handleMessage(message);
   }
 }
 
 /**
  * Handle SDK message types
  */
-function handleMessage(message: SDKMessage): void {
+async function handleMessage(message: SDKMessage): Promise<void> {
   switch (message.type) {
     case "assistant":
       if (message.message.content) {
         for (const block of message.message.content) {
           if (block.type === "text") {
             console.log(block.text);
+            await logger.write(`[assistant] ${block.text}`);
           }
         }
       }
       break;
     case "result":
       if (message.subtype === "success") {
-        console.error(`Completed. Cost: $${message.total_cost_usd.toFixed(4)}`);
+        await logger.write(`✅ Completed. Cost: $${message.total_cost_usd.toFixed(4)}`);
       } else {
-        console.error(`Error: ${message.subtype}`);
+        await logger.write(`❌ Error: ${message.subtype}`);
         if ("errors" in message) {
-          console.error((message as { errors: string[] }).errors.join("\n"));
+          await logger.write((message as { errors: string[] }).errors.join("\n"));
         }
       }
       break;
     case "system":
       if (message.subtype === "init") {
-        console.error(
-          `Session: ${message.session_id}, Model: ${message.model}`,
-        );
+        await logger.write(`[system] Session: ${message.session_id}, Model: ${message.model}`);
       }
       break;
   }
@@ -237,81 +295,101 @@ async function main(): Promise<void> {
   const args = parseArgs(Deno.args);
   validateArgs(args);
 
-  console.error(`🔍 Searching for: "${args.query}"`);
-
-  // Step 1: Load configuration and registry
-  const mcpConfig = await loadMCPConfig();
-  const commands = await loadRegistryForAgent(mcpConfig, args.agent);
-
-  if (commands.length === 0) {
-    console.error(`❌ No commands found for agent '${args.agent}'`);
-    Deno.exit(1);
-  }
-
-  // Step 2: Search for matching commands (using shared utility)
-  const searchResults: SearchResult[] = searchCommands(commands, args.query!);
-
-  if (searchResults.length === 0) {
-    console.error(`❌ No matching commands found for query: "${args.query}"`);
-    Deno.exit(1);
-  }
-
-  // Select the best match
-  const bestMatch = searchResults[0];
-  console.error(
-    `✅ Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
-  );
-  console.error(`   Description: ${bestMatch.description}`);
-
-  if (searchResults.length > 1) {
-    console.error("   Other candidates:");
-    for (let i = 1; i < searchResults.length; i++) {
-      const r = searchResults[i];
-      console.error(
-        `   - ${r.c1} ${r.c2} ${r.c3} (score: ${r.score.toFixed(3)})`,
-      );
-    }
-  }
-
-  // Step 3: Describe the command (using shared utility)
-  const matchedCommands = describeCommand(
-    commands,
-    bestMatch.c1,
-    bestMatch.c2,
-    bestMatch.c3,
-  );
-
-  if (matchedCommands.length > 0 && matchedCommands[0].options) {
-    console.error("   Available options:", JSON.stringify(matchedCommands[0].options));
-  }
-
-  // Step 4: Create command and execute
-  const cmd: ClimptCommand = {
-    agent: args.agent,
-    c1: bestMatch.c1,
-    c2: bestMatch.c2,
-    c3: bestMatch.c3,
-    options: args.options,
-  };
-
-  const subAgentName = generateSubAgentName(cmd);
-  console.error(`🤖 Generated sub-agent name: ${subAgentName}`);
-
-  // Step 5: Get prompt from Climpt CLI
-  console.error(
-    `📝 Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
-  );
-  const prompt = await getClimptPrompt(cmd);
-
-  // Step 6: Run sub-agent
+  // Initialize logger
   const cwd = Deno.cwd();
-  await runSubAgent(subAgentName, prompt, cwd);
+  const logDir = join(cwd, "tmp", "logs");
+  await logger.init(logDir);
+
+  try {
+    await logger.write(`🔍 Searching for: "${args.query}"`);
+    await logger.write(`   Agent: ${args.agent}`);
+    await logger.write(`   CWD: ${cwd}`);
+
+    // Step 1: Load configuration and registry
+    const mcpConfig = await loadMCPConfig();
+    const commands = await loadRegistryForAgent(mcpConfig, args.agent);
+
+    if (commands.length === 0) {
+      await logger.write(`❌ No commands found for agent '${args.agent}'`);
+      Deno.exit(1);
+    }
+
+    await logger.write(`   Found ${commands.length} commands in registry`);
+
+    // Step 2: Search for matching commands (using shared utility)
+    const searchResults: SearchResult[] = searchCommands(commands, args.query!);
+
+    if (searchResults.length === 0) {
+      await logger.write(`❌ No matching commands found for query: "${args.query}"`);
+      Deno.exit(1);
+    }
+
+    // Select the best match
+    const bestMatch = searchResults[0];
+    await logger.write(
+      `✅ Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
+    );
+    await logger.write(`   Description: ${bestMatch.description}`);
+
+    if (searchResults.length > 1) {
+      await logger.write("   Other candidates:");
+      for (let i = 1; i < searchResults.length; i++) {
+        const r = searchResults[i];
+        await logger.write(
+          `   - ${r.c1} ${r.c2} ${r.c3} (score: ${r.score.toFixed(3)})`,
+        );
+      }
+    }
+
+    // Step 3: Describe the command (using shared utility)
+    const matchedCommands = describeCommand(
+      commands,
+      bestMatch.c1,
+      bestMatch.c2,
+      bestMatch.c3,
+    );
+
+    if (matchedCommands.length > 0 && matchedCommands[0].options) {
+      await logger.write("   Available options: " + JSON.stringify(matchedCommands[0].options));
+    }
+
+    // Step 4: Create command and execute
+    const cmd: ClimptCommand = {
+      agent: args.agent,
+      c1: bestMatch.c1,
+      c2: bestMatch.c2,
+      c3: bestMatch.c3,
+      options: args.options,
+    };
+
+    const subAgentName = generateSubAgentName(cmd);
+    await logger.write(`🤖 Generated sub-agent name: ${subAgentName}`);
+
+    // Step 5: Get prompt from Climpt CLI
+    await logger.write(
+      `📝 Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
+    );
+    const prompt = await getClimptPrompt(cmd);
+
+    await logger.writeSection("PROMPT", prompt);
+
+    // Step 6: Run sub-agent
+    await runSubAgent(subAgentName, prompt, cwd);
+
+    await logger.write(`\n📄 Log file: ${logger.getLogPath()}`);
+  } finally {
+    await logger.close();
+  }
 }
 
 // Execute main
 if (import.meta.main) {
-  main().catch((error) => {
-    console.error("❌ Error:", error.message);
+  main().catch(async (error) => {
+    await logger.write(`❌ Error: ${error.message}`);
+    if (error.stack) {
+      await logger.write(error.stack);
+    }
+    await logger.close();
     Deno.exit(1);
   });
 }
