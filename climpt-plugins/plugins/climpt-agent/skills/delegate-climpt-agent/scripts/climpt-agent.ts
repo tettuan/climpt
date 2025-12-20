@@ -169,6 +169,15 @@ async function runSubAgent(
   prompt: string,
   cwd: string,
 ): Promise<void> {
+  // Disable Statsig telemetry to avoid ~/.claude/statsig/ write permission issues
+  // and remove dependency on sandbox allowlist configuration
+  Deno.env.set("DISABLE_TELEMETRY", "1");
+
+  // Redirect Claude config/session storage to sandbox-allowed path
+  // This avoids EPERM errors when SDK spawns claude process
+  // See: https://github.com/anthropics/claude-agent-sdk-typescript/issues/84
+  Deno.env.set("CLAUDE_CONFIG_DIR", "/tmp/claude");
+
   const options: Options = {
     cwd,
     settingSources: ["project"],
@@ -195,23 +204,35 @@ async function runSubAgent(
     options,
   });
 
+  // Check if SDK JSON errors should be strictly handled
+  // Set STRICT_SDK_JSON=1 to throw on JSON parse errors instead of ignoring
+  const strictJsonMode = Deno.env.get("STRICT_SDK_JSON") === "1";
+
   try {
     for await (const message of queryResult) {
       try {
         await handleMessage(message);
       } catch (error) {
-        // SDK may emit malformed JSON during message handling - log and continue
+        // SDK may emit malformed JSON during message handling
+        // Known issue: https://github.com/anthropics/claude-agent-sdk-typescript/issues
         if (error instanceof SyntaxError && error.message.includes("JSON")) {
-          await logger.write(`⚠️ SDK JSON parse warning in handler (continuing): ${error.message}`);
+          await logger.write(`⚠️ SDK JSON parse warning in handler: ${error.message}`);
+          if (strictJsonMode) {
+            throw error;
+          }
           continue;
         }
         throw error;
       }
     }
   } catch (error) {
-    // SDK may emit malformed JSON during streaming iteration
+    // SDK may emit malformed JSON during streaming iteration (typically at stream end)
+    // Known issue: stream termination can produce incomplete JSON chunks
     if (error instanceof SyntaxError && error.message.includes("JSON")) {
       await logger.write(`⚠️ SDK JSON parse error in stream (task may have completed): ${error.message}`);
+      if (strictJsonMode) {
+        throw error;
+      }
       // Don't throw - the sub-agent task likely completed despite the parse error
       return;
     }
@@ -221,6 +242,14 @@ async function runSubAgent(
 
 /**
  * Handle SDK message types
+ *
+ * SDKMessage types per SDK documentation:
+ * - assistant: Model response with content blocks
+ * - result: Task completion (success/error)
+ * - system: Initialization info
+ * - user: User message echo (ignored)
+ * - stream_event: Partial streaming data (ignored)
+ * - compact_boundary: Context compaction marker (ignored)
  */
 async function handleMessage(message: SDKMessage): Promise<void> {
   switch (message.type) {
@@ -234,20 +263,51 @@ async function handleMessage(message: SDKMessage): Promise<void> {
         }
       }
       break;
-    case "result":
+
+    case "result": {
       if (message.subtype === "success") {
         await logger.write(`✅ Completed. Cost: $${message.total_cost_usd.toFixed(4)}`);
       } else {
         await logger.write(`❌ Error: ${message.subtype}`);
-        if ("errors" in message) {
-          await logger.write((message as { errors: string[] }).errors.join("\n"));
+        // Error result messages have 'errors' field
+        const errors = (message as { errors?: string[] }).errors ?? [];
+        if (errors.length > 0) {
+          await logger.write(errors.join("\n"));
         }
       }
       break;
+    }
+
     case "system":
       if (message.subtype === "init") {
         await logger.write(`[system] Session: ${message.session_id}, Model: ${message.model}`);
+        // Log additional debugging info
+        const msg = message as {
+          permissionMode?: string;
+          mcp_servers?: Array<{ name: string; status: string }>;
+          tools?: string[];
+        };
+        if (msg.permissionMode) {
+          await logger.write(`[system] Permission mode: ${msg.permissionMode}`);
+        }
+        if (msg.mcp_servers && msg.mcp_servers.length > 0) {
+          const serverStatus = msg.mcp_servers
+            .map((s) => `${s.name}(${s.status})`)
+            .join(", ");
+          await logger.write(`[system] MCP servers: ${serverStatus}`);
+        }
       }
+      break;
+
+    // Intentionally ignored message types
+    case "user":
+      // User message echo - no action needed
+      break;
+
+    default:
+      // Handle unknown/new message types gracefully
+      // This covers: stream_event, compact_boundary, and future types
+      await logger.write(`[debug] Ignored message type: ${(message as { type: string }).type}`);
       break;
   }
 }
