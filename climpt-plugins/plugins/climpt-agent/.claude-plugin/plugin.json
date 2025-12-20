@@ -8,5 +8,13 @@
   },
   "repository": "https://github.com/tettuan/climpt",
   "license": "MIT",
-  "keywords": ["climpt", "agent", "delegation", "workflow"]
+  "keywords": ["climpt", "agent", "delegation", "workflow"],
+  "agents": "./agents/",
+  "skills": [
+    {
+      "name": "delegate-climpt-agent",
+      "path": "skills/delegate-climpt-agent/SKILL.md",
+      "userInvocable": true
+    }
+  ]
 }
