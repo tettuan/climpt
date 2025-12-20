@@ -31,3 +31,17 @@ mainはdevelopからのみマージ可: `other-branch -> develop -> main`
 6. develop -> main へのPR作成する
 7. mainへマージする
 8. main の最新コミットを特定し、vtagを付与する（必ずmainへ付与する）
+
+# Iterate Agent
+
+When running `deno task iterate-agent` from Claude Code, ALWAYS use `dangerouslyDisableSandbox: true`:
+
+```typescript
+Bash({
+  command: "deno task iterate-agent --issue 123",
+  description: "Run iterate agent for issue 123",
+  dangerouslyDisableSandbox: true,
+})
+```
+
+**理由**: Claude Agent SDK は `~/.claude/projects/`, `~/.claude/statsig/`, `~/.claude/telemetry/` などのディレクトリに書き込むため、サンドボックスの許可リストに含まれていない。`dangerouslyDisableSandbox: true` を指定しないと EPERM エラーが発生する。
