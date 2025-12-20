@@ -16,6 +16,27 @@ PR作成してからリモートMergeする。その後ローカル反映する�
 mainはdevelopからのみマージ可: `other-branch -> develop -> main`
 リリース時もローカル develop から リリースブランチを作成して行う。
 
+## サンドボックス制限
+
+Claude Code で git のネットワーク操作（push, pull, fetch, clone など）を実行する場合、ALWAYS use `dangerouslyDisableSandbox: true`:
+
+```typescript
+Bash({
+  command: "git push -u origin feature-branch",
+  description: "Push branch to remote",
+  dangerouslyDisableSandbox: true,
+})
+```
+
+**理由**: サンドボックス環境では github.com へのネットワークアクセスが制限されており、`dangerouslyDisableSandbox: true` を指定しないと `Could not resolve host: github.com` エラーが発生する。
+
+**対象コマンド**:
+- `git push`
+- `git pull`
+- `git fetch`
+- `git clone`
+- `gh` コマンド全般（GitHub CLI）
+
 ## 1.9 リリース
 `feature/release-1.9` ブランチが 1.9 リリースのベースブランチ（developに相当）。
 作業ブランチは `feature/release-1.9` から派生させ、PRも `feature/release-1.9` へマージする。
