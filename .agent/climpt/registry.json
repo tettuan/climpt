@@ -3,8 +3,8 @@
   "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      "climpt-git",
-      "climpt-meta"
+      "git",
+      "meta"
     ],
     "commands": [
       {
