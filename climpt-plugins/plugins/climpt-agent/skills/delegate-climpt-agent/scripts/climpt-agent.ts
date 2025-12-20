@@ -169,14 +169,10 @@ async function runSubAgent(
   prompt: string,
   cwd: string,
 ): Promise<void> {
-  // Disable Statsig telemetry to avoid ~/.claude/statsig/ write permission issues
-  // and remove dependency on sandbox allowlist configuration
-  Deno.env.set("DISABLE_TELEMETRY", "1");
-
-  // Redirect Claude config/session storage to sandbox-allowed path
-  // This avoids EPERM errors when SDK spawns claude process
-  // See: https://github.com/anthropics/claude-agent-sdk-typescript/issues/84
-  Deno.env.set("CLAUDE_CONFIG_DIR", "/tmp/claude");
+  // Note: When running from Claude Code's sandbox, the parent sandbox restrictions
+  // are inherited. The SDK's sandbox option only controls the child's command execution,
+  // not the parent sandbox. To run this script from Claude Code, you must use:
+  //   Bash tool with dangerouslyDisableSandbox: true
 
   const options: Options = {
     cwd,
