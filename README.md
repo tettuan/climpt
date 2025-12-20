@@ -493,6 +493,69 @@ Climpt provides a Claude Code Plugin for seamless integration with AI-assisted d
 
 See [climpt-plugins/README.md](climpt-plugins/README.md) for detailed documentation.
 
+## Iterate Agent
+
+Iterate Agent is an autonomous development system that continuously executes development tasks using the Claude Agent SDK.
+
+### Overview
+
+Iterate Agent runs development workflows autonomously by:
+- Fetching requirements from GitHub Issues or Projects
+- Using Climpt Skills to execute tasks through delegate-climpt-agent
+- Evaluating progress against completion criteria
+- Iterating until the work is complete
+
+### Setup
+
+Add a task to your `deno.json` (configuration example):
+
+```json
+{
+  "tasks": {
+    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys iterate-agent/scripts/agent.ts"
+  }
+}
+```
+
+### Quick Start
+
+```bash
+# Prerequisites: Set environment variables
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
+export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxx"
+
+# Direct execution (after setting up the task)
+deno task iterate-agent --issue 123
+
+# Or run directly without task configuration
+deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys iterate-agent/scripts/agent.ts --issue 123
+```
+
+### Usage Examples
+
+```bash
+# Work on Issue #123 until closed
+deno task iterate-agent --issue 123
+
+# Work on Project #5 until all items complete
+deno task iterate-agent --project 5
+
+# Run for maximum 10 iterations
+deno task iterate-agent --iterate-max 10
+```
+
+### Key Features
+
+- **Autonomous Execution**: Runs without human intervention
+- **GitHub Integration**: Works with Issues and Projects via `gh` CLI
+- **Climpt Skills Integration**: Leverages existing Climpt infrastructure
+- **Detailed Logging**: JSONL format with automatic rotation (max 100 files)
+- **Flexible Completion**: Complete by Issue close, Project done, or iteration count
+
+### Documentation
+
+For detailed usage, configuration, and troubleshooting, see [iterate-agent/README.md](iterate-agent/README.md).
+
 ## Climpt Use Cases
 
 Switch between diverse prompts and get the desired prompt with a single command.
