@@ -254,6 +254,69 @@ async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
 }
 
 /**
+ * Read JSONL log and extract assistant messages
+ */
+async function extractAssistantMessages(logPath: string): Promise<string[]> {
+  const messages: string[] = [];
+  const logContent = await Deno.readTextFile(logPath);
+
+  for (const line of logContent.split('\n')) {
+    if (!line.trim()) continue;
+
+    try {
+      const entry = JSON.parse(line);
+      if (entry.level === 'assistant') {
+        messages.push(entry.message);
+      }
+    } catch {
+      // Skip invalid JSON lines
+    }
+  }
+
+  return messages;
+}
+
+/**
+ * Generate summary of sub-agent execution
+ */
+async function generateSummary(messages: string[], subAgentName: string): Promise<string> {
+  const prompt = `Based on the following messages from a sub-agent task (${subAgentName}), provide a concise summary:
+
+1. What was accomplished?
+2. What are the key results or next steps?
+
+Keep the summary brief and actionable.
+
+Messages:
+${messages.join('\n\n')}`;
+
+  const queryResult = query({
+    prompt,
+    options: {
+      model: "claude-sonnet-4-5-20250929",
+      allowedTools: [], // No tools needed for summary
+      systemPrompt: {
+        type: "custom",
+        content: "You are a helpful assistant that summarizes task execution results concisely.",
+      },
+    },
+  });
+
+  let summaryText = "";
+  for await (const message of queryResult) {
+    if (message.type === "assistant" && message.message.content) {
+      for (const block of message.message.content) {
+        if (block.type === "text") {
+          summaryText += block.text;
+        }
+      }
+    }
+  }
+
+  return summaryText;
+}
+
+/**
  * Run Claude Agent SDK with the obtained prompt
  */
 async function runSubAgent(
@@ -534,16 +597,18 @@ async function main(): Promise<void> {
     // Step 6: Run sub-agent
     await runSubAgent(subAgentName, prompt, cwd);
 
-    // Print summary to stdout (not detailed logs)
+    // Step 7: Generate and print summary
     const summary = logger.getSummary();
-    console.log(`${summary.status === "success" ? "✅" : "❌"} ${subAgentName}: ${summary.status}`);
-    if (summary.cost > 0) {
-      console.log(`💰 Cost: $${summary.cost.toFixed(4)}`);
+
+    if (summary.status === "success") {
+      const assistantMessages = await extractAssistantMessages(logger.getLogPath());
+      const summaryText = await generateSummary(assistantMessages, subAgentName);
+
+      console.log(`✅ ${subAgentName}`);
+      console.log(summaryText);
+    } else {
+      console.log(`❌ ${subAgentName}: ${summary.status}`);
     }
-    if (summary.messageCount > 0) {
-      console.log(`💬 Messages: ${summary.messageCount}`);
-    }
-    console.log(`📄 Log: ${logger.getLogPath()}`);
 
     await logger.write(`Summary printed to stdout`);
   } finally {
