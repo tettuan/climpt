@@ -1,6 +1,6 @@
 ---
 name: delegate-climpt-agent
-description: Delegates development tasks to Climpt Agent. Use when user asks to perform git operations, create instructions, manage branches, generate frontmatter, or any development workflow that matches Climpt commands. Climpt provides AI-assisted prompts for git commits, branch management, PR workflows, and meta operations.
+description: Internal skill for delegate-climpt-agent subagent. Delegates development tasks to Climpt Agent for git operations (commit, branch, PR), instruction creation, frontmatter generation, and development workflows. Use when working within the delegate-climpt-agent subagent context.
 ---
 
 # Delegate Climpt Agent
