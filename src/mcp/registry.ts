@@ -3,6 +3,9 @@
  * @module mcp/registry
  *
  * **SHARED MODULE** - Used by MCP server, mod.ts exports, and external consumers via JSR.
+ *
+ * @see docs/internal/registry-specification.md - MCPConfig and registry file paths
+ * @see docs/internal/command-operations.md - Registry loading specification
  */
 
 import type { Command, MCPConfig, Registry } from "./types.ts";
