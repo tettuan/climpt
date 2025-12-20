@@ -37,43 +37,127 @@ import {
 // =============================================================================
 
 /**
- * Logger that writes to both stderr and file
+ * Log entry for JSONL format
+ */
+interface LogEntry {
+  timestamp: string;
+  level: "info" | "error" | "debug" | "assistant" | "system" | "result";
+  message: string;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Logger that writes JSONL to file and summary to stderr
  */
 class Logger {
   private logFile: Deno.FsFile | null = null;
   private logPath: string = "";
+  private assistantMessages: string[] = [];
+  private resultCost: number = 0;
+  private resultStatus: "success" | "error" | "pending" = "pending";
 
   async init(logDir: string): Promise<void> {
     await ensureDir(logDir);
+
+    // Rotate old logs if needed
+    await this.rotateLogs(logDir, 100);
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    this.logPath = join(logDir, `climpt-agent-${timestamp}.log`);
+    this.logPath = join(logDir, `climpt-agent-${timestamp}.jsonl`);
     this.logFile = await Deno.open(this.logPath, {
       write: true,
       create: true,
       truncate: true,
     });
-    await this.write(`[${new Date().toISOString()}] Log started: ${this.logPath}`);
+    await this.writeLog("info", "Log started", { logPath: this.logPath });
   }
 
-  async write(message: string): Promise<void> {
-    const line = `${message}\n`;
-    console.error(message);
+  /**
+   * Rotate logs: keep only the most recent N files
+   */
+  private async rotateLogs(logDir: string, maxFiles: number): Promise<void> {
+    const files: Array<{ name: string; mtime: Date }> = [];
+
+    try {
+      for await (const entry of Deno.readDir(logDir)) {
+        if (entry.isFile && entry.name.endsWith(".jsonl")) {
+          const filePath = join(logDir, entry.name);
+          const stat = await Deno.stat(filePath);
+          files.push({ name: filePath, mtime: stat.mtime || new Date(0) });
+        }
+      }
+    } catch {
+      // Directory doesn't exist or can't be read - that's okay
+      return;
+    }
+
+    // Sort by modification time (newest first)
+    files.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+    // Delete files beyond the limit
+    for (let i = maxFiles; i < files.length; i++) {
+      try {
+        await Deno.remove(files[i].name);
+      } catch {
+        // Ignore deletion errors
+      }
+    }
+  }
+
+  private async writeLog(
+    level: LogEntry["level"],
+    message: string,
+    metadata?: Record<string, unknown>
+  ): Promise<void> {
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      ...(metadata && { metadata }),
+    };
+
     if (this.logFile) {
+      const line = JSON.stringify(entry) + "\n";
       await this.logFile.write(new TextEncoder().encode(line));
     }
   }
 
+  async write(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    await this.writeLog("info", message, metadata);
+  }
+
+  async writeAssistant(message: string): Promise<void> {
+    this.assistantMessages.push(message);
+    await this.writeLog("assistant", message);
+  }
+
+  async writeSystem(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    await this.writeLog("system", message, metadata);
+  }
+
+  async writeResult(status: "success" | "error", cost?: number, metadata?: Record<string, unknown>): Promise<void> {
+    this.resultStatus = status;
+    if (cost !== undefined) {
+      this.resultCost = cost;
+    }
+    await this.writeLog("result", status === "success" ? "Completed" : "Failed", {
+      status,
+      ...(cost !== undefined && { cost }),
+      ...metadata,
+    });
+  }
+
+  async writeError(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    await this.writeLog("error", message, metadata);
+  }
+
   async writeSection(title: string, content: string): Promise<void> {
-    const separator = "=".repeat(60);
-    await this.write(`\n${separator}`);
-    await this.write(`${title}`);
-    await this.write(separator);
-    await this.write(content);
+    await this.writeLog("info", title, { content });
   }
 
   async close(): Promise<void> {
     if (this.logFile) {
-      await this.write(`[${new Date().toISOString()}] Log ended`);
+      await this.writeLog("info", "Log ended");
       this.logFile.close();
       this.logFile = null;
     }
@@ -81,6 +165,14 @@ class Logger {
 
   getLogPath(): string {
     return this.logPath;
+  }
+
+  getSummary(): { status: string; cost: number; messageCount: number } {
+    return {
+      status: this.resultStatus,
+      cost: this.resultCost,
+      messageCount: this.assistantMessages.length,
+    };
   }
 }
 
@@ -212,7 +304,7 @@ async function runSubAgent(
         // SDK may emit malformed JSON during message handling
         // Known issue: https://github.com/anthropics/claude-agent-sdk-typescript/issues
         if (error instanceof SyntaxError && error.message.includes("JSON")) {
-          await logger.write(`⚠️ SDK JSON parse warning in handler: ${error.message}`);
+          await logger.writeError(`SDK JSON parse warning in handler: ${error.message}`);
           if (strictJsonMode) {
             throw error;
           }
@@ -225,7 +317,7 @@ async function runSubAgent(
     // SDK may emit malformed JSON during streaming iteration (typically at stream end)
     // Known issue: stream termination can produce incomplete JSON chunks
     if (error instanceof SyntaxError && error.message.includes("JSON")) {
-      await logger.write(`⚠️ SDK JSON parse error in stream (task may have completed): ${error.message}`);
+      await logger.writeError(`SDK JSON parse error in stream (task may have completed): ${error.message}`);
       if (strictJsonMode) {
         throw error;
       }
@@ -253,8 +345,8 @@ async function handleMessage(message: SDKMessage): Promise<void> {
       if (message.message.content) {
         for (const block of message.message.content) {
           if (block.type === "text") {
-            console.log(block.text);
-            await logger.write(`[assistant] ${block.text}`);
+            // Only log to file, not to stdout (summary will be printed later)
+            await logger.writeAssistant(block.text);
           }
         }
       }
@@ -262,36 +354,27 @@ async function handleMessage(message: SDKMessage): Promise<void> {
 
     case "result": {
       if (message.subtype === "success") {
-        await logger.write(`✅ Completed. Cost: $${message.total_cost_usd.toFixed(4)}`);
+        await logger.writeResult("success", message.total_cost_usd);
       } else {
-        await logger.write(`❌ Error: ${message.subtype}`);
-        // Error result messages have 'errors' field
         const errors = (message as { errors?: string[] }).errors ?? [];
-        if (errors.length > 0) {
-          await logger.write(errors.join("\n"));
-        }
+        await logger.writeResult("error", undefined, { errors });
       }
       break;
     }
 
     case "system":
       if (message.subtype === "init") {
-        await logger.write(`[system] Session: ${message.session_id}, Model: ${message.model}`);
-        // Log additional debugging info
         const msg = message as {
+          session_id: string;
+          model: string;
           permissionMode?: string;
           mcp_servers?: Array<{ name: string; status: string }>;
           tools?: string[];
         };
-        if (msg.permissionMode) {
-          await logger.write(`[system] Permission mode: ${msg.permissionMode}`);
-        }
-        if (msg.mcp_servers && msg.mcp_servers.length > 0) {
-          const serverStatus = msg.mcp_servers
-            .map((s) => `${s.name}(${s.status})`)
-            .join(", ");
-          await logger.write(`[system] MCP servers: ${serverStatus}`);
-        }
+        await logger.writeSystem(`Session: ${msg.session_id}, Model: ${msg.model}`, {
+          permissionMode: msg.permissionMode,
+          mcp_servers: msg.mcp_servers,
+        });
       }
       break;
 
@@ -303,7 +386,6 @@ async function handleMessage(message: SDKMessage): Promise<void> {
     default:
       // Handle unknown/new message types gracefully
       // This covers: stream_event, compact_boundary, and future types
-      await logger.write(`[debug] Ignored message type: ${(message as { type: string }).type}`);
       break;
   }
 }
@@ -371,50 +453,50 @@ async function main(): Promise<void> {
   const args = parseArgs(Deno.args);
   validateArgs(args);
 
-  // Initialize logger
+  // Initialize logger (JSONL format in tmp/logs/climpt-agents/)
   const cwd = Deno.cwd();
-  const logDir = join(cwd, "tmp", "logs");
+  const logDir = join(cwd, "tmp", "logs", "climpt-agents");
   await logger.init(logDir);
 
   try {
-    await logger.write(`🔍 Searching for: "${args.query}"`);
-    await logger.write(`   Agent: ${args.agent}`);
-    await logger.write(`   CWD: ${cwd}`);
+    await logger.write(`Searching for: "${args.query}"`);
+    await logger.write(`Agent: ${args.agent}`);
+    await logger.write(`CWD: ${cwd}`);
 
     // Step 1: Load configuration and registry
     const mcpConfig = await loadMCPConfig();
     const commands = await loadRegistryForAgent(mcpConfig, args.agent);
 
     if (commands.length === 0) {
-      await logger.write(`❌ No commands found for agent '${args.agent}'`);
+      await logger.writeError(`No commands found for agent '${args.agent}'`);
+      console.log(`❌ No commands found for agent '${args.agent}'`);
       Deno.exit(1);
     }
 
-    await logger.write(`   Found ${commands.length} commands in registry`);
+    await logger.write(`Found ${commands.length} commands in registry`);
 
     // Step 2: Search for matching commands (using shared utility)
     const searchResults: SearchResult[] = searchCommands(commands, args.query!);
 
     if (searchResults.length === 0) {
-      await logger.write(`❌ No matching commands found for query: "${args.query}"`);
+      await logger.writeError(`No matching commands found for query: "${args.query}"`);
+      console.log(`❌ No matching commands found for query: "${args.query}"`);
       Deno.exit(1);
     }
 
     // Select the best match
     const bestMatch = searchResults[0];
     await logger.write(
-      `✅ Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
+      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
+      { description: bestMatch.description }
     );
-    await logger.write(`   Description: ${bestMatch.description}`);
 
     if (searchResults.length > 1) {
-      await logger.write("   Other candidates:");
-      for (let i = 1; i < searchResults.length; i++) {
-        const r = searchResults[i];
-        await logger.write(
-          `   - ${r.c1} ${r.c2} ${r.c3} (score: ${r.score.toFixed(3)})`,
-        );
-      }
+      const otherCandidates = searchResults.slice(1).map((r) => ({
+        command: `${r.c1} ${r.c2} ${r.c3}`,
+        score: r.score,
+      }));
+      await logger.write("Other candidates", { candidates: otherCandidates });
     }
 
     // Step 3: Describe the command (using shared utility)
@@ -426,7 +508,7 @@ async function main(): Promise<void> {
     );
 
     if (matchedCommands.length > 0 && matchedCommands[0].options) {
-      await logger.write("   Available options: " + JSON.stringify(matchedCommands[0].options));
+      await logger.write("Available options", { options: matchedCommands[0].options });
     }
 
     // Step 4: Create command and execute
@@ -439,11 +521,11 @@ async function main(): Promise<void> {
     };
 
     const subAgentName = generateSubAgentName(cmd);
-    await logger.write(`🤖 Generated sub-agent name: ${subAgentName}`);
+    await logger.write(`Sub-agent name: ${subAgentName}`);
 
     // Step 5: Get prompt from Climpt CLI
     await logger.write(
-      `📝 Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
+      `Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
     );
     const prompt = await getClimptPrompt(cmd);
 
@@ -452,7 +534,18 @@ async function main(): Promise<void> {
     // Step 6: Run sub-agent
     await runSubAgent(subAgentName, prompt, cwd);
 
-    await logger.write(`\n📄 Log file: ${logger.getLogPath()}`);
+    // Print summary to stdout (not detailed logs)
+    const summary = logger.getSummary();
+    console.log(`${summary.status === "success" ? "✅" : "❌"} ${subAgentName}: ${summary.status}`);
+    if (summary.cost > 0) {
+      console.log(`💰 Cost: $${summary.cost.toFixed(4)}`);
+    }
+    if (summary.messageCount > 0) {
+      console.log(`💬 Messages: ${summary.messageCount}`);
+    }
+    console.log(`📄 Log: ${logger.getLogPath()}`);
+
+    await logger.write(`Summary printed to stdout`);
   } finally {
     await logger.close();
   }
@@ -461,10 +554,9 @@ async function main(): Promise<void> {
 // Execute main
 if (import.meta.main) {
   main().catch(async (error) => {
-    await logger.write(`❌ Error: ${error.message}`);
-    if (error.stack) {
-      await logger.write(error.stack);
-    }
+    await logger.writeError(error.message, { stack: error.stack });
+    console.log(`❌ Error: ${error.message}`);
+    console.log(`📄 Log: ${logger.getLogPath()}`);
     await logger.close();
     Deno.exit(1);
   });
