@@ -1,8 +1,9 @@
 /**
  * @fileoverview Semantic similarity search for commands
- * @module mcp/similarity
+ * @module climpt-plugins/climpt-agent/lib/similarity
  *
- * **SHARED MODULE** - Used by MCP server, mod.ts exports, and external consumers via JSR.
+ * Independent implementation for plugin use.
+ * Follows the same specification as MCP server implementation.
  *
  * @see docs/internal/command-operations.md - Search/Describe algorithm specification
  */
@@ -10,26 +11,29 @@
 import type { Command, SearchResult } from "./types.ts";
 
 /**
- * Cosine similarity calculation (word-based)
+ * Calculate cosine similarity between two text strings.
  *
- * Calculates the similarity between two text strings using word-level
- * cosine similarity. This is a simple but effective method for semantic search.
+ * Uses word-level cosine similarity:
+ * 1. Tokenize both strings (lowercase, split by whitespace)
+ * 2. Build vocabulary from unique words
+ * 3. Create frequency vectors
+ * 4. Calculate cosine similarity
  *
- * @param a First text string
- * @param b Second text string
- * @returns Similarity score between 0 and 1 (1 = identical, 0 = no similarity)
+ * @see docs/internal/command-operations.md#アルゴリズム-word-based-cosine-similarity
  *
- * @example
- * ```typescript
- * const score = cosineSimilarity("commit changes", "git commit");
- * console.log(score); // 0.5
- * ```
+ * @param a - First text string
+ * @param b - Second text string
+ * @returns Similarity score (0-1)
  */
 export function cosineSimilarity(a: string, b: string): number {
+  // Step 1: Tokenize
   const wordsA = a.toLowerCase().split(/\s+/);
   const wordsB = b.toLowerCase().split(/\s+/);
+
+  // Step 2: Build vocabulary
   const allWords = [...new Set([...wordsA, ...wordsB])];
 
+  // Step 3: Create frequency vectors
   const vectorA = allWords.map((word) =>
     wordsA.filter((w) => w === word).length
   );
@@ -37,6 +41,7 @@ export function cosineSimilarity(a: string, b: string): number {
     wordsB.filter((w) => w === word).length
   );
 
+  // Step 4: Calculate cosine similarity
   const dotProduct = vectorA.reduce((sum, a, i) => sum + a * vectorB[i], 0);
   const magnitudeA = Math.sqrt(vectorA.reduce((sum, a) => sum + a * a, 0));
   const magnitudeB = Math.sqrt(vectorB.reduce((sum, b) => sum + b * b, 0));
@@ -45,28 +50,24 @@ export function cosineSimilarity(a: string, b: string): number {
 }
 
 /**
- * Search commands by semantic similarity
+ * Search commands by semantic similarity.
  *
  * Searches a list of commands using natural language queries.
  * Uses cosine similarity to rank commands by relevance.
  *
- * @param commands Command list to search
- * @param query Search query in English
- * @param topN Number of results to return (default: 3)
- * @returns Top N most similar commands sorted by score (descending)
+ * @see docs/internal/command-operations.md#search-operation
  *
- * @example
- * ```typescript
- * const results = searchCommands(commands, "commit changes", 3);
- * // Returns: [{ c1: "git", c2: "group-commit", ..., score: 0.424 }, ...]
- * ```
+ * @param commands - Command list to search
+ * @param query - Search query in natural language
+ * @param topN - Number of results to return (default: 3)
+ * @returns Top N most similar commands sorted by score (descending)
  */
 export function searchCommands(
   commands: Command[],
   query: string,
   topN = 3,
 ): SearchResult[] {
-  // Create unique command list (deduplicate by c1+c2+c3, keep first occurrence)
+  // Deduplicate by c1:c2:c3 key, keep first occurrence
   const uniqueCommands = new Map<string, Command>();
   for (const cmd of commands) {
     const key = `${cmd.c1}:${cmd.c2}:${cmd.c3}`;
@@ -78,7 +79,8 @@ export function searchCommands(
   // Calculate similarity for each unique command
   const results: SearchResult[] = [];
   for (const cmd of uniqueCommands.values()) {
-    // Combine c1, c2, c3, and description for search target
+    // Build search target: c1 + c2 + c3 + description
+    // @see docs/internal/command-operations.md#検索対象テキストの構築
     const searchTarget = `${cmd.c1} ${cmd.c2} ${cmd.c3} ${cmd.description}`
       .toLowerCase();
     const score = cosineSimilarity(query, searchTarget);
@@ -99,22 +101,18 @@ export function searchCommands(
 }
 
 /**
- * Describe command by c1, c2, c3
+ * Get command details by C3L identifiers.
  *
- * Retrieves all command definitions that match the specified c1, c2, c3.
- * Multiple records may exist for the same c1/c2/c3 combination with different options.
+ * Returns all command definitions that match the specified c1, c2, c3.
+ * Multiple records may exist for the same combination with different options.
  *
- * @param commands Command list to search
- * @param c1 Domain name (e.g., git, spec, test)
- * @param c2 Action name (e.g., create, analyze)
- * @param c3 Target name (e.g., refinement-issue, quality-metrics)
- * @returns All matching command definitions (may be multiple or empty)
+ * @see docs/internal/command-operations.md#describe-operation
  *
- * @example
- * ```typescript
- * const cmds = describeCommand(commands, "git", "group-commit", "unstaged-changes");
- * // Returns: [{ c1: "git", c2: "group-commit", c3: "unstaged-changes", ... }]
- * ```
+ * @param commands - Command list to search
+ * @param c1 - Domain identifier
+ * @param c2 - Action identifier
+ * @param c3 - Target identifier
+ * @returns All matching command definitions
  */
 export function describeCommand(
   commands: Command[],

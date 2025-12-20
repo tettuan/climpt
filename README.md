@@ -486,6 +486,28 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./src/mc
 
 The MCP server provides AI assistants with structured access to all Climpt functionality.
 
+## Claude Code Plugin
+
+Climpt provides a Claude Code Plugin for seamless integration with AI-assisted development workflows.
+
+### Quick Install
+
+```bash
+# Add marketplace
+/plugin marketplace add https://github.com/tettuan/climpt-marketplace
+
+# Install plugin
+/plugin install climpt-agent
+```
+
+### Features
+
+- **Natural Language Commands**: Automatically search and execute Climpt commands from natural language requests
+- **Git Workflows**: Commit grouping, branch management, PR workflows
+- **Meta Operations**: Frontmatter generation, instruction file creation
+
+See [climpt-plugins/README.md](climpt-plugins/README.md) for detailed documentation.
+
 ## Climpt Use Cases
 
 Switch between diverse prompts and get the desired prompt with a single command.

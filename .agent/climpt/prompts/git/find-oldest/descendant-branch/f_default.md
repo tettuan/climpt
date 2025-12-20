@@ -1,5 +1,5 @@
 ---
-c1: climpt-git
+c1: git
 c2: find-oldest
 c3: descendant-branch
 title: Git関連ブランチ探索とマージ処理実行

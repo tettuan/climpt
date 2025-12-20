@@ -1,5 +1,5 @@
 ---
-c1: climpt-meta
+c1: meta
 c2: create
 c3: instruction
 title: Create New Climpt Instruction
@@ -66,28 +66,21 @@ grep -rl "C3L.*Specification" docs/
 ```
 
 Review the specification to understand:
-- c1: Agent-Domain format (`<agent>-<domain>`)
+- c1: Domain identifier (e.g., `git`, `meta`, `code`)
 - c2: Action format (verb or verb-modifier)
 - c3: Target format (object or object-context)
 
 ## Step 2: Naming Convention (C3L Compliant)
 
-### c1 (Agent-Domain)
+### c1 (Domain)
 
-Format: `<agent>-<domain>`
+Format: `<domain>`
 
-| Agent | Role | Description |
-|-------|------|-------------|
-| `climpt` | Default orchestrator | Neutral, general-purpose |
-| `inspector` | Diagnostic observer | Analytical, exploratory |
-| `auditor` | Compliance enforcer | Strict, rule-based |
-| `builder` | Constructive executor | Creative, generative |
-| `curator` | Documentation maintainer | Reflective, descriptive |
-| `planner` | Process coordinator | Strategic, scheduling-focused |
+Common domains: `git`, `meta`, `code`, `data`, `infra`, `sec`, `test`, `docs`
 
-Common domains: `code`, `git`, `data`, `meta`, `infra`, `sec`, `test`, `docs`
+The agent is specified separately in registry and MCP calls (e.g., `agent: climpt`).
 
-Pattern: `^[a-z]+-[a-z]+$`
+Pattern: `^[a-z]+$`
 
 ### c2 (Action)
 
@@ -265,9 +258,9 @@ After completion, verify the following files exist and are correct:
 ## Example: Creating `climpt-data fetch stock-prices`
 
 1. **Naming**:
-   - c1: `climpt-data`
-   - c2: `fetch`
-   - c3: `stock-prices`
+   - c1: `data` (domain)
+   - c2: `fetch` (action)
+   - c3: `stock-prices` (target)
 
 2. **Create prompt**:
    ```bash

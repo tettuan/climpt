@@ -1,6 +1,10 @@
 /**
- * @fileoverview Type definitions for MCP server
+ * @fileoverview Type definitions for MCP server and shared utilities
  * @module mcp/types
+ *
+ * **SHARED MODULE** - Used by MCP server, mod.ts exports, and external consumers via JSR.
+ *
+ * @see docs/internal/registry-specification.md - Registry and Command schema definitions
  */
 
 /**
