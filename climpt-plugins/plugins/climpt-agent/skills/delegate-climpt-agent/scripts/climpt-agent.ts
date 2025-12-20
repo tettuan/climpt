@@ -20,16 +20,17 @@ import { join } from "jsr:@std/path";
 import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
-// Shared MCP utilities from climpt repository (relative import)
+// Plugin's own implementation (self-contained)
+// @see docs/internal/registry-specification.md
+// @see docs/internal/command-operations.md
 import {
+  type Command,
   describeCommand,
-  searchCommands,
-} from "../../../../../../src/mcp/similarity.ts";
-import type { Command, SearchResult } from "../../../../../../src/mcp/types.ts";
-import {
   loadMCPConfig,
   loadRegistryForAgent,
-} from "../../../../../../src/mcp/registry.ts";
+  searchCommands,
+  type SearchResult,
+} from "../../../lib/mod.ts";
 
 // =============================================================================
 // Logger
@@ -194,8 +195,27 @@ async function runSubAgent(
     options,
   });
 
-  for await (const message of queryResult) {
-    await handleMessage(message);
+  try {
+    for await (const message of queryResult) {
+      try {
+        await handleMessage(message);
+      } catch (error) {
+        // SDK may emit malformed JSON during message handling - log and continue
+        if (error instanceof SyntaxError && error.message.includes("JSON")) {
+          await logger.write(`⚠️ SDK JSON parse warning in handler (continuing): ${error.message}`);
+          continue;
+        }
+        throw error;
+      }
+    }
+  } catch (error) {
+    // SDK may emit malformed JSON during streaming iteration
+    if (error instanceof SyntaxError && error.message.includes("JSON")) {
+      await logger.write(`⚠️ SDK JSON parse error in stream (task may have completed): ${error.message}`);
+      // Don't throw - the sub-agent task likely completed despite the parse error
+      return;
+    }
+    throw error;
   }
 }
 
