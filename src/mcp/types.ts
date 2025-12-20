@@ -67,6 +67,14 @@ export interface Command {
      * Whether this command supports destination output via -d/--destination flag
      */
     destination?: boolean;
+
+    /**
+     * User-defined variables that can be passed via --uv-* options
+     * @example { "max-line-num": "Maximum lines per file", "storypoint": "Story point estimation" }
+     */
+    uv?: {
+      [name: string]: string;
+    };
   };
 }
 

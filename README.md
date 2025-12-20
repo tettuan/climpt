@@ -217,7 +217,7 @@ Climpt includes a built-in MCP server that allows AI assistants like Claude to i
 ### MCP Features
 
 - **Dynamic Tool Loading**: Automatically loads available tools from `.agent/climpt/registry.json`
-- **Full Command Registry Access**: All Climpt commands (code, docs, git, meta, spec, test) are available
+- **Full Command Registry Access**: All Climpt commands (git, meta) are available
 - **Multiple Registry Support** (v1.6.1+): Manage and switch between multiple agent registries
 - **Registry Configuration Management**: Configuration-based registry management via `.agent/climpt/mcp/config.json`
 - **Performance Optimization**: Fast responses through registry caching
@@ -307,13 +307,13 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
   "version": string,           // Registry version (e.g., "1.0.0")
   "description": string,       // Overall registry description
   "tools": {
-    // Array of tool names - each tool is available as climpt-{name}
-    "availableConfigs": string[],  // ["git", "spec", "test", "code", "docs", "meta"]
+    // Array of tool names in C3L v0.5 format (climpt-{domain})
+    "availableConfigs": string[],  // ["climpt-git", "climpt-meta"]
 
     // Command registry - defines all available C3L commands
     "commands": [
       {
-        "c1": string,         // Domain/category (git, spec, test, code, docs, meta)
+        "c1": string,         // Domain/category in C3L v0.5 format (climpt-git, climpt-meta)
         "c2": string,         // Action/directive (create, analyze, execute, etc.)
         "c3": string,         // Target/layer (refinement-issue, quality-metrics, etc.)
         "description": string,// Command description
@@ -336,107 +336,68 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
 ```json
 {
   "version": "1.0.0",
-  "description": "Comprehensive configuration for Climpt MCP server and command registry",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      "code",
-      "docs",
-      "git",
-      "meta",
-      "spec",
-      "test"
+      "climpt-git",
+      "climpt-meta"
     ],
     "commands": [
-      // Git commands
       {
-        "c1": "git",
-        "c2": "create",
-        "c3": "refinement-issue",
-        "description": "Create refinement issues from requirements documents",
-        "usage": "Creates refinement issues from requirements documents.\nExample: climpt-git create refinement-issue -f requirements.md",
+        "c1": "climpt-git",
+        "c2": "decide-branch",
+        "c3": "working-branch",
+        "description": "Decide whether to create a new branch or continue on the current branch based on task content",
+        "usage": "climpt-git decide-branch working-branch",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default"],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-git",
+        "c2": "merge-up",
+        "c3": "base-branch",
+        "description": "Merge a derived working branch back into its parent working branch",
+        "usage": "climpt-git merge-up base-branch",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default"],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        }
+      },
+      {
+        "c1": "climpt-meta",
+        "c2": "build",
+        "c3": "frontmatter",
+        "description": "Generate C3L v0.5 compliant frontmatter for Climpt instruction files",
+        "usage": "climpt-meta build frontmatter",
         "options": {
           "edition": ["default"],
           "adaptation": ["default", "detailed"],
-          "file": true,
-          "stdin": false,
+          "file": false,
+          "stdin": true,
           "destination": true
         }
       },
       {
-        "c1": "git",
-        "c2": "analyze",
-        "c3": "commit-history",
-        "description": "Analyze commit history to generate insights"
-      },
-
-      // Spec commands
-      {
-        "c1": "spec",
-        "c2": "analyze",
-        "c3": "quality-metrics",
-        "description": "Analyze specification quality and completeness"
-      },
-      {
-        "c1": "spec",
-        "c2": "validate",
-        "c3": "requirements",
-        "description": "Validate requirements against standards"
-      },
-
-      // Test commands
-      {
-        "c1": "test",
-        "c2": "execute",
-        "c3": "integration-suite",
-        "description": "Execute integration test suite"
-      },
-      {
-        "c1": "test",
-        "c2": "generate",
-        "c3": "unit-tests",
-        "description": "Generate unit tests from specifications"
-      },
-
-      // Code commands
-      {
-        "c1": "code",
+        "c1": "climpt-meta",
         "c2": "create",
-        "c3": "implementation",
-        "description": "Create implementation from design documents"
-      },
-      {
-        "c1": "code",
-        "c2": "refactor",
-        "c3": "architecture",
-        "description": "Refactor code architecture based on patterns"
-      },
-
-      // Docs commands
-      {
-        "c1": "docs",
-        "c2": "generate",
-        "c3": "api-reference",
-        "description": "Generate API reference documentation"
-      },
-      {
-        "c1": "docs",
-        "c2": "update",
-        "c3": "user-guide",
-        "description": "Update user guide documentation"
-      },
-
-      // Meta commands
-      {
-        "c1": "meta",
-        "c2": "list",
-        "c3": "available-commands",
-        "description": "List all available Climpt commands"
-      },
-      {
-        "c1": "meta",
-        "c2": "resolve",
-        "c3": "command-definition",
-        "description": "Resolve and display command definitions"
+        "c3": "instruction",
+        "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",
+        "usage": "climpt-meta create instruction",
+        "options": {
+          "edition": ["default"],
+          "adaptation": ["default", "detailed"],
+          "file": false,
+          "stdin": true,
+          "destination": true
+        }
       }
     ]
   }
@@ -452,7 +413,7 @@ The MCP server reads configuration from each agent's `.agent/{agent}/registry.js
 **Field Descriptions**:
 - `version`: Registry schema version
 - `description`: Overall registry description
-- `availableConfigs`: Array of tool names that become available as `climpt-{name}` commands
+- `availableConfigs`: Array of tool names in C3L v0.5 format (e.g., `climpt-git`, `climpt-meta`)
 - `commands`: Array of command definitions following C3L specification
   - `c1/c2/c3`: Command structure (domain/action/target)
   - `description`: Purpose of the command
@@ -471,6 +432,30 @@ cp examples/mcp/registry.template.json .agent/climpt/registry.json
 ```
 
 Complete template file available at [`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)
+
+### Registry Generation
+
+Generate or update `registry.json` from prompt frontmatter:
+
+```bash
+# Via JSR (recommended)
+deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
+
+# Local repository (using deno task)
+deno task generate-registry
+```
+
+Options:
+- `--base=<dir>` - Base directory
+- `--schema=<path>` - Schema file path
+- `--input=<pattern>` - Input glob pattern
+- `--output=<path>` - Output file path
+- `--template=<path>` - Template file path
+
+This uses `@aidevtool/frontmatter-to-schema` to:
+1. Read prompts from `.agent/climpt/prompts/**/*.md`
+2. Extract frontmatter and transform using `.agent/climpt/frontmatter-to-schema/registry.schema.json`
+3. Output to `.agent/climpt/registry.json`
 
 ### Running the MCP Server
 

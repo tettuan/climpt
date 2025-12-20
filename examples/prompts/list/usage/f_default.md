@@ -41,7 +41,7 @@ Prompts: `.agent/climpt/prompts/**/f_*.md`
 input_text : STDIN
 input_text_file : --from, -f
 destination_path : --destination, -o
-uv-* : --uv-*
+uv-* : --uv-* (user-defined variables, e.g., --uv-scope=feature, --uv-threshold=80)
 
 ## Steps
 
@@ -84,6 +84,8 @@ input_text: Specify the current scope
 input_text_file: Receive roughly described information
 destination_path: Specify output destination with multiple files
 uv-subdomain: Specify subdomain prefix
+uv-scope: Scope of changes (e.g., 'feature', 'bugfix')
+uv-threshold: Quality threshold percentage (e.g., '80')
 `````
 
 ```:NG, 2 prompt files in one line.
