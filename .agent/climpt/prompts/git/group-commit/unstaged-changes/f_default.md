@@ -1,5 +1,5 @@
 ---
-c1: climpt-git
+c1: git
 c2: group-commit
 c3: unstaged-changes
 title: 意味的近さでコミットを分けて実施する

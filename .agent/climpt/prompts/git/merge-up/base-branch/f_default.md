@@ -1,5 +1,5 @@
 ---
-c1: climpt-git
+c1: git
 c2: merge-up
 c3: base-branch
 title: 作業ブランチ間のマージ処理

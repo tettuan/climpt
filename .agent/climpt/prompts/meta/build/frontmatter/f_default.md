@@ -1,5 +1,5 @@
 ---
-c1: climpt-meta
+c1: meta
 c2: build
 c3: frontmatter
 title: Build C3L Prompt Frontmatter
@@ -41,7 +41,7 @@ A complete YAML frontmatter block ready to be placed at the top of a markdown in
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `c1` | string | Agent-Domain: `<agent>-<domain>` format | `climpt-git` |
+| `c1` | string | Domain identifier | `git`, `meta`, `code` |
 | `c2` | string | Action: verb or verb-modifier | `group-commit` |
 | `c3` | string | Target: object or object-context | `unstaged-changes` |
 | `title` | string | Human-readable title (English) | `Group Commit Unstaged Changes` |
@@ -71,14 +71,14 @@ options:
 
 ## Naming Conventions
 
-### c1 (Agent-Domain)
+### c1 (Domain)
 
-Format: `<agent>-<domain>`
+Format: `<domain>`
 
-- Agent names: `climpt` (default), `inspector`, `auditor`, `builder`, `curator`, `planner`
-- Domain examples: `code`, `git`, `data`, `meta`, `infra`, `sec`, `test`, `docs`
+- Domain examples: `git`, `meta`, `code`, `data`, `infra`, `sec`, `test`, `docs`
+- The agent is specified separately (e.g., `agent: climpt`)
 
-Pattern: `^[a-z]+-[a-z]+$`
+Pattern: `^[a-z]+$`
 
 ### c2 (Action)
 
@@ -104,7 +104,7 @@ Pattern: `^[a-z]+(-[a-z]+)?$`
 
 ```yaml
 ---
-c1: climpt-code
+c1: code
 c2: review
 c3: pull-request
 title: Review Pull Request Code
@@ -133,7 +133,7 @@ options:
 ## Validation Rules
 
 1. Exactly 3 semantic tokens (c1, c2, c3) before options
-2. c1 MUST match `<agent>-<domain>` format
+2. c1 is the domain identifier (e.g., `git`, `meta`, `code`)
 3. Hyphens allowed only within tokens, not between them
 4. All string values in English
 5. c3l_version should be quoted: `"0.5"`

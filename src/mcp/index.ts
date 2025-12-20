@@ -2,13 +2,10 @@
 
 /**
  * @fileoverview MCP Server implementation for Climpt
- *
- * This module implements a Model Context Protocol (MCP) server that provides
- * AI assistants with semantic search and command discovery capabilities.
- * The server dynamically loads command definitions from a registry file and
- * provides two core tools: search (semantic similarity) and describe (detailed lookup).
- *
  * @module mcp/index
+ *
+ * MCP server providing search, describe, execute, reload tools.
+ * Uses shared modules (types.ts, similarity.ts, registry.ts) with caching layer.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server";
@@ -20,9 +17,13 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types";
 import { CLIMPT_VERSION } from "../version.ts";
-import type { Command, MCPConfig, Registry } from "./types.ts";
+import type { Command, MCPConfig } from "./types.ts";
 import { DEFAULT_MCP_CONFIG } from "./types.ts";
 import { describeCommand, searchCommands } from "./similarity.ts";
+import {
+  loadMCPConfig,
+  loadRegistryForAgent as loadRegistryBase,
+} from "./registry.ts";
 
 console.error("🚀 MCP Server starting...");
 console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
@@ -38,62 +39,10 @@ let MCP_CONFIG: MCPConfig = DEFAULT_MCP_CONFIG;
 const REGISTRY_CACHE = new Map<string, Command[]>();
 
 /**
- * Load or create MCP configuration file.
+ * Load command registry for a specific agent with caching.
  *
- * Attempts to load the MCP configuration from standard locations:
- * 1. `.agent/climpt/mcp/config.json` (project-specific)
- * 2. `~/.agent/climpt/mcp/config.json` (user-specific)
- *
- * If no configuration file is found, creates a default configuration
- * in the project directory.
- *
- * @returns Promise that resolves to the loaded or default MCP configuration
- *
- * @internal
- */
-async function loadOrCreateMCPConfig(): Promise<MCPConfig> {
-  const configPaths = [
-    ".agent/climpt/mcp/config.json",
-    `${
-      Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ""
-    }/.agent/climpt/mcp/config.json`,
-  ];
-
-  // Try to load existing config
-  for (const configPath of configPaths) {
-    try {
-      const configText = await Deno.readTextFile(configPath);
-      const config = JSON.parse(configText) as MCPConfig;
-      console.error(`⚙️ Loaded MCP config from ${configPath}`);
-      return config;
-    } catch {
-      // Continue to next path
-    }
-  }
-
-  // Create default config if not found
-  const defaultConfigPath = ".agent/climpt/mcp/config.json";
-  try {
-    await Deno.mkdir(".agent/climpt/mcp", { recursive: true });
-    await Deno.writeTextFile(
-      defaultConfigPath,
-      JSON.stringify(DEFAULT_MCP_CONFIG, null, 2),
-    );
-    console.error(`✨ Created default MCP config at ${defaultConfigPath}`);
-    return DEFAULT_MCP_CONFIG;
-  } catch (error) {
-    console.error("⚠️ Failed to create MCP config:", error);
-    return DEFAULT_MCP_CONFIG;
-  }
-}
-
-/**
- * Load command registry for a specific agent.
- *
- * Loads and caches command definitions from the registry file specified
- * in the MCP configuration. The function first checks the cache, then
- * attempts to load from the configured registry path in both the current
- * directory and the user's home directory.
+ * Uses shared loadRegistryBase for actual loading, adds caching layer
+ * for MCP server performance.
  *
  * @param agentName - Name of the agent whose registry to load (e.g., 'climpt', 'inspector')
  * @returns Promise that resolves to an array of commands for the agent
@@ -106,47 +55,21 @@ async function loadRegistryForAgent(agentName: string): Promise<Command[]> {
     return REGISTRY_CACHE.get(agentName)!;
   }
 
-  const registryPath = MCP_CONFIG.registries[agentName];
-  if (!registryPath) {
-    console.error(`⚠️ No registry path configured for agent: ${agentName}`);
-    return [];
-  }
+  // Use shared loading utility
+  const commands = await loadRegistryBase(MCP_CONFIG, agentName);
 
-  try {
-    let configText: string;
-
-    try {
-      configText = await Deno.readTextFile(registryPath);
-    } catch {
-      // If not found in current directory, try user's home directory
-      const homeDir = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
-      const homePath = `${homeDir}/${registryPath}`;
-      configText = await Deno.readTextFile(homePath);
-    }
-
-    const config: Registry = JSON.parse(configText);
-    const commands = config.tools?.commands || [];
-
-    // Cache the commands
+  // Cache the commands
+  if (commands.length > 0) {
     REGISTRY_CACHE.set(agentName, commands);
-
-    console.error(
-      `⚙️ Loaded ${commands.length} commands for agent '${agentName}' from ${registryPath}`,
-    );
-    return commands;
-  } catch (error) {
-    console.error(
-      `⚠️ Failed to load registry for agent '${agentName}':`,
-      error,
-    );
-    return [];
   }
+
+  return commands;
 }
 
 /**
  * Initialize MCP server: load config and default registry
  */
-MCP_CONFIG = await loadOrCreateMCPConfig();
+MCP_CONFIG = await loadMCPConfig();
 
 // Load default registry for climpt
 const defaultCommands = await loadRegistryForAgent("climpt");
