@@ -25,11 +25,11 @@ Examples:
 
 ### Step 2: Execute sub-agent script
 
-Run `scripts/climpt-agent.ts` with the query to spawn an independent sub-agent:
+Run `climpt-agent.ts` from the plugin's scripts directory with the query to spawn an independent sub-agent:
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
-  scripts/climpt-agent.ts \
+  ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
   --query="<query text>" \
   [--agent=climpt] \
   [--options=<opt1,opt2,...>]
@@ -53,7 +53,7 @@ User request: "変更をコミットして"
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
-  scripts/climpt-agent.ts \
+  ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
   --query="commit my changes"
 ```
 
@@ -68,7 +68,7 @@ User request: "frontmatterを生成して"
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
-  scripts/climpt-agent.ts \
+  ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
   --query="generate frontmatter"
 ```
 
