@@ -4,7 +4,7 @@
  * Handles logging to JSONL format with automatic rotation.
  */
 
-import { join } from "jsr:@std/path";
+import { join } from "@std/path";
 import type { AgentName, LogEntry, LogLevel } from "./types.ts";
 
 /**

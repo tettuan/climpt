@@ -219,7 +219,7 @@ Climpt includes a built-in MCP server that allows AI assistants like Claude to i
 - **Dynamic Tool Loading**: Automatically loads available tools from `.agent/climpt/registry.json`
 - **Full Command Registry Access**: All Climpt commands (git, meta) are available
 - **Multiple Registry Support** (v1.6.1+): Manage and switch between multiple agent registries
-- **Registry Configuration Management**: Configuration-based registry management via `.agent/climpt/mcp/config.json`
+- **Registry Configuration Management**: Configuration-based registry management via `.agent/climpt/config/registry_config.json`
 - **Performance Optimization**: Fast responses through registry caching
 - **Graceful Fallback**: Defaults to standard tools when configuration is unavailable
 - **JSR Distribution**: Run directly from JSR without local installation
@@ -254,7 +254,7 @@ From v1.6.1, the MCP server can manage multiple agent registries.
 
 #### MCP Config Setup
 
-Define multiple agents and their registry paths in `.agent/climpt/mcp/config.json`:
+Define multiple agents and their registry paths in `.agent/climpt/config/registry_config.json`:
 
 ```json
 {
@@ -267,8 +267,8 @@ Define multiple agents and their registry paths in `.agent/climpt/mcp/config.jso
 ```
 
 **Configuration Location Priority:**
-1. Current directory: `.agent/climpt/mcp/config.json`
-2. Home directory: `~/.agent/climpt/mcp/config.json`
+1. Current directory: `.agent/climpt/config/registry_config.json`
+2. Home directory: `~/.agent/climpt/config/registry_config.json`
 3. Default configuration (automatically created)
 
 **Default Configuration:**

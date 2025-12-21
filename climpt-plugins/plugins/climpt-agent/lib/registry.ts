@@ -16,8 +16,8 @@ import { DEFAULT_MCP_CONFIG } from "./types.ts";
  * Load MCP configuration from known paths.
  *
  * Search order:
- * 1. `.agent/climpt/mcp/config.json` (project-specific)
- * 2. `~/.agent/climpt/mcp/config.json` (user-specific)
+ * 1. `.agent/climpt/config/registry_config.json` (project-specific)
+ * 2. `~/.agent/climpt/config/registry_config.json` (user-specific)
  *
  * If not found, creates default configuration in project directory.
  *
@@ -27,10 +27,10 @@ import { DEFAULT_MCP_CONFIG } from "./types.ts";
  */
 export async function loadMCPConfig(): Promise<MCPConfig> {
   const configPaths = [
-    ".agent/climpt/mcp/config.json",
+    ".agent/climpt/config/registry_config.json",
     `${
       Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || ""
-    }/.agent/climpt/mcp/config.json`,
+    }/.agent/climpt/config/registry_config.json`,
   ];
 
   // Try to load existing config
@@ -45,9 +45,9 @@ export async function loadMCPConfig(): Promise<MCPConfig> {
   }
 
   // Create default config if not found
-  const defaultConfigPath = ".agent/climpt/mcp/config.json";
+  const defaultConfigPath = ".agent/climpt/config/registry_config.json";
   try {
-    await Deno.mkdir(".agent/climpt/mcp", { recursive: true });
+    await Deno.mkdir(".agent/climpt/config", { recursive: true });
     await Deno.writeTextFile(
       defaultConfigPath,
       JSON.stringify(DEFAULT_MCP_CONFIG, null, 2),

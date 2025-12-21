@@ -25,13 +25,13 @@ Climpt コマンドレジストリの仕様書。MCP サーバーおよび Plugi
 - `.agent/climpt/registry.json` - climpt エージェントのレジストリ
 - `.agent/inspector/registry.json` - inspector エージェントのレジストリ
 
-### MCP Config
+### Registry Config
 
 レジストリパスを管理する設定ファイル。
 
 **ファイルパス:**
 ```
-.agent/climpt/mcp/config.json
+.agent/climpt/config/registry_config.json
 ```
 
 **スキーマ:**
