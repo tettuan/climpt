@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Multiple registry support for MCP with config-based management
-- New configuration file `.agent/climpt/mcp/config.json` for managing agent registries
+- New configuration file `.agent/climpt/config/registry_config.json` for managing agent registries
 - Optional `agent` parameter to search and describe tools for registry selection
 - Registry caching system for improved performance
 - Auto-creation of default MCP config on first startup

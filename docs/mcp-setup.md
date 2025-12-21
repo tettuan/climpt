@@ -167,7 +167,7 @@ registry.jsonを更新した後、MCPサーバーを再起動せずにキャッ�
 - エージェント指定時:
   指定されたエージェントのキャッシュをクリアし、registry.jsonから再読み込み
 - エージェント未指定時:
-  全エージェントのキャッシュをクリアし、MCP設定ファイル（`.agent/climpt/mcp/config.json`）に定義されている全エージェントのregistry.jsonを再読み込み
+  全エージェントのキャッシュをクリアし、レジストリ設定ファイル（`.agent/climpt/config/registry_config.json`）に定義されている全エージェントのregistry.jsonを再読み込み
 - エージェントが廃止された場合や新規追加された場合でも、設定ファイルに基づいて正しく更新される
 - 再読み込み後のコマンド数と成功メッセージを返却
 
@@ -230,7 +230,7 @@ cd climpt
 
 ### 2. 複数Registryの設定（v1.6.1以降）
 
-複数のエージェントのregistryを使用する場合、`.agent/climpt/mcp/config.json`を作成します。
+複数のエージェントのregistryを使用する場合、`.agent/climpt/config/registry_config.json`を作成します。
 
 **デフォルト設定:** MCPサーバー起動時に自動的に作成されます：
 
@@ -256,8 +256,8 @@ cd climpt
 
 **設定場所の優先順位:**
 
-1. カレントディレクトリ: `.agent/climpt/mcp/config.json`
-2. ホームディレクトリ: `~/.agent/climpt/mcp/config.json`
+1. カレントディレクトリ: `.agent/climpt/config/registry_config.json`
+2. ホームディレクトリ: `~/.agent/climpt/config/registry_config.json`
 3. デフォルト設定（自動作成）
 
 ### 3. Claude Codeの設定
