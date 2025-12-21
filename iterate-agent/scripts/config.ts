@@ -4,7 +4,7 @@
  * Loads and validates configuration from iterate-agent/config.json.
  */
 
-import { join } from "jsr:@std/path";
+import { join } from "@std/path";
 import type { AgentName, IterateAgentConfig, AgentConfig } from "./types.ts";
 
 /**
