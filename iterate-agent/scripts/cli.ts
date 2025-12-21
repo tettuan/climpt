@@ -4,11 +4,11 @@
  * Parses command-line arguments for the iterate-agent.
  */
 
-import { parseArgs } from "jsr:@std/cli/parse-args";
+import { parseArgs } from "@std/cli/parse-args";
 import type { AgentOptions, AgentName } from "./types.ts";
 
 /**
- * Valid agent names (MCP agent names from .agent/climpt/mcp/config.json)
+ * Valid agent names (defined in .agent/climpt/config/registry_config.json)
  */
 const DEFAULT_AGENT_NAME = "climpt";
 
@@ -96,7 +96,7 @@ OPTIONS:
 
   --name, -n <name>
       MCP agent name (e.g., "climpt"). Defaults to "${DEFAULT_AGENT_NAME}".
-      Must be defined in .agent/climpt/mcp/config.json
+      Must be defined in .agent/climpt/config/registry_config.json
 
   --help, -h
       Display this help message.
@@ -116,7 +116,7 @@ EXAMPLES:
 
 NOTES:
   - Requires GITHUB_TOKEN environment variable with 'repo' and 'project' scopes
-  - Agent name must be defined in .agent/climpt/mcp/config.json registries
+  - Agent name must be defined in .agent/climpt/config/registry_config.json
   - Logs are saved to tmp/logs/agents/{agent-name}/session-{timestamp}.jsonl
   - Maximum 100 log files per agent (auto-rotated)
 `);

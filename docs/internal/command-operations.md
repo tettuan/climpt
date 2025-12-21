@@ -174,8 +174,8 @@ deno run \
 
 ### Config ファイル検索順序
 
-1. `.agent/climpt/mcp/config.json` (プロジェクトローカル)
-2. `~/.agent/climpt/mcp/config.json` (ユーザーホーム)
+1. `.agent/climpt/config/registry_config.json` (プロジェクトローカル)
+2. `~/.agent/climpt/config/registry_config.json` (ユーザーホーム)
 
 見つからない場合、デフォルト設定を使用:
 

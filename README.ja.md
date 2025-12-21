@@ -219,7 +219,7 @@ Climptには、ClaudeなどのAIアシスタントがコマンドレジストリ
 - **動的ツール読み込み**: `.agent/climpt/registry.json`から利用可能なツールを自動的に読み込み
 - **完全なコマンドレジストリアクセス**: すべてのClimptコマンド（code、docs、git、meta、spec、test）が利用可能
 - **複数Registry対応** (v1.6.1以降): 複数のエージェントのregistryを管理・切り替え可能
-- **Registry設定管理**: `.agent/climpt/mcp/config.json`による設定ベースのregistry管理
+- **Registry設定管理**: `.agent/climpt/config/registry_config.json`による設定ベースのregistry管理
 - **パフォーマンス最適化**: Registryキャッシングによる高速な応答
 - **グレースフルフォールバック**: 設定が利用できない場合は標準ツールにデフォルト
 - **JSRディストリビューション**: ローカルインストールなしでJSRから直接実行可能
@@ -254,7 +254,7 @@ v1.6.1から、MCPサーバーは複数のエージェントのregistryを管理
 
 #### MCP Config設定
 
-`.agent/climpt/mcp/config.json`で複数のエージェントとそのregistryパスを定義します：
+`.agent/climpt/config/registry_config.json`で複数のエージェントとそのregistryパスを定義します：
 
 ```json
 {
@@ -267,8 +267,8 @@ v1.6.1から、MCPサーバーは複数のエージェントのregistryを管理
 ```
 
 **設定場所の優先順位:**
-1. カレントディレクトリ: `.agent/climpt/mcp/config.json`
-2. ホームディレクトリ: `~/.agent/climpt/mcp/config.json`
+1. カレントディレクトリ: `.agent/climpt/config/registry_config.json`
+2. ホームディレクトリ: `~/.agent/climpt/config/registry_config.json`
 3. デフォルト設定（自動作成）
 
 **デフォルト設定:**

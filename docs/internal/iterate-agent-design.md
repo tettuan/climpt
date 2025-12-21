@@ -382,9 +382,9 @@ Location: `iterate-agent/config.json` (プロジェクトルート直下)
 - `"acceptEdits"`: ファイル編集を自動承認（自律エージェント推奨）
 - `"bypassPermissions"`: すべての権限チェックをバイパス（注意して使用）
 
-### 6.2 MCP Configuration Reuse
+### 6.2 Registry Configuration Reuse
 
-Iterate Agent は、既存の MCP 設定 (`.agent/climpt/mcp/config.json`) を共有:
+Iterate Agent は、既存のレジストリ設定 (`.agent/climpt/config/registry_config.json`) を共有:
 
 ```json
 {

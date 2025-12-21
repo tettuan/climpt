@@ -207,7 +207,7 @@ server.setRequestHandler(
             agent: {
               type: "string",
               description:
-                "Optional agent name to reload (e.g., 'climpt', 'inspector'). If not specified, clears cache for all agents and reloads all agents defined in MCP config file (.agent/climpt/mcp/config.json). This handles cases where agents are added, removed, or modified in the configuration.",
+                "Optional agent name to reload (e.g., 'climpt', 'inspector'). If not specified, clears cache for all agents and reloads all agents defined in registry config file (.agent/climpt/config/registry_config.json). This handles cases where agents are added, removed, or modified in the configuration.",
             },
           },
           required: [],
@@ -518,7 +518,7 @@ server.setRequestHandler(
  * capabilities for discovering and executing development commands.
  *
  * This function:
- * 1. Loads MCP configuration from `.agent/climpt/mcp/config.json`
+ * 1. Loads registry configuration from `.agent/climpt/config/registry_config.json`
  * 2. Initializes command registries for configured agents
  * 3. Sets up stdio transport for communication
  * 4. Connects the server and starts listening for requests
