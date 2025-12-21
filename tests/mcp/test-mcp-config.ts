@@ -28,11 +28,11 @@ Deno.test("MCP config.json can be created with default values", async () => {
     Deno.chdir(tempDir);
 
     // Create config directory
-    const configDir = `${tempDir}/.agent/climpt/mcp`;
+    const configDir = `${tempDir}/.agent/climpt/config`;
     await Deno.mkdir(configDir, { recursive: true });
 
     // Write default config
-    const configPath = `${configDir}/config.json`;
+    const configPath = `${configDir}/registry_config.json`;
     await Deno.writeTextFile(
       configPath,
       JSON.stringify(DEFAULT_MCP_CONFIG, null, 2),
@@ -105,7 +105,7 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
   try {
     // Set up home directory config
     Deno.env.set("HOME", tempHomeDir);
-    const homeConfigDir = `${tempHomeDir}/.agent/climpt/mcp`;
+    const homeConfigDir = `${tempHomeDir}/.agent/climpt/config`;
     await Deno.mkdir(homeConfigDir, { recursive: true });
 
     const homeConfig: MCPConfig = {
@@ -114,12 +114,12 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
       },
     };
     await Deno.writeTextFile(
-      `${homeConfigDir}/config.json`,
+      `${homeConfigDir}/registry_config.json`,
       JSON.stringify(homeConfig, null, 2),
     );
 
     // Set up work directory config (should take priority)
-    const workConfigDir = `${tempWorkDir}/.agent/climpt/mcp`;
+    const workConfigDir = `${tempWorkDir}/.agent/climpt/config`;
     await Deno.mkdir(workConfigDir, { recursive: true });
 
     const workConfig: MCPConfig = {
@@ -129,14 +129,14 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
       },
     };
     await Deno.writeTextFile(
-      `${workConfigDir}/config.json`,
+      `${workConfigDir}/registry_config.json`,
       JSON.stringify(workConfig, null, 2),
     );
 
     Deno.chdir(tempWorkDir);
 
     // Verify work directory config takes priority
-    const configText = await Deno.readTextFile(".agent/climpt/mcp/config.json");
+    const configText = await Deno.readTextFile(".agent/climpt/config/registry_config.json");
     const config: MCPConfig = JSON.parse(configText);
 
     assertEquals(Object.keys(config.registries).length, 2);

@@ -68,7 +68,7 @@ deno task iterate-agent [OPTIONS]
 | `--issue` | `-i` | number | - | GitHub Issue number. Agent works until issue is closed. |
 | `--project` | `-p` | number | - | GitHub Project number. Agent works until all items are done. |
 | `--iterate-max` | `-m` | number | Infinity | Maximum number of Skill invocations. |
-| `--name` | `-n` | string | `climpt` | MCP agent name (must be defined in `.agent/climpt/mcp/config.json`). |
+| `--name` | `-n` | string | `climpt` | MCP agent name (must be defined in `.agent/climpt/config/registry_config.json`). |
 | `--help` | `-h` | - | - | Display help message. |
 
 ### Examples
@@ -92,7 +92,7 @@ deno task iterate-agent --name climpt
 
 ## Agents
 
-Iterate Agent uses MCP agents defined in `.agent/climpt/mcp/config.json`:
+Iterate Agent uses agents defined in `.agent/climpt/config/registry_config.json`:
 
 | Agent | Description | Tools | Permission Mode |
 |-------|-------------|-------|-----------------|
@@ -106,7 +106,7 @@ Agent configuration is in `iterate-agent/config.json`:
 - Permission mode: Control how the agent handles operations
 
 You can add more agents by:
-1. Adding the agent to `.agent/climpt/mcp/config.json` with its registry path
+1. Adding the agent to `.agent/climpt/config/registry_config.json` with its registry path
 2. Adding agent configuration to `iterate-agent/config.json`
 3. Creating a system prompt template in `iterate-agent/prompts/`
 
