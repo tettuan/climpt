@@ -479,7 +479,7 @@ Climpt provides a Claude Code Plugin for seamless integration with AI-assisted d
 
 ```bash
 # Add marketplace
-/plugin marketplace add https://github.com/tettuan/climpt-marketplace
+/plugin marketplace add https://github.com/tettuan/climpt
 
 # Install plugin
 /plugin install climpt-agent

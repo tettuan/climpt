@@ -163,3 +163,17 @@ export interface PromptContext {
   completionCriteria: string;
   completionCriteriaDetail: string;
 }
+
+/**
+ * Parsed CLI arguments result
+ */
+export interface ParsedArgs {
+  /** Whether --init flag was specified */
+  init: boolean;
+
+  /** Whether --help flag was specified */
+  help: boolean;
+
+  /** Agent options (only valid if not init/help) */
+  options?: AgentOptions;
+}
