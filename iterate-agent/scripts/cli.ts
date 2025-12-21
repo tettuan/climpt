@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import type { AgentOptions, AgentName } from "./types.ts";
+import type { AgentOptions, AgentName, ParsedArgs } from "./types.ts";
 
 /**
  * Valid agent names (defined in .agent/climpt/config/registry_config.json)
@@ -13,25 +13,39 @@ import type { AgentOptions, AgentName } from "./types.ts";
 const DEFAULT_AGENT_NAME = "climpt";
 
 /**
- * Parse CLI arguments and return AgentOptions
+ * Parse CLI arguments and return ParsedArgs
  *
  * @param args - Command-line arguments (typically Deno.args)
- * @returns Parsed and validated AgentOptions
+ * @returns Parsed arguments including flags and options
  * @throws Error if validation fails
  */
-export function parseCliArgs(args: string[]): AgentOptions {
+export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
     string: ["name", "issue", "project", "iterate-max"],
+    boolean: ["init", "help"],
     default: {
       "name": DEFAULT_AGENT_NAME,
+      "init": false,
+      "help": false,
     },
     alias: {
       i: "issue",
       p: "project",
       m: "iterate-max",
       n: "name",
+      h: "help",
     },
   });
+
+  // Check for help flag
+  if (parsed.help) {
+    return { init: false, help: true };
+  }
+
+  // Check for init flag
+  if (parsed.init) {
+    return { init: true, help: false };
+  }
 
   // Get agent name
   const agentName = parsed["name"] as string;
@@ -67,10 +81,14 @@ export function parseCliArgs(args: string[]): AgentOptions {
   }
 
   return {
-    issue,
-    project,
-    iterateMax,
-    agentName: agentName as AgentName,
+    init: false,
+    help: false,
+    options: {
+      issue,
+      project,
+      iterateMax,
+      agentName: agentName as AgentName,
+    },
   };
 }
 
@@ -82,9 +100,14 @@ export function displayHelp(): void {
 Iterate Agent - Autonomous Development Agent
 
 USAGE:
-  deno task iterate-agent [OPTIONS]
+  deno run -A jsr:@aidevtool/climpt/agents/iterator [OPTIONS]
 
 OPTIONS:
+  --init
+      Initialize configuration files in the current directory.
+      Creates iterate-agent/config.json and iterate-agent/prompts/default.md
+      Run this once before first use.
+
   --issue, -i <number>
       GitHub Issue number to work on. The agent will work until the issue is closed.
 
@@ -96,27 +119,27 @@ OPTIONS:
 
   --name, -n <name>
       MCP agent name (e.g., "climpt"). Defaults to "${DEFAULT_AGENT_NAME}".
-      Must be defined in .agent/climpt/config/registry_config.json
+      Must be defined in iterate-agent/config.json
 
   --help, -h
       Display this help message.
 
 EXAMPLES:
+  # First time setup (required)
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+
   # Work on Issue #123 until closed
-  deno task iterate-agent --issue 123
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
   # Work on Project #5 until all items complete
-  deno task iterate-agent --project 5
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 
   # Run with specific agent for 10 iterations
-  deno task iterate-agent --name climpt --iterate-max 10
-
-  # Work on Issue #456 with climpt agent
-  deno task iterate-agent --issue 456 --name climpt
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10
 
 NOTES:
+  - Run --init first to create configuration files in your project
   - Requires GITHUB_TOKEN environment variable with 'repo' and 'project' scopes
-  - Agent name must be defined in .agent/climpt/config/registry_config.json
   - Logs are saved to tmp/logs/agents/{agent-name}/session-{timestamp}.jsonl
   - Maximum 100 log files per agent (auto-rotated)
 `);

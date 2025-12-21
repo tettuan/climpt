@@ -8,6 +8,69 @@ import { join } from "@std/path";
 import type { AgentName, IterateAgentConfig, AgentConfig } from "./types.ts";
 
 /**
+ * Default configuration for iterate-agent
+ */
+const DEFAULT_CONFIG: IterateAgentConfig = {
+  version: "1.0.0",
+  agents: {
+    climpt: {
+      systemPromptTemplate: "iterate-agent/prompts/default.md",
+      allowedTools: ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      permissionMode: "acceptEdits",
+    },
+  },
+  github: {
+    tokenEnvVar: "GITHUB_TOKEN",
+    apiVersion: "2022-11-28",
+  },
+  logging: {
+    directory: "tmp/logs/agents",
+    maxFiles: 100,
+    format: "jsonl",
+  },
+};
+
+/**
+ * Default system prompt template
+ */
+const DEFAULT_PROMPT_TEMPLATE = `# Role
+You are an autonomous agent working on continuous development.
+
+# Objective
+Execute development tasks autonomously and make continuous progress.
+
+# Working Mode
+- You are running in a perpetual execution cycle
+- Use the **delegate-climpt-agent** Skill with --agent={{AGENT}} to execute development tasks
+- After each task completion, ask Climpt for the next logical task via the Skill
+- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
+
+# Task Execution Workflow
+1. Receive current requirements/context
+2. Invoke **delegate-climpt-agent** Skill with task description and --agent={{AGENT}}
+3. Review the AI-generated summary from the sub-agent
+4. Evaluate progress against completion criteria
+5. If incomplete, ask Climpt (via Skill) what to do next
+6. Repeat the cycle
+
+# Completion Criteria
+{{COMPLETION_CRITERIA_DETAIL}}
+
+# Guidelines
+- Be autonomous: Make decisions without waiting for human approval
+- Be thorough: Ensure each task is properly completed before moving on
+- Be organized: Maintain clear context of what has been done
+- Be communicative: Provide clear status updates in your responses
+
+## Guidelines for Development
+- Prioritize functionality and code maintainability
+- Follow the project's coding standards and patterns
+- Write clear commit messages
+- Ensure changes don't break existing functionality
+- Consider edge cases and error handling
+`;
+
+/**
  * Load the main configuration file
  *
  * @param configPath - Path to config.json (defaults to iterate-agent/config.json)
@@ -28,7 +91,8 @@ export async function loadConfig(
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       throw new Error(
-        `Configuration file not found: ${configPath}. Run from project root.`
+        `Configuration file not found: ${configPath}\n` +
+        `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`
       );
     }
     if (error instanceof SyntaxError) {
@@ -123,7 +187,8 @@ export async function loadSystemPromptTemplate(
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       throw new Error(
-        `System prompt template not found: ${templatePath}`
+        `System prompt template not found: ${templatePath}\n` +
+        `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`
       );
     }
     throw error;
@@ -171,4 +236,51 @@ export async function ensureLogDirectory(
   }
 
   return logDir;
+}
+
+/**
+ * Initialize configuration files in the current directory
+ *
+ * Creates:
+ * - iterate-agent/config.json
+ * - iterate-agent/prompts/default.md
+ *
+ * @param basePath - Base path for creating files (defaults to cwd)
+ * @returns Object with paths of created files
+ */
+export async function initializeConfig(
+  basePath: string = Deno.cwd()
+): Promise<{ configPath: string; promptPath: string }> {
+  const configDir = join(basePath, "iterate-agent");
+  const promptsDir = join(basePath, "iterate-agent/prompts");
+  const configPath = join(configDir, "config.json");
+  const promptPath = join(promptsDir, "default.md");
+
+  // Check if config already exists
+  try {
+    await Deno.stat(configPath);
+    throw new Error(
+      `Configuration already exists: ${configPath}\n` +
+      `Remove existing files first if you want to reinitialize.`
+    );
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) {
+      throw error;
+    }
+    // File doesn't exist, continue with initialization
+  }
+
+  // Create directories
+  await Deno.mkdir(promptsDir, { recursive: true });
+
+  // Write config.json
+  await Deno.writeTextFile(
+    configPath,
+    JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n"
+  );
+
+  // Write default.md
+  await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
+
+  return { configPath, promptPath };
 }
