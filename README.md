@@ -485,6 +485,8 @@ Climpt provides a Claude Code Plugin for seamless integration with AI-assisted d
 /plugin install climpt-agent
 ```
 
+**Note**: If `/plugin install` fails, use `/plugin` to open the plugin browser and install `climpt-agent` from the "Discover" tab.
+
 ### Features
 
 - **Natural Language Commands**: Automatically search and execute Climpt commands from natural language requests
