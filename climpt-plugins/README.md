@@ -21,7 +21,7 @@ Climpt Agent integrates with Claude Code to provide:
 ### Step 1: Add Marketplace
 
 ```bash
-/plugin marketplace add https://github.com/tettuan/climpt
+/plugin marketplace add tettuan/climpt
 ```
 
 ### Step 2: Install Plugin
