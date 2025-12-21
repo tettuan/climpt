@@ -11,6 +11,7 @@ import {
   getAgentConfig,
   loadSystemPromptTemplate,
   ensureLogDirectory,
+  initializeConfig,
 } from "./config.ts";
 import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
@@ -26,17 +27,39 @@ import type { AgentOptions, CompletionType } from "./types.ts";
  * Main agent loop
  */
 async function main(): Promise<void> {
-  // Check for help flag
-  if (Deno.args.includes("--help") || Deno.args.includes("-h")) {
-    displayHelp();
-    Deno.exit(0);
-  }
-
   let logger: Logger | null = null;
 
   try {
     // 1. Parse CLI arguments
-    const options = parseCliArgs(Deno.args);
+    const parsed = parseCliArgs(Deno.args);
+
+    // Handle --help flag
+    if (parsed.help) {
+      displayHelp();
+      Deno.exit(0);
+    }
+
+    // Handle --init flag
+    if (parsed.init) {
+      console.log("\n📦 Initializing iterate-agent configuration...\n");
+      const { configPath, promptPath } = await initializeConfig();
+      console.log(`✅ Created: ${configPath}`);
+      console.log(`✅ Created: ${promptPath}`);
+      console.log("\n🎉 Initialization complete!\n");
+      console.log("Next steps:");
+      console.log("  1. Review and customize the configuration in iterate-agent/config.json");
+      console.log("  2. Set GITHUB_TOKEN environment variable");
+      console.log("  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n");
+      Deno.exit(0);
+    }
+
+    // Ensure options are available for normal execution
+    if (!parsed.options) {
+      console.error("Error: No options provided. Use --help for usage information.");
+      Deno.exit(1);
+    }
+
+    const options = parsed.options;
 
     // 2. Load configuration
     const config = await loadConfig();

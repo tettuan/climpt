@@ -21,7 +21,7 @@ Climpt Agent integrates with Claude Code to provide:
 ### Step 1: Add Marketplace
 
 ```bash
-/plugin marketplace add https://github.com/tettuan/climpt-marketplace
+/plugin marketplace add https://github.com/tettuan/climpt
 ```
 
 ### Step 2: Install Plugin
@@ -42,8 +42,8 @@ For development or testing:
 # Clone the repository
 git clone https://github.com/tettuan/climpt.git
 
-# Add local marketplace
-/plugin marketplace add /path/to/climpt/climpt-plugins
+# Add local marketplace (marketplace.json is at repo root)
+/plugin marketplace add /path/to/climpt
 ```
 
 ## Usage
@@ -70,16 +70,20 @@ The Skill automatically activates when you make requests that match Climpt comma
 ## Architecture
 
 ```
+# Repository root
+/.claude-plugin/
+└── marketplace.json          # Marketplace registration
+
+# Plugins directory
 climpt-plugins/
-├── .claude-plugin/
-│   ├── plugin.json           # Plugin manifest
-│   └── marketplace.json      # Marketplace registration
-├── skills/
-│   └── delegate-climpt-agent/
-│       ├── SKILL.md          # Skill definition
-│       └── scripts/
-│           └── climpt-agent.ts   # Agent script (optional)
-├── .mcp.json                 # MCP server configuration
+├── plugins/
+│   └── climpt-agent/
+│       ├── .claude-plugin/
+│       │   └── plugin.json   # Plugin manifest
+│       ├── .mcp.json         # MCP server configuration
+│       └── skills/
+│           └── delegate-climpt-agent/
+│               └── SKILL.md  # Skill definition
 └── README.md
 ```
 
