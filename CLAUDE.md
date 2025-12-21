@@ -55,11 +55,11 @@ Bash({
 
 # Iterate Agent
 
-When running `deno task iterate-agent` from Claude Code, ALWAYS use `dangerouslyDisableSandbox: true`:
+When running iterate-agent from Claude Code, ALWAYS use `dangerouslyDisableSandbox: true`:
 
 ```typescript
 Bash({
-  command: "deno task iterate-agent --issue 123",
+  command: "deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123",
   description: "Run iterate agent for issue 123",
   dangerouslyDisableSandbox: true,
 })

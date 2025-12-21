@@ -507,18 +507,6 @@ Iterate Agent runs development workflows autonomously by:
 - Evaluating progress against completion criteria
 - Iterating until the work is complete
 
-### Setup
-
-Add a task to your `deno.json` (configuration example):
-
-```json
-{
-  "tasks": {
-    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys iterate-agent/scripts/agent.ts"
-  }
-}
-```
-
 ### Quick Start
 
 ```bash
@@ -526,24 +514,21 @@ Add a task to your `deno.json` (configuration example):
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
 export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxx"
 
-# Direct execution (after setting up the task)
-deno task iterate-agent --issue 123
-
-# Or run directly without task configuration
-deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys iterate-agent/scripts/agent.ts --issue 123
+# Run via JSR (recommended)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
 ### Usage Examples
 
 ```bash
 # Work on Issue #123 until closed
-deno task iterate-agent --issue 123
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
 # Work on Project #5 until all items complete
-deno task iterate-agent --project 5
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 
 # Run for maximum 10 iterations
-deno task iterate-agent --iterate-max 10
+deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
 ```
 
 ### Key Features

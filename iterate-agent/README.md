@@ -44,13 +44,13 @@ export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxx"
 
 ```bash
 # Work on Issue #123 until closed (uses default agent "climpt")
-deno task iterate-agent --issue 123
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
 # Work on Project #5 until all items complete
-deno task iterate-agent --project 5
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 
 # Run with climpt agent for 10 iterations
-deno task iterate-agent --name climpt --iterate-max 10
+deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10
 ```
 
 ## Usage
@@ -58,7 +58,7 @@ deno task iterate-agent --name climpt --iterate-max 10
 ### Command Syntax
 
 ```bash
-deno task iterate-agent [OPTIONS]
+deno run -A jsr:@aidevtool/climpt/agents/iterator [OPTIONS]
 ```
 
 ### Options
@@ -75,19 +75,19 @@ deno task iterate-agent [OPTIONS]
 
 ```bash
 # Example 1: Issue-based development
-deno task iterate-agent --issue 123
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
 # Example 2: Project-based development
-deno task iterate-agent --project 5
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 
 # Example 3: Run with iteration limit
-deno task iterate-agent --name climpt --iterate-max 10
+deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10
 
 # Example 4: Work on Issue #456
-deno task iterate-agent --issue 456 --name climpt
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 456 --name climpt
 
 # Example 5: Unlimited iterations
-deno task iterate-agent --name climpt
+deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt
 ```
 
 ## Agents
