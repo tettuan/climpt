@@ -63,30 +63,35 @@ deno task iterate-agent [OPTIONS]
 
 ### Options
 
-| Option          | Alias | Type   | Default  | Description                                                                      |
-| --------------- | ----- | ------ | -------- | -------------------------------------------------------------------------------- |
-| `--issue`       | `-i`  | number | -        | GitHub Issue number. Agent works until issue is closed.                          |
-| `--project`     | `-p`  | number | -        | GitHub Project number. Agent works until all items are done.                     |
-| `--iterate-max` | `-m`  | number | Infinity | Maximum number of Skill invocations.                                             |
-| `--name`        | `-n`  | string | `climpt` | MCP agent name (must be defined in `.agent/climpt/config/registry_config.json`). |
-| `--help`        | `-h`  | -      | -        | Display help message.                                                            |
+| Option          | Alias | Type    | Default  | Description                                                                      |
+| --------------- | ----- | ------- | -------- | -------------------------------------------------------------------------------- |
+| `--init`        | -     | boolean | -        | Initialize configuration files in current directory.                             |
+| `--issue`       | `-i`  | number  | -        | GitHub Issue number. Agent works until issue is closed.                          |
+| `--project`     | `-p`  | number  | -        | GitHub Project number. Agent works until all items are done.                     |
+| `--iterate-max` | `-m`  | number  | Infinity | Maximum number of Skill invocations.                                             |
+| `--name`        | `-n`  | string  | `climpt` | MCP agent name (must be defined in `.agent/climpt/config/registry_config.json`). |
+| `--resume`      | `-r`  | boolean | false    | Resume previous SDK session between iterations.                                  |
+| `--help`        | `-h`  | -       | -        | Display help message.                                                            |
 
 ### Examples
 
 ```bash
-# Example 1: Issue-based development
+# First time setup (required)
+deno task iterate-agent --init
+
+# Issue-based development
 deno task iterate-agent --issue 123
 
-# Example 2: Project-based development
+# Project-based development
 deno task iterate-agent --project 5
 
-# Example 3: Run with iteration limit
+# Run with iteration limit
 deno task iterate-agent --name climpt --iterate-max 10
 
-# Example 4: Work on Issue #456
-deno task iterate-agent --issue 456 --name climpt
+# Resume previous session between iterations
+deno task iterate-agent --issue 123 --resume
 
-# Example 5: Unlimited iterations
+# Unlimited iterations
 deno task iterate-agent --name climpt
 ```
 
