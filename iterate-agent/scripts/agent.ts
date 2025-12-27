@@ -7,8 +7,8 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { displayHelp, parseCliArgs } from "./cli.ts";
 import {
-  createCompletionHandler,
   type CompletionHandler,
+  createCompletionHandler,
 } from "./completion/mod.ts";
 import { IterateCompletionHandler } from "./completion/iterate.ts";
 import {
@@ -174,7 +174,8 @@ async function runAgentLoop(
   let previousSessionId: string | undefined = undefined;
 
   // Get initial completion description
-  const completionDescription = await completionHandler.getCompletionDescription();
+  const completionDescription = await completionHandler
+    .getCompletionDescription();
 
   console.log(`\n🤖 Starting Iterate Agent (${options.agentName})\n`);
   console.log(`📋 Completion criteria: ${completionDescription}`);

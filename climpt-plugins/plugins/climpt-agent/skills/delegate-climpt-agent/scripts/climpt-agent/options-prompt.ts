@@ -15,11 +15,7 @@
 
 import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 
-import type {
-  CommandWithUV,
-  PromptContext,
-  ResolvedOptions,
-} from "./types.ts";
+import type { CommandWithUV, PromptContext, ResolvedOptions } from "./types.ts";
 import type { Logger } from "./logger.ts";
 
 /**
@@ -43,7 +39,9 @@ export function buildOptionsPrompt(
   lines.push("");
   lines.push("## Intent");
   lines.push(`User request: "${userQuery}"`);
-  lines.push(`Command: ${usage || `${command.c1} ${command.c2} ${command.c3}`}`);
+  lines.push(
+    `Command: ${usage || `${command.c1} ${command.c2} ${command.c3}`}`,
+  );
   lines.push(`Purpose: ${description}`);
 
   // Context section - environment information

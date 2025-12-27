@@ -82,7 +82,8 @@ The project status will be checked periodically; when all items are done, your w
   buildCompletionCriteria(): CompletionCriteria {
     return {
       criteria: `completing Project #${this.projectNumber}`,
-      detail: `Work on Project #${this.projectNumber} until all items are complete. The project status will be checked periodically; when all items are marked as Done or Closed, your work is complete.`,
+      detail:
+        `Work on Project #${this.projectNumber} until all items are complete. The project status will be checked periodically; when all items are marked as Done or Closed, your work is complete.`,
     };
   }
 

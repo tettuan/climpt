@@ -17,7 +17,10 @@ import { join } from "jsr:@std/path";
 
 // Local modules
 import { parseArgs, validateArgs } from "./climpt-agent/cli.ts";
-import { generateSubAgentName, getClimptPrompt } from "./climpt-agent/command.ts";
+import {
+  generateSubAgentName,
+  getClimptPrompt,
+} from "./climpt-agent/command.ts";
 import { Logger } from "./climpt-agent/logger.ts";
 import {
   needsOptionResolution,
@@ -25,8 +28,15 @@ import {
   toCLIArgs,
 } from "./climpt-agent/options-prompt.ts";
 import { runSubAgent } from "./climpt-agent/sub-agent.ts";
-import { extractAssistantMessages, generateSummary } from "./climpt-agent/summary.ts";
-import type { ClimptCommand, CommandWithUV, PromptContext } from "./climpt-agent/types.ts";
+import {
+  extractAssistantMessages,
+  generateSummary,
+} from "./climpt-agent/summary.ts";
+import type {
+  ClimptCommand,
+  CommandWithUV,
+  PromptContext,
+} from "./climpt-agent/types.ts";
 
 // Plugin's shared library
 import {
@@ -91,7 +101,9 @@ async function main(): Promise<void> {
     // Select the best match
     const bestMatch = searchResults[0];
     await logger.write(
-      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
+      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${
+        bestMatch.score.toFixed(3)
+      })`,
       { description: bestMatch.description },
     );
 

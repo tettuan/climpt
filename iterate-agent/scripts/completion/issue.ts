@@ -82,7 +82,8 @@ The issue will be checked periodically; when it's closed, you're done.
   buildCompletionCriteria(): CompletionCriteria {
     return {
       criteria: `closing Issue #${this.issueNumber}`,
-      detail: `Work on Issue #${this.issueNumber} until it is closed. The issue will be checked periodically; when it's marked as CLOSED, your work is complete.`,
+      detail:
+        `Work on Issue #${this.issueNumber} until it is closed. The issue will be checked periodically; when it's marked as CLOSED, your work is complete.`,
     };
   }
 

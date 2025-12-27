@@ -9,7 +9,13 @@
  * @see docs/internal/command-operations.md
  */
 
-export type { Command, MCPConfig, Registry, SearchResult, UserVariable } from "./types.ts";
+export type {
+  Command,
+  MCPConfig,
+  Registry,
+  SearchResult,
+  UserVariable,
+} from "./types.ts";
 export { DEFAULT_MCP_CONFIG } from "./types.ts";
 
 export {

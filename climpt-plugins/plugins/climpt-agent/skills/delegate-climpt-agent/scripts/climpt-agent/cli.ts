@@ -30,7 +30,9 @@ export function parseArgs(args: string[]): CliArgs {
 /**
  * Validate CLI arguments and exit if invalid
  */
-export function validateArgs(args: CliArgs): asserts args is CliArgs & { query: string } {
+export function validateArgs(
+  args: CliArgs,
+): asserts args is CliArgs & { query: string } {
   if (!args.query) {
     displayHelp();
     Deno.exit(1);

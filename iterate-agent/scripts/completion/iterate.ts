@@ -104,7 +104,8 @@ ${summarySection}
 
     return {
       criteria: `${iterations} iterations`,
-      detail: `Execute ${iterations} iterations. After each iteration, decide on the next high-value task to tackle.`,
+      detail:
+        `Execute ${iterations} iterations. After each iteration, decide on the next high-value task to tackle.`,
     };
   }
 
@@ -120,12 +121,18 @@ ${summarySection}
    */
   getCompletionDescription(): Promise<string> {
     if (this.maxIterations === Infinity) {
-      return Promise.resolve(`Completed ${this.currentIteration} iteration(s) (unlimited mode)`);
+      return Promise.resolve(
+        `Completed ${this.currentIteration} iteration(s) (unlimited mode)`,
+      );
     }
     const remaining = this.maxIterations - this.currentIteration;
     if (remaining <= 0) {
-      return Promise.resolve(`All ${this.maxIterations} iteration(s) completed`);
+      return Promise.resolve(
+        `All ${this.maxIterations} iteration(s) completed`,
+      );
     }
-    return Promise.resolve(`${this.currentIteration}/${this.maxIterations} iterations completed, ${remaining} remaining`);
+    return Promise.resolve(
+      `${this.currentIteration}/${this.maxIterations} iterations completed, ${remaining} remaining`,
+    );
   }
 }
