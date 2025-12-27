@@ -41,12 +41,12 @@ export class IterateCompletionHandler implements CompletionHandler {
   /**
    * Build initial prompt for autonomous mode
    */
-  async buildInitialPrompt(): Promise<string> {
+  buildInitialPrompt(): Promise<string> {
     const iterations = this.maxIterations === Infinity
       ? "unlimited"
       : this.maxIterations;
 
-    return `
+    return Promise.resolve(`
 You are running in autonomous development mode for ${iterations} iterations.
 
 ## Your Mission
@@ -56,7 +56,7 @@ You are running in autonomous development mode for ${iterations} iterations.
 
 You have ${iterations} iterations to make meaningful contributions.
 Start by assessing the current state of the project and identifying high-value tasks.
-    `.trim();
+    `.trim());
   }
 
   /**
@@ -111,21 +111,21 @@ ${summarySection}
   /**
    * Check if maximum iterations reached
    */
-  async isComplete(): Promise<boolean> {
-    return this.currentIteration >= this.maxIterations;
+  isComplete(): Promise<boolean> {
+    return Promise.resolve(this.currentIteration >= this.maxIterations);
   }
 
   /**
    * Get human-readable completion status
    */
-  async getCompletionDescription(): Promise<string> {
+  getCompletionDescription(): Promise<string> {
     if (this.maxIterations === Infinity) {
-      return `Completed ${this.currentIteration} iteration(s) (unlimited mode)`;
+      return Promise.resolve(`Completed ${this.currentIteration} iteration(s) (unlimited mode)`);
     }
     const remaining = this.maxIterations - this.currentIteration;
     if (remaining <= 0) {
-      return `All ${this.maxIterations} iteration(s) completed`;
+      return Promise.resolve(`All ${this.maxIterations} iteration(s) completed`);
     }
-    return `${this.currentIteration}/${this.maxIterations} iterations completed, ${remaining} remaining`;
+    return Promise.resolve(`${this.currentIteration}/${this.maxIterations} iterations completed, ${remaining} remaining`);
   }
 }

@@ -42,8 +42,8 @@ export function isSkillInvocation(message: any): boolean {
  * @param message - SDK message to process
  * @param summary - Iteration summary to update
  */
-// deno-lint-ignore no-explicit-any
 export function captureIterationData(
+  // deno-lint-ignore no-explicit-any
   message: any,
   summary: IterationSummary,
 ): void {
@@ -109,8 +109,8 @@ export function captureIterationData(
  * @param message - SDK message to log
  * @param logger - Logger instance
  */
-// deno-lint-ignore no-explicit-any
 export async function logSDKMessage(
+  // deno-lint-ignore no-explicit-any
   message: any,
   logger: Logger,
 ): Promise<void> {
