@@ -13,8 +13,12 @@ MCPや、呼び出し方の定義ファイルが、Climptレポジトリに存�
 # Git
 develop, main への直接pushは禁止。
 PR作成してからリモートMergeする。その後ローカル反映する。
-mainはdevelopからのみマージ可: `other-branch -> develop -> main`
-リリース時もローカル develop から リリースブランチを作成して行う。
+
+## ブランチ戦略
+
+詳細は `/branch-management` skill を参照。
+
+基本フロー: `作業ブランチ -> release/* -> develop -> main`
 
 ## サンドボックス制限
 
@@ -37,14 +41,10 @@ Bash({
 - `git clone`
 - `gh` コマンド全般（GitHub CLI）
 
-## 1.9 リリース
-`feature/release-1.9` ブランチが 1.9 リリースのベースブランチ（developに相当）。
-作業ブランチは `feature/release-1.9` から派生させ、PRも `feature/release-1.9` へマージする。
-
 # リリース手順
 
-0. developブランチへ全ての作業ブランチを統合する（リリースに必要な変更に限る）
-1. リリースブランチを develop から派生して作成する
+0. release/* ブランチへ全ての作業ブランチを統合する（リリースに必要な変更に限る）
+1. リリースブランチを develop から派生して作成する（既存の release/* がある場合はそこから作業）
 2. リリース番号をあげる（deno.json, version.ts） , 基本はパッチバージョン
 3. リモートpushする
 4. リリースブランチ -> develop へのPRを作成する
