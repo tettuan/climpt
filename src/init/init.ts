@@ -34,7 +34,10 @@ export async function runInit(args: string[]): Promise<InitResult> {
 
   // Phase 1: 環境検出
   console.log("Phase 1: Detecting existing configuration");
-  const detection = await detectExisting(options.projectRoot, options.workingDir);
+  const detection = await detectExisting(
+    options.projectRoot,
+    options.workingDir,
+  );
 
   if (detection.hasWorkingDir) {
     console.log(`  Working directory: ${options.workingDir} (found)`);
@@ -73,7 +76,9 @@ export async function runInit(args: string[]): Promise<InitResult> {
       result.created.push(...metaResult.created);
       result.skipped.push(...metaResult.skipped);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
       result.errors.push(`Meta init failed: ${errorMessage}`);
     }
   } else {
@@ -92,7 +97,9 @@ export async function runInit(args: string[]): Promise<InitResult> {
       result.created.push(...registryResult.created);
       result.skipped.push(...registryResult.skipped);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
       result.errors.push(`Registry init failed: ${errorMessage}`);
     }
   } else {
@@ -151,12 +158,22 @@ function printSummary(result: InitResult, options: InitOptions): void {
   }
 
   console.log("\nAvailable meta commands:");
-  console.log("  climpt-meta build frontmatter    # Generate C3L frontmatter for new instruction");
-  console.log("  climpt-meta create instruction   # Create new Climpt instruction file");
+  console.log(
+    "  climpt-meta build frontmatter    # Generate C3L frontmatter for new instruction",
+  );
+  console.log(
+    "  climpt-meta create instruction   # Create new Climpt instruction file",
+  );
 
   console.log("\nNext steps:");
   console.log("  1. Create new instruction:");
-  console.log('     echo "Domain: code, Action: review, Target: pull-request" | climpt-meta create instruction');
-  console.log(`  2. Or add prompts manually to ${options.workingDir}/prompts/<domain>/`);
-  console.log("  3. Run 'deno run -A jsr:@aidevtool/climpt/reg' to update registry");
+  console.log(
+    '     echo "Domain: code, Action: review, Target: pull-request" | climpt-meta create instruction',
+  );
+  console.log(
+    `  2. Or add prompts manually to ${options.workingDir}/prompts/<domain>/`,
+  );
+  console.log(
+    "  3. Run 'deno run -A jsr:@aidevtool/climpt/reg' to update registry",
+  );
 }

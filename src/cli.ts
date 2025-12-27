@@ -8,7 +8,11 @@
  */
 
 // Import the breakdown package dynamically using the version from version.ts
-import { BREAKDOWN_VERSION, CLIMPT_VERSION, FRONTMATTER_TO_SCHEMA_VERSION } from "./version.ts";
+import {
+  BREAKDOWN_VERSION,
+  CLIMPT_VERSION,
+  FRONTMATTER_TO_SCHEMA_VERSION,
+} from "./version.ts";
 import { runInit } from "./init/mod.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
