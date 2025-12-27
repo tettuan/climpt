@@ -211,21 +211,35 @@ export async function resolveOptions(
   const queryResult = query({
     prompt,
     options: {
-      model: "claude-haiku",
+      model: "haiku",
       allowedTools: [], // No tools needed for option resolution
       systemPrompt:
-        "You are a CLI options resolver. Analyze the user's intent and command context, then return ONLY a valid JSON object with the appropriate option values. No explanation, no markdown.",
+        "You are a CLI options resolver. CRITICAL: You MUST return ONLY a valid JSON object. Never ask questions or explain. If intent is unclear, use reasonable defaults based on context (e.g., test files in tests/, current directory for paths). Always output valid JSON matching the requested format.",
     },
   });
 
   let responseText = "";
-  for await (const message of queryResult) {
-    if (message.type === "assistant" && message.message.content) {
-      for (const block of message.message.content) {
-        if (block.type === "text") {
-          responseText += block.text;
+  try {
+    for await (const message of queryResult) {
+      if (message.type === "assistant" && message.message.content) {
+        for (const block of message.message.content) {
+          if (block.type === "text") {
+            responseText += block.text;
+          }
         }
       }
+      // Break after result to prevent iteration error on process exit
+      if (message.type === "result") {
+        break;
+      }
+    }
+  } catch (error) {
+    // If we already got a response, continue with it
+    if (!responseText) {
+      await logger.writeError("LLM query failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   }
 
