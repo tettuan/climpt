@@ -28,40 +28,40 @@
 
 // Re-export types
 export type {
-  AgentName,
-  PermissionMode,
-  LogLevel,
-  CompletionType,
-  AgentOptions,
   AgentConfig,
-  IterateAgentConfig,
-  LogEntry,
+  AgentName,
+  AgentOptions,
+  CompletionCheckResult,
+  CompletionType,
   GitHubIssue,
   GitHubProject,
-  CompletionCheckResult,
+  IterateAgentConfig,
+  LogEntry,
+  LogLevel,
+  PermissionMode,
   PromptContext,
 } from "./scripts/types.ts";
 
 // Re-export CLI functions
-export { parseCliArgs, displayHelp } from "./scripts/cli.ts";
+export { displayHelp, parseCliArgs } from "./scripts/cli.ts";
 
 // Re-export config functions
 export {
-  loadConfig,
-  getAgentConfig,
-  loadSystemPromptTemplate,
-  getGitHubToken,
   ensureLogDirectory,
+  getAgentConfig,
+  getGitHubToken,
+  loadConfig,
+  loadSystemPromptTemplate,
 } from "./scripts/config.ts";
 
 // Re-export logger
-export { Logger, createLogger } from "./scripts/logger.ts";
+export { createLogger, Logger } from "./scripts/logger.ts";
 
 // Re-export prompt builders
 export {
-  buildSystemPrompt,
-  buildInitialPrompt,
   buildContinuationPrompt,
+  buildInitialPrompt,
+  buildSystemPrompt,
 } from "./scripts/prompts.ts";
 
 // Re-export GitHub integration functions

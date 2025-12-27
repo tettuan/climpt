@@ -4,11 +4,8 @@
  * Builds system prompts and initial prompts with variable substitution.
  */
 
-import type { AgentOptions, AgentName, IterationSummary } from "./types.ts";
-import {
-  fetchIssueRequirements,
-  fetchProjectRequirements,
-} from "./github.ts";
+import type { AgentOptions, IterationSummary } from "./types.ts";
+import { fetchIssueRequirements, fetchProjectRequirements } from "./github.ts";
 
 /**
  * Build system prompt from template with variable substitution
@@ -19,7 +16,7 @@ import {
  */
 export function buildSystemPrompt(
   templateContent: string,
-  options: AgentOptions
+  options: AgentOptions,
 ): string {
   const { issue, project, iterateMax } = options;
 
@@ -29,10 +26,12 @@ export function buildSystemPrompt(
 
   if (issue !== undefined) {
     completionCriteria = `closing Issue #${issue}`;
-    completionCriteriaDetail = `Work on Issue #${issue} until it is closed. The issue will be checked periodically; when it's marked as CLOSED, your work is complete.`;
+    completionCriteriaDetail =
+      `Work on Issue #${issue} until it is closed. The issue will be checked periodically; when it's marked as CLOSED, your work is complete.`;
   } else if (project !== undefined) {
     completionCriteria = `completing Project #${project}`;
-    completionCriteriaDetail = `Work on Project #${project} until all items are complete. The project status will be checked periodically; when all items are marked as Done or Closed, your work is complete.`;
+    completionCriteriaDetail =
+      `Work on Project #${project} until all items are complete. The project status will be checked periodically; when all items are marked as Done or Closed, your work is complete.`;
   } else {
     completionCriteria = `${iterateMax} iterations`;
     completionCriteriaDetail = `Execute ${
@@ -54,7 +53,7 @@ export function buildSystemPrompt(
  * @returns Initial prompt text
  */
 export async function buildInitialPrompt(
-  options: AgentOptions
+  options: AgentOptions,
 ): Promise<string> {
   const { issue, project, iterateMax } = options;
 
@@ -150,7 +149,7 @@ Start by assessing the current state of the project and identifying high-value t
 export function buildContinuationPrompt(
   options: AgentOptions,
   completedIterations: number,
-  previousSummary?: IterationSummary
+  previousSummary?: IterationSummary,
 ): string {
   const { issue, project, iterateMax } = options;
 
@@ -211,7 +210,8 @@ function formatIterationSummary(summary: IterationSummary): string {
 
   // Include last assistant response (most likely to contain the summary)
   if (summary.assistantResponses.length > 0) {
-    const lastResponse = summary.assistantResponses[summary.assistantResponses.length - 1];
+    const lastResponse =
+      summary.assistantResponses[summary.assistantResponses.length - 1];
     // Truncate if too long (keep it concise for context efficiency)
     const truncated = lastResponse.length > 1000
       ? lastResponse.substring(0, 1000) + "..."
@@ -226,7 +226,9 @@ function formatIterationSummary(summary: IterationSummary): string {
 
   // Report errors so next iteration can address them
   if (summary.errors.length > 0) {
-    const errorSummary = summary.errors.slice(0, 3).map(e => `- ${e}`).join("\n");
+    const errorSummary = summary.errors.slice(0, 3).map((e) => `- ${e}`).join(
+      "\n",
+    );
     parts.push(`### Errors encountered:\n${errorSummary}`);
   }
 

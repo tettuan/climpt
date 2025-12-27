@@ -24,7 +24,6 @@ import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 // @see docs/internal/registry-specification.md
 // @see docs/internal/command-operations.md
 import {
-  type Command,
   describeCommand,
   loadMCPConfig,
   loadRegistryForAgent,
@@ -107,7 +106,7 @@ class Logger {
   private async writeLog(
     level: LogEntry["level"],
     message: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -122,7 +121,10 @@ class Logger {
     }
   }
 
-  async write(message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async write(
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     await this.writeLog("info", message, metadata);
   }
 
@@ -131,23 +133,37 @@ class Logger {
     await this.writeLog("assistant", message);
   }
 
-  async writeSystem(message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async writeSystem(
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     await this.writeLog("system", message, metadata);
   }
 
-  async writeResult(status: "success" | "error", cost?: number, metadata?: Record<string, unknown>): Promise<void> {
+  async writeResult(
+    status: "success" | "error",
+    cost?: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     this.resultStatus = status;
     if (cost !== undefined) {
       this.resultCost = cost;
     }
-    await this.writeLog("result", status === "success" ? "Completed" : "Failed", {
-      status,
-      ...(cost !== undefined && { cost }),
-      ...metadata,
-    });
+    await this.writeLog(
+      "result",
+      status === "success" ? "Completed" : "Failed",
+      {
+        status,
+        ...(cost !== undefined && { cost }),
+        ...metadata,
+      },
+    );
   }
 
-  async writeError(message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async writeError(
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     await this.writeLog("error", message, metadata);
   }
 
@@ -217,7 +233,9 @@ function generateSubAgentName(cmd: ClimptCommand): string {
  * Execute Climpt command via CLI and get the instruction prompt
  */
 async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
-  const configParam = cmd.agent === "climpt" ? cmd.c1 : `${cmd.agent}-${cmd.c1}`;
+  const configParam = cmd.agent === "climpt"
+    ? cmd.c1
+    : `${cmd.agent}-${cmd.c1}`;
 
   const commandArgs = [
     "run",
@@ -260,12 +278,12 @@ async function extractAssistantMessages(logPath: string): Promise<string[]> {
   const messages: string[] = [];
   const logContent = await Deno.readTextFile(logPath);
 
-  for (const line of logContent.split('\n')) {
+  for (const line of logContent.split("\n")) {
     if (!line.trim()) continue;
 
     try {
       const entry = JSON.parse(line);
-      if (entry.level === 'assistant') {
+      if (entry.level === "assistant") {
         messages.push(entry.message);
       }
     } catch {
@@ -279,8 +297,12 @@ async function extractAssistantMessages(logPath: string): Promise<string[]> {
 /**
  * Generate summary of sub-agent execution
  */
-async function generateSummary(messages: string[], subAgentName: string): Promise<string> {
-  const prompt = `Based on the following messages from a sub-agent task (${subAgentName}), provide a concise summary:
+async function generateSummary(
+  messages: string[],
+  subAgentName: string,
+): Promise<string> {
+  const prompt =
+    `Based on the following messages from a sub-agent task (${subAgentName}), provide a concise summary:
 
 1. What was accomplished?
 2. What are the key results or next steps?
@@ -288,14 +310,15 @@ async function generateSummary(messages: string[], subAgentName: string): Promis
 Keep the summary brief and actionable.
 
 Messages:
-${messages.join('\n\n')}`;
+${messages.join("\n\n")}`;
 
   const queryResult = query({
     prompt,
     options: {
       model: "claude-sonnet-4-5-20250929",
       allowedTools: [], // No tools needed for summary
-      systemPrompt: "You are a helpful assistant that summarizes task execution results concisely.",
+      systemPrompt:
+        "You are a helpful assistant that summarizes task execution results concisely.",
     },
   });
 
@@ -364,7 +387,9 @@ async function runSubAgent(
         // SDK may emit malformed JSON during message handling
         // Known issue: https://github.com/anthropics/claude-agent-sdk-typescript/issues
         if (error instanceof SyntaxError && error.message.includes("JSON")) {
-          await logger.writeError(`SDK JSON parse warning in handler: ${error.message}`);
+          await logger.writeError(
+            `SDK JSON parse warning in handler: ${error.message}`,
+          );
           if (strictJsonMode) {
             throw error;
           }
@@ -377,7 +402,9 @@ async function runSubAgent(
     // SDK may emit malformed JSON during streaming iteration (typically at stream end)
     // Known issue: stream termination can produce incomplete JSON chunks
     if (error instanceof SyntaxError && error.message.includes("JSON")) {
-      await logger.writeError(`SDK JSON parse error in stream (task may have completed): ${error.message}`);
+      await logger.writeError(
+        `SDK JSON parse error in stream (task may have completed): ${error.message}`,
+      );
       if (strictJsonMode) {
         throw error;
       }
@@ -431,10 +458,13 @@ async function handleMessage(message: SDKMessage): Promise<void> {
           mcp_servers?: Array<{ name: string; status: string }>;
           tools?: string[];
         };
-        await logger.writeSystem(`Session: ${msg.session_id}, Model: ${msg.model}`, {
-          permissionMode: msg.permissionMode,
-          mcp_servers: msg.mcp_servers,
-        });
+        await logger.writeSystem(
+          `Session: ${msg.session_id}, Model: ${msg.model}`,
+          {
+            permissionMode: msg.permissionMode,
+            mcp_servers: msg.mcp_servers,
+          },
+        );
       }
       break;
 
@@ -482,12 +512,12 @@ function parseArgs(args: string[]): CliArgs {
 function validateArgs(args: CliArgs): void {
   if (!args.query) {
     console.error(
-      "Usage: climpt-agent.ts --query=\"<natural language query>\" [--agent=<name>] [--options=...]",
+      'Usage: climpt-agent.ts --query="<natural language query>" [--agent=<name>] [--options=...]',
     );
     console.error("");
     console.error("Parameters:");
     console.error(
-      '  --query   Natural language description of what you want to do (required)',
+      "  --query   Natural language description of what you want to do (required)",
     );
     console.error('  --agent   Agent name (default: "climpt")');
     console.error("  --options  Comma-separated list of options (optional)");
@@ -539,7 +569,9 @@ async function main(): Promise<void> {
     const searchResults: SearchResult[] = searchCommands(commands, args.query!);
 
     if (searchResults.length === 0) {
-      await logger.writeError(`No matching commands found for query: "${args.query}"`);
+      await logger.writeError(
+        `No matching commands found for query: "${args.query}"`,
+      );
       console.log(`❌ No matching commands found for query: "${args.query}"`);
       Deno.exit(1);
     }
@@ -547,8 +579,10 @@ async function main(): Promise<void> {
     // Select the best match
     const bestMatch = searchResults[0];
     await logger.write(
-      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${bestMatch.score.toFixed(3)})`,
-      { description: bestMatch.description }
+      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${
+        bestMatch.score.toFixed(3)
+      })`,
+      { description: bestMatch.description },
     );
 
     if (searchResults.length > 1) {
@@ -568,7 +602,9 @@ async function main(): Promise<void> {
     );
 
     if (matchedCommands.length > 0 && matchedCommands[0].options) {
-      await logger.write("Available options", { options: matchedCommands[0].options });
+      await logger.write("Available options", {
+        options: matchedCommands[0].options,
+      });
     }
 
     // Step 4: Create command and execute
@@ -598,8 +634,13 @@ async function main(): Promise<void> {
     const summary = logger.getSummary();
 
     if (summary.status === "success") {
-      const assistantMessages = await extractAssistantMessages(logger.getLogPath());
-      const summaryText = await generateSummary(assistantMessages, subAgentName);
+      const assistantMessages = await extractAssistantMessages(
+        logger.getLogPath(),
+      );
+      const summaryText = await generateSummary(
+        assistantMessages,
+        subAgentName,
+      );
 
       console.log(`✅ ${subAgentName}`);
       console.log(summaryText);

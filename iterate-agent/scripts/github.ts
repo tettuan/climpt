@@ -14,7 +14,7 @@ import type { GitHubIssue, GitHubProject } from "./types.ts";
  * @throws Error if gh command fails
  */
 export async function fetchIssueRequirements(
-  issueNumber: number
+  issueNumber: number,
 ): Promise<string> {
   const command = new Deno.Command("gh", {
     args: [
@@ -63,7 +63,7 @@ Comments: ${commentCount}
  * @throws Error if gh command fails
  */
 export async function fetchProjectRequirements(
-  projectNumber: number
+  projectNumber: number,
 ): Promise<string> {
   const command = new Deno.Command("gh", {
     args: [
@@ -85,7 +85,7 @@ export async function fetchProjectRequirements(
   }
 
   const project = JSON.parse(
-    new TextDecoder().decode(stdout)
+    new TextDecoder().decode(stdout),
   ) as GitHubProject;
 
   const items = project.items || [];
@@ -94,7 +94,7 @@ export async function fetchProjectRequirements(
       (item) =>
         `- [${item.status || "No status"}] #${item.content?.number || "N/A"}: ${
           item.content?.title || "Untitled"
-        }`
+        }`,
     )
     .join("\n");
 
@@ -154,7 +154,7 @@ export async function isIssueComplete(issueNumber: number): Promise<boolean> {
  * @throws Error if gh command fails
  */
 export async function isProjectComplete(
-  projectNumber: number
+  projectNumber: number,
 ): Promise<boolean> {
   const command = new Deno.Command("gh", {
     args: [
@@ -176,12 +176,12 @@ export async function isProjectComplete(
   }
 
   const project = JSON.parse(
-    new TextDecoder().decode(stdout)
+    new TextDecoder().decode(stdout),
   ) as GitHubProject;
   const items = project.items || [];
 
   // All items must be closed or marked as done
   return items.every(
-    (item) => item.content?.state === "CLOSED" || item.status === "Done"
+    (item) => item.content?.state === "CLOSED" || item.status === "Done",
   );
 }

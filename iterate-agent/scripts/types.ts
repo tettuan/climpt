@@ -50,6 +50,9 @@ export interface AgentOptions {
 
   /** MCP agent name (e.g., "climpt") */
   agentName: AgentName;
+
+  /** Whether to resume previous session (default: false) */
+  resume: boolean;
 }
 
 /**
@@ -185,6 +188,9 @@ export interface ParsedArgs {
 export interface IterationSummary {
   /** Iteration number (1-based) */
   iteration: number;
+
+  /** SDK session ID for potential resume */
+  sessionId?: string;
 
   /** Assistant's text responses during this iteration */
   assistantResponses: string[];

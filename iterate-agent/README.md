@@ -1,10 +1,12 @@
 # Iterate Agent
 
-Autonomous development agent that executes cycles through iterations using Claude Agent SDK and Climpt Skills.
+Autonomous development agent that executes cycles through iterations using
+Claude Agent SDK and Climpt Skills.
 
 ## Overview
 
-Iterate Agent is a CLI-based autonomous agent that continuously executes development tasks by:
+Iterate Agent is a CLI-based autonomous agent that continuously executes
+development tasks by:
 
 1. Fetching requirements from GitHub Issues or Projects
 2. Using **delegate-climpt-agent** Skill to execute tasks
@@ -16,10 +18,12 @@ Iterate Agent is a CLI-based autonomous agent that continuously executes develop
 
 - **Autonomous Execution**: Runs without human intervention
 - **GitHub Integration**: Works with Issues and Projects via `gh` CLI
-- **Role-Based Prompts**: 5 specialized roles (developer, QA, architect, DevOps, tech writer)
+- **Role-Based Prompts**: 5 specialized roles (developer, QA, architect, DevOps,
+  tech writer)
 - **Climpt Skills Integration**: Leverages existing Climpt infrastructure
 - **Detailed Logging**: JSONL format with automatic rotation (max 100 files)
-- **Flexible Completion**: Complete by Issue close, Project done, or iteration count
+- **Flexible Completion**: Complete by Issue close, Project done, or iteration
+  count
 
 ## Prerequisites
 
@@ -63,13 +67,13 @@ deno task iterate-agent [OPTIONS]
 
 ### Options
 
-| Option | Alias | Type | Default | Description |
-|--------|-------|------|---------|-------------|
-| `--issue` | `-i` | number | - | GitHub Issue number. Agent works until issue is closed. |
-| `--project` | `-p` | number | - | GitHub Project number. Agent works until all items are done. |
-| `--iterate-max` | `-m` | number | Infinity | Maximum number of Skill invocations. |
-| `--name` | `-n` | string | `climpt` | MCP agent name (must be defined in `.agent/climpt/config/registry_config.json`). |
-| `--help` | `-h` | - | - | Display help message. |
+| Option          | Alias | Type   | Default  | Description                                                                      |
+| --------------- | ----- | ------ | -------- | -------------------------------------------------------------------------------- |
+| `--issue`       | `-i`  | number | -        | GitHub Issue number. Agent works until issue is closed.                          |
+| `--project`     | `-p`  | number | -        | GitHub Project number. Agent works until all items are done.                     |
+| `--iterate-max` | `-m`  | number | Infinity | Maximum number of Skill invocations.                                             |
+| `--name`        | `-n`  | string | `climpt` | MCP agent name (must be defined in `.agent/climpt/config/registry_config.json`). |
+| `--help`        | `-h`  | -      | -        | Display help message.                                                            |
 
 ### Examples
 
@@ -92,21 +96,25 @@ deno task iterate-agent --name climpt
 
 ## Agents
 
-Iterate Agent uses agents defined in `.agent/climpt/config/registry_config.json`:
+Iterate Agent uses agents defined in
+`.agent/climpt/config/registry_config.json`:
 
-| Agent | Description | Tools | Permission Mode |
-|-------|-------------|-------|-----------------|
-| `climpt` | General development tasks | Skill, Read, Write, Edit, Bash, Glob, Grep | `acceptEdits` |
+| Agent    | Description               | Tools                                      | Permission Mode |
+| -------- | ------------------------- | ------------------------------------------ | --------------- |
+| `climpt` | General development tasks | Skill, Read, Write, Edit, Bash, Glob, Grep | `acceptEdits`   |
 
 ### Customizing Agent Configuration
 
 Agent configuration is in `iterate-agent/config.json`:
+
 - System prompt template: `iterate-agent/prompts/default.md`
 - Allowed tools: Configure which tools the agent can use
 - Permission mode: Control how the agent handles operations
 
 You can add more agents by:
-1. Adding the agent to `.agent/climpt/config/registry_config.json` with its registry path
+
+1. Adding the agent to `.agent/climpt/config/registry_config.json` with its
+   registry path
 2. Adding agent configuration to `iterate-agent/config.json`
 3. Creating a system prompt template in `iterate-agent/prompts/`
 
@@ -120,7 +128,15 @@ Main configuration is in `iterate-agent/config.json`:
   "agents": {
     "climpt": {
       "systemPromptTemplate": "iterate-agent/prompts/default.md",
-      "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
       "permissionMode": "acceptEdits"
     }
   },
@@ -145,6 +161,7 @@ tmp/logs/agents/{role}/session-{timestamp}.jsonl
 ```
 
 Example:
+
 ```
 tmp/logs/agents/product-developer/session-2025-12-20T10-00-00-000Z.jsonl
 ```
@@ -168,13 +185,16 @@ tmp/logs/agents/product-developer/session-2025-12-20T10-00-00-000Z.jsonl
 
 ### Iteration Flow
 
-**Note**: 1 iteration = 1 complete main Claude session from start to finish. Multiple Skill invocations can occur within a single iteration.
+**Note**: 1 iteration = 1 complete main Claude session from start to finish.
+Multiple Skill invocations can occur within a single iteration.
 
 1. **Initialize**: Load config, create logger, build system prompt
-2. **Fetch Requirements**: Get Issue/Project details from GitHub (initial setup only)
+2. **Fetch Requirements**: Get Issue/Project details from GitHub (initial setup
+   only)
 3. **Iteration Loop**: For each iteration:
    - Start new Claude Agent session with current prompt
-   - Main Claude analyzes requirements and invokes **delegate-climpt-agent** Skill (potentially multiple times)
+   - Main Claude analyzes requirements and invokes **delegate-climpt-agent**
+     Skill (potentially multiple times)
    - Sub-agents execute tasks and return summaries
    - Session completes naturally
    - Increment iteration count
@@ -185,10 +205,10 @@ tmp/logs/agents/product-developer/session-2025-12-20T10-00-00-000Z.jsonl
 
 ### Completion Criteria
 
-| Type | Criteria | Check Method |
-|------|----------|--------------|
-| Issue | Issue is closed | `gh issue view {number} --json state` |
-| Project | All items are done/closed | `gh project view {number} --format json` |
+| Type    | Criteria                    | Check Method                                  |
+| ------- | --------------------------- | --------------------------------------------- |
+| Issue   | Issue is closed             | `gh issue view {number} --json state`         |
+| Project | All items are done/closed   | `gh project view {number} --format json`      |
 | Iterate | Iteration count reaches max | Counter increment after each complete session |
 
 ## Troubleshooting
@@ -196,6 +216,7 @@ tmp/logs/agents/product-developer/session-2025-12-20T10-00-00-000Z.jsonl
 ### Error: "gh command not found"
 
 Install GitHub CLI:
+
 ```bash
 # macOS
 brew install gh
@@ -207,6 +228,7 @@ brew install gh
 ### Error: "GITHUB_TOKEN not found"
 
 Set the environment variable:
+
 ```bash
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
 ```
