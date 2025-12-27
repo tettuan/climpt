@@ -77,22 +77,22 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator [OPTIONS]
 
 ```bash
 # First time setup (required)
-deno task iterate-agent --init
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 
 # Issue-based development
-deno task iterate-agent --issue 123
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
 # Project-based development
-deno task iterate-agent --project 5
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 
 # Run with iteration limit
-deno task iterate-agent --name climpt --iterate-max 10
+deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10
 
 # Resume previous session between iterations
-deno task iterate-agent --issue 123 --resume
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 
 # Unlimited iterations
-deno task iterate-agent --name climpt
+deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt
 ```
 
 ## Agents
