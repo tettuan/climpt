@@ -10,5 +10,6 @@
     "file": "{options.file}",
     "stdin": "{options.stdin}",
     "destination": "{options.destination}"
-  }
+  },
+  "uv": "{uv}"
 }

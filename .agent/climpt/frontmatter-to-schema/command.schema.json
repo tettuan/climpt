@@ -74,6 +74,17 @@
           "description": "Whether command supports destination output"
         }
       }
+    },
+    "uv": {
+      "type": "array",
+      "description": "User-defined variables declared in instruction body as {uv-*} templates",
+      "items": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string",
+          "description": "Variable description"
+        }
+      }
     }
   }
 }
