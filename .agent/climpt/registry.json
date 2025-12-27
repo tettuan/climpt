@@ -4,7 +4,8 @@
   "tools": {
     "availableConfigs": [
       "git",
-      "meta"
+      "meta",
+      "test"
     ],
     "commands": [
       {
@@ -23,7 +24,8 @@
           "file": false,
           "stdin": true,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "git",
@@ -42,7 +44,8 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "git",
@@ -61,7 +64,8 @@
           "file": true,
           "stdin": false,
           "destination": true
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "git",
@@ -79,7 +83,8 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "git",
@@ -97,7 +102,8 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "meta",
@@ -116,7 +122,8 @@
           "file": false,
           "stdin": true,
           "destination": true
-        }
+        },
+        "uv": ""
       },
       {
         "c1": "meta",
@@ -135,7 +142,31 @@
           "file": false,
           "stdin": true,
           "destination": true
-        }
+        },
+        "uv": ""
+      },
+      {
+        "c1": "test",
+        "c2": "run",
+        "c3": "specific",
+        "description": "Execute tests for a specific target using the uv-target variable",
+        "usage": "climpt-test run specific --uv-target=<test-target>",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        },
+        "uv": [
+          {
+            "target": "The specific test target to run (file path, function name, or test pattern)"
+          }
+        ]
       }
     ]
   }

@@ -8,10 +8,16 @@
  *
  * @example Basic usage
  * ```typescript
- * import { parseCliArgs, loadConfig, createLogger } from "@aidevtool/climpt/iterate-agent";
+ * import {
+ *   parseCliArgs,
+ *   loadConfig,
+ *   createLogger,
+ *   createCompletionHandler,
+ * } from "@aidevtool/climpt/iterate-agent";
  *
  * const options = parseCliArgs(["--issue", "123"]);
  * const config = await loadConfig();
+ * const handler = createCompletionHandler(options);
  * const logger = await createLogger("./logs", "climpt");
  * ```
  *
@@ -21,48 +27,68 @@
  *   AgentOptions,
  *   AgentConfig,
  *   IterateAgentConfig,
+ *   CompletionHandler,
  *   LogEntry,
  * } from "@aidevtool/climpt/iterate-agent";
  * ```
  */
 
-// Re-export types
+// Re-export types from types.ts
 export type {
-  AgentName,
-  PermissionMode,
-  LogLevel,
-  CompletionType,
-  AgentOptions,
   AgentConfig,
-  IterateAgentConfig,
-  LogEntry,
+  AgentName,
+  AgentOptions,
+  CompletionCheckResult,
   GitHubIssue,
   GitHubProject,
-  CompletionCheckResult,
+  IterateAgentConfig,
+  IterationSummary,
+  LogEntry,
+  LogLevel,
+  ParsedArgs,
+  PermissionMode,
   PromptContext,
 } from "./scripts/types.ts";
 
+// Re-export completion handler types and factory
+export {
+  createCompletionHandler,
+  formatIterationSummary,
+  IssueCompletionHandler,
+  IterateCompletionHandler,
+  ProjectCompletionHandler,
+} from "./scripts/completion/mod.ts";
+
+export type {
+  CompletionCriteria,
+  CompletionHandler,
+  CompletionType,
+} from "./scripts/completion/mod.ts";
+
+// Re-export message handler functions
+export {
+  captureIterationData,
+  isSkillInvocation,
+  logSDKMessage,
+} from "./scripts/message-handler.ts";
+
 // Re-export CLI functions
-export { parseCliArgs, displayHelp } from "./scripts/cli.ts";
+export { displayHelp, parseCliArgs } from "./scripts/cli.ts";
 
 // Re-export config functions
 export {
-  loadConfig,
-  getAgentConfig,
-  loadSystemPromptTemplate,
-  getGitHubToken,
   ensureLogDirectory,
+  getAgentConfig,
+  getGitHubToken,
+  loadConfig,
+  loadSystemPromptTemplate,
 } from "./scripts/config.ts";
 
 // Re-export logger
-export { Logger, createLogger } from "./scripts/logger.ts";
+export { createLogger, Logger } from "./scripts/logger.ts";
 
-// Re-export prompt builders
-export {
-  buildSystemPrompt,
-  buildInitialPrompt,
-  buildContinuationPrompt,
-} from "./scripts/prompts.ts";
+// Re-export prompt builder
+export { buildSystemPrompt } from "./scripts/prompts.ts";
 
 // Re-export GitHub integration functions
 export {

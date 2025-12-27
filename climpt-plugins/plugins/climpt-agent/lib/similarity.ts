@@ -11,6 +11,54 @@
 import type { Command, SearchResult } from "./types.ts";
 
 /**
+ * Tokenize text with enhanced splitting for better search accuracy.
+ *
+ * Splits text on:
+ * - Whitespace
+ * - Hyphens (group-commit → group, commit, group-commit)
+ * - Underscores (unstaged_changes → unstaged, changes, unstaged_changes)
+ * - CamelCase boundaries (groupCommit → group, commit, groupcommit)
+ *
+ * Original compound tokens are preserved to maintain backward compatibility.
+ *
+ * @param text Input text to tokenize
+ * @returns Array of lowercase tokens (deduplicated)
+ */
+export function tokenize(text: string): string[] {
+  const tokens: string[] = [];
+
+  // Step 1: Split by whitespace first (preserve case for camelCase detection)
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+
+  for (const word of words) {
+    const lowerWord = word.toLowerCase();
+    tokens.push(lowerWord); // Keep original token (lowercased)
+
+    // Step 2: Split by hyphens
+    if (lowerWord.includes("-")) {
+      const parts = lowerWord.split("-").filter((p) => p.length > 0);
+      tokens.push(...parts);
+    }
+
+    // Step 3: Split by underscores
+    if (lowerWord.includes("_")) {
+      const parts = lowerWord.split("_").filter((p) => p.length > 0);
+      tokens.push(...parts);
+    }
+
+    // Step 4: Split by camelCase boundaries (must use original case)
+    // Match: lowercase followed by uppercase (groupCommit → group|Commit)
+    const camelParts = word.replace(/([a-z])([A-Z])/g, "$1 $2").split(/\s+/);
+    if (camelParts.length > 1) {
+      tokens.push(...camelParts.map((p) => p.toLowerCase()));
+    }
+  }
+
+  // Return unique tokens
+  return [...new Set(tokens)];
+}
+
+/**
  * Calculate cosine similarity between two text strings.
  *
  * Uses word-level cosine similarity:
@@ -26,9 +74,9 @@ import type { Command, SearchResult } from "./types.ts";
  * @returns Similarity score (0-1)
  */
 export function cosineSimilarity(a: string, b: string): number {
-  // Step 1: Tokenize
-  const wordsA = a.toLowerCase().split(/\s+/);
-  const wordsB = b.toLowerCase().split(/\s+/);
+  // Step 1: Tokenize (enhanced with hyphen/underscore/camelCase splitting)
+  const wordsA = tokenize(a);
+  const wordsB = tokenize(b);
 
   // Step 2: Build vocabulary
   const allWords = [...new Set([...wordsA, ...wordsB])];

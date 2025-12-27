@@ -54,6 +54,7 @@ A complete YAML frontmatter block ready to be placed at the top of a markdown in
 | `usage` | string | - | Usage example: `<c1> <c2> <c3>` |
 | `c3l_version` | string | `"0.5"` | C3L specification version |
 | `options` | object | - | Command options configuration |
+| `uv` | array | - | User-defined variables for `{uv-*}` templates |
 
 ### Options Structure
 
@@ -68,6 +69,32 @@ options:
   stdin: false  # Whether command accepts stdin input
   destination: false  # Whether command supports destination output (-o)
 ```
+
+### User Variables (uv)
+
+The `uv` field is at the same level as `options` (not nested inside). When the instruction body contains `{uv-*}` template variables, declare them in the `uv` array. Each user variable maps to a CLI option `--uv-<name>=<value>`.
+
+**Detection Rule**: Scan the instruction body for patterns matching `{uv-*}`. For each match, extract the variable name and add it to the `uv` array.
+
+**Declaration Format**:
+```yaml
+options:
+  edition:
+    - default
+  file: false
+  stdin: false
+  destination: false
+uv:
+  - target_language: Target programming language for conversion
+  - output_format: Desired output format (json, yaml, xml)
+```
+
+**CLI Usage**:
+```bash
+climpt-code convert source-file --uv-target_language=python --uv-output_format=json
+```
+
+**Template Expansion**: `{uv-target_language}` → `python`, `{uv-output_format}` → `json`
 
 ## Naming Conventions
 
@@ -102,6 +129,8 @@ Pattern: `^[a-z]+(-[a-z]+)?$`
 
 ## Example Output
 
+### Basic Example
+
 ```yaml
 ---
 c1: code
@@ -122,6 +151,35 @@ options:
   destination: false
 ---
 ```
+
+### Example with User Variables
+
+When the instruction body contains `{uv-*}` templates, declare them in frontmatter at the same level as `options`:
+
+```yaml
+---
+c1: code
+c2: convert
+c3: source-file
+title: Convert Source File
+description: Convert source code to a different programming language
+usage: climpt-code convert source-file
+c3l_version: "0.5"
+options:
+  edition:
+    - default
+  adaptation:
+    - default
+  file: true
+  stdin: false
+  destination: true
+uv:
+  - target_language: Target programming language for conversion
+  - style_guide: Code style guide to follow (optional)
+---
+```
+
+This frontmatter declares that the instruction uses `{uv-target_language}` and `{uv-style_guide}` in its body.
 
 ## Language Requirement
 
