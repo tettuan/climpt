@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.3] - 2025-12-27
+
+### Added
+- Iterate Agent: iteration result handoff between sessions with `--resume` option
+- Climpt Agent: LLM-based option resolution with intent parameter support
+
 ## [1.8.1] - 2025-12-07
 
 ### Changed
