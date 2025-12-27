@@ -22,7 +22,7 @@
  * console.log(`Climpt version: ${CLIMPT_VERSION}`);
  * ```
  */
-export const CLIMPT_VERSION = "1.9.3";
+export const CLIMPT_VERSION = "1.9.4";
 
 /**
  * Version of the breakdown package to use.
@@ -37,4 +37,14 @@ export const CLIMPT_VERSION = "1.9.3";
  * const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.6.0";
+export const BREAKDOWN_VERSION = "1.7.0";
+
+/**
+ * Version of the frontmatter-to-schema package to use.
+ *
+ * This specifies which version of {@link https://jsr.io/@aidevtool/frontmatter-to-schema | @aidevtool/frontmatter-to-schema}
+ * JSR package is used for registry generation.
+ *
+ * @constant {string}
+ */
+export const FRONTMATTER_TO_SCHEMA_VERSION = "1.7.1";

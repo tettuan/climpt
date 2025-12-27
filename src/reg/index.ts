@@ -4,7 +4,20 @@
  * Generates registry.json from prompt frontmatter using @aidevtool/frontmatter-to-schema.
  */
 
-import { transformFiles } from "@aidevtool/frontmatter-to-schema";
+import { FRONTMATTER_TO_SCHEMA_VERSION } from "../version.ts";
+
+// deno-lint-ignore no-explicit-any
+let transformFiles: any;
+
+/**
+ * Dynamically imports the frontmatter-to-schema package with the specified version.
+ */
+async function importFrontmatterToSchema(): Promise<void> {
+  const mod = await import(
+    `jsr:@aidevtool/frontmatter-to-schema@^${FRONTMATTER_TO_SCHEMA_VERSION}`
+  );
+  transformFiles = mod.transformFiles;
+}
 
 /**
  * Options for registry generation
@@ -153,6 +166,11 @@ async function cleanupTemp(paths: { path: string; isTemp: boolean }[]) {
 export async function generateRegistry(
   options: GenerateOptions = {},
 ): Promise<GenerateResult> {
+  // Dynamically import frontmatter-to-schema if not loaded
+  if (!transformFiles) {
+    await importFrontmatterToSchema();
+  }
+
   const baseDir = options.baseDir ?? Deno.cwd();
 
   const localSchema = options.schema ?? `${baseDir}/${DEFAULTS.schema}`;
