@@ -295,10 +295,7 @@ ${messages.join('\n\n')}`;
     options: {
       model: "claude-sonnet-4-5-20250929",
       allowedTools: [], // No tools needed for summary
-      systemPrompt: {
-        type: "custom",
-        content: "You are a helpful assistant that summarizes task execution results concisely.",
-      },
+      systemPrompt: "You are a helpful assistant that summarizes task execution results concisely.",
     },
   });
 
