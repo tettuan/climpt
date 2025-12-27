@@ -3,11 +3,13 @@
   "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      ""
+      "git",
+      "meta",
+      "test"
     ],
     "commands": [
       {
-        "c1": "",
+        "c1": "git",
         "c2": "decide-branch",
         "c3": "working-branch",
         "description": "Decide whether to create a new branch or continue on the current branch based on task content",
@@ -26,7 +28,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "git",
         "c2": "find-oldest",
         "c3": "descendant-branch",
         "description": "Find descendant and sibling branches from the current branch and merge the oldest related branch",
@@ -46,7 +48,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "git",
         "c2": "group-commit",
         "c3": "unstaged-changes",
         "description": "Group file changes by semantic proximity and execute multiple commits sequentially",
@@ -66,7 +68,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "git",
         "c2": "list-select",
         "c3": "pr-branch",
         "description": "List local and remote branches with PRs, then auto-select the next target to work on",
@@ -85,7 +87,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "git",
         "c2": "merge-up",
         "c3": "base-branch",
         "description": "Merge a derived working branch back into its parent working branch",
@@ -104,7 +106,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "meta",
         "c2": "build",
         "c3": "frontmatter",
         "description": "Generate C3L v0.5 compliant frontmatter for Climpt instruction files",
@@ -124,7 +126,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "meta",
         "c2": "create",
         "c3": "instruction",
         "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",
@@ -144,7 +146,7 @@
         "uv": ""
       },
       {
-        "c1": "",
+        "c1": "test",
         "c2": "run",
         "c3": "specific",
         "description": "Execute tests for a specific target using the uv-target variable",
