@@ -105,44 +105,154 @@ async function deploySchemaFiles(
 
 /**
  * 埋め込みスキーマを取得
+ * Note: These schemas must match the full versions in .agent/climpt/frontmatter-to-schema/
+ * The x- attributes are required by @aidevtool/frontmatter-to-schema for aggregation
  */
 function getEmbeddedSchema(fileName: string): string | null {
   const schemas: Record<string, object> = {
     "registry.schema.json": {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      "$id": "climpt-registry-schema",
+      "title": "Climpt Registry Schema",
+      "description":
+        "Schema for generating registry.json from prompt frontmatter",
       "type": "object",
-      "required": ["version", "tools"],
+      "x-template": "registry.template.json",
+      "x-template-items": "command.template.json",
+      "required": ["version", "description", "tools"],
+      "additionalProperties": false,
       "properties": {
-        "version": { "type": "string" },
-        "description": { "type": "string" },
+        "version": {
+          "type": "string",
+          "default": "1.0.0",
+        },
+        "description": {
+          "type": "string",
+          "default":
+            "Climpt comprehensive configuration for MCP server and command registry",
+        },
         "tools": {
           "type": "object",
+          "additionalProperties": false,
+          "required": ["availableConfigs", "commands"],
           "properties": {
             "availableConfigs": {
               "type": "array",
               "items": { "type": "string" },
+              "x-derived-from": "tools.commands[].c1",
+              "x-derived-unique": true,
+              "description": "Unique list of domains derived from c1 values",
             },
-            "commands": { "type": "array" },
+            "commands": {
+              "type": "array",
+              "x-frontmatter-part": true,
+              "items": {
+                "$ref": "command.schema.json",
+              },
+              "description": "Array of command definitions from frontmatter",
+            },
           },
         },
       },
     },
     "command.schema.json": {
       "$schema": "http://json-schema.org/draft-07/schema#",
+      "$id": "c3l-prompt-schema-v0.5",
+      "title": "C3L Prompt Frontmatter Schema",
+      "description":
+        "Schema for C3L (Climpt 3-word Language) v0.5 compliant prompt frontmatter",
       "type": "object",
-      "required": ["c1", "c2", "c3"],
+      "x-template": "registry.template.json",
+      "x-template-items": "command.template.json",
+      "required": ["c1", "c2", "c3", "title"],
+      "additionalProperties": false,
       "properties": {
-        "c1": { "type": "string", "pattern": "^[a-z]+(-[a-z]+)?$" },
-        "c2": { "type": "string", "pattern": "^[a-z]+(-[a-z]+)?$" },
-        "c3": { "type": "string", "pattern": "^[a-z]+(-[a-z]+)?$" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "usage": { "type": "string" },
+        "c1": {
+          "type": "string",
+          "pattern": "^[a-z]+(-[a-z]+)?$",
+          "description":
+            "Domain: What domain this acts on (e.g., git, meta, test)",
+        },
+        "c2": {
+          "type": "string",
+          "pattern": "^[a-z]+(-[a-z]+)?$",
+          "description": "Action: What is done (e.g., group-commit, review)",
+        },
+        "c3": {
+          "type": "string",
+          "pattern": "^[a-z]+(-[a-z]+)?$",
+          "description":
+            "Target: What is acted upon (e.g., unstaged-changes, pull-request)",
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title of the prompt",
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what this prompt does",
+        },
+        "usage": {
+          "type": "string",
+          "description": "Usage example command",
+        },
+        "c3l_version": {
+          "type": "string",
+          "enum": ["0.5"],
+          "default": "0.5",
+          "description": "C3L specification version",
+        },
+        "options": {
+          "type": "object",
+          "description": "Command options configuration",
+          "properties": {
+            "edition": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["default"],
+              "description": "Available edition variants",
+            },
+            "adaptation": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": ["default"],
+              "description": "Available adaptation levels",
+            },
+            "file": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether command accepts file input",
+            },
+            "stdin": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether command accepts stdin input",
+            },
+            "destination": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether command supports destination output",
+            },
+          },
+        },
+        "uv": {
+          "type": "array",
+          "description":
+            "User-defined variables declared in instruction body as {uv-*} templates",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "description": "Variable description",
+            },
+          },
+        },
       },
     },
     "registry.template.json": {
-      "version": "{version}",
-      "description": "{description}",
+      "version": "1.0.0",
+      "description":
+        "Climpt comprehensive configuration for MCP server and command registry",
       "tools": {
         "availableConfigs": "{@derived:availableConfigs}",
         "commands": "{@items}",
@@ -152,6 +262,7 @@ function getEmbeddedSchema(fileName: string): string | null {
       "c1": "{c1}",
       "c2": "{c2}",
       "c3": "{c3}",
+      "title": "{title}",
       "description": "{description}",
       "usage": "{usage}",
     },

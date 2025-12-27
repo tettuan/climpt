@@ -211,7 +211,16 @@ export async function generateRegistry(
     if (result.isOk()) {
       return result.unwrap();
     } else {
-      throw new Error(`Registry generation failed: ${result}`);
+      // Result type may have different error extraction methods
+      const err = typeof result.unwrapErr === "function"
+        ? result.unwrapErr()
+        : result.error ?? result;
+      const errorMessage = err instanceof Error
+        ? err.message
+        : typeof err === "string"
+        ? err
+        : JSON.stringify(err, null, 2);
+      throw new Error(`Registry generation failed: ${errorMessage}`);
     }
   } finally {
     await cleanupTemp(tempPaths);
