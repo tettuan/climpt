@@ -213,7 +213,8 @@ export async function resolveOptions(
     options: {
       model: "haiku",
       allowedTools: ["Glob"], // Glob permission for file exploration
-      systemPrompt: `You are a CLI options resolver. Your task is to resolve CLI option values based on user intent.
+      systemPrompt:
+        `You are a CLI options resolver. Your task is to resolve CLI option values based on user intent.
 
 RULES:
 1. If the intent mentions specific file names or patterns, use Glob to find matching files
