@@ -1,259 +1,36 @@
 /**
  * Iterate Agent - System Prompt Builder
  *
- * Builds system prompts and initial prompts with variable substitution.
+ * Builds system prompts with variable substitution.
+ *
+ * Note: Initial and continuation prompts are now handled by CompletionHandler
+ * implementations in the completion/ directory.
  */
 
-import type { AgentOptions, IterationSummary } from "./types.ts";
-import { fetchIssueRequirements, fetchProjectRequirements } from "./github.ts";
+import type { CompletionHandler } from "./completion/mod.ts";
 
 /**
  * Build system prompt from template with variable substitution
  *
+ * Replaces template variables:
+ * - {{AGENT}} - Agent name
+ * - {{COMPLETION_CRITERIA}} - Short completion criteria description
+ * - {{COMPLETION_CRITERIA_DETAIL}} - Detailed completion criteria description
+ *
  * @param templateContent - Raw template content
- * @param options - Agent options
+ * @param handler - Completion handler providing criteria
+ * @param agentName - Agent name for substitution
  * @returns Processed system prompt
  */
 export function buildSystemPrompt(
   templateContent: string,
-  options: AgentOptions,
+  handler: CompletionHandler,
+  agentName: string,
 ): string {
-  const { issue, project, iterateMax } = options;
+  const { criteria, detail } = handler.buildCompletionCriteria();
 
-  // Determine completion criteria
-  let completionCriteria: string;
-  let completionCriteriaDetail: string;
-
-  if (issue !== undefined) {
-    completionCriteria = `closing Issue #${issue}`;
-    completionCriteriaDetail =
-      `Work on Issue #${issue} until it is closed. The issue will be checked periodically; when it's marked as CLOSED, your work is complete.`;
-  } else if (project !== undefined) {
-    completionCriteria = `completing Project #${project}`;
-    completionCriteriaDetail =
-      `Work on Project #${project} until all items are complete. The project status will be checked periodically; when all items are marked as Done or Closed, your work is complete.`;
-  } else {
-    completionCriteria = `${iterateMax} iterations`;
-    completionCriteriaDetail = `Execute ${
-      iterateMax === Infinity ? "unlimited" : iterateMax
-    } iterations. After each iteration, decide on the next high-value task to tackle.`;
-  }
-
-  // Replace template variables
   return templateContent
-    .replace(/\{\{AGENT\}\}/g, options.agentName)
-    .replace(/\{\{COMPLETION_CRITERIA\}\}/g, completionCriteria)
-    .replace(/\{\{COMPLETION_CRITERIA_DETAIL\}\}/g, completionCriteriaDetail);
-}
-
-/**
- * Build initial prompt based on completion criteria
- *
- * @param options - Agent options
- * @returns Initial prompt text
- */
-export async function buildInitialPrompt(
-  options: AgentOptions,
-): Promise<string> {
-  const { issue, project, iterateMax } = options;
-
-  if (issue !== undefined) {
-    return await buildIssuePrompt(issue);
-  } else if (project !== undefined) {
-    return await buildProjectPrompt(project);
-  } else {
-    return buildIterateOnlyPrompt(iterateMax);
-  }
-}
-
-/**
- * Build Issue-based initial prompt
- *
- * @param issueNumber - GitHub Issue number
- * @returns Initial prompt with issue details
- */
-async function buildIssuePrompt(issueNumber: number): Promise<string> {
-  const issueContent = await fetchIssueRequirements(issueNumber);
-
-  return `
-You are starting work on GitHub Issue #${issueNumber}.
-
-## Issue Details
-${issueContent}
-
-## Your Mission
-1. Use the **delegate-climpt-agent** Skill to implement the required changes
-2. After each task, evaluate progress toward closing this issue
-3. Continue until the issue requirements are fully satisfied
-4. The issue will be checked periodically; when it's closed, you're done
-
-Start by analyzing the issue requirements and planning your first task.
-  `.trim();
-}
-
-/**
- * Build Project-based initial prompt
- *
- * @param projectNumber - GitHub Project number
- * @returns Initial prompt with project details
- */
-async function buildProjectPrompt(projectNumber: number): Promise<string> {
-  const projectContent = await fetchProjectRequirements(projectNumber);
-
-  return `
-You are working on GitHub Project #${projectNumber}.
-
-## Project Overview
-${projectContent}
-
-## Your Mission
-1. Use the **delegate-climpt-agent** Skill to work through project tasks
-2. Focus on making continuous progress across all project items
-3. After each task, ask Climpt what to do next
-4. Continue until all project items are complete
-
-Start by reviewing the project board and selecting the first task to tackle.
-  `.trim();
-}
-
-/**
- * Build Iterate-only initial prompt
- *
- * @param iterateMax - Maximum iterations
- * @returns Initial prompt for iterate-only mode
- */
-function buildIterateOnlyPrompt(iterateMax: number): string {
-  const iterations = iterateMax === Infinity ? "unlimited" : iterateMax;
-
-  return `
-You are running in autonomous development mode for ${iterations} iterations.
-
-## Your Mission
-1. Use the **delegate-climpt-agent** Skill to execute development tasks
-2. After each task, ask Climpt for the next logical task via the Skill
-3. Make continuous progress on improving the codebase
-
-You have ${iterations} iterations to make meaningful contributions.
-Start by assessing the current state of the project and identifying high-value tasks.
-  `.trim();
-}
-
-/**
- * Build continuation prompt for next iteration
- *
- * @param options - Agent options
- * @param completedIterations - Number of completed iterations
- * @param previousSummary - Summary of what was accomplished in previous iteration
- * @returns Continuation prompt for next iteration
- */
-export function buildContinuationPrompt(
-  options: AgentOptions,
-  completedIterations: number,
-  previousSummary?: IterationSummary,
-): string {
-  const { issue, project, iterateMax } = options;
-
-  // Build summary section if previous summary exists
-  const summarySection = previousSummary
-    ? formatIterationSummary(previousSummary)
-    : "";
-
-  if (issue !== undefined) {
-    return `
-You are continuing work on GitHub Issue #${issue}.
-You have completed ${completedIterations} iteration(s).
-
-${summarySection}
-
-## Your Mission
-1. Review the Previous Iteration Summary above to understand what was accomplished
-2. Based on the summary, identify what remains to be done to close this issue
-3. Use the **delegate-climpt-agent** Skill to implement the next required changes
-4. After each task, evaluate progress toward closing this issue
-5. Continue until the issue requirements are fully satisfied
-
-The issue will be checked periodically; when it's closed, you're done.
-
-**Next Step**: Analyze the summary above and determine the most logical next action to take.
-    `.trim();
-  } else if (project !== undefined) {
-    return `
-You are continuing work on GitHub Project #${project}.
-You have completed ${completedIterations} iteration(s).
-
-${summarySection}
-
-## Your Mission
-1. Review the Previous Iteration Summary above to understand what was accomplished
-2. Based on the summary, identify what remains across project items
-3. Use the **delegate-climpt-agent** Skill to work through the next project task
-4. Focus on making continuous progress across all project items
-5. Continue until all project items are complete
-
-The project status will be checked periodically; when all items are done, your work is complete.
-
-**Next Step**: Analyze the summary above and determine the most logical next action to take.
-    `.trim();
-  } else {
-    const remaining = iterateMax === Infinity
-      ? "unlimited"
-      : iterateMax - completedIterations;
-
-    return `
-You are continuing in autonomous development mode.
-You have completed ${completedIterations} iteration(s). ${
-      iterateMax === Infinity
-        ? "You can continue indefinitely."
-        : `You have ${remaining} iteration(s) remaining.`
-    }
-
-${summarySection}
-
-## Your Mission
-1. Review the Previous Iteration Summary above to understand what was accomplished
-2. Based on the summary, identify the next high-value task to tackle
-3. Use the **delegate-climpt-agent** Skill to execute the next development task
-4. Make continuous progress on improving the codebase
-
-**Next Step**: Analyze the summary above and determine the most logical next action to take.
-    `.trim();
-  }
-}
-
-/**
- * Format iteration summary for inclusion in prompt
- *
- * @param summary - Iteration summary to format
- * @returns Formatted markdown string
- */
-function formatIterationSummary(summary: IterationSummary): string {
-  const parts: string[] = [];
-
-  parts.push(`## Previous Iteration Summary (Iteration ${summary.iteration})`);
-
-  // Include last assistant response (most likely to contain the summary)
-  if (summary.assistantResponses.length > 0) {
-    const lastResponse =
-      summary.assistantResponses[summary.assistantResponses.length - 1];
-    // Truncate if too long (keep it concise for context efficiency)
-    const truncated = lastResponse.length > 1000
-      ? lastResponse.substring(0, 1000) + "..."
-      : lastResponse;
-    parts.push(`### What was done:\n${truncated}`);
-  }
-
-  // Tools used gives context about actions taken
-  if (summary.toolsUsed.length > 0) {
-    parts.push(`### Tools used: ${summary.toolsUsed.join(", ")}`);
-  }
-
-  // Report errors so next iteration can address them
-  if (summary.errors.length > 0) {
-    const errorSummary = summary.errors.slice(0, 3).map((e) => `- ${e}`).join(
-      "\n",
-    );
-    parts.push(`### Errors encountered:\n${errorSummary}`);
-  }
-
-  return parts.join("\n\n");
+    .replace(/\{\{AGENT\}\}/g, agentName)
+    .replace(/\{\{COMPLETION_CRITERIA\}\}/g, criteria)
+    .replace(/\{\{COMPLETION_CRITERIA_DETAIL\}\}/g, detail);
 }

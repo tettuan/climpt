@@ -7,6 +7,11 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { displayHelp, parseCliArgs } from "./cli.ts";
 import {
+  createCompletionHandler,
+  type CompletionHandler,
+} from "./completion/mod.ts";
+import { IterateCompletionHandler } from "./completion/iterate.ts";
+import {
   ensureLogDirectory,
   getAgentConfig,
   initializeConfig,
@@ -16,15 +21,14 @@ import {
 import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
 import {
-  buildContinuationPrompt,
-  buildInitialPrompt,
-  buildSystemPrompt,
-} from "./prompts.ts";
-import { isIssueComplete, isProjectComplete } from "./github.ts";
+  captureIterationData,
+  isSkillInvocation,
+  logSDKMessage,
+} from "./message-handler.ts";
+import { buildSystemPrompt } from "./prompts.ts";
 import type {
   AgentConfig,
   AgentOptions,
-  CompletionType,
   IterateAgentConfig,
   IterationSummary,
 } from "./types.ts";
@@ -93,26 +97,38 @@ async function main(): Promise<void> {
       resume: options.resume,
     });
 
-    // 4. Load and build system prompt
+    // 4. Create completion handler
+    const completionHandler = createCompletionHandler(options);
+
+    await logger.write("debug", "Completion handler created", {
+      type: completionHandler.type,
+    });
+
+    // 5. Load and build system prompt
     const templateContent = await loadSystemPromptTemplate(agentConfig);
-    const systemPrompt = buildSystemPrompt(templateContent, options);
+    const systemPrompt = buildSystemPrompt(
+      templateContent,
+      completionHandler,
+      options.agentName,
+    );
 
     await logger.write("debug", "System prompt built", {
       promptLength: systemPrompt.length,
     });
 
-    // 5. Build initial prompt
-    const initialPrompt = await buildInitialPrompt(options);
+    // 6. Build initial prompt
+    const initialPrompt = await completionHandler.buildInitialPrompt();
 
     await logger.write("debug", "Initial prompt built", {
       promptLength: initialPrompt.length,
     });
 
-    // 6. Run agent loop
+    // 7. Run agent loop
     await runAgentLoop(
       options,
       config,
       agentConfig,
+      completionHandler,
       systemPrompt,
       initialPrompt,
       logger,
@@ -146,6 +162,7 @@ async function runAgentLoop(
   options: AgentOptions,
   _config: IterateAgentConfig,
   agentConfig: AgentConfig,
+  completionHandler: CompletionHandler,
   systemPrompt: string,
   initialPrompt: string,
   logger: Logger,
@@ -156,8 +173,11 @@ async function runAgentLoop(
   let previousSummary: IterationSummary | undefined = undefined;
   let previousSessionId: string | undefined = undefined;
 
+  // Get initial completion description
+  const completionDescription = await completionHandler.getCompletionDescription();
+
   console.log(`\n🤖 Starting Iterate Agent (${options.agentName})\n`);
-  console.log(`📋 Completion criteria: ${getCompletionDescription(options)}`);
+  console.log(`📋 Completion criteria: ${completionDescription}`);
   console.log(`🔄 Resume mode: ${options.resume ? "enabled" : "disabled"}`);
   console.log(`📝 Logs: ${logger.getLogPath()}\n`);
 
@@ -225,8 +245,19 @@ async function runAgentLoop(
     console.log(`\n✅ Iteration ${iterationCount} completed\n`);
     await logger.write("info", `Iteration ${iterationCount} completed`);
 
-    // Check completion criteria
-    isComplete = await checkCompletionCriteria(options, iterationCount, logger);
+    // Update iteration count for IterateCompletionHandler
+    if (completionHandler instanceof IterateCompletionHandler) {
+      completionHandler.setCurrentIteration(iterationCount);
+    }
+
+    // Check completion criteria using handler
+    isComplete = await completionHandler.isComplete();
+
+    await logger.write("debug", "Completion criteria checked", {
+      type: completionHandler.type,
+      complete: isComplete,
+      iteration: iterationCount,
+    });
 
     if (isComplete) {
       console.log(`\n🎉 Completion criteria met!\n`);
@@ -243,9 +274,8 @@ async function runAgentLoop(
     previousSummary = summary;
     previousSessionId = summary.sessionId;
 
-    // Prepare prompt for next iteration with previous summary
-    currentPrompt = buildContinuationPrompt(
-      options,
+    // Prepare prompt for next iteration with previous summary using handler
+    currentPrompt = completionHandler.buildContinuationPrompt(
       iterationCount,
       previousSummary,
     );
@@ -275,181 +305,6 @@ async function runAgentLoop(
   );
 
   await logger.close();
-}
-
-/**
- * Check if message contains Skill invocation
- */
-// deno-lint-ignore no-explicit-any
-function isSkillInvocation(message: any): boolean {
-  if (!message.message?.content) return false;
-
-  const content = Array.isArray(message.message.content)
-    ? message.message.content
-    : [message.message.content];
-
-  // deno-lint-ignore no-explicit-any
-  return content.some((block: any) =>
-    block.type === "tool_use" &&
-    block.name === "Skill" &&
-    block.input?.skill === "climpt-agent:delegate-climpt-agent"
-  );
-}
-
-/**
- * Extract meaningful data from SDK message for iteration summary
- */
-// deno-lint-ignore no-explicit-any
-function captureIterationData(message: any, summary: IterationSummary): void {
-  // Capture session_id from init message
-  if (
-    message.type === "system" && message.subtype === "init" &&
-    message.session_id
-  ) {
-    summary.sessionId = message.session_id;
-  }
-
-  // Capture assistant text responses and tool uses
-  if (message.message?.role === "assistant") {
-    const content = message.message.content;
-    const blocks = Array.isArray(content) ? content : [];
-
-    // Extract text blocks
-    // deno-lint-ignore no-explicit-any
-    const textBlocks = blocks.filter((b: any) => b.type === "text");
-    // deno-lint-ignore no-explicit-any
-    const text = textBlocks.map((b: any) => b.text).join("\n").trim();
-    if (text && text.length > 0) {
-      summary.assistantResponses.push(text);
-    }
-
-    // Extract tool uses (unique tool names only)
-    // deno-lint-ignore no-explicit-any
-    const toolUses = blocks.filter((b: any) => b.type === "tool_use");
-    for (const tool of toolUses) {
-      if (tool.name && !summary.toolsUsed.includes(tool.name)) {
-        summary.toolsUsed.push(tool.name);
-      }
-    }
-  }
-
-  // Capture final result
-  if (message.type === "result") {
-    summary.finalResult = message.result || undefined;
-  }
-
-  // Capture errors from tool results
-  if (message.message?.role === "user") {
-    const content = message.message.content;
-    if (Array.isArray(content)) {
-      for (const block of content) {
-        if (block.type === "tool_result" && block.is_error) {
-          summary.errors.push(String(block.content || "Unknown error"));
-        }
-      }
-    }
-  }
-}
-
-/**
- * Log SDK message
- */
-// deno-lint-ignore no-explicit-any
-async function logSDKMessage(message: any, logger: Logger): Promise<void> {
-  // Remove apiKeySource from message before logging
-  const sanitizedMessage = { ...message };
-  if (sanitizedMessage.apiKeySource !== undefined) {
-    delete sanitizedMessage.apiKeySource;
-  }
-
-  // Log raw message for debugging
-  await logger.write("debug", "Raw SDK message", {
-    rawMessage: JSON.stringify(sanitizedMessage, null, 2),
-    messageType: message.type,
-    messageRole: message.message?.role,
-  });
-
-  // Determine message type and extract content
-  if (message.type === "result") {
-    await logger.write("result", message.result || "(empty result)");
-  } else if (message.message?.role === "assistant") {
-    // Extract text content from assistant message
-    const content = message.message.content;
-    const textBlocks = Array.isArray(content)
-      // deno-lint-ignore no-explicit-any
-      ? content.filter((b: any) => b.type === "text")
-      : [];
-    // deno-lint-ignore no-explicit-any
-    const text = textBlocks.map((b: any) => b.text).join("\n");
-
-    if (text) {
-      await logger.write("assistant", text);
-    }
-  } else if (message.message?.role === "user") {
-    const content = typeof message.message.content === "string"
-      ? message.message.content
-      : JSON.stringify(message.message.content);
-    await logger.write("user", content);
-  } else {
-    // Generic system message (with apiKeySource removed)
-    await logger.write("system", JSON.stringify(sanitizedMessage));
-  }
-}
-
-/**
- * Check completion criteria
- */
-async function checkCompletionCriteria(
-  options: AgentOptions,
-  iterationCount: number,
-  logger: Logger,
-): Promise<boolean> {
-  const { issue, project, iterateMax } = options;
-
-  let type: CompletionType;
-  let complete = false;
-  const current = iterationCount;
-  let target = iterateMax;
-
-  if (issue !== undefined) {
-    type = "issue";
-    target = issue;
-    complete = await isIssueComplete(issue);
-  } else if (project !== undefined) {
-    type = "project";
-    target = project;
-    complete = await isProjectComplete(project);
-  } else {
-    type = "iterate";
-    complete = iterationCount >= iterateMax;
-  }
-
-  await logger.write("debug", "Completion criteria checked", {
-    completionCheck: {
-      type,
-      current,
-      target,
-      complete,
-    },
-  });
-
-  return complete;
-}
-
-/**
- * Get human-readable completion description
- */
-function getCompletionDescription(options: AgentOptions): string {
-  if (options.issue !== undefined) {
-    return `Close Issue #${options.issue}`;
-  } else if (options.project !== undefined) {
-    return `Complete Project #${options.project}`;
-  } else {
-    const max = options.iterateMax === Infinity
-      ? "unlimited"
-      : options.iterateMax;
-    return `Execute ${max} iterations`;
-  }
 }
 
 // Run main
