@@ -5,7 +5,7 @@
  */
 
 import { join } from "@std/path";
-import type { AgentName, IterateAgentConfig, AgentConfig } from "./types.ts";
+import type { AgentConfig, AgentName, IterateAgentConfig } from "./types.ts";
 
 /**
  * Default configuration for iterate-agent
@@ -78,7 +78,7 @@ Execute development tasks autonomously and make continuous progress.
  * @throws Error if file doesn't exist or is invalid
  */
 export async function loadConfig(
-  configPath: string = "iterate-agent/config.json"
+  configPath: string = "iterate-agent/config.json",
 ): Promise<IterateAgentConfig> {
   try {
     const content = await Deno.readTextFile(configPath);
@@ -92,7 +92,7 @@ export async function loadConfig(
     if (error instanceof Deno.errors.NotFound) {
       throw new Error(
         `Configuration file not found: ${configPath}\n` +
-        `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`
+          `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`,
       );
     }
     if (error instanceof SyntaxError) {
@@ -129,15 +129,17 @@ function validateConfig(config: IterateAgentConfig): void {
   for (const [agentName, agentConfig] of Object.entries(config.agents)) {
     if (!agentConfig.systemPromptTemplate) {
       throw new Error(
-        `Agent "${agentName}" missing required field: systemPromptTemplate`
+        `Agent "${agentName}" missing required field: systemPromptTemplate`,
       );
     }
     if (!agentConfig.allowedTools || !Array.isArray(agentConfig.allowedTools)) {
-      throw new Error(`Agent "${agentName}" missing or invalid field: allowedTools`);
+      throw new Error(
+        `Agent "${agentName}" missing or invalid field: allowedTools`,
+      );
     }
     if (!agentConfig.permissionMode) {
       throw new Error(
-        `Agent "${agentName}" missing required field: permissionMode`
+        `Agent "${agentName}" missing required field: permissionMode`,
       );
     }
   }
@@ -153,7 +155,7 @@ function validateConfig(config: IterateAgentConfig): void {
  */
 export function getAgentConfig(
   config: IterateAgentConfig,
-  agentName: AgentName
+  agentName: AgentName,
 ): AgentConfig {
   const agentConfig = config.agents[agentName];
 
@@ -161,7 +163,7 @@ export function getAgentConfig(
     throw new Error(
       `Agent "${agentName}" not found in configuration. Available agents: ${
         Object.keys(config.agents).join(", ")
-      }`
+      }`,
     );
   }
 
@@ -178,7 +180,7 @@ export function getAgentConfig(
  */
 export async function loadSystemPromptTemplate(
   agentConfig: AgentConfig,
-  basePath: string = Deno.cwd()
+  basePath: string = Deno.cwd(),
 ): Promise<string> {
   const templatePath = join(basePath, agentConfig.systemPromptTemplate);
 
@@ -188,7 +190,7 @@ export async function loadSystemPromptTemplate(
     if (error instanceof Deno.errors.NotFound) {
       throw new Error(
         `System prompt template not found: ${templatePath}\n` +
-        `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`
+          `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`,
       );
     }
     throw error;
@@ -207,7 +209,7 @@ export function getGitHubToken(config: IterateAgentConfig): string {
 
   if (!token) {
     throw new Error(
-      `GitHub token not found. Set ${config.github.tokenEnvVar} environment variable.`
+      `GitHub token not found. Set ${config.github.tokenEnvVar} environment variable.`,
     );
   }
 
@@ -223,7 +225,7 @@ export function getGitHubToken(config: IterateAgentConfig): string {
  */
 export async function ensureLogDirectory(
   config: IterateAgentConfig,
-  agentName: AgentName
+  agentName: AgentName,
 ): Promise<string> {
   const logDir = join(config.logging.directory, agentName);
 
@@ -249,7 +251,7 @@ export async function ensureLogDirectory(
  * @returns Object with paths of created files
  */
 export async function initializeConfig(
-  basePath: string = Deno.cwd()
+  basePath: string = Deno.cwd(),
 ): Promise<{ configPath: string; promptPath: string }> {
   const configDir = join(basePath, "iterate-agent");
   const promptsDir = join(basePath, "iterate-agent/prompts");
@@ -261,7 +263,7 @@ export async function initializeConfig(
     await Deno.stat(configPath);
     throw new Error(
       `Configuration already exists: ${configPath}\n` +
-      `Remove existing files first if you want to reinitialize.`
+        `Remove existing files first if you want to reinitialize.`,
     );
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) {
@@ -276,7 +278,7 @@ export async function initializeConfig(
   // Write config.json
   await Deno.writeTextFile(
     configPath,
-    JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n"
+    JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
   );
 
   // Write default.md

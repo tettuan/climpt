@@ -374,7 +374,7 @@ Deno.test("Command structure follows C3L specification", async () => {
         assertExists(command.c3, "Command must have c3 (target)");
 
         // Check c1 is a valid domain (C3L v0.5 format: domain name without prefix)
-        const validDomains = ["git", "meta"];
+        const validDomains = ["git", "meta", "test"];
         assertEquals(
           validDomains.includes(command.c1),
           true,
