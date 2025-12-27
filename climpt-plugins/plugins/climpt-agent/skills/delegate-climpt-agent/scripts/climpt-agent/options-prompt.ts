@@ -22,23 +22,23 @@ import type { Logger } from "./logger.ts";
  * Build LLM prompt for option resolution
  *
  * @param command - Command with options and uv definitions
- * @param userQuery - Original user request
+ * @param intent - Detailed user intent for option resolution
  * @param context - Execution context (workingDir, files)
  * @returns Prompt string for LLM
  */
 export function buildOptionsPrompt(
   command: CommandWithUV,
-  userQuery: string,
+  intent: string,
   context: PromptContext,
 ): string {
   const lines: string[] = [];
   const { options, uv, description, usage } = command;
 
-  // Intent section - preserve original request context
+  // Intent section - detailed user intent
   lines.push("# Build CLI Options");
   lines.push("");
   lines.push("## Intent");
-  lines.push(`User request: "${userQuery}"`);
+  lines.push(`User intent: "${intent}"`);
   lines.push(
     `Command: ${usage || `${command.c1} ${command.c2} ${command.c3}`}`,
   );
@@ -192,18 +192,18 @@ function extractJSON(response: string): string {
  * Resolve options using LLM
  *
  * @param command - Command with options
- * @param userQuery - Original user request
+ * @param intent - Detailed user intent for option resolution
  * @param context - Execution context
  * @param logger - Logger instance
  * @returns Resolved options as key-value pairs
  */
 export async function resolveOptions(
   command: CommandWithUV,
-  userQuery: string,
+  intent: string,
   context: PromptContext,
   logger: Logger,
 ): Promise<ResolvedOptions> {
-  const prompt = buildOptionsPrompt(command, userQuery, context);
+  const prompt = buildOptionsPrompt(command, intent, context);
 
   await logger.write("Building options prompt for LLM");
   await logger.writeSection("OPTIONS_PROMPT", prompt);
@@ -212,9 +212,17 @@ export async function resolveOptions(
     prompt,
     options: {
       model: "haiku",
-      allowedTools: [], // No tools needed for option resolution
-      systemPrompt:
-        "You are a CLI options resolver. CRITICAL: You MUST return ONLY a valid JSON object. Never ask questions or explain. If intent is unclear, use reasonable defaults based on context (e.g., test files in tests/, current directory for paths). Always output valid JSON matching the requested format.",
+      allowedTools: ["Glob"], // Glob permission for file exploration
+      systemPrompt: `You are a CLI options resolver. Your task is to resolve CLI option values based on user intent.
+
+RULES:
+1. If the intent mentions specific file names or patterns, use Glob to find matching files
+2. For test targets: look for test files matching the intent (e.g., **/options-prompt*.test.ts)
+3. Return ONLY a valid JSON object matching the requested format
+4. Never ask questions - make reasonable decisions based on context
+5. If you use Glob, analyze results and pick the most relevant file
+
+After analysis, output ONLY the final JSON object.`,
     },
   });
 

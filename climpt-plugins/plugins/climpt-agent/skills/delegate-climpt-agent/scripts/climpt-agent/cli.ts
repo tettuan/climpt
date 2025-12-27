@@ -17,6 +17,8 @@ export function parseArgs(args: string[]): CliArgs {
   for (const arg of args) {
     if (arg.startsWith("--query=")) {
       result.query = arg.slice(8);
+    } else if (arg.startsWith("--intent=")) {
+      result.intent = arg.slice(9);
     } else if (arg.startsWith("--agent=")) {
       result.agent = arg.slice(8);
     } else if (arg.startsWith("--options=")) {
@@ -44,16 +46,21 @@ export function validateArgs(
  */
 export function displayHelp(): void {
   console.error(
-    'Usage: climpt-agent.ts --query="<natural language query>" [--agent=<name>] [--options=...]',
+    'Usage: climpt-agent.ts --query="<search query>" [--intent="<detailed intent>"] [--agent=<name>] [--options=...]',
   );
   console.error("");
   console.error("Parameters:");
   console.error(
-    "  --query   Natural language description of what you want to do (required)",
+    "  --query   Short query for command search (required)",
+  );
+  console.error(
+    "  --intent  Detailed description for option resolution (optional, defaults to query)",
   );
   console.error('  --agent   Agent name (default: "climpt")');
   console.error("  --options  Comma-separated list of options (optional)");
   console.error("");
   console.error("Example:");
-  console.error('  climpt-agent.ts --query="commit my changes"');
+  console.error(
+    '  climpt-agent.ts --query="run specific test" --intent="test options-prompt.ts changes"',
+  );
 }

@@ -72,6 +72,7 @@ async function main(): Promise<void> {
 
   try {
     await logger.write(`Searching for: "${args.query}"`);
+    await logger.write(`Intent: "${args.intent || args.query}"`);
     await logger.write(`Agent: ${args.agent}`);
     await logger.write(`CWD: ${cwd}`);
 
@@ -149,9 +150,12 @@ async function main(): Promise<void> {
         // files could be extracted from args or cwd in the future
       };
 
+      // Use intent for option resolution, fallback to query
+      const intent = args.intent || args.query;
+
       const resolvedOptions = await resolveOptions(
         matchedCommand,
-        args.query,
+        intent,
         context,
         logger,
       );

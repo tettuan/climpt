@@ -45,8 +45,11 @@ export interface LogSummary {
  * Parsed CLI arguments
  */
 export interface CliArgs {
-  /** Natural language query describing the task */
+  /** Natural language query describing the task (for command search) */
   query?: string;
+
+  /** Detailed intent for option resolution (optional, defaults to query) */
+  intent?: string;
 
   /** Agent name (default: "climpt") */
   agent: string;
