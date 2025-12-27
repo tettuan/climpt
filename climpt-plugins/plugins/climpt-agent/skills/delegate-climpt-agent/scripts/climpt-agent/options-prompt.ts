@@ -1,0 +1,259 @@
+/**
+ * @fileoverview LLM-based option resolution for Climpt Agent
+ * @module climpt-plugins/skills/delegate-climpt-agent/scripts/options-prompt
+ *
+ * This module implements the design from:
+ * @see tmp/climpt-agent-option-handling-design.md
+ *
+ * Problem: describe command returns options but they were logged, not used.
+ * Solution: Build an LLM prompt to resolve options based on:
+ *   - Tier 1: Selection from arrays (edition, adaptation)
+ *   - Tier 2: Fixed values (file, destination when true)
+ *   - Tier 3: Generate from context (stdin, uv-*)
+ *   - Skip: Options with false value
+ */
+
+import { query } from "npm:@anthropic-ai/claude-agent-sdk";
+
+import type {
+  CommandWithUV,
+  PromptContext,
+  ResolvedOptions,
+} from "./types.ts";
+import type { Logger } from "./logger.ts";
+
+/**
+ * Build LLM prompt for option resolution
+ *
+ * @param command - Command with options and uv definitions
+ * @param userQuery - Original user request
+ * @param context - Execution context (workingDir, files)
+ * @returns Prompt string for LLM
+ */
+export function buildOptionsPrompt(
+  command: CommandWithUV,
+  userQuery: string,
+  context: PromptContext,
+): string {
+  const lines: string[] = [];
+  const { options, uv, description, usage } = command;
+
+  // Intent section - preserve original request context
+  lines.push("# Build CLI Options");
+  lines.push("");
+  lines.push("## Intent");
+  lines.push(`User request: "${userQuery}"`);
+  lines.push(`Command: ${usage || `${command.c1} ${command.c2} ${command.c3}`}`);
+  lines.push(`Purpose: ${description}`);
+
+  // Context section - environment information
+  lines.push("");
+  lines.push("## Context");
+  lines.push(`- Working directory: ${context.workingDir}`);
+  if (context.files?.length) {
+    lines.push(`- Related files: ${context.files.join(", ")}`);
+  }
+
+  // Tier 1: Selection (arrays) - skip if false
+  const selections: string[] = [];
+  if (options?.edition && Array.isArray(options.edition)) {
+    selections.push(`- edition: ${JSON.stringify(options.edition)}`);
+  }
+  if (options?.adaptation && Array.isArray(options.adaptation)) {
+    selections.push(`- adaptation: ${JSON.stringify(options.adaptation)}`);
+  }
+  if (selections.length > 0) {
+    lines.push("");
+    lines.push("## Selection Options (choose one from each)");
+    lines.push(...selections);
+  }
+
+  // Tier 2: Fixed values (only if true, not false)
+  const fixed: string[] = [];
+  if (options?.file === true && context.files?.length) {
+    fixed.push(`- file: ${context.files[0]}`);
+  }
+  if (options?.destination === true) {
+    fixed.push("- destination: <infer appropriate output path>");
+  }
+  if (fixed.length > 0) {
+    lines.push("");
+    lines.push("## Fixed Values");
+    lines.push(...fixed);
+  }
+
+  // Tier 3: Generate (uv-* and stdin) - skip if false
+  const generate: string[] = [];
+  if (options?.stdin === true) {
+    generate.push("- stdin: <generate input content based on intent>");
+  }
+  if (uv && Array.isArray(uv)) {
+    for (const uvItem of uv) {
+      for (const [key, desc] of Object.entries(uvItem)) {
+        generate.push(`- uv-${key}: ${desc}`);
+      }
+    }
+  }
+  if (generate.length > 0) {
+    lines.push("");
+    lines.push("## Generate from Context");
+    lines.push(...generate);
+  }
+
+  // Output format instruction
+  lines.push("");
+  lines.push(
+    "Based on the intent and context above, select appropriate options and generate values.",
+  );
+  lines.push("");
+  lines.push("## Output Format");
+  lines.push("Return JSON only (no markdown, no explanation):");
+
+  // Build expected JSON structure
+  const jsonExample: Record<string, string> = {};
+  if (options?.edition && Array.isArray(options.edition)) {
+    jsonExample["edition"] = "<selected>";
+  }
+  if (options?.adaptation && Array.isArray(options.adaptation)) {
+    jsonExample["adaptation"] = "<selected>";
+  }
+  if (options?.file === true) {
+    jsonExample["file"] = "<path>";
+  }
+  if (options?.destination === true) {
+    jsonExample["destination"] = "<path>";
+  }
+  if (options?.stdin === true) {
+    jsonExample["stdin"] = "<content>";
+  }
+  if (uv && Array.isArray(uv)) {
+    for (const uvItem of uv) {
+      for (const key of Object.keys(uvItem)) {
+        jsonExample[`uv-${key}`] = "<generated value>";
+      }
+    }
+  }
+  lines.push(JSON.stringify(jsonExample, null, 2));
+
+  return lines.join("\n");
+}
+
+/**
+ * Check if command has options that need LLM resolution
+ */
+export function needsOptionResolution(command: CommandWithUV): boolean {
+  const { options, uv } = command;
+
+  // Check Tier 1: Selection arrays
+  if (options?.edition && Array.isArray(options.edition)) return true;
+  if (options?.adaptation && Array.isArray(options.adaptation)) return true;
+
+  // Check Tier 2: Fixed values that need inference
+  if (options?.destination === true) return true;
+
+  // Check Tier 3: Generate from context
+  if (options?.stdin === true) return true;
+  if (uv && Array.isArray(uv) && uv.length > 0) return true;
+
+  return false;
+}
+
+/**
+ * Extract JSON from LLM response
+ *
+ * Handles various response formats:
+ * - Pure JSON
+ * - JSON wrapped in markdown code blocks
+ * - JSON with explanatory text before/after
+ *
+ * @param response - Raw LLM response text
+ * @returns Extracted JSON string
+ * @throws Error if no valid JSON found
+ */
+function extractJSON(response: string): string {
+  const trimmed = response.trim();
+
+  // Try 1: Extract from markdown code block (```json ... ``` or ``` ... ```)
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // Try 2: Find JSON object by matching braces
+  const jsonStart = trimmed.indexOf("{");
+  const jsonEnd = trimmed.lastIndexOf("}");
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    return trimmed.slice(jsonStart, jsonEnd + 1);
+  }
+
+  // Try 3: Assume the whole response is JSON
+  return trimmed;
+}
+
+/**
+ * Resolve options using LLM
+ *
+ * @param command - Command with options
+ * @param userQuery - Original user request
+ * @param context - Execution context
+ * @param logger - Logger instance
+ * @returns Resolved options as key-value pairs
+ */
+export async function resolveOptions(
+  command: CommandWithUV,
+  userQuery: string,
+  context: PromptContext,
+  logger: Logger,
+): Promise<ResolvedOptions> {
+  const prompt = buildOptionsPrompt(command, userQuery, context);
+
+  await logger.write("Building options prompt for LLM");
+  await logger.writeSection("OPTIONS_PROMPT", prompt);
+
+  const queryResult = query({
+    prompt,
+    options: {
+      model: "claude-haiku",
+      allowedTools: [], // No tools needed for option resolution
+      systemPrompt:
+        "You are a CLI options resolver. Analyze the user's intent and command context, then return ONLY a valid JSON object with the appropriate option values. No explanation, no markdown.",
+    },
+  });
+
+  let responseText = "";
+  for await (const message of queryResult) {
+    if (message.type === "assistant" && message.message.content) {
+      for (const block of message.message.content) {
+        if (block.type === "text") {
+          responseText += block.text;
+        }
+      }
+    }
+  }
+
+  await logger.write("LLM response received", { response: responseText });
+
+  // Parse JSON response
+  try {
+    const jsonContent = extractJSON(responseText);
+    const resolved = JSON.parse(jsonContent) as ResolvedOptions;
+    await logger.write("Options resolved", { resolved });
+    return resolved;
+  } catch (error) {
+    await logger.writeError("Failed to parse LLM response as JSON", {
+      response: responseText,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Return empty object on parse error - CLI args will be used as fallback
+    return {};
+  }
+}
+
+/**
+ * Convert resolved options to CLI arguments
+ */
+export function toCLIArgs(resolved: ResolvedOptions): string[] {
+  return Object.entries(resolved)
+    .filter(([_, v]) => v != null && v !== "")
+    .map(([k, v]) => `--${k}=${v}`);
+}
