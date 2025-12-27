@@ -3,12 +3,11 @@
   "description": "Climpt comprehensive configuration for MCP server and command registry",
   "tools": {
     "availableConfigs": [
-      "git",
-      "meta"
+      ""
     ],
     "commands": [
       {
-        "c1": "git",
+        "c1": "",
         "c2": "decide-branch",
         "c3": "working-branch",
         "description": "Decide whether to create a new branch or continue on the current branch based on task content",
@@ -23,10 +22,11 @@
           "file": false,
           "stdin": true,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "git",
+        "c1": "",
         "c2": "find-oldest",
         "c3": "descendant-branch",
         "description": "Find descendant and sibling branches from the current branch and merge the oldest related branch",
@@ -42,10 +42,11 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "git",
+        "c1": "",
         "c2": "group-commit",
         "c3": "unstaged-changes",
         "description": "Group file changes by semantic proximity and execute multiple commits sequentially",
@@ -61,10 +62,11 @@
           "file": true,
           "stdin": false,
           "destination": true
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "git",
+        "c1": "",
         "c2": "list-select",
         "c3": "pr-branch",
         "description": "List local and remote branches with PRs, then auto-select the next target to work on",
@@ -79,10 +81,11 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "git",
+        "c1": "",
         "c2": "merge-up",
         "c3": "base-branch",
         "description": "Merge a derived working branch back into its parent working branch",
@@ -97,10 +100,11 @@
           "file": false,
           "stdin": false,
           "destination": false
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "meta",
+        "c1": "",
         "c2": "build",
         "c3": "frontmatter",
         "description": "Generate C3L v0.5 compliant frontmatter for Climpt instruction files",
@@ -116,10 +120,11 @@
           "file": false,
           "stdin": true,
           "destination": true
-        }
+        },
+        "uv": ""
       },
       {
-        "c1": "meta",
+        "c1": "",
         "c2": "create",
         "c3": "instruction",
         "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",
@@ -135,7 +140,31 @@
           "file": false,
           "stdin": true,
           "destination": true
-        }
+        },
+        "uv": ""
+      },
+      {
+        "c1": "",
+        "c2": "run",
+        "c3": "specific",
+        "description": "Execute tests for a specific target using the uv-target variable",
+        "usage": "climpt-test run specific --uv-target=<test-target>",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        },
+        "uv": [
+          {
+            "target": "The specific test target to run (file path, function name, or test pattern)"
+          }
+        ]
       }
     ]
   }
