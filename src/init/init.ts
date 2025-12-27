@@ -8,6 +8,7 @@ import { detectExisting, hasExistingFiles } from "./detector.ts";
 import { initBasic } from "./basic-init.ts";
 import { initMetaDomain } from "./meta-init.ts";
 import { initRegistryAndSchema } from "./registry-init.ts";
+import { generateRegistry } from "../reg/index.ts";
 import type { InitOptions, InitResult } from "./types.ts";
 
 const DEFAULT_OPTIONS: InitOptions = {
@@ -106,6 +107,24 @@ export async function runInit(args: string[]): Promise<InitResult> {
     console.log("\nPhase 4: Registry & Schema initialization (skipped)");
   }
 
+  // Phase 5: Registry Generation (プロンプトからregistry.json生成)
+  if (!options.skipRegistry && !options.skipMeta) {
+    console.log("\nPhase 5: Generating registry from prompts");
+    try {
+      const genResult = await generateRegistry({
+        baseDir: options.projectRoot,
+      });
+      console.log(`  Generated: ${genResult.processedDocuments} commands`);
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
+      result.errors.push(`Registry generation failed: ${errorMessage}`);
+    }
+  } else {
+    console.log("\nPhase 5: Registry generation (skipped)");
+  }
+
   // 完了メッセージ
   printSummary(result, options);
 
@@ -174,6 +193,10 @@ function printSummary(result: InitResult, options: InitOptions): void {
     `  2. Or add prompts manually to ${options.workingDir}/prompts/<domain>/`,
   );
   console.log(
-    "  3. Run 'deno run -A jsr:@aidevtool/climpt/reg' to update registry",
+    "  3. After adding prompts, run 'climpt generate-registry' to update registry",
   );
+
+  console.log("\nClaude Code Plugin:");
+  console.log("  /plugin marketplace add tettuan/climpt");
+  console.log("  /plugin install climpt-agent");
 }
