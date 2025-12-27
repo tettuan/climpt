@@ -160,23 +160,39 @@ export function buildContinuationPrompt(
 
   if (issue !== undefined) {
     return `
-You have completed ${completedIterations} iteration(s) working on GitHub Issue #${issue}.
+You are continuing work on GitHub Issue #${issue}.
+You have completed ${completedIterations} iteration(s).
 
 ${summarySection}
 
-Based on what was accomplished, identify what remains to be done and determine the next action to take.
+## Your Mission
+1. Review the Previous Iteration Summary above to understand what was accomplished
+2. Based on the summary, identify what remains to be done to close this issue
+3. Use the **delegate-climpt-agent** Skill to implement the next required changes
+4. After each task, evaluate progress toward closing this issue
+5. Continue until the issue requirements are fully satisfied
 
-When the issue is closed, your work is complete.
+The issue will be checked periodically; when it's closed, you're done.
+
+**Next Step**: Analyze the summary above and determine the most logical next action to take.
     `.trim();
   } else if (project !== undefined) {
     return `
-You have completed ${completedIterations} iteration(s) working on GitHub Project #${project}.
+You are continuing work on GitHub Project #${project}.
+You have completed ${completedIterations} iteration(s).
 
 ${summarySection}
 
-Based on what was accomplished, identify what remains across project items and determine the next action to take.
+## Your Mission
+1. Review the Previous Iteration Summary above to understand what was accomplished
+2. Based on the summary, identify what remains across project items
+3. Use the **delegate-climpt-agent** Skill to work through the next project task
+4. Focus on making continuous progress across all project items
+5. Continue until all project items are complete
 
-When all project items are complete, your work is done.
+The project status will be checked periodically; when all items are done, your work is complete.
+
+**Next Step**: Analyze the summary above and determine the most logical next action to take.
     `.trim();
   } else {
     const remaining = iterateMax === Infinity
@@ -184,6 +200,7 @@ When all project items are complete, your work is done.
       : iterateMax - completedIterations;
 
     return `
+You are continuing in autonomous development mode.
 You have completed ${completedIterations} iteration(s). ${
       iterateMax === Infinity
         ? "You can continue indefinitely."
@@ -192,7 +209,13 @@ You have completed ${completedIterations} iteration(s). ${
 
 ${summarySection}
 
-Based on what was accomplished, identify the next high-value task and determine how to proceed.
+## Your Mission
+1. Review the Previous Iteration Summary above to understand what was accomplished
+2. Based on the summary, identify the next high-value task to tackle
+3. Use the **delegate-climpt-agent** Skill to execute the next development task
+4. Make continuous progress on improving the codebase
+
+**Next Step**: Analyze the summary above and determine the most logical next action to take.
     `.trim();
   }
 }
