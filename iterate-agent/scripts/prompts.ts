@@ -4,7 +4,7 @@
  * Builds system prompts and initial prompts with variable substitution.
  */
 
-import type { AgentOptions, AgentName } from "./types.ts";
+import type { AgentOptions, AgentName, IterationSummary } from "./types.ts";
 import {
   fetchIssueRequirements,
   fetchProjectRequirements,
@@ -144,19 +144,28 @@ Start by assessing the current state of the project and identifying high-value t
  *
  * @param options - Agent options
  * @param completedIterations - Number of completed iterations
+ * @param previousSummary - Summary of what was accomplished in previous iteration
  * @returns Continuation prompt for next iteration
  */
 export function buildContinuationPrompt(
   options: AgentOptions,
-  completedIterations: number
+  completedIterations: number,
+  previousSummary?: IterationSummary
 ): string {
   const { issue, project, iterateMax } = options;
+
+  // Build summary section if previous summary exists
+  const summarySection = previousSummary
+    ? formatIterationSummary(previousSummary)
+    : "";
 
   if (issue !== undefined) {
     return `
 You have completed ${completedIterations} iteration(s) working on GitHub Issue #${issue}.
 
-Review your progress, identify what remains to be done, and determine the next action to take.
+${summarySection}
+
+Based on what was accomplished, identify what remains to be done and determine the next action to take.
 
 When the issue is closed, your work is complete.
     `.trim();
@@ -164,7 +173,9 @@ When the issue is closed, your work is complete.
     return `
 You have completed ${completedIterations} iteration(s) working on GitHub Project #${project}.
 
-Review your progress across project items, identify what remains to be done, and determine the next action to take.
+${summarySection}
+
+Based on what was accomplished, identify what remains across project items and determine the next action to take.
 
 When all project items are complete, your work is done.
     `.trim();
@@ -180,7 +191,44 @@ You have completed ${completedIterations} iteration(s). ${
         : `You have ${remaining} iteration(s) remaining.`
     }
 
-Assess the current state of the project, identify the next high-value task, and determine how to proceed.
+${summarySection}
+
+Based on what was accomplished, identify the next high-value task and determine how to proceed.
     `.trim();
   }
+}
+
+/**
+ * Format iteration summary for inclusion in prompt
+ *
+ * @param summary - Iteration summary to format
+ * @returns Formatted markdown string
+ */
+function formatIterationSummary(summary: IterationSummary): string {
+  const parts: string[] = [];
+
+  parts.push(`## Previous Iteration Summary (Iteration ${summary.iteration})`);
+
+  // Include last assistant response (most likely to contain the summary)
+  if (summary.assistantResponses.length > 0) {
+    const lastResponse = summary.assistantResponses[summary.assistantResponses.length - 1];
+    // Truncate if too long (keep it concise for context efficiency)
+    const truncated = lastResponse.length > 1000
+      ? lastResponse.substring(0, 1000) + "..."
+      : lastResponse;
+    parts.push(`### What was done:\n${truncated}`);
+  }
+
+  // Tools used gives context about actions taken
+  if (summary.toolsUsed.length > 0) {
+    parts.push(`### Tools used: ${summary.toolsUsed.join(", ")}`);
+  }
+
+  // Report errors so next iteration can address them
+  if (summary.errors.length > 0) {
+    const errorSummary = summary.errors.slice(0, 3).map(e => `- ${e}`).join("\n");
+    parts.push(`### Errors encountered:\n${errorSummary}`);
+  }
+
+  return parts.join("\n\n");
 }

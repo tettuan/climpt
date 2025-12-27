@@ -177,3 +177,24 @@ export interface ParsedArgs {
   /** Agent options (only valid if not init/help) */
   options?: AgentOptions;
 }
+
+/**
+ * Summary of what was accomplished in one iteration
+ * Used to pass context to the next iteration
+ */
+export interface IterationSummary {
+  /** Iteration number (1-based) */
+  iteration: number;
+
+  /** Assistant's text responses during this iteration */
+  assistantResponses: string[];
+
+  /** Tools invoked during this iteration */
+  toolsUsed: string[];
+
+  /** Errors encountered (if any) */
+  errors: string[];
+
+  /** Final result message from SDK (if any) */
+  finalResult?: string;
+}

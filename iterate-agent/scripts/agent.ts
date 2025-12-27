@@ -21,7 +21,7 @@ import {
   buildContinuationPrompt,
 } from "./prompts.ts";
 import { isIssueComplete, isProjectComplete } from "./github.ts";
-import type { AgentOptions, CompletionType } from "./types.ts";
+import type { AgentOptions, CompletionType, IterationSummary } from "./types.ts";
 
 /**
  * Main agent loop
@@ -130,6 +130,7 @@ async function runAgentLoop(
   let iterationCount = 0;
   let isComplete = false;
   let currentPrompt = initialPrompt;
+  let previousSummary: IterationSummary | undefined = undefined;
 
   console.log(`\n🤖 Starting Iterate Agent (${options.agentName})\n`);
   console.log(`📋 Completion criteria: ${getCompletionDescription(options)}`);
@@ -140,6 +141,14 @@ async function runAgentLoop(
     const iterationNumber = iterationCount + 1;
     console.log(`\n🔄 Starting iteration ${iterationNumber}\n`);
     await logger.write("info", `Starting iteration ${iterationNumber}`);
+
+    // Initialize iteration summary to capture results
+    const summary: IterationSummary = {
+      iteration: iterationNumber,
+      assistantResponses: [],
+      toolsUsed: [],
+      errors: [],
+    };
 
     // Start new SDK query session for this iteration
     // Using minimal options as per SDK documentation
@@ -158,6 +167,9 @@ async function runAgentLoop(
     try {
       for await (const message of queryIterator) {
         await logSDKMessage(message, logger);
+
+        // Capture iteration data for handoff to next iteration
+        captureIterationData(message, summary);
 
         // Log Skill invocations but don't count them as iterations
         if (isSkillInvocation(message)) {
@@ -192,9 +204,17 @@ async function runAgentLoop(
       break;
     }
 
-    // Prepare prompt for next iteration
-    currentPrompt = buildContinuationPrompt(options, iterationCount);
-    await logger.write("debug", "Prepared continuation prompt for next iteration");
+    // Store summary for next iteration
+    previousSummary = summary;
+
+    // Prepare prompt for next iteration with previous summary
+    currentPrompt = buildContinuationPrompt(options, iterationCount, previousSummary);
+    await logger.write("debug", "Prepared continuation prompt for next iteration", {
+      previousIteration: previousSummary.iteration,
+      toolsUsed: previousSummary.toolsUsed,
+      responsesCount: previousSummary.assistantResponses.length,
+      errorsCount: previousSummary.errors.length,
+    });
   }
 
   // Final summary
@@ -226,6 +246,49 @@ function isSkillInvocation(message: any): boolean {
       block.name === "Skill" &&
       block.input?.skill === "climpt-agent:delegate-climpt-agent"
   );
+}
+
+/**
+ * Extract meaningful data from SDK message for iteration summary
+ */
+function captureIterationData(message: any, summary: IterationSummary): void {
+  // Capture assistant text responses and tool uses
+  if (message.message?.role === "assistant") {
+    const content = message.message.content;
+    const blocks = Array.isArray(content) ? content : [];
+
+    // Extract text blocks
+    const textBlocks = blocks.filter((b: any) => b.type === "text");
+    const text = textBlocks.map((b: any) => b.text).join("\n").trim();
+    if (text && text.length > 0) {
+      summary.assistantResponses.push(text);
+    }
+
+    // Extract tool uses (unique tool names only)
+    const toolUses = blocks.filter((b: any) => b.type === "tool_use");
+    for (const tool of toolUses) {
+      if (tool.name && !summary.toolsUsed.includes(tool.name)) {
+        summary.toolsUsed.push(tool.name);
+      }
+    }
+  }
+
+  // Capture final result
+  if (message.type === "result") {
+    summary.finalResult = message.result || undefined;
+  }
+
+  // Capture errors from tool results
+  if (message.message?.role === "user") {
+    const content = message.message.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block.type === "tool_result" && block.is_error) {
+          summary.errors.push(String(block.content || "Unknown error"));
+        }
+      }
+    }
+  }
 }
 
 /**
