@@ -136,7 +136,9 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
     Deno.chdir(tempWorkDir);
 
     // Verify work directory config takes priority
-    const configText = await Deno.readTextFile(".agent/climpt/config/registry_config.json");
+    const configText = await Deno.readTextFile(
+      ".agent/climpt/config/registry_config.json",
+    );
     const config: MCPConfig = JSON.parse(configText);
 
     assertEquals(Object.keys(config.registries).length, 2);

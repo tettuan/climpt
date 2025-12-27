@@ -3,7 +3,15 @@
   "agents": {
     "climpt": {
       "systemPromptTemplate": "iterate-agent/prompts/default.md",
-      "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
       "permissionMode": "acceptEdits"
     }
   },

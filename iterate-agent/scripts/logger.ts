@@ -24,12 +24,15 @@ export class Logger {
    * @param agentName - MCP agent name (used in directory path)
    * @param maxFiles - Maximum number of log files to keep
    */
-  constructor(logDir: string, agentName: AgentName, maxFiles: number = 100) {
+  constructor(logDir: string, _agentName: AgentName, maxFiles: number = 100) {
     this.logDir = logDir;
     this.maxFiles = maxFiles;
 
     // Generate log file path with ISO timestamp
-    const timestamp = new Date().toISOString().replace(/:/g, "-").replace(/\./g, "-");
+    const timestamp = new Date().toISOString().replace(/:/g, "-").replace(
+      /\./g,
+      "-",
+    );
     this.logPath = join(logDir, `session-${timestamp}.jsonl`);
   }
 
@@ -67,7 +70,7 @@ export class Logger {
   async write(
     level: LogLevel,
     message: string,
-    metadata?: LogEntry["metadata"]
+    metadata?: LogEntry["metadata"],
   ): Promise<void> {
     if (!this.file) {
       throw new Error("Logger not initialized. Call initialize() first.");
@@ -165,7 +168,7 @@ export class Logger {
 export async function createLogger(
   logDir: string,
   agentName: AgentName,
-  maxFiles: number = 100
+  maxFiles: number = 100,
 ): Promise<Logger> {
   const logger = new Logger(logDir, agentName, maxFiles);
   await logger.initialize();

@@ -10,19 +10,21 @@ Delegates development tasks to sub-agents using Claude Agent SDK.
 
 ## Sandbox Requirement
 
-**This plugin requires `dangerouslyDisableSandbox: true` when running from Claude Code.**
+**This plugin requires `dangerouslyDisableSandbox: true` when running from
+Claude Code.**
 
 ### Why?
 
 The Claude Agent SDK spawns a child `claude` process that needs write access to:
 
-| Path | Purpose |
-|------|---------|
-| `~/.claude/projects/` | Session logs |
-| `~/.claude/todos/` | Task state |
+| Path                         | Purpose           |
+| ---------------------------- | ----------------- |
+| `~/.claude/projects/`        | Session logs      |
+| `~/.claude/todos/`           | Task state        |
 | `~/.claude/shell-snapshots/` | Shell environment |
 
-Claude Code's sandbox blocks these writes, causing the SDK stream to fail with JSON parse errors like:
+Claude Code's sandbox blocks these writes, causing the SDK stream to fail with
+JSON parse errors like:
 
 ```
 Unterminated string in JSON at position 73536
@@ -33,8 +35,10 @@ Unterminated string in JSON at position 73536
 If you prefer not to disable the sandbox:
 
 1. **Run from terminal directly** - Execute the deno command outside Claude Code
-2. **Use MCP tools** - Use Climpt MCP tools directly instead of delegating to sub-agent
+2. **Use MCP tools** - Use Climpt MCP tools directly instead of delegating to
+   sub-agent
 
 ## Usage
 
-See [SKILL.md](skills/delegate-climpt-agent/SKILL.md) for detailed workflow instructions.
+See [SKILL.md](skills/delegate-climpt-agent/SKILL.md) for detailed workflow
+instructions.

@@ -5,7 +5,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import type { AgentOptions, AgentName, ParsedArgs } from "./types.ts";
+import type { AgentName, ParsedArgs } from "./types.ts";
 
 /**
  * Valid agent names (defined in .agent/climpt/config/registry_config.json)
@@ -22,11 +22,12 @@ const DEFAULT_AGENT_NAME = "climpt";
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
     string: ["name", "issue", "project", "iterate-max"],
-    boolean: ["init", "help"],
+    boolean: ["init", "help", "resume"],
     default: {
       "name": DEFAULT_AGENT_NAME,
       "init": false,
       "help": false,
+      "resume": false,
     },
     alias: {
       i: "issue",
@@ -34,6 +35,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       m: "iterate-max",
       n: "name",
       h: "help",
+      r: "resume",
     },
   });
 
@@ -52,7 +54,9 @@ export function parseCliArgs(args: string[]): ParsedArgs {
 
   // Parse numbers
   const issue = parsed.issue ? parseInt(parsed.issue as string, 10) : undefined;
-  const project = parsed.project ? parseInt(parsed.project as string, 10) : undefined;
+  const project = parsed.project
+    ? parseInt(parsed.project as string, 10)
+    : undefined;
   const iterateMax = parsed["iterate-max"]
     ? parseInt(parsed["iterate-max"] as string, 10)
     : Infinity;
@@ -60,16 +64,22 @@ export function parseCliArgs(args: string[]): ParsedArgs {
   // Validate mutually exclusive options
   if (issue !== undefined && project !== undefined) {
     throw new Error(
-      "Cannot specify both --issue and --project. Choose one completion criterion."
+      "Cannot specify both --issue and --project. Choose one completion criterion.",
     );
   }
 
   // Validate number ranges
-  if (issue !== undefined && (isNaN(issue) || issue < 1 || !Number.isInteger(issue))) {
+  if (
+    issue !== undefined &&
+    (isNaN(issue) || issue < 1 || !Number.isInteger(issue))
+  ) {
     throw new Error("--issue must be a positive integer");
   }
 
-  if (project !== undefined && (isNaN(project) || project < 1 || !Number.isInteger(project))) {
+  if (
+    project !== undefined &&
+    (isNaN(project) || project < 1 || !Number.isInteger(project))
+  ) {
     throw new Error("--project must be a positive integer");
   }
 
@@ -77,8 +87,13 @@ export function parseCliArgs(args: string[]): ParsedArgs {
     iterateMax !== Infinity &&
     (isNaN(iterateMax) || iterateMax < 1 || !Number.isInteger(iterateMax))
   ) {
-    throw new Error("--iterate-max must be a positive integer or omitted (for unlimited)");
+    throw new Error(
+      "--iterate-max must be a positive integer or omitted (for unlimited)",
+    );
   }
+
+  // Get resume flag
+  const resume = parsed.resume as boolean;
 
   return {
     init: false,
@@ -88,6 +103,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       project,
       iterateMax,
       agentName: agentName as AgentName,
+      resume,
     },
   };
 }
@@ -120,6 +136,10 @@ OPTIONS:
   --name, -n <name>
       MCP agent name (e.g., "climpt"). Defaults to "${DEFAULT_AGENT_NAME}".
       Must be defined in iterate-agent/config.json
+
+  --resume, -r
+      Resume previous session instead of starting fresh. Defaults to false.
+      When enabled, uses SDK session_id to continue from where the last iteration ended.
 
   --help, -h
       Display this help message.

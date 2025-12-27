@@ -9,9 +9,19 @@
  * @see docs/internal/command-operations.md
  */
 
-export type { Command, MCPConfig, Registry, SearchResult } from "./types.ts";
+export type {
+  Command,
+  MCPConfig,
+  Registry,
+  SearchResult,
+  UserVariable,
+} from "./types.ts";
 export { DEFAULT_MCP_CONFIG } from "./types.ts";
 
-export { cosineSimilarity, describeCommand, searchCommands } from "./similarity.ts";
+export {
+  cosineSimilarity,
+  describeCommand,
+  searchCommands,
+} from "./similarity.ts";
 
 export { loadMCPConfig, loadRegistryForAgent } from "./registry.ts";

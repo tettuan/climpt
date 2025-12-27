@@ -1,13 +1,16 @@
 # Climpt Agent Plugin
 
-A Claude Code Plugin that delegates development tasks to Climpt commands through AI-assisted workflows.
+A Claude Code Plugin that delegates development tasks to Climpt commands through
+AI-assisted workflows.
 
 ## Overview
 
 Climpt Agent integrates with Claude Code to provide:
 
-- **Automatic Command Discovery**: Natural language requests are matched to Climpt commands
-- **Dynamic Sub-agent Generation**: Commands are executed through dynamically created sub-agents
+- **Automatic Command Discovery**: Natural language requests are matched to
+  Climpt commands
+- **Dynamic Sub-agent Generation**: Commands are executed through dynamically
+  created sub-agents
 - **MCP Integration**: Seamless communication with Climpt's command registry
 
 ## Prerequisites
@@ -21,7 +24,7 @@ Climpt Agent integrates with Claude Code to provide:
 ### Step 1: Add Marketplace
 
 ```bash
-/plugin marketplace add https://github.com/tettuan/climpt
+/plugin marketplace add tettuan/climpt
 ```
 
 ### Step 2: Install Plugin
@@ -29,6 +32,8 @@ Climpt Agent integrates with Claude Code to provide:
 ```bash
 /plugin install climpt-agent
 ```
+
+**Note**: If the command fails, use `/plugin` to open the plugin browser, navigate to "Discover" tab, find `climpt-agent`, and install from there.
 
 ### Step 3: Restart Claude Code
 
@@ -48,24 +53,25 @@ git clone https://github.com/tettuan/climpt.git
 
 ## Usage
 
-The Skill automatically activates when you make requests that match Climpt commands.
+The Skill automatically activates when you make requests that match Climpt
+commands.
 
 ### Git Operations
 
-| Request | Command |
-|---------|---------|
-| "Commit my changes" | `climpt-git group-commit unstaged-changes` |
-| "Decide on a branch" | `climpt-git decide-branch working-branch` |
-| "Select PR branch" | `climpt-git list-select pr-branch` |
-| "Merge up to parent" | `climpt-git merge-up base-branch` |
+| Request              | Command                                    |
+| -------------------- | ------------------------------------------ |
+| "Commit my changes"  | `climpt-git group-commit unstaged-changes` |
+| "Decide on a branch" | `climpt-git decide-branch working-branch`  |
+| "Select PR branch"   | `climpt-git list-select pr-branch`         |
+| "Merge up to parent" | `climpt-git merge-up base-branch`          |
 | "Find oldest branch" | `climpt-git find-oldest descendant-branch` |
 
 ### Meta Operations
 
-| Request | Command |
-|---------|---------|
-| "Generate frontmatter" | `climpt-meta build frontmatter` |
-| "Create instruction" | `climpt-meta create instruction` |
+| Request                | Command                          |
+| ---------------------- | -------------------------------- |
+| "Generate frontmatter" | `climpt-meta build frontmatter`  |
+| "Create instruction"   | `climpt-meta create instruction` |
 
 ## Architecture
 
@@ -107,7 +113,8 @@ Plugin manifest defining metadata:
 
 #### SKILL.md
 
-Defines when Claude should trigger the Skill. The `description` field is used for matching user requests.
+Defines when Claude should trigger the Skill. The `description` field is used
+for matching user requests.
 
 ```yaml
 ---
@@ -118,7 +125,8 @@ description: Delegates development tasks to Climpt Agent...
 
 #### .mcp.json
 
-MCP server configuration providing `search`, `describe`, `execute`, and `reload` tools:
+MCP server configuration providing `search`, `describe`, `execute`, and `reload`
+tools:
 
 ```json
 {
@@ -135,16 +143,17 @@ MCP server configuration providing `search`, `describe`, `execute`, and `reload`
 
 Commands follow the C3L (Command 3-Level) specification:
 
-| Level | Description | Examples |
-|-------|-------------|----------|
-| `agent` | MCP server identifier | `climpt`, `inspector` |
-| `c1` | Domain identifier | `git`, `meta`, `spec` |
-| `c2` | Action identifier | `group-commit`, `build` |
-| `c3` | Target identifier | `unstaged-changes`, `frontmatter` |
+| Level   | Description           | Examples                          |
+| ------- | --------------------- | --------------------------------- |
+| `agent` | MCP server identifier | `climpt`, `inspector`             |
+| `c1`    | Domain identifier     | `git`, `meta`, `spec`             |
+| `c2`    | Action identifier     | `group-commit`, `build`           |
+| `c3`    | Target identifier     | `unstaged-changes`, `frontmatter` |
 
 Sub-agent names follow the format: `<agent>-<c1>-<c2>-<c3>`
 
 Examples:
+
 - `climpt-git-group-commit-unstaged-changes`
 - `climpt-meta-build-frontmatter`
 
@@ -162,6 +171,7 @@ When a user makes a request:
 ### Plugin Not Found
 
 Verify marketplace registration:
+
 ```bash
 /plugin marketplace list
 ```
@@ -175,6 +185,7 @@ Verify marketplace registration:
 ### MCP Connection Issues
 
 Verify MCP server is running:
+
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env jsr:@aidevtool/climpt/mcp
 ```
@@ -183,7 +194,8 @@ deno run --allow-read --allow-write --allow-net --allow-env jsr:@aidevtool/climp
 
 ### Creating New Skills
 
-See [skills/README.md](skills/README.md) for Agent SDK documentation and skill creation guidelines.
+See [skills/README.md](skills/README.md) for Agent SDK documentation and skill
+creation guidelines.
 
 ### Testing Changes
 
