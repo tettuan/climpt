@@ -89,7 +89,8 @@ tmp/*
 # Deno compiled binaries
 debug*.ts
 .deno/
-.claude/
+.claude/*
+!.claude/skills/
 .mcp.json
 
 # MCP runtime config

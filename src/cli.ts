@@ -8,7 +8,12 @@
  */
 
 // Import the breakdown package dynamically using the version from version.ts
-import { BREAKDOWN_VERSION, CLIMPT_VERSION } from "./version.ts";
+import {
+  BREAKDOWN_VERSION,
+  CLIMPT_VERSION,
+  FRONTMATTER_TO_SCHEMA_VERSION,
+} from "./version.ts";
+import { runInit } from "./init/mod.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -206,7 +211,17 @@ export async function main(_args: string[] = []): Promise<void> {
     // Handle version argument
     if (_args.includes("-v") || _args.includes("--version")) {
       console.log(`Climpt v${CLIMPT_VERSION}`);
-      console.log(`└── Breakdown v${BREAKDOWN_VERSION}`);
+      console.log(`├── Breakdown v${BREAKDOWN_VERSION}`);
+      console.log(`└── FrontmatterToSchema v${FRONTMATTER_TO_SCHEMA_VERSION}`);
+      return;
+    }
+
+    // Handle init command - Climpt native implementation
+    if (_args[0] === "init") {
+      const result = await runInit(_args.slice(1));
+      if (!result.success) {
+        Deno.exit(1);
+      }
       return;
     }
 
@@ -216,7 +231,7 @@ export async function main(_args: string[] = []): Promise<void> {
     // Call the runBreakdown function with arguments
     await runBreakdown(_args);
   } catch (error) {
-    console.error("Failed to execute breakdown:", error);
+    console.error("Failed to execute:", error);
     Deno.exit(1);
   }
 }
