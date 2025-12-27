@@ -433,6 +433,30 @@ cp examples/mcp/registry.template.json .agent/climpt/registry.json
 
 完全なテンプレートファイルは[`examples/mcp/registry.template.json`](examples/mcp/registry.template.json)で利用可能
 
+### レジストリ生成
+
+プロンプトのフロントマターから`registry.json`を生成または更新:
+
+```bash
+# JSR経由（推奨）
+deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
+
+# ローカルリポジトリ（deno taskを使用）
+deno task generate-registry
+```
+
+オプション:
+- `--base=<dir>` - ベースディレクトリ
+- `--schema=<path>` - スキーマファイルパス
+- `--input=<pattern>` - 入力globパターン
+- `--output=<path>` - 出力ファイルパス
+- `--template=<path>` - テンプレートファイルパス
+
+これは`@aidevtool/frontmatter-to-schema`を使用して:
+1. `.agent/climpt/prompts/**/*.md`からプロンプトを読み込み
+2. フロントマターを抽出し、`.agent/climpt/frontmatter-to-schema/registry.schema.json`を使用して変換
+3. `.agent/climpt/registry.json`に出力
+
 ### MCPサーバーの実行
 
 MCPサーバーを直接実行することもできます:
@@ -447,7 +471,79 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./src/mc
 
 MCPサーバーは、AIアシスタントにClimptの全機能への構造化されたアクセスを提供します。
 
-## Climp のユースケース
+## Claude Code プラグイン
+
+ClimptはAI支援開発ワークフローとのシームレスな統合のためのClaude Codeプラグインを提供します。
+
+### クイックインストール
+
+```bash
+# マーケットプレイスを追加
+/plugin marketplace add tettuan/climpt
+
+# プラグインをインストール
+/plugin install climpt-agent
+```
+
+**注意**: `/plugin install`が失敗した場合は、`/plugin`でプラグインブラウザを開き、「Discover」タブから`climpt-agent`をインストールしてください。
+
+### 機能
+
+- **自然言語コマンド**: 自然言語リクエストからClimptコマンドを自動検索・実行
+- **Gitワークフロー**: コミットグループ化、ブランチ管理、PRワークフロー
+- **メタ操作**: フロントマター生成、指示ファイル作成
+
+詳細は[climpt-plugins/README.md](climpt-plugins/README.md)を参照してください。
+
+## Iterate Agent
+
+Iterate AgentはClaude Agent SDKを使用して開発タスクを継続的に実行する自律開発システムです。
+
+### 概要
+
+Iterate Agentは以下のように自律的に開発ワークフローを実行します:
+- GitHub IssuesまたはProjectsから要件を取得
+- delegate-climpt-agentを通じてClimpt Skillsを使用してタスクを実行
+- 完了基準に対する進捗を評価
+- 作業が完了するまで反復
+
+### クイックスタート
+
+```bash
+# 前提条件: 環境変数を設定
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
+export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxx"
+
+# JSR経由で実行（推奨）
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+```
+
+### 使用例
+
+```bash
+# Issue #123がクローズされるまで作業
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+
+# Project #5の全アイテムが完了するまで作業
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
+
+# 最大10回の反復で実行
+deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
+```
+
+### 主な機能
+
+- **自律実行**: 人間の介入なしに実行
+- **GitHub統合**: `gh` CLIを通じてIssuesとProjectsと連携
+- **Climpt Skills統合**: 既存のClimptインフラストラクチャを活用
+- **詳細ログ**: 自動ローテーション付きJSONL形式（最大100ファイル）
+- **柔軟な完了条件**: Issueクローズ、Project完了、または反復回数で完了
+
+### ドキュメント
+
+詳細な使用方法、設定、トラブルシューティングについては[iterate-agent/README.md](iterate-agent/README.md)を参照してください。
+
+## Climpt のユースケース
 
 多様なプロンプトを使い分け、望んだプロンプトを1行のコマンドで取得します。
 主に、以下のユースケースを想定しています。
