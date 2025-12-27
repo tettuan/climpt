@@ -27,10 +27,9 @@ development tasks by:
 
 ## Prerequisites
 
-1. **Deno** (v1.40 or later)
+1. **Deno 2.x** (latest version required)
 2. **GitHub CLI (`gh`)** - [Installation guide](https://cli.github.com/manual/)
 3. **GITHUB_TOKEN** environment variable with `repo` and `project` scopes
-4. **Claude API Key** - Set as `ANTHROPIC_API_KEY` environment variable
 
 ## Quick Start
 
@@ -39,9 +38,6 @@ development tasks by:
 ```bash
 # Set GitHub token
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
-
-# Set Claude API key
-export ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxx"
 ```
 
 ### 2. Run the Agent
