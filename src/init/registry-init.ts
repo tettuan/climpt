@@ -58,7 +58,7 @@ export async function initRegistryAndSchema(
   result.skipped.push(...schemaResult.skipped);
 
   // 2. registry_config.json 生成
-  const configResult = await createRegistryConfig(fullWorkingDir, force);
+  const configResult = await createRegistryConfig(fullWorkingDir, workingDir, force);
   result.created.push(...configResult.created);
   result.skipped.push(...configResult.skipped);
 
@@ -277,6 +277,7 @@ function getEmbeddedSchema(fileName: string): string | null {
  */
 async function createRegistryConfig(
   workingDir: string,
+  workingDirRelative: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
   const result = { created: [] as string[], skipped: [] as string[] };
@@ -288,15 +289,10 @@ async function createRegistryConfig(
     return result;
   }
 
-  // workingDir からの相対パスで設定
-  const registryConfig: RegistryConfig = {
-    version: "1.0.0",
+  // プロジェクトルートからの相対パスで設定
+  const registryConfig = {
     registries: {
-      climpt: "registry.json",
-    },
-    defaults: {
-      promptsDir: "prompts",
-      outputDir: ".",
+      climpt: `${workingDirRelative}/registry.json`,
     },
   };
 
