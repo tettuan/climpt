@@ -110,7 +110,7 @@ interface Command {
     /** adaptation パラメータ値リスト */
     adaptation?: string[];
 
-    /** -f/--file フラグサポート */
+    /** -f/--from フラグサポート */
     file?: boolean;
 
     /** stdin 入力サポート */

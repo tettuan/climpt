@@ -56,7 +56,7 @@
 |----------------|--------|------|--------------------------------|---------------------|
 | `-e`, `--edition` | ENUM   | Yes  | 入力形式 (SQL, CSV, JSON)      | `-e=SQL`            |
 | `-a`, `--agg`   | ENUM   | No   | 集計モード (full, compact)     | `-a=compact`        |
-| `-f`, `--file`  | PATH   | No   | 入力ファイルパス               | `-f=query.sql`      |
+| `-f`, `--from`  | PATH   | No   | 入力ファイルパス               | `-f=query.sql`      |
 | `--uv-market`   | ENUM   | No   | 市場コード                     | `--uv-market=JP`    |
 | `--dry-run`     | BOOL   | No   | 実行せず構文確認               | `--dry-run`         |
 

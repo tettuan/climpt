@@ -162,7 +162,7 @@ deno run \
 |------------|----------|---------|
 | `edition` | `-e` / `--edition` | `-e=detailed` |
 | `adaptation` | `-a` / `--adaptation` | `-a=custom` |
-| `file` | `-f` / `--file` | `-f=input.md` |
+| `file` | `-f` / `--from` | `-f=input.md` |
 | `destination` | `-d` / `--destination` | `-d=output.md` |
 
 ### 戻り値

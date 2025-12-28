@@ -67,13 +67,12 @@ export function buildOptionsPrompt(
   }
 
   // Tier 2: Fixed values (only if true, not false)
+  // Note: file and destination are OPTIONAL - only include if context provides them
   const fixed: string[] = [];
   if (options?.file === true && context.files?.length) {
     fixed.push(`- file: ${context.files[0]}`);
   }
-  if (options?.destination === true) {
-    fixed.push("- destination: <infer appropriate output path>");
-  }
+  // destination is not auto-inferred - only used if explicitly provided in context
   if (fixed.length > 0) {
     lines.push("");
     lines.push("## Fixed Values");
@@ -108,18 +107,13 @@ export function buildOptionsPrompt(
   lines.push("Return JSON only (no markdown, no explanation):");
 
   // Build expected JSON structure
+  // Note: file and destination are NOT included - they are optional and context-dependent
   const jsonExample: Record<string, string> = {};
   if (options?.edition && Array.isArray(options.edition)) {
     jsonExample["edition"] = "<selected>";
   }
   if (options?.adaptation && Array.isArray(options.adaptation)) {
     jsonExample["adaptation"] = "<selected>";
-  }
-  if (options?.file === true) {
-    jsonExample["file"] = "<path>";
-  }
-  if (options?.destination === true) {
-    jsonExample["destination"] = "<path>";
   }
   if (options?.stdin === true) {
     jsonExample["stdin"] = "<content>";
@@ -146,8 +140,7 @@ export function needsOptionResolution(command: CommandWithUV): boolean {
   if (options?.edition && Array.isArray(options.edition)) return true;
   if (options?.adaptation && Array.isArray(options.adaptation)) return true;
 
-  // Check Tier 2: Fixed values that need inference
-  if (options?.destination === true) return true;
+  // Note: file and destination are optional and context-dependent, not auto-resolved
 
   // Check Tier 3: Generate from context
   if (options?.stdin === true) return true;
@@ -271,10 +264,22 @@ After analysis, output ONLY the final JSON object.`,
 }
 
 /**
+ * Map option keys to CLI argument names
+ * Frontmatter option keys differ from CLI arg names in some cases
+ */
+const OPTION_TO_CLI_ARG: Record<string, string> = {
+  file: "from", // file: true → --from=<path>
+  // Other options use the same name: edition, adaptation, destination, stdin
+};
+
+/**
  * Convert resolved options to CLI arguments
  */
 export function toCLIArgs(resolved: ResolvedOptions): string[] {
   return Object.entries(resolved)
     .filter(([_, v]) => v != null && v !== "")
-    .map(([k, v]) => `--${k}=${v}`);
+    .map(([k, v]) => {
+      const cliArg = OPTION_TO_CLI_ARG[k] || k;
+      return `--${cliArg}=${v}`;
+    });
 }

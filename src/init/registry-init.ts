@@ -4,7 +4,7 @@
  */
 
 import { resolve } from "@std/path";
-import type { Registry, RegistryConfig } from "./types.ts";
+import type { Registry } from "./types.ts";
 
 const SCHEMA_FILES = [
   "registry.schema.json",
@@ -58,7 +58,11 @@ export async function initRegistryAndSchema(
   result.skipped.push(...schemaResult.skipped);
 
   // 2. registry_config.json 生成
-  const configResult = await createRegistryConfig(fullWorkingDir, force);
+  const configResult = await createRegistryConfig(
+    fullWorkingDir,
+    workingDir,
+    force,
+  );
   result.created.push(...configResult.created);
   result.skipped.push(...configResult.skipped);
 
@@ -262,9 +266,16 @@ function getEmbeddedSchema(fileName: string): string | null {
       "c1": "{c1}",
       "c2": "{c2}",
       "c3": "{c3}",
-      "title": "{title}",
       "description": "{description}",
       "usage": "{usage}",
+      "options": {
+        "edition": "{options.edition}",
+        "adaptation": "{options.adaptation}",
+        "file": "{options.file}",
+        "stdin": "{options.stdin}",
+        "destination": "{options.destination}",
+      },
+      "uv": "{uv}",
     },
   };
 
@@ -277,6 +288,7 @@ function getEmbeddedSchema(fileName: string): string | null {
  */
 async function createRegistryConfig(
   workingDir: string,
+  workingDirRelative: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
   const result = { created: [] as string[], skipped: [] as string[] };
@@ -288,15 +300,10 @@ async function createRegistryConfig(
     return result;
   }
 
-  // workingDir からの相対パスで設定
-  const registryConfig: RegistryConfig = {
-    version: "1.0.0",
+  // プロジェクトルートからの相対パスで設定
+  const registryConfig = {
     registries: {
-      climpt: "registry.json",
-    },
-    defaults: {
-      promptsDir: "prompts",
-      outputDir: ".",
+      climpt: `${workingDirRelative}/registry.json`,
     },
   };
 

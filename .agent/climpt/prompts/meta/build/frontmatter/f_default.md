@@ -31,6 +31,10 @@ Provide the following information via stdin:
 - Action verb (what the command does)
 - Target object (what the command acts upon)
 
+## Received Input
+
+{input_text}
+
 ## Output
 
 A complete YAML frontmatter block ready to be placed at the top of a markdown instruction file.
