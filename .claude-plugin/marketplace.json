@@ -2,6 +2,9 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "climpt-marketplace",
   "description": "Climpt Agent plugins for AI-assisted development workflows",
+  "metadata": {
+    "pluginRoot": "./climpt-plugins/plugins"
+  },
   "owner": {
     "name": "tettuan",
     "url": "https://github.com/tettuan"
@@ -15,7 +18,7 @@
         "name": "tettuan",
         "url": "https://github.com/tettuan"
       },
-      "source": "../climpt-plugins/plugins/climpt-agent",
+      "source": "./climpt-agent",
       "category": "development"
     }
   ]
