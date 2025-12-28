@@ -23,6 +23,7 @@ import {
 } from "./climpt-agent/command.ts";
 import { Logger } from "./climpt-agent/logger.ts";
 import {
+  extractStdinFromOptions,
   needsOptionResolution,
   resolveOptions,
   toCLIArgs,
@@ -181,6 +182,7 @@ async function main(): Promise<void> {
 
     // Step 3.5: Resolve options using LLM (NEW)
     let resolvedCLIArgs: string[] = [];
+    let llmGeneratedStdin: string | undefined;
 
     if (needsOptionResolution(matchedCommand)) {
       await logger.write("Command needs option resolution via LLM");
@@ -200,24 +202,31 @@ async function main(): Promise<void> {
         logger,
       );
 
+      // toCLIArgs excludes stdin (it must be piped, not passed as CLI arg)
       resolvedCLIArgs = toCLIArgs(resolvedOptions);
+      llmGeneratedStdin = extractStdinFromOptions(resolvedOptions);
+
       await logger.write("Resolved CLI args", { args: resolvedCLIArgs });
+      if (llmGeneratedStdin) {
+        await logger.write("LLM generated stdin content", {
+          length: llmGeneratedStdin.length,
+        });
+      }
     }
 
     // Step 4: Create command and execute
-    // Determine stdin content BEFORE creating command
-    // If command expects stdin AND we have piped content, use piped content
-    const stdinContent = matchedCommand.options?.stdin
-      ? pipedStdinContent
-      : undefined;
-
-    // Filter out --stdin= from LLM args if we have actual piped content
-    // Piped stdin takes precedence over LLM-generated stdin
-    if (stdinContent && resolvedCLIArgs.length > 0) {
-      resolvedCLIArgs = resolvedCLIArgs.filter(
-        (arg) => !arg.startsWith("--stdin="),
-      );
-      await logger.write("Filtered --stdin from CLI args (piped stdin takes precedence)");
+    // Determine stdin content:
+    // 1. Priority: piped stdin (if command expects stdin and piped content exists)
+    // 2. Fallback: LLM-generated stdin (if command expects stdin and no piped content)
+    let stdinContent: string | undefined;
+    if (matchedCommand.options?.stdin) {
+      if (pipedStdinContent) {
+        stdinContent = pipedStdinContent;
+        await logger.write("Using piped stdin content");
+      } else if (llmGeneratedStdin) {
+        stdinContent = llmGeneratedStdin;
+        await logger.write("Using LLM-generated stdin content");
+      }
     }
 
     // CLI args from user override LLM-resolved args
