@@ -48,6 +48,42 @@ import {
 } from "../../../lib/mod.ts";
 
 // =============================================================================
+// Stdin Reading
+// =============================================================================
+
+/**
+ * Read all content from stdin if piped (not interactive terminal)
+ *
+ * @returns stdin content or undefined if stdin is a terminal
+ */
+async function readStdinIfPiped(): Promise<string | undefined> {
+  // If stdin is a terminal (interactive), don't read
+  if (Deno.stdin.isTerminal()) {
+    return undefined;
+  }
+
+  // Read all content from piped stdin
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of Deno.stdin.readable) {
+    chunks.push(chunk);
+  }
+
+  if (chunks.length === 0) {
+    return undefined;
+  }
+
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const combined = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return new TextDecoder().decode(combined);
+}
+
+// =============================================================================
 // Main Workflow
 // =============================================================================
 
@@ -61,6 +97,9 @@ import {
  * New: Uses LLM to resolve options based on user intent
  */
 async function main(): Promise<void> {
+  // Read stdin early (before any other async operations)
+  const pipedStdinContent = await readStdinIfPiped();
+
   const args = parseArgs(Deno.args);
   validateArgs(args);
 
@@ -75,6 +114,7 @@ async function main(): Promise<void> {
     await logger.write(`Intent: "${args.intent || args.query}"`);
     await logger.write(`Agent: ${args.agent}`);
     await logger.write(`CWD: ${cwd}`);
+    await logger.write(`Piped stdin: ${pipedStdinContent ? `${pipedStdinContent.length} bytes` : "none"}`);
 
     // Step 1: Load configuration and registry
     const mcpConfig = await loadMCPConfig();
@@ -178,11 +218,17 @@ async function main(): Promise<void> {
     await logger.write(`Sub-agent name: ${subAgentName}`);
 
     // Step 5: Get prompt from Climpt CLI
+    // If command expects stdin AND we have piped content, pass it
+    // Note: intent is used for option resolution, pipedStdinContent is for climpt stdin
+    const stdinContent = matchedCommand.options?.stdin
+      ? pipedStdinContent
+      : undefined;
+
     await logger.write(
       `Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,
-      { options: cmd.options },
+      { options: cmd.options, hasStdin: !!stdinContent },
     );
-    const prompt = await getClimptPrompt(cmd);
+    const prompt = await getClimptPrompt(cmd, stdinContent);
 
     await logger.writeSection("PROMPT", prompt);
 
