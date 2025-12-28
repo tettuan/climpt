@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(run)$"
+      pattern: "^(run|echo)$"
     layerType:
-      pattern: "^(specific)$"
+      pattern: "^(specific|input)$"

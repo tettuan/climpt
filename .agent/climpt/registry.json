@@ -147,6 +147,25 @@
       },
       {
         "c1": "test",
+        "c2": "echo",
+        "c3": "input",
+        "description": "Echo stdin content back to output for testing stdin forwarding functionality",
+        "usage": "climpt-test echo input",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        },
+        "uv": ""
+      },
+      {
+        "c1": "test",
         "c2": "run",
         "c3": "specific",
         "description": "Execute tests for a specific target using the uv-target variable",
