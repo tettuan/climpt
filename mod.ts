@@ -12,7 +12,6 @@ export { main } from "./src/cli.ts";
 
 // Export MCP utilities for shared use
 export {
-  cosineSimilarity,
   describeCommand,
   searchCommands,
 } from "./src/mcp/similarity.ts";

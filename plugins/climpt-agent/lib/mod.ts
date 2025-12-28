@@ -19,7 +19,6 @@ export type {
 export { DEFAULT_MCP_CONFIG } from "./types.ts";
 
 export {
-  cosineSimilarity,
   describeCommand,
   searchCommands,
 } from "./similarity.ts";

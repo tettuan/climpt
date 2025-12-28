@@ -1,13 +1,22 @@
 /**
- * @fileoverview Semantic similarity search for commands
+ * @fileoverview BM25-based semantic similarity search for commands
  * @module mcp/similarity
  *
  * **SHARED MODULE** - Used by MCP server, mod.ts exports, and external consumers via JSR.
+ *
+ * Uses BM25 (Best Match 25) algorithm for better search accuracy:
+ * - Reduces weight of common terms (like "create", "get")
+ * - Considers document length normalization
+ * - Industry-standard search algorithm (used by Elasticsearch, Lucene)
  *
  * @see docs/internal/command-operations.md - Search/Describe algorithm specification
  */
 
 import type { Command, SearchResult } from "./types.ts";
+
+/** BM25 parameters */
+const BM25_K1 = 1.2; // Term frequency saturation parameter
+const BM25_B = 0.75; // Document length normalization parameter
 
 /**
  * Tokenize text with enhanced splitting for better search accuracy.
@@ -58,45 +67,137 @@ export function tokenize(text: string): string[] {
 }
 
 /**
- * Cosine similarity calculation (word-based)
- *
- * Calculates the similarity between two text strings using word-level
- * cosine similarity. This is a simple but effective method for semantic search.
- *
- * @param a First text string
- * @param b Second text string
- * @returns Similarity score between 0 and 1 (1 = identical, 0 = no similarity)
- *
- * @example
- * ```typescript
- * const score = cosineSimilarity("commit changes", "git commit");
- * console.log(score); // 0.5
- * ```
+ * Internal interface for document statistics used by BM25
  */
-export function cosineSimilarity(a: string, b: string): number {
-  const wordsA = tokenize(a);
-  const wordsB = tokenize(b);
-  const allWords = [...new Set([...wordsA, ...wordsB])];
-
-  const vectorA = allWords.map((word) =>
-    wordsA.filter((w) => w === word).length
-  );
-  const vectorB = allWords.map((word) =>
-    wordsB.filter((w) => w === word).length
-  );
-
-  const dotProduct = vectorA.reduce((sum, a, i) => sum + a * vectorB[i], 0);
-  const magnitudeA = Math.sqrt(vectorA.reduce((sum, a) => sum + a * a, 0));
-  const magnitudeB = Math.sqrt(vectorB.reduce((sum, b) => sum + b * b, 0));
-
-  return dotProduct / (magnitudeA * magnitudeB) || 0;
+interface DocumentStats {
+  /** Tokenized document content */
+  tokens: string[];
+  /** Document length (number of tokens) */
+  length: number;
+  /** Term frequency map: term -> count */
+  termFreq: Map<string, number>;
 }
 
 /**
- * Search commands by semantic similarity
+ * Internal interface for corpus-level statistics used by BM25
+ */
+interface CorpusStats {
+  /** Total number of documents */
+  numDocs: number;
+  /** Average document length */
+  avgDocLength: number;
+  /** Document frequency: term -> number of documents containing the term */
+  docFreq: Map<string, number>;
+  /** Per-document statistics */
+  docStats: DocumentStats[];
+}
+
+/**
+ * Build corpus statistics for BM25 scoring
+ *
+ * @param documents Array of document texts
+ * @returns Corpus statistics including IDF values
+ */
+function buildCorpusStats(documents: string[]): CorpusStats {
+  const docStats: DocumentStats[] = [];
+  const docFreq = new Map<string, number>();
+  let totalLength = 0;
+
+  for (const doc of documents) {
+    const tokens = tokenize(doc);
+    const termFreq = new Map<string, number>();
+
+    // Count term frequencies in this document
+    for (const token of tokens) {
+      termFreq.set(token, (termFreq.get(token) || 0) + 1);
+    }
+
+    // Update document frequency (how many docs contain each term)
+    const uniqueTerms = new Set(tokens);
+    for (const term of uniqueTerms) {
+      docFreq.set(term, (docFreq.get(term) || 0) + 1);
+    }
+
+    docStats.push({
+      tokens,
+      length: tokens.length,
+      termFreq,
+    });
+
+    totalLength += tokens.length;
+  }
+
+  return {
+    numDocs: documents.length,
+    avgDocLength: documents.length > 0 ? totalLength / documents.length : 0,
+    docFreq,
+    docStats,
+  };
+}
+
+/**
+ * Calculate IDF (Inverse Document Frequency) for a term
+ *
+ * Uses the BM25 IDF formula:
+ * IDF(t) = log((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
+ *
+ * @param term The term to calculate IDF for
+ * @param corpus Corpus statistics
+ * @returns IDF value (higher = rarer term = more important)
+ */
+function calculateIDF(term: string, corpus: CorpusStats): number {
+  const df = corpus.docFreq.get(term) || 0;
+  const N = corpus.numDocs;
+
+  // BM25 IDF formula with +1 to ensure non-negative values
+  return Math.log((N - df + 0.5) / (df + 0.5) + 1);
+}
+
+/**
+ * Calculate BM25 score for a query against a document
+ *
+ * BM25 formula:
+ * score(D, Q) = Σ IDF(qi) × (f(qi, D) × (k1 + 1)) / (f(qi, D) + k1 × (1 - b + b × |D| / avgdl))
+ *
+ * @param queryTokens Tokenized query
+ * @param docStats Document statistics
+ * @param corpus Corpus statistics
+ * @returns BM25 score (higher = more relevant)
+ */
+function calculateBM25Score(
+  queryTokens: string[],
+  docStats: DocumentStats,
+  corpus: CorpusStats,
+): number {
+  let score = 0;
+
+  for (const term of queryTokens) {
+    const idf = calculateIDF(term, corpus);
+    const tf = docStats.termFreq.get(term) || 0;
+
+    if (tf === 0) continue;
+
+    // BM25 term score
+    const numerator = tf * (BM25_K1 + 1);
+    const denominator = tf +
+      BM25_K1 * (1 - BM25_B + BM25_B * docStats.length / corpus.avgDocLength);
+
+    score += idf * (numerator / denominator);
+  }
+
+  return score;
+}
+
+/**
+ * Search commands by semantic similarity using BM25
  *
  * Searches a list of commands using natural language queries.
- * Uses cosine similarity to rank commands by relevance.
+ * Uses BM25 algorithm to rank commands by relevance.
+ *
+ * BM25 advantages over cosine similarity:
+ * - Common terms (like "create", "get") are weighted lower (via IDF)
+ * - Document length is normalized
+ * - Industry-standard algorithm used by major search engines
  *
  * @param commands Command list to search
  * @param query Search query in English
@@ -105,8 +206,8 @@ export function cosineSimilarity(a: string, b: string): number {
  *
  * @example
  * ```typescript
- * const results = searchCommands(commands, "commit changes", 3);
- * // Returns: [{ c1: "git", c2: "group-commit", ..., score: 0.424 }, ...]
+ * const results = searchCommands(commands, "create specification", 3);
+ * // Returns: [{ c1: "requirements", c2: "draft", c3: "entry", ..., score: 1.234 }, ...]
  * ```
  */
 export function searchCommands(
@@ -123,22 +224,26 @@ export function searchCommands(
     }
   }
 
-  // Calculate similarity for each unique command
-  const results: SearchResult[] = [];
-  for (const cmd of uniqueCommands.values()) {
-    // Combine c1, c2, c3, and description for search target
-    const searchTarget = `${cmd.c1} ${cmd.c2} ${cmd.c3} ${cmd.description}`
-      .toLowerCase();
-    const score = cosineSimilarity(query, searchTarget);
+  // Build document corpus from commands
+  const commandList = Array.from(uniqueCommands.values());
+  const documents = commandList.map((cmd) =>
+    `${cmd.c1} ${cmd.c2} ${cmd.c3} ${cmd.description}`.toLowerCase()
+  );
 
-    results.push({
-      c1: cmd.c1,
-      c2: cmd.c2,
-      c3: cmd.c3,
-      description: cmd.description,
-      score,
-    });
-  }
+  // Build corpus statistics for BM25
+  const corpus = buildCorpusStats(documents);
+
+  // Tokenize query
+  const queryTokens = tokenize(query.toLowerCase());
+
+  // Calculate BM25 score for each command
+  const results: SearchResult[] = commandList.map((cmd, index) => ({
+    c1: cmd.c1,
+    c2: cmd.c2,
+    c3: cmd.c3,
+    description: cmd.description,
+    score: calculateBM25Score(queryTokens, corpus.docStats[index], corpus),
+  }));
 
   // Sort by score descending and return top N
   return results
