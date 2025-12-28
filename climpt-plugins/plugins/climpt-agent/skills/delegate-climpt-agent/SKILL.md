@@ -50,6 +50,29 @@ Parameters:
 - `--agent`: Agent name (default: "climpt")
 - `--options`: Comma-separated list of additional options (optional)
 
+### Step 3: Pass stdin content (when applicable)
+
+If the user provides detailed content (file diffs, context, etc.), pipe it to the script:
+
+```bash
+echo "<detailed content>" | deno run ... --query="..." --intent="..."
+```
+
+**Important**: `--intent` and stdin content serve different purposes:
+- `--intent`: Short description for LLM option resolution (e.g., "新機能追加")
+- stdin content: Detailed content passed to climpt (e.g., file diffs, code context)
+
+Example:
+```bash
+git diff --staged | deno run ... \
+  --query="commit changes" \
+  --intent="新機能追加のコミットメッセージを作成"
+```
+
+Flow:
+1. `--intent="新機能追加"` is used to resolve options (e.g., `-e=feature`)
+2. `git diff` output is passed to climpt as stdin content
+
 ## When to Use This Skill
 
 Use when the user gives project-specific instructions and it's unclear from general knowledge what should be done. Climpt provides pre-configured prompts tailored to the project's workflow.
