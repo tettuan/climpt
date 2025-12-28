@@ -19,9 +19,13 @@ export function generateSubAgentName(cmd: ClimptCommand): string {
  * Execute Climpt command via CLI and get the instruction prompt
  *
  * @param cmd - Command parameters
+ * @param stdinContent - Optional stdin content to pass to the command
  * @returns The instruction prompt from Climpt
  */
-export async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
+export async function getClimptPrompt(
+  cmd: ClimptCommand,
+  stdinContent?: string,
+): Promise<string> {
   const configParam = cmd.agent === "climpt"
     ? cmd.c1
     : `${cmd.agent}-${cmd.c1}`;
@@ -44,18 +48,45 @@ export async function getClimptPrompt(cmd: ClimptCommand): Promise<string> {
     commandArgs.push(...cmd.options);
   }
 
-  const process = new Deno.Command("deno", {
-    args: commandArgs,
-    stdout: "piped",
-    stderr: "piped",
-  });
+  if (stdinContent) {
+    // stdin content provided: use spawn + write + close pattern
+    const process = new Deno.Command("deno", {
+      args: commandArgs,
+      stdout: "piped",
+      stderr: "piped",
+      stdin: "piped",
+    });
 
-  const { stdout, stderr, code } = await process.output();
+    const child = process.spawn();
 
-  if (code !== 0) {
-    const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`Climpt execution failed: ${errorText}`);
+    // Write stdin content and close to send EOF
+    const writer = child.stdin.getWriter();
+    await writer.write(new TextEncoder().encode(stdinContent));
+    await writer.close();
+
+    const { stdout, stderr, code } = await child.output();
+
+    if (code !== 0) {
+      const errorText = new TextDecoder().decode(stderr);
+      throw new Error(`Climpt execution failed: ${errorText}`);
+    }
+
+    return new TextDecoder().decode(stdout);
+  } else {
+    // No stdin content: use simple output() which defaults stdin to "null"
+    const process = new Deno.Command("deno", {
+      args: commandArgs,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const { stdout, stderr, code } = await process.output();
+
+    if (code !== 0) {
+      const errorText = new TextDecoder().decode(stderr);
+      throw new Error(`Climpt execution failed: ${errorText}`);
+    }
+
+    return new TextDecoder().decode(stdout);
   }
-
-  return new TextDecoder().decode(stdout);
 }

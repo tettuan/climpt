@@ -54,6 +54,10 @@ EOF
 
 The stdin input is used to determine c1 (domain), c2 (action), c3 (target) and generate the appropriate instruction file structure.
 
+## Received Input
+
+{input_text}
+
 ## Step 1: Find and Review C3L Specification
 
 Before creating a new instruction, locate the latest C3L specification:

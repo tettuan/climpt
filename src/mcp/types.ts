@@ -54,7 +54,7 @@ export interface Command {
     adaptation?: string[];
 
     /**
-     * Whether this command supports file input via -f/--file flag
+     * Whether this command supports file input via -f/--from flag
      */
     file?: boolean;
 

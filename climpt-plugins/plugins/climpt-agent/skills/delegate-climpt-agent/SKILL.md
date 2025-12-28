@@ -37,18 +37,43 @@ Examples:
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
-  ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
+  -- ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
   --query="<search query>" \
   --intent="<detailed intent>" \
   [--agent=climpt] \
   [--options=<opt1,opt2,...>]
 ```
 
+**Important**: The `--` before the script path is required to separate Deno options from script arguments.
+
 Parameters:
 - `--query`: Short search query to find matching command (required)
 - `--intent`: Detailed intent for option resolution (optional, defaults to query)
 - `--agent`: Agent name (default: "climpt")
 - `--options`: Comma-separated list of additional options (optional)
+
+### Step 3: Pass stdin content (when applicable)
+
+If the user provides detailed content (file diffs, context, etc.), pipe it to the script:
+
+```bash
+echo "<detailed content>" | deno run ... -- <script.ts> --query="..." --intent="..."
+```
+
+**Important**: `--intent` and stdin content serve different purposes:
+- `--intent`: Short description for LLM option resolution (e.g., "新機能追加")
+- stdin content: Detailed content passed to climpt (e.g., file diffs, code context)
+
+Example:
+```bash
+git diff --staged | deno run ... -- <script.ts> \
+  --query="commit changes" \
+  --intent="新機能追加のコミットメッセージを作成"
+```
+
+Flow:
+1. `--intent="新機能追加"` is used to resolve options (e.g., `-e=feature`)
+2. `git diff` output is passed to climpt as stdin content
 
 ## When to Use This Skill
 
