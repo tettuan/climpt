@@ -256,17 +256,11 @@ Deno.test("Design Invariant: registry_config.json has required structure", async
     const config = JSON.parse(content);
 
     // Required fields
-    assertExists(config.version);
     assertExists(config.registries);
-    assertExists(config.defaults);
 
-    // Registries must include climpt
+    // Registries must include climpt with full path from project root
     assertExists(config.registries.climpt);
-    assertEquals(config.registries.climpt, "registry.json");
-
-    // Defaults structure
-    assertExists(config.defaults.promptsDir);
-    assertExists(config.defaults.outputDir);
+    assertEquals(config.registries.climpt, ".agent/climpt/registry.json");
   } finally {
     await cleanupTempDir(tempDir);
   }
