@@ -63,10 +63,17 @@ async function readStdinIfPiped(): Promise<string | undefined> {
     return undefined;
   }
 
-  // Read all content from piped stdin
+  // Read all content from piped stdin using getReader() for TypeScript compatibility
   const chunks: Uint8Array[] = [];
-  for await (const chunk of Deno.stdin.readable) {
-    chunks.push(chunk);
+  const reader = Deno.stdin.readable.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
   }
 
   if (chunks.length === 0) {
