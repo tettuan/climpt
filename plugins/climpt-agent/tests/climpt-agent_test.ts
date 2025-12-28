@@ -13,15 +13,15 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // Import modules under test
-import { generateSubAgentName } from "../plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent/command.ts";
+import { generateSubAgentName } from "../skills/delegate-climpt-agent/scripts/climpt-agent/command.ts";
 import {
   parseArgs,
   validateArgs,
-} from "../plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent/cli.ts";
+} from "../skills/delegate-climpt-agent/scripts/climpt-agent/cli.ts";
 import type {
   CliArgs,
   ClimptCommand,
-} from "../plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent/types.ts";
+} from "../skills/delegate-climpt-agent/scripts/climpt-agent/types.ts";
 
 // =============================================================================
 // Design Invariant: Sub-agent Naming Convention (C3L)
