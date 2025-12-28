@@ -29,18 +29,8 @@ development tasks by:
 
 1. **Deno 2.x** (latest version required)
 2. **GitHub CLI (`gh`)** - [Installation guide](https://cli.github.com/manual/)
-3. **GITHUB_TOKEN** environment variable with `repo` and `project` scopes
 
 ## Quick Start
-
-### 1. Setup Environment
-
-```bash
-# Set GitHub token
-export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
-```
-
-### 2. Run the Agent
 
 ```bash
 # Work on Issue #123 until closed (uses default agent "climpt")
@@ -224,14 +214,6 @@ brew install gh
 
 # Linux
 # See https://cli.github.com/manual/installation
-```
-
-### Error: "GITHUB_TOKEN not found"
-
-Set the environment variable:
-
-```bash
-export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxx"
 ```
 
 ### Error: "Configuration file not found"
