@@ -63,7 +63,8 @@
   },
   "compilerOptions": {
     "lib": ["deno.ns", "dom", "es2022"],
-    "strict": true
+    "strict": true,
+    "skipLibCheck": true
   },
   "fmt": {
     "include": ["src/", "*.ts", "*.json"],
