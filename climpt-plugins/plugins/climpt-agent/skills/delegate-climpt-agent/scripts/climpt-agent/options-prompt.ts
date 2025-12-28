@@ -269,17 +269,38 @@ After analysis, output ONLY the final JSON object.`,
  */
 const OPTION_TO_CLI_ARG: Record<string, string> = {
   file: "from", // file: true → --from=<path>
-  // Other options use the same name: edition, adaptation, destination, stdin
+  // Other options use the same name: edition, adaptation, destination
 };
 
 /**
+ * Options that should NOT be converted to CLI args
+ * stdin content must be piped to the process, not passed as --stdin=
+ */
+const SKIP_CLI_ARG_OPTIONS = new Set(["stdin"]);
+
+/**
  * Convert resolved options to CLI arguments
+ * Note: stdin is excluded - it must be piped to the process
  */
 export function toCLIArgs(resolved: ResolvedOptions): string[] {
   return Object.entries(resolved)
-    .filter(([_, v]) => v != null && v !== "")
+    .filter(([k, v]) => v != null && v !== "" && !SKIP_CLI_ARG_OPTIONS.has(k))
     .map(([k, v]) => {
       const cliArg = OPTION_TO_CLI_ARG[k] || k;
       return `--${cliArg}=${v}`;
     });
+}
+
+/**
+ * Extract stdin content from resolved options
+ * Used when LLM generates stdin content and no piped stdin is available
+ */
+export function extractStdinFromOptions(
+  resolved: ResolvedOptions,
+): string | undefined {
+  const stdin = resolved["stdin"];
+  if (stdin && typeof stdin === "string" && stdin.trim() !== "") {
+    return stdin;
+  }
+  return undefined;
 }
