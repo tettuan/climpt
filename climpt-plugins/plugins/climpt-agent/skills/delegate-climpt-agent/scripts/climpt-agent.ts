@@ -205,6 +205,21 @@ async function main(): Promise<void> {
     }
 
     // Step 4: Create command and execute
+    // Determine stdin content BEFORE creating command
+    // If command expects stdin AND we have piped content, use piped content
+    const stdinContent = matchedCommand.options?.stdin
+      ? pipedStdinContent
+      : undefined;
+
+    // Filter out --stdin= from LLM args if we have actual piped content
+    // Piped stdin takes precedence over LLM-generated stdin
+    if (stdinContent && resolvedCLIArgs.length > 0) {
+      resolvedCLIArgs = resolvedCLIArgs.filter(
+        (arg) => !arg.startsWith("--stdin="),
+      );
+      await logger.write("Filtered --stdin from CLI args (piped stdin takes precedence)");
+    }
+
     // CLI args from user override LLM-resolved args
     const cmd: ClimptCommand = {
       agent: args.agent,
@@ -216,13 +231,6 @@ async function main(): Promise<void> {
 
     const subAgentName = generateSubAgentName(cmd);
     await logger.write(`Sub-agent name: ${subAgentName}`);
-
-    // Step 5: Get prompt from Climpt CLI
-    // If command expects stdin AND we have piped content, pass it
-    // Note: intent is used for option resolution, pipedStdinContent is for climpt stdin
-    const stdinContent = matchedCommand.options?.stdin
-      ? pipedStdinContent
-      : undefined;
 
     await logger.write(
       `Fetching prompt: climpt --config=${cmd.c1} ${cmd.c2} ${cmd.c3}`,

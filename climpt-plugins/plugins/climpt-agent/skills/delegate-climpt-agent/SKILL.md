@@ -37,12 +37,14 @@ Examples:
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
-  ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
+  -- ${CLAUDE_PLUGIN_ROOT}/skills/delegate-climpt-agent/scripts/climpt-agent.ts \
   --query="<search query>" \
   --intent="<detailed intent>" \
   [--agent=climpt] \
   [--options=<opt1,opt2,...>]
 ```
+
+**Important**: The `--` before the script path is required to separate Deno options from script arguments.
 
 Parameters:
 - `--query`: Short search query to find matching command (required)
@@ -55,7 +57,7 @@ Parameters:
 If the user provides detailed content (file diffs, context, etc.), pipe it to the script:
 
 ```bash
-echo "<detailed content>" | deno run ... --query="..." --intent="..."
+echo "<detailed content>" | deno run ... -- <script.ts> --query="..." --intent="..."
 ```
 
 **Important**: `--intent` and stdin content serve different purposes:
@@ -64,7 +66,7 @@ echo "<detailed content>" | deno run ... --query="..." --intent="..."
 
 Example:
 ```bash
-git diff --staged | deno run ... \
+git diff --staged | deno run ... -- <script.ts> \
   --query="commit changes" \
   --intent="新機能追加のコミットメッセージを作成"
 ```

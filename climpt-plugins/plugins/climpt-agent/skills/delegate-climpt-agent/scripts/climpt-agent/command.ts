@@ -45,7 +45,13 @@ export async function getClimptPrompt(
   ];
 
   if (cmd.options?.length) {
-    commandArgs.push(...cmd.options);
+    // Filter out --destination and --file options
+    // --destination: causes output to go to file instead of stdout
+    // --file: input file path, not needed for prompt retrieval
+    const filteredOptions = cmd.options.filter(
+      (opt) => !opt.startsWith("--destination=") && !opt.startsWith("--file="),
+    );
+    commandArgs.push(...filteredOptions);
   }
 
   if (stdinContent) {
