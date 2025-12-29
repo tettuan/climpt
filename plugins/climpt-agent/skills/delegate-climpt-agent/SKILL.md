@@ -56,6 +56,8 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 **Important**: The `--` before the script path is required to separate Deno options from script arguments.
 
+**Sandbox**: This script uses Claude Agent SDK, which requires `dangerouslyDisableSandbox: true` when called from Claude Code's Bash tool.
+
 Parameters:
 - `--action`: Action-focused query (~6 words, emphasizes verbs/c2) - required
 - `--target`: Target-focused query (~6 words, emphasizes nouns/c3) - required
@@ -65,7 +67,9 @@ Parameters:
 
 ### Step 3: Pass stdin content (when applicable)
 
-If the user provides detailed content (file diffs, context, etc.), pipe it to the script:
+If the user provides detailed content (file diffs, context, etc.), pipe it to the script.
+
+**When stdin is piped, always use `dangerouslyDisableSandbox: true`.**
 
 ```bash
 echo "<detailed content>" | deno run ... -- <script.ts> --action="..." --target="..." --intent="..."
