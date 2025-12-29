@@ -108,6 +108,28 @@ Use when the user gives project-specific instructions and it's unclear from gene
 3. Ensure all required permissions are granted
 4. Check that registry.json exists
 
+### "Import directory failed" error
+
+If you see an error like:
+```
+error: Import 'file:///path/to/project' failed.
+    0: Is a directory (os error 21)
+```
+
+**Cause**: The project has `node_modules/` directory (from npm/pnpm), causing Deno to use "manual" mode for npm package resolution. Deno then fails to find `@anthropic-ai/claude-agent-sdk` in the local node_modules.
+
+**Solution**: Add `nodeModulesDir` setting to the project's `deno.json`:
+
+```json
+{
+  "nodeModulesDir": "auto"
+}
+```
+
+This tells Deno to resolve npm packages independently, ignoring the existing node_modules directory.
+
+**Note**: This is a host project configuration, not a climpt-agent issue. Any project using both npm/pnpm and Deno tools should include this setting
+
 ### Sub-agent errors
 The sub-agent runs independently and reports its own errors. Check:
 1. Working directory is correct
