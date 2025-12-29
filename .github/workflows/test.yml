@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'release/**']
   pull_request:
     branches: [main, develop]
 
@@ -30,3 +30,30 @@ jobs:
       
       - name: Run tests
         run: deno test --allow-all
+
+      - name: Check version consistency
+        run: |
+          # Extract versions
+          DENO_VERSION=$(grep '"version"' deno.json | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+          TS_VERSION=$(grep 'CLIMPT_VERSION' src/version.ts | sed 's/.*= *"\([^"]*\)".*/\1/')
+
+          echo "deno.json version: $DENO_VERSION"
+          echo "version.ts version: $TS_VERSION"
+
+          # Check deno.json and version.ts match
+          if [ "$DENO_VERSION" != "$TS_VERSION" ]; then
+            echo "::error::Version mismatch: deno.json=$DENO_VERSION, version.ts=$TS_VERSION"
+            exit 1
+          fi
+
+          # For release branches, check branch name matches version
+          if [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
+            BRANCH_VERSION=${GITHUB_REF#refs/heads/release/}
+            echo "Branch version: $BRANCH_VERSION"
+            if [ "$BRANCH_VERSION" != "$DENO_VERSION" ]; then
+              echo "::error::Branch version mismatch: branch=$BRANCH_VERSION, deno.json=$DENO_VERSION"
+              exit 1
+            fi
+          fi
+
+          echo "✓ Version consistency check passed"
