@@ -58,42 +58,45 @@ Deno.test("Design Invariant: generateSubAgentName works with custom agent", () =
 // Design Invariant: CLI Argument Parsing
 // =============================================================================
 
-Deno.test("Design Invariant: parseArgs extracts --query", () => {
-  const args = parseArgs(['--query=create commit message']);
+Deno.test("Design Invariant: parseArgs extracts --action and --target", () => {
+  const args = parseArgs(['--action=execute test', '--target=specific file']);
 
-  assertEquals(args.query, "create commit message");
+  assertEquals(args.action, "execute test");
+  assertEquals(args.target, "specific file");
 });
 
-Deno.test("Design Invariant: parseArgs extracts --intent separately from --query", () => {
+Deno.test("Design Invariant: parseArgs extracts --intent separately", () => {
   const args = parseArgs([
-    '--query=commit message',
+    '--action=commit changes',
+    '--target=staged files',
     '--intent=新機能追加のコミットメッセージを作成',
   ]);
 
-  assertEquals(args.query, "commit message");
+  assertEquals(args.action, "commit changes");
+  assertEquals(args.target, "staged files");
   assertEquals(args.intent, "新機能追加のコミットメッセージを作成");
 });
 
 Deno.test("Design Invariant: parseArgs defaults agent to 'climpt'", () => {
-  const args = parseArgs(['--query=test']);
+  const args = parseArgs(['--action=test', '--target=file']);
 
   assertEquals(args.agent, "climpt");
 });
 
 Deno.test("Design Invariant: parseArgs extracts --agent", () => {
-  const args = parseArgs(['--query=test', '--agent=custom-agent']);
+  const args = parseArgs(['--action=test', '--target=file', '--agent=custom-agent']);
 
   assertEquals(args.agent, "custom-agent");
 });
 
 Deno.test("Design Invariant: parseArgs extracts --options as comma-separated", () => {
-  const args = parseArgs(['--query=test', '--options=-e=issue,-a=detailed']);
+  const args = parseArgs(['--action=test', '--target=file', '--options=-e=issue,-a=detailed']);
 
   assertEquals(args.options, ["-e=issue", "-a=detailed"]);
 });
 
 Deno.test("Design Invariant: parseArgs returns empty options array by default", () => {
-  const args = parseArgs(['--query=test']);
+  const args = parseArgs(['--action=test', '--target=file']);
 
   assertEquals(args.options, []);
 });
@@ -102,11 +105,11 @@ Deno.test("Design Invariant: parseArgs returns empty options array by default", 
 // Design Invariant: CLI Validation
 // =============================================================================
 
-Deno.test("Design Invariant: validateArgs requires query", () => {
+Deno.test("Design Invariant: validateArgs requires action and target", () => {
   const args: CliArgs = {
     agent: "climpt",
     options: [],
-    // query is missing
+    // action and target are missing
   };
 
   let exitCalled = false;
@@ -135,14 +138,16 @@ Deno.test("Design Invariant: validateArgs requires query", () => {
 
 Deno.test("Design Invariant: CliArgs has required fields", () => {
   const args: CliArgs = {
-    query: "test query",
+    action: "execute test",
+    target: "specific file",
     intent: "detailed intent",
     agent: "climpt",
     options: ["-e=default"],
   };
 
   // Verify all fields exist
-  assertExists(args.query);
+  assertExists(args.action);
+  assertExists(args.target);
   assertExists(args.intent);
   assertExists(args.agent);
   assertExists(args.options);
