@@ -86,18 +86,20 @@ sequenceDiagram
 
     Note over R: 1. バージョンアップ
     R->>R: deno.json, version.ts 更新
-    R->>R: git commit & push
+    Note over R: 2. ローカルCI確認
+    R->>R: deno task ci
+    R->>R: 3. git commit & push
 
-    R->>D: 2. PR作成 (release → develop)
-    Note over D: CI確認（バージョン整合性チェック含む）
-    D->>D: 3. PRマージ
+    R->>D: 4. PR作成 (release → develop)
+    Note over D: 5. CI確認（全てpass）
+    D->>D: PRマージ
 
-    D->>M: 4. PR作成 (develop → main)
-    Note over M: CI確認
-    M->>M: 5. PRマージ
+    D->>M: 6. PR作成 (develop → main)
+    Note over M: 7. CI確認（全てpass）
+    M->>M: PRマージ
     Note over M: JSR publish 自動実行
 
-    M->>T: 6. vtag作成
+    M->>T: 8. vtag作成
     Note over T: git tag vx.y.z
 ```
 
@@ -130,7 +132,17 @@ grep '"version"' deno.json
 grep 'export const CLIMPT_VERSION' src/version.ts
 ```
 
-#### ステップ 2: コミット & プッシュ
+#### ステップ 2: ローカルCI確認
+
+**重要**: プッシュ前に必ずローカルでCIを通すこと
+
+```bash
+deno task ci
+```
+
+全てのステージがパスすることを確認してから次のステップへ進む。
+
+#### ステップ 3: コミット & プッシュ
 
 ```bash
 git add deno.json src/version.ts
@@ -140,7 +152,7 @@ git push -u origin release/x.y.z
 
 **注意**: `dangerouslyDisableSandbox: true` が必要
 
-#### ステップ 3: release/* → develop PR
+#### ステップ 4: release/* → develop PR
 
 ```bash
 gh pr create --base develop --head release/x.y.z \
@@ -152,17 +164,19 @@ gh pr create --base develop --head release/x.y.z \
 - x.y.z"
 ```
 
-#### ステップ 4: CI確認 & develop へマージ
+#### ステップ 5: CI確認 & develop へマージ
+
+**重要**: マージ前にPRのCIが全てパスすることを確認
 
 ```bash
-# CI確認
+# CI確認（全てpassになるまで待機）
 gh pr checks <PR番号> --watch
 
-# マージ
+# CIがpassしたらマージ
 gh pr merge <PR番号> --merge
 ```
 
-#### ステップ 5: develop → main PR
+#### ステップ 6: develop → main PR
 
 ```bash
 gh pr create --base main --head develop \
@@ -170,16 +184,21 @@ gh pr create --base main --head develop \
   --body "Release version x.y.z to production"
 ```
 
-#### ステップ 6: CI確認 & main へマージ
+#### ステップ 7: CI確認 & main へマージ
+
+**重要**: マージ前にPRのCIが全てパスすることを確認
 
 ```bash
+# CI確認（全てpassになるまで待機）
 gh pr checks <PR番号> --watch
+
+# CIがpassしたらマージ
 gh pr merge <PR番号> --merge
 ```
 
 **自動処理**: main マージ時に JSR publish が自動実行される
 
-#### ステップ 7: vtag 作成
+#### ステップ 8: vtag 作成
 
 ```bash
 # main の最新コミットを取得
@@ -192,7 +211,7 @@ git push origin vx.y.z
 
 **重要**: vtag は必ず main ブランチのコミットに付与する
 
-#### ステップ 8: クリーンアップ
+#### ステップ 9: クリーンアップ
 
 ```bash
 # develop に戻る
@@ -256,13 +275,18 @@ git push origin release/1.9.15
 バージョンアップ:
   1. deno.json の version を更新
   2. src/version.ts の CLIMPT_VERSION を更新
-  3. git commit -m "chore: bump version to x.y.z"
+  3. deno task ci  ← ローカルCIを通す（重要）
+  4. git commit -m "chore: bump version to x.y.z"
 
 リリースフロー:
-  1. release/* → develop PR作成 → CI確認 → マージ
-  2. develop → main PR作成 → CI確認 → マージ (JSR publish 自動)
-  3. vtag作成: git tag vx.y.z origin/main && git push origin vx.y.z
-  4. クリーンアップ: release/* ブランチ削除
+  1. release/* → develop PR作成
+  2. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
+  3. gh pr merge <PR番号> --merge
+  4. develop → main PR作成
+  5. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
+  6. gh pr merge <PR番号> --merge (JSR publish 自動)
+  7. vtag作成: git tag vx.y.z origin/main && git push origin vx.y.z
+  8. クリーンアップ: release/* ブランチ削除
 
 サンドボックス注意:
   git push, gh コマンドは dangerouslyDisableSandbox: true が必要
