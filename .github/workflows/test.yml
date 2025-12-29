@@ -35,7 +35,7 @@ jobs:
         run: |
           # Extract versions
           DENO_VERSION=$(grep '"version"' deno.json | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
-          TS_VERSION=$(grep 'CLIMPT_VERSION' src/version.ts | sed 's/.*= *"\([^"]*\)".*/\1/')
+          TS_VERSION=$(grep 'export const CLIMPT_VERSION' src/version.ts | sed 's/.*= *"\([^"]*\)".*/\1/')
 
           echo "deno.json version: $DENO_VERSION"
           echo "version.ts version: $TS_VERSION"
