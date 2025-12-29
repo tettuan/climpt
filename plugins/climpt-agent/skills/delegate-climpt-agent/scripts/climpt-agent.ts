@@ -67,18 +67,17 @@ async function checkSandboxWithPipedStdin(hasPipedStdin: boolean): Promise<void>
     // Attempt lightweight TCP connection to detect sandbox restrictions
     const conn = await Deno.connect({ hostname: "api.anthropic.com", port: 443 });
     conn.close();
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("Operation not permitted")) {
-      console.error("ERROR: Stdin is piped but running in sandbox mode.");
-      console.error("");
-      console.error("Claude Agent SDK requires network access. Please invoke with:");
-      console.error("  dangerouslyDisableSandbox: true");
-      console.error("");
-      console.error("Example:");
-      console.error('  Bash({ command: "echo ... | deno run ...", dangerouslyDisableSandbox: true })');
-      Deno.exit(1);
-    }
-    // Other connection errors (network issues) are OK - not sandbox related
+  } catch {
+    // Any connection error to api.anthropic.com when stdin is piped
+    // indicates sandbox restrictions - fail fast with clear guidance
+    console.error("ERROR: Stdin is piped but running in sandbox mode.");
+    console.error("");
+    console.error("Claude Agent SDK requires network access. Please invoke with:");
+    console.error("  dangerouslyDisableSandbox: true");
+    console.error("");
+    console.error("Example:");
+    console.error('  Bash({ command: "echo ... | deno run ...", dangerouslyDisableSandbox: true })');
+    Deno.exit(1);
   }
 }
 
