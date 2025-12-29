@@ -15,12 +15,10 @@ export function parseArgs(args: string[]): CliArgs {
   };
 
   for (const arg of args) {
-    if (arg.startsWith("--query=")) {
-      result.query = arg.slice(8);
-    } else if (arg.startsWith("--query1=")) {
-      result.query1 = arg.slice(9);
-    } else if (arg.startsWith("--query2=")) {
-      result.query2 = arg.slice(9);
+    if (arg.startsWith("--action=")) {
+      result.action = arg.slice(9);
+    } else if (arg.startsWith("--target=")) {
+      result.target = arg.slice(9);
     } else if (arg.startsWith("--intent=")) {
       result.intent = arg.slice(9);
     } else if (arg.startsWith("--agent=")) {
@@ -34,26 +32,14 @@ export function parseArgs(args: string[]): CliArgs {
 }
 
 /**
- * Check if dual query mode (RRF) is used
- */
-export function isDualQueryMode(args: CliArgs): boolean {
-  return !!(args.query1 && args.query2);
-}
-
-/**
  * Validate CLI arguments and exit if invalid
  *
- * Accepts either:
- * - --query (legacy single query mode)
- * - --query1 and --query2 (new RRF dual query mode)
+ * Requires both --action and --target parameters
  */
 export function validateArgs(
   args: CliArgs,
-): asserts args is CliArgs & ({ query: string } | { query1: string; query2: string }) {
-  const hasLegacyQuery = !!args.query;
-  const hasDualQuery = !!(args.query1 && args.query2);
-
-  if (!hasLegacyQuery && !hasDualQuery) {
+): asserts args is CliArgs & { action: string; target: string } {
+  if (!args.action || !args.target) {
     displayHelp();
     Deno.exit(1);
   }
@@ -64,39 +50,26 @@ export function validateArgs(
  */
 export function displayHelp(): void {
   console.error(
-    "Usage: climpt-agent.ts [query options] [--intent=...] [--agent=...] [--options=...]",
+    "Usage: climpt-agent.ts --action=... --target=... [--intent=...] [--agent=...] [--options=...]",
   );
   console.error("");
-  console.error("Query Options (choose one):");
+  console.error("Required Parameters:");
   console.error(
-    "  --query    Single query for command search (legacy mode)",
+    "  --action   Action-focused query (what to do, e.g., 'execute test')",
   );
   console.error(
-    "  --query1   Action-focused query (what to do) - used with --query2",
-  );
-  console.error(
-    "  --query2   Target-focused query (what to act on) - used with --query1",
+    "  --target   Target-focused query (what to act on, e.g., 'specific file')",
   );
   console.error("");
-  console.error("Other Parameters:");
+  console.error("Optional Parameters:");
   console.error(
-    "  --intent   Detailed description for option resolution (optional, defaults to query)",
+    "  --intent   Detailed description for option resolution (defaults to action+target)",
   );
   console.error('  --agent    Agent name (default: "climpt")');
-  console.error("  --options  Comma-separated list of options (optional)");
+  console.error("  --options  Comma-separated list of options");
   console.error("");
-  console.error("Examples:");
+  console.error("Example:");
   console.error(
-    '  # Legacy single query mode:',
-  );
-  console.error(
-    '  climpt-agent.ts --query="run specific test" --intent="test options-prompt.ts changes"',
-  );
-  console.error("");
-  console.error(
-    '  # Dual query mode (RRF):',
-  );
-  console.error(
-    '  climpt-agent.ts --query1="execute test verify" --query2="specific file unit test"',
+    '  climpt-agent.ts --action="execute test" --target="specific file unit test"',
   );
 }
