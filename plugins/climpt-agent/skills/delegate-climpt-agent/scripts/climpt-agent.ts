@@ -49,6 +49,40 @@ import {
 } from "../../../lib/mod.ts";
 
 // =============================================================================
+// Sandbox Detection
+// =============================================================================
+
+/**
+ * Check if running in Claude Code sandbox mode by attempting network connection.
+ * When stdin is piped, Claude Agent SDK requires network access which fails in sandbox.
+ *
+ * @throws Error with clear message if sandbox is detected with piped stdin
+ */
+async function checkSandboxWithPipedStdin(hasPipedStdin: boolean): Promise<void> {
+  if (!hasPipedStdin) {
+    return; // No stdin piped, skip check
+  }
+
+  try {
+    // Attempt lightweight TCP connection to detect sandbox restrictions
+    const conn = await Deno.connect({ hostname: "api.anthropic.com", port: 443 });
+    conn.close();
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("Operation not permitted")) {
+      console.error("ERROR: Stdin is piped but running in sandbox mode.");
+      console.error("");
+      console.error("Claude Agent SDK requires network access. Please invoke with:");
+      console.error("  dangerouslyDisableSandbox: true");
+      console.error("");
+      console.error("Example:");
+      console.error('  Bash({ command: "echo ... | deno run ...", dangerouslyDisableSandbox: true })');
+      Deno.exit(1);
+    }
+    // Other connection errors (network issues) are OK - not sandbox related
+  }
+}
+
+// =============================================================================
 // Stdin Reading
 // =============================================================================
 
@@ -107,6 +141,9 @@ async function readStdinIfPiped(): Promise<string | undefined> {
 async function main(): Promise<void> {
   // Read stdin early (before any other async operations)
   const pipedStdinContent = await readStdinIfPiped();
+
+  // Check sandbox restrictions when stdin is piped (fails fast with clear error)
+  await checkSandboxWithPipedStdin(pipedStdinContent !== undefined);
 
   const args = parseArgs(Deno.args);
   validateArgs(args);
