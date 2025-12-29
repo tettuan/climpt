@@ -45,16 +45,13 @@ export interface LogSummary {
  * Parsed CLI arguments
  */
 export interface CliArgs {
-  /** Natural language query describing the task (for command search) - legacy single query */
-  query?: string;
+  /** Action-focused query for command search (what to do, emphasizes c2) */
+  action?: string;
 
-  /** Action-focused query for RRF search (emphasizes c2 - what to do) */
-  query1?: string;
+  /** Target-focused query for command search (what to act on, emphasizes c3) */
+  target?: string;
 
-  /** Target-focused query for RRF search (emphasizes c3 - what to act on) */
-  query2?: string;
-
-  /** Detailed intent for option resolution (optional, defaults to query) */
+  /** Detailed intent for option resolution (optional, defaults to action+target) */
   intent?: string;
 
   /** Agent name (default: "climpt") */

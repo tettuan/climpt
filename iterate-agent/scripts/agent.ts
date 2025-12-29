@@ -52,18 +52,18 @@
  * ### Run with Iteration Limit
  *
  * ```bash
- * deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate 10
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
  * ```
  *
  * ## Options
  *
- * - `--issue <number>` - GitHub Issue number to work on
- * - `--project <number>` - GitHub Project number to work on
- * - `--iterate <max>` - Maximum iterations (default: 100)
- * - `--agent <name>` - Agent name for configuration (default: climpt)
- * - `--resume` - Resume previous session
- * - `--init` - Initialize configuration files
- * - `--help` - Display help information
+ * - `--init` - Initialize configuration files in current directory
+ * - `--issue, -i <number>` - GitHub Issue number to work on
+ * - `--project, -p <number>` - GitHub Project number to work on
+ * - `--iterate-max, -m <number>` - Maximum iterations (default: unlimited)
+ * - `--name, -n <name>` - Agent name for configuration (default: climpt)
+ * - `--resume, -r` - Resume previous session
+ * - `--help, -h` - Display help information
  *
  * @example
  * ```typescript
