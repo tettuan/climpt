@@ -1,7 +1,81 @@
 /**
- * Iterate Agent - Main Entry Point
+ * Iterate Agent - Autonomous Development Agent Entry Point
  *
- * Autonomous agent that executes development cycles through iterations.
+ * @module
+ *
+ * This module provides the main executable entry point for the Iterate Agent,
+ * an autonomous agent that executes development cycles through iterations
+ * using the Claude Agent SDK.
+ *
+ * ## Features
+ *
+ * - GitHub Issue-based development cycles
+ * - GitHub Project-based task management
+ * - Configurable iteration limits
+ * - Session resume capability
+ * - Comprehensive logging with JSONL format
+ *
+ * ## Installation
+ *
+ * Run directly via JSR:
+ *
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+ * ```
+ *
+ * Or use the deno task:
+ *
+ * ```bash
+ * deno task iterate-agent --issue 123
+ * ```
+ *
+ * ## Usage
+ *
+ * ### Initialize Configuration
+ *
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+ * ```
+ *
+ * ### Run with GitHub Issue
+ *
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+ * ```
+ *
+ * ### Run with GitHub Project
+ *
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
+ * ```
+ *
+ * ### Run with Iteration Limit
+ *
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate 10
+ * ```
+ *
+ * ## Options
+ *
+ * - `--issue <number>` - GitHub Issue number to work on
+ * - `--project <number>` - GitHub Project number to work on
+ * - `--iterate <max>` - Maximum iterations (default: 100)
+ * - `--agent <name>` - Agent name for configuration (default: climpt)
+ * - `--resume` - Resume previous session
+ * - `--init` - Initialize configuration files
+ * - `--help` - Display help information
+ *
+ * @example
+ * ```typescript
+ * // Programmatic usage - use the module exports from iterate-agent/mod.ts
+ * import {
+ *   parseCliArgs,
+ *   loadConfig,
+ *   createCompletionHandler,
+ * } from "jsr:@aidevtool/climpt/iterate-agent";
+ *
+ * const options = parseCliArgs(["--issue", "123"]);
+ * ```
  */
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
