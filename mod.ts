@@ -14,7 +14,9 @@ export { main } from "./src/cli.ts";
 export {
   describeCommand,
   searchCommands,
+  searchWithRRF,
 } from "./src/mcp/similarity.ts";
+export type { RRFResult } from "./src/mcp/similarity.ts";
 export type {
   Command,
   MCPConfig,

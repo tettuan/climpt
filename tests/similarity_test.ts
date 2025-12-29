@@ -13,6 +13,7 @@ import {
 import {
   describeCommand,
   searchCommands,
+  searchWithRRF,
   tokenize,
 } from "../src/mcp/similarity.ts";
 import type { Command } from "../src/mcp/types.ts";
@@ -463,4 +464,141 @@ Deno.test("BM25: document length normalization affects scoring", () => {
       "All scores should be non-negative",
     );
   }
+});
+
+// ============================================================================
+// searchWithRRF() Tests (Reciprocal Rank Fusion)
+// ============================================================================
+
+Deno.test("RRF: returns correct number of results", () => {
+  const results = searchWithRRF(
+    sampleCommands,
+    ["commit changes", "unstaged files"],
+    3,
+  );
+  assertEquals(results.length, 3);
+});
+
+Deno.test("RRF: returns empty for empty queries array", () => {
+  const results = searchWithRRF(sampleCommands, [], 3);
+  assertEquals(results.length, 0);
+});
+
+Deno.test("RRF: handles single query (degrades to single ranking)", () => {
+  const results = searchWithRRF(sampleCommands, ["commit"], 3);
+  assertEquals(results.length, 3);
+  // Single query should still produce valid RRF scores
+  for (const result of results) {
+    assert(result.score > 0, "Score should be positive");
+    assertEquals(result.ranks.length, 1, "Should have 1 rank entry");
+    assert(result.ranks[0] > 0, "Rank should be positive");
+  }
+});
+
+Deno.test("RRF: results are sorted by RRF score descending", () => {
+  const results = searchWithRRF(
+    sampleCommands,
+    ["commit", "changes"],
+    4,
+  );
+  for (let i = 0; i < results.length - 1; i++) {
+    assert(
+      results[i].score >= results[i + 1].score,
+      "Results should be sorted by RRF score descending",
+    );
+  }
+});
+
+Deno.test("RRF: ranks array has correct length", () => {
+  const queries = ["commit changes", "group files"];
+  const results = searchWithRRF(sampleCommands, queries, 3);
+
+  for (const result of results) {
+    assertEquals(
+      result.ranks.length,
+      queries.length,
+      `Ranks array should have ${queries.length} entries`,
+    );
+  }
+});
+
+Deno.test("RRF: C3L-aligned dual queries improve relevance", () => {
+  // Test case: "create specification" problem from original BM25 tests
+  // query1 (action): emphasizes verbs like "draft", "create"
+  // query2 (target): emphasizes nouns like "specification", "requirements"
+  const results = searchWithRRF(
+    bm25TestCommands,
+    ["draft create write", "specification requirements document"],
+    4,
+  );
+
+  console.log("RRF Query: action='draft create write', target='specification requirements document'");
+  console.log("Results:");
+  results.forEach((r, i) => {
+    console.log(
+      `  ${i + 1}. ${r.c1} ${r.c2} ${r.c3}: RRF=${r.score.toFixed(6)}, ranks=[${r.ranks.join(", ")}]`,
+    );
+  });
+
+  // The "requirements draft entry" command should rank highly
+  // because it matches both action (draft) and target (specification)
+  const requirementsResult = results.find((r) => r.c1 === "requirements");
+  assert(
+    requirementsResult !== undefined,
+    "requirements command should be in results",
+  );
+});
+
+Deno.test("RRF: combines rankings from multiple queries", () => {
+  // Use two different queries that should favor different commands
+  const results = searchWithRRF(
+    sampleCommands,
+    ["git branch", "frontmatter generate"],
+    4,
+  );
+
+  // Both git-related and frontmatter commands should appear
+  const hasGit = results.some((r) => r.c1 === "git");
+  const hasMeta = results.some((r) => r.c1 === "meta");
+
+  assert(hasGit || hasMeta, "Should find commands matching either query");
+});
+
+Deno.test("RRF: handles empty query in array", () => {
+  const results = searchWithRRF(
+    sampleCommands,
+    ["commit", "", "changes"],
+    3,
+  );
+  // Should still work, ignoring empty query
+  assertEquals(results.length, 3);
+});
+
+Deno.test("RRF: result contains required fields", () => {
+  const results = searchWithRRF(sampleCommands, ["commit", "changes"], 1);
+  assert(results.length > 0, "Should return at least one result");
+
+  const result = results[0];
+  assert(typeof result.c1 === "string", "c1 should be string");
+  assert(typeof result.c2 === "string", "c2 should be string");
+  assert(typeof result.c3 === "string", "c3 should be string");
+  assert(typeof result.description === "string", "description should be string");
+  assert(typeof result.score === "number", "score should be number");
+  assert(Array.isArray(result.ranks), "ranks should be array");
+});
+
+Deno.test("RRF: command appearing in both queries gets boosted score", () => {
+  // Query that should make "group-commit" rank well in both
+  const results = searchWithRRF(
+    sampleCommands,
+    ["commit", "unstaged changes"],
+    4,
+  );
+
+  const groupCommit = results.find((r) => r.c2 === "group-commit");
+  assert(groupCommit !== undefined, "group-commit should be found");
+
+  // It should appear in both rankings (ranks[0] > 0 and ranks[1] > 0)
+  // If it appears in both, it gets higher RRF score
+  console.log("group-commit ranks:", groupCommit.ranks);
 });

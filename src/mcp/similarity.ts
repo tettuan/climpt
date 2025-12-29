@@ -252,6 +252,106 @@ export function searchCommands(
 }
 
 /**
+ * RRF (Reciprocal Rank Fusion) result interface
+ */
+export interface RRFResult {
+  c1: string;
+  c2: string;
+  c3: string;
+  description: string;
+  /** RRF aggregated score */
+  score: number;
+  /** Rank per query (1-indexed, -1 if not found) */
+  ranks: number[];
+}
+
+/** RRF smoothing parameter (standard value from literature) */
+const RRF_K = 60;
+
+/**
+ * Search commands using RRF (Reciprocal Rank Fusion) with multiple queries.
+ *
+ * RRF combines rankings from multiple search queries using the formula:
+ *   score(d) = Σ 1/(k + rank_i(d))
+ *
+ * This is useful for C3L-aligned dual queries:
+ * - query1: Action-focused (emphasizes c2 - what to do)
+ * - query2: Target-focused (emphasizes c3 - what to act on)
+ *
+ * @param commands Command list to search
+ * @param queries Array of search queries (typically 2: action + target)
+ * @param topN Number of results to return (default: 3)
+ * @returns Top N commands sorted by RRF score (descending)
+ *
+ * @example
+ * ```typescript
+ * const results = searchWithRRF(commands, [
+ *   "draft create write compose",      // action-focused
+ *   "specification document entry"     // target-focused
+ * ], 3);
+ * ```
+ */
+export function searchWithRRF(
+  commands: Command[],
+  queries: string[],
+  topN = 3,
+): RRFResult[] {
+  if (queries.length === 0) {
+    return [];
+  }
+
+  // Map: command key -> { score, ranks, cmd }
+  const rrfScores = new Map<
+    string,
+    { score: number; ranks: number[]; cmd: SearchResult }
+  >();
+
+  // Process each query and accumulate RRF scores
+  for (let qIdx = 0; qIdx < queries.length; qIdx++) {
+    const query = queries[qIdx];
+    if (!query || query.trim() === "") {
+      continue;
+    }
+
+    // Get all results for this query (use full command list)
+    const results = searchCommands(commands, query, commands.length);
+
+    for (let rank = 0; rank < results.length; rank++) {
+      const r = results[rank];
+      const key = `${r.c1}:${r.c2}:${r.c3}`;
+
+      // Get or create entry
+      let existing = rrfScores.get(key);
+      if (!existing) {
+        existing = {
+          score: 0,
+          ranks: new Array(queries.length).fill(-1),
+          cmd: r,
+        };
+        rrfScores.set(key, existing);
+      }
+
+      // RRF formula: 1/(k + rank), where rank is 1-indexed
+      existing.score += 1 / (RRF_K + rank + 1);
+      existing.ranks[qIdx] = rank + 1; // Store 1-indexed rank
+    }
+  }
+
+  // Sort by RRF score and return top N
+  return [...rrfScores.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map(({ score, ranks, cmd }) => ({
+      c1: cmd.c1,
+      c2: cmd.c2,
+      c3: cmd.c3,
+      description: cmd.description,
+      score,
+      ranks,
+    }));
+}
+
+/**
  * Describe command by c1, c2, c3
  *
  * Retrieves all command definitions that match the specified c1, c2, c3.

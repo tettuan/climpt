@@ -21,6 +21,8 @@ export { DEFAULT_MCP_CONFIG } from "./types.ts";
 export {
   describeCommand,
   searchCommands,
+  searchWithRRF,
 } from "./similarity.ts";
+export type { RRFResult } from "./similarity.ts";
 
 export { loadMCPConfig, loadRegistryForAgent } from "./registry.ts";

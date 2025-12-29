@@ -16,7 +16,7 @@
 import { join } from "jsr:@std/path";
 
 // Local modules
-import { parseArgs, validateArgs } from "./climpt-agent/cli.ts";
+import { isDualQueryMode, parseArgs, validateArgs } from "./climpt-agent/cli.ts";
 import {
   generateSubAgentName,
   getClimptPrompt,
@@ -44,8 +44,10 @@ import {
   describeCommand,
   loadMCPConfig,
   loadRegistryForAgent,
+  type RRFResult,
   searchCommands,
   type SearchResult,
+  searchWithRRF,
 } from "../../../lib/mod.ts";
 
 // =============================================================================
@@ -118,8 +120,17 @@ async function main(): Promise<void> {
   await logger.init(logDir);
 
   try {
-    await logger.write(`Searching for: "${args.query}"`);
-    await logger.write(`Intent: "${args.intent || args.query}"`);
+    // Determine search mode and log parameters
+    const useDualQuery = isDualQueryMode(args);
+    if (useDualQuery) {
+      await logger.write(`Search mode: RRF dual query`);
+      await logger.write(`Query1 (action): "${args.query1}"`);
+      await logger.write(`Query2 (target): "${args.query2}"`);
+    } else {
+      await logger.write(`Search mode: legacy single query`);
+      await logger.write(`Searching for: "${args.query}"`);
+    }
+    await logger.write(`Intent: "${args.intent || args.query1 || args.query}"`);
     await logger.write(`Agent: ${args.agent}`);
     await logger.write(`CWD: ${cwd}`);
     await logger.write(`Piped stdin: ${pipedStdinContent ? `${pipedStdinContent.length} bytes` : "none"}`);
@@ -137,29 +148,54 @@ async function main(): Promise<void> {
     await logger.write(`Found ${commands.length} commands in registry`);
 
     // Step 2: Search for matching commands
-    const searchResults: SearchResult[] = searchCommands(commands, args.query);
+    let bestMatch: SearchResult | RRFResult;
+    let searchResults: (SearchResult | RRFResult)[];
 
-    if (searchResults.length === 0) {
-      await logger.writeError(
-        `No matching commands found for query: "${args.query}"`,
+    if (useDualQuery) {
+      // RRF dual query mode
+      const rrfResults = searchWithRRF(commands, [args.query1!, args.query2!]);
+      if (rrfResults.length === 0) {
+        await logger.writeError(
+          `No matching commands found for queries: "${args.query1}", "${args.query2}"`,
+        );
+        console.log(`No matching commands found for queries: "${args.query1}", "${args.query2}"`);
+        Deno.exit(1);
+      }
+      searchResults = rrfResults;
+      bestMatch = rrfResults[0];
+
+      await logger.write(
+        `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (RRF score: ${
+          bestMatch.score.toFixed(6)
+        }, ranks: [${(bestMatch as RRFResult).ranks.join(", ")}])`,
+        { description: bestMatch.description },
       );
-      console.log(`No matching commands found for query: "${args.query}"`);
-      Deno.exit(1);
-    }
+    } else {
+      // Legacy single query mode
+      const singleResults = searchCommands(commands, args.query!);
+      if (singleResults.length === 0) {
+        await logger.writeError(
+          `No matching commands found for query: "${args.query}"`,
+        );
+        console.log(`No matching commands found for query: "${args.query}"`);
+        Deno.exit(1);
+      }
+      searchResults = singleResults;
+      bestMatch = singleResults[0];
 
-    // Select the best match
-    const bestMatch = searchResults[0];
-    await logger.write(
-      `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${
-        bestMatch.score.toFixed(3)
-      })`,
-      { description: bestMatch.description },
-    );
+      await logger.write(
+        `Best match: ${bestMatch.c1} ${bestMatch.c2} ${bestMatch.c3} (score: ${
+          bestMatch.score.toFixed(3)
+        })`,
+        { description: bestMatch.description },
+      );
+    }
 
     if (searchResults.length > 1) {
       const otherCandidates = searchResults.slice(1).map((r) => ({
         command: `${r.c1} ${r.c2} ${r.c3}`,
         score: r.score,
+        ...("ranks" in r ? { ranks: r.ranks } : {}),
       }));
       await logger.write("Other candidates", { candidates: otherCandidates });
     }
@@ -199,8 +235,9 @@ async function main(): Promise<void> {
         // files could be extracted from args or cwd in the future
       };
 
-      // Use intent for option resolution, fallback to query
-      const intent = args.intent || args.query;
+      // Use intent for option resolution, fallback to query (or query1 for dual mode)
+      // At this point, validateArgs ensures we have at least query or query1+query2
+      const intent = args.intent || args.query1 || args.query!;
 
       const resolvedOptions = await resolveOptions(
         matchedCommand,
