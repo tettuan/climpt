@@ -1,6 +1,6 @@
 ---
 name: release-procedure
-description: main, develop, release/* ブランチへの push や PR マージ時にバージョンアップとリリース手順を案内する
+description: Use when user says 'release', 'リリース', 'deploy', 'publish', 'vtag', 'version up', 'バージョンアップ', or discusses merging to main/develop. Guides through version bump and release flow.
 allowed-tools: [Bash, Read, Edit, Grep, Glob]
 ---
 
