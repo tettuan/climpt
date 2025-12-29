@@ -12,10 +12,11 @@ export { main } from "./src/cli.ts";
 
 // Export MCP utilities for shared use
 export {
-  cosineSimilarity,
   describeCommand,
   searchCommands,
+  searchWithRRF,
 } from "./src/mcp/similarity.ts";
+export type { RRFResult } from "./src/mcp/similarity.ts";
 export type {
   Command,
   MCPConfig,
