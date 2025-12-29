@@ -208,11 +208,46 @@ git push origin --delete release/x.y.z
 
 `.github/workflows/test.yml` で以下を自動チェック:
 
-1. `deno.json` と `version.ts` のバージョン一致
-2. `release/*` ブランチ名とバージョンの一致
+### チェック内容
 
-```yaml
-# release/1.9.14 ブランチでは deno.json も 1.9.14 であること
+| チェック項目 | 対象ブランチ | 失敗時のエラー |
+|-------------|-------------|---------------|
+| deno.json と version.ts の一致 | 全ブランチ | `Version mismatch: deno.json=X, version.ts=Y` |
+| ブランチ名とバージョンの一致 | release/* のみ | `Branch version mismatch: branch=X, deno.json=Y` |
+
+### release/* ブランチでの追加チェック
+
+```
+release/1.9.15 ブランチでは:
+- deno.json の version が "1.9.15" であること
+- src/version.ts の CLIMPT_VERSION が "1.9.15" であること
+```
+
+### チェックを通すための確認コマンド
+
+```bash
+# 現在のブランチ名からバージョンを確認
+git branch --show-current | sed 's|release/||'
+
+# deno.json のバージョン
+grep '"version"' deno.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/'
+
+# version.ts のバージョン
+grep 'export const CLIMPT_VERSION' src/version.ts | sed 's/.*"\([0-9.]*\)".*/\1/'
+
+# 3つが全て一致することを確認
+```
+
+### チェック失敗時の対処
+
+```bash
+# release/1.9.15 でバージョンが 1.9.14 のままだった場合
+# 1. deno.json を編集: "version": "1.9.15"
+# 2. version.ts を編集: CLIMPT_VERSION = "1.9.15"
+# 3. コミット & push
+git add deno.json src/version.ts
+git commit -m "fix: correct version to 1.9.15"
+git push origin release/1.9.15
 ```
 
 ## クイックリファレンス
