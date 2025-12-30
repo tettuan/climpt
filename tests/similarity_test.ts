@@ -394,7 +394,7 @@ Deno.test("BM25: common term 'create' has lower weight due to IDF", () => {
   // "meta create instruction" because "specification" in description
   // is more distinctive than "create" which appears in multiple commands
   const requirementsIndex = results.findIndex((r) => r.c1 === "requirements");
-  const metaCreateIndex = results.findIndex(
+  const _metaCreateIndex = results.findIndex(
     (r) => r.c1 === "meta" && r.c2 === "create",
   );
 
@@ -532,11 +532,15 @@ Deno.test("RRF: C3L-aligned dual queries improve relevance", () => {
     4,
   );
 
-  console.log("RRF Query: action='draft create write', target='specification requirements document'");
+  console.log(
+    "RRF Query: action='draft create write', target='specification requirements document'",
+  );
   console.log("Results:");
   results.forEach((r, i) => {
     console.log(
-      `  ${i + 1}. ${r.c1} ${r.c2} ${r.c3}: RRF=${r.score.toFixed(6)}, ranks=[${r.ranks.join(", ")}]`,
+      `  ${i + 1}. ${r.c1} ${r.c2} ${r.c3}: RRF=${r.score.toFixed(6)}, ranks=[${
+        r.ranks.join(", ")
+      }]`,
     );
   });
 
@@ -582,7 +586,10 @@ Deno.test("RRF: result contains required fields", () => {
   assert(typeof result.c1 === "string", "c1 should be string");
   assert(typeof result.c2 === "string", "c2 should be string");
   assert(typeof result.c3 === "string", "c3 should be string");
-  assert(typeof result.description === "string", "description should be string");
+  assert(
+    typeof result.description === "string",
+    "description should be string",
+  );
   assert(typeof result.score === "number", "score should be number");
   assert(Array.isArray(result.ranks), "ranks should be array");
 });

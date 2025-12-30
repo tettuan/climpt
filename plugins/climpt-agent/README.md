@@ -40,7 +40,8 @@ If you prefer not to disable the sandbox:
 
 ## Projects with node_modules (npm/pnpm)
 
-If your project uses npm or pnpm alongside Deno tools, add this to your `deno.json`:
+If your project uses npm or pnpm alongside Deno tools, add this to your
+`deno.json`:
 
 ```json
 {
@@ -50,14 +51,17 @@ If your project uses npm or pnpm alongside Deno tools, add this to your `deno.js
 
 ### Why?
 
-When Deno detects a `node_modules/` directory, it switches to "manual" mode and tries to resolve npm packages from there. Since `@anthropic-ai/claude-agent-sdk` isn't in your project's node_modules, Deno fails with:
+When Deno detects a `node_modules/` directory, it switches to "manual" mode and
+tries to resolve npm packages from there. Since `@anthropic-ai/claude-agent-sdk`
+isn't in your project's node_modules, Deno fails with:
 
 ```
 error: Import 'file:///path/to/project' failed.
     0: Is a directory (os error 21)
 ```
 
-Setting `"nodeModulesDir": "auto"` tells Deno to resolve npm packages independently from its own cache, ignoring the existing node_modules.
+Setting `"nodeModulesDir": "auto"` tells Deno to resolve npm packages
+independently from its own cache, ignoring the existing node_modules.
 
 ### Common setup
 
