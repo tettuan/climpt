@@ -57,25 +57,34 @@ import {
  *
  * @throws Error with clear message if sandbox is detected with piped stdin
  */
-async function checkSandboxWithPipedStdin(hasPipedStdin: boolean): Promise<void> {
+async function checkSandboxWithPipedStdin(
+  hasPipedStdin: boolean,
+): Promise<void> {
   if (!hasPipedStdin) {
     return; // No stdin piped, skip check
   }
 
   try {
     // Attempt lightweight TCP connection to detect sandbox restrictions
-    const conn = await Deno.connect({ hostname: "api.anthropic.com", port: 443 });
+    const conn = await Deno.connect({
+      hostname: "api.anthropic.com",
+      port: 443,
+    });
     conn.close();
   } catch {
     // Any connection error to api.anthropic.com when stdin is piped
     // indicates sandbox restrictions - fail fast with clear guidance
     console.error("ERROR: Stdin is piped but running in sandbox mode.");
     console.error("");
-    console.error("Claude Agent SDK requires network access. Please invoke with:");
+    console.error(
+      "Claude Agent SDK requires network access. Please invoke with:",
+    );
     console.error("  dangerouslyDisableSandbox: true");
     console.error("");
     console.error("Example:");
-    console.error('  Bash({ command: "echo ... | deno run ...", dangerouslyDisableSandbox: true })');
+    console.error(
+      '  Bash({ command: "echo ... | deno run ...", dangerouslyDisableSandbox: true })',
+    );
     Deno.exit(1);
   }
 }
@@ -156,10 +165,16 @@ async function main(): Promise<void> {
     // Log parameters
     await logger.write(`Action: "${args.action}"`);
     await logger.write(`Target: "${args.target}"`);
-    await logger.write(`Intent: "${args.intent || `${args.action} ${args.target}`}"`);
+    await logger.write(
+      `Intent: "${args.intent || `${args.action} ${args.target}`}"`,
+    );
     await logger.write(`Agent: ${args.agent}`);
     await logger.write(`CWD: ${cwd}`);
-    await logger.write(`Piped stdin: ${pipedStdinContent ? `${pipedStdinContent.length} bytes` : "none"}`);
+    await logger.write(
+      `Piped stdin: ${
+        pipedStdinContent ? `${pipedStdinContent.length} bytes` : "none"
+      }`,
+    );
 
     // Step 1: Load configuration and registry
     const mcpConfig = await loadMCPConfig();
@@ -179,7 +194,9 @@ async function main(): Promise<void> {
       await logger.writeError(
         `No matching commands found for action="${args.action}", target="${args.target}"`,
       );
-      console.log(`No matching commands found for action="${args.action}", target="${args.target}"`);
+      console.log(
+        `No matching commands found for action="${args.action}", target="${args.target}"`,
+      );
       Deno.exit(1);
     }
     const bestMatch = searchResults[0];

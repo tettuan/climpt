@@ -59,7 +59,7 @@ Deno.test("Design Invariant: generateSubAgentName works with custom agent", () =
 // =============================================================================
 
 Deno.test("Design Invariant: parseArgs extracts --action and --target", () => {
-  const args = parseArgs(['--action=execute test', '--target=specific file']);
+  const args = parseArgs(["--action=execute test", "--target=specific file"]);
 
   assertEquals(args.action, "execute test");
   assertEquals(args.target, "specific file");
@@ -67,9 +67,9 @@ Deno.test("Design Invariant: parseArgs extracts --action and --target", () => {
 
 Deno.test("Design Invariant: parseArgs extracts --intent separately", () => {
   const args = parseArgs([
-    '--action=commit changes',
-    '--target=staged files',
-    '--intent=新機能追加のコミットメッセージを作成',
+    "--action=commit changes",
+    "--target=staged files",
+    "--intent=新機能追加のコミットメッセージを作成",
   ]);
 
   assertEquals(args.action, "commit changes");
@@ -78,25 +78,33 @@ Deno.test("Design Invariant: parseArgs extracts --intent separately", () => {
 });
 
 Deno.test("Design Invariant: parseArgs defaults agent to 'climpt'", () => {
-  const args = parseArgs(['--action=test', '--target=file']);
+  const args = parseArgs(["--action=test", "--target=file"]);
 
   assertEquals(args.agent, "climpt");
 });
 
 Deno.test("Design Invariant: parseArgs extracts --agent", () => {
-  const args = parseArgs(['--action=test', '--target=file', '--agent=custom-agent']);
+  const args = parseArgs([
+    "--action=test",
+    "--target=file",
+    "--agent=custom-agent",
+  ]);
 
   assertEquals(args.agent, "custom-agent");
 });
 
 Deno.test("Design Invariant: parseArgs extracts --options as comma-separated", () => {
-  const args = parseArgs(['--action=test', '--target=file', '--options=-e=issue,-a=detailed']);
+  const args = parseArgs([
+    "--action=test",
+    "--target=file",
+    "--options=-e=issue,-a=detailed",
+  ]);
 
   assertEquals(args.options, ["-e=issue", "-a=detailed"]);
 });
 
 Deno.test("Design Invariant: parseArgs returns empty options array by default", () => {
-  const args = parseArgs(['--action=test', '--target=file']);
+  const args = parseArgs(["--action=test", "--target=file"]);
 
   assertEquals(args.options, []);
 });

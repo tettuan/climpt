@@ -5,16 +5,17 @@ description: Use when user mentions 'climpt' or 'climpt-agent', or gives project
 
 # Delegate Climpt Agent
 
-Climpt コマンドレジストリを通じた開発タスク委譲。Claude Agent SDK でサブエージェントを起動する。
+Climpt コマンドレジストリを通じた開発タスク委譲。Claude Agent SDK
+でサブエージェントを起動する。
 
 ## Input Components
 
-| Component | Purpose | Passed via | Used for |
-|-----------|---------|------------|----------|
-| **action** | 何をするか | `--action` arg | コマンド検索 (c2) |
-| **target** | 何に対して | `--target` arg | コマンド検索 (c3) |
-| **intent** | 実行意図 | `--intent` arg | LLM オプション解決 |
-| **content** | 詳細データ | stdin pipe | climpt へ直接渡す |
+| Component   | Purpose    | Passed via     | Used for           |
+| ----------- | ---------- | -------------- | ------------------ |
+| **action**  | 何をするか | `--action` arg | コマンド検索 (c2)  |
+| **target**  | 何に対して | `--target` arg | コマンド検索 (c3)  |
+| **intent**  | 実行意図   | `--intent` arg | LLM オプション解決 |
+| **content** | 詳細データ | stdin pipe     | climpt へ直接渡す  |
 
 ```
 User Request
@@ -33,11 +34,11 @@ User Request
 
 ### Step 1: action, target, intent を作成
 
-| パラメータ | 形式 | 例 |
-|-----------|------|-----|
-| action | 動詞中心 ~6語 | "run execute test verify" |
-| target | 名詞中心 ~6語 | "specific file unit test" |
-| intent | 任意言語 1-2文 | "options-prompt.ts をテスト" |
+| パラメータ | 形式           | 例                           |
+| ---------- | -------------- | ---------------------------- |
+| action     | 動詞中心 ~6語  | "run execute test verify"    |
+| target     | 名詞中心 ~6語  | "specific file unit test"    |
+| intent     | 任意言語 1-2文 | "options-prompt.ts をテスト" |
 
 ### Step 2: スクリプト実行
 
@@ -51,8 +52,9 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 ### Step 3: stdin でコンテンツを渡す（該当時のみ）
 
-stdin を使う場面: コミット（diff）、ドキュメント生成（コンテキスト）、コード生成（仕様）
-stdin を使わない場面: テスト実行、ファイル検索
+stdin を使う場面:
+コミット（diff）、ドキュメント生成（コンテキスト）、コード生成（仕様） stdin
+を使わない場面: テスト実行、ファイル検索
 
 ```bash
 # intent = オプション解決用の短い説明
@@ -69,8 +71,8 @@ git diff --staged | deno run ... -- <script.ts> \
 
 ## Error Handling
 
-| エラー | 対処 |
-|-------|------|
-| 検索結果なし | クエリを言い換えて再試行 |
-| スクリプト失敗 | Deno/Claude Agent SDK/権限を確認 |
+| エラー                    | 対処                                             |
+| ------------------------- | ------------------------------------------------ |
+| 検索結果なし              | クエリを言い換えて再試行                         |
+| スクリプト失敗            | Deno/Claude Agent SDK/権限を確認                 |
 | "Import directory failed" | `deno.json` に `"nodeModulesDir": "auto"` を追加 |

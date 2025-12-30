@@ -33,7 +33,8 @@ Climpt Agent integrates with Claude Code to provide:
 /plugin install climpt-agent
 ```
 
-**Note**: If the command fails, use `/plugin` to open the plugin browser, navigate to "Discover" tab, find `climpt-agent`, and install from there.
+**Note**: If the command fails, use `/plugin` to open the plugin browser,
+navigate to "Discover" tab, find `climpt-agent`, and install from there.
 
 ### Step 3: Restart Claude Code
 
