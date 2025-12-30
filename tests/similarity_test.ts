@@ -394,7 +394,7 @@ Deno.test("BM25: common term 'create' has lower weight due to IDF", () => {
   // "meta create instruction" because "specification" in description
   // is more distinctive than "create" which appears in multiple commands
   const requirementsIndex = results.findIndex((r) => r.c1 === "requirements");
-  const metaCreateIndex = results.findIndex(
+  const _metaCreateIndex = results.findIndex(
     (r) => r.c1 === "meta" && r.c2 === "create",
   );
 

@@ -44,7 +44,6 @@ import {
   describeCommand,
   loadMCPConfig,
   loadRegistryForAgent,
-  type RRFResult,
   searchWithRRF,
 } from "../../../lib/mod.ts";
 
