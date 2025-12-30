@@ -5,34 +5,54 @@ description: Use when user mentions 'climpt' or 'climpt-agent', or gives project
 
 # Delegate Climpt Agent
 
-Climpt コマンドレジストリを通じた開発タスク委譲。Claude Agent SDK
-でサブエージェントを起動する。
+Climpt コマンドレジストリを通じた開発タスク委譲。
 
-## Input Components
+## Input / Output
 
-| Component   | Purpose    | Passed via     | Used for           |
-| ----------- | ---------- | -------------- | ------------------ |
-| **action**  | 何をするか | `--action` arg | コマンド検索 (c2)  |
-| **target**  | 何に対して | `--target` arg | コマンド検索 (c3)  |
-| **intent**  | 実行意図   | `--intent` arg | LLM オプション解決 |
-| **content** | 詳細データ | stdin pipe     | climpt へ直接渡す  |
+### Input
 
+| Component   | Passed via     | Why                                                      |
+| ----------- | -------------- | -------------------------------------------------------- |
+| **action**  | `--action` arg | 動詞でコマンド種別(create/test/commit等)にマッチさせる   |
+| **target**  | `--target` arg | 名詞で対象物(file/test/document等)にマッチさせる         |
+| **intent**  | `--intent` arg | オプション選択のヒント(edition/adaptation等)を与える     |
+| **content** | stdin pipe     | 処理対象の実データ(diff/spec等)を climpt に渡す          |
+
+**intent vs content の区別**:
+- `intent`: 「どう処理するか」→ オプション選択用の短い説明
+- `content`: 「何を処理するか」→ climpt が処理する実データ
+
+### Output
+
+サブエージェント実行結果のサマリー（stdout に出力）
+
+```mermaid
+flowchart LR
+    subgraph Input
+        action[action<br/>動詞]
+        target[target<br/>名詞]
+        intent[intent<br/>説明]
+        content[content<br/>データ]
+    end
+
+    subgraph Processing
+        search[Command Search]
+        resolve[Option Resolution]
+        climpt[Climpt Execution]
+    end
+
+    action --> search
+    target --> search
+    intent --> resolve
+    content --> climpt
+    search --> climpt
+    resolve --> climpt
+    climpt --> output[Summary]
 ```
-User Request
-    │
-    ├─► action ──────► Command Search ──► Match climpt command
-    ├─► target ──────►     (RRF)
-    │
-    ├─► intent ──────► Option Resolution ──► CLI args (e.g., -e=feature)
-    │                        (LLM)
-    │
-    └─► content ─────► stdin ──────────────► Climpt command input
-         (pipe)
-```
 
-## Workflow
+## Usage
 
-### Step 1: action, target, intent を作成
+### Step 1: パラメータ作成
 
 | パラメータ | 形式           | 例                           |
 | ---------- | -------------- | ---------------------------- |
@@ -40,7 +60,7 @@ User Request
 | target     | 名詞中心 ~6語  | "specific file unit test"    |
 | intent     | 任意言語 1-2文 | "options-prompt.ts をテスト" |
 
-### Step 2: スクリプト実行
+### Step 2: 実行
 
 ```bash
 deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys \
@@ -50,24 +70,22 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 **Sandbox**: `dangerouslyDisableSandbox: true` 必須
 
-### Step 3: stdin でコンテンツを渡す（該当時のみ）
+### Step 3: stdin（該当時のみ）
 
-stdin を使う場面:
-コミット（diff）、ドキュメント生成（コンテキスト）、コード生成（仕様） stdin
-を使わない場面: テスト実行、ファイル検索
+| 使う場面                           | 使わない場面         |
+| ---------------------------------- | -------------------- |
+| コミット(diff)、生成(spec/context) | テスト実行、検索     |
 
 ```bash
-# intent = オプション解決用の短い説明
-# stdin = climpt に渡す実データ
 git diff --staged | deno run ... -- <script.ts> \
-  --action="commit save stage changes" \
-  --target="unstaged changes semantic group" \
-  --intent="新機能追加のコミット"
+  --action="commit save stage" --target="changes semantic" \
+  --intent="新機能追加"
 ```
 
 ## When to Use
 
-プロジェクト固有の指示で、一般知識では対応が不明な場合に使用。
+a. プロジェクト固有の指示で、一般知識では対応が不明な場合。
+b. 一般的な指示だが、もっと深いドメイン理解に基づいて処理する場合。
 
 ## Error Handling
 
