@@ -137,10 +137,10 @@ async function main(): Promise<void> {
       console.log(
         "  1. Review and customize the configuration in iterate-agent/config.json",
       );
-      console.log("  2. Set GITHUB_TOKEN environment variable");
       console.log(
-        "  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
+        "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
       );
+      console.log("Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n");
       Deno.exit(0);
     }
 

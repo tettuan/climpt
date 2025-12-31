@@ -75,9 +75,8 @@ export interface AgentConfig {
 export interface IterateAgentConfig {
   version: string;
   agents: Record<string, AgentConfig>;
-  github: {
-    tokenEnvVar: string;
-    apiVersion: string;
+  github?: {
+    apiVersion?: string;
   };
   logging: {
     directory: string;
