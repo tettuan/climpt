@@ -7,6 +7,29 @@
 import type { GitHubIssue, GitHubProject } from "./types.ts";
 
 /**
+ * Get the owner of the current repository
+ *
+ * @returns Repository owner (user or organization name)
+ * @throws Error if gh command fails or not in a git repository
+ */
+async function getRepoOwner(): Promise<string> {
+  const command = new Deno.Command("gh", {
+    args: ["repo", "view", "--json", "owner", "-q", ".owner.login"],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout, stderr } = await command.output();
+
+  if (code !== 0) {
+    const errorText = new TextDecoder().decode(stderr);
+    throw new Error(`Failed to get repo owner: ${errorText}`);
+  }
+
+  return new TextDecoder().decode(stdout).trim();
+}
+
+/**
  * Fetch GitHub Issue requirements
  *
  * @param issueNumber - Issue number
@@ -65,11 +88,14 @@ Comments: ${commentCount}
 export async function fetchProjectRequirements(
   projectNumber: number,
 ): Promise<string> {
+  const owner = await getRepoOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
       "view",
       projectNumber.toString(),
+      "--owner",
+      owner,
       "--format",
       "json",
     ],
@@ -156,11 +182,14 @@ export async function isIssueComplete(issueNumber: number): Promise<boolean> {
 export async function isProjectComplete(
   projectNumber: number,
 ): Promise<boolean> {
+  const owner = await getRepoOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
       "view",
       projectNumber.toString(),
+      "--owner",
+      owner,
       "--format",
       "json",
     ],

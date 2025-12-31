@@ -5,7 +5,7 @@
  */
 
 import type { Logger } from "./logger.ts";
-import type { IterationSummary } from "./types.ts";
+import type { IterationSummary, SDKResultStats } from "./types.ts";
 
 /**
  * Check if message contains Skill invocation
@@ -152,4 +152,48 @@ export async function logSDKMessage(
     // Generic system message (with apiKeySource removed)
     await logger.write("system", JSON.stringify(sanitizedMessage));
   }
+}
+
+/**
+ * Capture SDK result statistics from a result message
+ *
+ * Extracts performance metrics and token usage from the SDK result message.
+ *
+ * @param message - SDK message to process
+ * @returns SDKResultStats if message is a result message, null otherwise
+ */
+export function captureSDKResult(
+  // deno-lint-ignore no-explicit-any
+  message: any,
+): SDKResultStats | null {
+  if (message.type !== "result") {
+    return null;
+  }
+
+  // Extract model usage from the message
+  const modelUsage: SDKResultStats["modelUsage"] = {};
+
+  if (message.modelUsage) {
+    for (const [modelName, usage] of Object.entries(message.modelUsage)) {
+      // deno-lint-ignore no-explicit-any
+      const u = usage as any;
+      modelUsage[modelName] = {
+        inputTokens: u.input_tokens ?? u.inputTokens ?? 0,
+        outputTokens: u.output_tokens ?? u.outputTokens ?? 0,
+        cacheCreationInputTokens: u.cache_creation_input_tokens ??
+          u.cacheCreationInputTokens,
+        cacheReadInputTokens: u.cache_read_input_tokens ??
+          u.cacheReadInputTokens,
+        cost: u.cost,
+      };
+    }
+  }
+
+  return {
+    durationMs: message.duration_ms ?? 0,
+    durationApiMs: message.duration_api_ms ?? 0,
+    numTurns: message.num_turns ?? 0,
+    totalCostUsd: message.total_cost_usd ?? 0,
+    modelUsage,
+  };
 }
