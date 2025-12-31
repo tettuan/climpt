@@ -1,0 +1,436 @@
+# 4. Iterate Agent の設定と実行
+
+GitHub Issue や Project を自動的に処理する Iterate Agent を設定し、実行します。
+
+## 目次
+
+1. [Iterate Agent とは](#41-iterate-agent-とは)
+2. [初期化](#42-初期化)
+3. [基本的な使い方](#43-基本的な使い方)
+4. [完了条件](#44-完了条件)
+5. [設定のカスタマイズ](#45-設定のカスタマイズ)
+6. [実行レポート](#46-実行レポート)
+7. [トラブルシューティング](#47-トラブルシューティング)
+
+---
+
+## 4.1 Iterate Agent とは
+
+Iterate Agent は Claude Agent SDK を使用した自律型開発エージェントです。
+以下のサイクルを自動的に繰り返します：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Iterate Agent の動作                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. GitHub Issue/Project から要件を取得                     │
+│                    ↓                                        │
+│  2. delegate-climpt-agent Skill でタスクを実行             │
+│                    ↓                                        │
+│  3. サブエージェントが開発作業を実施                        │
+│                    ↓                                        │
+│  4. 結果を評価し、完了条件をチェック                        │
+│                    ↓                                        │
+│  5. 未完了 → 次のタスクを決定して 2 へ戻る                  │
+│     完了   → 終了                                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 主な特徴
+
+- **自律実行**: 人間の介入なしに動作
+- **GitHub 統合**: `gh` CLI を通じて Issue/Project と連携
+- **Climpt Skills 統合**: 既存の Climpt インフラストラクチャを活用
+- **詳細ログ**: JSONL 形式、自動ローテーション（最大100ファイル）
+- **柔軟な完了条件**: Issue クローズ、Project 完了、イテレーション数
+
+---
+
+## 4.2 初期化
+
+### プロジェクトディレクトリへ移動
+
+```bash
+cd your-project
+```
+
+### 初期化コマンドの実行
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+```
+
+出力例：
+```
+Iterate Agent initialized successfully!
+
+Created files:
+  - iterate-agent/config.json
+  - iterate-agent/prompts/default.md
+
+Next steps:
+  1. Review and customize the configuration in iterate-agent/config.json
+  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>
+
+Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
+```
+
+### 作成されるファイル
+
+```
+your-project/
+├── iterate-agent/
+│   ├── config.json           # メイン設定
+│   └── prompts/
+│       └── default.md        # システムプロンプト
+└── tmp/
+    └── logs/
+        └── agents/           # 実行ログ（自動作成）
+```
+
+---
+
+## 4.3 基本的な使い方
+
+### Issue ベースの実行
+
+指定した Issue がクローズされるまで自動実行：
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+```
+
+短縮形：
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator -i 123
+```
+
+### Project ベースの実行
+
+Project 内のすべてのアイテムが完了するまで実行：
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
+```
+
+短縮形：
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator -p 5
+```
+
+### イテレーション数を制限
+
+最大10回のイテレーションで停止：
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
+```
+
+短縮形：
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator -m 10
+```
+
+### セッションの再開
+
+前回のセッションを継続：
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
+```
+
+### オプション一覧
+
+| オプション | 短縮形 | デフォルト | 説明 |
+|-----------|--------|-----------|------|
+| `--init` | - | - | 設定ファイルを初期化 |
+| `--issue` | `-i` | - | 対象の GitHub Issue 番号 |
+| `--project` | `-p` | - | 対象の GitHub Project 番号 |
+| `--iterate-max` | `-m` | Infinity | 最大イテレーション数 |
+| `--name` | `-n` | `climpt` | エージェント名 |
+| `--resume` | `-r` | false | 前回セッションを再開 |
+| `--help` | `-h` | - | ヘルプを表示 |
+
+---
+
+## 4.4 完了条件
+
+| モード | 完了条件 | チェック方法 |
+|--------|---------|-------------|
+| `--issue` | Issue がクローズ | `gh issue view --json state` |
+| `--project` | 全アイテムが完了 | `gh project view --format json` |
+| `--iterate-max` | 指定回数に到達 | 内部カウンター |
+
+### 組み合わせ
+
+複数の条件を組み合わせることも可能：
+
+```bash
+# Issue #123 がクローズされるか、10回のイテレーションで停止
+deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
+```
+
+---
+
+## 4.5 設定のカスタマイズ
+
+### config.json
+
+```json
+{
+  "version": "1.0.0",
+  "agents": {
+    "climpt": {
+      "systemPromptTemplate": "iterate-agent/prompts/default.md",
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
+      "permissionMode": "acceptEdits"
+    }
+  },
+  "github": {
+    "apiVersion": "2022-11-28"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents",
+    "maxFiles": 100,
+    "format": "jsonl"
+  }
+}
+```
+
+### 設定項目の説明
+
+| 項目 | 説明 |
+|------|------|
+| `systemPromptTemplate` | エージェントのシステムプロンプトファイル |
+| `allowedTools` | 使用可能なツールのリスト |
+| `permissionMode` | 権限モード |
+| `logging.directory` | ログ出力先 |
+| `logging.maxFiles` | ログファイル最大数（ローテーション） |
+
+### permissionMode の種類
+
+| モード | 説明 | 推奨用途 |
+|--------|------|---------|
+| `default` | すべての操作に確認が必要 | 初回テスト |
+| `plan` | プランニングのみ許可 | 計画確認 |
+| `acceptEdits` | ファイル編集を自動承認 | **通常運用（推奨）** |
+| `bypassPermissions` | すべての操作を自動承認 | 完全自動化 |
+
+### システムプロンプトのカスタマイズ
+
+`iterate-agent/prompts/default.md` を編集して、エージェントの動作をカスタマイズできます：
+
+```markdown
+# Role
+You are an autonomous agent working on continuous development.
+
+# Objective
+Execute development tasks autonomously and make continuous progress.
+
+# Working Mode
+- You are running in a perpetual execution cycle
+- Use the **delegate-climpt-agent** Skill with --agent={{AGENT}} to execute tasks
+- After each task completion, ask Climpt for the next logical task
+- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
+
+# Guidelines
+- Be autonomous: Make decisions without waiting for human approval
+- Be thorough: Ensure each task is properly completed
+- Be organized: Maintain clear context of what has been done
+```
+
+---
+
+## 4.6 実行レポート
+
+実行完了時に、詳細なレポートが表示されます：
+
+```
+📊 Execution Report
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️  Performance
+  | 指標           | 値             |
+  |----------------|----------------|
+  | 総実行時間     | 328秒 (~5.5分) |
+  | API時間        | 241秒 (~4分)   |
+  | ターン数       | 28             |
+  | イテレーション | 1回            |
+  | 総コスト       | $0.82 USD      |
+
+📈 Token Usage
+  | モデル           | Input  | Output | キャッシュ読込 | コスト |
+  |------------------|--------|--------|----------------|--------|
+  | claude-opus-4-5  | 3,120  | 6,000  | 663,775        | $0.79  |
+  | claude-haiku-4-5 | 32,380 | 656    | 0              | $0.04  |
+
+📋 Activity
+  | 指標           | 値  |
+  |----------------|-----|
+  | ログエントリ   | 142 |
+  | エラー         | 2   |
+  | Issue更新      | 3   |
+  | Project更新    | 1   |
+  | 完了理由       | ✅ criteria_met |
+
+🛠️  Tools Used
+  - Edit: 12
+  - Bash: 8
+  - Read: 25
+  - Grep: 15
+```
+
+### ログファイル
+
+ログは JSONL 形式で保存されます：
+
+```
+tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
+```
+
+ログの確認：
+
+```bash
+# 最新のログを表示
+cat tmp/logs/agents/climpt/session-*.jsonl | jq .
+
+# エラーのみ抽出
+cat tmp/logs/agents/climpt/session-*.jsonl | jq 'select(.level == "error")'
+
+# アシスタントの応答のみ
+cat tmp/logs/agents/climpt/session-*.jsonl | jq 'select(.level == "assistant")'
+```
+
+---
+
+## 4.7 トラブルシューティング
+
+### gh command not found
+
+GitHub CLI がインストールされていません：
+
+```bash
+# macOS
+brew install gh
+
+# 認証
+gh auth login
+```
+
+→ [01-prerequisites.md](./01-prerequisites.md) を参照
+
+### Configuration file not found
+
+プロジェクトルートから実行してください：
+
+```bash
+cd your-project
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+```
+
+### System prompt template not found
+
+プロンプトファイルが存在することを確認：
+
+```bash
+ls -la iterate-agent/prompts/default.md
+```
+
+存在しない場合は `--init` を再実行：
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+```
+
+### Permission denied エラー
+
+`config.json` の `permissionMode` を確認：
+
+```json
+{
+  "agents": {
+    "climpt": {
+      "permissionMode": "acceptEdits"
+    }
+  }
+}
+```
+
+### gh auth status fails
+
+GitHub CLI で再認証：
+
+```bash
+gh auth logout
+gh auth login
+```
+
+### Project が見つからない
+
+Project 番号と所有者を確認：
+
+```bash
+# プロジェクト一覧を表示
+gh project list --owner @me
+```
+
+### Issue が見つからない
+
+Issue 番号を確認：
+
+```bash
+# Issue 一覧を表示
+gh issue list
+```
+
+---
+
+## Deno Task として登録（推奨）
+
+頻繁に使用する場合は、`deno.json` にタスクを追加：
+
+```json
+{
+  "tasks": {
+    "iterate-agent": "deno run -A jsr:@aidevtool/climpt/agents/iterator"
+  }
+}
+```
+
+実行：
+
+```bash
+deno task iterate-agent --issue 123
+deno task iterate-agent --project 5 --iterate-max 10
+```
+
+---
+
+## 次のステップ
+
+- 実際の Issue で Iterate Agent を試す
+- システムプロンプトをプロジェクトに合わせてカスタマイズ
+- カスタム指示書を作成して Climpt Skills を拡張
+
+## 関連ドキュメント
+
+- [Iterate Agent 詳細リファレンス](../../iterate-agent/README.md)
+- [設計ドキュメント](../internal/iterate-agent-design.md)
+- [Climpt Skills リファレンス](../reference/skills/overview.md)
+
+---
+
+## サポート
+
+問題が発生した場合は、Issue を作成してください：
+https://github.com/tettuan/climpt/issues
