@@ -20,7 +20,6 @@ const DEFAULT_CONFIG: IterateAgentConfig = {
     },
   },
   github: {
-    tokenEnvVar: "GITHUB_TOKEN",
     apiVersion: "2022-11-28",
   },
   logging: {
@@ -117,10 +116,6 @@ function validateConfig(config: IterateAgentConfig): void {
     throw new Error("Configuration missing or invalid field: agents");
   }
 
-  if (!config.github || !config.github.tokenEnvVar) {
-    throw new Error("Configuration missing required field: github.tokenEnvVar");
-  }
-
   if (!config.logging || !config.logging.directory) {
     throw new Error("Configuration missing required field: logging.directory");
   }
@@ -195,25 +190,6 @@ export async function loadSystemPromptTemplate(
     }
     throw error;
   }
-}
-
-/**
- * Get GitHub token from environment
- *
- * @param config - Main configuration
- * @returns GitHub token value
- * @throws Error if token not found in environment
- */
-export function getGitHubToken(config: IterateAgentConfig): string {
-  const token = Deno.env.get(config.github.tokenEnvVar);
-
-  if (!token) {
-    throw new Error(
-      `GitHub token not found. Set ${config.github.tokenEnvVar} environment variable.`,
-    );
-  }
-
-  return token;
 }
 
 /**

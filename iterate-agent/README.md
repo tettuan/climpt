@@ -132,7 +132,6 @@ Main configuration is in `iterate-agent/config.json`:
     }
   },
   "github": {
-    "tokenEnvVar": "GITHUB_TOKEN",
     "apiVersion": "2022-11-28"
   },
   "logging": {

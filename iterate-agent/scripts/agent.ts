@@ -96,15 +96,18 @@ import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
 import {
   captureIterationData,
+  captureSDKResult,
   isSkillInvocation,
   logSDKMessage,
 } from "./message-handler.ts";
 import { buildSystemPrompt } from "./prompts.ts";
+import { generateReport, logReport, printReport } from "./report.ts";
 import type {
   AgentConfig,
   AgentOptions,
   IterateAgentConfig,
   IterationSummary,
+  SDKResultStats,
 } from "./types.ts";
 
 /**
@@ -134,10 +137,10 @@ async function main(): Promise<void> {
       console.log(
         "  1. Review and customize the configuration in iterate-agent/config.json",
       );
-      console.log("  2. Set GITHUB_TOKEN environment variable");
       console.log(
-        "  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
+        "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
       );
+      console.log("Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n");
       Deno.exit(0);
     }
 
@@ -246,6 +249,7 @@ async function runAgentLoop(
   let currentPrompt = initialPrompt;
   let previousSummary: IterationSummary | undefined = undefined;
   let previousSessionId: string | undefined = undefined;
+  const sdkResults: SDKResultStats[] = [];
 
   // Get initial completion description
   const completionDescription = await completionHandler
@@ -300,6 +304,12 @@ async function runAgentLoop(
 
         // Capture iteration data for handoff to next iteration
         captureIterationData(message, summary);
+
+        // Capture SDK result statistics for report
+        const resultStats = captureSDKResult(message);
+        if (resultStats) {
+          sdkResults.push(resultStats);
+        }
 
         // Log Skill invocations but don't count them as iterations
         if (isSkillInvocation(message)) {
@@ -367,17 +377,32 @@ async function runAgentLoop(
     );
   }
 
-  // Final summary
-  await logger.write("result", "Iterate agent loop completed", {
-    totalIterations: iterationCount,
-    completionReason: isComplete ? "criteria_met" : "max_iterations",
-  });
-
-  console.log(`\n📊 Summary:`);
-  console.log(`   Total iterations: ${iterationCount}`);
-  console.log(
-    `   Completion: ${isComplete ? "✅ Criteria met" : "⏹️  Max iterations"}\n`,
-  );
+  // Generate and display execution report
+  const completionReason = isComplete ? "criteria_met" : "max_iterations";
+  try {
+    const report = await generateReport(
+      logger.getLogPath(),
+      sdkResults,
+      iterationCount,
+      completionReason,
+    );
+    printReport(report);
+    await logReport(logger, report);
+  } catch (error) {
+    // If report generation fails, fall back to simple summary
+    await logger.write("error", "Failed to generate report", {
+      error: {
+        name: error instanceof Error ? error.name : "Unknown",
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+    });
+    console.log(`\n📊 Summary:`);
+    console.log(`   Total iterations: ${iterationCount}`);
+    console.log(
+      `   Completion: ${isComplete ? "✅ Criteria met" : "⏹️  Max iterations"}\n`,
+    );
+  }
 
   await logger.close();
 }
