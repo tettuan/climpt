@@ -75,9 +75,8 @@ export interface AgentConfig {
 export interface IterateAgentConfig {
   version: string;
   agents: Record<string, AgentConfig>;
-  github: {
-    tokenEnvVar: string;
-    apiVersion: string;
+  github?: {
+    apiVersion?: string;
   };
   logging: {
     directory: string;
@@ -203,4 +202,98 @@ export interface IterationSummary {
 
   /** Final result message from SDK (if any) */
   finalResult?: string;
+}
+
+/**
+ * Model-specific token usage statistics
+ */
+export interface ModelUsageStats {
+  /** Model name (e.g., "claude-opus-4-5") */
+  modelName: string;
+
+  /** Input tokens count */
+  inputTokens: number;
+
+  /** Output tokens count */
+  outputTokens: number;
+
+  /** Cache read input tokens count */
+  cacheReadInputTokens: number;
+
+  /** Cost in USD for this model */
+  cost: number;
+}
+
+/**
+ * SDK result message statistics (from type: "result" message)
+ */
+export interface SDKResultStats {
+  /** Total execution duration in milliseconds */
+  durationMs: number;
+
+  /** API call duration in milliseconds */
+  durationApiMs: number;
+
+  /** Number of turns in the conversation */
+  numTurns: number;
+
+  /** Total cost in USD */
+  totalCostUsd: number;
+
+  /** Model-specific usage statistics */
+  modelUsage: Record<string, {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+    cost?: number;
+  }>;
+}
+
+/**
+ * Execution report for displaying results
+ */
+export interface ExecutionReport {
+  // Basic statistics
+  /** Total log entries count */
+  totalEntries: number;
+
+  /** Error count */
+  errorCount: number;
+
+  /** Number of issues updated */
+  issuesUpdated: number;
+
+  /** Number of projects updated */
+  projectsUpdated: number;
+
+  /** Tool usage counts */
+  toolsUsed: Record<string, number>;
+
+  // Performance metrics
+  /** Total execution duration in milliseconds */
+  durationMs: number;
+
+  /** API call duration in milliseconds */
+  durationApiMs: number;
+
+  /** Number of turns */
+  numTurns: number;
+
+  /** Number of iterations */
+  iterations: number;
+
+  /** Total cost in USD */
+  totalCostUsd: number;
+
+  // Token usage
+  /** Model-specific usage statistics */
+  modelUsage: ModelUsageStats[];
+
+  // Other
+  /** LLM final response summary */
+  summary: string;
+
+  /** Completion reason */
+  completionReason: string;
 }

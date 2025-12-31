@@ -7,6 +7,64 @@
 import type { GitHubIssue, GitHubProject } from "./types.ts";
 
 /**
+ * Sanitize error message to remove sensitive information
+ *
+ * Removes API keys, tokens, and other sensitive patterns from error messages.
+ *
+ * @param message - Error message to sanitize
+ * @returns Sanitized error message
+ */
+function sanitizeErrorMessage(message: string): string {
+  // Pattern for GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_ prefixes)
+  const githubTokenPattern = /gh[pousr]_[A-Za-z0-9_]{36,}/g;
+
+  // Pattern for generic API keys/tokens (long alphanumeric strings)
+  const genericTokenPattern =
+    /\b[A-Za-z0-9_-]{40,}\b(?=.*(?:token|key|secret|auth))?/gi;
+
+  // Pattern for Bearer tokens
+  const bearerPattern = /Bearer\s+[A-Za-z0-9_.-]+/gi;
+
+  // Pattern for Authorization headers
+  const authHeaderPattern = /Authorization:\s*[^\s]+/gi;
+
+  return message
+    .replace(githubTokenPattern, "[REDACTED_TOKEN]")
+    .replace(bearerPattern, "Bearer [REDACTED]")
+    .replace(authHeaderPattern, "Authorization: [REDACTED]")
+    .replace(genericTokenPattern, (match) => {
+      // Only redact if it looks like a token (40+ chars, mixed case/numbers)
+      if (match.length >= 40 && /[A-Z]/.test(match) && /[0-9]/.test(match)) {
+        return "[REDACTED_TOKEN]";
+      }
+      return match;
+    });
+}
+
+/**
+ * Get the owner of the current repository
+ *
+ * @returns Repository owner (user or organization name)
+ * @throws Error if gh command fails or not in a git repository
+ */
+async function getRepoOwner(): Promise<string> {
+  const command = new Deno.Command("gh", {
+    args: ["repo", "view", "--json", "owner", "-q", ".owner.login"],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout, stderr } = await command.output();
+
+  if (code !== 0) {
+    const errorText = new TextDecoder().decode(stderr);
+    throw new Error(`Failed to get repo owner: ${sanitizeErrorMessage(errorText)}`);
+  }
+
+  return new TextDecoder().decode(stdout).trim();
+}
+
+/**
  * Fetch GitHub Issue requirements
  *
  * @param issueNumber - Issue number
@@ -32,7 +90,7 @@ export async function fetchIssueRequirements(
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh issue view failed: ${errorText}`);
+    throw new Error(`gh issue view failed: ${sanitizeErrorMessage(errorText)}`);
   }
 
   const issue = JSON.parse(new TextDecoder().decode(stdout)) as GitHubIssue;
@@ -65,11 +123,14 @@ Comments: ${commentCount}
 export async function fetchProjectRequirements(
   projectNumber: number,
 ): Promise<string> {
+  const owner = await getRepoOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
       "view",
       projectNumber.toString(),
+      "--owner",
+      owner,
       "--format",
       "json",
     ],
@@ -81,7 +142,7 @@ export async function fetchProjectRequirements(
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh project view failed: ${errorText}`);
+    throw new Error(`gh project view failed: ${sanitizeErrorMessage(errorText)}`);
   }
 
   const project = JSON.parse(
@@ -136,7 +197,7 @@ export async function isIssueComplete(issueNumber: number): Promise<boolean> {
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh issue view failed: ${errorText}`);
+    throw new Error(`gh issue view failed: ${sanitizeErrorMessage(errorText)}`);
   }
 
   const issue = JSON.parse(new TextDecoder().decode(stdout)) as Pick<
@@ -156,11 +217,14 @@ export async function isIssueComplete(issueNumber: number): Promise<boolean> {
 export async function isProjectComplete(
   projectNumber: number,
 ): Promise<boolean> {
+  const owner = await getRepoOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
       "view",
       projectNumber.toString(),
+      "--owner",
+      owner,
       "--format",
       "json",
     ],
@@ -172,7 +236,7 @@ export async function isProjectComplete(
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh project view failed: ${errorText}`);
+    throw new Error(`gh project view failed: ${sanitizeErrorMessage(errorText)}`);
   }
 
   const project = JSON.parse(

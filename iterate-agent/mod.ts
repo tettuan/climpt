@@ -79,7 +79,6 @@ export { displayHelp, parseCliArgs } from "./scripts/cli.ts";
 export {
   ensureLogDirectory,
   getAgentConfig,
-  getGitHubToken,
   loadConfig,
   loadSystemPromptTemplate,
 } from "./scripts/config.ts";

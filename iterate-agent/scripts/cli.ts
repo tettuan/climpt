@@ -159,7 +159,7 @@ EXAMPLES:
 
 NOTES:
   - Run --init first to create configuration files in your project
-  - Requires GITHUB_TOKEN environment variable with 'repo' and 'project' scopes
+  - Requires 'gh' CLI (https://cli.github.com) with authentication
   - Logs are saved to tmp/logs/agents/{agent-name}/session-{timestamp}.jsonl
   - Maximum 100 log files per agent (auto-rotated)
 `);
