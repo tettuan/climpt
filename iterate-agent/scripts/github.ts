@@ -42,14 +42,22 @@ function sanitizeErrorMessage(message: string): string {
 }
 
 /**
- * Get the owner of the current repository
+ * Owner information with login and type
+ */
+interface OwnerInfo {
+  login: string;
+  type: "User" | "Organization";
+}
+
+/**
+ * Get the owner of the current repository with type information
  *
- * @returns Repository owner (user or organization name)
+ * @returns Repository owner info (login and type)
  * @throws Error if gh command fails or not in a git repository
  */
-async function getRepoOwner(): Promise<string> {
+async function getRepoOwnerInfo(): Promise<OwnerInfo> {
   const command = new Deno.Command("gh", {
-    args: ["repo", "view", "--json", "owner", "-q", ".owner.login"],
+    args: ["repo", "view", "--json", "owner", "-q", ".owner.login,.owner.type"],
     stdout: "piped",
     stderr: "piped",
   });
@@ -63,7 +71,34 @@ async function getRepoOwner(): Promise<string> {
     );
   }
 
-  return new TextDecoder().decode(stdout).trim();
+  const output = new TextDecoder().decode(stdout).trim();
+  const lines = output.split("\n");
+
+  return {
+    login: lines[0] || "",
+    type: (lines[1] as "User" | "Organization") || "User",
+  };
+}
+
+/**
+ * Get the project owner for gh project commands
+ *
+ * For user-owned repos, uses "@me" for project access.
+ * For organization-owned repos, uses the org name.
+ *
+ * @returns Owner string suitable for gh project commands
+ */
+async function getProjectOwner(): Promise<string> {
+  const ownerInfo = await getRepoOwnerInfo();
+
+  // For user-owned repos, use @me for project access
+  // This ensures we access the user's personal projects
+  if (ownerInfo.type === "User") {
+    return "@me";
+  }
+
+  // For organization-owned repos, use the org name
+  return ownerInfo.login;
 }
 
 /**
@@ -125,7 +160,7 @@ Comments: ${commentCount}
 export async function fetchProjectRequirements(
   projectNumber: number,
 ): Promise<string> {
-  const owner = await getRepoOwner();
+  const owner = await getProjectOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
@@ -270,6 +305,9 @@ async function getIssueLabels(issueNumber: number): Promise<string[]> {
 /**
  * Fetch open issues from a GitHub Project
  *
+ * Uses `gh project item-list` to get project items (not `gh project view`
+ * which only returns metadata without items).
+ *
  * Returns all project items that have an associated issue and are OPEN.
  * Optionally filters by label.
  *
@@ -282,16 +320,18 @@ export async function getOpenIssuesFromProject(
   projectNumber: number,
   labelFilter?: string,
 ): Promise<ProjectIssueInfo[]> {
-  const owner = await getRepoOwner();
+  const owner = await getProjectOwner();
   const command = new Deno.Command("gh", {
     args: [
       "project",
-      "view",
+      "item-list",
       projectNumber.toString(),
       "--owner",
       owner,
       "--format",
       "json",
+      "--limit",
+      "100",
     ],
     stdout: "piped",
     stderr: "piped",
@@ -302,31 +342,47 @@ export async function getOpenIssuesFromProject(
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
     throw new Error(
-      `gh project view failed: ${sanitizeErrorMessage(errorText)}`,
+      `gh project item-list failed: ${sanitizeErrorMessage(errorText)}`,
     );
   }
 
-  const rawProject = JSON.parse(new TextDecoder().decode(stdout));
+  const rawOutput = JSON.parse(new TextDecoder().decode(stdout));
 
-  // Handle case where items might not be an array
-  const rawItems = rawProject.items;
-  const items: GitHubProject["items"] = Array.isArray(rawItems) ? rawItems : [];
+  // gh project item-list returns { items: [...], totalCount: N }
+  const rawItems = rawOutput.items;
+  const items = Array.isArray(rawItems) ? rawItems : [];
 
-  // Filter to only open issues with valid issue numbers
+  // gh project item-list output format:
+  // {
+  //   "content": { "number": 1, "title": "...", "type": "Issue" },
+  //   "status": "Todo",  // Project board status
+  //   "labels": ["docs", "feature"],  // Labels already included
+  //   ...
+  // }
+
+  // Filter to items that are not Done on the project board
   const candidates: ProjectIssueInfo[] = [];
   for (const item of items) {
-    if (
-      item.content?.number &&
-      item.content?.state === "OPEN" &&
-      item.status !== "Done"
-    ) {
-      candidates.push({
-        issueNumber: item.content.number,
-        title: item.content.title || "Untitled",
-        state: "OPEN",
-        status: item.status,
-      });
+    // Skip if no issue content or if marked as Done on project board
+    if (!item.content?.number || item.status === "Done") {
+      continue;
     }
+
+    // Skip if not an Issue (could be a Draft or Pull Request)
+    if (item.content?.type && item.content.type !== "Issue") {
+      continue;
+    }
+
+    // Get labels from item (already included in item-list output)
+    const itemLabels: string[] = Array.isArray(item.labels) ? item.labels : [];
+
+    candidates.push({
+      issueNumber: item.content.number,
+      title: item.content.title || item.title || "Untitled",
+      state: "OPEN", // Assume open since not Done on board
+      status: item.status,
+      labels: itemLabels,
+    });
   }
 
   // If no label filter, return all candidates
@@ -334,19 +390,8 @@ export async function getOpenIssuesFromProject(
     return candidates;
   }
 
-  // Filter by label - need to fetch labels for each issue
-  const openIssues: ProjectIssueInfo[] = [];
-  for (const candidate of candidates) {
-    const labels = await getIssueLabels(candidate.issueNumber);
-    if (labels.includes(labelFilter)) {
-      openIssues.push({
-        ...candidate,
-        labels,
-      });
-    }
-  }
-
-  return openIssues;
+  // Filter by label (labels already available, no API call needed)
+  return candidates.filter((c) => c.labels?.includes(labelFilter));
 }
 
 /**
