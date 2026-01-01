@@ -1,0 +1,6 @@
+# Build Configuration for iterator-dev
+working_dir: ".agent/iterator"
+app_prompt:
+  base_dir: "prompts/dev"
+app_schema:
+  base_dir: "schema/dev"

@@ -87,11 +87,12 @@ import {
 import { IterateCompletionHandler } from "./completion/iterate.ts";
 import { ProjectCompletionHandler } from "./completion/project.ts";
 import {
+  type CompletionMode,
   ensureLogDirectory,
   getAgentConfig,
   initializeConfig,
   loadConfig,
-  loadSystemPromptTemplate,
+  loadSystemPromptViaC3L,
 } from "./config.ts";
 import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
@@ -104,7 +105,6 @@ import {
   logSDKMessage,
 } from "./message-handler.ts";
 import { executeIssueAction, type IssueActionResult } from "./github.ts";
-import { buildSystemPrompt } from "./prompts.ts";
 import { generateReport, logReport, printReport } from "./report.ts";
 import type {
   AgentConfig,
@@ -114,6 +114,7 @@ import type {
   IterateAgentConfig,
   IterationSummary,
   SDKResultStats,
+  UvVariables,
 } from "./types.ts";
 
 /**
@@ -195,13 +196,43 @@ async function main(): Promise<void> {
       type: completionHandler.type,
     });
 
-    // 5. Load and build system prompt
-    const templateContent = await loadSystemPromptTemplate(agentConfig);
-    const systemPrompt = buildSystemPrompt(
-      templateContent,
-      completionHandler,
-      options.agentName,
-    );
+    // 5. Build system prompt via breakdown CLI
+    const completionMode = completionHandler.type as CompletionMode;
+    const { criteria, detail } = completionHandler.buildCompletionCriteria();
+
+    // Build uv- parameters (short strings for CLI args)
+    const uvVariables: UvVariables = {
+      agent_name: options.agentName,
+      completion_criteria: criteria,
+      target_label: options.label || config.github?.labels?.filter || "docs",
+    };
+
+    let systemPrompt: string;
+    try {
+      // breakdown CLI で展開
+      // - uv- パラメータ: CLI args
+      // - completion_criteria_detail: STDIN
+      systemPrompt = await loadSystemPromptViaC3L(
+        completionMode,
+        uvVariables,
+        detail, // STDIN で渡す
+      );
+      await logger.write("debug", "System prompt loaded via C3L", {
+        mode: completionMode,
+        uvVariables,
+      });
+    } catch (c3lError) {
+      await logger.write("error", "C3L loading failed", {
+        error: {
+          name: c3lError instanceof Error ? c3lError.name : "UnknownError",
+          message: c3lError instanceof Error
+            ? c3lError.message
+            : String(c3lError),
+          stack: c3lError instanceof Error ? c3lError.stack : undefined,
+        },
+      });
+      throw c3lError;
+    }
 
     await logger.write("debug", "System prompt built", {
       promptLength: systemPrompt.length,

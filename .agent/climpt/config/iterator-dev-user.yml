@@ -1,0 +1,7 @@
+# Breakdown Configuration for iterator-dev
+params:
+  two:
+    directiveType:
+      pattern: "^(start)$"
+    layerType:
+      pattern: "^(project|issue|default)$"

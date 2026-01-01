@@ -176,6 +176,22 @@ export interface PromptContext {
 }
 
 /**
+ * UV variables for system prompt expansion via breakdown CLI
+ *
+ * These are passed as --uv-* CLI arguments to breakdown.
+ */
+export interface UvVariables {
+  /** MCP agent name for delegate-climpt-agent */
+  agent_name: string;
+
+  /** Short completion criteria description */
+  completion_criteria: string;
+
+  /** GitHub label to filter issues (default: "docs") */
+  target_label: string;
+}
+
+/**
  * Parsed CLI arguments result
  */
 export interface ParsedArgs {

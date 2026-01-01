@@ -5,7 +5,12 @@
  */
 
 import { join } from "@std/path";
-import type { AgentConfig, AgentName, IterateAgentConfig } from "./types.ts";
+import type {
+  AgentConfig,
+  AgentName,
+  IterateAgentConfig,
+  UvVariables,
+} from "./types.ts";
 
 /**
  * Default configuration for iterate-agent
@@ -261,4 +266,78 @@ export async function initializeConfig(
   await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
 
   return { configPath, promptPath };
+}
+
+/**
+ * Completion handler type to C3L mode mapping
+ */
+export type CompletionMode = "project" | "issue" | "iterate";
+
+/**
+ * Load system prompt via breakdown CLI
+ *
+ * Variable passing:
+ * - --uv-agent_name, --uv-completion_criteria, --uv-target_label: CLI args
+ * - completion_criteria_detail: STDIN (長文対応)
+ *
+ * @param mode - Completion mode (project, issue, or iterate)
+ * @param uvVariables - UV variables for prompt expansion
+ * @param stdinContent - Content to pass via STDIN (completion_criteria_detail)
+ * @returns Expanded system prompt content
+ * @throws Error if breakdown CLI fails or returns empty output
+ */
+export async function loadSystemPromptViaC3L(
+  mode: CompletionMode,
+  uvVariables: UvVariables,
+  stdinContent: string,
+): Promise<string> {
+  // Map completion mode to C3L c3 value
+  const c3 = mode === "iterate" ? "default" : mode;
+
+  // Build CLI args
+  const args = [
+    "run",
+    "--allow-read",
+    "--allow-write",
+    "--allow-env",
+    "jsr:@aidevtool/climpt",
+    "--config=iterator-dev",
+    "start",
+    c3,
+  ];
+
+  // Add uv- parameters (short strings only)
+  for (const [key, value] of Object.entries(uvVariables)) {
+    if (value !== undefined && value !== "") {
+      args.push(`--uv-${key}=${value}`);
+    }
+  }
+
+  const command = new Deno.Command("deno", {
+    args,
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const process = command.spawn();
+
+  // Write stdinContent (completion_criteria_detail) to STDIN
+  const writer = process.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(stdinContent));
+  await writer.close();
+
+  const { stdout, stderr } = await process.output();
+  const output = new TextDecoder().decode(stdout).trim();
+
+  if (!output) {
+    const errorOutput = new TextDecoder().decode(stderr);
+    throw new Error(
+      `Empty output from breakdown CLI.\n` +
+        `Mode: ${mode}, Args: ${args.join(" ")}\n` +
+        `Stderr: ${errorOutput}`,
+    );
+  }
+
+  return output;
 }
