@@ -50,5 +50,6 @@ export type { CompletionType } from "./types.ts";
 
 // Re-export handlers for direct use if needed
 export { IssueCompletionHandler } from "./issue.ts";
+export type { ProjectContext } from "./issue.ts";
 export { ProjectCompletionHandler } from "./project.ts";
 export { IterateCompletionHandler } from "./iterate.ts";
