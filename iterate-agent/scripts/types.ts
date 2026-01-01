@@ -260,6 +260,56 @@ export interface SDKResultStats {
 }
 
 /**
+ * Issue action types
+ *
+ * - progress: Report work progress (adds comment)
+ * - question: Ask a question or request clarification (adds comment)
+ * - blocked: Report a blocker (adds comment + optional label)
+ * - close: Complete and close the issue
+ */
+export type IssueActionType = "progress" | "question" | "blocked" | "close";
+
+/**
+ * Issue action from LLM
+ *
+ * LLM outputs this JSON to request issue operations.
+ * Format in markdown:
+ * ```issue-action
+ * {"action":"progress","issue":1,"body":"## Progress\n- Step 1 done"}
+ * ```
+ */
+export interface IssueAction {
+  /** Action type to perform */
+  action: IssueActionType;
+
+  /** Issue number to act on */
+  issue: number;
+
+  /** Comment body or summary */
+  body: string;
+
+  /** Optional label to add (used with "blocked" action) */
+  label?: string;
+}
+
+/**
+ * Result of parsing issue action
+ */
+export interface IssueActionParseResult {
+  /** Whether parsing succeeded */
+  success: boolean;
+
+  /** Parsed action (if success) */
+  action?: IssueAction;
+
+  /** Error message (if failed) */
+  error?: string;
+
+  /** Raw content that was attempted to parse */
+  rawContent?: string;
+}
+
+/**
  * Execution report for displaying results
  */
 export interface ExecutionReport {

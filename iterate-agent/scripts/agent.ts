@@ -96,16 +96,21 @@ import {
 import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
 import {
+  buildIssueActionRetryPrompt,
   captureIterationData,
   captureSDKResult,
+  detectIssueActions,
   isSkillInvocation,
   logSDKMessage,
 } from "./message-handler.ts";
+import { executeIssueAction, type IssueActionResult } from "./github.ts";
 import { buildSystemPrompt } from "./prompts.ts";
 import { generateReport, logReport, printReport } from "./report.ts";
 import type {
   AgentConfig,
   AgentOptions,
+  IssueAction,
+  IssueActionParseResult,
   IterateAgentConfig,
   IterationSummary,
   SDKResultStats,
@@ -306,6 +311,13 @@ async function runAgentLoop(
       options: queryOptions,
     });
 
+    // Track detected actions and completion
+    const detectedActions: IssueActionParseResult[] = [];
+    const executedActions: IssueActionResult[] = [];
+    let issueClosed = false;
+    let closedIssueNumber: number | null = null;
+    let shouldStopIteration = false;
+
     // Process all SDK messages in this session
     try {
       for await (const message of queryIterator) {
@@ -324,6 +336,70 @@ async function runAgentLoop(
         if (isSkillInvocation(message)) {
           await logger.write("debug", "Skill invoked within iteration");
         }
+
+        // Detect issue actions (project mode only)
+        if (completionHandler instanceof ProjectCompletionHandler) {
+          const currentIssue = completionHandler.getCurrentIssueInfo();
+
+          // First, try new issue-action format
+          const actionResults = detectIssueActions(message);
+          if (actionResults.length > 0) {
+            for (const actionResult of actionResults) {
+              detectedActions.push(actionResult);
+
+              if (actionResult.success && actionResult.action) {
+                await logger.write("debug", "Issue action detected", {
+                  action: actionResult.action.action,
+                  issue: actionResult.action.issue,
+                });
+
+                // Execute action immediately
+                const execResult = await executeIssueAction(
+                  actionResult.action,
+                  currentIssue?.repository,
+                );
+                executedActions.push(execResult);
+
+                if (execResult.success) {
+                  console.log(
+                    `\n✅ Action "${execResult.action}" executed for issue #${execResult.issue}`,
+                  );
+                  await logger.write("info", "Issue action executed", {
+                    action: execResult.action,
+                    issue: execResult.issue,
+                  });
+
+                  if (execResult.isClosed) {
+                    issueClosed = true;
+                    closedIssueNumber = execResult.issue;
+                    completionHandler.markCurrentIssueCompleted();
+                  }
+                  if (execResult.shouldStop) {
+                    shouldStopIteration = true;
+                  }
+                } else {
+                  console.error(
+                    `\n❌ Action "${execResult.action}" failed: ${execResult.error}`,
+                  );
+                  await logger.write("error", "Issue action execution failed", {
+                    action: execResult.action,
+                    issue: execResult.issue,
+                    repository: currentIssue?.repository,
+                    actionBody: actionResult.action?.body,
+                    actionLabel: actionResult.action?.label,
+                    errorMessage: execResult.error,
+                    ghCommand: `gh issue ${execResult.action === "close" ? "close" : "comment"} ${execResult.issue}${currentIssue?.repository ? ` -R ${currentIssue.repository}` : ""}`,
+                  });
+                }
+              } else {
+                await logger.write("debug", "Issue action parse failed", {
+                  parseError: actionResult.error,
+                  rawContent: actionResult.rawContent,
+                });
+              }
+            }
+          }
+        }
       }
     } catch (error) {
       await logger.write("error", "Error processing SDK messages", {
@@ -332,6 +408,106 @@ async function runAgentLoop(
         errorStack: error instanceof Error ? error.stack : undefined,
       });
       throw error;
+    }
+
+    // Handle failed action parses - retry with LLM (project mode)
+    if (completionHandler instanceof ProjectCompletionHandler) {
+      const currentIssue = completionHandler.getCurrentIssueInfo();
+      const failedActions = detectedActions.filter((a) => !a.success);
+
+      if (failedActions.length > 0 && currentIssue) {
+        // Retry failed action parses
+        for (const failedAction of failedActions) {
+          await logger.write("info", "Action parse failed, retrying", {
+            parseError: failedAction.error,
+            rawContent: failedAction.rawContent,
+          });
+
+          console.log(`\n⚠️ Action format error, requesting retry...`);
+
+          const retryPrompt = buildIssueActionRetryPrompt(
+            failedAction,
+            currentIssue.issueNumber,
+          );
+
+          // Send retry prompt
+          const retryIterator = query({
+            prompt: retryPrompt,
+            options: {
+              cwd: Deno.cwd(),
+              allowedTools: [], // No tools needed for format correction
+              permissionMode: agentConfig.permissionMode,
+              systemPrompt: systemPrompt,
+            },
+          });
+
+          let retryAction: IssueAction | null = null;
+          for await (const message of retryIterator) {
+            await logSDKMessage(message, logger);
+            const results = detectIssueActions(message);
+            if (results.length > 0 && results[0].success && results[0].action) {
+              retryAction = results[0].action;
+            }
+          }
+
+          if (retryAction) {
+            // Retry succeeded - execute the action
+            await logger.write("info", "Retry succeeded, executing action", {
+              action: retryAction.action,
+              issue: retryAction.issue,
+            });
+
+            const execResult = await executeIssueAction(
+              retryAction,
+              currentIssue.repository,
+            );
+
+            if (execResult.success) {
+              console.log(
+                `\n✅ Action "${execResult.action}" executed after retry`,
+              );
+              executedActions.push(execResult);
+
+              if (execResult.isClosed) {
+                issueClosed = true;
+                closedIssueNumber = execResult.issue;
+                completionHandler.markCurrentIssueCompleted();
+              }
+              if (execResult.shouldStop) {
+                shouldStopIteration = true;
+              }
+            } else {
+              await logger.write("error", "Action execution failed after retry", {
+                action: execResult.action,
+                issue: execResult.issue,
+                repository: currentIssue.repository,
+                actionBody: retryAction.body,
+                errorMessage: execResult.error,
+                ghCommand: `gh issue ${execResult.action === "close" ? "close" : "comment"} ${execResult.issue}${currentIssue.repository ? ` -R ${currentIssue.repository}` : ""}`,
+              });
+              console.error(
+                `\n❌ Action "${execResult.action}" failed after retry: ${execResult.error}`,
+              );
+            }
+          } else {
+            await logger.write(
+              "error",
+              "Retry failed, action not executed",
+              {
+                parseError: failedAction.error,
+              },
+            );
+            console.log(
+              `\n⚠️ Could not parse action after retry. Action not executed.`,
+            );
+          }
+        }
+      }
+
+      // Log closed issue status
+      if (issueClosed && closedIssueNumber !== null) {
+        console.log(`\n✅ Issue #${closedIssueNumber} closed!`);
+      }
     }
 
     // Session completed = iteration completed
