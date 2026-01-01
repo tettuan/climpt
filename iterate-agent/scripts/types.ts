@@ -53,6 +53,9 @@ export interface AgentOptions {
 
   /** Whether to resume previous session (default: false) */
   resume: boolean;
+
+  /** Label to filter project issues (only used with --project) */
+  label?: string;
 }
 
 /**
@@ -77,6 +80,12 @@ export interface IterateAgentConfig {
   agents: Record<string, AgentConfig>;
   github?: {
     apiVersion?: string;
+    labels?: {
+      /** Label to filter project issues (e.g., "docs") */
+      filter?: string;
+      /** Label to add when giving feedback (e.g., "need clearance") */
+      feedback?: string;
+    };
   };
   logging: {
     directory: string;

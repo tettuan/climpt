@@ -384,6 +384,180 @@ Deno.test("isProjectComplete - empty project is complete", () => {
 });
 
 // =============================================================================
+// Tests for getOpenIssuesFromProject logic
+// =============================================================================
+
+/**
+ * Extract open issues from project items (mirrors github.ts logic)
+ */
+function extractOpenIssues(items: GhProjectItem[]): Array<{
+  issueNumber: number;
+  title: string;
+  state: "OPEN" | "CLOSED";
+  status?: string;
+}> {
+  const openIssues: Array<{
+    issueNumber: number;
+    title: string;
+    state: "OPEN" | "CLOSED";
+    status?: string;
+  }> = [];
+
+  for (const item of items) {
+    if (
+      item.content?.number &&
+      item.content?.state === "OPEN" &&
+      item.status !== "Done"
+    ) {
+      openIssues.push({
+        issueNumber: item.content.number,
+        title: item.content.title || "Untitled",
+        state: "OPEN",
+        status: item.status,
+      });
+    }
+  }
+
+  return openIssues;
+}
+
+Deno.test("extractOpenIssues - filters only open issues", () => {
+  const items: GhProjectItem[] = [
+    {
+      id: "1",
+      title: "Open Task",
+      status: "In Progress",
+      content: { number: 100, title: "Open Issue", state: "OPEN" },
+    },
+    {
+      id: "2",
+      title: "Closed Task",
+      status: "Done",
+      content: { number: 101, title: "Closed Issue", state: "CLOSED" },
+    },
+    {
+      id: "3",
+      title: "Done but state OPEN",
+      status: "Done",
+      content: { number: 102, title: "Done Issue", state: "OPEN" },
+    },
+  ];
+
+  const result = extractOpenIssues(items);
+
+  assertEquals(result.length, 1);
+  assertEquals(result[0].issueNumber, 100);
+  assertEquals(result[0].title, "Open Issue");
+  assertEquals(result[0].status, "In Progress");
+});
+
+Deno.test("extractOpenIssues - handles empty items", () => {
+  const result = extractOpenIssues([]);
+  assertEquals(result.length, 0);
+});
+
+Deno.test("extractOpenIssues - handles items without content", () => {
+  const items: GhProjectItem[] = [
+    { id: "1", title: "No content", status: "Todo" },
+    {
+      id: "2",
+      title: "With content",
+      status: "Todo",
+      content: { number: 100, title: "Issue", state: "OPEN" },
+    },
+  ];
+
+  const result = extractOpenIssues(items);
+
+  assertEquals(result.length, 1);
+  assertEquals(result[0].issueNumber, 100);
+});
+
+Deno.test("extractOpenIssues - handles multiple open issues", () => {
+  const items: GhProjectItem[] = [
+    {
+      id: "1",
+      status: "Todo",
+      content: { number: 1, title: "First", state: "OPEN" },
+    },
+    {
+      id: "2",
+      status: "In Progress",
+      content: { number: 2, title: "Second", state: "OPEN" },
+    },
+    {
+      id: "3",
+      status: "Todo",
+      content: { number: 3, title: "Third", state: "OPEN" },
+    },
+  ];
+
+  const result = extractOpenIssues(items);
+
+  assertEquals(result.length, 3);
+  assertEquals(result[0].issueNumber, 1);
+  assertEquals(result[1].issueNumber, 2);
+  assertEquals(result[2].issueNumber, 3);
+});
+
+// =============================================================================
+// Tests for label filtering logic
+// =============================================================================
+
+/**
+ * Filter issues by label (simulates the logic in github.ts)
+ */
+function filterByLabel(
+  issues: Array<{ issueNumber: number; labels?: string[] }>,
+  labelFilter: string,
+): Array<{ issueNumber: number; labels?: string[] }> {
+  return issues.filter((issue) => issue.labels?.includes(labelFilter));
+}
+
+Deno.test("filterByLabel - filters issues with matching label", () => {
+  const issues = [
+    { issueNumber: 1, labels: ["docs", "feature"] },
+    { issueNumber: 2, labels: ["bug"] },
+    { issueNumber: 3, labels: ["docs"] },
+  ];
+
+  const result = filterByLabel(issues, "docs");
+
+  assertEquals(result.length, 2);
+  assertEquals(result[0].issueNumber, 1);
+  assertEquals(result[1].issueNumber, 3);
+});
+
+Deno.test("filterByLabel - returns empty for no matches", () => {
+  const issues = [
+    { issueNumber: 1, labels: ["bug"] },
+    { issueNumber: 2, labels: ["feature"] },
+  ];
+
+  const result = filterByLabel(issues, "docs");
+
+  assertEquals(result.length, 0);
+});
+
+Deno.test("filterByLabel - handles issues without labels", () => {
+  const issues = [
+    { issueNumber: 1, labels: ["docs"] },
+    { issueNumber: 2 }, // no labels
+    { issueNumber: 3, labels: undefined },
+  ];
+
+  const result = filterByLabel(issues, "docs");
+
+  assertEquals(result.length, 1);
+  assertEquals(result[0].issueNumber, 1);
+});
+
+Deno.test("filterByLabel - handles empty array", () => {
+  const result = filterByLabel([], "docs");
+  assertEquals(result.length, 0);
+});
+
+// =============================================================================
 // Integration test with mock CLI
 // =============================================================================
 

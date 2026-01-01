@@ -38,7 +38,7 @@ export function createCompletionHandler(
     return new IssueCompletionHandler(options.issue);
   }
   if (options.project !== undefined) {
-    return new ProjectCompletionHandler(options.project);
+    return new ProjectCompletionHandler(options.project, options.label);
   }
   return new IterateCompletionHandler(options.iterateMax);
 }

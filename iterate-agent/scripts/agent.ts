@@ -85,6 +85,7 @@ import {
   createCompletionHandler,
 } from "./completion/mod.ts";
 import { IterateCompletionHandler } from "./completion/iterate.ts";
+import { ProjectCompletionHandler } from "./completion/project.ts";
 import {
   ensureLogDirectory,
   getAgentConfig,
@@ -160,6 +161,11 @@ async function main(): Promise<void> {
     const config = await loadConfig();
     const agentConfig = getAgentConfig(config, options.agentName);
 
+    // Apply default label from config if not specified via CLI
+    if (options.label === undefined && config.github?.labels?.filter) {
+      options.label = config.github.labels.filter;
+    }
+
     // 3. Initialize logger
     const logDir = await ensureLogDirectory(config, options.agentName);
     logger = await createLogger(
@@ -172,6 +178,7 @@ async function main(): Promise<void> {
       agentName: options.agentName,
       issue: options.issue,
       project: options.project,
+      label: options.label,
       iterateMax: options.iterateMax,
       resume: options.resume,
     });
@@ -338,7 +345,33 @@ async function runAgentLoop(
     }
 
     // Check completion criteria using handler
+    // For project mode, this may also advance to the next issue
+    const previousIssue = completionHandler instanceof ProjectCompletionHandler
+      ? completionHandler.getCurrentIssueNumber()
+      : null;
+
     isComplete = await completionHandler.isComplete();
+
+    // Log issue transition in project mode
+    if (completionHandler instanceof ProjectCompletionHandler) {
+      const currentIssue = completionHandler.getCurrentIssueNumber();
+      const completedCount = completionHandler.getCompletedCount();
+
+      if (previousIssue !== currentIssue) {
+        if (previousIssue !== null) {
+          console.log(`\n✅ Issue #${previousIssue} closed!`);
+          await logger.write("info", `Issue #${previousIssue} closed`, {
+            completedCount,
+          });
+        }
+        if (currentIssue !== null) {
+          console.log(`\n📋 Moving to Issue #${currentIssue}`);
+          await logger.write("info", `Starting Issue #${currentIssue}`, {
+            remainingAfterCurrent: 0, // Will be updated by handler
+          });
+        }
+      }
+    }
 
     await logger.write("debug", "Completion criteria checked", {
       type: completionHandler.type,
@@ -347,7 +380,15 @@ async function runAgentLoop(
     });
 
     if (isComplete) {
-      console.log(`\n🎉 Completion criteria met!\n`);
+      // Show summary for project mode
+      if (completionHandler instanceof ProjectCompletionHandler) {
+        const completedCount = completionHandler.getCompletedCount();
+        console.log(
+          `\n🎉 Project complete! ${completedCount} issue(s) closed.\n`,
+        );
+      } else {
+        console.log(`\n🎉 Completion criteria met!\n`);
+      }
       break;
     }
 
