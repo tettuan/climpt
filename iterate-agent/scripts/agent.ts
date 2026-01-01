@@ -140,7 +140,9 @@ async function main(): Promise<void> {
       console.log(
         "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
       );
-      console.log("Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n");
+      console.log(
+        "Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n",
+      );
       Deno.exit(0);
     }
 
@@ -400,7 +402,9 @@ async function runAgentLoop(
     console.log(`\n📊 Summary:`);
     console.log(`   Total iterations: ${iterationCount}`);
     console.log(
-      `   Completion: ${isComplete ? "✅ Criteria met" : "⏹️  Max iterations"}\n`,
+      `   Completion: ${
+        isComplete ? "✅ Criteria met" : "⏹️  Max iterations"
+      }\n`,
     );
   }
 

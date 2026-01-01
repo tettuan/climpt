@@ -306,7 +306,9 @@ export function printReport(report: ExecutionReport): void {
   // Token usage section
   if (report.modelUsage.length > 0) {
     console.log("📈 Token Usage");
-    console.log("  | モデル           | Input  | Output | キャッシュ読込 | コスト |");
+    console.log(
+      "  | モデル           | Input  | Output | キャッシュ読込 | コスト |",
+    );
     console.log(
       "  |------------------|--------|--------|----------------|--------|",
     );
@@ -338,7 +340,9 @@ export function printReport(report: ExecutionReport): void {
   const completionIcon = report.completionReason === "criteria_met"
     ? "✅"
     : "⏹️";
-  console.log(`  | 完了理由       | ${completionIcon} ${report.completionReason} |`);
+  console.log(
+    `  | 完了理由       | ${completionIcon} ${report.completionReason} |`,
+  );
   console.log("");
 
   // Tools used section
