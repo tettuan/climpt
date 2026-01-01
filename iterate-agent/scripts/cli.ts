@@ -21,7 +21,7 @@ const DEFAULT_AGENT_NAME = "climpt";
  */
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
-    string: ["name", "issue", "project", "iterate-max"],
+    string: ["name", "issue", "project", "iterate-max", "label"],
     boolean: ["init", "help", "resume"],
     default: {
       "name": DEFAULT_AGENT_NAME,
@@ -36,6 +36,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       n: "name",
       h: "help",
       r: "resume",
+      l: "label",
     },
   });
 
@@ -95,6 +96,14 @@ export function parseCliArgs(args: string[]): ParsedArgs {
   // Get resume flag
   const resume = parsed.resume as boolean;
 
+  // Get label filter (only valid with --project)
+  const label = parsed.label as string | undefined;
+
+  // Validate label option
+  if (label !== undefined && project === undefined) {
+    throw new Error("--label can only be used with --project");
+  }
+
   return {
     init: false,
     help: false,
@@ -104,6 +113,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       iterateMax,
       agentName: agentName as AgentName,
       resume,
+      label,
     },
   };
 }
@@ -128,7 +138,12 @@ OPTIONS:
       GitHub Issue number to work on. The agent will work until the issue is closed.
 
   --project, -p <number>
-      GitHub Project number to work on. The agent will work until all project items are complete.
+      GitHub Project number to work on. The agent will work through each open issue
+      in the project one by one until all are closed.
+
+  --label, -l <name>
+      Filter project issues by label (e.g., "docs", "bug"). Only issues with this
+      label will be processed. Can only be used with --project.
 
   --iterate-max, -m <number>
       Maximum number of Skill invocations. Defaults to unlimited.
@@ -151,8 +166,11 @@ EXAMPLES:
   # Work on Issue #123 until closed
   deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 
-  # Work on Project #5 until all items complete
+  # Work on all open issues in Project #5
   deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
+
+  # Work on only "docs" labeled issues in Project #25
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --project 25 --label docs
 
   # Run with specific agent for 10 iterations
   deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10
