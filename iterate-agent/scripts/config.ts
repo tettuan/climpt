@@ -274,6 +274,26 @@ export async function initializeConfig(
 export type CompletionMode = "project" | "issue" | "iterate";
 
 /**
+ * C3L command type (c2 value)
+ */
+export type C3LCommand = "start" | "review";
+
+/**
+ * C3L edition option
+ */
+export type C3LEdition = "default" | "again";
+
+/**
+ * Options for loading system prompt via C3L
+ */
+export interface C3LPromptOptions {
+  /** Command type (c2 value): "start" or "review" */
+  command?: C3LCommand;
+  /** Edition option: "default" or "again" */
+  edition?: C3LEdition;
+}
+
+/**
  * Load system prompt via breakdown CLI
  *
  * Variable passing:
@@ -283,6 +303,7 @@ export type CompletionMode = "project" | "issue" | "iterate";
  * @param mode - Completion mode (project, issue, or iterate)
  * @param uvVariables - UV variables for prompt expansion
  * @param stdinContent - Content to pass via STDIN (completion_criteria_detail)
+ * @param options - Additional options (command type, edition)
  * @returns Expanded system prompt content
  * @throws Error if breakdown CLI fails or returns empty output
  */
@@ -290,9 +311,12 @@ export async function loadSystemPromptViaC3L(
   mode: CompletionMode,
   uvVariables: UvVariables,
   stdinContent: string,
+  options?: C3LPromptOptions,
 ): Promise<string> {
   // Map completion mode to C3L c3 value
   const c3 = mode === "iterate" ? "default" : mode;
+  const c2 = options?.command ?? "start";
+  const edition = options?.edition;
 
   // Build CLI args
   const args = [
@@ -302,9 +326,14 @@ export async function loadSystemPromptViaC3L(
     "--allow-env",
     "jsr:@aidevtool/climpt",
     "--config=iterator-dev",
-    "start",
+    c2,
     c3,
   ];
+
+  // Add edition option if specified (not default)
+  if (edition && edition !== "default") {
+    args.push(`-i=${edition}`);
+  }
 
   // Add uv- parameters (short strings only)
   for (const [key, value] of Object.entries(uvVariables)) {

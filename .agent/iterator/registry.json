@@ -48,8 +48,38 @@
         "c1": "dev",
         "c2": "start",
         "c3": "project",
-        "description": "System prompt for GitHub Project iteration mode",
-        "usage": "iterator-dev start project",
+        "description": "System prompt for GitHub Project preparation mode (skills organization, planning)",
+        "usage": "iterator-dev start project --uv-target_label=docs",
+        "options": {
+          "edition": [
+            "default",
+            "again"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        },
+        "uv": [
+          {
+            "agent_name": "MCP agent name for delegate-climpt-agent"
+          },
+          {
+            "completion_criteria": "Short completion criteria description"
+          },
+          {
+            "target_label": "GitHub label to filter issues (default \"docs\")"
+          }
+        ]
+      },
+      {
+        "c1": "dev",
+        "c2": "review",
+        "c3": "project",
+        "description": "System prompt for reviewing GitHub Project completion status",
+        "usage": "iterator-dev review project --uv-target_label=docs",
         "options": {
           "edition": [
             "default"
@@ -58,10 +88,17 @@
             "default"
           ],
           "file": false,
-          "stdin": false,
+          "stdin": true,
           "destination": false
         },
-        "uv": ""
+        "uv": [
+          {
+            "agent_name": "MCP agent name for delegate-climpt-agent"
+          },
+          {
+            "target_label": "GitHub label to filter issues (default \"docs\")"
+          }
+        ]
       }
     ]
   }
