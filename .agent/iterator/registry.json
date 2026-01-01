@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "description": "Climpt comprehensive configuration for MCP server and command registry",
+  "tools": {
+    "availableConfigs": [
+      "dev"
+    ],
+    "commands": [
+      {
+        "c1": "dev",
+        "c2": "start",
+        "c3": "default",
+        "description": "System prompt for iteration-count based mode (no Issue/Project)",
+        "usage": "iterator-dev start default",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        },
+        "uv": ""
+      },
+      {
+        "c1": "dev",
+        "c2": "start",
+        "c3": "issue",
+        "description": "System prompt for single GitHub Issue iteration mode",
+        "usage": "iterator-dev start issue",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        },
+        "uv": ""
+      },
+      {
+        "c1": "dev",
+        "c2": "start",
+        "c3": "project",
+        "description": "System prompt for GitHub Project iteration mode",
+        "usage": "iterator-dev start project",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": false,
+          "destination": false
+        },
+        "uv": ""
+      }
+    ]
+  }
+}
