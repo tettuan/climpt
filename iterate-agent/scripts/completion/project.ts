@@ -34,6 +34,9 @@ export class ProjectCompletionHandler implements CompletionHandler {
   /** Number of issues completed in this session */
   private issuesCompleted = 0;
 
+  /** Issue numbers that have been marked completed (to filter from re-fetch) */
+  private completedIssueNumbers: Set<number> = new Set();
+
   /** Whether the handler has been initialized */
   private initialized = false;
 
@@ -90,18 +93,28 @@ All${this.labelFilter ? ` "${this.labelFilter}" labeled` : ""} issues in this pr
       `.trim();
     }
 
-    // Get details for the current issue
+    // Get details for the current issue (with cross-repo support)
     const issueContent = await fetchIssueRequirements(
       this.currentIssue.issueNumber,
+      this.currentIssue.repository,
     );
 
     const remainingCount = this.remainingIssues.length;
+    // Don't show repository info in remaining list to avoid confusion
     const remainingList = this.remainingIssues
       .slice(0, 5)
       .map((i) => `  - #${i.issueNumber}: ${i.title}`)
       .join("\n");
     const moreText = remainingCount > 5
       ? `\n  ... and ${remainingCount - 5} more`
+      : "";
+
+    // For cross-repo issues: hide repository details, emphasize current directory work
+    const crossRepoWorkNote = this.currentIssue.repository
+      ? `
+**Note**: This issue contains requirements from an external repository.
+All implementation work should be done **in the current directory**.
+`
       : "";
 
     return `
@@ -115,7 +128,7 @@ ${projectContent}
 ## Current Task: Issue #${this.currentIssue.issueNumber}
 
 ${issueContent}
-
+${crossRepoWorkNote}
 ## Queue Status
 - **Current issue**: #${this.currentIssue.issueNumber} - ${this.currentIssue.title}
 - **Remaining issues**: ${remainingCount}${this.labelFilter ? ` (with "${this.labelFilter}" label)` : ""}
@@ -124,9 +137,31 @@ ${remainingList}${moreText}
 ## Your Mission
 1. Focus on completing Issue #${this.currentIssue.issueNumber}
 2. Use the **delegate-climpt-agent** Skill to implement the required changes
-3. Continue until this issue's requirements are fully satisfied
-4. When done, close the issue with \`gh issue close ${this.currentIssue.issueNumber}\`
-5. After closing, the next issue in the queue will be assigned automatically
+3. All work must be done **in the current working directory**
+4. Continue until this issue's requirements are fully satisfied
+
+## Issue Actions (IMPORTANT)
+Use these structured outputs to communicate with the issue. **Do NOT run \`gh\` commands directly.**
+
+### Report Progress
+\`\`\`issue-action
+{"action":"progress","issue":${this.currentIssue.issueNumber},"body":"## Progress\\n- Step 1 completed\\n- Working on step 2"}
+\`\`\`
+
+### Ask a Question
+\`\`\`issue-action
+{"action":"question","issue":${this.currentIssue.issueNumber},"body":"Need clarification on..."}
+\`\`\`
+
+### Report Blocker (stops iteration, awaits human)
+\`\`\`issue-action
+{"action":"blocked","issue":${this.currentIssue.issueNumber},"body":"Cannot proceed because...","label":"need clearance"}
+\`\`\`
+
+### Complete Issue (closes automatically)
+\`\`\`issue-action
+{"action":"close","issue":${this.currentIssue.issueNumber},"body":"Implemented feature X with tests"}
+\`\`\`
 
 Start by analyzing Issue #${this.currentIssue.issueNumber} and planning your implementation.
     `.trim();
@@ -156,6 +191,11 @@ No more work needed. The project is complete.
 
     const remainingCount = this.remainingIssues.length;
 
+    // For cross-repo issues: emphasize current directory work
+    const crossRepoWorkNote = this.currentIssue.repository
+      ? `\n**Note**: Work in current directory (issue is from external repository).`
+      : "";
+
     return `
 You are continuing work on GitHub Project #${this.projectNumber}.
 You have completed ${completedIterations} iteration(s) and closed ${this.issuesCompleted} issue(s).
@@ -165,16 +205,24 @@ ${summarySection}
 ## Current Task: Issue #${this.currentIssue.issueNumber}
 
 **Title**: ${this.currentIssue.title}
-**Status**: ${this.currentIssue.status || "No status"}
+**Status**: ${this.currentIssue.status || "No status"}${crossRepoWorkNote}
 **Remaining issues in queue**: ${remainingCount}
 
 ## Your Mission
 1. Review the Previous Iteration Summary to understand what was accomplished
 2. Continue working on Issue #${this.currentIssue.issueNumber}
 3. Use the **delegate-climpt-agent** Skill to implement the remaining changes
-4. When the issue requirements are fully satisfied, close it with:
-   \`gh issue close ${this.currentIssue.issueNumber}\`
-5. After closing, the next issue in the queue will be assigned automatically
+4. All work must be done **in the current working directory**
+
+## Issue Actions
+Use these structured outputs to communicate with the issue. **Do NOT run \`gh\` commands directly.**
+
+- **Progress**: \`{"action":"progress","issue":${this.currentIssue.issueNumber},"body":"..."}\`
+- **Question**: \`{"action":"question","issue":${this.currentIssue.issueNumber},"body":"..."}\`
+- **Blocked**: \`{"action":"blocked","issue":${this.currentIssue.issueNumber},"body":"...","label":"need clearance"}\`
+- **Complete**: \`{"action":"close","issue":${this.currentIssue.issueNumber},"body":"..."}\`
+
+Wrap in \`\`\`issue-action\n...\n\`\`\` code block.
 
 **Next Step**: Analyze the summary above and continue working on Issue #${this.currentIssue.issueNumber}.
     `.trim();
@@ -209,20 +257,31 @@ ${summarySection}
         this.projectNumber,
         this.labelFilter,
       );
-      if (openIssues.length === 0) {
+      // Filter out issues we've already completed (API cache may be stale)
+      const filteredIssues = openIssues.filter(
+        (issue) => !this.completedIssueNumbers.has(issue.issueNumber),
+      );
+      if (filteredIssues.length === 0) {
         return true;
       }
       // If there are new open issues, pick one up
-      this.remainingIssues = openIssues;
+      this.remainingIssues = filteredIssues;
       this.currentIssue = this.remainingIssues.shift()!;
       return false;
     }
 
-    // Check if current issue is closed
-    const currentClosed = await isIssueComplete(this.currentIssue.issueNumber);
+    // Check if current issue is closed (with cross-repo support)
+    const currentClosed = await isIssueComplete(
+      this.currentIssue.issueNumber,
+      this.currentIssue.repository,
+    );
 
     if (currentClosed) {
-      this.issuesCompleted++;
+      // Only count if not already counted by markCurrentIssueCompleted()
+      if (!this.completedIssueNumbers.has(this.currentIssue.issueNumber)) {
+        this.issuesCompleted++;
+        this.completedIssueNumbers.add(this.currentIssue.issueNumber);
+      }
 
       // Move to next issue
       if (this.remainingIssues.length > 0) {
@@ -235,13 +294,17 @@ ${summarySection}
         this.projectNumber,
         this.labelFilter,
       );
-      if (openIssues.length === 0) {
+      // Filter out issues we've already completed (API cache may be stale)
+      const filteredIssues = openIssues.filter(
+        (issue) => !this.completedIssueNumbers.has(issue.issueNumber),
+      );
+      if (filteredIssues.length === 0) {
         this.currentIssue = null;
         return true;
       }
 
       // More issues found, continue
-      this.remainingIssues = openIssues;
+      this.remainingIssues = filteredIssues;
       this.currentIssue = this.remainingIssues.shift()!;
       return false;
     }
@@ -273,9 +336,32 @@ ${summarySection}
   }
 
   /**
+   * Get current issue info (for closing)
+   */
+  getCurrentIssueInfo(): ProjectIssueInfo | null {
+    return this.currentIssue;
+  }
+
+  /**
    * Get count of completed issues
    */
   getCompletedCount(): number {
     return this.issuesCompleted;
+  }
+
+  /**
+   * Mark current issue as closed and advance to next
+   * Called after TypeScript side closes the issue
+   */
+  markCurrentIssueCompleted(): void {
+    if (this.currentIssue) {
+      this.issuesCompleted++;
+      this.completedIssueNumbers.add(this.currentIssue.issueNumber);
+      if (this.remainingIssues.length > 0) {
+        this.currentIssue = this.remainingIssues.shift()!;
+      } else {
+        this.currentIssue = null;
+      }
+    }
   }
 }

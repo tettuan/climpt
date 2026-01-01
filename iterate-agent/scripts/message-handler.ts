@@ -5,7 +5,12 @@
  */
 
 import type { Logger } from "./logger.ts";
-import type { IterationSummary, SDKResultStats } from "./types.ts";
+import type {
+  IssueAction,
+  IssueActionParseResult,
+  IterationSummary,
+  SDKResultStats,
+} from "./types.ts";
 
 /**
  * Check if message contains Skill invocation
@@ -196,4 +201,213 @@ export function captureSDKResult(
     totalCostUsd: message.total_cost_usd ?? 0,
     modelUsage,
   };
+}
+
+// ============================================================
+// Issue Action
+// ============================================================
+
+/**
+ * Issue action format marker
+ */
+const ISSUE_ACTION_MARKER = "issue-action";
+
+/**
+ * Valid action types
+ */
+const VALID_ACTION_TYPES = ["progress", "question", "blocked", "close"] as const;
+
+/**
+ * Extract issue-action JSON block from text
+ *
+ * Looks for markdown code block with `issue-action` language tag:
+ * ```issue-action
+ * {"action":"progress","issue":1,"body":"..."}
+ * ```
+ *
+ * @param text - Text to search for action block
+ * @returns Extracted JSON string or null if not found
+ */
+export function extractIssueActionBlock(text: string): string | null {
+  // Pattern: ```issue-action\n{...}\n```
+  const pattern = new RegExp(
+    "```" + ISSUE_ACTION_MARKER + "\\s*\\n([\\s\\S]*?)\\n```",
+    "m",
+  );
+  const match = text.match(pattern);
+
+  if (!match || !match[1]) {
+    return null;
+  }
+
+  return match[1].trim();
+}
+
+/**
+ * Extract all issue-action JSON blocks from text
+ *
+ * @param text - Text to search for action blocks
+ * @returns Array of extracted JSON strings
+ */
+export function extractAllIssueActionBlocks(text: string): string[] {
+  const pattern = new RegExp(
+    "```" + ISSUE_ACTION_MARKER + "\\s*\\n([\\s\\S]*?)\\n```",
+    "gm",
+  );
+  const matches = text.matchAll(pattern);
+  const results: string[] = [];
+
+  for (const match of matches) {
+    if (match[1]) {
+      results.push(match[1].trim());
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Parse and validate issue action JSON
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Parse result with success/error status
+ */
+export function parseIssueAction(
+  jsonString: string,
+): IssueActionParseResult {
+  try {
+    const parsed = JSON.parse(jsonString);
+
+    // Validate action field
+    if (!VALID_ACTION_TYPES.includes(parsed.action)) {
+      return {
+        success: false,
+        error: `Invalid 'action' field: expected one of ${VALID_ACTION_TYPES.join(", ")}, got "${parsed.action}"`,
+        rawContent: jsonString,
+      };
+    }
+
+    // Validate issue field
+    if (typeof parsed.issue !== "number") {
+      return {
+        success: false,
+        error: `Invalid or missing 'issue' field: expected number, got ${typeof parsed.issue}`,
+        rawContent: jsonString,
+      };
+    }
+
+    // Validate body field
+    if (typeof parsed.body !== "string") {
+      return {
+        success: false,
+        error: `Invalid or missing 'body' field: expected string, got ${typeof parsed.body}`,
+        rawContent: jsonString,
+      };
+    }
+
+    // Validate optional label field
+    if (parsed.label !== undefined && typeof parsed.label !== "string") {
+      return {
+        success: false,
+        error: `Invalid 'label' field: expected string, got ${typeof parsed.label}`,
+        rawContent: jsonString,
+      };
+    }
+
+    const action: IssueAction = {
+      action: parsed.action,
+      issue: parsed.issue,
+      body: parsed.body,
+      label: parsed.label,
+    };
+
+    return {
+      success: true,
+      action,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      error: `JSON parse error: ${e instanceof Error ? e.message : String(e)}`,
+      rawContent: jsonString,
+    };
+  }
+}
+
+/**
+ * Detect and parse all issue actions from assistant message
+ *
+ * @param message - SDK message to check
+ * @returns Array of parse results (may include failures)
+ */
+export function detectIssueActions(
+  // deno-lint-ignore no-explicit-any
+  message: any,
+): IssueActionParseResult[] {
+  // Only check assistant messages
+  if (message.message?.role !== "assistant") {
+    return [];
+  }
+
+  const content = message.message.content;
+  const blocks = Array.isArray(content) ? content : [];
+
+  // Extract text from all text blocks
+  // deno-lint-ignore no-explicit-any
+  const textBlocks = blocks.filter((b: any) => b.type === "text");
+  // deno-lint-ignore no-explicit-any
+  const fullText = textBlocks.map((b: any) => b.text).join("\n");
+
+  // Extract all action blocks
+  const jsonBlocks = extractAllIssueActionBlocks(fullText);
+  if (jsonBlocks.length === 0) {
+    return [];
+  }
+
+  // Parse each block
+  return jsonBlocks.map(parseIssueAction);
+}
+
+/**
+ * Build retry prompt for malformed issue action
+ *
+ * @param parseResult - Failed parse result
+ * @param expectedIssue - Expected issue number
+ * @returns Prompt to send back to LLM for correction
+ */
+export function buildIssueActionRetryPrompt(
+  parseResult: IssueActionParseResult,
+  expectedIssue: number,
+): string {
+  return `
+Your issue action could not be parsed.
+
+## Error
+${parseResult.error}
+
+## Your Output
+\`\`\`
+${parseResult.rawContent || "(empty)"}
+\`\`\`
+
+## Required Format
+Please output the action in this exact format:
+
+\`\`\`issue-action
+{"action":"<type>","issue":${expectedIssue},"body":"Description or comment content"}
+\`\`\`
+
+Action types:
+- "progress": Report work progress
+- "question": Ask a question
+- "blocked": Report a blocker (can include "label" field)
+- "close": Mark issue as complete
+
+Requirements:
+- Use the \`issue-action\` code block marker
+- JSON must have "action", "issue" (number), and "body" (string) fields
+- Issue number must be ${expectedIssue}
+
+Please output ONLY the corrected action block.
+`.trim();
 }
