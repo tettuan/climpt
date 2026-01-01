@@ -36,6 +36,62 @@ export type LogLevel =
 export type CompletionType = "issue" | "project" | "iterate";
 
 /**
+ * Project mode phases
+ */
+export type ProjectPhase =
+  | "preparation" // Initial skills organization and planning
+  | "processing" // Working on issues one by one
+  | "review" // Checking completion
+  | "again" // Re-execution after failed review
+  | "complete"; // Done
+
+/**
+ * Project plan output from preparation phase
+ */
+export interface ProjectPlan {
+  /** Total issues in project */
+  totalIssues: number;
+
+  /** Estimated complexity */
+  estimatedComplexity: "low" | "medium" | "high";
+
+  /** Skills needed for this project */
+  skillsNeeded: string[];
+
+  /** Skills to disable */
+  skillsToDisable: string[];
+
+  /** Execution order */
+  executionOrder: Array<{
+    issue: number;
+    reason: string;
+  }>;
+
+  /** Notes from preparation */
+  notes?: string;
+}
+
+/**
+ * Review result from review phase
+ */
+export interface ReviewResult {
+  /** Review result: pass or fail */
+  result: "pass" | "fail";
+
+  /** Summary message */
+  summary: string;
+
+  /** Details for pass (issue summaries) */
+  details?: string[];
+
+  /** Issues needing attention (for fail) */
+  issues?: Array<{
+    number: number;
+    reason: string;
+  }>;
+}
+
+/**
  * CLI options for iterate-agent
  */
 export interface AgentOptions {
@@ -173,6 +229,22 @@ export interface PromptContext {
   agentName: AgentName;
   completionCriteria: string;
   completionCriteriaDetail: string;
+}
+
+/**
+ * UV variables for system prompt expansion via breakdown CLI
+ *
+ * These are passed as --uv-* CLI arguments to breakdown.
+ */
+export interface UvVariables {
+  /** MCP agent name for delegate-climpt-agent */
+  agent_name: string;
+
+  /** Short completion criteria description */
+  completion_criteria: string;
+
+  /** GitHub label to filter issues (default: "docs") */
+  target_label: string;
 }
 
 /**

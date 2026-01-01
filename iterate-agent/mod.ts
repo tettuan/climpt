@@ -48,6 +48,7 @@ export type {
   ParsedArgs,
   PermissionMode,
   PromptContext,
+  UvVariables,
 } from "./scripts/types.ts";
 
 // Re-export completion handler types and factory
@@ -80,14 +81,13 @@ export {
   ensureLogDirectory,
   getAgentConfig,
   loadConfig,
-  loadSystemPromptTemplate,
+  loadSystemPromptViaC3L,
 } from "./scripts/config.ts";
+
+export type { CompletionMode } from "./scripts/config.ts";
 
 // Re-export logger
 export { createLogger, Logger } from "./scripts/logger.ts";
-
-// Re-export prompt builder
-export { buildSystemPrompt } from "./scripts/prompts.ts";
 
 // Re-export GitHub integration functions
 export {

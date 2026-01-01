@@ -382,19 +382,25 @@ Location: `iterate-agent/config.json` (プロジェクトルート直下)
 - `"acceptEdits"`: ファイル編集を自動承認（自律エージェント推奨）
 - `"bypassPermissions"`: すべての権限チェックをバイパス（注意して使用）
 
-### 6.2 Registry Configuration Reuse
+### 6.2 Registry Configuration
 
-Iterate Agent は、既存のレジストリ設定 (`.agent/climpt/config/registry_config.json`) を共有:
+Iterate Agent は、レジストリ設定 (`.agent/climpt/config/registry_config.json`) を使用:
 
 ```json
 {
   "registries": {
-    "climpt": ".agent/climpt/registry.json"
+    "climpt": ".agent/climpt/registry.json",
+    "iterator": ".agent/iterator/registry.json"
   }
 }
 ```
 
-これにより、Climpt Skills と同じコマンドレジストリを使用可能。
+| Agent | 用途 | Registry Path |
+|-------|------|---------------|
+| `climpt` | delegate-climpt-agent によるタスク実行 | `.agent/climpt/registry.json` |
+| `iterator` | iterate-agent のシステムプロンプト | `.agent/iterator/registry.json` |
+
+詳細は [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) を参照。
 
 ---
 
@@ -776,15 +782,13 @@ async function retryWithBackoff<T>(
 
 ## 11. File Structure
 
+### 11.1 iterate-agent ディレクトリ
+
 ```
 iterate-agent/                           # プロジェクトルート直下に配置
 ├── config.json                          # Main configuration
 ├── prompts/
-│   ├── product-developer.md             # Role-specific system prompt (カスタマイズ可能)
-│   ├── qa-engineer.md
-│   ├── architect.md
-│   ├── devops-engineer.md
-│   └── tech-writer.md
+│   └── default.md                       # Legacy: 共通テンプレート（廃止予定）
 ├── scripts/
 │   ├── agent.ts                         # Main entry point
 │   ├── cli.ts                           # CLI argument parsing
@@ -792,9 +796,41 @@ iterate-agent/                           # プロジェクトルート直下に�
 │   ├── github.ts                        # GitHub API integration (gh CLI 使用)
 │   ├── logger.ts                        # JSONL logger
 │   ├── prompts.ts                       # System prompt builder
-│   └── types.ts                         # TypeScript type definitions
+│   ├── types.ts                         # TypeScript type definitions
+│   └── completion/                      # Completion handlers
+│       ├── mod.ts
+│       ├── project.ts
+│       ├── issue.ts
+│       └── iterate.ts
 └── README.md                            # Usage documentation
+```
 
+### 11.2 C3L プロンプト構造（.agent/iterator/）
+
+モード別システムプロンプトは `.agent/iterator/` で管理。
+詳細は [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) を参照。
+
+```
+.agent/climpt/config/
+└── iterator-dev-app.yml                 # iterator 用 config（breakdown がここから読み込む）
+
+.agent/iterator/                         # C3L 準拠のプロンプト管理
+├── frontmatter-to-schema/               # スキーマファイル（climpt からコピー）
+├── prompts/
+│   └── dev/                             # c1 = dev
+│       └── start/                       # c2 = start
+│           ├── project/                 # c3 = project (--project モード)
+│           │   └── f_default.md
+│           ├── issue/                   # c3 = issue (--issue モード)
+│           │   └── f_default.md
+│           └── default/                 # c3 = default (--iterate-max のみ)
+│               └── f_default.md
+└── registry.json                        # /reg で生成
+```
+
+### 11.3 ログディレクトリ
+
+```
 tmp/logs/iterate-agent/
 ├── product-developer/
 │   ├── session-2025-12-20T10-00-00-000Z.jsonl
@@ -914,11 +950,12 @@ tmp/logs/iterate-agent/
 ## 17. References
 
 ### 17.1 Internal Documentation
-- [Claude Agent SDK Overview](../docs/reference/claude-agent-sdk-overview.md)
-- [Subagents in the SDK](../docs/reference/sdk/subagents.md)
-- [Agent Skills in the SDK](../docs/reference/sdk/skills.md)
-- [Streaming vs Single Mode](../docs/reference/sdk/streaming-vs-single-mode.md)
-- [Handling Permissions](../docs/reference/sdk/permissions.md)
+- [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) - C3L プロンプト管理の詳細設計
+- [Claude Agent SDK Overview](../reference/claude-agent-sdk-overview.md)
+- [Subagents in the SDK](../reference/sdk/subagents.md)
+- [Agent Skills in the SDK](../reference/sdk/skills.md)
+- [Streaming vs Single Mode](../reference/sdk/streaming-vs-single-mode.md)
+- [Handling Permissions](../reference/sdk/permissions.md)
 
 ### 17.2 External Resources
 - [Claude Agent SDK TypeScript](https://github.com/anthropics/claude-agent-sdk-typescript)

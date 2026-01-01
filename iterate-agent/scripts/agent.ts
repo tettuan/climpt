@@ -87,11 +87,12 @@ import {
 import { IterateCompletionHandler } from "./completion/iterate.ts";
 import { ProjectCompletionHandler } from "./completion/project.ts";
 import {
+  type CompletionMode,
   ensureLogDirectory,
   getAgentConfig,
   initializeConfig,
   loadConfig,
-  loadSystemPromptTemplate,
+  loadSystemPromptViaC3L,
 } from "./config.ts";
 import { createLogger } from "./logger.ts";
 import type { Logger } from "./logger.ts";
@@ -100,11 +101,14 @@ import {
   captureIterationData,
   captureSDKResult,
   detectIssueActions,
+  detectProjectPlan,
+  detectReviewResult,
   isSkillInvocation,
   logSDKMessage,
+  type ProjectPlanParseResult,
+  type ReviewResultParseResult,
 } from "./message-handler.ts";
 import { executeIssueAction, type IssueActionResult } from "./github.ts";
-import { buildSystemPrompt } from "./prompts.ts";
 import { generateReport, logReport, printReport } from "./report.ts";
 import type {
   AgentConfig,
@@ -113,7 +117,9 @@ import type {
   IssueActionParseResult,
   IterateAgentConfig,
   IterationSummary,
+  ProjectPhase,
   SDKResultStats,
+  UvVariables,
 } from "./types.ts";
 
 /**
@@ -195,13 +201,43 @@ async function main(): Promise<void> {
       type: completionHandler.type,
     });
 
-    // 5. Load and build system prompt
-    const templateContent = await loadSystemPromptTemplate(agentConfig);
-    const systemPrompt = buildSystemPrompt(
-      templateContent,
-      completionHandler,
-      options.agentName,
-    );
+    // 5. Build system prompt via breakdown CLI
+    const completionMode = completionHandler.type as CompletionMode;
+    const { criteria, detail } = completionHandler.buildCompletionCriteria();
+
+    // Build uv- parameters (short strings for CLI args)
+    const uvVariables: UvVariables = {
+      agent_name: options.agentName,
+      completion_criteria: criteria,
+      target_label: options.label || config.github?.labels?.filter || "docs",
+    };
+
+    let systemPrompt: string;
+    try {
+      // breakdown CLI で展開
+      // - uv- パラメータ: CLI args
+      // - completion_criteria_detail: STDIN
+      systemPrompt = await loadSystemPromptViaC3L(
+        completionMode,
+        uvVariables,
+        detail, // STDIN で渡す
+      );
+      await logger.write("debug", "System prompt loaded via C3L", {
+        mode: completionMode,
+        uvVariables,
+      });
+    } catch (c3lError) {
+      await logger.write("error", "C3L loading failed", {
+        error: {
+          name: c3lError instanceof Error ? c3lError.name : "UnknownError",
+          message: c3lError instanceof Error
+            ? c3lError.message
+            : String(c3lError),
+          stack: c3lError instanceof Error ? c3lError.stack : undefined,
+        },
+      });
+      throw c3lError;
+    }
 
     await logger.write("debug", "System prompt built", {
       promptLength: systemPrompt.length,
@@ -223,6 +259,8 @@ async function main(): Promise<void> {
       systemPrompt,
       initialPrompt,
       logger,
+      uvVariables,
+      detail, // completion criteria detail for STDIN
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -248,15 +286,23 @@ async function main(): Promise<void> {
  *
  * Each iteration = one complete query() session.
  * The loop creates new SDK sessions until completion criteria are met.
+ *
+ * For project mode, handles multi-phase workflow:
+ * - preparation: Analyze project, output project-plan JSON
+ * - processing: Work through issues one by one
+ * - review: Check completion, output review-result JSON
+ * - again: Re-execute if review fails
  */
 async function runAgentLoop(
   options: AgentOptions,
-  _config: IterateAgentConfig,
+  config: IterateAgentConfig,
   agentConfig: AgentConfig,
   completionHandler: CompletionHandler,
   systemPrompt: string,
   initialPrompt: string,
   logger: Logger,
+  uvVariables: UvVariables,
+  stdinContent: string,
 ): Promise<void> {
   let iterationCount = 0;
   let isComplete = false;
@@ -264,6 +310,15 @@ async function runAgentLoop(
   let previousSummary: IterationSummary | undefined = undefined;
   let previousSessionId: string | undefined = undefined;
   const sdkResults: SDKResultStats[] = [];
+
+  // Current system prompt (may be reloaded on phase transitions)
+  let currentSystemPrompt = systemPrompt;
+
+  // Track current phase for project mode
+  let currentPhase: ProjectPhase | null = null;
+  if (completionHandler instanceof ProjectCompletionHandler) {
+    currentPhase = completionHandler.getPhase();
+  }
 
   // Get initial completion description
   const completionDescription = await completionHandler
@@ -295,7 +350,7 @@ async function runAgentLoop(
       cwd: Deno.cwd(),
       allowedTools: agentConfig.allowedTools,
       permissionMode: agentConfig.permissionMode,
-      systemPrompt: systemPrompt,
+      systemPrompt: currentSystemPrompt,
       settingSources: ["user", "project"], // Load Skills from filesystem
     };
 
@@ -318,6 +373,10 @@ async function runAgentLoop(
     let closedIssueNumber: number | null = null;
     let shouldStopIteration = false;
 
+    // Track detected phase outputs (project mode)
+    let detectedProjectPlan: ProjectPlanParseResult | null = null;
+    let detectedReviewResult: ReviewResultParseResult | null = null;
+
     // Process all SDK messages in this session
     try {
       for await (const message of queryIterator) {
@@ -337,8 +396,45 @@ async function runAgentLoop(
           await logger.write("debug", "Skill invoked within iteration");
         }
 
-        // Detect issue actions (project mode only)
+        // Detect phase outputs (project mode only)
         if (completionHandler instanceof ProjectCompletionHandler) {
+          // Detect project-plan from preparation phase
+          if (currentPhase === "preparation" && !detectedProjectPlan) {
+            const planResult = detectProjectPlan(message);
+            if (planResult) {
+              detectedProjectPlan = planResult;
+              if (planResult.success && planResult.plan) {
+                await logger.write("info", "Project plan detected", {
+                  totalIssues: planResult.plan.totalIssues,
+                  complexity: planResult.plan.estimatedComplexity,
+                  skillsNeeded: planResult.plan.skillsNeeded,
+                });
+              } else {
+                await logger.write("error", "Project plan parse failed", {
+                  parseError: planResult.error,
+                });
+              }
+            }
+          }
+
+          // Detect review-result from review phase
+          if (currentPhase === "review" && !detectedReviewResult) {
+            const reviewResult = detectReviewResult(message);
+            if (reviewResult) {
+              detectedReviewResult = reviewResult;
+              if (reviewResult.success && reviewResult.result) {
+                await logger.write("info", "Review result detected", {
+                  result: reviewResult.result.result,
+                  summary: reviewResult.result.summary,
+                });
+              } else {
+                await logger.write("error", "Review result parse failed", {
+                  parseError: reviewResult.error,
+                });
+              }
+            }
+          }
+
           const currentIssue = completionHandler.getCurrentIssueInfo();
 
           // First, try new issue-action format
@@ -437,7 +533,7 @@ async function runAgentLoop(
               cwd: Deno.cwd(),
               allowedTools: [], // No tools needed for format correction
               permissionMode: agentConfig.permissionMode,
-              systemPrompt: systemPrompt,
+              systemPrompt: currentSystemPrompt,
             },
           });
 
@@ -518,6 +614,155 @@ async function runAgentLoop(
     // Update iteration count for IterateCompletionHandler
     if (completionHandler instanceof IterateCompletionHandler) {
       completionHandler.setCurrentIteration(iterationCount);
+    }
+
+    // Handle phase transitions for project mode
+    if (completionHandler instanceof ProjectCompletionHandler && currentPhase) {
+      const previousPhase = currentPhase;
+
+      // Handle preparation phase completion
+      if (
+        currentPhase === "preparation" &&
+        detectedProjectPlan?.success &&
+        detectedProjectPlan.plan
+      ) {
+        completionHandler.setProjectPlan(detectedProjectPlan.plan);
+        completionHandler.advancePhase();
+        currentPhase = completionHandler.getPhase();
+
+        console.log(`\n📋 Preparation complete. Moving to processing phase.`);
+        console.log(
+          `   Skills needed: ${detectedProjectPlan.plan.skillsNeeded.join(", ") || "(none)"}`,
+        );
+        console.log(
+          `   Skills to disable: ${detectedProjectPlan.plan.skillsToDisable.join(", ") || "(none)"}`,
+        );
+
+        await logger.write("info", "Phase transition: preparation → processing", {
+          plan: detectedProjectPlan.plan,
+        });
+      }
+
+      // Handle review phase completion
+      if (
+        currentPhase === "review" &&
+        detectedReviewResult?.success &&
+        detectedReviewResult.result
+      ) {
+        completionHandler.setReviewResult(detectedReviewResult.result);
+        completionHandler.advancePhase();
+        currentPhase = completionHandler.getPhase();
+
+        if (detectedReviewResult.result.result === "pass") {
+          console.log(`\n✅ Review passed! ${detectedReviewResult.result.summary}`);
+          await logger.write("info", "Phase transition: review → complete", {
+            reviewResult: detectedReviewResult.result,
+          });
+        } else {
+          console.log(
+            `\n⚠️ Review failed: ${detectedReviewResult.result.summary}`,
+          );
+          console.log(`   Re-executing to address issues...`);
+          await logger.write("info", "Phase transition: review → again", {
+            reviewResult: detectedReviewResult.result,
+          });
+
+          // Reload system prompt for again phase
+          try {
+            currentSystemPrompt = await loadSystemPromptViaC3L(
+              "project",
+              uvVariables,
+              stdinContent,
+              { edition: "again" },
+            );
+            await logger.write("debug", "System prompt reloaded for again phase");
+          } catch (error) {
+            await logger.write("error", "Failed to reload again prompt", {
+              error: {
+                name: error instanceof Error ? error.name : "Unknown",
+                message: error instanceof Error ? error.message : String(error),
+              },
+            });
+            throw error;
+          }
+        }
+      }
+
+      // Handle processing phase completion → move to review
+      if (
+        currentPhase === "processing" &&
+        previousPhase === "processing"
+      ) {
+        // Check if all issues are done (handler.isComplete() will be checked later)
+        // We need to detect when processing is truly done to advance to review
+        const processingComplete = await completionHandler.isComplete();
+        if (processingComplete && completionHandler.getPhase() === "processing") {
+          completionHandler.advancePhase();
+          currentPhase = completionHandler.getPhase();
+
+          if (currentPhase === "review") {
+            console.log(`\n📋 All issues processed. Moving to review phase.`);
+            await logger.write(
+              "info",
+              "Phase transition: processing → review",
+            );
+
+            // Reload system prompt for review phase
+            try {
+              currentSystemPrompt = await loadSystemPromptViaC3L(
+                "project",
+                uvVariables,
+                stdinContent,
+                { command: "review" },
+              );
+              await logger.write("debug", "System prompt reloaded for review phase");
+            } catch (error) {
+              await logger.write("error", "Failed to reload review prompt", {
+                error: {
+                  name: error instanceof Error ? error.name : "Unknown",
+                  message: error instanceof Error ? error.message : String(error),
+                },
+              });
+              throw error;
+            }
+          }
+        }
+      }
+
+      // Handle again phase → back to processing logic, then review
+      if (currentPhase === "again" && previousPhase === "again") {
+        // Again phase follows processing-like logic
+        // When work is done, advance back to review
+        const againComplete = await completionHandler.isComplete();
+        if (againComplete) {
+          completionHandler.advancePhase();
+          currentPhase = completionHandler.getPhase();
+
+          if (currentPhase === "review") {
+            console.log(`\n📋 Re-execution complete. Running review again.`);
+            await logger.write("info", "Phase transition: again → review");
+
+            // Reload system prompt for review phase
+            try {
+              currentSystemPrompt = await loadSystemPromptViaC3L(
+                "project",
+                uvVariables,
+                stdinContent,
+                { command: "review" },
+              );
+              await logger.write("debug", "System prompt reloaded for re-review phase");
+            } catch (error) {
+              await logger.write("error", "Failed to reload review prompt", {
+                error: {
+                  name: error instanceof Error ? error.name : "Unknown",
+                  message: error instanceof Error ? error.message : String(error),
+                },
+              });
+              throw error;
+            }
+          }
+        }
+      }
     }
 
     // Check completion criteria using handler
