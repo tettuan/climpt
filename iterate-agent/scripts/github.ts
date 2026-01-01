@@ -58,7 +58,9 @@ async function getRepoOwner(): Promise<string> {
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`Failed to get repo owner: ${sanitizeErrorMessage(errorText)}`);
+    throw new Error(
+      `Failed to get repo owner: ${sanitizeErrorMessage(errorText)}`,
+    );
   }
 
   return new TextDecoder().decode(stdout).trim();
@@ -142,14 +144,25 @@ export async function fetchProjectRequirements(
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh project view failed: ${sanitizeErrorMessage(errorText)}`);
+    throw new Error(
+      `gh project view failed: ${sanitizeErrorMessage(errorText)}`,
+    );
   }
 
-  const project = JSON.parse(
-    new TextDecoder().decode(stdout),
-  ) as GitHubProject;
+  const rawProject = JSON.parse(new TextDecoder().decode(stdout));
 
-  const items = project.items || [];
+  // Handle case where items might not be an array
+  // gh project view --format json can return items as null, undefined, or non-array
+  const rawItems = rawProject.items;
+  const items: GitHubProject["items"] = Array.isArray(rawItems) ? rawItems : [];
+
+  const project: GitHubProject = {
+    number: rawProject.number ?? projectNumber,
+    title: rawProject.title ?? "Untitled",
+    description: rawProject.shortDescription ?? rawProject.description ?? null,
+    items,
+  };
+
   const itemsList = items
     .map(
       (item) =>
@@ -236,13 +249,21 @@ export async function isProjectComplete(
 
   if (code !== 0) {
     const errorText = new TextDecoder().decode(stderr);
-    throw new Error(`gh project view failed: ${sanitizeErrorMessage(errorText)}`);
+    throw new Error(
+      `gh project view failed: ${sanitizeErrorMessage(errorText)}`,
+    );
   }
 
-  const project = JSON.parse(
-    new TextDecoder().decode(stdout),
-  ) as GitHubProject;
-  const items = project.items || [];
+  const rawProject = JSON.parse(new TextDecoder().decode(stdout));
+
+  // Handle case where items might not be an array
+  const rawItems = rawProject.items;
+  const items: GitHubProject["items"] = Array.isArray(rawItems) ? rawItems : [];
+
+  // Empty project is considered complete
+  if (items.length === 0) {
+    return true;
+  }
 
   // All items must be closed or marked as done
   return items.every(
