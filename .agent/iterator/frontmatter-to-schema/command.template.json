@@ -1,0 +1,15 @@
+{
+  "c1": "{c1}",
+  "c2": "{c2}",
+  "c3": "{c3}",
+  "description": "{description}",
+  "usage": "{usage}",
+  "options": {
+    "edition": "{options.edition}",
+    "adaptation": "{options.adaptation}",
+    "file": "{options.file}",
+    "stdin": "{options.stdin}",
+    "destination": "{options.destination}"
+  },
+  "uv": "{uv}"
+}

@@ -9,6 +9,8 @@ import type {
   IssueAction,
   IssueActionParseResult,
   IterationSummary,
+  ProjectPlan,
+  ReviewResult,
   SDKResultStats,
 } from "./types.ts";
 
@@ -410,4 +412,229 @@ Requirements:
 
 Please output ONLY the corrected action block.
 `.trim();
+}
+
+// ============================================================
+// Project Plan and Review Result Parsing
+// ============================================================
+
+/**
+ * Project plan format marker
+ */
+const PROJECT_PLAN_MARKER = "project-plan";
+
+/**
+ * Review result format marker
+ */
+const REVIEW_RESULT_MARKER = "review-result";
+
+/**
+ * Extract a JSON block with the specified marker from text
+ *
+ * @param text - Text to search
+ * @param marker - Block marker (e.g., "project-plan", "review-result")
+ * @returns Extracted JSON string or null if not found
+ */
+export function extractJsonBlock(text: string, marker: string): string | null {
+  const pattern = new RegExp("```" + marker + "\\s*\\n([\\s\\S]*?)\\n```", "m");
+  const match = text.match(pattern);
+  if (!match || !match[1]) {
+    return null;
+  }
+  return match[1].trim();
+}
+
+/**
+ * Parse result for project plan
+ */
+export interface ProjectPlanParseResult {
+  success: boolean;
+  plan?: ProjectPlan;
+  error?: string;
+  rawContent?: string;
+}
+
+/**
+ * Parse and validate project plan JSON
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Parse result with success/error status
+ */
+export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
+  try {
+    const parsed = JSON.parse(jsonString);
+
+    // Validate required fields
+    if (typeof parsed.totalIssues !== "number") {
+      return {
+        success: false,
+        error: `Invalid 'totalIssues': expected number, got ${typeof parsed.totalIssues}`,
+        rawContent: jsonString,
+      };
+    }
+
+    if (!["low", "medium", "high"].includes(parsed.estimatedComplexity)) {
+      return {
+        success: false,
+        error: `Invalid 'estimatedComplexity': expected low|medium|high, got "${parsed.estimatedComplexity}"`,
+        rawContent: jsonString,
+      };
+    }
+
+    if (!Array.isArray(parsed.skillsNeeded)) {
+      return {
+        success: false,
+        error: `Invalid 'skillsNeeded': expected array, got ${typeof parsed.skillsNeeded}`,
+        rawContent: jsonString,
+      };
+    }
+
+    if (!Array.isArray(parsed.skillsToDisable)) {
+      return {
+        success: false,
+        error: `Invalid 'skillsToDisable': expected array, got ${typeof parsed.skillsToDisable}`,
+        rawContent: jsonString,
+      };
+    }
+
+    if (!Array.isArray(parsed.executionOrder)) {
+      return {
+        success: false,
+        error: `Invalid 'executionOrder': expected array, got ${typeof parsed.executionOrder}`,
+        rawContent: jsonString,
+      };
+    }
+
+    const plan: ProjectPlan = {
+      totalIssues: parsed.totalIssues,
+      estimatedComplexity: parsed.estimatedComplexity,
+      skillsNeeded: parsed.skillsNeeded,
+      skillsToDisable: parsed.skillsToDisable,
+      executionOrder: parsed.executionOrder,
+      notes: parsed.notes,
+    };
+
+    return { success: true, plan };
+  } catch (e) {
+    return {
+      success: false,
+      error: `JSON parse error: ${e instanceof Error ? e.message : String(e)}`,
+      rawContent: jsonString,
+    };
+  }
+}
+
+/**
+ * Parse result for review result
+ */
+export interface ReviewResultParseResult {
+  success: boolean;
+  result?: ReviewResult;
+  error?: string;
+  rawContent?: string;
+}
+
+/**
+ * Parse and validate review result JSON
+ *
+ * @param jsonString - JSON string to parse
+ * @returns Parse result with success/error status
+ */
+export function parseReviewResult(jsonString: string): ReviewResultParseResult {
+  try {
+    const parsed = JSON.parse(jsonString);
+
+    // Validate result field
+    if (!["pass", "fail"].includes(parsed.result)) {
+      return {
+        success: false,
+        error: `Invalid 'result': expected pass|fail, got "${parsed.result}"`,
+        rawContent: jsonString,
+      };
+    }
+
+    // Validate summary field
+    if (typeof parsed.summary !== "string") {
+      return {
+        success: false,
+        error: `Invalid 'summary': expected string, got ${typeof parsed.summary}`,
+        rawContent: jsonString,
+      };
+    }
+
+    const result: ReviewResult = {
+      result: parsed.result,
+      summary: parsed.summary,
+      details: parsed.details,
+      issues: parsed.issues,
+    };
+
+    return { success: true, result };
+  } catch (e) {
+    return {
+      success: false,
+      error: `JSON parse error: ${e instanceof Error ? e.message : String(e)}`,
+      rawContent: jsonString,
+    };
+  }
+}
+
+/**
+ * Detect and parse project plan from assistant message
+ *
+ * @param message - SDK message to check
+ * @returns Parse result or null if no project-plan block found
+ */
+export function detectProjectPlan(
+  // deno-lint-ignore no-explicit-any
+  message: any,
+): ProjectPlanParseResult | null {
+  if (message.message?.role !== "assistant") {
+    return null;
+  }
+
+  const content = message.message.content;
+  const blocks = Array.isArray(content) ? content : [];
+
+  // deno-lint-ignore no-explicit-any
+  const textBlocks = blocks.filter((b: any) => b.type === "text");
+  // deno-lint-ignore no-explicit-any
+  const fullText = textBlocks.map((b: any) => b.text).join("\n");
+
+  const jsonBlock = extractJsonBlock(fullText, PROJECT_PLAN_MARKER);
+  if (!jsonBlock) {
+    return null;
+  }
+
+  return parseProjectPlan(jsonBlock);
+}
+
+/**
+ * Detect and parse review result from assistant message
+ *
+ * @param message - SDK message to check
+ * @returns Parse result or null if no review-result block found
+ */
+export function detectReviewResult(
+  // deno-lint-ignore no-explicit-any
+  message: any,
+): ReviewResultParseResult | null {
+  if (message.message?.role !== "assistant") {
+    return null;
+  }
+
+  const content = message.message.content;
+  const blocks = Array.isArray(content) ? content : [];
+
+  // deno-lint-ignore no-explicit-any
+  const textBlocks = blocks.filter((b: any) => b.type === "text");
+  // deno-lint-ignore no-explicit-any
+  const fullText = textBlocks.map((b: any) => b.text).join("\n");
+
+  const jsonBlock = extractJsonBlock(fullText, REVIEW_RESULT_MARKER);
+  if (!jsonBlock) {
+    return null;
+  }
+
+  return parseReviewResult(jsonBlock);
 }
