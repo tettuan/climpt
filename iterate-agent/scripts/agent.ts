@@ -141,20 +141,37 @@ async function main(): Promise<void> {
     // Handle --init flag
     if (parsed.init) {
       console.log("\n📦 Initializing iterate-agent configuration...\n");
-      const { configPath, promptPath } = await initializeConfig();
-      console.log(`✅ Created: ${configPath}`);
-      console.log(`✅ Created: ${promptPath}`);
-      console.log("\n🎉 Initialization complete!\n");
-      console.log("Next steps:");
-      console.log(
-        "  1. Review and customize the configuration in iterate-agent/config.json",
-      );
-      console.log(
-        "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
-      );
-      console.log(
-        "Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n",
-      );
+      const { created, skipped } = await initializeConfig();
+
+      if (created.length > 0) {
+        console.log("Created:");
+        for (const path of created) {
+          console.log(`  ✅ ${path}`);
+        }
+      }
+
+      if (skipped.length > 0) {
+        console.log("\nSkipped (already exists):");
+        for (const path of skipped) {
+          console.log(`  ⏭️  ${path}`);
+        }
+      }
+
+      if (created.length === 0) {
+        console.log("\n📋 All configuration files already exist.\n");
+      } else {
+        console.log("\n🎉 Initialization complete!\n");
+        console.log("Next steps:");
+        console.log(
+          "  1. Review and customize the configuration in iterate-agent/config.json",
+        );
+        console.log(
+          "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
+        );
+        console.log(
+          "Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n",
+        );
+      }
       Deno.exit(0);
     }
 
