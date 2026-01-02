@@ -2,7 +2,7 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-プロンプトとAIインタラクションを管理するCLIツール。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude Agent SDK経由）で実行されます。
+CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含まれています。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude Agent SDK経由）で実行されます。
 
 ## 概要
 
