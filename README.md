@@ -2,7 +2,7 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-A CLI tool for managing prompts and AI interactions - a wrapper for the breakdown package.
+A CLI tool for managing prompts and AI interactions. Besides CLI, it is available through MCP and plugins. The plugin skills run on a dedicated climpt-agent (via the Claude Agent SDK).
 
 ## Overview
 
