@@ -24,6 +24,10 @@ import {
   parseTraceabilityIds,
 } from "./github.ts";
 import { createLogger, Logger } from "./logger.ts";
+import {
+  resolvePluginPathsSafe,
+  type SdkPluginConfig,
+} from "./plugin-resolver.ts";
 import type {
   GitHubIssue,
   IterationSummary,
@@ -308,6 +312,7 @@ async function runAgentLoop(
   options: ReviewOptions,
   config: ReviewAgentConfig,
   logger: Logger,
+  dynamicPlugins: SdkPluginConfig[],
 ): Promise<ReviewSummary> {
   // Get agent config
   const agentConfig = getAgentConfig(config, options.agentName);
@@ -363,11 +368,13 @@ async function runAgentLoop(
 
     try {
       // Build query options
-      const queryOptions = {
+      const queryOptions: Record<string, unknown> = {
         cwd: Deno.cwd(),
         systemPrompt,
         allowedTools: agentConfig.allowedTools,
         permissionMode: agentConfig.permissionMode,
+        settingSources: ["user", "project"],
+        plugins: dynamicPlugins.length > 0 ? dynamicPlugins : undefined,
       };
 
       // Run SDK query
@@ -490,10 +497,31 @@ async function main(): Promise<void> {
       agentName: options.agentName,
     });
 
+    // Resolve dynamic plugins from settings.json
+    const dynamicPlugins = await resolvePluginPathsSafe(
+      ".claude/settings.json",
+      Deno.cwd(),
+      async (error, message) => {
+        await logger.write("info", `[warn] ${message}`, {
+          error: {
+            name: error.name,
+            message: error.message,
+          },
+        });
+      },
+    );
+
+    if (dynamicPlugins.length > 0) {
+      await logger.write("info", "Dynamic plugins resolved", {
+        count: dynamicPlugins.length,
+        plugins: dynamicPlugins.map((p) => p.path),
+      });
+    }
+
     // Run agent loop
     let iterations = 0;
     try {
-      const summary = await runAgentLoop(options, config, logger);
+      const summary = await runAgentLoop(options, config, logger, dynamicPlugins);
       iterations = summary.createdIssues.length > 0 ? 1 : 0; // Simplified
 
       // Display report

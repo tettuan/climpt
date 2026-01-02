@@ -87,3 +87,11 @@ export {
 } from "./scripts/github.ts";
 
 export type { ProjectItem } from "./scripts/github.ts";
+
+// Re-export plugin resolver functions
+export {
+  resolvePluginPaths,
+  resolvePluginPathsSafe,
+} from "./scripts/plugin-resolver.ts";
+
+export type { SdkPluginConfig } from "./scripts/plugin-resolver.ts";
