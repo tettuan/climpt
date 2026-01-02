@@ -384,7 +384,7 @@ Deno.test("isProjectComplete - empty project is complete", () => {
 });
 
 // =============================================================================
-// Tests for getOpenIssuesFromProject logic
+// Tests for getProjectIssues logic
 // =============================================================================
 
 /**

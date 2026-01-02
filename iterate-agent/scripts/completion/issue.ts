@@ -104,27 +104,57 @@ ${projectSection}## Current Task: Issue #${this.issueNumber}
 
 ${issueContent}
 ${crossRepoNote}
-## Your Mission
-1. Analyze the issue requirements
-2. Use the **delegate-climpt-agent** Skill to implement the required changes
-3. Verify the implementation meets the requirements
-4. Report completion using the issue-action format below
+## Working Style: Task-Driven & Progressive
+
+**IMPORTANT**: Work in small, trackable steps with frequent progress updates.
+
+### Step 1: Analyze & Break Down
+1. Read and understand the issue requirements thoroughly
+2. **Use TodoWrite** to create fine-grained task list (5-10 specific tasks)
+3. Each task should be completable in 1-2 tool invocations
+
+### Step 2: Execute with Delegation
+For each task:
+1. Mark task as \`in_progress\` in TodoWrite
+2. **Delegate complex work to sub-agents** using Task tool:
+   - Use \`subagent_type="Explore"\` for codebase investigation
+   - Use \`subagent_type="general-purpose"\` for multi-step implementations
+   - Use \`subagent_type="Plan"\` for architectural decisions
+3. Use **delegate-climpt-agent** Skill for project-specific workflows
+4. Mark task as \`completed\` when done
+
+### Step 3: Track Progress
+- Update TodoWrite after EACH task completion
+- Report progress via issue-action every 2-3 tasks
+- Keep momentum: one task at a time, always moving forward
+
+## Sub-Agent Delegation Guide
+
+Use Task tool to offload work:
+| Situation | Sub-agent Type |
+|-----------|----------------|
+| Find files/understand structure | \`Explore\` |
+| Implement a feature | \`general-purpose\` |
+| Design implementation approach | \`Plan\` |
+| Project-specific commands | \`delegate-climpt-agent\` Skill |
+
+**Parallel execution**: Launch multiple independent agents simultaneously for efficiency.
 
 ## Issue Actions
 
-Use these structured outputs to communicate. **Do NOT run \`gh\` commands directly.**
+Use these structured outputs. **Do NOT run \`gh\` commands directly.**
 
-### Report Progress (optional, for long tasks)
+### Report Progress (RECOMMENDED every 2-3 tasks)
 \`\`\`issue-action
-{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- Step 1 done\\n- Working on step 2"}
+{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- [x] Task 1 done\\n- [x] Task 2 done\\n- [ ] Task 3 in progress"}
 \`\`\`
 
 ### Complete Issue (REQUIRED when done)
 \`\`\`issue-action
-{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented\\n- How it was verified"}
+{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented\\n- How it was verified\\n- Tasks completed: N"}
 \`\`\`
 
-### Ask a Question (if blocked by missing information)
+### Ask a Question (if blocked)
 \`\`\`issue-action
 {"action":"question","issue":${this.issueNumber},"body":"Need clarification on..."}
 \`\`\`
@@ -134,7 +164,9 @@ Use these structured outputs to communicate. **Do NOT run \`gh\` commands direct
 {"action":"blocked","issue":${this.issueNumber},"body":"Cannot proceed because...","label":"need clearance"}
 \`\`\`
 
-Start by analyzing Issue #${this.issueNumber} and planning your implementation.
+---
+
+**Start NOW**: Use TodoWrite to create your task breakdown for Issue #${this.issueNumber}.
     `.trim();
   }
 
@@ -199,24 +231,39 @@ Iterations completed: ${completedIterations}${crossRepoNote}
 
 ${summarySection}
 
-## Your Mission
-1. Review the Previous Iteration Summary to understand what was accomplished
-2. Identify what remains to close this issue
-3. Use **delegate-climpt-agent** Skill to implement remaining changes
-4. Report completion when done
+## Continue: Task-Driven Execution
+
+### Check Your Progress
+1. **Review TodoWrite** - What tasks are pending/in_progress?
+2. If no todos exist, create them now (5-10 specific tasks)
+3. Mark current task as \`in_progress\`
+
+### Execute Next Task
+1. **Delegate complex work** using Task tool:
+   - \`subagent_type="Explore"\` - codebase investigation
+   - \`subagent_type="general-purpose"\` - multi-step implementation
+   - \`subagent_type="Plan"\` - architectural decisions
+2. Use **delegate-climpt-agent** Skill for project-specific workflows
+3. Mark task as \`completed\` when done, move to next
+
+### Track & Report
+- Update TodoWrite after EACH task
+- Report progress via issue-action every 2-3 tasks
+- Only one task should be \`in_progress\` at a time
 
 ## Issue Actions
 
-Use these structured outputs. **Do NOT run \`gh\` commands directly.**
+\`\`\`issue-action
+{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- [x] Completed tasks...\\n- [ ] Current task..."}
+\`\`\`
 
-- **Progress**: \`{"action":"progress","issue":${this.issueNumber},"body":"..."}\`
-- **Complete**: \`{"action":"close","issue":${this.issueNumber},"body":"..."}\`
-- **Question**: \`{"action":"question","issue":${this.issueNumber},"body":"..."}\`
-- **Blocked**: \`{"action":"blocked","issue":${this.issueNumber},"body":"...","label":"need clearance"}\`
+\`\`\`issue-action
+{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- Implementation summary\\n- Verification done\\n- Tasks: N completed"}
+\`\`\`
 
-Wrap in \`\`\`issue-action\n...\n\`\`\` code block.
+---
 
-**Next Step**: Review the summary and continue working on Issue #${this.issueNumber}.
+**Now**: Check TodoWrite, pick next task, execute with delegation.
     `.trim();
   }
 
