@@ -1,5 +1,7 @@
 # Climpt
 
+[English](README.md) | [日本語](README.ja.md)
+
 プロンプトとAIインタラクションを管理するCLIツール - breakdownパッケージのラッパー。
 
 ## 概要
@@ -20,6 +22,11 @@ climpt-breakdown to task --edition=issue --from=github_issue_123.md --adaptation
 AI支援による開発指示ツールの統一インターフェースを提供し、TypeScriptとJSON Schemaを用いてAIシステムが解釈できる開発指示の作成・管理・実行を可能にします。
 
 このツールはAIコーディングエージェントと連携して動作するよう設計されており、特にCursorやClaude向けに最適化されています。基盤となるAIモデルはClaudeを想定していますが、構文や構造は他のAIモデルでも容易に解釈できるよう設計されています。
+
+### 詳細を知る
+
+NotebookLM を使って、Climpt で何ができるかをインタラクティブに確認できます：
+[Climpt NotebookLM](https://notebooklm.google.com/notebook/6a186ac9-70b2-4734-ad46-359e26043507)
 
 ## インストール
 

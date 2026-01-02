@@ -1,5 +1,7 @@
 # Climpt
 
+[English](README.md) | [日本語](README.ja.md)
+
 A CLI tool for managing prompts and AI interactions - a wrapper for the breakdown package.
 
 ## Overview
@@ -21,12 +23,9 @@ Provides a unified interface for AI-assisted development instruction tools, enab
 
 This tool is designed to work with AI coding agents and is optimized specifically for Cursor and Claude. While the underlying AI model is assumed to be Claude, the syntax and structure are designed to be easily interpreted by other AI models as well.
 
-### Learn More / 詳細を知る
+### Learn More
 
 You can explore what Climpt can do interactively using NotebookLM:
-[Climpt NotebookLM](https://notebooklm.google.com/notebook/6a186ac9-70b2-4734-ad46-359e26043507)
-
-NotebookLM を使って、Climpt で何ができるかをインタラクティブに確認できます：
 [Climpt NotebookLM](https://notebooklm.google.com/notebook/6a186ac9-70b2-4734-ad46-359e26043507)
 
 ## Installation
