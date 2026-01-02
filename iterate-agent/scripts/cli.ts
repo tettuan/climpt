@@ -22,12 +22,13 @@ const DEFAULT_AGENT_NAME = "climpt";
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
     string: ["name", "issue", "project", "iterate-max", "label"],
-    boolean: ["init", "help", "resume"],
+    boolean: ["init", "help", "resume", "include-completed"],
     default: {
       "name": DEFAULT_AGENT_NAME,
       "init": false,
       "help": false,
       "resume": false,
+      "include-completed": false,
     },
     alias: {
       i: "issue",
@@ -37,6 +38,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       h: "help",
       r: "resume",
       l: "label",
+      c: "include-completed",
     },
   });
 
@@ -99,9 +101,17 @@ export function parseCliArgs(args: string[]): ParsedArgs {
   // Get label filter (only valid with --project)
   const label = parsed.label as string | undefined;
 
+  // Get include-completed flag (only valid with --project)
+  const includeCompleted = parsed["include-completed"] as boolean;
+
   // Validate label option
   if (label !== undefined && project === undefined) {
     throw new Error("--label can only be used with --project");
+  }
+
+  // Validate include-completed option
+  if (includeCompleted && project === undefined) {
+    throw new Error("--include-completed can only be used with --project");
   }
 
   return {
@@ -114,6 +124,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       agentName: agentName as AgentName,
       resume,
       label,
+      includeCompleted,
     },
   };
 }
@@ -144,6 +155,11 @@ OPTIONS:
   --label, -l <name>
       Filter project issues by label (e.g., "docs", "bug"). Only issues with this
       label will be processed. Can only be used with --project.
+
+  --include-completed, -c
+      Include items marked as "Done" on the project board. By default, only
+      open items are processed. Useful for reviewing completed work.
+      Can only be used with --project.
 
   --iterate-max, -m <number>
       Maximum number of Skill invocations. Defaults to unlimited.

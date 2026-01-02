@@ -149,6 +149,9 @@ export function needsOptionResolution(command: CommandWithUV): boolean {
   return false;
 }
 
+/** Maximum number of retry attempts for JSON parsing */
+const MAX_RETRY_ATTEMPTS = 2;
+
 /**
  * Extract JSON from LLM response
  *
@@ -181,42 +184,37 @@ function extractJSON(response: string): string {
   return trimmed;
 }
 
+/** System prompt for JSON-only responses */
+const JSON_SYSTEM_PROMPT = `You are a CLI options resolver. Output ONLY valid JSON.
+
+CRITICAL RULES:
+1. Your response must be ONLY a JSON object - no explanations, no markdown
+2. Do NOT wrap JSON in code blocks (\`\`\`)
+3. For multiline strings, use \\n escape sequences, NOT literal newlines
+4. If you need to explore files, use Glob first, then output JSON
+
+WRONG (will be rejected):
+  Here is the result:
+  \`\`\`json
+  {"key": "value"}
+  \`\`\`
+
+CORRECT:
+  {"key": "value"}`;
+
 /**
- * Resolve options using LLM
- *
- * @param command - Command with options
- * @param intent - Detailed user intent for option resolution
- * @param context - Execution context
- * @param logger - Logger instance
- * @returns Resolved options as key-value pairs
+ * Execute a single LLM query and return the response text
  */
-export async function resolveOptions(
-  command: CommandWithUV,
-  intent: string,
-  context: PromptContext,
+async function executeLLMQuery(
+  prompt: string,
   logger: Logger,
-): Promise<ResolvedOptions> {
-  const prompt = buildOptionsPrompt(command, intent, context);
-
-  await logger.write("Building options prompt for LLM");
-  await logger.writeSection("OPTIONS_PROMPT", prompt);
-
+): Promise<string> {
   const queryResult = query({
     prompt,
     options: {
       model: "haiku",
-      allowedTools: ["Glob"], // Glob permission for file exploration
-      systemPrompt:
-        `You are a CLI options resolver. Your task is to resolve CLI option values based on user intent.
-
-RULES:
-1. If the intent mentions specific file names or patterns, use Glob to find matching files
-2. For test targets: look for test files matching the intent (e.g., **/options-prompt*.test.ts)
-3. Return ONLY a valid JSON object matching the requested format
-4. Never ask questions - make reasonable decisions based on context
-5. If you use Glob, analyze results and pick the most relevant file
-
-After analysis, output ONLY the final JSON object.`,
+      allowedTools: ["Glob"],
+      systemPrompt: JSON_SYSTEM_PROMPT,
     },
   });
 
@@ -230,13 +228,11 @@ After analysis, output ONLY the final JSON object.`,
           }
         }
       }
-      // Break after result to prevent iteration error on process exit
       if (message.type === "result") {
         break;
       }
     }
   } catch (error) {
-    // If we already got a response, continue with it
     if (!responseText) {
       await logger.writeError("LLM query failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -245,22 +241,92 @@ After analysis, output ONLY the final JSON object.`,
     }
   }
 
-  await logger.write("LLM response received", { response: responseText });
+  return responseText;
+}
 
-  // Parse JSON response
-  try {
-    const jsonContent = extractJSON(responseText);
-    const resolved = JSON.parse(jsonContent) as ResolvedOptions;
-    await logger.write("Options resolved", { resolved });
-    return resolved;
-  } catch (error) {
-    await logger.writeError("Failed to parse LLM response as JSON", {
+/**
+ * Build a retry prompt when JSON parsing fails
+ */
+function buildRetryPrompt(
+  originalPrompt: string,
+  previousResponse: string,
+  parseError: string,
+): string {
+  return `${originalPrompt}
+
+---
+RETRY: Your previous response could not be parsed as JSON.
+
+Previous response:
+${previousResponse.substring(0, 500)}${previousResponse.length > 500 ? "..." : ""}
+
+Parse error: ${parseError}
+
+Please respond with ONLY a valid JSON object. No markdown, no explanations.`;
+}
+
+/**
+ * Resolve options using LLM with retry on parse failure
+ *
+ * @param command - Command with options
+ * @param intent - Detailed user intent for option resolution
+ * @param context - Execution context
+ * @param logger - Logger instance
+ * @returns Resolved options as key-value pairs
+ */
+export async function resolveOptions(
+  command: CommandWithUV,
+  intent: string,
+  context: PromptContext,
+  logger: Logger,
+): Promise<ResolvedOptions> {
+  const basePrompt = buildOptionsPrompt(command, intent, context);
+
+  await logger.write("Building options prompt for LLM");
+  await logger.writeSection("OPTIONS_PROMPT", basePrompt);
+
+  let currentPrompt = basePrompt;
+  let lastResponse = "";
+  let lastError = "";
+
+  for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+    await logger.write(`LLM query attempt ${attempt}/${MAX_RETRY_ATTEMPTS}`);
+
+    const responseText = await executeLLMQuery(currentPrompt, logger);
+    lastResponse = responseText;
+
+    await logger.write("LLM response received", {
+      attempt,
       response: responseText,
-      error: error instanceof Error ? error.message : String(error),
     });
-    // Return empty object on parse error - CLI args will be used as fallback
-    return {};
+
+    // Try to parse JSON
+    try {
+      const jsonContent = extractJSON(responseText);
+      const resolved = JSON.parse(jsonContent) as ResolvedOptions;
+      await logger.write("Options resolved", { attempt, resolved });
+      return resolved;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      await logger.writeError(`JSON parse failed (attempt ${attempt})`, {
+        response: responseText,
+        error: lastError,
+      });
+
+      // Build retry prompt for next attempt
+      if (attempt < MAX_RETRY_ATTEMPTS) {
+        currentPrompt = buildRetryPrompt(basePrompt, responseText, lastError);
+      }
+    }
   }
+
+  // All attempts failed
+  await logger.writeError("All retry attempts failed", {
+    attempts: MAX_RETRY_ATTEMPTS,
+    lastResponse,
+    lastError,
+  });
+  return {};
 }
 
 /**
