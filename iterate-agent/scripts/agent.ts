@@ -81,6 +81,10 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { displayHelp, parseCliArgs } from "./cli.ts";
 import {
+  resolvePluginPathsSafe,
+  type SdkPluginConfig,
+} from "./plugin-resolver.ts";
+import {
   type CompletionHandler,
   createCompletionHandler,
 } from "./completion/mod.ts";
@@ -267,6 +271,29 @@ async function main(): Promise<void> {
       promptLength: initialPrompt.length,
     });
 
+    // 6.5. Resolve dynamic plugins
+    const dynamicPlugins = await resolvePluginPathsSafe(
+      ".claude/settings.json",
+      Deno.cwd(),
+      async (error, message) => {
+        if (logger) {
+          await logger.write("info", `[warn] ${message}`, {
+            error: {
+              name: error.name,
+              message: error.message,
+            },
+          });
+        }
+      },
+    );
+
+    if (dynamicPlugins.length > 0) {
+      await logger.write("info", "Dynamic plugins resolved", {
+        count: dynamicPlugins.length,
+        plugins: dynamicPlugins.map((p) => p.path),
+      });
+    }
+
     // 7. Run agent loop
     await runAgentLoop(
       options,
@@ -278,6 +305,7 @@ async function main(): Promise<void> {
       logger,
       uvVariables,
       detail, // completion criteria detail for STDIN
+      dynamicPlugins,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -320,6 +348,7 @@ async function runAgentLoop(
   logger: Logger,
   uvVariables: UvVariables,
   stdinContent: string,
+  dynamicPlugins: SdkPluginConfig[],
 ): Promise<void> {
   let iterationCount = 0;
   let isComplete = false;
@@ -369,6 +398,7 @@ async function runAgentLoop(
       permissionMode: agentConfig.permissionMode,
       systemPrompt: currentSystemPrompt,
       settingSources: ["user", "project"], // Load Skills from filesystem
+      plugins: dynamicPlugins.length > 0 ? dynamicPlugins : undefined,
     };
 
     if (shouldResume) {

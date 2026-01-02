@@ -1,3 +1,5 @@
+[English](../en/08-prompt-structure.md) | [日本語](../ja/08-prompt-structure.md)
+
 # 8. プロンプト構造編
 
 プロンプトファイルの構造、手動作成方法、テンプレート変数の仕組みを説明します。

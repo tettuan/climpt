@@ -7,6 +7,9 @@ import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
 import type { Logger } from "./logger.ts";
+import {
+  resolvePluginPathsSafe,
+} from "../../../../../../iterate-agent/scripts/plugin-resolver.ts";
 
 /**
  * Run Claude Agent SDK with the obtained prompt
@@ -22,6 +25,21 @@ export async function runSubAgent(
   cwd: string,
   logger: Logger,
 ): Promise<void> {
+  // Resolve dynamic plugins from settings
+  const dynamicPlugins = await resolvePluginPathsSafe(
+    ".claude/settings.json",
+    cwd,
+    async (error, message) => {
+      await logger.writeError(`${message}: ${error.message}`);
+    },
+  );
+
+  if (dynamicPlugins.length > 0) {
+    await logger.write(
+      `Dynamic plugins resolved: ${dynamicPlugins.map((p) => p.path).join(", ")}`,
+    );
+  }
+
   const options: Options = {
     // model: 省略 = 親エージェントから継承（意図的）
     cwd,
@@ -40,6 +58,7 @@ export async function runSubAgent(
       type: "preset",
       preset: "claude_code",
     },
+    plugins: dynamicPlugins.length > 0 ? dynamicPlugins : undefined,
   };
 
   await logger.write(`Starting sub-agent: ${agentName}`);
