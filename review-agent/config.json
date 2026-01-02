@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "agents": {
+    "reviewer": {
+      "systemPromptTemplate": "review-agent/prompts/default.md",
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "WebFetch"
+      ],
+      "permissionMode": "plan"
+    }
+  },
+  "requiredParams": {
+    "project": {
+      "type": "number",
+      "description": "GitHub Project number to review",
+      "required": true
+    }
+  },
+  "github": {
+    "apiVersion": "2022-11-28",
+    "labels": {
+      "requirements": "docs",
+      "review": "review",
+      "gap": "implementation-gap",
+      "reviewer": "from-reviewer"
+    }
+  },
+  "logging": {
+    "directory": "tmp/logs/review-agent",
+    "maxFiles": 100,
+    "format": "jsonl"
+  },
+  "output": {
+    "issueLabels": ["implementation-gap", "from-reviewer"]
+  }
+}
