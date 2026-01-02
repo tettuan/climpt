@@ -1,3 +1,5 @@
+[English](../en/01-prerequisites.md) | [日本語](../ja/01-prerequisites.md)
+
 # 1. 前提条件
 
 Iterate Agent を使用するために必要なツールをインストールします。

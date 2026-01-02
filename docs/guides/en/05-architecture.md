@@ -1,67 +1,68 @@
-# 5. Climpt 全体像
+[English](../en/05-architecture.md) | [日本語](../ja/05-architecture.md)
 
-Climpt の基本概念、アーキテクチャ、コマンド実行の流れを説明します。
+# 5. Climpt Overview
 
-## 目次
+Explains Climpt's basic concepts, architecture, and command execution flow.
 
-1. [Climpt とは何か](#51-climpt-とは何か)
-2. [アーキテクチャ概要](#52-アーキテクチャ概要)
-3. [コマンド実行の流れ](#53-コマンド実行の流れ)
+## Contents
+
+1. [What is Climpt](#51-what-is-climpt)
+2. [Architecture Overview](#52-architecture-overview)
+3. [Command Execution Flow](#53-command-execution-flow)
 
 ---
 
-## 5.1 Climpt とは何か
+## 5.1 What is Climpt
 
-### 基本概念
+### Basic Concept
 
-Climpt は「CLI + Prompt = Climpt」という命名の通り、**CLI でプロンプトを呼び出すツール**です。
+As the name "CLI + Prompt = Climpt" suggests, Climpt is a **tool for invoking prompts via CLI**.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Climpt の役割                          │
+│                       Climpt's Role                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│   入力                    Climpt                   出力     │
+│   Input                    Climpt                   Output  │
 │  ┌──────┐              ┌──────────┐              ┌──────┐  │
-│  │ 引数 │─────────────▶│ テンプレ │─────────────▶│プロン│  │
-│  │ STDIN│              │ ート置換 │              │ プト │  │
-│  │ ファイル│            └──────────┘              └──────┘  │
+│  │ Args │─────────────▶│ Template │─────────────▶│Prompt│  │
+│  │ STDIN│              │ Replace  │              │      │  │
+│  │ Files│              └──────────┘              └──────┘  │
 │  └──────┘                   │                              │
 │                             │                              │
 │                    ┌────────▼────────┐                     │
-│                    │ プロンプト      │                     │
-│                    │ ファイル群      │                     │
-│                    │ (.md テンプレート)│                    │
+│                    │ Prompt Files    │                     │
+│                    │ (.md templates) │                     │
 │                    └─────────────────┘                     │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 何をするツールか
+### What It Does
 
-| 機能 | 説明 |
-|------|------|
-| プロンプトの一元管理 | 事前に用意したプロンプト群を整理・保存 |
-| 1行での呼び出し | `climpt-git create branch` のようなコマンドで即座に取得 |
-| 動的な値の差し込み | 引数や標準入力で変数を置換 |
-| AI との連携 | MCP サーバーを通じて Claude などの AI がプロンプトを選択・実行 |
+| Function | Description |
+|----------|-------------|
+| Centralized prompt management | Organize and store pre-configured prompts |
+| One-line invocation | Instantly retrieve with commands like `climpt-git create branch` |
+| Dynamic value insertion | Replace variables with arguments or stdin |
+| AI integration | AI selects and executes prompts via MCP server |
 
-### C3L（Climpt 3-word Language）
+### C3L (Climpt 3-word Language)
 
-Climpt のコマンドは3つの要素で構成されます：
+Climpt commands consist of three elements:
 
-| 要素 | 役割 | 例 |
-|------|------|-----|
-| c1（ドメイン） | 対象領域 | `git`, `code`, `meta` |
-| c2（アクション） | 実行する動作 | `create`, `analyze`, `review` |
-| c3（ターゲット） | 対象物 | `branch`, `pull-request`, `instruction` |
+| Element | Role | Examples |
+|---------|------|----------|
+| c1 (Domain) | Target area | `git`, `code`, `meta` |
+| c2 (Action) | Action to execute | `create`, `analyze`, `review` |
+| c3 (Target) | Target object | `branch`, `pull-request`, `instruction` |
 
-コマンド形式：
+Command format:
 ```
 climpt-<c1> <c2> <c3> [options]
 ```
 
-実行例：
+Examples:
 ```bash
 climpt-git decide-branch working-branch
 climpt-meta create instruction
@@ -70,18 +71,18 @@ climpt-code review pull-request
 
 ---
 
-## 5.2 アーキテクチャ概要
+## 5.2 Architecture Overview
 
-### コンポーネント構成
+### Component Structure
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Climpt アーキテクチャ                    │
+│                    Climpt Architecture                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌───────────────────────────────────────────────────────┐ │
-│  │                     ユーザー入力                       │ │
-│  │  CLI コマンド / MCP Tool Call / Claude Code Plugin   │ │
+│  │                      User Input                       │ │
+│  │  CLI Command / MCP Tool Call / Claude Code Plugin    │ │
 │  └───────────────────────────────────────────────────────┘ │
 │                            │                                │
 │            ┌───────────────┼───────────────┐               │
@@ -104,7 +105,7 @@ climpt-code review pull-request
 │                            │                                │
 │                            ▼                                │
 │  ┌───────────────────────────────────────────────────────┐ │
-│  │                   ファイルシステム                     │ │
+│  │                     File System                       │ │
 │  │  .agent/climpt/config/    .agent/climpt/prompts/     │ │
 │  │  .agent/climpt/registry.json                          │ │
 │  └───────────────────────────────────────────────────────┘ │
@@ -112,24 +113,24 @@ climpt-code review pull-request
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 各コンポーネントの役割
+### Component Roles
 
-| コンポーネント | 役割 |
-|---------------|------|
-| CLI Interface | コマンドライン引数を解析し、Core Engine を呼び出す |
-| MCP Server | AI アシスタントからのツール呼び出しを処理 |
-| Plugin | Claude Code との統合 |
-| Config Loader | 設定ファイル（app.yml, user.yml）を読み込む |
-| Prompt Loader | プロンプトファイル（.md）を読み込む |
-| Template Engine | テンプレート変数を置換 |
+| Component | Role |
+|-----------|------|
+| CLI Interface | Parse command-line args, invoke Core Engine |
+| MCP Server | Handle tool calls from AI assistants |
+| Plugin | Integration with Claude Code |
+| Config Loader | Load config files (app.yml, user.yml) |
+| Prompt Loader | Load prompt files (.md) |
+| Template Engine | Replace template variables |
 
-### breakdown パッケージとの関係
+### Relationship with breakdown Package
 
-Climpt は内部で `@tettuan/breakdown` パッケージを使用しています：
+Climpt uses the `@tettuan/breakdown` package internally:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        Climpt                               │
+│                        Climpt                                │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │                   CLI Interface                      │   │
 │  │  climpt-git, climpt-meta, climpt-code ...           │   │
@@ -138,33 +139,33 @@ Climpt は内部で `@tettuan/breakdown` パッケージを使用しています
 │                          ▼                                  │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              @tettuan/breakdown                      │   │
-│  │  - ファイル読み込み                                 │   │
-│  │  - テンプレート変数置換                             │   │
-│  │  - 設定ファイル解析                                 │   │
+│  │  - File loading                                     │   │
+│  │  - Template variable replacement                    │   │
+│  │  - Config file parsing                              │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-breakdown パッケージが提供する機能：
-- YAML 設定ファイルの解析
-- Markdown プロンプトファイルの読み込み
-- テンプレート変数（`{input_text}` など）の置換
+Features provided by breakdown package:
+- YAML config file parsing
+- Markdown prompt file loading
+- Template variable (`{input_text}` etc.) replacement
 
 ---
 
-## 5.3 コマンド実行の流れ
+## 5.3 Command Execution Flow
 
-### 実行例
+### Example Execution
 
 ```bash
-echo "バグ修正の実装" | climpt-git decide-branch working-branch -o=./output/
+echo "Bug fix implementation" | climpt-git decide-branch working-branch -o=./output/
 ```
 
-### 処理フロー（5ステップ）
+### Processing Flow (5 Steps)
 
 ```
-Step 1: コマンド解析
+Step 1: Command Parsing
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   climpt-git decide-branch working-branch -o=./output/
      │         │              │              │
@@ -173,84 +174,84 @@ Step 1: コマンド解析
      │         └─ c2 (action): decide-branch
      └─ c1 (domain): git (--config=git)
 
-Step 2: 設定ファイル読み込み
+Step 2: Config File Loading
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   .agent/climpt/config/git-app.yml
     └─ working_dir: ".agent/climpt"
     └─ app_prompt.base_dir: "prompts/git"
 
-Step 3: プロンプトファイル特定
+Step 3: Prompt File Resolution
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  パス構築:
+  Path construction:
     base_dir + c2 + c3 + filename
     = prompts/git/decide-branch/working-branch/f_default.md
 
-  edition/adaptation による選択:
+  Selection by edition/adaptation:
     --edition=bug --adaptation=detailed
-    → f_bug_detailed.md を探す
-    → なければ f_bug.md
-    → なければ f_default.md
+    → Look for f_bug_detailed.md
+    → If not found, f_bug.md
+    → If not found, f_default.md
 
-Step 4: テンプレート変数の置換
+Step 4: Template Variable Replacement
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  プロンプト内:
-    {input_text}        → "バグ修正の実装" (STDIN)
+  In prompt:
+    {input_text}        → "Bug fix implementation" (STDIN)
     {destination_path}  → "./output/"
 
-Step 5: 結果出力
+Step 5: Output Result
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  置換済みプロンプトを標準出力へ
+  Replaced prompt to standard output
 ```
 
-### フローチャート
+### Flowchart
 
 ```
 ┌──────────────────┐
-│ コマンド実行     │
+│ Command Execute  │
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│ 引数解析         │
+│ Parse Arguments  │
 │ c1, c2, c3,      │
 │ options          │
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐     ┌────────────────────────┐
-│ 設定ファイル     │────▶│ .agent/climpt/config/  │
-│ 読み込み         │     │ {c1}-app.yml           │
+│ Load Config      │────▶│ .agent/climpt/config/  │
+│ Files            │     │ {c1}-app.yml           │
 └────────┬─────────┘     └────────────────────────┘
          │
          ▼
 ┌──────────────────┐     ┌────────────────────────┐
-│ プロンプトファイル│────▶│ prompts/{c1}/{c2}/{c3}/│
-│ 特定・読み込み   │     │ f_{edition}.md         │
+│ Resolve & Load   │────▶│ prompts/{c1}/{c2}/{c3}/│
+│ Prompt File      │     │ f_{edition}.md         │
 └────────┬─────────┘     └────────────────────────┘
          │
          ▼
 ┌──────────────────┐
-│ STDIN 読み込み   │ (stdin オプション時)
+│ Load STDIN       │ (when stdin option set)
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│ テンプレート     │
-│ 変数置換         │
-│ {input_text} →値 │
+│ Replace Template │
+│ Variables        │
+│ {input_text} →val│
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
-│ 結果出力         │
+│ Output Result    │
 │ (STDOUT)         │
 └──────────────────┘
 ```
 
 ---
 
-## 関連ガイド
+## Related Guides
 
-- [06-config-files.md](./06-config-files.md) - 設定ファイル編
-- [07-dependencies.md](./07-dependencies.md) - 依存構造編（レジストリ、MCP）
-- [08-prompt-structure.md](./08-prompt-structure.md) - プロンプト構造編
+- [06-config-files.md](./06-config-files.md) - Config Files
+- [07-dependencies.md](./07-dependencies.md) - Dependencies (Registry, MCP)
+- [08-prompt-structure.md](./08-prompt-structure.md) - Prompt Structure

@@ -1,3 +1,5 @@
+[English](../en/04-iterate-agent-setup.md) | [日本語](../ja/04-iterate-agent-setup.md)
+
 # 4. Iterate Agent の設定と実行
 
 GitHub Issue や Project を自動的に処理する Iterate Agent を設定し、実行します。
