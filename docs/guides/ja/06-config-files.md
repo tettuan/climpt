@@ -1,3 +1,5 @@
+[English](../en/06-config-files.md) | [日本語](../ja/06-config-files.md)
+
 # 6. 設定ファイル編
 
 Climpt のディレクトリ構造と設定ファイルの詳細を説明します。

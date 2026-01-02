@@ -1,3 +1,5 @@
+[English](../en/02-climpt-setup.md) | [日本語](../ja/02-climpt-setup.md)
+
 # 2. Climpt のセットアップ
 
 Climpt をインストールし、プロジェクトで使用できるように設定します。
