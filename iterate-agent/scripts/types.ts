@@ -112,6 +112,9 @@ export interface AgentOptions {
 
   /** Label to filter project issues (only used with --project) */
   label?: string;
+
+  /** Include "Done" items from project board (only used with --project) */
+  includeCompleted?: boolean;
 }
 
 /**

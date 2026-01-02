@@ -17,7 +17,7 @@ import type {
 } from "../types.ts";
 import {
   fetchProjectRequirements,
-  getOpenIssuesFromProject,
+  getProjectIssues,
   type ProjectIssueInfo,
 } from "../github.ts";
 import type { CompletionCriteria, CompletionHandler } from "./types.ts";
@@ -74,10 +74,12 @@ export class ProjectCompletionHandler implements CompletionHandler {
    *
    * @param projectNumber - GitHub Project number to work on
    * @param labelFilter - Optional label to filter issues by
+   * @param includeCompleted - Include "Done" items from project board (default: false)
    */
   constructor(
     private readonly projectNumber: number,
     private readonly labelFilter?: string,
+    private readonly includeCompleted: boolean = false,
   ) {}
 
   /**
@@ -147,10 +149,13 @@ export class ProjectCompletionHandler implements CompletionHandler {
     const descMatch = projectContent.match(/\n\n(.+)/s);
     this.projectDescription = descMatch ? descMatch[1].trim() : null;
 
-    // Fetch open issues
-    this.remainingIssues = await getOpenIssuesFromProject(
+    // Fetch issues (includeCompleted controls whether "Done" items are included)
+    this.remainingIssues = await getProjectIssues(
       this.projectNumber,
-      this.labelFilter,
+      {
+        labelFilter: this.labelFilter,
+        includeCompleted: this.includeCompleted,
+      },
     );
     this.totalIssuesAtStart = this.remainingIssues.length;
     this.initialized = true;
@@ -460,11 +465,11 @@ Work on the issues identified in the review.
   private async isProcessingPhaseComplete(): Promise<boolean> {
     // If no current issue handler, check if we're done
     if (!this.currentIssueHandler) {
-      // Re-fetch to make sure we haven't missed any
-      const openIssues = await getOpenIssuesFromProject(
-        this.projectNumber,
-        this.labelFilter,
-      );
+      // Re-fetch to make sure we haven't missed any (exclude Done items)
+      const openIssues = await getProjectIssues(this.projectNumber, {
+        labelFilter: this.labelFilter,
+        includeCompleted: false,
+      });
       // Filter out issues we've already completed (API cache may be stale)
       const filteredIssues = openIssues.filter(
         (issue) => !this.completedIssueNumbers.has(issue.issueNumber),
@@ -495,11 +500,11 @@ Work on the issues identified in the review.
         return false;
       }
 
-      // No more queued issues - re-fetch to check for any remaining
-      const openIssues = await getOpenIssuesFromProject(
-        this.projectNumber,
-        this.labelFilter,
-      );
+      // No more queued issues - re-fetch to check for any remaining (exclude Done items)
+      const openIssues = await getProjectIssues(this.projectNumber, {
+        labelFilter: this.labelFilter,
+        includeCompleted: false,
+      });
       // Filter out issues we've already completed (API cache may be stale)
       const filteredIssues = openIssues.filter(
         (issue) => !this.completedIssueNumbers.has(issue.issueNumber),

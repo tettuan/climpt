@@ -325,22 +325,33 @@ async function getIssueLabels(issueNumber: number): Promise<string[]> {
 }
 
 /**
- * Fetch open issues from a GitHub Project
+ * Options for fetching issues from a GitHub Project
+ */
+export interface GetProjectIssuesOptions {
+  /** Label to filter issues by */
+  labelFilter?: string;
+  /** Include items with "Done" status on project board (default: false) */
+  includeCompleted?: boolean;
+}
+
+/**
+ * Fetch issues from a GitHub Project
  *
  * Uses `gh project item-list` to get project items (not `gh project view`
  * which only returns metadata without items).
  *
- * Returns all project items that have an associated issue and are OPEN.
+ * By default, returns items that are NOT marked as "Done" on the project board.
+ * Set `includeCompleted: true` to include all items regardless of status.
  * Optionally filters by label.
  *
  * @param projectNumber - Project number
- * @param labelFilter - Optional label to filter issues by
- * @returns Array of open issue info objects
+ * @param options - Options for filtering (label, include completed)
+ * @returns Array of issue info objects
  * @throws Error if gh command fails
  */
-export async function getOpenIssuesFromProject(
+export async function getProjectIssues(
   projectNumber: number,
-  labelFilter?: string,
+  options?: GetProjectIssuesOptions,
 ): Promise<ProjectIssueInfo[]> {
   const owner = await getProjectOwner();
   const command = new Deno.Command("gh", {
@@ -376,17 +387,25 @@ export async function getOpenIssuesFromProject(
 
   // gh project item-list output format:
   // {
-  //   "content": { "number": 1, "title": "...", "type": "Issue" },
-  //   "status": "Todo",  // Project board status
+  //   "content": { "number": 1, "title": "...", "type": "Issue", "state": "OPEN" },
+  //   "status": "Todo",  // Project board status (Todo, In Progress, Done, etc.)
   //   "labels": ["docs", "feature"],  // Labels already included
   //   ...
   // }
 
-  // Filter to items that are not Done on the project board
+  const includeCompleted = options?.includeCompleted ?? false;
+  const labelFilter = options?.labelFilter;
+
+  // Filter items based on project board status and content
   const candidates: ProjectIssueInfo[] = [];
   for (const item of items) {
-    // Skip if no issue content or if marked as Done on project board
-    if (!item.content?.number || item.status === "Done") {
+    // Skip if no issue content
+    if (!item.content?.number) {
+      continue;
+    }
+
+    // Skip Done items unless includeCompleted is true
+    if (!includeCompleted && item.status === "Done") {
       continue;
     }
 
@@ -401,10 +420,14 @@ export async function getOpenIssuesFromProject(
     // Extract repository from content.repository (format: "owner/repo")
     const repository = item.content.repository as string | undefined;
 
+    // Determine issue state from content if available, otherwise infer from project status
+    const issueState: "OPEN" | "CLOSED" =
+      item.content.state === "CLOSED" ? "CLOSED" : "OPEN";
+
     candidates.push({
       issueNumber: item.content.number,
       title: item.content.title || item.title || "Untitled",
-      state: "OPEN", // Assume open since not Done on board
+      state: issueState,
       status: item.status,
       labels: itemLabels,
       repository,
@@ -432,7 +455,10 @@ export async function isProjectComplete(
   projectNumber: number,
   labelFilter?: string,
 ): Promise<boolean> {
-  const openIssues = await getOpenIssuesFromProject(projectNumber, labelFilter);
+  const openIssues = await getProjectIssues(projectNumber, {
+    labelFilter,
+    includeCompleted: false,
+  });
   return openIssues.length === 0;
 }
 
