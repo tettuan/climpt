@@ -7,14 +7,11 @@ CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含�
 ## クイックスタート
 
 ```bash
-# インストール
-deno install -A --global climpt jsr:@aidevtool/climpt
-
 # 設定を初期化
-climpt init
+deno run -A jsr:@aidevtool/climpt init
 
 # 最初のコマンドを実行
-echo "ログインバグを修正" | climpt-git decide-branch working-branch
+echo "ログインバグを修正" | deno run -A jsr:@aidevtool/climpt git decide-branch working-branch
 ```
 
 📖 [詳細ドキュメント](https://tettuan.github.io/climpt/)
@@ -38,16 +35,16 @@ Climptは事前に設定されたプロンプトを整理し、1つのコマン�
 ### コマンド構文
 
 ```bash
-climpt-<profile> <directive> <layer> [options]
+deno run -A jsr:@aidevtool/climpt <profile> <directive> <layer> [options]
 ```
 
 **例：**
 ```bash
 # 課題をタスクに分解
-climpt-breakdown to task --from=issue.md --adaptation=detailed
+deno run -A jsr:@aidevtool/climpt breakdown to task --from=issue.md --adaptation=detailed
 
 # 標準入力から生成
-echo "エラーログ" | climpt-diagnose trace stack -o=./output/
+echo "エラーログ" | deno run -A jsr:@aidevtool/climpt diagnose trace stack -o=./output/
 ```
 
 ### 主要オプション
@@ -112,11 +109,17 @@ MCPでClaudeまたはCursorと連携：
 
 ## エージェント
 
+**前提条件**: エージェントには GitHub CLI (`gh`) のインストールと認証、および GitHub にプッシュされた Git リポジトリが必要です。
+
 ### Iterator Agent
 
 Claude Agent SDKを使用した自律開発システム：
 
 ```bash
+# 最初に初期化（必須）
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+
+# その後 issue を指定して実行
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 

@@ -2,55 +2,25 @@
 
 # 2. Climpt のセットアップ
 
-Climpt をインストールし、プロジェクトで使用できるように設定します。
+JSR直接実行を使用して、プロジェクトでClimptを設定します。
 
 ## 目次
 
-1. [Climpt のインストール](#21-climpt-のインストール)
+1. [前提条件](#21-前提条件)
 2. [プロジェクトの初期化](#22-プロジェクトの初期化)
 3. [Claude Code プラグインのインストール](#23-claude-code-プラグインのインストール)
 4. [動作確認](#24-動作確認)
 
 ---
 
-## 2.1 Climpt のインストール
+## 2.1 前提条件
 
-### グローバルインストール（推奨）
+- **Deno 2.5以上**: [deno.land](https://deno.land)からインストール
+- **インターネット接続**: JSRパッケージ解決に必要
 
+Denoのインストール確認:
 ```bash
-deno install \
-  --allow-read \
-  --allow-write \
-  --allow-net \
-  --allow-env \
-  --global \
-  climpt \
-  jsr:@aidevtool/climpt
-```
-
-各オプションの説明：
-- `--allow-read`: ファイル読み取り（入力ファイルに必要）
-- `--allow-write`: ファイル書き込み（出力生成に必要）
-- `--allow-net`: ネットワークアクセス（JSR パッケージダウンロードに必要）
-- `--allow-env`: 環境変数アクセス（設定に必要）
-- `--global`: グローバルにインストール
-- `climpt`: コマンド名
-
-### インストール確認
-
-```bash
-climpt --version
-```
-
-出力例：
-```
-climpt 1.9.18
-```
-
-### ヘルプの表示
-
-```bash
-climpt --help
+deno --version
 ```
 
 ---
@@ -68,7 +38,7 @@ cd your-project
 ### 初期化コマンドの実行
 
 ```bash
-climpt init
+deno run -A jsr:@aidevtool/climpt init
 ```
 
 出力例：
@@ -162,10 +132,10 @@ Claude Code で以下のコマンドを実行：
 
 ```bash
 # ヘルプ表示
-climpt --help
+deno run -A jsr:@aidevtool/climpt --help
 
 # バージョン確認
-climpt --version
+deno run -A jsr:@aidevtool/climpt --version
 ```
 
 ### プロジェクト設定の確認
@@ -184,18 +154,6 @@ ls -la .agent/climpt/config/
 ---
 
 ## トラブルシューティング
-
-### climpt: command not found
-
-Deno の bin ディレクトリが PATH に含まれていない可能性があります：
-
-```bash
-# PATH を確認
-echo $PATH | tr ':' '\n' | grep deno
-
-# PATH に追加
-export PATH="$HOME/.deno/bin:$PATH"
-```
 
 ### 初期化に失敗する
 

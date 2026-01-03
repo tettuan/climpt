@@ -32,34 +32,51 @@ This guide is divided into the following files for step-by-step environment setu
 
 ## Overview
 
+Climpt consists of five layers, enabling autonomous execution with Iterate Agent at the top.
+
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                     Iterate Agent System                        │
+│                        5-Layer Structure                        │
 ├────────────────────────────────────────────────────────────────┤
 │                                                                │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │
-│  │   GitHub     │    │   Climpt     │    │  Claude Code │     │
-│  │ Issue/Project│───▶│   Skills     │───▶│   Plugin     │     │
-│  └──────────────┘    └──────────────┘    └──────────────┘     │
-│         │                   │                   │              │
-│         │                   ▼                   │              │
-│         │           ┌──────────────┐            │              │
-│         │           │ Instructions │            │              │
-│         │           │  (Prompts)   │            │              │
-│         │           └──────────────┘            │              │
-│         │                   │                   │              │
-│         ▼                   ▼                   ▼              │
-│  ┌─────────────────────────────────────────────────────┐      │
-│  │              Iterate Agent (Autonomous)             │      │
-│  │                                                     │      │
-│  │  1. Get requirements from Issue/Project            │      │
-│  │  2. Execute tasks via delegate-climpt-agent Skill  │      │
-│  │  3. Check completion criteria                      │      │
-│  │  4. If incomplete, proceed to next task            │      │
-│  └─────────────────────────────────────────────────────┘      │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ [Top Layer] Iterator/Reviewer Agent                      │  │
+│  │             Connects with GitHub Issue/Project, iterates │  │
+│  └────────────────────────┬────────────────────────────────┘  │
+│                           ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ [Middle Layer] delegate-climpt-agent Skill               │  │
+│  │                Command search, option resolution         │  │
+│  └────────────────────────┬────────────────────────────────┘  │
+│                           ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ [Execution Layer] Sub-Agent (climpt-agent.ts)            │  │
+│  │                   Retrieves prompt, works autonomously   │  │
+│  └────────────────────────┬────────────────────────────────┘  │
+│  ─────────────────────────┼────────────────────────────────── │
+│                           ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ [Tool Layer] CLI / MCP                                   │  │
+│  │              Interface for prompt retrieval              │  │
+│  └────────────────────────┬────────────────────────────────┘  │
+│                           ▼                                    │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ [Config Layer] registry.json / prompts/                  │  │
+│  │                Prompt templates and command definitions  │  │
+│  └─────────────────────────────────────────────────────────┘  │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+### Execution Flow
+
+1. **Top Layer**: Iterate Agent retrieves requirements from GitHub Issue/Project
+2. **Middle Layer**: delegate-climpt-agent Skill searches commands and resolves options
+3. **Execution Layer**: Sub-Agent retrieves prompt and executes work autonomously
+4. **Tool Layer**: CLI/MCP loads prompts from config layer
+5. **Config Layer**: Replaces template variables to generate final prompt
+
+**Key Point**: Top and Execution layers run in separate Claude Agent SDK sessions, achieving flexible autonomous operation through context separation. See [05-architecture.md](./05-architecture.md) for details.
 
 ## Setup Flow
 

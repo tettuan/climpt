@@ -7,12 +7,13 @@ Set up and run Iterate Agent to automatically process GitHub Issues and Projects
 ## Contents
 
 1. [What is Iterate Agent](#41-what-is-iterate-agent)
-2. [Initialization](#42-initialization)
-3. [Basic Usage](#43-basic-usage)
-4. [Completion Criteria](#44-completion-criteria)
-5. [Configuration Customization](#45-configuration-customization)
-6. [Execution Report](#46-execution-report)
-7. [Troubleshooting](#47-troubleshooting)
+2. [Prerequisites](#42-prerequisites)
+3. [Initialization](#43-initialization)
+4. [Basic Usage](#44-basic-usage)
+5. [Completion Criteria](#45-completion-criteria)
+6. [Configuration Customization](#46-configuration-customization)
+7. [Execution Report](#47-execution-report)
+8. [Troubleshooting](#48-troubleshooting)
 
 ---
 
@@ -50,7 +51,74 @@ It automatically repeats the following cycle:
 
 ---
 
-## 4.2 Initialization
+## 4.2 Prerequisites
+
+**Important**: Iterate Agent requires the following setup before use:
+
+### Required
+
+| Requirement | Description | Verification |
+|-------------|-------------|--------------|
+| **GitHub CLI (`gh`)** | Must be installed and authenticated | `gh auth status` |
+| **Git repository** | Project must be a Git repository | `git status` |
+| **GitHub remote** | Repository must be pushed to GitHub | `git remote -v` |
+| **Target Issue/Project** | Must exist on GitHub | `gh issue list` |
+| **Claude Code Plugin** | climpt-agent plugin installed | Check `.claude/settings.json` |
+
+### Claude Code Plugin Setup
+
+The `delegate-climpt-agent` Skill requires the climpt-agent plugin:
+
+```bash
+# In Claude Code, run these slash commands:
+/plugin marketplace add tettuan/climpt
+/plugin install climpt-agent
+```
+
+> **Note**: The agent will display a warning if the plugin is not installed but will continue to run with limited functionality.
+
+### GitHub CLI Setup
+
+```bash
+# Install (macOS)
+brew install gh
+
+# Install (other platforms)
+# See: https://cli.github.com/manual/installation
+
+# Authenticate
+gh auth login
+```
+
+### Verify Setup
+
+```bash
+# Check gh authentication
+gh auth status
+
+# Check git repository
+git status
+
+# Check GitHub remote
+git remote -v
+
+# List available issues
+gh issue list
+```
+
+### Initialization Required
+
+Before running Iterate Agent, you **must** run the initialization command:
+
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+```
+
+This creates the required configuration files. See [Initialization](#43-initialization) for details.
+
+---
+
+## 4.3 Initialization
 
 ### Navigate to Project Directory
 
@@ -74,7 +142,10 @@ Created files:
 
 Next steps:
   1. Review and customize the configuration in iterate-agent/config.json
-  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>
+  2. Install the Claude Code plugin (required for delegate-climpt-agent Skill):
+     /plugin marketplace add tettuan/climpt
+     /plugin install climpt-agent
+  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>
 
 Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
 ```
@@ -94,7 +165,7 @@ your-project/
 
 ---
 
-## 4.3 Basic Usage
+## 4.4 Basic Usage
 
 ### Issue-Based Execution
 
@@ -157,7 +228,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 
 ---
 
-## 4.4 Completion Criteria
+## 4.5 Completion Criteria
 
 | Mode | Completion Condition | Check Method |
 |------|---------------------|--------------|
@@ -176,7 +247,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
 
 ---
 
-## 4.5 Configuration Customization
+## 4.6 Configuration Customization
 
 ### config.json
 
@@ -230,7 +301,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
 
 ---
 
-## 4.6 Execution Report
+## 4.7 Execution Report
 
 A detailed report is displayed upon completion:
 
@@ -292,7 +363,7 @@ cat tmp/logs/agents/climpt/session-*.jsonl | jq 'select(.level == "assistant")'
 
 ---
 
-## 4.7 Troubleshooting
+## 4.8 Troubleshooting
 
 ### gh command not found
 
