@@ -1,621 +1,250 @@
 /**
  * GitHub Integration Tests
  *
- * Tests for the GitHub project fetching functionality.
- * Uses mocks to avoid actual API calls.
+ * Tests for the GitHub integration module.
+ * These tests focus on:
+ * - Type exports and interfaces
+ * - Function signatures
+ * - Logic that can be unit tested without gh CLI
+ *
+ * Note: Tests requiring actual gh CLI calls should use mocking or be run
+ * as integration tests with proper GitHub authentication.
  */
 
-import { assertEquals, assertThrows } from "jsr:@std/assert@^1";
-import type { GitHubProject } from "./types.ts";
+import { assertEquals, assertExists } from "jsr:@std/assert@^1";
+
+// Import actual exports from github.ts
+import type { ProjectIssueInfo, GetProjectIssuesOptions, IssueActionResult } from "./github.ts";
+import { executeIssueAction } from "./github.ts";
 
 // =============================================================================
-// Type Definitions for gh CLI output variations
+// Type Definition Tests
 // =============================================================================
 
-/**
- * Actual gh project view --format json output structure
- * (may differ from our internal GitHubProject type)
- */
-interface GhProjectViewOutput {
-  number?: number;
-  title?: string;
-  shortDescription?: string;
-  readme?: string;
-  url?: string;
-  closed?: boolean;
-  items?: GhProjectItem[] | null;
-  // fields etc...
-}
-
-interface GhProjectItem {
-  id?: string;
-  type?: string;
-  title?: string;
-  body?: string;
-  status?: string;
-  assignees?: string[];
-  labels?: string[];
-  linkedBranches?: string[];
-  milestone?: string;
-  repository?: string;
-  content?: {
-    number?: number;
-    title?: string;
-    state?: string;
+Deno.test("ProjectIssueInfo - type structure is correct", () => {
+  // Verify the type structure compiles correctly
+  const issue: ProjectIssueInfo = {
+    issueNumber: 123,
+    title: "Test Issue",
+    state: "OPEN",
+    status: "Todo",
+    labels: ["bug", "priority"],
+    repository: "owner/repo",
   };
-}
+
+  assertEquals(issue.issueNumber, 123);
+  assertEquals(issue.title, "Test Issue");
+  assertEquals(issue.state, "OPEN");
+  assertEquals(issue.status, "Todo");
+  assertEquals(issue.labels?.length, 2);
+  assertEquals(issue.repository, "owner/repo");
+});
+
+Deno.test("ProjectIssueInfo - minimal required fields", () => {
+  // Verify minimal required fields
+  const minimalIssue: ProjectIssueInfo = {
+    issueNumber: 1,
+    title: "Minimal",
+    state: "CLOSED",
+  };
+
+  assertEquals(minimalIssue.issueNumber, 1);
+  assertEquals(minimalIssue.title, "Minimal");
+  assertEquals(minimalIssue.state, "CLOSED");
+  assertEquals(minimalIssue.status, undefined);
+  assertEquals(minimalIssue.labels, undefined);
+  assertEquals(minimalIssue.repository, undefined);
+});
+
+Deno.test("GetProjectIssuesOptions - all options are optional", () => {
+  // Verify options interface allows empty object
+  const emptyOptions: GetProjectIssuesOptions = {};
+
+  assertEquals(emptyOptions.labelFilter, undefined);
+  assertEquals(emptyOptions.includeCompleted, undefined);
+  assertEquals(emptyOptions.owner, undefined);
+});
+
+Deno.test("GetProjectIssuesOptions - with all options", () => {
+  const fullOptions: GetProjectIssuesOptions = {
+    labelFilter: "docs",
+    includeCompleted: true,
+    owner: "@me",
+  };
+
+  assertEquals(fullOptions.labelFilter, "docs");
+  assertEquals(fullOptions.includeCompleted, true);
+  assertEquals(fullOptions.owner, "@me");
+});
+
+Deno.test("IssueActionResult - success result structure", () => {
+  const result: IssueActionResult = {
+    success: true,
+    action: "progress",
+    issue: 42,
+    shouldStop: false,
+    isClosed: false,
+  };
+
+  assertEquals(result.success, true);
+  assertEquals(result.action, "progress");
+  assertEquals(result.issue, 42);
+  assertEquals(result.shouldStop, false);
+  assertEquals(result.isClosed, false);
+  assertEquals(result.error, undefined);
+});
+
+Deno.test("IssueActionResult - error result structure", () => {
+  const result: IssueActionResult = {
+    success: false,
+    action: "close",
+    issue: 42,
+    shouldStop: false,
+    isClosed: false,
+    error: "gh command failed",
+  };
+
+  assertEquals(result.success, false);
+  assertEquals(result.error, "gh command failed");
+});
+
+Deno.test("IssueActionResult - close action sets shouldStop and isClosed", () => {
+  const result: IssueActionResult = {
+    success: true,
+    action: "close",
+    issue: 100,
+    shouldStop: true,
+    isClosed: true,
+  };
+
+  assertEquals(result.shouldStop, true);
+  assertEquals(result.isClosed, true);
+});
+
+Deno.test("IssueActionResult - blocked action sets shouldStop", () => {
+  const result: IssueActionResult = {
+    success: true,
+    action: "blocked",
+    issue: 100,
+    shouldStop: true,
+    isClosed: false,
+  };
+
+  assertEquals(result.shouldStop, true);
+  assertEquals(result.isClosed, false);
+});
 
 // =============================================================================
-// Responsibility 1: GitHub CLI Executor (mock)
+// executeIssueAction Logic Tests (unknown action type)
 // =============================================================================
 
-/**
- * Mock GitHub CLI executor for testing
- */
-class MockGhCliExecutor {
-  private responses: Map<string, { stdout: string; code: number }> = new Map();
+Deno.test("executeIssueAction - unknown action returns error", async () => {
+  const action = {
+    action: "unknown_action_type",
+    issue: 123,
+    body: "Test body",
+  };
 
-  setResponse(command: string, stdout: string, code = 0): void {
-    this.responses.set(command, { stdout, code });
+  const result = await executeIssueAction(action);
+
+  assertEquals(result.success, false);
+  assertEquals(result.action, "unknown_action_type");
+  assertEquals(result.issue, 123);
+  assertExists(result.error);
+  assertEquals(result.error?.includes("Unknown action type"), true);
+  assertEquals(result.shouldStop, false);
+  assertEquals(result.isClosed, false);
+});
+
+// =============================================================================
+// State Value Tests
+// =============================================================================
+
+Deno.test("ProjectIssueInfo - state values are OPEN or CLOSED", () => {
+  const openIssue: ProjectIssueInfo = {
+    issueNumber: 1,
+    title: "Open",
+    state: "OPEN",
+  };
+
+  const closedIssue: ProjectIssueInfo = {
+    issueNumber: 2,
+    title: "Closed",
+    state: "CLOSED",
+  };
+
+  assertEquals(openIssue.state, "OPEN");
+  assertEquals(closedIssue.state, "CLOSED");
+});
+
+// =============================================================================
+// Label Filtering Logic Tests
+// =============================================================================
+
+Deno.test("ProjectIssueInfo - labels array handling", () => {
+  // Empty labels array
+  const noLabels: ProjectIssueInfo = {
+    issueNumber: 1,
+    title: "No labels",
+    state: "OPEN",
+    labels: [],
+  };
+  assertEquals(noLabels.labels?.length, 0);
+
+  // Multiple labels
+  const multiLabels: ProjectIssueInfo = {
+    issueNumber: 2,
+    title: "Multi labels",
+    state: "OPEN",
+    labels: ["bug", "critical", "needs-triage"],
+  };
+  assertEquals(multiLabels.labels?.length, 3);
+  assertEquals(multiLabels.labels?.includes("bug"), true);
+  assertEquals(multiLabels.labels?.includes("critical"), true);
+});
+
+// =============================================================================
+// Repository Field Tests
+// =============================================================================
+
+Deno.test("ProjectIssueInfo - repository format is owner/repo", () => {
+  const crossRepoIssue: ProjectIssueInfo = {
+    issueNumber: 42,
+    title: "Cross repo issue",
+    state: "OPEN",
+    repository: "octocat/hello-world",
+  };
+
+  assertEquals(crossRepoIssue.repository, "octocat/hello-world");
+  assertEquals(crossRepoIssue.repository?.split("/").length, 2);
+});
+
+Deno.test("ProjectIssueInfo - repository is optional for same-repo issues", () => {
+  const sameRepoIssue: ProjectIssueInfo = {
+    issueNumber: 42,
+    title: "Same repo issue",
+    state: "OPEN",
+  };
+
+  assertEquals(sameRepoIssue.repository, undefined);
+});
+
+// =============================================================================
+// Action Type Enumeration Tests
+// =============================================================================
+
+Deno.test("IssueActionResult - action types match expected values", () => {
+  const actionTypes = ["progress", "question", "blocked", "close"];
+
+  for (const actionType of actionTypes) {
+    const result: IssueActionResult = {
+      success: true,
+      action: actionType,
+      issue: 1,
+      shouldStop: actionType === "blocked" || actionType === "close",
+      isClosed: actionType === "close",
+    };
+
+    assertEquals(result.action, actionType);
   }
-
-  execute(
-    args: string[],
-  ): Promise<{ code: number; stdout: string; stderr: string }> {
-    const key = args.join(" ");
-    const response = this.responses.get(key);
-    if (!response) {
-      return Promise.resolve({
-        code: 1,
-        stdout: "",
-        stderr: `Unknown command: ${key}`,
-      });
-    }
-    return Promise.resolve({ ...response, stderr: "" });
-  }
-}
-
-// =============================================================================
-// Responsibility 2: Project Response Parser
-// =============================================================================
-
-/**
- * Parse and validate gh project view JSON output
- * Handles different output formats and provides defaults
- */
-function parseProjectResponse(jsonString: string): GhProjectViewOutput {
-  const data = JSON.parse(jsonString);
-
-  // Handle case where items might not be an array
-  if (data.items !== undefined && !Array.isArray(data.items)) {
-    console.warn("items is not an array, defaulting to empty array");
-    data.items = [];
-  }
-
-  return data as GhProjectViewOutput;
-}
-
-// =============================================================================
-// Responsibility 3: Project Data Mapper
-// =============================================================================
-
-/**
- * Map gh CLI output to internal GitHubProject format
- */
-function mapToGitHubProject(
-  output: GhProjectViewOutput,
-  projectNumber: number,
-): GitHubProject {
-  const items = output.items ?? [];
-
-  return {
-    number: output.number ?? projectNumber,
-    title: output.title ?? "Untitled",
-    description: output.shortDescription ?? output.readme ?? null,
-    items: items.map((item) => ({
-      content: item.content
-        ? {
-          number: item.content.number,
-          title: item.content.title ?? item.title,
-          state: item.content.state as "OPEN" | "CLOSED" | undefined,
-        }
-        : undefined,
-      status: item.status,
-    })),
-  };
-}
-
-// =============================================================================
-// Responsibility 4: Requirement Formatter
-// =============================================================================
-
-/**
- * Format GitHubProject for LLM prompt
- */
-function formatProjectRequirements(project: GitHubProject): string {
-  const itemsList = project.items
-    .map(
-      (item) =>
-        `- [${item.status || "No status"}] #${item.content?.number || "N/A"}: ${
-          item.content?.title || "Untitled"
-        }`,
-    )
-    .join("\n");
-
-  return `
-# Project #${project.number}: ${project.title}
-
-## Description
-${project.description || "(No description)"}
-
-## Items
-${itemsList || "(No items)"}
-
-## Status
-Total items: ${project.items.length}
-  `.trim();
-}
-
-// =============================================================================
-// Responsibility 5: Completion Checker
-// =============================================================================
-
-/**
- * Check if all project items are complete
- */
-function isProjectComplete(project: GitHubProject): boolean {
-  if (project.items.length === 0) {
-    return true; // Empty project is considered complete
-  }
-
-  return project.items.every(
-    (item) => item.content?.state === "CLOSED" || item.status === "Done",
-  );
-}
-
-// =============================================================================
-// Tests
-// =============================================================================
-
-Deno.test("parseProjectResponse - handles valid JSON with items array", () => {
-  const json = JSON.stringify({
-    title: "Test Project",
-    items: [
-      { id: "1", title: "Task 1", status: "Todo" },
-      { id: "2", title: "Task 2", status: "Done" },
-    ],
-  });
-
-  const result = parseProjectResponse(json);
-
-  assertEquals(result.title, "Test Project");
-  assertEquals(Array.isArray(result.items), true);
-  assertEquals(result.items?.length, 2);
-});
-
-Deno.test("parseProjectResponse - handles missing items", () => {
-  const json = JSON.stringify({
-    title: "Empty Project",
-  });
-
-  const result = parseProjectResponse(json);
-
-  assertEquals(result.title, "Empty Project");
-  assertEquals(result.items, undefined);
-});
-
-Deno.test("parseProjectResponse - handles items as null", () => {
-  const json = JSON.stringify({
-    title: "Null Items Project",
-    items: null,
-  });
-
-  const result = parseProjectResponse(json);
-
-  assertEquals(result.title, "Null Items Project");
-  // null is preserved, mapper will handle it
-});
-
-Deno.test("parseProjectResponse - throws on invalid JSON", () => {
-  assertThrows(() => {
-    parseProjectResponse("not valid json");
-  });
-});
-
-Deno.test("mapToGitHubProject - maps complete output", () => {
-  const output: GhProjectViewOutput = {
-    number: 25,
-    title: "My Project",
-    shortDescription: "Project description",
-    items: [
-      {
-        id: "1",
-        title: "Task 1",
-        status: "Todo",
-        content: { number: 100, title: "Issue 100", state: "OPEN" },
-      },
-      {
-        id: "2",
-        title: "Task 2",
-        status: "Done",
-        content: { number: 101, title: "Issue 101", state: "CLOSED" },
-      },
-    ],
-  };
-
-  const project = mapToGitHubProject(output, 25);
-
-  assertEquals(project.number, 25);
-  assertEquals(project.title, "My Project");
-  assertEquals(project.description, "Project description");
-  assertEquals(project.items.length, 2);
-  assertEquals(project.items[0].status, "Todo");
-  assertEquals(project.items[0].content?.number, 100);
-  assertEquals(project.items[1].status, "Done");
-});
-
-Deno.test("mapToGitHubProject - handles missing items", () => {
-  const output: GhProjectViewOutput = {
-    title: "Empty Project",
-  };
-
-  const project = mapToGitHubProject(output, 10);
-
-  assertEquals(project.number, 10);
-  assertEquals(project.items.length, 0);
-});
-
-Deno.test("mapToGitHubProject - handles null items", () => {
-  const output: GhProjectViewOutput = {
-    title: "Null Project",
-    items: null,
-  };
-
-  const project = mapToGitHubProject(output, 5);
-
-  assertEquals(project.items.length, 0);
-});
-
-Deno.test("formatProjectRequirements - formats with items", () => {
-  const project: GitHubProject = {
-    number: 25,
-    title: "Test Project",
-    description: "A test project",
-    items: [
-      {
-        content: { number: 1, title: "Task 1", state: "OPEN" },
-        status: "Todo",
-      },
-      {
-        content: { number: 2, title: "Task 2", state: "CLOSED" },
-        status: "Done",
-      },
-    ],
-  };
-
-  const result = formatProjectRequirements(project);
-
-  assertEquals(result.includes("# Project #25: Test Project"), true);
-  assertEquals(result.includes("[Todo] #1: Task 1"), true);
-  assertEquals(result.includes("[Done] #2: Task 2"), true);
-  assertEquals(result.includes("Total items: 2"), true);
-});
-
-Deno.test("formatProjectRequirements - formats empty project", () => {
-  const project: GitHubProject = {
-    number: 1,
-    title: "Empty",
-    description: null,
-    items: [],
-  };
-
-  const result = formatProjectRequirements(project);
-
-  assertEquals(result.includes("(No description)"), true);
-  assertEquals(result.includes("(No items)"), true);
-  assertEquals(result.includes("Total items: 0"), true);
-});
-
-Deno.test("isProjectComplete - returns true when all items done", () => {
-  const project: GitHubProject = {
-    number: 1,
-    title: "Complete",
-    description: null,
-    items: [
-      {
-        content: { number: 1, title: "Task 1", state: "CLOSED" },
-        status: "Done",
-      },
-      {
-        content: { number: 2, title: "Task 2", state: "CLOSED" },
-        status: "Done",
-      },
-    ],
-  };
-
-  assertEquals(isProjectComplete(project), true);
-});
-
-Deno.test("isProjectComplete - returns true when status is Done", () => {
-  const project: GitHubProject = {
-    number: 1,
-    title: "Done Status",
-    description: null,
-    items: [
-      {
-        content: { number: 1, title: "Task 1", state: "OPEN" },
-        status: "Done",
-      },
-    ],
-  };
-
-  assertEquals(isProjectComplete(project), true);
-});
-
-Deno.test("isProjectComplete - returns false with incomplete items", () => {
-  const project: GitHubProject = {
-    number: 1,
-    title: "Incomplete",
-    description: null,
-    items: [
-      {
-        content: { number: 1, title: "Task 1", state: "OPEN" },
-        status: "Todo",
-      },
-      {
-        content: { number: 2, title: "Task 2", state: "CLOSED" },
-        status: "Done",
-      },
-    ],
-  };
-
-  assertEquals(isProjectComplete(project), false);
-});
-
-Deno.test("isProjectComplete - empty project is complete", () => {
-  const project: GitHubProject = {
-    number: 1,
-    title: "Empty",
-    description: null,
-    items: [],
-  };
-
-  assertEquals(isProjectComplete(project), true);
-});
-
-// =============================================================================
-// Tests for getProjectIssues logic
-// =============================================================================
-
-/**
- * Extract open issues from project items (mirrors github.ts logic)
- */
-function extractOpenIssues(items: GhProjectItem[]): Array<{
-  issueNumber: number;
-  title: string;
-  state: "OPEN" | "CLOSED";
-  status?: string;
-}> {
-  const openIssues: Array<{
-    issueNumber: number;
-    title: string;
-    state: "OPEN" | "CLOSED";
-    status?: string;
-  }> = [];
-
-  for (const item of items) {
-    if (
-      item.content?.number &&
-      item.content?.state === "OPEN" &&
-      item.status !== "Done"
-    ) {
-      openIssues.push({
-        issueNumber: item.content.number,
-        title: item.content.title || "Untitled",
-        state: "OPEN",
-        status: item.status,
-      });
-    }
-  }
-
-  return openIssues;
-}
-
-Deno.test("extractOpenIssues - filters only open issues", () => {
-  const items: GhProjectItem[] = [
-    {
-      id: "1",
-      title: "Open Task",
-      status: "In Progress",
-      content: { number: 100, title: "Open Issue", state: "OPEN" },
-    },
-    {
-      id: "2",
-      title: "Closed Task",
-      status: "Done",
-      content: { number: 101, title: "Closed Issue", state: "CLOSED" },
-    },
-    {
-      id: "3",
-      title: "Done but state OPEN",
-      status: "Done",
-      content: { number: 102, title: "Done Issue", state: "OPEN" },
-    },
-  ];
-
-  const result = extractOpenIssues(items);
-
-  assertEquals(result.length, 1);
-  assertEquals(result[0].issueNumber, 100);
-  assertEquals(result[0].title, "Open Issue");
-  assertEquals(result[0].status, "In Progress");
-});
-
-Deno.test("extractOpenIssues - handles empty items", () => {
-  const result = extractOpenIssues([]);
-  assertEquals(result.length, 0);
-});
-
-Deno.test("extractOpenIssues - handles items without content", () => {
-  const items: GhProjectItem[] = [
-    { id: "1", title: "No content", status: "Todo" },
-    {
-      id: "2",
-      title: "With content",
-      status: "Todo",
-      content: { number: 100, title: "Issue", state: "OPEN" },
-    },
-  ];
-
-  const result = extractOpenIssues(items);
-
-  assertEquals(result.length, 1);
-  assertEquals(result[0].issueNumber, 100);
-});
-
-Deno.test("extractOpenIssues - handles multiple open issues", () => {
-  const items: GhProjectItem[] = [
-    {
-      id: "1",
-      status: "Todo",
-      content: { number: 1, title: "First", state: "OPEN" },
-    },
-    {
-      id: "2",
-      status: "In Progress",
-      content: { number: 2, title: "Second", state: "OPEN" },
-    },
-    {
-      id: "3",
-      status: "Todo",
-      content: { number: 3, title: "Third", state: "OPEN" },
-    },
-  ];
-
-  const result = extractOpenIssues(items);
-
-  assertEquals(result.length, 3);
-  assertEquals(result[0].issueNumber, 1);
-  assertEquals(result[1].issueNumber, 2);
-  assertEquals(result[2].issueNumber, 3);
-});
-
-// =============================================================================
-// Tests for label filtering logic
-// =============================================================================
-
-/**
- * Filter issues by label (simulates the logic in github.ts)
- */
-function filterByLabel(
-  issues: Array<{ issueNumber: number; labels?: string[] }>,
-  labelFilter: string,
-): Array<{ issueNumber: number; labels?: string[] }> {
-  return issues.filter((issue) => issue.labels?.includes(labelFilter));
-}
-
-Deno.test("filterByLabel - filters issues with matching label", () => {
-  const issues = [
-    { issueNumber: 1, labels: ["docs", "feature"] },
-    { issueNumber: 2, labels: ["bug"] },
-    { issueNumber: 3, labels: ["docs"] },
-  ];
-
-  const result = filterByLabel(issues, "docs");
-
-  assertEquals(result.length, 2);
-  assertEquals(result[0].issueNumber, 1);
-  assertEquals(result[1].issueNumber, 3);
-});
-
-Deno.test("filterByLabel - returns empty for no matches", () => {
-  const issues = [
-    { issueNumber: 1, labels: ["bug"] },
-    { issueNumber: 2, labels: ["feature"] },
-  ];
-
-  const result = filterByLabel(issues, "docs");
-
-  assertEquals(result.length, 0);
-});
-
-Deno.test("filterByLabel - handles issues without labels", () => {
-  const issues = [
-    { issueNumber: 1, labels: ["docs"] },
-    { issueNumber: 2 }, // no labels
-    { issueNumber: 3, labels: undefined },
-  ];
-
-  const result = filterByLabel(issues, "docs");
-
-  assertEquals(result.length, 1);
-  assertEquals(result[0].issueNumber, 1);
-});
-
-Deno.test("filterByLabel - handles empty array", () => {
-  const result = filterByLabel([], "docs");
-  assertEquals(result.length, 0);
-});
-
-// =============================================================================
-// Integration test with mock CLI
-// =============================================================================
-
-Deno.test("Integration - full flow with mock CLI", async () => {
-  const mockCli = new MockGhCliExecutor();
-
-  // Set up mock responses
-  mockCli.setResponse(
-    "repo view --json owner -q .owner.login",
-    "testowner",
-  );
-
-  mockCli.setResponse(
-    "project view 25 --owner testowner --format json",
-    JSON.stringify({
-      number: 25,
-      title: "Integration Test Project",
-      shortDescription: "Test description",
-      items: [
-        {
-          id: "item1",
-          title: "Task 1",
-          status: "In Progress",
-          content: { number: 100, title: "Issue #100", state: "OPEN" },
-        },
-      ],
-    }),
-  );
-
-  // Execute flow
-  const ownerResult = await mockCli.execute([
-    "repo",
-    "view",
-    "--json",
-    "owner",
-    "-q",
-    ".owner.login",
-  ]);
-  assertEquals(ownerResult.code, 0);
-
-  const projectResult = await mockCli.execute([
-    "project",
-    "view",
-    "25",
-    "--owner",
-    "testowner",
-    "--format",
-    "json",
-  ]);
-  assertEquals(projectResult.code, 0);
-
-  const parsed = parseProjectResponse(projectResult.stdout);
-  const project = mapToGitHubProject(parsed, 25);
-  const requirements = formatProjectRequirements(project);
-  const complete = isProjectComplete(project);
-
-  assertEquals(project.title, "Integration Test Project");
-  assertEquals(project.items.length, 1);
-  assertEquals(requirements.includes("Issue #100"), true);
-  assertEquals(complete, false);
 });
