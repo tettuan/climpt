@@ -818,15 +818,32 @@ iterate-agent/                           # プロジェクトルート直下に�
 ├── frontmatter-to-schema/               # スキーマファイル（climpt からコピー）
 ├── prompts/
 │   └── dev/                             # c1 = dev
-│       └── start/                       # c2 = start
-│           ├── project/                 # c3 = project (--project モード)
-│           │   └── f_default.md
-│           ├── issue/                   # c3 = issue (--issue モード)
-│           │   └── f_default.md
-│           └── default/                 # c3 = default (--iterate-max のみ)
-│               └── f_default.md
+│       ├── start/                       # c2 = start
+│       │   ├── project/                 # c3 = project (--project モード)
+│       │   │   ├── f_default.md         # preparation phase
+│       │   │   ├── f_processing.md      # processing phase (with recommended_skills)
+│       │   │   └── f_again.md           # re-execution phase
+│       │   ├── issue/                   # c3 = issue (--issue モード)
+│       │   │   └── f_default.md
+│       │   └── default/                 # c3 = default (--iterate-max のみ)
+│       │       └── f_default.md
+│       └── review/                      # c2 = review
+│           └── project/                 # c3 = project
+│               └── f_default.md         # review phase
 └── registry.json                        # /reg で生成
 ```
+
+### 11.2.1 Project Mode Phase Templates
+
+| Phase | Template | Edition | UV Variables |
+|-------|----------|---------|--------------|
+| preparation | `start/project/f_default.md` | default | agent_name, completion_criteria, target_label |
+| processing | `start/project/f_processing.md` | processing | + recommended_skills |
+| review | `review/project/f_default.md` | default | agent_name, target_label |
+| again | `start/project/f_again.md` | again | agent_name, completion_criteria, target_label |
+
+The `recommended_skills` variable is populated from the `skillsNeeded` array in the project-plan JSON
+output from the preparation phase. If empty, the value is "指定なし" (none specified).
 
 ### 11.3 ログディレクトリ
 

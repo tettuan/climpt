@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(start)$"
+      pattern: "^(start|review)$"
     layerType:
       pattern: "^(project|issue|default)$"

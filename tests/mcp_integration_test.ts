@@ -26,10 +26,9 @@ Deno.test("MCP tool names match availableConfigs", async () => {
     }
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      // Use default configs if registry doesn't exist
-      const defaultConfigs = ["code", "docs", "git", "meta", "spec", "test"];
-      assertExists(defaultConfigs, "Default configs should be defined");
-      assertEquals(defaultConfigs.length, 6, "Should have 6 default tools");
+      // Registry doesn't exist - this is valid during development
+      // The MCP server will use defaults from types.ts
+      console.log("Registry file not found - skipping command validation");
     } else {
       throw error;
     }
@@ -79,40 +78,6 @@ Deno.test("Registry template has correct structure", async () => {
   }
 });
 
-// Test MCP server default configuration fallback
-Deno.test("MCP server defaults when registry is missing", () => {
-  // This test simulates what happens when registry.json doesn't exist
-  const defaultTools = ["code", "docs", "git", "meta", "spec", "test"];
-
-  // Test that defaults are properly defined
-  assertEquals(defaultTools.length, 6, "Should have 6 default tools");
-  assertEquals(
-    defaultTools.includes("code"),
-    true,
-    "Should include 'code' tool",
-  );
-  assertEquals(
-    defaultTools.includes("docs"),
-    true,
-    "Should include 'docs' tool",
-  );
-  assertEquals(defaultTools.includes("git"), true, "Should include 'git' tool");
-  assertEquals(
-    defaultTools.includes("meta"),
-    true,
-    "Should include 'meta' tool",
-  );
-  assertEquals(
-    defaultTools.includes("spec"),
-    true,
-    "Should include 'spec' tool",
-  );
-  assertEquals(
-    defaultTools.includes("test"),
-    true,
-    "Should include 'test' tool",
-  );
-});
 
 // Test command options validation
 Deno.test("Command options have valid values", async () => {

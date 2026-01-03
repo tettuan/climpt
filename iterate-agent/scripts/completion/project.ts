@@ -75,11 +75,13 @@ export class ProjectCompletionHandler implements CompletionHandler {
    * @param projectNumber - GitHub Project number to work on
    * @param labelFilter - Optional label to filter issues by
    * @param includeCompleted - Include "Done" items from project board (default: false)
+   * @param projectOwner - Explicit project owner (user login, org name, or "@me")
    */
   constructor(
     private readonly projectNumber: number,
     private readonly labelFilter?: string,
     private readonly includeCompleted: boolean = false,
+    private readonly projectOwner?: string,
   ) {}
 
   /**
@@ -138,8 +140,11 @@ export class ProjectCompletionHandler implements CompletionHandler {
   private async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Fetch project info for context
-    const projectContent = await fetchProjectRequirements(this.projectNumber);
+    // Fetch project info for context (pass explicit owner)
+    const projectContent = await fetchProjectRequirements(
+      this.projectNumber,
+      this.projectOwner,
+    );
     // Parse project title from content (first line after "Project:")
     const titleMatch = projectContent.match(/^Project: (.+)$/m);
     this.projectTitle = titleMatch
@@ -155,6 +160,7 @@ export class ProjectCompletionHandler implements CompletionHandler {
       {
         labelFilter: this.labelFilter,
         includeCompleted: this.includeCompleted,
+        owner: this.projectOwner,
       },
     );
     this.totalIssuesAtStart = this.remainingIssues.length;
@@ -469,6 +475,7 @@ Work on the issues identified in the review.
       const openIssues = await getProjectIssues(this.projectNumber, {
         labelFilter: this.labelFilter,
         includeCompleted: false,
+        owner: this.projectOwner,
       });
       // Filter out issues we've already completed (API cache may be stale)
       const filteredIssues = openIssues.filter(
@@ -504,6 +511,7 @@ Work on the issues identified in the review.
       const openIssues = await getProjectIssues(this.projectNumber, {
         labelFilter: this.labelFilter,
         includeCompleted: false,
+        owner: this.projectOwner,
       });
       // Filter out issues we've already completed (API cache may be stale)
       const filteredIssues = openIssues.filter(

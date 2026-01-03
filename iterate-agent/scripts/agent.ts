@@ -230,6 +230,7 @@ async function main(): Promise<void> {
       agentName: options.agentName,
       issue: options.issue,
       project: options.project,
+      projectOwner: options.projectOwner,
       label: options.label,
       iterateMax: options.iterateMax,
       resume: options.resume,
@@ -263,6 +264,14 @@ async function main(): Promise<void> {
         uvVariables,
         detail, // STDIN で渡す
       );
+      const initialC3 = completionMode === "iterate" ? "default" : completionMode;
+      await logger.write("info", "Climpt prompt executed", {
+        type: "climpt_prompt_used",
+        c1: "iterator-dev",
+        c2: "start",
+        c3: initialC3,
+        promptPath: `agent/iterator/prompts/iterator-dev/start/${initialC3}/f_default.md`,
+      });
       await logger.write("debug", "System prompt loaded via C3L", {
         mode: completionMode,
         uvVariables,
@@ -712,25 +721,57 @@ async function runAgentLoop(
         completionHandler.advancePhase();
         currentPhase = completionHandler.getPhase();
 
+        // Build recommended_skills string (empty becomes "指定なし")
+        const recommendedSkills =
+          detectedProjectPlan.plan.skillsNeeded.length > 0
+            ? detectedProjectPlan.plan.skillsNeeded.join(", ")
+            : "指定なし";
+
         console.log(`\n📋 Preparation complete. Moving to processing phase.`);
-        console.log(
-          `   Skills needed: ${
-            detectedProjectPlan.plan.skillsNeeded.join(", ") || "(none)"
-          }`,
-        );
-        console.log(
-          `   Skills to disable: ${
-            detectedProjectPlan.plan.skillsToDisable.join(", ") || "(none)"
-          }`,
-        );
+        console.log(`   Recommended skills: ${recommendedSkills}`);
 
         await logger.write(
           "info",
           "Phase transition: preparation → processing",
           {
             plan: detectedProjectPlan.plan,
+            recommendedSkills,
           },
         );
+
+        // Reload system prompt for processing phase with skills
+        try {
+          const processingUvVariables: UvVariables = {
+            ...uvVariables,
+            recommended_skills: recommendedSkills,
+          };
+          currentSystemPrompt = await loadSystemPromptViaC3L(
+            "project",
+            processingUvVariables,
+            stdinContent,
+            { edition: "processing" },
+          );
+          await logger.write("info", "Climpt prompt executed", {
+            type: "climpt_prompt_used",
+            c1: "iterator-dev",
+            c2: "start",
+            c3: "project",
+            promptPath: "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+          });
+          await logger.write(
+            "debug",
+            "System prompt reloaded for processing phase",
+            { recommendedSkills },
+          );
+        } catch (error) {
+          await logger.write("error", "Failed to reload processing prompt", {
+            error: {
+              name: error instanceof Error ? error.name : "Unknown",
+              message: error instanceof Error ? error.message : String(error),
+            },
+          });
+          throw error;
+        }
       }
 
       // Handle review phase completion
@@ -767,6 +808,13 @@ async function runAgentLoop(
               stdinContent,
               { edition: "again" },
             );
+            await logger.write("info", "Climpt prompt executed", {
+              type: "climpt_prompt_used",
+              c1: "iterator-dev",
+              c2: "start",
+              c3: "project",
+              promptPath: "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+            });
             await logger.write(
               "debug",
               "System prompt reloaded for again phase",
@@ -812,6 +860,13 @@ async function runAgentLoop(
                 stdinContent,
                 { command: "review" },
               );
+              await logger.write("info", "Climpt prompt executed", {
+                type: "climpt_prompt_used",
+                c1: "iterator-dev",
+                c2: "review",
+                c3: "project",
+                promptPath: "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+              });
               await logger.write(
                 "debug",
                 "System prompt reloaded for review phase",
@@ -852,6 +907,13 @@ async function runAgentLoop(
                 stdinContent,
                 { command: "review" },
               );
+              await logger.write("info", "Climpt prompt executed", {
+                type: "climpt_prompt_used",
+                c1: "iterator-dev",
+                c2: "review",
+                c3: "project",
+                promptPath: "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+              });
               await logger.write(
                 "debug",
                 "System prompt reloaded for re-review phase",

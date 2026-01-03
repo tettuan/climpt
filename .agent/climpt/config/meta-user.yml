@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(build|create)$"
+      pattern: "^(build|convert-skill|create|migrate)$"
     layerType:
-      pattern: "^(frontmatter|instruction)$"
+      pattern: "^(frontmatter|instruction|skill|to-plugin)$"

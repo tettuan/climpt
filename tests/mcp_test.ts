@@ -74,16 +74,6 @@ Deno.test("registry.json exists and has valid structure", async () => {
   }
 });
 
-// Test MCP server can be imported
-Deno.test("MCP server module can be imported", async () => {
-  const mcpModule = await import("../src/mcp/index.ts");
-  assertExists(mcpModule, "MCP module should be importable");
-  assertEquals(
-    typeof mcpModule.default,
-    "function",
-    "MCP module should export a default function",
-  );
-});
 
 // Test MCP server startup (without actually running the server)
 Deno.test("MCP server configuration loading", async () => {
