@@ -6,7 +6,7 @@
  * - 自動ローテーション（最大100ファイル）
  */
 
-import { join } from "jsr:@std/path@^1";
+import { join } from "@std/path";
 
 /**
  * Log entry for prompt execution
