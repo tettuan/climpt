@@ -75,6 +75,17 @@ Iterate Agent は Claude Agent SDK を使用した自律型開発エージェン
 /plugin install climpt-agent
 ```
 
+インストール後、`.claude/settings.json` に以下が追加されます：
+
+```json
+{
+  "plugins": {
+    "marketplace": ["tettuan/climpt"],
+    "installed": ["climpt-agent"]
+  }
+}
+```
+
 > **注意**: プラグインがインストールされていない場合、エージェントは警告を表示しますが、制限された機能で動作を続けます。
 
 ### GitHub CLI のセットアップ
@@ -333,7 +344,9 @@ Execute development tasks autonomously and make continuous progress.
 
 # Working Mode
 - You are running in a perpetual execution cycle
-- Use the **delegate-climpt-agent** Skill with --agent={{AGENT}} to execute tasks
+- Use the **delegate-climpt-agent** Skill with `--agent={{AGENT}}` to execute tasks
+  - `--agent` specifies the registry name defined in `registry_config.json`
+  - Example: `--agent=climpt` uses `.agent/climpt/registry.json`
 - After each task completion, ask Climpt for the next logical task
 - Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
 
@@ -342,6 +355,25 @@ Execute development tasks autonomously and make continuous progress.
 - Be thorough: Ensure each task is properly completed
 - Be organized: Maintain clear context of what has been done
 ```
+
+### --agent オプションについて
+
+`--agent` は `registry_config.json` で定義されたレジストリ名を指定します：
+
+```json
+// .agent/climpt/config/registry_config.json
+{
+  "registries": {
+    "climpt": ".agent/climpt/registry.json",
+    "iterator": ".agent/iterator/registry.json"
+  }
+}
+```
+
+| --agent 値 | 使用されるレジストリ |
+|-----------|---------------------|
+| `climpt` | `.agent/climpt/registry.json` |
+| `iterator` | `.agent/iterator/registry.json` |
 
 ---
 
