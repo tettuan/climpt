@@ -8,7 +8,8 @@ Explains Climpt's basic concepts, architecture, and command execution flow.
 
 1. [What is Climpt](#51-what-is-climpt)
 2. [Architecture Overview](#52-architecture-overview)
-3. [Command Execution Flow](#53-command-execution-flow)
+3. [5-Layer Structure](#53-5-layer-structure)
+4. [Command Execution Flow](#54-command-execution-flow)
 
 ---
 
@@ -154,7 +155,90 @@ Features provided by breakdown package:
 
 ---
 
-## 5.3 Command Execution Flow
+## 5.3 5-Layer Structure
+
+Climpt has evolved incrementally and now consists of five layers.
+
+### Layer Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Agent Layer (Autonomous)                   │
+├─────────────────────────────────────────────────────────────┤
+│  [Top Layer] Iterator/Reviewer Agent                         │
+│       │      Claude Agent SDK for GitHub Issue/Project       │
+│       ▼                                                      │
+│  [Middle Layer] delegate-climpt-agent Skill                  │
+│       │         Claude Code Plugin. Command search, options  │
+│       ▼                                                      │
+│  [Execution Layer] climpt-agent.ts (Sub-Agent)               │
+│                    Autonomous execution via Claude Agent SDK │
+├─────────────────────────────────────────────────────────────┤
+│                    Foundation Layer                          │
+├─────────────────────────────────────────────────────────────┤
+│  [Tool Layer] CLI / MCP                                      │
+│       │       Interface for prompt retrieval                 │
+│       ▼                                                      │
+│  [Config Layer] registry.json / prompts/                     │
+│                 Template transformation via @tettuan/breakdown│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Layer Roles
+
+| Layer | Role | Context | Implementation |
+|-------|------|---------|----------------|
+| Top Layer | GitHub integration, iteration control | SDK Session #1 | `iterate-agent/scripts/agent.ts` |
+| Middle Layer | Parameter conversion, command resolution | Plugin Context | `plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md` |
+| Execution Layer | Prompt retrieval, autonomous execution | SDK Session #2 | `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` |
+| Tool Layer | CLI/MCP invocation | CLI/MCP Process | `cli.ts`, `mcp.ts` |
+| Config Layer | Prompt templates | File System | `.agent/climpt/` |
+
+### Three-Layer Chain (Within Agent Layer)
+
+The Agent layer chains three layers together, achieving flexible autonomous operation through **context separation**.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Three-Layer Chain Structure                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  [Top Layer] Iterator Agent                                 │
+│              Claude Agent SDK Session #1                    │
+│              └── GitHub connection, iteration control       │
+│                        │                                    │
+│                        │ Skill invocation                   │
+│                        ▼                                    │
+│  [Middle Layer] delegate-climpt-agent Skill                 │
+│                 Claude Code Plugin Context                  │
+│                 └── Parameter conversion, command resolution│
+│                        │                                    │
+│                        │ TypeScript launch                  │
+│                        ▼                                    │
+│  [Execution Layer] climpt-agent.ts (Sub-Agent)              │
+│                    Claude Agent SDK Session #2              │
+│                    └── Prompt retrieval, autonomous work    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Points**:
+- Top and Execution layers run in **separate SDK sessions**
+- Middle layer acts as a **bridge**, handling parameter conversion and search
+- Each layer's context is isolated, making responsibilities clear
+
+### Entry Points
+
+| Purpose | Entry Point |
+|---------|-------------|
+| CLI execution | `jsr:@aidevtool/climpt/cli` |
+| MCP server | `jsr:@aidevtool/climpt/mcp` |
+| Iterator Agent | `jsr:@aidevtool/climpt/agents/iterator` |
+| Reviewer Agent | `jsr:@aidevtool/climpt/agents/reviewer` |
+
+---
+
+## 5.4 Command Execution Flow
 
 ### Example Execution
 

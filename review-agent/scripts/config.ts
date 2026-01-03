@@ -4,7 +4,7 @@
  * Handles configuration loading, validation, and system prompt building.
  */
 
-import { join } from "@std/path";
+import { join } from "jsr:@std/path@^1";
 import type { AgentConfig, AgentName, ReviewAgentConfig } from "./types.ts";
 
 /**

@@ -7,14 +7,11 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included. Besides CL
 ## Quick Start
 
 ```bash
-# Install
-deno install -A --global climpt jsr:@aidevtool/climpt
-
 # Initialize configuration
-climpt init
+deno run -A jsr:@aidevtool/climpt init
 
 # Run your first command
-echo "Fix login bug" | climpt-git decide-branch working-branch
+echo "Fix login bug" | deno run -A jsr:@aidevtool/climpt git decide-branch working-branch
 ```
 
 📖 [Full Documentation](https://tettuan.github.io/climpt/)
@@ -38,16 +35,16 @@ Explore interactively: [Climpt NotebookLM](https://notebooklm.google.com/noteboo
 ### Command Syntax
 
 ```bash
-climpt-<profile> <directive> <layer> [options]
+deno run -A jsr:@aidevtool/climpt <profile> <directive> <layer> [options]
 ```
 
 **Example:**
 ```bash
 # Break down issue into tasks
-climpt-breakdown to task --from=issue.md --adaptation=detailed
+deno run -A jsr:@aidevtool/climpt breakdown to task --from=issue.md --adaptation=detailed
 
 # Generate from stdin
-echo "error log" | climpt-diagnose trace stack -o=./output/
+echo "error log" | deno run -A jsr:@aidevtool/climpt diagnose trace stack -o=./output/
 ```
 
 ### Key Options
@@ -112,11 +109,17 @@ Features:
 
 ## Agents
 
+**Prerequisites**: Agents require GitHub CLI (`gh`) installed and authenticated, plus a Git repository pushed to GitHub.
+
 ### Iterator Agent
 
 Autonomous development system using Claude Agent SDK:
 
 ```bash
+# Initialize first (required)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+
+# Then run with an issue
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
