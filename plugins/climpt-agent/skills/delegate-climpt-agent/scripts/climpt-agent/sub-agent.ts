@@ -114,8 +114,10 @@ export async function runSubAgent(
  * - user: User message echo (ignored)
  * - stream_event: Partial streaming data (ignored)
  * - compact_boundary: Context compaction marker (ignored)
+ *
+ * @internal Exported for testing
  */
-async function handleMessage(
+export async function handleMessage(
   message: SDKMessage,
   logger: Logger,
 ): Promise<void> {
