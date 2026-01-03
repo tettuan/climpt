@@ -173,9 +173,9 @@ Documentation:
  * climpt to task <issue.md> -o <tasks_dir>
  * ```
  *
- * ## Installation
+ * ## Usage
  * ```bash
- * deno install -A -f --global climpt jsr:@aidevtool/climpt
+ * deno run -A jsr:@aidevtool/climpt <profile> <directive> <layer> [options]
  * ```
  *
  * ## Design Philosophy

@@ -4,7 +4,7 @@
  * Loads and validates configuration from iterate-agent/config.json.
  */
 
-import { join } from "@std/path";
+import { join } from "jsr:@std/path@^1";
 import type {
   AgentConfig,
   AgentName,

@@ -13,7 +13,7 @@
  * ```
  */
 
-import { join } from "@std/path";
+import { join } from "jsr:@std/path@^1";
 
 /**
  * SDK plugin configuration format

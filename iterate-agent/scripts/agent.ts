@@ -81,6 +81,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { displayHelp, parseCliArgs } from "./cli.ts";
 import {
+  checkClimptAgentPlugin,
   resolvePluginPathsSafe,
   type SdkPluginConfig,
 } from "./plugin-resolver.ts";
@@ -170,7 +171,16 @@ async function main(): Promise<void> {
           "  1. Review and customize the configuration in iterate-agent/config.json",
         );
         console.log(
-          "  2. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
+          "  2. Install the Claude Code plugin (required for delegate-climpt-agent Skill):",
+        );
+        console.log(
+          "     /plugin marketplace add tettuan/climpt",
+        );
+        console.log(
+          "     /plugin install climpt-agent",
+        );
+        console.log(
+          "  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>\n",
         );
         console.log(
           "Note: Requires 'gh' CLI (https://cli.github.com) with authentication.\n",
@@ -196,6 +206,16 @@ async function main(): Promise<void> {
     // Apply default label from config if not specified via CLI
     if (options.label === undefined && config.github?.labels?.filter) {
       options.label = config.github.labels.filter;
+    }
+
+    // 2.5. Check if climpt-agent plugin is installed
+    const pluginCheck = await checkClimptAgentPlugin();
+    if (!pluginCheck.installed) {
+      console.log("\n⚠️  Warning: climpt-agent plugin is not installed.");
+      console.log("   The delegate-climpt-agent Skill will not be available.");
+      console.log("   To install, run in Claude Code:");
+      console.log("     /plugin marketplace add tettuan/climpt");
+      console.log("     /plugin install climpt-agent\n");
     }
 
     // 3. Initialize logger
@@ -271,9 +291,8 @@ async function main(): Promise<void> {
       promptLength: initialPrompt.length,
     });
 
-    // 6.5. Resolve dynamic plugins
+    // 6.5. Resolve dynamic plugins from all settings scopes
     const dynamicPlugins = await resolvePluginPathsSafe(
-      ".claude/settings.json",
       Deno.cwd(),
       async (error, message) => {
         if (logger) {
@@ -531,7 +550,13 @@ async function runAgentLoop(
                     actionBody: actionResult.action?.body,
                     actionLabel: actionResult.action?.label,
                     errorMessage: execResult.error,
-                    ghCommand: `gh issue ${execResult.action === "close" ? "close" : "comment"} ${execResult.issue}${currentIssue?.repository ? ` -R ${currentIssue.repository}` : ""}`,
+                    ghCommand: `gh issue ${
+                      execResult.action === "close" ? "close" : "comment"
+                    } ${execResult.issue}${
+                      currentIssue?.repository
+                        ? ` -R ${currentIssue.repository}`
+                        : ""
+                    }`,
                   });
                 }
               } else {
@@ -620,14 +645,24 @@ async function runAgentLoop(
                 shouldStopIteration = true;
               }
             } else {
-              await logger.write("error", "Action execution failed after retry", {
-                action: execResult.action,
-                issue: execResult.issue,
-                repository: currentIssue.repository,
-                actionBody: retryAction.body,
-                errorMessage: execResult.error,
-                ghCommand: `gh issue ${execResult.action === "close" ? "close" : "comment"} ${execResult.issue}${currentIssue.repository ? ` -R ${currentIssue.repository}` : ""}`,
-              });
+              await logger.write(
+                "error",
+                "Action execution failed after retry",
+                {
+                  action: execResult.action,
+                  issue: execResult.issue,
+                  repository: currentIssue.repository,
+                  actionBody: retryAction.body,
+                  errorMessage: execResult.error,
+                  ghCommand: `gh issue ${
+                    execResult.action === "close" ? "close" : "comment"
+                  } ${execResult.issue}${
+                    currentIssue.repository
+                      ? ` -R ${currentIssue.repository}`
+                      : ""
+                  }`,
+                },
+              );
               console.error(
                 `\n❌ Action "${execResult.action}" failed after retry: ${execResult.error}`,
               );
@@ -679,15 +714,23 @@ async function runAgentLoop(
 
         console.log(`\n📋 Preparation complete. Moving to processing phase.`);
         console.log(
-          `   Skills needed: ${detectedProjectPlan.plan.skillsNeeded.join(", ") || "(none)"}`,
+          `   Skills needed: ${
+            detectedProjectPlan.plan.skillsNeeded.join(", ") || "(none)"
+          }`,
         );
         console.log(
-          `   Skills to disable: ${detectedProjectPlan.plan.skillsToDisable.join(", ") || "(none)"}`,
+          `   Skills to disable: ${
+            detectedProjectPlan.plan.skillsToDisable.join(", ") || "(none)"
+          }`,
         );
 
-        await logger.write("info", "Phase transition: preparation → processing", {
-          plan: detectedProjectPlan.plan,
-        });
+        await logger.write(
+          "info",
+          "Phase transition: preparation → processing",
+          {
+            plan: detectedProjectPlan.plan,
+          },
+        );
       }
 
       // Handle review phase completion
@@ -701,7 +744,9 @@ async function runAgentLoop(
         currentPhase = completionHandler.getPhase();
 
         if (detectedReviewResult.result.result === "pass") {
-          console.log(`\n✅ Review passed! ${detectedReviewResult.result.summary}`);
+          console.log(
+            `\n✅ Review passed! ${detectedReviewResult.result.summary}`,
+          );
           await logger.write("info", "Phase transition: review → complete", {
             reviewResult: detectedReviewResult.result,
           });
@@ -722,7 +767,10 @@ async function runAgentLoop(
               stdinContent,
               { edition: "again" },
             );
-            await logger.write("debug", "System prompt reloaded for again phase");
+            await logger.write(
+              "debug",
+              "System prompt reloaded for again phase",
+            );
           } catch (error) {
             await logger.write("error", "Failed to reload again prompt", {
               error: {
@@ -743,7 +791,9 @@ async function runAgentLoop(
         // Check if all issues are done (handler.isComplete() will be checked later)
         // We need to detect when processing is truly done to advance to review
         const processingComplete = await completionHandler.isComplete();
-        if (processingComplete && completionHandler.getPhase() === "processing") {
+        if (
+          processingComplete && completionHandler.getPhase() === "processing"
+        ) {
           completionHandler.advancePhase();
           currentPhase = completionHandler.getPhase();
 
@@ -762,12 +812,17 @@ async function runAgentLoop(
                 stdinContent,
                 { command: "review" },
               );
-              await logger.write("debug", "System prompt reloaded for review phase");
+              await logger.write(
+                "debug",
+                "System prompt reloaded for review phase",
+              );
             } catch (error) {
               await logger.write("error", "Failed to reload review prompt", {
                 error: {
                   name: error instanceof Error ? error.name : "Unknown",
-                  message: error instanceof Error ? error.message : String(error),
+                  message: error instanceof Error
+                    ? error.message
+                    : String(error),
                 },
               });
               throw error;
@@ -797,12 +852,17 @@ async function runAgentLoop(
                 stdinContent,
                 { command: "review" },
               );
-              await logger.write("debug", "System prompt reloaded for re-review phase");
+              await logger.write(
+                "debug",
+                "System prompt reloaded for re-review phase",
+              );
             } catch (error) {
               await logger.write("error", "Failed to reload review prompt", {
                 error: {
                   name: error instanceof Error ? error.name : "Unknown",
-                  message: error instanceof Error ? error.message : String(error),
+                  message: error instanceof Error
+                    ? error.message
+                    : String(error),
                 },
               });
               throw error;

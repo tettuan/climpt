@@ -2,62 +2,32 @@
 
 # 2. Climpt Setup
 
-Install Climpt and configure it for use in your project.
+Set up Climpt in your project using direct JSR execution.
 
 ## Contents
 
-1. [Installing Climpt](#21-installing-climpt)
+1. [Prerequisites](#21-prerequisites)
 2. [Project Initialization](#22-project-initialization)
 3. [Claude Code Plugin Installation](#23-claude-code-plugin-installation)
 4. [Verification](#24-verification)
 
 ---
 
-## 2.1 Installing Climpt
+## 2.1 Prerequisites
 
-### Global Installation (Recommended)
+- **Deno 2.5+**: Install from [deno.land](https://deno.land)
+- **Internet connection**: Required for JSR package resolution
 
+Verify Deno installation:
 ```bash
-deno install \
-  --allow-read \
-  --allow-write \
-  --allow-net \
-  --allow-env \
-  --global \
-  climpt \
-  jsr:@aidevtool/climpt
-```
-
-Option explanations:
-- `--allow-read`: Allow file reading (required for input files)
-- `--allow-write`: Allow file writing (required for output generation)
-- `--allow-net`: Allow network access (required for JSR package download)
-- `--allow-env`: Allow environment variable access (required for configuration)
-- `--global`: Install globally
-- `climpt`: Command name
-
-### Verify Installation
-
-```bash
-climpt --version
-```
-
-Example output:
-```
-climpt 1.9.18
-```
-
-### Display Help
-
-```bash
-climpt --help
+deno --version
 ```
 
 ---
 
 ## 2.2 Project Initialization
 
-Initialize Climpt in the project where you want to use it.
+Initialize Climpt in your project directory.
 
 ### Navigate to Project Directory
 
@@ -68,7 +38,7 @@ cd your-project
 ### Execute Initialization Command
 
 ```bash
-climpt init
+deno run -A jsr:@aidevtool/climpt init
 ```
 
 Example output:
@@ -162,10 +132,10 @@ Success if output contains `climpt-agent`.
 
 ```bash
 # Display help
-climpt --help
+deno run -A jsr:@aidevtool/climpt --help
 
 # Check version
-climpt --version
+deno run -A jsr:@aidevtool/climpt --version
 ```
 
 ### Check Project Configuration
@@ -184,18 +154,6 @@ ls -la .agent/climpt/config/
 ---
 
 ## Troubleshooting
-
-### climpt: command not found
-
-Deno's bin directory may not be in PATH:
-
-```bash
-# Check PATH
-echo $PATH | tr ':' '\n' | grep deno
-
-# Add to PATH
-export PATH="$HOME/.deno/bin:$PATH"
-```
 
 ### Initialization Fails
 
