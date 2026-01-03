@@ -262,6 +262,9 @@ export interface UvVariables {
 
   /** GitHub label to filter issues (default: "docs") */
   target_label: string;
+
+  /** Comma-separated list of recommended skills from preparation phase */
+  recommended_skills?: string;
 }
 
 /**

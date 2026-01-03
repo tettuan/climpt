@@ -229,7 +229,7 @@ Ensure prompt file exists: `iterate-agent/prompts/default.md`
 iterate-agent/
 ├── config.json                    # Main configuration
 ├── prompts/
-│   └── default.md                 # System prompt template
+│   └── default.md                 # System prompt template (fallback)
 ├── scripts/
 │   ├── agent.ts                   # Main entry point
 │   ├── cli.ts                     # CLI argument parsing
@@ -245,6 +245,32 @@ tmp/logs/agents/
 │   └── session-2025-12-20T10-00-00-000Z.jsonl
 └── ...
 ```
+
+### C3L Prompt Templates
+
+System prompts for project mode phases are loaded via C3L (Climpt 3-word Language):
+
+```
+.agent/iterator/prompts/dev/
+├── start/
+│   └── project/
+│       ├── f_default.md           # Preparation phase
+│       ├── f_processing.md        # Processing phase (with recommended_skills)
+│       └── f_again.md             # Re-execution phase
+└── review/
+    └── project/
+        └── f_default.md           # Review phase
+```
+
+| Phase | Template | UV Variables |
+|-------|----------|--------------|
+| preparation | `f_default.md` | agent_name, completion_criteria, target_label |
+| processing | `f_processing.md` | + recommended_skills (from preparation) |
+| review | `review/project/f_default.md` | agent_name, target_label |
+| again | `f_again.md` | agent_name, completion_criteria, target_label |
+
+The `recommended_skills` variable contains skills identified during preparation phase.
+If no skills are specified, the value is "指定なし" (none specified).
 
 ## Related Documentation
 

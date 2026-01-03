@@ -713,25 +713,50 @@ async function runAgentLoop(
         completionHandler.advancePhase();
         currentPhase = completionHandler.getPhase();
 
+        // Build recommended_skills string (empty becomes "指定なし")
+        const recommendedSkills =
+          detectedProjectPlan.plan.skillsNeeded.length > 0
+            ? detectedProjectPlan.plan.skillsNeeded.join(", ")
+            : "指定なし";
+
         console.log(`\n📋 Preparation complete. Moving to processing phase.`);
-        console.log(
-          `   Skills needed: ${
-            detectedProjectPlan.plan.skillsNeeded.join(", ") || "(none)"
-          }`,
-        );
-        console.log(
-          `   Skills to disable: ${
-            detectedProjectPlan.plan.skillsToDisable.join(", ") || "(none)"
-          }`,
-        );
+        console.log(`   Recommended skills: ${recommendedSkills}`);
 
         await logger.write(
           "info",
           "Phase transition: preparation → processing",
           {
             plan: detectedProjectPlan.plan,
+            recommendedSkills,
           },
         );
+
+        // Reload system prompt for processing phase with skills
+        try {
+          const processingUvVariables: UvVariables = {
+            ...uvVariables,
+            recommended_skills: recommendedSkills,
+          };
+          currentSystemPrompt = await loadSystemPromptViaC3L(
+            "project",
+            processingUvVariables,
+            stdinContent,
+            { edition: "processing" },
+          );
+          await logger.write(
+            "debug",
+            "System prompt reloaded for processing phase",
+            { recommendedSkills },
+          );
+        } catch (error) {
+          await logger.write("error", "Failed to reload processing prompt", {
+            error: {
+              name: error instanceof Error ? error.name : "Unknown",
+              message: error instanceof Error ? error.message : String(error),
+            },
+          });
+          throw error;
+        }
       }
 
       // Handle review phase completion
