@@ -223,6 +223,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 | `--project` | `-p` | - | Target GitHub Project number |
 | `--iterate-max` | `-m` | Infinity | Maximum iterations |
 | `--name` | `-n` | `climpt` | Agent name |
+| `--project-owner` | `-o` | Repository owner | Project owner (only with --project) |
 | `--resume` | `-r` | false | Resume previous session |
 | `--help` | `-h` | - | Display help |
 
@@ -243,6 +244,26 @@ Multiple conditions can be combined:
 ```bash
 # Stop when Issue #123 is closed OR after 10 iterations
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
+
+# Work on a project owned by a different user/organization
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+```
+
+### About --project-owner
+
+Project numbers are scoped per project owner (user or organization).
+By default, the repository owner's projects are used, but you can specify
+a different owner with `--project-owner`:
+
+```bash
+# Your own projects (@me = authenticated user)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner @me
+
+# Organization's projects
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+
+# Another user's projects (requires access permission)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner tettuan
 ```
 
 ---

@@ -230,6 +230,7 @@ async function main(): Promise<void> {
       agentName: options.agentName,
       issue: options.issue,
       project: options.project,
+      projectOwner: options.projectOwner,
       label: options.label,
       iterateMax: options.iterateMax,
       resume: options.resume,

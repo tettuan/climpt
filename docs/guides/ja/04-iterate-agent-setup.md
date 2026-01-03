@@ -223,6 +223,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 | `--project` | `-p` | - | 対象の GitHub Project 番号 |
 | `--iterate-max` | `-m` | Infinity | 最大イテレーション数 |
 | `--name` | `-n` | `climpt` | エージェント名 |
+| `--project-owner` | `-o` | リポジトリ所有者 | プロジェクト所有者（--project 使用時のみ） |
 | `--resume` | `-r` | false | 前回セッションを再開 |
 | `--help` | `-h` | - | ヘルプを表示 |
 
@@ -243,6 +244,26 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 ```bash
 # Issue #123 がクローズされるか、10回のイテレーションで停止
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
+
+# 別のユーザー/組織が所有するプロジェクトで作業
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+```
+
+### --project-owner について
+
+プロジェクト番号はプロジェクト所有者ごとに独立しています。
+デフォルトではリポジトリ所有者のプロジェクトを参照しますが、
+`--project-owner` で明示的に指定することで異なる所有者のプロジェクトを操作できます：
+
+```bash
+# 自分のプロジェクト（@me = 認証ユーザー）
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner @me
+
+# 組織のプロジェクト
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+
+# 他のユーザーのプロジェクト（アクセス権限が必要）
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner tettuan
 ```
 
 ---

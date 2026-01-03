@@ -81,23 +81,28 @@ async function getRepoOwnerInfo(): Promise<OwnerInfo> {
 }
 
 /**
- * Get the project owner for gh project commands
+ * Resolve the project owner for gh project commands
  *
- * For user-owned repos, uses "@me" for project access.
- * For organization-owned repos, uses the org name.
+ * Priority:
+ * 1. If explicit owner is provided, use it directly
+ * 2. Otherwise, use the repository owner (user login or org name)
  *
+ * This ensures project #5 always refers to the same project regardless
+ * of who is running the command, avoiding ID collision issues.
+ *
+ * @param explicitOwner - Optional explicit owner (user login, org name, or "@me")
  * @returns Owner string suitable for gh project commands
  */
-async function getProjectOwner(): Promise<string> {
-  const ownerInfo = await getRepoOwnerInfo();
-
-  // For user-owned repos, use @me for project access
-  // This ensures we access the user's personal projects
-  if (ownerInfo.type === "User") {
-    return "@me";
+export async function resolveProjectOwner(
+  explicitOwner?: string,
+): Promise<string> {
+  // If explicit owner is provided, use it directly
+  if (explicitOwner !== undefined && explicitOwner !== "") {
+    return explicitOwner;
   }
 
-  // For organization-owned repos, use the org name
+  // Default to repository owner
+  const ownerInfo = await getRepoOwnerInfo();
   return ownerInfo.login;
 }
 
@@ -163,13 +168,15 @@ Comments: ${commentCount}
  * Fetch GitHub Project requirements
  *
  * @param projectNumber - Project number
+ * @param explicitOwner - Optional explicit owner (user login, org name, or "@me")
  * @returns Formatted requirement text
  * @throws Error if gh command fails
  */
 export async function fetchProjectRequirements(
   projectNumber: number,
+  explicitOwner?: string,
 ): Promise<string> {
-  const owner = await getProjectOwner();
+  const owner = await resolveProjectOwner(explicitOwner);
   const command = new Deno.Command("gh", {
     args: [
       "project",
@@ -332,6 +339,8 @@ export interface GetProjectIssuesOptions {
   labelFilter?: string;
   /** Include items with "Done" status on project board (default: false) */
   includeCompleted?: boolean;
+  /** Explicit project owner (user login, org name, or "@me") */
+  owner?: string;
 }
 
 /**
@@ -353,7 +362,7 @@ export async function getProjectIssues(
   projectNumber: number,
   options?: GetProjectIssuesOptions,
 ): Promise<ProjectIssueInfo[]> {
-  const owner = await getProjectOwner();
+  const owner = await resolveProjectOwner(options?.owner);
   const command = new Deno.Command("gh", {
     args: [
       "project",
@@ -448,16 +457,19 @@ export async function getProjectIssues(
  *
  * @param projectNumber - Project number
  * @param labelFilter - Optional label to filter issues by
+ * @param owner - Optional explicit project owner
  * @returns true if all project items are complete
  * @throws Error if gh command fails
  */
 export async function isProjectComplete(
   projectNumber: number,
   labelFilter?: string,
+  owner?: string,
 ): Promise<boolean> {
   const openIssues = await getProjectIssues(projectNumber, {
     labelFilter,
     includeCompleted: false,
+    owner,
   });
   return openIssues.length === 0;
 }
