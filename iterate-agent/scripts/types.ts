@@ -101,6 +101,20 @@ export interface AgentOptions {
   /** GitHub Project number to work on */
   project?: number;
 
+  /**
+   * GitHub Project owner (user login or org name).
+   * Only used with --project.
+   *
+   * If not specified, defaults to the repository owner.
+   * Use "@me" to explicitly specify the authenticated user.
+   *
+   * @example
+   * - "tettuan" - User's projects
+   * - "my-org" - Organization's projects
+   * - "@me" - Authenticated user's projects (same as not specifying)
+   */
+  projectOwner?: string;
+
   /** Maximum number of Skill invocations */
   iterateMax: number;
 
@@ -248,6 +262,9 @@ export interface UvVariables {
 
   /** GitHub label to filter issues (default: "docs") */
   target_label: string;
+
+  /** Comma-separated list of recommended skills from preparation phase */
+  recommended_skills?: string;
 }
 
 /**

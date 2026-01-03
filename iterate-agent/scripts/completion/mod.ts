@@ -42,6 +42,7 @@ export function createCompletionHandler(
       options.project,
       options.label,
       options.includeCompleted ?? false,
+      options.projectOwner,
     );
   }
   return new IterateCompletionHandler(options.iterateMax);

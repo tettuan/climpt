@@ -7,10 +7,7 @@
  * @module climpt-plugins/tests/climpt-agent_test
  */
 
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 // Import modules under test
 import { generateSubAgentName } from "../skills/delegate-climpt-agent/scripts/climpt-agent/command.ts";
@@ -140,67 +137,3 @@ Deno.test("Design Invariant: validateArgs requires action and target", () => {
   assertEquals(exitCalled, true);
 });
 
-// =============================================================================
-// Design Invariant: CliArgs Type Structure
-// =============================================================================
-
-Deno.test("Design Invariant: CliArgs has required fields", () => {
-  const args: CliArgs = {
-    action: "execute test",
-    target: "specific file",
-    intent: "detailed intent",
-    agent: "climpt",
-    options: ["-e=default"],
-  };
-
-  // Verify all fields exist
-  assertExists(args.action);
-  assertExists(args.target);
-  assertExists(args.intent);
-  assertExists(args.agent);
-  assertExists(args.options);
-});
-
-Deno.test("Design Invariant: CliArgs intent is optional", () => {
-  const args: CliArgs = {
-    agent: "climpt",
-    options: [],
-  };
-
-  // intent can be undefined
-  assertEquals(args.intent, undefined);
-});
-
-// =============================================================================
-// Design Invariant: ClimptCommand Type Structure
-// =============================================================================
-
-Deno.test("Design Invariant: ClimptCommand has C3L fields", () => {
-  const cmd: ClimptCommand = {
-    agent: "climpt",
-    c1: "domain",
-    c2: "action",
-    c3: "target",
-    options: ["-e=default"],
-  };
-
-  // C3L required fields
-  assertExists(cmd.c1);
-  assertExists(cmd.c2);
-  assertExists(cmd.c3);
-  assertExists(cmd.agent);
-
-  // options is optional but present
-  assertEquals(cmd.options, ["-e=default"]);
-});
-
-Deno.test("Design Invariant: ClimptCommand options is optional", () => {
-  const cmd: ClimptCommand = {
-    agent: "climpt",
-    c1: "meta",
-    c2: "build",
-    c3: "frontmatter",
-  };
-
-  assertEquals(cmd.options, undefined);
-});

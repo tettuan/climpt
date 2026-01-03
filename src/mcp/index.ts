@@ -24,6 +24,7 @@ import {
   loadMCPConfig,
   loadRegistryForAgent as loadRegistryBase,
 } from "./registry.ts";
+import { getPromptLogger } from "./prompt-logger.ts";
 
 console.error("🚀 MCP Server starting...");
 console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
@@ -379,6 +380,15 @@ server.setRequestHandler(
         console.error(
           `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
         );
+
+        // Log prompt execution for Guimpt IDE usage statistics
+        try {
+          const logger = await getPromptLogger();
+          await logger.writeExecutionLog({ agent, c1, c2, c3 });
+        } catch (logError) {
+          // Log errors should not block execution
+          console.error("⚠️ Failed to write prompt execution log:", logError);
+        }
 
         const { code, stdout, stderr } = await command.output();
         const stdoutText = new TextDecoder().decode(stdout);

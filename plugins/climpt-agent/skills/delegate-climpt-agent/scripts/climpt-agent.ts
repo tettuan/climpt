@@ -307,6 +307,15 @@ async function main(): Promise<void> {
     );
     const prompt = await getClimptPrompt(cmd, stdinContent);
 
+    // Log for Guimpt IDE usage statistics
+    await logger.write("Climpt prompt executed", {
+      type: "climpt_prompt_used",
+      c1: cmd.c1,
+      c2: cmd.c2,
+      c3: cmd.c3,
+      promptPath: `agent/${cmd.agent}/prompts/${cmd.c1}/${cmd.c2}/${cmd.c3}/f_default.md`,
+    });
+
     await logger.writeSection("PROMPT", prompt);
 
     // Step 6: Run sub-agent

@@ -21,7 +21,7 @@ const DEFAULT_AGENT_NAME = "climpt";
  */
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
-    string: ["name", "issue", "project", "iterate-max", "label"],
+    string: ["name", "issue", "project", "iterate-max", "label", "project-owner"],
     boolean: ["init", "help", "resume", "include-completed"],
     default: {
       "name": DEFAULT_AGENT_NAME,
@@ -39,6 +39,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       r: "resume",
       l: "label",
       c: "include-completed",
+      o: "project-owner",
     },
   });
 
@@ -104,6 +105,9 @@ export function parseCliArgs(args: string[]): ParsedArgs {
   // Get include-completed flag (only valid with --project)
   const includeCompleted = parsed["include-completed"] as boolean;
 
+  // Get project owner (only valid with --project)
+  const projectOwner = parsed["project-owner"] as string | undefined;
+
   // Validate label option
   if (label !== undefined && project === undefined) {
     throw new Error("--label can only be used with --project");
@@ -114,12 +118,18 @@ export function parseCliArgs(args: string[]): ParsedArgs {
     throw new Error("--include-completed can only be used with --project");
   }
 
+  // Validate project-owner option
+  if (projectOwner !== undefined && project === undefined) {
+    throw new Error("--project-owner can only be used with --project");
+  }
+
   return {
     init: false,
     help: false,
     options: {
       issue,
       project,
+      projectOwner,
       iterateMax,
       agentName: agentName as AgentName,
       resume,
@@ -156,6 +166,12 @@ OPTIONS:
       Filter project issues by label (e.g., "docs", "bug"). Only issues with this
       label will be processed. Can only be used with --project.
 
+  --project-owner, -o <owner>
+      GitHub Project owner (user login or org name). Defaults to the repository
+      owner. Use this when the project is owned by a different user or organization.
+      Can only be used with --project.
+      Examples: "tettuan", "my-org", "@me" (authenticated user)
+
   --include-completed, -c
       Include items marked as "Done" on the project board. By default, only
       open items are processed. Useful for reviewing completed work.
@@ -187,6 +203,9 @@ EXAMPLES:
 
   # Work on only "docs" labeled issues in Project #25
   deno run -A jsr:@aidevtool/climpt/agents/iterator --project 25 --label docs
+
+  # Work on a project owned by a different user/org
+  deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
 
   # Run with specific agent for 10 iterations
   deno run -A jsr:@aidevtool/climpt/agents/iterator --name climpt --iterate-max 10

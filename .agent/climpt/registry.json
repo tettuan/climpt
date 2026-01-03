@@ -127,6 +127,29 @@
       },
       {
         "c1": "meta",
+        "c2": "convert-skill",
+        "c3": "to-plugin",
+        "description": "Convert a project-settings skill from .claude/skills/ to a local plugin's skill structure for cross-project reuse",
+        "usage": "climpt-meta convert-skill to-plugin --uv-skill_name=<name>",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": true
+        },
+        "uv": [
+          {
+            "skill_name": "Name of skill directory in .claude/skills/ to convert"
+          }
+        ]
+      },
+      {
+        "c1": "meta",
         "c2": "create",
         "c3": "instruction",
         "description": "Create a new Climpt instruction file from stdin input, following C3L specification with all required configurations",

@@ -75,6 +75,17 @@ The `delegate-climpt-agent` Skill requires the climpt-agent plugin:
 /plugin install climpt-agent
 ```
 
+After installation, your `.claude/settings.json` should include:
+
+```json
+{
+  "plugins": {
+    "marketplace": ["tettuan/climpt"],
+    "installed": ["climpt-agent"]
+  }
+}
+```
+
 > **Note**: The agent will display a warning if the plugin is not installed but will continue to run with limited functionality.
 
 ### GitHub CLI Setup
@@ -223,6 +234,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 | `--project` | `-p` | - | Target GitHub Project number |
 | `--iterate-max` | `-m` | Infinity | Maximum iterations |
 | `--name` | `-n` | `climpt` | Agent name |
+| `--project-owner` | `-o` | Repository owner | Project owner (only with --project) |
 | `--resume` | `-r` | false | Resume previous session |
 | `--help` | `-h` | - | Display help |
 
@@ -243,6 +255,26 @@ Multiple conditions can be combined:
 ```bash
 # Stop when Issue #123 is closed OR after 10 iterations
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
+
+# Work on a project owned by a different user/organization
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+```
+
+### About --project-owner
+
+Project numbers are scoped per project owner (user or organization).
+By default, the repository owner's projects are used, but you can specify
+a different owner with `--project-owner`:
+
+```bash
+# Your own projects (@me = authenticated user)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner @me
+
+# Organization's projects
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
+
+# Another user's projects (requires access permission)
+deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner tettuan
 ```
 
 ---
@@ -298,6 +330,50 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
 | `plan` | Only planning allowed | Plan review |
 | `acceptEdits` | Auto-approve file edits | **Normal operation (recommended)** |
 | `bypassPermissions` | Auto-approve all operations | Full automation |
+
+### System Prompt Customization
+
+Edit `iterate-agent/prompts/default.md` to customize the agent's behavior:
+
+```markdown
+# Role
+You are an autonomous agent working on continuous development.
+
+# Objective
+Execute development tasks autonomously and make continuous progress.
+
+# Working Mode
+- You are running in a perpetual execution cycle
+- Use the **delegate-climpt-agent** Skill with `--agent={{AGENT}}` to execute tasks
+  - `--agent` specifies the registry name defined in `registry_config.json`
+  - Example: `--agent=climpt` uses `.agent/climpt/registry.json`
+- After each task completion, ask Climpt for the next logical task
+- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
+
+# Guidelines
+- Be autonomous: Make decisions without waiting for human approval
+- Be thorough: Ensure each task is properly completed
+- Be organized: Maintain clear context of what has been done
+```
+
+### About the --agent Option
+
+The `--agent` option specifies a registry name defined in `registry_config.json`:
+
+```json
+// .agent/climpt/config/registry_config.json
+{
+  "registries": {
+    "climpt": ".agent/climpt/registry.json",
+    "iterator": ".agent/iterator/registry.json"
+  }
+}
+```
+
+| --agent value | Registry used |
+|---------------|---------------|
+| `climpt` | `.agent/climpt/registry.json` |
+| `iterator` | `.agent/iterator/registry.json` |
 
 ---
 
