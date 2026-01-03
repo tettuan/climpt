@@ -150,6 +150,73 @@ Converted skill 'branch-management'
 | No local plugin | No plugin found to convert to | Create a local plugin first |
 | Permission denied | Cannot write to target location | Check file permissions |
 
+## Local Plugin Registration
+
+If no local plugin exists, create one with the following steps:
+
+### Step 1: Create Plugin Directory Structure
+
+```
+my-plugin/
+├── .claude-plugin/
+│   ├── plugin.json          # Required: Plugin manifest
+│   └── skills/
+│       └── <skill-name>/
+│           └── SKILL.md     # Converted skill file
+```
+
+### Step 2: Create plugin.json
+
+```json
+{
+  "name": "my-local-plugin",
+  "version": "1.0.0",
+  "description": "Local plugin for project-specific skills",
+  "author": {
+    "name": "Your Name"
+  }
+}
+```
+
+### Step 3: Register in Claude Code Settings
+
+Add the local plugin path to `.claude/settings.json`:
+
+```json
+{
+  "permissions": {},
+  "enabledPlugins": {
+    "my-local-plugin@local:/path/to/my-plugin": true
+  }
+}
+```
+
+Or register via Claude Code CLI:
+
+```bash
+# Project scope (recommended)
+/plugin install /path/to/my-plugin --scope project
+
+# User scope (available across all projects)
+/plugin install /path/to/my-plugin --scope user
+```
+
+### Step 4: Verify Registration
+
+After registration, the plugin's skills should appear in Claude Code's available skills.
+
+```bash
+# Check settings
+cat .claude/settings.json | jq '.enabledPlugins'
+```
+
+### Plugin Scope Reference
+
+| Scope | Location | Use Case |
+|-------|----------|----------|
+| `project` | `.claude/settings.json` | Project-specific plugins |
+| `user` | `~/.claude/settings.json` | Personal plugins across projects |
+
 ## Notes
 
 - The original skill in `.claude/skills/` is NOT deleted
