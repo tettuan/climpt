@@ -9,7 +9,7 @@ import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Logger } from "./logger.ts";
 import {
   resolvePluginPathsSafe,
-} from "../../../../../../iterate-agent/scripts/plugin-resolver.ts";
+} from "../../../../lib/plugin-resolver.ts";
 
 /**
  * Run Claude Agent SDK with the obtained prompt
@@ -27,9 +27,8 @@ export async function runSubAgent(
 ): Promise<void> {
   // Resolve dynamic plugins from settings
   const dynamicPlugins = await resolvePluginPathsSafe(
-    ".claude/settings.json",
     cwd,
-    async (error, message) => {
+    async (error: Error, message: string) => {
       await logger.writeError(`${message}: ${error.message}`);
     },
   );
