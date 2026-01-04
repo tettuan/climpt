@@ -325,7 +325,7 @@ options:
 | `.agent/iterator/prompts/dev/start/*/f_default.md` | 新規作成 (3ファイル) |
 | `.agent/iterator/registry.json` | /reg で生成 |
 | `.agent/climpt/config/registry_config.json` | iterator エントリ追加 |
-| `iterate-agent/scripts/config.ts` | C3L 経由読み込み対応 |
+| `agents/iterator/scripts/config.ts` | C3L 経由読み込み対応 |
 
 ### 8.2 config.ts 変更
 
@@ -402,6 +402,6 @@ flowchart TD
 
 - [Iterate Agent 設計仕様](./iterate-agent-design.md) - iterate-agent の全体設計
 - [C3L Specification v0.5](../c3l_specification_v0.5.md)
-- [Iterate Agent README](../../iterate-agent/README.md)
+- [Iterate Agent README](../../agents/iterator/README.md)
 - [Climpt README](../../README.md)
 - [delegate-climpt-agent SKILL.md](../../plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md)

@@ -69,10 +69,11 @@ your-project/
 │       ├── climpt-meta                # meta ドメイン
 │       └── climpt-code                # code ドメイン
 │
-└── iterate-agent/                     # Iterate Agent（オプション）
-    ├── config.json
-    └── prompts/
-        └── default.md
+└── agents/                            # エージェント（オプション）
+    ├── iterator/                      # Iterate Agent
+    │   └── config.json
+    └── reviewer/                      # Review Agent
+        └── config.json
 ```
 
 ### 各ディレクトリの役割

@@ -109,7 +109,7 @@ Format: `<domain>`
 - Domain examples: `git`, `meta`, `code`, `data`, `infra`, `sec`, `test`, `docs`
 - The agent is specified separately (e.g., `agent: climpt`)
 
-Pattern: `^[a-z]+$`
+Pattern: `^[a-z0-9]+$`
 
 ### c2 (Action)
 
@@ -119,7 +119,7 @@ Examples:
 - Single verb: `build`, `review`, `merge`, `fetch`, `analyze`
 - With modifier: `group-commit`, `find-oldest`, `build-robust`
 
-Pattern: `^[a-z]+(-[a-z]+)?$`
+Pattern: `^[a-z0-9]+(-[a-z0-9]+)?$`
 
 ### c3 (Target)
 
@@ -129,7 +129,7 @@ Examples:
 - Single object: `frontmatter`, `branch`, `service`
 - With context: `pull-request`, `unstaged-changes`, `api-service`
 
-Pattern: `^[a-z]+(-[a-z]+)?$`
+Pattern: `^[a-z0-9]+(-[a-z0-9]+)?$`
 
 ## Example Output
 
