@@ -547,9 +547,8 @@ async function runAgentLoop(
                     closedIssueNumber = execResult.issue;
                     completionHandler.markCurrentIssueCompleted();
                   }
-                  if (execResult.shouldStop) {
-                    shouldStopIteration = true;
-                  }
+                  // execResult.shouldStop is tracked but not currently used
+                  // for iteration control - reserved for future use
                 } else {
                   console.error(
                     `\n❌ Action "${execResult.action}" failed: ${execResult.error}`,
@@ -652,9 +651,8 @@ async function runAgentLoop(
                 closedIssueNumber = execResult.issue;
                 completionHandler.markCurrentIssueCompleted();
               }
-              if (execResult.shouldStop) {
-                shouldStopIteration = true;
-              }
+              // execResult.shouldStop is tracked but not currently used
+              // for iteration control - reserved for future use
             } else {
               await logger.write(
                 "error",
@@ -751,7 +749,6 @@ async function runAgentLoop(
             "project",
             processingUvVariables,
             stdinContent,
-            { edition: "processing" },
           );
           await logger.write("info", "Climpt prompt executed", {
             type: "climpt_prompt_used",
