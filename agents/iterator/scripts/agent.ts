@@ -264,13 +264,16 @@ async function main(): Promise<void> {
         uvVariables,
         detail, // STDIN で渡す
       );
-      const initialC3 = completionMode === "iterate" ? "default" : completionMode;
+      const initialC3 = completionMode === "iterate"
+        ? "default"
+        : completionMode;
       await logger.write("info", "Climpt prompt executed", {
         type: "climpt_prompt_used",
         c1: "iterator-dev",
         c2: "start",
         c3: initialC3,
-        promptPath: `agent/iterator/prompts/iterator-dev/start/${initialC3}/f_default.md`,
+        promptPath:
+          `agent/iterator/prompts/iterator-dev/start/${initialC3}/f_default.md`,
       });
       await logger.write("debug", "System prompt loaded via C3L", {
         mode: completionMode,
@@ -756,7 +759,8 @@ async function runAgentLoop(
             c1: "iterator-dev",
             c2: "start",
             c3: "project",
-            promptPath: "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+            promptPath:
+              "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
           });
           await logger.write(
             "debug",
@@ -813,7 +817,8 @@ async function runAgentLoop(
               c1: "iterator-dev",
               c2: "start",
               c3: "project",
-              promptPath: "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+              promptPath:
+                "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
             });
             await logger.write(
               "debug",
@@ -865,7 +870,8 @@ async function runAgentLoop(
                 c1: "iterator-dev",
                 c2: "review",
                 c3: "project",
-                promptPath: "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                promptPath:
+                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",
@@ -912,7 +918,8 @@ async function runAgentLoop(
                 c1: "iterator-dev",
                 c2: "review",
                 c3: "project",
-                promptPath: "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                promptPath:
+                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",

@@ -1,15 +1,19 @@
 # Review Agent
 
-Autonomous agent that verifies implementation against requirements and creates issues for any identified gaps.
+Autonomous agent that verifies implementation against requirements and creates
+issues for any identified gaps.
 
 ## Overview
 
-Review Agent is a companion to [iterate-agent](../iterator/). While iterate-agent implements features, review-agent verifies that implementations meet requirements and creates issues for any gaps found.
+Review Agent is a companion to [iterate-agent](../iterator/). While
+iterate-agent implements features, review-agent verifies that implementations
+meet requirements and creates issues for any gaps found.
 
 ### Key Features
 
 - **Read-only**: Never modifies implementation code
-- **Label-based**: Uses `docs` label for requirements, `review` label for targets
+- **Label-based**: Uses `docs` label for requirements, `review` label for
+  targets
 - **Traceable**: Links gaps to traceability IDs
 - **Autonomous**: Runs without human intervention
 
@@ -17,12 +21,12 @@ Review Agent is a companion to [iterate-agent](../iterator/). While iterate-agen
 
 The review-agent uses a label-based workflow:
 
-| Label | Purpose |
-|-------|---------|
-| `docs` | Issues containing requirements/specifications (source of truth) |
-| `review` | Issues that need implementation review (review targets) |
-| `implementation-gap` | Created by reviewer for identified gaps |
-| `from-reviewer` | Marks issues created by the review-agent |
+| Label                | Purpose                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| `docs`               | Issues containing requirements/specifications (source of truth) |
+| `review`             | Issues that need implementation review (review targets)         |
+| `implementation-gap` | Created by reviewer for identified gaps                         |
+| `from-reviewer`      | Marks issues created by the review-agent                        |
 
 ## Installation
 
@@ -49,6 +53,7 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --init
 ```
 
 This creates:
+
 - `agents/reviewer/config.json` - Agent configuration
 - `agents/reviewer/prompts/default.md` - System prompt template
 
@@ -68,13 +73,13 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 25 \
 
 ### Parameters
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--project, -p` | Yes | GitHub Project number |
-| `--requirements-label` | No | Label for requirement issues (default: "docs") |
-| `--review-label` | No | Label for review target issues (default: "review") |
-| `--name, -n` | No | Agent name (default: "reviewer") |
-| `--iterate-max, -m` | No | Maximum iterations |
+| Parameter              | Required | Description                                        |
+| ---------------------- | -------- | -------------------------------------------------- |
+| `--project, -p`        | Yes      | GitHub Project number                              |
+| `--requirements-label` | No       | Label for requirement issues (default: "docs")     |
+| `--review-label`       | No       | Label for review target issues (default: "review") |
+| `--name, -n`           | No       | Agent name (default: "reviewer")                   |
+| `--iterate-max, -m`    | No       | Maximum iterations                                 |
 
 ## How It Works
 
@@ -94,6 +99,7 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 25 \
 ### Phase 3: Gap Reporting
 
 For each identified gap, creates an issue with:
+
 - Gap summary
 - Requirement reference (traceability ID)
 - Source docs issue reference
@@ -105,6 +111,7 @@ For each identified gap, creates an issue with:
 ### Created Issues
 
 Gap issues are created with labels:
+
 - `implementation-gap`
 - `from-reviewer`
 
@@ -197,12 +204,12 @@ The review-agent and iterate-agent form a development cycle:
 
 ### Key Differences from iterate-agent
 
-| Aspect | iterate-agent | review-agent |
-|--------|---------------|--------------|
-| `allowedTools` | Includes Write, Edit | Read-only (no Write, Edit) |
-| `permissionMode` | acceptEdits | plan |
-| Purpose | Implement features | Verify implementations |
-| Input | Single issue or project | Project with labeled issues |
+| Aspect           | iterate-agent           | review-agent                |
+| ---------------- | ----------------------- | --------------------------- |
+| `allowedTools`   | Includes Write, Edit    | Read-only (no Write, Edit)  |
+| `permissionMode` | acceptEdits             | plan                        |
+| Purpose          | Implement features      | Verify implementations      |
+| Input            | Single issue or project | Project with labeled issues |
 
 ## Requirements
 
@@ -219,6 +226,7 @@ req:<category>:<name>#<date>
 ```
 
 Examples:
+
 - `req:stock:data-mgmt-abc123#20251229`
 - `req:theme:selection-def456#20251229`
 - `req:layout:resize-ghi789#20251229`

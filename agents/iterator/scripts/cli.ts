@@ -21,7 +21,14 @@ const DEFAULT_AGENT_NAME = "climpt";
  */
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
-    string: ["name", "issue", "project", "iterate-max", "label", "project-owner"],
+    string: [
+      "name",
+      "issue",
+      "project",
+      "iterate-max",
+      "label",
+      "project-owner",
+    ],
     boolean: ["init", "help", "resume", "include-completed"],
     default: {
       "name": DEFAULT_AGENT_NAME,

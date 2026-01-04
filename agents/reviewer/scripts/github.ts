@@ -57,7 +57,9 @@ async function execGhCommand(args: string[]): Promise<string> {
 
   if (code !== 0) {
     const errorOutput = new TextDecoder().decode(stderr);
-    throw new Error(`gh command failed: ${sanitizeError(new Error(errorOutput))}`);
+    throw new Error(
+      `gh command failed: ${sanitizeError(new Error(errorOutput))}`,
+    );
   }
 
   return new TextDecoder().decode(stdout);
@@ -130,7 +132,8 @@ export async function fetchRequirementDoc(
   traceabilityId: TraceabilityId,
 ): Promise<string | null> {
   const docsRepo = `tettuan/${project}-docs`;
-  const docPath = `requirements/${traceabilityId.category}/${traceabilityId.name}.md`;
+  const docPath =
+    `requirements/${traceabilityId.category}/${traceabilityId.name}.md`;
 
   try {
     const output = await execGhCommand([
@@ -311,11 +314,16 @@ export async function executeReviewAction(
 
     case "complete": {
       // Complete is the final summary, no action needed
-      return { type: "complete", result: { summary: action.summary || action.body } };
+      return {
+        type: "complete",
+        result: { summary: action.summary || action.body },
+      };
     }
 
     default:
-      throw new Error(`Unknown review action type: ${(action as ReviewAction).action}`);
+      throw new Error(
+        `Unknown review action type: ${(action as ReviewAction).action}`,
+      );
   }
 }
 

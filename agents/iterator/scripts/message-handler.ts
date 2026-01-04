@@ -177,7 +177,9 @@ export async function logSDKMessage(
           await logger.logToolResult({
             toolUseId: block.tool_use_id,
             success: !block.is_error,
-            errorMessage: block.is_error ? String(block.content || "") : undefined,
+            errorMessage: block.is_error
+              ? String(block.content || "")
+              : undefined,
           });
         }
       }
@@ -250,7 +252,12 @@ const ISSUE_ACTION_MARKER = "issue-action";
 /**
  * Valid action types
  */
-const VALID_ACTION_TYPES = ["progress", "question", "blocked", "close"] as const;
+const VALID_ACTION_TYPES = [
+  "progress",
+  "question",
+  "blocked",
+  "close",
+] as const;
 
 /**
  * Extract issue-action JSON block from text
@@ -317,7 +324,9 @@ export function parseIssueAction(
     if (!VALID_ACTION_TYPES.includes(parsed.action)) {
       return {
         success: false,
-        error: `Invalid 'action' field: expected one of ${VALID_ACTION_TYPES.join(", ")}, got "${parsed.action}"`,
+        error: `Invalid 'action' field: expected one of ${
+          VALID_ACTION_TYPES.join(", ")
+        }, got "${parsed.action}"`,
         rawContent: jsonString,
       };
     }
@@ -326,7 +335,9 @@ export function parseIssueAction(
     if (typeof parsed.issue !== "number") {
       return {
         success: false,
-        error: `Invalid or missing 'issue' field: expected number, got ${typeof parsed.issue}`,
+        error:
+          `Invalid or missing 'issue' field: expected number, got ${typeof parsed
+            .issue}`,
         rawContent: jsonString,
       };
     }
@@ -335,7 +346,9 @@ export function parseIssueAction(
     if (typeof parsed.body !== "string") {
       return {
         success: false,
-        error: `Invalid or missing 'body' field: expected string, got ${typeof parsed.body}`,
+        error:
+          `Invalid or missing 'body' field: expected string, got ${typeof parsed
+            .body}`,
         rawContent: jsonString,
       };
     }
@@ -344,7 +357,8 @@ export function parseIssueAction(
     if (parsed.label !== undefined && typeof parsed.label !== "string") {
       return {
         success: false,
-        error: `Invalid 'label' field: expected string, got ${typeof parsed.label}`,
+        error: `Invalid 'label' field: expected string, got ${typeof parsed
+          .label}`,
         rawContent: jsonString,
       };
     }
@@ -501,7 +515,8 @@ export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
     if (typeof parsed.totalIssues !== "number") {
       return {
         success: false,
-        error: `Invalid 'totalIssues': expected number, got ${typeof parsed.totalIssues}`,
+        error: `Invalid 'totalIssues': expected number, got ${typeof parsed
+          .totalIssues}`,
         rawContent: jsonString,
       };
     }
@@ -509,7 +524,8 @@ export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
     if (!["low", "medium", "high"].includes(parsed.estimatedComplexity)) {
       return {
         success: false,
-        error: `Invalid 'estimatedComplexity': expected low|medium|high, got "${parsed.estimatedComplexity}"`,
+        error:
+          `Invalid 'estimatedComplexity': expected low|medium|high, got "${parsed.estimatedComplexity}"`,
         rawContent: jsonString,
       };
     }
@@ -517,7 +533,8 @@ export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
     if (!Array.isArray(parsed.skillsNeeded)) {
       return {
         success: false,
-        error: `Invalid 'skillsNeeded': expected array, got ${typeof parsed.skillsNeeded}`,
+        error: `Invalid 'skillsNeeded': expected array, got ${typeof parsed
+          .skillsNeeded}`,
         rawContent: jsonString,
       };
     }
@@ -525,7 +542,8 @@ export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
     if (!Array.isArray(parsed.skillsToDisable)) {
       return {
         success: false,
-        error: `Invalid 'skillsToDisable': expected array, got ${typeof parsed.skillsToDisable}`,
+        error: `Invalid 'skillsToDisable': expected array, got ${typeof parsed
+          .skillsToDisable}`,
         rawContent: jsonString,
       };
     }
@@ -533,7 +551,8 @@ export function parseProjectPlan(jsonString: string): ProjectPlanParseResult {
     if (!Array.isArray(parsed.executionOrder)) {
       return {
         success: false,
-        error: `Invalid 'executionOrder': expected array, got ${typeof parsed.executionOrder}`,
+        error: `Invalid 'executionOrder': expected array, got ${typeof parsed
+          .executionOrder}`,
         rawContent: jsonString,
       };
     }
@@ -590,7 +609,8 @@ export function parseReviewResult(jsonString: string): ReviewResultParseResult {
     if (typeof parsed.summary !== "string") {
       return {
         success: false,
-        error: `Invalid 'summary': expected string, got ${typeof parsed.summary}`,
+        error: `Invalid 'summary': expected string, got ${typeof parsed
+          .summary}`,
         rawContent: jsonString,
       };
     }

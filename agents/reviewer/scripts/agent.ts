@@ -75,7 +75,9 @@ function processMessage(
   // Handle system messages (init, etc.)
   if (message.type === "system") {
     if (message.subtype === "init" && message.session_id) {
-      logger.write("debug", `Session initialized: ${message.session_id}`).catch(console.error);
+      logger.write("debug", `Session initialized: ${message.session_id}`).catch(
+        console.error,
+      );
     }
     return;
   }
@@ -142,7 +144,10 @@ function processMessage(
   }
 
   // Log unknown message types
-  logger.write("debug", `Unknown message: ${JSON.stringify(message).substring(0, 100)}`).catch(console.error);
+  logger.write(
+    "debug",
+    `Unknown message: ${JSON.stringify(message).substring(0, 100)}`,
+  ).catch(console.error);
 }
 
 /**
@@ -214,20 +219,32 @@ async function buildInitialPrompt(
   logger: Logger,
 ): Promise<string> {
   // Fetch requirements issues (docs label)
-  await logger.write("info", `Fetching requirements issues with '${options.requirementsLabel}' label`);
+  await logger.write(
+    "info",
+    `Fetching requirements issues with '${options.requirementsLabel}' label`,
+  );
   const requirementsIssues = await fetchRequirementsIssues(
     options.project,
     options.requirementsLabel,
   );
-  await logger.write("info", `Found ${requirementsIssues.length} requirements issues`);
+  await logger.write(
+    "info",
+    `Found ${requirementsIssues.length} requirements issues`,
+  );
 
   // Fetch review target issues (review label)
-  await logger.write("info", `Fetching review targets with '${options.reviewLabel}' label`);
+  await logger.write(
+    "info",
+    `Fetching review targets with '${options.reviewLabel}' label`,
+  );
   const reviewTargets = await fetchReviewTargetIssues(
     options.project,
     options.reviewLabel,
   );
-  await logger.write("info", `Found ${reviewTargets.length} review target issues`);
+  await logger.write(
+    "info",
+    `Found ${reviewTargets.length} review target issues`,
+  );
 
   // Collect all traceability IDs from requirements
   const allTraceabilityIds = requirementsIssues.flatMap((issue) =>
@@ -255,9 +272,10 @@ ${formatIssuesForPrompt(reviewTargets, options.reviewLabel)}
 
 ## All Traceability IDs to Verify
 
-${allTraceabilityIds.length > 0
-    ? allTraceabilityIds.map((id) => `- \`${id.fullId}\``).join("\n")
-    : "- No traceability IDs found in requirements issues"
+${
+    allTraceabilityIds.length > 0
+      ? allTraceabilityIds.map((id) => `- \`${id.fullId}\``).join("\n")
+      : "- No traceability IDs found in requirements issues"
   }
 
 ## Instructions
@@ -290,10 +308,14 @@ function buildContinuationPrompt(
   }
 
   if (summary.errors.length > 0) {
-    parts.push(`Errors from previous iteration:\n${summary.errors.join("\n")}\n`);
+    parts.push(
+      `Errors from previous iteration:\n${summary.errors.join("\n")}\n`,
+    );
   }
 
-  parts.push(`Continue the review. When all requirements are verified, output a complete action.`);
+  parts.push(
+    `Continue the review. When all requirements are verified, output a complete action.`,
+  );
 
   return parts.join("\n");
 }
@@ -318,7 +340,8 @@ async function runAgentLoop(
   const agentConfig = getAgentConfig(config, options.agentName);
 
   // Build system prompt
-  const completionCriteria = `Review implementation for GitHub Project #${options.project}. Use '${options.requirementsLabel}' labeled issues as requirements and '${options.reviewLabel}' labeled issues as review targets. Create gap issues for any missing implementations.`;
+  const completionCriteria =
+    `Review implementation for GitHub Project #${options.project}. Use '${options.requirementsLabel}' labeled issues as requirements and '${options.reviewLabel}' labeled issues as review targets. Create gap issues for any missing implementations.`;
   const systemPrompt = await buildSystemPrompt(
     agentConfig.systemPromptTemplate,
     String(options.project),
@@ -388,7 +411,11 @@ async function runAgentLoop(
       }
 
       // Execute any review actions
-      const newIssues = await executeActions(summary.reviewActions, repo, logger);
+      const newIssues = await executeActions(
+        summary.reviewActions,
+        repo,
+        logger,
+      );
       allCreatedIssues.push(...newIssues);
 
       // Check completion
@@ -403,12 +430,16 @@ async function runAgentLoop(
         );
       }
     } catch (error) {
-      await logger.write("error", `Iteration ${iterationCount} failed: ${error}`, {
-        error: {
-          name: error instanceof Error ? error.name : "Error",
-          message: error instanceof Error ? error.message : String(error),
+      await logger.write(
+        "error",
+        `Iteration ${iterationCount} failed: ${error}`,
+        {
+          error: {
+            name: error instanceof Error ? error.name : "Error",
+            message: error instanceof Error ? error.message : String(error),
+          },
         },
-      });
+      );
 
       // Continue to next iteration if possible
       currentPrompt = `Error occurred: ${error}. Please continue the review.`;
@@ -521,7 +552,12 @@ async function main(): Promise<void> {
     // Run agent loop
     let iterations = 0;
     try {
-      const summary = await runAgentLoop(options, config, logger, dynamicPlugins);
+      const summary = await runAgentLoop(
+        options,
+        config,
+        logger,
+        dynamicPlugins,
+      );
       iterations = summary.createdIssues.length > 0 ? 1 : 0; // Simplified
 
       // Display report

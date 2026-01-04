@@ -430,8 +430,9 @@ export async function getProjectIssues(
     const repository = item.content.repository as string | undefined;
 
     // Determine issue state from content if available, otherwise infer from project status
-    const issueState: "OPEN" | "CLOSED" =
-      item.content.state === "CLOSED" ? "CLOSED" : "OPEN";
+    const issueState: "OPEN" | "CLOSED" = item.content.state === "CLOSED"
+      ? "CLOSED"
+      : "OPEN";
 
     candidates.push({
       issueNumber: item.content.number,
@@ -665,21 +666,24 @@ export async function executeIssueAction(
     switch (action.action) {
       case "progress": {
         // Add progress comment with header
-        const comment = `## Progress Update\n\n${action.body}\n\n---\n*Posted by iterate-agent*`;
+        const comment =
+          `## Progress Update\n\n${action.body}\n\n---\n*Posted by iterate-agent*`;
         await addIssueComment(action.issue, comment, repository);
         return { ...baseResult, success: true };
       }
 
       case "question": {
         // Add question comment with header
-        const comment = `## Question\n\n${action.body}\n\n---\n*Posted by iterate-agent*`;
+        const comment =
+          `## Question\n\n${action.body}\n\n---\n*Posted by iterate-agent*`;
         await addIssueComment(action.issue, comment, repository);
         return { ...baseResult, success: true };
       }
 
       case "blocked": {
         // Add blocked comment with header
-        const comment = `## Blocked\n\n${action.body}\n\n---\n*Posted by iterate-agent - awaiting human intervention*`;
+        const comment =
+          `## Blocked\n\n${action.body}\n\n---\n*Posted by iterate-agent - awaiting human intervention*`;
         await addIssueComment(action.issue, comment, repository);
 
         // Add label if specified
@@ -699,9 +703,15 @@ export async function executeIssueAction(
 
       case "close": {
         // Close issue with completion comment
-        const comment = `## Issue Completed\n\n${action.body}\n\n---\n*Closed by iterate-agent*`;
+        const comment =
+          `## Issue Completed\n\n${action.body}\n\n---\n*Closed by iterate-agent*`;
         await closeIssueWithComment(action.issue, comment, repository);
-        return { ...baseResult, success: true, shouldStop: true, isClosed: true };
+        return {
+          ...baseResult,
+          success: true,
+          shouldStop: true,
+          isClosed: true,
+        };
       }
 
       default:

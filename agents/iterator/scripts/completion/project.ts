@@ -239,7 +239,8 @@ ${this.issuesCompleted} issue(s) have been closed.
       .join("\n");
 
     if (this.currentIssue) {
-      const currentIssueItem = `- #${this.currentIssue.issueNumber}: ${this.currentIssue.title}`;
+      const currentIssueItem =
+        `- #${this.currentIssue.issueNumber}: ${this.currentIssue.title}`;
       return `
 ## Project Overview
 
@@ -291,7 +292,11 @@ You are working on GitHub Project #${this.projectNumber}${labelInfo}.
 ${this.projectDescription || ""}
 
 ## Status
-All${this.labelFilter ? ` "${this.labelFilter}" labeled` : ""} issues in this project are already complete! No work needed.
+All${
+        this.labelFilter
+          ? ` "${this.labelFilter}" labeled`
+          : ""
+      } issues in this project are already complete! No work needed.
       `.trim();
     }
 
@@ -320,7 +325,9 @@ ${completedList || "- (none)"}
 ## Your Task
 
 Review the project completion status:
-1. Verify all issues with "${this.labelFilter || "any"}" label are properly closed
+1. Verify all issues with "${
+      this.labelFilter || "any"
+    }" label are properly closed
 2. Check each issue's resolution quality
 3. Identify any remaining work needed
 

@@ -254,7 +254,8 @@ tmp/logs/agents/
 
 ### C3L Prompt Templates
 
-System prompts for project mode phases are loaded via C3L (Climpt 3-word Language):
+System prompts for project mode phases are loaded via C3L (Climpt 3-word
+Language):
 
 ```
 .agent/iterator/prompts/dev/
@@ -268,15 +269,15 @@ System prompts for project mode phases are loaded via C3L (Climpt 3-word Languag
         └── f_default.md           # Review phase
 ```
 
-| Phase | Template | UV Variables |
-|-------|----------|--------------|
-| preparation | `f_default.md` | agent_name, completion_criteria, target_label |
-| processing | `f_processing.md` | + recommended_skills (from preparation) |
-| review | `review/project/f_default.md` | agent_name, target_label |
-| again | `f_again.md` | agent_name, completion_criteria, target_label |
+| Phase       | Template                      | UV Variables                                  |
+| ----------- | ----------------------------- | --------------------------------------------- |
+| preparation | `f_default.md`                | agent_name, completion_criteria, target_label |
+| processing  | `f_processing.md`             | + recommended_skills (from preparation)       |
+| review      | `review/project/f_default.md` | agent_name, target_label                      |
+| again       | `f_again.md`                  | agent_name, completion_criteria, target_label |
 
-The `recommended_skills` variable contains skills identified during preparation phase.
-If no skills are specified, the value is "指定なし" (none specified).
+The `recommended_skills` variable contains skills identified during preparation
+phase. If no skills are specified, the value is "指定なし" (none specified).
 
 ## Related Documentation
 

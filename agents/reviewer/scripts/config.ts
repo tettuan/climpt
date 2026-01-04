@@ -302,7 +302,9 @@ export async function initializeConfig(): Promise<{
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Ensure directory exists
-      await Deno.mkdir(join(cwd, "agents/reviewer/prompts"), { recursive: true });
+      await Deno.mkdir(join(cwd, "agents/reviewer/prompts"), {
+        recursive: true,
+      });
       await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
       promptCreated = true;
     } else {

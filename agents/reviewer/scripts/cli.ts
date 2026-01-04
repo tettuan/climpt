@@ -23,7 +23,13 @@ const DEFAULT_REVIEW_LABEL = "review";
  */
 export function parseCliArgs(args: string[]): ParsedArgs {
   const parsed = parseArgs(args, {
-    string: ["project", "name", "iterate-max", "requirements-label", "review-label"],
+    string: [
+      "project",
+      "name",
+      "iterate-max",
+      "requirements-label",
+      "review-label",
+    ],
     boolean: ["init", "help"],
     default: {
       name: DEFAULT_AGENT_NAME,
@@ -55,7 +61,9 @@ export function parseCliArgs(args: string[]): ParsedArgs {
 
   // Validate required parameters
   if (!projectStr) {
-    throw new Error("--project is required. Specify the GitHub Project number.");
+    throw new Error(
+      "--project is required. Specify the GitHub Project number.",
+    );
   }
 
   // Parse project number

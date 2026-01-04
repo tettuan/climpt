@@ -14,7 +14,11 @@
 import { assertEquals, assertExists } from "jsr:@std/assert@^1";
 
 // Import actual exports from github.ts
-import type { ProjectIssueInfo, GetProjectIssuesOptions, IssueActionResult } from "./github.ts";
+import type {
+  GetProjectIssuesOptions,
+  IssueActionResult,
+  ProjectIssueInfo,
+} from "./github.ts";
 import { executeIssueAction } from "./github.ts";
 
 // =============================================================================

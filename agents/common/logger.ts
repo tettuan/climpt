@@ -231,7 +231,9 @@ export function summarizeToolInput(
     case "Grep":
       return `pattern: ${input.pattern}, path: ${input.path || "."}`;
     case "Skill":
-      return `skill: ${input.skill}${input.args ? `, args: ${input.args}` : ""}`;
+      return `skill: ${input.skill}${
+        input.args ? `, args: ${input.args}` : ""
+      }`;
     default:
       return JSON.stringify(input).substring(0, 200);
   }
