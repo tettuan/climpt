@@ -154,3 +154,4 @@ MIT License - see [LICENSE](LICENSE) file.
 ## Contributing
 
 Issues and PRs welcome at [GitHub](https://github.com/tettuan/climpt).
+# Test commit for CI hook

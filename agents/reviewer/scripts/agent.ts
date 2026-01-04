@@ -9,11 +9,11 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { displayHelp, parseCliArgs } from "./cli.ts";
 import {
-  buildSystemPrompt,
   ensureLogDirectory,
   getAgentConfig,
   initializeConfig,
   loadConfig,
+  loadSystemPromptViaC3L,
 } from "./config.ts";
 import {
   executeReviewAction,
@@ -35,6 +35,7 @@ import type {
   ReviewAgentConfig,
   ReviewOptions,
   ReviewSummary,
+  UvVariables,
 } from "./types.ts";
 
 /**
@@ -337,17 +338,44 @@ async function runAgentLoop(
   // Get agent config
   const agentConfig = getAgentConfig(config, options.agentName);
 
-  // Build system prompt
+  // Build system prompt via C3L (climpt)
   const completionCriteria =
     `Review implementation for GitHub Project #${options.project}. Use '${options.requirementsLabel}' labeled issues as requirements and '${options.reviewLabel}' labeled issues as review targets. Create gap issues for any missing implementations.`;
-  const systemPrompt = await buildSystemPrompt(
-    agentConfig.systemPromptTemplate,
-    String(options.project),
-    0, // Not using single issue anymore
-    completionCriteria,
-  );
 
-  await logger.write("info", "System prompt built", {
+  // Build uv- parameters for C3L
+  const uvVariables: UvVariables = {
+    project: String(options.project),
+    requirements_label: options.requirementsLabel,
+    review_label: options.reviewLabel,
+  };
+
+  let systemPrompt: string;
+  try {
+    systemPrompt = await loadSystemPromptViaC3L(
+      uvVariables,
+      completionCriteria,
+    );
+    await logger.write("info", "Climpt prompt executed", {
+      type: "climpt_prompt_used",
+      c1: "reviewer-dev",
+      c2: "start",
+      c3: "default",
+      promptPath: ".agent/reviewer/prompts/dev/start/default/f_default.md",
+    });
+  } catch (c3lError) {
+    await logger.write("error", "C3L loading failed", {
+      error: {
+        name: c3lError instanceof Error ? c3lError.name : "UnknownError",
+        message: c3lError instanceof Error
+          ? c3lError.message
+          : String(c3lError),
+        stack: c3lError instanceof Error ? c3lError.stack : undefined,
+      },
+    });
+    throw c3lError;
+  }
+
+  await logger.write("info", "System prompt built via C3L", {
     project: options.project,
     requirementsLabel: options.requirementsLabel,
     reviewLabel: options.reviewLabel,

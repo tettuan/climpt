@@ -136,4 +136,3 @@ Deno.test("Design Invariant: validateArgs requires action and target", () => {
 
   assertEquals(exitCalled, true);
 });
-

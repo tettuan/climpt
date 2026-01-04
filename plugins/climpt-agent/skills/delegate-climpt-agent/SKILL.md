@@ -11,14 +11,15 @@ Climpt コマンドレジストリを通じた開発タスク委譲。
 
 ### Input
 
-| Component   | Passed via     | Why                                                      |
-| ----------- | -------------- | -------------------------------------------------------- |
-| **action**  | `--action` arg | 動詞でコマンド種別(create/test/commit等)にマッチさせる   |
-| **target**  | `--target` arg | 名詞で対象物(file/test/document等)にマッチさせる         |
-| **intent**  | `--intent` arg | オプション選択のヒント(edition/adaptation等)を与える     |
-| **content** | stdin pipe     | 処理対象の実データ(diff/spec等)を climpt に渡す          |
+| Component   | Passed via     | Why                                                    |
+| ----------- | -------------- | ------------------------------------------------------ |
+| **action**  | `--action` arg | 動詞でコマンド種別(create/test/commit等)にマッチさせる |
+| **target**  | `--target` arg | 名詞で対象物(file/test/document等)にマッチさせる       |
+| **intent**  | `--intent` arg | オプション選択のヒント(edition/adaptation等)を与える   |
+| **content** | stdin pipe     | 処理対象の実データ(diff/spec等)を climpt に渡す        |
 
 **intent vs content の区別**:
+
 - `intent`: 「どう処理するか」→ オプション選択用の短い説明
 - `content`: 「何を処理するか」→ climpt が処理する実データ
 
@@ -72,9 +73,9 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 ### Step 3: stdin（該当時のみ）
 
-| 使う場面                           | 使わない場面         |
-| ---------------------------------- | -------------------- |
-| コミット(diff)、生成(spec/context) | テスト実行、検索     |
+| 使う場面                           | 使わない場面     |
+| ---------------------------------- | ---------------- |
+| コミット(diff)、生成(spec/context) | テスト実行、検索 |
 
 ```bash
 git diff --staged | deno run ... -- <script.ts> \
@@ -84,8 +85,8 @@ git diff --staged | deno run ... -- <script.ts> \
 
 ## When to Use
 
-a. プロジェクト固有の指示で、一般知識では対応が不明な場合。
-b. 一般的な指示だが、もっと深いドメイン理解に基づいて処理する場合。
+a. プロジェクト固有の指示で、一般知識では対応が不明な場合。 b.
+一般的な指示だが、もっと深いドメイン理解に基づいて処理する場合。
 
 ## Error Handling
 
