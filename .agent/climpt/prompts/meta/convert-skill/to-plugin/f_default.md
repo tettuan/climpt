@@ -69,8 +69,10 @@ Plugins CAN be toggled via `enabledPlugins` in settings.json, but individual ski
 
 Local plugin skills are stored at:
 ```
-<plugin-root>/.claude-plugin/skills/<skill-name>/SKILL.md
+<plugin-root>/skills/<skill-name>/SKILL.md
 ```
+
+Note: Only `plugin.json` goes inside `.claude-plugin/`. All other directories (skills, commands, agents, hooks) must be at the plugin root.
 
 ## Conversion Process
 
@@ -101,7 +103,7 @@ Check for local plugins in this order:
 
 Create the target directory structure:
 ```
-<plugin-root>/.claude-plugin/skills/{skill_name}/
+<plugin-root>/skills/{skill_name}/
 ```
 
 ### Step 5: Copy SKILL.md
@@ -115,7 +117,7 @@ Copy the skill file preserving:
 
 Report:
 - Source path: `.claude/skills/{uv-skill_name}/SKILL.md`
-- Destination path: `<plugin>/.claude-plugin/skills/{skill_name}/SKILL.md`
+- Destination path: `<plugin>/skills/{skill_name}/SKILL.md`
 - Conversion status: success/failure
 - Any warnings or modifications made
 
@@ -130,7 +132,7 @@ Process:
 1. Read `.claude/skills/branch-management/SKILL.md`
 2. Validate frontmatter has `name` and `description`
 3. Determine target plugin location
-4. Create `<plugin>/.claude-plugin/skills/branch-management/`
+4. Create `<plugin>/skills/branch-management/`
 5. Copy `SKILL.md` to target directory
 6. Report success with paths
 
@@ -138,7 +140,7 @@ Output:
 ```
 Converted skill 'branch-management'
   From: .claude/skills/branch-management/SKILL.md
-  To: .claude-plugin/skills/branch-management/SKILL.md
+  To: <plugin>/skills/branch-management/SKILL.md
 ```
 
 ## Error Handling
@@ -159,10 +161,13 @@ If no local plugin exists, create one with the following steps:
 ```
 my-plugin/
 ├── .claude-plugin/
-│   ├── plugin.json          # Required: Plugin manifest
-│   └── skills/
-│       └── <skill-name>/
-│           └── SKILL.md     # Converted skill file
+│   └── plugin.json          # Required: Plugin manifest (ONLY file in .claude-plugin/)
+├── skills/                  # Skills directory at plugin root
+│   └── <skill-name>/
+│       └── SKILL.md         # Converted skill file
+├── commands/                # (optional) Commands at plugin root
+├── agents/                  # (optional) Agents at plugin root
+└── hooks/                   # (optional) Hooks at plugin root
 ```
 
 ### Step 2: Create plugin.json
@@ -180,18 +185,7 @@ my-plugin/
 
 ### Step 3: Register in Claude Code Settings
 
-Add the local plugin path to `.claude/settings.json`:
-
-```json
-{
-  "permissions": {},
-  "enabledPlugins": {
-    "my-local-plugin@local:/path/to/my-plugin": true
-  }
-}
-```
-
-Or register via Claude Code CLI:
+Register the local plugin via Claude Code CLI:
 
 ```bash
 # Project scope (recommended)
@@ -200,6 +194,19 @@ Or register via Claude Code CLI:
 # User scope (available across all projects)
 /plugin install /path/to/my-plugin --scope user
 ```
+
+After installation, the plugin appears in `.claude/settings.json`:
+
+```json
+{
+  "permissions": {},
+  "enabledPlugins": {
+    "my-local-plugin@marketplace-name": true
+  }
+}
+```
+
+Note: The `enabledPlugins` format uses `plugin-name@marketplace-name`. For local plugins, use the `/plugin install` command rather than manual settings.json edits.
 
 ### Step 4: Verify Registration
 
