@@ -1,0 +1,40 @@
+{
+  "version": "1.0.0",
+  "description": "Climpt configuration for review agent command registry",
+  "tools": {
+    "availableConfigs": [
+      "dev"
+    ],
+    "commands": [
+      {
+        "c1": "dev",
+        "c2": "start",
+        "c3": "default",
+        "description": "System prompt for GitHub Project review mode (verification of requirements)",
+        "usage": "reviewer-dev start default --uv-project=PROJECT_NUMBER",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        },
+        "uv": [
+          {
+            "project": "GitHub Project number"
+          },
+          {
+            "requirements_label": "Label for requirements issues (default: docs)"
+          },
+          {
+            "review_label": "Label for review target issues (default: review)"
+          }
+        ]
+      }
+    ]
+  }
+}

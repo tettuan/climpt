@@ -254,6 +254,20 @@ export interface IterationSummary {
 }
 
 /**
+ * UV variables for C3L prompt expansion
+ */
+export interface UvVariables {
+  /** GitHub Project number */
+  project: string;
+
+  /** Label for requirements/specs issues */
+  requirements_label: string;
+
+  /** Label for review target issues */
+  review_label: string;
+}
+
+/**
  * Execution report for displaying results
  */
 export interface ExecutionReport {

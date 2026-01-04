@@ -78,7 +78,6 @@ Deno.test("Registry template has correct structure", async () => {
   }
 });
 
-
 // Test command options validation
 Deno.test("Command options have valid values", async () => {
   const registryPath = ".agent/climpt/registry.json";

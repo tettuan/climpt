@@ -7,7 +7,12 @@
  */
 
 import { join } from "@std/path";
-import type { AgentConfig, AgentName, ReviewAgentConfig } from "./types.ts";
+import type {
+  AgentConfig,
+  AgentName,
+  ReviewAgentConfig,
+  UvVariables,
+} from "./types.ts";
 import BUNDLED_CONFIG from "../config.json" with { type: "json" };
 
 /**
@@ -376,4 +381,68 @@ export async function initializeConfig(): Promise<{
     configPath,
     promptPath,
   };
+}
+
+/**
+ * Load system prompt via breakdown CLI (C3L)
+ *
+ * Variable passing:
+ * - --uv-project, --uv-requirements_label, --uv-review_label: CLI args
+ * - completion_criteria_detail: STDIN
+ *
+ * @param uvVariables - UV variables for prompt expansion
+ * @param stdinContent - Content to pass via STDIN (completion_criteria_detail)
+ * @returns Expanded system prompt content
+ * @throws Error if breakdown CLI fails or returns empty output
+ */
+export async function loadSystemPromptViaC3L(
+  uvVariables: UvVariables,
+  stdinContent: string,
+): Promise<string> {
+  // Build CLI args
+  const args = [
+    "run",
+    "--allow-read",
+    "--allow-write",
+    "--allow-env",
+    "jsr:@aidevtool/climpt",
+    "--config=reviewer-dev",
+    "start",
+    "default",
+  ];
+
+  // Add uv- parameters
+  for (const [key, value] of Object.entries(uvVariables)) {
+    if (value !== undefined && value !== "") {
+      args.push(`--uv-${key}=${value}`);
+    }
+  }
+
+  const command = new Deno.Command("deno", {
+    args,
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const process = command.spawn();
+
+  // Write stdinContent (completion_criteria_detail) to STDIN
+  const writer = process.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(stdinContent));
+  await writer.close();
+
+  const { stdout, stderr } = await process.output();
+  const output = new TextDecoder().decode(stdout).trim();
+
+  if (!output) {
+    const errorOutput = new TextDecoder().decode(stderr);
+    throw new Error(
+      `Empty output from breakdown CLI.\n` +
+        `Args: ${args.join(" ")}\n` +
+        `Stderr: ${errorOutput}`,
+    );
+  }
+
+  return output;
 }

@@ -1,0 +1,7 @@
+# Breakdown Configuration for reviewer-dev
+params:
+  two:
+    directiveType:
+      pattern: "^(start)$"
+    layerType:
+      pattern: "^(default)$"

@@ -74,7 +74,6 @@ Deno.test("registry.json exists and has valid structure", async () => {
   }
 });
 
-
 // Test MCP server startup (without actually running the server)
 Deno.test("MCP server configuration loading", async () => {
   // Create a temporary test registry

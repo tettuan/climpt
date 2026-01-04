@@ -69,8 +69,10 @@ Plugins CAN be toggled via `enabledPlugins` in settings.json, but individual ski
 
 Local plugin skills are stored at:
 ```
-<plugin-root>/.claude-plugin/skills/<skill-name>/SKILL.md
+<plugin-root>/skills/<skill-name>/SKILL.md
 ```
+
+Note: Only `plugin.json` goes inside `.claude-plugin/`. All other directories (skills, commands, agents, hooks) must be at the plugin root.
 
 ## Conversion Process
 
@@ -101,7 +103,7 @@ Check for local plugins in this order:
 
 Create the target directory structure:
 ```
-<plugin-root>/.claude-plugin/skills/{skill_name}/
+<plugin-root>/skills/{skill_name}/
 ```
 
 ### Step 5: Copy SKILL.md
@@ -115,7 +117,7 @@ Copy the skill file preserving:
 
 Report:
 - Source path: `.claude/skills/{uv-skill_name}/SKILL.md`
-- Destination path: `<plugin>/.claude-plugin/skills/{skill_name}/SKILL.md`
+- Destination path: `<plugin>/skills/{skill_name}/SKILL.md`
 - Conversion status: success/failure
 - Any warnings or modifications made
 
@@ -130,7 +132,7 @@ Process:
 1. Read `.claude/skills/branch-management/SKILL.md`
 2. Validate frontmatter has `name` and `description`
 3. Determine target plugin location
-4. Create `<plugin>/.claude-plugin/skills/branch-management/`
+4. Create `<plugin>/skills/branch-management/`
 5. Copy `SKILL.md` to target directory
 6. Report success with paths
 
@@ -138,7 +140,7 @@ Output:
 ```
 Converted skill 'branch-management'
   From: .claude/skills/branch-management/SKILL.md
-  To: .claude-plugin/skills/branch-management/SKILL.md
+  To: <plugin>/skills/branch-management/SKILL.md
 ```
 
 ## Error Handling
@@ -159,10 +161,13 @@ If no local plugin exists, create one with the following steps:
 ```
 my-plugin/
 ├── .claude-plugin/
-│   ├── plugin.json          # Required: Plugin manifest
-│   └── skills/
-│       └── <skill-name>/
-│           └── SKILL.md     # Converted skill file
+│   └── plugin.json          # Required: Plugin manifest (ONLY file in .claude-plugin/)
+├── skills/                  # Skills directory at plugin root
+│   └── <skill-name>/
+│       └── SKILL.md         # Converted skill file
+├── commands/                # (optional) Commands at plugin root
+├── agents/                  # (optional) Agents at plugin root
+└── hooks/                   # (optional) Hooks at plugin root
 ```
 
 ### Step 2: Create plugin.json
@@ -180,18 +185,7 @@ my-plugin/
 
 ### Step 3: Register in Claude Code Settings
 
-Add the local plugin path to `.claude/settings.json`:
-
-```json
-{
-  "permissions": {},
-  "enabledPlugins": {
-    "my-local-plugin@local:/path/to/my-plugin": true
-  }
-}
-```
-
-Or register via Claude Code CLI:
+Register the local plugin via Claude Code CLI:
 
 ```bash
 # Project scope (recommended)
@@ -200,6 +194,19 @@ Or register via Claude Code CLI:
 # User scope (available across all projects)
 /plugin install /path/to/my-plugin --scope user
 ```
+
+After installation, the plugin appears in `.claude/settings.json`:
+
+```json
+{
+  "permissions": {},
+  "enabledPlugins": {
+    "my-local-plugin@marketplace-name": true
+  }
+}
+```
+
+Note: The `enabledPlugins` format uses `plugin-name@marketplace-name`. For local plugins, use the `/plugin install` command rather than manual settings.json edits.
 
 ### Step 4: Verify Registration
 
@@ -216,6 +223,139 @@ cat .claude/settings.json | jq '.enabledPlugins'
 |-------|----------|----------|
 | `project` | `.claude/settings.json` | Project-specific plugins |
 | `user` | `~/.claude/settings.json` | Personal plugins across projects |
+
+## Local Marketplace Registration (Advanced)
+
+複数プラグインを管理する場合や、チームで共有する場合は `marketplace.json` を使用する。
+
+### marketplace.json の構造
+
+```
+my-marketplace/
+├── .claude-plugin/
+│   └── marketplace.json    # マーケットプレースの定義ファイル
+└── plugins/
+    └── my-plugin/
+        ├── .claude-plugin/
+        │   └── plugin.json
+        ├── skills/
+        │   └── <skill-name>/
+        │       └── SKILL.md
+        └── ...
+```
+
+### marketplace.json の形式
+
+```json
+{
+  "name": "my-plugins",
+  "owner": {
+    "name": "Your Name"
+  },
+  "metadata": {
+    "description": "Local plugin marketplace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "source": "./plugins/my-plugin",
+      "description": "Plugin description"
+    }
+  ]
+}
+```
+
+### marketplace.json の必須フィールド
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | マーケットプレース識別子 (kebab-case) |
+| `owner` | object | Yes | `name` (必須) と `email` (任意) を含む |
+| `plugins` | array | Yes | 利用可能なプラグインのリスト |
+| `metadata.description` | string | No | マーケットプレースの説明 |
+| `metadata.version` | string | No | マーケットプレースのバージョン |
+
+**重要な注意点:**
+
+1. **owner フィールドは必須** - `{ "name": "..." }` を必ず含める
+2. **配置場所は `.claude-plugin/` 内** - `plugin.json` と同じディレクトリに `marketplace.json` を置く
+
+### プラグインソースの指定方法
+
+**ローカルパス (相対パス):**
+```json
+{ "name": "my-plugin", "source": "./plugins/my-plugin" }
+```
+
+> **注意:** source は `./` で始める（`"."` ではなく `"./"` と記述）
+
+**GitHub リポジトリ:**
+```json
+{
+  "name": "github-plugin",
+  "source": {
+    "source": "github",
+    "repo": "owner/plugin-repo"
+  }
+}
+```
+
+**任意の Git リポジトリ:**
+```json
+{
+  "name": "git-plugin",
+  "source": {
+    "source": "url",
+    "url": "https://gitlab.com/team/plugin.git"
+  }
+}
+```
+
+### マーケットプレースの登録
+
+```bash
+# Claude Code CLI でマーケットプレースを追加
+/plugin marketplace add ./my-marketplace
+
+# マーケットプレースからプラグインをインストール
+/plugin install my-plugin@my-plugins
+```
+
+### settings.json での設定
+
+プロジェクトの `.claude/settings.json` に直接設定することも可能:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "my-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "./my-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "my-plugin@my-plugins": true
+  }
+}
+```
+
+### marketplace.json vs settings.json の違い
+
+| ファイル | 目的 | 用途 |
+|---------|------|------|
+| `marketplace.json` | プラグインの**定義・配布** | プラグインの所在地を定義 |
+| `settings.json` (enabledPlugins) | プラグインの**有効化・無効化** | どのプラグインを使うか制御 |
+| `settings.json` (extraKnownMarketplaces) | マーケットプレースの**登録** | どのマーケットプレースを参照するか |
+
+### マーケットプレースの検証
+
+```bash
+# Claude Code CLI でマーケットプレースを検証
+/plugin validate .
+```
 
 ## Notes
 
