@@ -29,34 +29,39 @@ interface LogCall {
 class MockLogger implements Partial<Logger> {
   calls: LogCall[] = [];
 
-  async write(message: string, metadata?: Record<string, unknown>): Promise<void> {
+  write(message: string, metadata?: Record<string, unknown>): Promise<void> {
     this.calls.push({ method: "write", args: [message, metadata] });
+    return Promise.resolve();
   }
 
-  async writeAssistant(message: string): Promise<void> {
+  writeAssistant(message: string): Promise<void> {
     this.calls.push({ method: "writeAssistant", args: [message] });
+    return Promise.resolve();
   }
 
-  async writeSystem(
+  writeSystem(
     message: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
     this.calls.push({ method: "writeSystem", args: [message, metadata] });
+    return Promise.resolve();
   }
 
-  async writeResult(
+  writeResult(
     status: "success" | "error",
     cost?: number,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
     this.calls.push({ method: "writeResult", args: [status, cost, metadata] });
+    return Promise.resolve();
   }
 
-  async writeError(
+  writeError(
     message: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
     this.calls.push({ method: "writeError", args: [message, metadata] });
+    return Promise.resolve();
   }
 
   getCallsByMethod(method: string): LogCall[] {
