@@ -1,7 +1,9 @@
 /**
  * Iterate Agent - Configuration Loader
  *
- * Loads and validates configuration from agents/iterator/config.json.
+ * Loads configuration with the following priority:
+ * 1. User config from .agent/iterator/config.json (if exists)
+ * 2. Package default config (bundled via import)
  */
 
 import { join } from "@std/path";
@@ -11,6 +13,7 @@ import type {
   IterateAgentConfig,
   UvVariables,
 } from "./types.ts";
+import BUNDLED_CONFIG from "../config.json" with { type: "json" };
 
 /**
  * Default configuration for iterate-agent
@@ -634,35 +637,76 @@ Report your review result using this format:
 };
 
 /**
- * Load the main configuration file
- *
- * @param configPath - Path to config.json (defaults to agents/iterator/config.json)
- * @returns Parsed configuration
- * @throws Error if file doesn't exist or is invalid
+ * User config file path (relative to CWD)
  */
-export async function loadConfig(
-  configPath: string = "agents/iterator/config.json",
-): Promise<IterateAgentConfig> {
+const USER_CONFIG_PATH = ".agent/iterator/config.json";
+
+/**
+ * Load configuration with priority:
+ * 1. User config from .agent/iterator/config.json (merged with default)
+ * 2. Package bundled config (fallback)
+ *
+ * @returns Merged configuration
+ */
+export async function loadConfig(): Promise<IterateAgentConfig> {
+  // Start with bundled config as base
+  const baseConfig = BUNDLED_CONFIG as IterateAgentConfig;
+
   try {
-    const content = await Deno.readTextFile(configPath);
-    const config = JSON.parse(content) as IterateAgentConfig;
+    // Try to load user config from .agent/iterator/config.json
+    const userConfigPath = join(Deno.cwd(), USER_CONFIG_PATH);
+    const content = await Deno.readTextFile(userConfigPath);
+    const userConfig = JSON.parse(content) as Partial<IterateAgentConfig>;
 
-    // Validate config structure
-    validateConfig(config);
+    // Deep merge user config over base config
+    const mergedConfig = deepMergeConfig(baseConfig, userConfig);
 
-    return config;
+    // Validate merged config
+    validateConfig(mergedConfig);
+
+    return mergedConfig;
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      throw new Error(
-        `Configuration file not found: ${configPath}\n` +
-          `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`,
-      );
+      // No user config, use bundled config
+      validateConfig(baseConfig);
+      return baseConfig;
     }
     if (error instanceof SyntaxError) {
-      throw new Error(`Invalid JSON in configuration file: ${error.message}`);
+      throw new Error(
+        `Invalid JSON in user configuration file (${USER_CONFIG_PATH}): ${error.message}`,
+      );
     }
     throw error;
   }
+}
+
+/**
+ * Deep merge user config over base config
+ */
+function deepMergeConfig(
+  base: IterateAgentConfig,
+  user: Partial<IterateAgentConfig>,
+): IterateAgentConfig {
+  return {
+    ...base,
+    ...user,
+    agents: {
+      ...base.agents,
+      ...(user.agents ?? {}),
+    },
+    github: {
+      ...base.github,
+      ...(user.github ?? {}),
+      labels: {
+        ...base.github?.labels,
+        ...(user.github?.labels ?? {}),
+      },
+    },
+    logging: {
+      ...base.logging,
+      ...(user.logging ?? {}),
+    },
+  };
 }
 
 /**
@@ -762,10 +806,10 @@ export interface InitResult {
 }
 
 /**
- * Initialize configuration files in the current directory
+ * Initialize user configuration files in the current directory
  *
  * Creates:
- * - agents/iterator/config.json (agent configuration)
+ * - .agent/iterator/config.json (user agent configuration)
  * - .agent/climpt/config/iterator-dev-app.yml (breakdown CLI app config)
  * - .agent/climpt/config/iterator-dev-user.yml (breakdown CLI user config)
  * - .agent/iterator/registry.json (command registry)
@@ -777,8 +821,8 @@ export interface InitResult {
 export async function initializeConfig(
   basePath: string = Deno.cwd(),
 ): Promise<InitResult> {
-  const configDir = join(basePath, "agents/iterator");
-  const configPath = join(configDir, "config.json");
+  // User config path (in .agent/)
+  const configPath = join(basePath, USER_CONFIG_PATH);
 
   // Breakdown CLI config paths
   const breakdownConfigDir = join(basePath, ".agent/climpt/config");
@@ -808,7 +852,7 @@ export async function initializeConfig(
   const skipped: string[] = [];
 
   // Create directories (always safe to create)
-  await Deno.mkdir(configDir, { recursive: true });
+  // Note: config is in iteratorDir (.agent/iterator/)
   await Deno.mkdir(breakdownConfigDir, { recursive: true });
   await Deno.mkdir(iteratorDir, { recursive: true });
 
