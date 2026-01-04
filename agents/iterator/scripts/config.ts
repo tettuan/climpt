@@ -7,11 +7,12 @@
  */
 
 import { join } from "@std/path";
-import type {
-  AgentConfig,
-  AgentName,
-  IterateAgentConfig,
-  UvVariables,
+import {
+  type AgentConfig,
+  type AgentName,
+  DEFAULT_WORKTREE_CONFIG,
+  type IterateAgentConfig,
+  type UvVariables,
 } from "./types.ts";
 import BUNDLED_CONFIG from "../config.json" with { type: "json" };
 
@@ -33,6 +34,10 @@ const DEFAULT_CONFIG: IterateAgentConfig = {
     directory: "tmp/logs/agents",
     maxFiles: 100,
     format: "jsonl",
+  },
+  worktree: {
+    forceWorktree: false,
+    worktreeRoot: "../worktree",
   },
 };
 
@@ -705,6 +710,11 @@ function deepMergeConfig(
     logging: {
       ...base.logging,
       ...(user.logging ?? {}),
+    },
+    worktree: {
+      ...DEFAULT_WORKTREE_CONFIG,
+      ...base.worktree,
+      ...(user.worktree ?? {}),
     },
   };
 }

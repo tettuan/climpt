@@ -6,11 +6,13 @@ Iterator / Reviewer Agent 間で共有するユーティリティモジュール
 
 ```
 agents/common/
-├── mod.ts           # エクスポート
-├── types.ts         # 共通型定義
-├── logger.ts        # ロガーユーティリティ
-├── worktree.ts      # Worktree 操作 (予定)
-└── merge.ts         # マージ操作 (予定)
+├── mod.ts              # エクスポート
+├── types.ts            # 共通型定義
+├── logger.ts           # ロガーユーティリティ
+├── worktree.ts         # Worktree 操作
+├── worktree_test.ts    # Worktree テスト
+├── merge.ts            # マージ操作
+└── merge_test.ts       # マージテスト
 ```
 
 ## 現在のモジュール
@@ -42,33 +44,80 @@ logger.info("Agent started", { iteration: 1 });
 logger.error("Failed", { error: { name: "Error", message: "..." } });
 ```
 
-## 計画中のモジュール
-
 ### worktree.ts
 
-Git worktree 操作ユーティリティ。
+Git worktree 操作ユーティリティ。Agent 実行を分離環境で行うための機能を提供。
 
 ```typescript
-// 予定 API
-setupWorktree(config, options); // Worktree セットアップ
-getCurrentBranch(); // 現在ブランチ取得
-generateBranchName(base); // タイムスタンプ付きブランチ名生成
-createWorktree(path, branch); // Worktree 作成
-removeWorktree(path); // Worktree 削除
+import {
+  cleanupWorktree,
+  createWorktree,
+  generateBranchName,
+  getCurrentBranch,
+  removeWorktree,
+  setupWorktree,
+} from "../common/worktree.ts";
+
+// Worktree セットアップ（自動ブランチ生成）
+const result = await setupWorktree(
+  { forceWorktree: true, worktreeRoot: "../worktree" },
+  { branch: "feature/docs", baseBranch: "develop" },
+);
+// result.worktreePath: /path/to/worktree/feature-docs
+// result.branchName: feature/docs
+// result.baseBranch: develop
+// result.created: true
+
+// 個別操作
+const branch = await getCurrentBranch();
+const newBranch = generateBranchName("feature/docs"); // feature/docs-20260105-143022
+await createWorktree("/path/to/worktree", "new-branch", "main");
+await removeWorktree("/path/to/worktree");
 ```
 
 ### merge.ts
 
-ブランチマージ操作ユーティリティ。
+ブランチマージ操作ユーティリティ。Agent 完了後の統合処理を提供。
 
 ```typescript
-// 予定 API
-mergeBranch(source, target, strategies); // 戦略順にマージ試行
+import {
+  createPullRequest,
+  ITERATOR_MERGE_ORDER,
+  mergeBranch,
+  pushBranch,
+  REVIEWER_MERGE_ORDER,
+} from "../common/merge.ts";
+
+// 戦略順にマージ試行（失敗時は次の戦略を試行）
+const result = await mergeBranch(
+  "feature/docs",
+  "develop",
+  ITERATOR_MERGE_ORDER, // squash → ff → merge
+);
+
+if (result.success) {
+  console.log(`Merged with ${result.strategy}`);
+} else {
+  // コンフリクト発生時は PR 作成
+  console.log(`Conflict: ${result.conflictFiles?.join(", ")}`);
+  await pushBranch("feature/docs");
+  await createPullRequest("Merge feature/docs", "...", "develop");
+}
 
 // マージ戦略順序
-ITERATOR_MERGE_ORDER; // squash → ff → merge
-REVIEWER_MERGE_ORDER; // ff → squash → merge
+ITERATOR_MERGE_ORDER; // ["squash", "fast-forward", "merge-commit"]
+REVIEWER_MERGE_ORDER; // ["fast-forward", "squash", "merge-commit"]
 ```
+
+### Worktree 関連型定義 (types.ts)
+
+| 型                    | 説明                                                    |
+| --------------------- | ------------------------------------------------------- |
+| `WorktreeConfig`      | Worktree 設定 (forceWorktree, worktreeRoot)             |
+| `WorktreeCLIOptions`  | CLI オプション (branch, baseBranch)                     |
+| `WorktreeSetupResult` | セットアップ結果 (path, branch, baseBranch)             |
+| `MergeStrategy`       | マージ戦略 ("squash" / "fast-forward" / "merge-commit") |
+| `MergeResult`         | マージ結果 (success, strategy, error, conflictFiles)    |
 
 ## 設計資料
 

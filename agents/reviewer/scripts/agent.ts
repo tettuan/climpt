@@ -36,7 +36,16 @@ import type {
   ReviewOptions,
   ReviewSummary,
   UvVariables,
+  WorktreeSetupResult,
 } from "./types.ts";
+import { DEFAULT_WORKTREE_CONFIG } from "./types.ts";
+import { setupWorktree } from "../../common/worktree.ts";
+import {
+  createPullRequest,
+  mergeBranch,
+  pushBranch,
+  REVIEWER_MERGE_ORDER,
+} from "../../common/merge.ts";
 
 /**
  * Display init result
@@ -537,6 +546,40 @@ async function main(): Promise<void> {
     // Get options
     const options = args.options!;
 
+    // Setup worktree if enabled
+    const worktreeConfig = config.worktree ?? DEFAULT_WORKTREE_CONFIG;
+    let worktreeContext: WorktreeSetupResult | null = null;
+    const originalCwd = Deno.cwd();
+
+    if (worktreeConfig.forceWorktree) {
+      console.log(`\n🌲 Worktree mode enabled`);
+      try {
+        worktreeContext = await setupWorktree(worktreeConfig, {
+          branch: options.branch,
+          baseBranch: options.baseBranch,
+        });
+        console.log(`   Branch: ${worktreeContext.branchName}`);
+        console.log(`   Base: ${worktreeContext.baseBranch}`);
+        console.log(`   Path: ${worktreeContext.worktreePath}`);
+        if (worktreeContext.created) {
+          console.log(`   Status: Created new worktree`);
+        } else {
+          console.log(`   Status: Using existing worktree`);
+        }
+
+        // Change to worktree directory
+        Deno.chdir(worktreeContext.worktreePath);
+        console.log(`   Working directory changed to worktree\n`);
+      } catch (error) {
+        console.error(
+          `\n❌ Worktree setup failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        Deno.exit(1);
+      }
+    }
+
     // Ensure log directory exists
     const logDir = await ensureLogDirectory(config);
 
@@ -588,6 +631,77 @@ async function main(): Promise<void> {
 
       // Display report
       displayReport(summary, iterations, logger.getLogPath());
+
+      // Worktree integration (merge back to base branch)
+      if (worktreeContext) {
+        console.log(`\n🔀 Integrating worktree changes...`);
+        await logger.write("info", "Starting worktree integration", {
+          sourceBranch: worktreeContext.branchName,
+          targetBranch: worktreeContext.baseBranch,
+        });
+
+        // Change back to original directory for merge
+        Deno.chdir(originalCwd);
+
+        // Attempt merge using Reviewer strategy (ff → squash → merge)
+        const mergeResult = await mergeBranch(
+          worktreeContext.branchName,
+          worktreeContext.baseBranch,
+          REVIEWER_MERGE_ORDER,
+          originalCwd,
+        );
+
+        if (mergeResult.success) {
+          console.log(
+            `   ✅ Merge successful (strategy: ${mergeResult.strategy})`,
+          );
+          await logger.write("info", "Worktree merge successful", {
+            strategy: mergeResult.strategy,
+          });
+        } else {
+          console.log(`   ⚠️ Merge failed: ${mergeResult.error}`);
+          if (
+            mergeResult.conflictFiles && mergeResult.conflictFiles.length > 0
+          ) {
+            console.log(`   Conflicting files:`);
+            for (const file of mergeResult.conflictFiles) {
+              console.log(`     - ${file}`);
+            }
+          }
+
+          await logger.write("error", "Worktree merge failed", {
+            strategy: mergeResult.strategy,
+            error: mergeResult.error
+              ? { name: "MergeError", message: mergeResult.error }
+              : undefined,
+            conflictFiles: mergeResult.conflictFiles,
+          });
+
+          // Create PR for manual resolution
+          console.log(`\n   Creating PR for manual resolution...`);
+          const pushed = await pushBranch(
+            worktreeContext.branchName,
+            originalCwd,
+          );
+          if (pushed) {
+            const prUrl = await createPullRequest(
+              `[Auto] Merge ${worktreeContext.branchName} to ${worktreeContext.baseBranch}`,
+              `## Automatic merge failed\n\nThis PR was created because automatic merge failed.\n\n**Conflict files:**\n${
+                mergeResult.conflictFiles?.map((f) => `- ${f}`).join("\n") ||
+                "Unknown"
+              }\n\n**Error:** ${mergeResult.error}`,
+              worktreeContext.baseBranch,
+              originalCwd,
+            );
+            if (prUrl) {
+              console.log(`   ✅ PR created: ${prUrl}`);
+              await logger.write("info", "PR created for manual resolution", {
+                prUrl,
+              });
+            }
+          }
+        }
+      }
     } finally {
       await logger.close();
     }

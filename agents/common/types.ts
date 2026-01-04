@@ -154,3 +154,84 @@ export interface BaseIterationSummary {
   /** Final result message from SDK (if any) */
   finalResult?: string;
 }
+
+// ============================================================================
+// Worktree Configuration
+// ============================================================================
+
+/**
+ * Worktree configuration
+ */
+export interface WorktreeConfig {
+  /**
+   * Enable worktree mode
+   * - true: --branch option is enabled, work in worktree
+   * - false: Normal mode, work in current directory
+   */
+  forceWorktree: boolean;
+
+  /**
+   * Root directory for worktrees
+   * Relative path from the working repository
+   * @default "../worktree"
+   */
+  worktreeRoot: string;
+}
+
+/**
+ * Worktree CLI options (common for iterator/reviewer)
+ */
+export interface WorktreeCLIOptions {
+  /** Working branch name */
+  branch?: string;
+
+  /** Base branch (merge target) */
+  baseBranch?: string;
+}
+
+/**
+ * Worktree setup result
+ */
+export interface WorktreeSetupResult {
+  /** Full path to the worktree */
+  worktreePath: string;
+
+  /** Working branch name */
+  branchName: string;
+
+  /** Base branch name */
+  baseBranch: string;
+
+  /** Whether the worktree was newly created */
+  created: boolean;
+}
+
+/**
+ * Merge strategy types
+ */
+export type MergeStrategy = "squash" | "fast-forward" | "merge-commit";
+
+/**
+ * Merge result
+ */
+export interface MergeResult {
+  /** Whether the merge succeeded */
+  success: boolean;
+
+  /** Strategy used */
+  strategy: MergeStrategy;
+
+  /** Error message (on failure) */
+  error?: string;
+
+  /** Conflicting files (on conflict) */
+  conflictFiles?: string[];
+}
+
+/**
+ * Default worktree configuration
+ */
+export const DEFAULT_WORKTREE_CONFIG: WorktreeConfig = {
+  forceWorktree: false,
+  worktreeRoot: "../worktree",
+};

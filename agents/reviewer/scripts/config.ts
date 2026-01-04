@@ -7,11 +7,12 @@
  */
 
 import { join } from "@std/path";
-import type {
-  AgentConfig,
-  AgentName,
-  ReviewAgentConfig,
-  UvVariables,
+import {
+  type AgentConfig,
+  type AgentName,
+  DEFAULT_WORKTREE_CONFIG,
+  type ReviewAgentConfig,
+  type UvVariables,
 } from "./types.ts";
 import BUNDLED_CONFIG from "../config.json" with { type: "json" };
 
@@ -59,6 +60,10 @@ const DEFAULT_CONFIG: ReviewAgentConfig = {
   },
   output: {
     issueLabels: ["implementation-gap", "from-reviewer"],
+  },
+  worktree: {
+    forceWorktree: false,
+    worktreeRoot: "../worktree",
   },
 };
 
@@ -199,6 +204,11 @@ function deepMergeConfig(
     output: {
       ...base.output,
       ...(user.output ?? {}),
+    },
+    worktree: {
+      ...DEFAULT_WORKTREE_CONFIG,
+      ...base.worktree,
+      ...(user.worktree ?? {}),
     },
   };
 }
