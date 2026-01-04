@@ -5,6 +5,7 @@
  */
 
 import type { Logger } from "./logger.ts";
+import { summarizeToolInput } from "./logger.ts";
 import type {
   IssueAction,
   IssueActionParseResult,
@@ -140,10 +141,26 @@ export async function logSDKMessage(
   } else if (message.message?.role === "assistant") {
     // Extract text content from assistant message
     const content = message.message.content;
-    const textBlocks = Array.isArray(content)
-      // deno-lint-ignore no-explicit-any
-      ? content.filter((b: any) => b.type === "text")
-      : [];
+    const blocks = Array.isArray(content) ? content : [];
+
+    // Log tool_use blocks (for Guimpt statistics)
+    // deno-lint-ignore no-explicit-any
+    const toolUseBlocks = blocks.filter((b: any) => b.type === "tool_use");
+    for (const toolUse of toolUseBlocks) {
+      const inputSummary = summarizeToolInput(
+        toolUse.name,
+        toolUse.input || {},
+      );
+      await logger.logToolUse({
+        toolName: toolUse.name,
+        toolUseId: toolUse.id,
+        inputSummary,
+      });
+    }
+
+    // Log text content
+    // deno-lint-ignore no-explicit-any
+    const textBlocks = blocks.filter((b: any) => b.type === "text");
     // deno-lint-ignore no-explicit-any
     const text = textBlocks.map((b: any) => b.text).join("\n");
 
@@ -151,10 +168,26 @@ export async function logSDKMessage(
       await logger.write("assistant", text);
     }
   } else if (message.message?.role === "user") {
-    const content = typeof message.message.content === "string"
-      ? message.message.content
-      : JSON.stringify(message.message.content);
-    await logger.write("user", content);
+    const content = message.message.content;
+
+    // Log tool_result blocks (for Guimpt statistics)
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block.type === "tool_result") {
+          await logger.logToolResult({
+            toolUseId: block.tool_use_id,
+            success: !block.is_error,
+            errorMessage: block.is_error ? String(block.content || "") : undefined,
+          });
+        }
+      }
+    }
+
+    // Log user message content
+    const contentStr = typeof content === "string"
+      ? content
+      : JSON.stringify(content);
+    await logger.write("user", contentStr);
   } else {
     // Generic system message (with apiKeySource removed)
     await logger.write("system", JSON.stringify(sanitizedMessage));
