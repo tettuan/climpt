@@ -1,7 +1,7 @@
 /**
  * Iterate Agent - Configuration Loader
  *
- * Loads and validates configuration from iterate-agent/config.json.
+ * Loads and validates configuration from agents/iterator/config.json.
  */
 
 import { join } from "jsr:@std/path@^1";
@@ -636,12 +636,12 @@ Report your review result using this format:
 /**
  * Load the main configuration file
  *
- * @param configPath - Path to config.json (defaults to iterate-agent/config.json)
+ * @param configPath - Path to config.json (defaults to agents/iterator/config.json)
  * @returns Parsed configuration
  * @throws Error if file doesn't exist or is invalid
  */
 export async function loadConfig(
-  configPath: string = "iterate-agent/config.json",
+  configPath: string = "agents/iterator/config.json",
 ): Promise<IterateAgentConfig> {
   try {
     const content = await Deno.readTextFile(configPath);
@@ -765,7 +765,7 @@ export interface InitResult {
  * Initialize configuration files in the current directory
  *
  * Creates:
- * - iterate-agent/config.json (agent configuration)
+ * - agents/iterator/config.json (agent configuration)
  * - .agent/climpt/config/iterator-dev-app.yml (breakdown CLI app config)
  * - .agent/climpt/config/iterator-dev-user.yml (breakdown CLI user config)
  * - .agent/iterator/registry.json (command registry)
@@ -777,7 +777,7 @@ export interface InitResult {
 export async function initializeConfig(
   basePath: string = Deno.cwd(),
 ): Promise<InitResult> {
-  const configDir = join(basePath, "iterate-agent");
+  const configDir = join(basePath, "agents/iterator");
   const configPath = join(configDir, "config.json");
 
   // Breakdown CLI config paths

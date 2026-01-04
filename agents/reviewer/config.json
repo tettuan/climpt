@@ -2,7 +2,7 @@
   "version": "1.0.0",
   "agents": {
     "reviewer": {
-      "systemPromptTemplate": "review-agent/prompts/default.md",
+      "systemPromptTemplate": "agents/reviewer/prompts/default.md",
       "allowedTools": [
         "Skill",
         "Read",
@@ -31,7 +31,7 @@
     }
   },
   "logging": {
-    "directory": "tmp/logs/review-agent",
+    "directory": "tmp/logs/agents/reviewer",
     "maxFiles": 100,
     "format": "jsonl"
   },

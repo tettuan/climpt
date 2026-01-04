@@ -43,4 +43,4 @@
 ## 参照
 
 - 設計: `tmp/design-iterator-label-parameter.md`
-- 実装: `iterate-agent/scripts/config.ts`
+- 実装: `agents/iterator/scripts/config.ts`

@@ -1,14 +1,20 @@
 /**
- * Review Agent - JSONL Logger
+ * Common Agent Logger
  *
- * Handles logging to JSONL format with automatic rotation.
+ * JSONL logger with automatic rotation, shared by all agents.
  */
 
-import { join } from "jsr:@std/path@^1";
-import type { AgentName, LogEntry, LogLevel } from "./types.ts";
+import { join } from "@std/path";
+import type {
+  AgentName,
+  LogEntry,
+  LogLevel,
+  ToolResultInfo,
+  ToolUseInfo,
+} from "./types.ts";
 
 /**
- * JSONL Logger for review-agent
+ * JSONL Logger for agents
  */
 export class Logger {
   private file: Deno.FsFile | null = null;
@@ -21,7 +27,7 @@ export class Logger {
    * Create a new Logger instance
    *
    * @param logDir - Directory to store log files
-   * @param agentName - Agent name (used in directory path)
+   * @param _agentName - Agent name (used in directory path)
    * @param maxFiles - Maximum number of log files to keep
    */
   constructor(logDir: string, _agentName: AgentName, maxFiles: number = 100) {
@@ -54,7 +60,7 @@ export class Logger {
     });
 
     // Write initial log entry
-    await this.write("info", "Review agent logger initialized", {
+    await this.write("info", "Logger initialized", {
       logPath: this.logPath,
       maxFiles: this.maxFiles,
     });
@@ -93,11 +99,34 @@ export class Logger {
   }
 
   /**
+   * Log a tool use event
+   *
+   * @param toolUse - Tool use information
+   */
+  async logToolUse(toolUse: ToolUseInfo): Promise<void> {
+    await this.write("tool_use", `Tool invoked: ${toolUse.toolName}`, {
+      toolUse,
+    });
+  }
+
+  /**
+   * Log a tool result event
+   *
+   * @param toolResult - Tool result information
+   */
+  async logToolResult(toolResult: ToolResultInfo): Promise<void> {
+    const status = toolResult.success ? "completed" : "failed";
+    await this.write("tool_result", `Tool ${status}`, {
+      toolResult,
+    });
+  }
+
+  /**
    * Close the log file
    */
   async close(): Promise<void> {
     if (this.file) {
-      await this.write("info", "Review agent logger closing");
+      await this.write("info", "Logger closing");
       this.file.close();
       this.file = null;
     }
@@ -173,4 +202,37 @@ export async function createLogger(
   const logger = new Logger(logDir, agentName, maxFiles);
   await logger.initialize();
   return logger;
+}
+
+/**
+ * Summarize tool input for logging (privacy-aware)
+ *
+ * @param toolName - Name of the tool
+ * @param input - Tool input object
+ * @returns Summarized string
+ */
+export function summarizeToolInput(
+  toolName: string,
+  input: Record<string, unknown>,
+): string {
+  switch (toolName) {
+    case "Read":
+      return `file_path: ${input.file_path}`;
+    case "Write":
+      return `file_path: ${input.file_path}, content: ${
+        String(input.content || "").length
+      } chars`;
+    case "Edit":
+      return `file_path: ${input.file_path}`;
+    case "Bash":
+      return `command: ${String(input.command || "").substring(0, 100)}...`;
+    case "Glob":
+      return `pattern: ${input.pattern}`;
+    case "Grep":
+      return `pattern: ${input.pattern}, path: ${input.path || "."}`;
+    case "Skill":
+      return `skill: ${input.skill}${input.args ? `, args: ${input.args}` : ""}`;
+    default:
+      return JSON.stringify(input).substring(0, 200);
+  }
 }

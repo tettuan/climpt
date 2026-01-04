@@ -96,7 +96,7 @@ Iterate Agent uses agents defined in
 
 ### Customizing Agent Configuration
 
-Agent configuration is in `iterate-agent/config.json`:
+Agent configuration is in `agents/iterator/config.json`:
 
 - Allowed tools: Configure which tools the agent can use
 - Permission mode: Control how the agent handles operations
@@ -106,11 +106,11 @@ You can add more agents by:
 
 1. Adding the agent to `.agent/climpt/config/registry_config.json` with its
    registry path
-2. Adding agent configuration to `iterate-agent/config.json`
+2. Adding agent configuration to `agents/iterator/config.json`
 
 ## Configuration
 
-Main configuration is in `iterate-agent/config.json`:
+Main configuration is in `agents/iterator/config.json`:
 
 ```json
 {
@@ -163,6 +163,8 @@ tmp/logs/agents/product-developer/session-2025-12-20T10-00-00-000Z.jsonl
 - `system`: SDK system messages
 - `result`: Task completion results
 - `error`: Errors and exceptions
+- `tool_use`: Tool invocation (for Guimpt statistics)
+- `tool_result`: Tool completion result
 
 ### Log Rotation
 
@@ -215,7 +217,7 @@ brew install gh
 
 ### Error: "Configuration file not found"
 
-Run from the project root directory where `iterate-agent/config.json` exists.
+Run from the project root directory where `agents/iterator/config.json` exists.
 
 ### Error: "Empty output from breakdown CLI"
 
@@ -224,17 +226,25 @@ Ensure `.agent/iterator/` prompt templates exist. Run `--init` to create them.
 ## File Structure
 
 ```
-iterate-agent/
-├── config.json                    # Main configuration
-├── scripts/
-│   ├── agent.ts                   # Main entry point
-│   ├── cli.ts                     # CLI argument parsing
-│   ├── config.ts                  # Configuration loader
-│   ├── github.ts                  # GitHub integration
-│   ├── logger.ts                  # JSONL logger
-│   ├── prompts.ts                 # System prompt builder
-│   └── types.ts                   # TypeScript types
-└── README.md                      # This file
+agents/
+├── common/                        # Shared modules
+│   ├── mod.ts                     # Common exports
+│   ├── types.ts                   # Shared type definitions
+│   └── logger.ts                  # Common JSONL logger
+├── iterator/                      # Iterate Agent
+│   ├── config.json                # Main configuration
+│   ├── mod.ts                     # Module exports
+│   ├── scripts/
+│   │   ├── agent.ts               # Main entry point
+│   │   ├── cli.ts                 # CLI argument parsing
+│   │   ├── config.ts              # Configuration loader
+│   │   ├── github.ts              # GitHub integration
+│   │   ├── logger.ts              # Re-exports common logger
+│   │   ├── prompts.ts             # System prompt builder
+│   │   └── types.ts               # Agent-specific types
+│   └── README.md                  # This file
+└── reviewer/                      # Review Agent
+    └── ...
 
 tmp/logs/agents/
 ├── climpt/
@@ -270,9 +280,9 @@ If no skills are specified, the value is "指定なし" (none specified).
 
 ## Related Documentation
 
-- [Design Specification](../docs/internal/iterate-agent-design.md)
+- [Design Specification](../../docs/internal/iterate-agent-design.md)
 - [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript)
-- [Climpt Skills](../docs/reference/skills/)
+- [Climpt Skills](../../docs/reference/skills/)
 - [GitHub CLI Documentation](https://cli.github.com/manual/)
 
 ## License

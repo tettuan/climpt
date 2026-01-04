@@ -332,7 +332,7 @@ Create and maintain clear, comprehensive documentation for the project.
 
 ### 6.1 Configuration File Structure
 
-Location: `iterate-agent/config.json` (プロジェクトルート直下)
+Location: `agents/iterator/config.json` (プロジェクトルート直下)
 
 ```json
 {
@@ -777,10 +777,10 @@ async function retryWithBackoff<T>(
 
 ## 11. File Structure
 
-### 11.1 iterate-agent ディレクトリ
+### 11.1 agents/iterator ディレクトリ
 
 ```
-iterate-agent/                           # プロジェクトルート直下に配置
+agents/iterator/                         # プロジェクトルート直下に配置
 ├── config.json                          # Main configuration
 ├── scripts/
 │   ├── agent.ts                         # Main entry point
@@ -841,7 +841,7 @@ output from the preparation phase. If empty, the value is "指定なし" (none s
 ### 11.3 ログディレクトリ
 
 ```
-tmp/logs/iterate-agent/
+tmp/logs/agents/
 ├── product-developer/
 │   ├── session-2025-12-20T10-00-00-000Z.jsonl
 │   └── session-2025-12-20T11-00-00-000Z.jsonl

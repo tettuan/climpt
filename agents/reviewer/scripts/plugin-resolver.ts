@@ -1,7 +1,7 @@
 /**
  * Plugin Resolver - Dynamic plugin path resolution for Claude Agent SDK
  *
- * @module review-agent/scripts/plugin-resolver
+ * @module agents/reviewer/scripts/plugin-resolver
  *
  * Resolves plugin paths from .claude/settings.json configuration,
  * enabling dynamic plugin loading at SDK runtime.

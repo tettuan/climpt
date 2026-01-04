@@ -4,7 +4,7 @@ Autonomous agent that verifies implementation against requirements and creates i
 
 ## Overview
 
-Review Agent is a companion to [iterate-agent](../iterate-agent/). While iterate-agent implements features, review-agent verifies that implementations meet requirements and creates issues for any gaps found.
+Review Agent is a companion to [iterate-agent](../iterator/). While iterate-agent implements features, review-agent verifies that implementations meet requirements and creates issues for any gaps found.
 
 ### Key Features
 
@@ -49,8 +49,8 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --init
 ```
 
 This creates:
-- `review-agent/config.json` - Agent configuration
-- `review-agent/prompts/default.md` - System prompt template
+- `agents/reviewer/config.json` - Agent configuration
+- `agents/reviewer/prompts/default.md` - System prompt template
 
 ### 2. Run Review
 
@@ -130,7 +130,7 @@ Created Issues:
   - #45
   - #46
 
-Log file: tmp/logs/review-agent/session-2025-01-02T12-00-00-000Z.jsonl
+Log file: tmp/logs/agents/reviewer/session-2025-01-02T12-00-00-000Z.jsonl
 ```
 
 ## Integration with iterate-agent
@@ -173,7 +173,7 @@ The review-agent and iterate-agent form a development cycle:
   "version": "1.0.0",
   "agents": {
     "reviewer": {
-      "systemPromptTemplate": "review-agent/prompts/default.md",
+      "systemPromptTemplate": "agents/reviewer/prompts/default.md",
       "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch"],
       "permissionMode": "plan"
     }
@@ -188,7 +188,7 @@ The review-agent and iterate-agent form a development cycle:
     }
   },
   "logging": {
-    "directory": "tmp/logs/review-agent",
+    "directory": "tmp/logs/agents/reviewer",
     "maxFiles": 100,
     "format": "jsonl"
   }

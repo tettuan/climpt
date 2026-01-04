@@ -126,11 +126,11 @@ LABEL OPTIONS:
 OPTIONS:
   --init
       Initialize configuration files in the current directory.
-      Creates review-agent/config.json and review-agent/prompts/default.md
+      Creates agents/reviewer/config.json and agents/reviewer/prompts/default.md
 
   --name, -n <name>
       Agent name (default: "${DEFAULT_AGENT_NAME}").
-      Must be defined in review-agent/config.json
+      Must be defined in agents/reviewer/config.json
 
   --iterate-max, -m <number>
       Maximum number of iterations. Defaults to unlimited.
@@ -165,6 +165,6 @@ NOTES:
   - Run --init first to create configuration files in your project
   - Requires 'gh' CLI (https://cli.github.com) with authentication
   - This agent is read-only: it does NOT modify implementation code
-  - Logs are saved to tmp/logs/review-agent/session-{timestamp}.jsonl
+  - Logs are saved to tmp/logs/agents/reviewer/session-{timestamp}.jsonl
 `);
 }

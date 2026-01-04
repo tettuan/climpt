@@ -20,10 +20,8 @@
     "./cli": "./cli.ts",
     "./mcp": "./mcp.ts",
     "./reg": "./reg.ts",
-    "./iterate-agent": "./iterate-agent/mod.ts",
-    "./agents/iterator": "./iterate-agent/scripts/agent.ts",
-    "./review-agent": "./review-agent/mod.ts",
-    "./agents/reviewer": "./review-agent/scripts/agent.ts"
+    "./agents/iterator": "./agents/iterator/scripts/agent.ts",
+    "./agents/reviewer": "./agents/reviewer/scripts/agent.ts"
   },
   "include": [
     "README.md",
@@ -34,8 +32,7 @@
     "reg.ts",
     "src/",
     ".agent/",
-    "iterate-agent/",
-    "review-agent/"
+    "agents/"
   ],
   "exclude": [
     "node_modules",
@@ -53,8 +50,8 @@
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
-    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys iterate-agent/scripts/agent.ts",
-    "review-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys review-agent/scripts/agent.ts"
+    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/iterator/scripts/agent.ts",
+    "review-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/reviewer/scripts/agent.ts"
   },
   "imports": {
     "@aidevtool/frontmatter-to-schema": "jsr:@aidevtool/frontmatter-to-schema@^1.7.1",
@@ -72,11 +69,11 @@
     "skipLibCheck": true
   },
   "fmt": {
-    "include": ["src/", "*.ts", "*.json"],
+    "include": ["src/", "*.ts", "*.json", "agents/"],
     "exclude": ["dist/", "node_modules/"]
   },
   "lint": {
-    "include": ["src/", "*.ts"],
+    "include": ["src/", "*.ts", "agents/"],
     "exclude": ["dist/", "node_modules/"]
   }
 }

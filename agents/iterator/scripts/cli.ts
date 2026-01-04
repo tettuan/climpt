@@ -152,7 +152,7 @@ USAGE:
 OPTIONS:
   --init
       Initialize configuration files in the current directory.
-      Creates iterate-agent/config.json and .agent/iterator/ prompt templates.
+      Creates agents/iterator/config.json and .agent/iterator/ prompt templates.
       Run this once before first use.
 
   --issue, -i <number>
@@ -182,7 +182,7 @@ OPTIONS:
 
   --name, -n <name>
       MCP agent name (e.g., "climpt"). Defaults to "${DEFAULT_AGENT_NAME}".
-      Must be defined in iterate-agent/config.json
+      Must be defined in agents/iterator/config.json
 
   --resume, -r
       Resume previous session instead of starting fresh. Defaults to false.

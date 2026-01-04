@@ -67,7 +67,7 @@
  *
  * @example
  * ```typescript
- * // Programmatic usage - use the module exports from iterate-agent/mod.ts
+ * // Programmatic usage - use the module exports from agents/iterator/mod.ts
  * import {
  *   parseCliArgs,
  *   loadConfig,
@@ -168,7 +168,7 @@ async function main(): Promise<void> {
         console.log("\n🎉 Initialization complete!\n");
         console.log("Next steps:");
         console.log(
-          "  1. Review and customize the configuration in iterate-agent/config.json",
+          "  1. Review and customize the configuration in agents/iterator/config.json",
         );
         console.log(
           "  2. Install the Claude Code plugin (required for delegate-climpt-agent Skill):",

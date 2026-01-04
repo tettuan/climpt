@@ -4,31 +4,19 @@
  * Core TypeScript types for the autonomous agent system.
  */
 
-/**
- * Agent name types (MCP agent names)
- */
-export type AgentName = "climpt" | string;
-
-/**
- * Permission mode types (from Claude Agent SDK)
- */
-export type PermissionMode =
-  | "default"
-  | "plan"
-  | "acceptEdits"
-  | "bypassPermissions";
-
-/**
- * Log levels
- */
-export type LogLevel =
-  | "info"
-  | "error"
-  | "debug"
-  | "assistant"
-  | "user"
-  | "system"
-  | "result";
+// Re-export common types
+export type {
+  AgentName,
+  BaseAgentConfig,
+  BaseIterationSummary,
+  GitHubIssue,
+  LogEntry,
+  LoggingConfig,
+  LogLevel,
+  PermissionMode,
+  ToolResultInfo,
+  ToolUseInfo,
+} from "../../common/types.ts";
 
 /**
  * Completion criteria types
@@ -119,7 +107,7 @@ export interface AgentOptions {
   iterateMax: number;
 
   /** MCP agent name (e.g., "climpt") */
-  agentName: AgentName;
+  agentName: string;
 
   /** Whether to resume previous session (default: false) */
   resume: boolean;
@@ -132,14 +120,18 @@ export interface AgentOptions {
 }
 
 /**
- * Agent configuration
+ * Agent configuration (extends base)
  */
 export interface AgentConfig {
   /** List of allowed tools for this agent */
   allowedTools: string[];
 
   /** Permission mode for this agent */
-  permissionMode: PermissionMode;
+  permissionMode:
+    | "default"
+    | "plan"
+    | "acceptEdits"
+    | "bypassPermissions";
 }
 
 /**
@@ -162,50 +154,6 @@ export interface IterateAgentConfig {
     maxFiles: number;
     format: string;
   };
-}
-
-/**
- * Log entry structure (JSONL format)
- */
-export interface LogEntry {
-  step: number;
-  timestamp: string;
-  level: LogLevel;
-  message: string;
-  metadata?: {
-    role?: string;
-    iterationCount?: number;
-    taskId?: string;
-    skillInvocation?: {
-      skillName: string;
-      taskDescription: string;
-      result: string;
-    };
-    completionCheck?: {
-      type: CompletionType;
-      current: number;
-      target: number;
-      complete: boolean;
-    };
-    error?: {
-      name: string;
-      message: string;
-      stack?: string;
-    };
-    [key: string]: unknown;
-  };
-}
-
-/**
- * GitHub Issue data
- */
-export interface GitHubIssue {
-  number: number;
-  title: string;
-  body: string | null;
-  state: "OPEN" | "CLOSED";
-  labels: Array<{ name: string }>;
-  comments?: Array<{ body: string }>;
 }
 
 /**
@@ -240,7 +188,7 @@ export interface CompletionCheckResult {
  * System prompt build context
  */
 export interface PromptContext {
-  agentName: AgentName;
+  agentName: string;
   completionCriteria: string;
   completionCriteriaDetail: string;
 }

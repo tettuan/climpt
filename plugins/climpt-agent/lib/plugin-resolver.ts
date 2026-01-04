@@ -6,7 +6,7 @@
  * Resolves plugin paths from .claude/settings.json configuration,
  * enabling dynamic plugin loading at SDK runtime.
  *
- * Note: This file is copied from iterate-agent/scripts/plugin-resolver.ts
+ * Note: This file is copied from agents/iterator/scripts/plugin-resolver.ts
  * to make the plugin self-contained and avoid cross-plugin import issues
  * when installed from marketplace cache.
  *

@@ -10,7 +10,7 @@ import type { AgentConfig, AgentName, ReviewAgentConfig } from "./types.ts";
 /**
  * Default configuration file path (relative to working directory)
  */
-const CONFIG_FILE_PATH = "review-agent/config.json";
+const CONFIG_FILE_PATH = "agents/reviewer/config.json";
 
 /**
  * Default configuration template
@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: ReviewAgentConfig = {
   version: "1.0.0",
   agents: {
     reviewer: {
-      systemPromptTemplate: "review-agent/prompts/default.md",
+      systemPromptTemplate: "agents/reviewer/prompts/default.md",
       allowedTools: ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch"],
       permissionMode: "plan",
     },
@@ -272,7 +272,7 @@ export async function initializeConfig(): Promise<{
 }> {
   const cwd = Deno.cwd();
   const configPath = join(cwd, CONFIG_FILE_PATH);
-  const promptPath = join(cwd, "review-agent/prompts/default.md");
+  const promptPath = join(cwd, "agents/reviewer/prompts/default.md");
 
   let configCreated = false;
   let promptCreated = false;
@@ -284,7 +284,7 @@ export async function initializeConfig(): Promise<{
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Ensure directory exists
-      await Deno.mkdir(join(cwd, "review-agent"), { recursive: true });
+      await Deno.mkdir(join(cwd, "agents/reviewer"), { recursive: true });
       await Deno.writeTextFile(
         configPath,
         JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
@@ -302,7 +302,7 @@ export async function initializeConfig(): Promise<{
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Ensure directory exists
-      await Deno.mkdir(join(cwd, "review-agent/prompts"), { recursive: true });
+      await Deno.mkdir(join(cwd, "agents/reviewer/prompts"), { recursive: true });
       await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
       promptCreated = true;
     } else {

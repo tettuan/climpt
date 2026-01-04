@@ -148,11 +148,11 @@ Example output:
 Iterate Agent initialized successfully!
 
 Created files:
-  - iterate-agent/config.json
+  - agents/iterator/config.json
   - .agent/iterator/prompts/dev/*
 
 Next steps:
-  1. Review and customize the configuration in iterate-agent/config.json
+  1. Review and customize the configuration in agents/iterator/config.json
   2. Install the Claude Code plugin (required for delegate-climpt-agent Skill):
      /plugin marketplace add tettuan/climpt
      /plugin install climpt-agent
@@ -165,7 +165,7 @@ Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
 
 ```
 your-project/
-├── iterate-agent/
+├── agents/iterator/
 │   └── config.json           # Main configuration
 ├── .agent/iterator/
 │   └── prompts/dev/          # System prompts (C3L format)
@@ -536,7 +536,7 @@ deno task iterate-agent --project 5 --iterate-max 10
 
 ## Related Documentation
 
-- [Iterate Agent Detailed Reference](../../iterate-agent/README.md)
+- [Iterate Agent Detailed Reference](../../agents/iterator/README.md)
 
 ---
 

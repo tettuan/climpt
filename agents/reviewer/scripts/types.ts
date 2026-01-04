@@ -4,31 +4,19 @@
  * Core TypeScript types for the review agent system.
  */
 
-/**
- * Agent name types
- */
-export type AgentName = "reviewer" | string;
-
-/**
- * Permission mode types (from Claude Agent SDK)
- */
-export type PermissionMode =
-  | "default"
-  | "plan"
-  | "acceptEdits"
-  | "bypassPermissions";
-
-/**
- * Log levels
- */
-export type LogLevel =
-  | "info"
-  | "error"
-  | "debug"
-  | "assistant"
-  | "user"
-  | "system"
-  | "result";
+// Re-export common types
+export type {
+  AgentName,
+  BaseAgentConfig,
+  BaseIterationSummary,
+  GitHubIssue,
+  LogEntry,
+  LoggingConfig,
+  LogLevel,
+  PermissionMode,
+  ToolResultInfo,
+  ToolUseInfo,
+} from "../../common/types.ts";
 
 /**
  * Review status for each requirement
@@ -46,7 +34,7 @@ export interface ReviewOptions {
   iterateMax: number;
 
   /** Agent name (default: "reviewer") */
-  agentName: AgentName;
+  agentName: string;
 
   /** Label for requirements/specs issues (default: "docs") */
   requirementsLabel: string;
@@ -80,7 +68,11 @@ export interface AgentConfig {
   allowedTools: string[];
 
   /** Permission mode for this agent */
-  permissionMode: PermissionMode;
+  permissionMode:
+    | "default"
+    | "plan"
+    | "acceptEdits"
+    | "bypassPermissions";
 }
 
 /**
@@ -115,49 +107,6 @@ export interface ReviewAgentConfig {
   output?: {
     issueLabels?: string[];
   };
-}
-
-/**
- * Log entry structure (JSONL format)
- */
-export interface LogEntry {
-  step: number;
-  timestamp: string;
-  level: LogLevel;
-  message: string;
-  metadata?: {
-    role?: string;
-    iterationCount?: number;
-    taskId?: string;
-    reviewAction?: {
-      actionType: ReviewActionType;
-      issueCreated?: number;
-      gapCount?: number;
-    };
-    completionCheck?: {
-      complete: boolean;
-      requirementsReviewed: number;
-      gapsFound: number;
-    };
-    error?: {
-      name: string;
-      message: string;
-      stack?: string;
-    };
-    [key: string]: unknown;
-  };
-}
-
-/**
- * GitHub Issue data
- */
-export interface GitHubIssue {
-  number: number;
-  title: string;
-  body: string | null;
-  state: "OPEN" | "CLOSED";
-  labels: Array<{ name: string }>;
-  comments?: Array<{ body: string }>;
 }
 
 /**
