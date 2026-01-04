@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(build|convert-skill|create|migrate)$"
+      pattern: "^(build|convert-skill|create|migrate|name)$"
     layerType:
-      pattern: "^(frontmatter|instruction|skill|to-plugin)$"
+      pattern: "^(c3l-command|frontmatter|instruction|skill|to-plugin)$"

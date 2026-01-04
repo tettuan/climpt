@@ -169,6 +169,26 @@
         "uv": ""
       },
       {
+        "c1": "meta",
+        "c2": "name",
+        "c3": "c3l-command",
+        "description": "Derive C3L-compliant command naming (c1, c2, c3) from requirements using C3L specification v0.5",
+        "usage": "climpt-meta name c3l-command",
+        "options": {
+          "edition": [
+            "default"
+          ],
+          "adaptation": [
+            "default",
+            "detailed"
+          ],
+          "file": false,
+          "stdin": true,
+          "destination": false
+        },
+        "uv": ""
+      },
+      {
         "c1": "test",
         "c2": "echo",
         "c3": "input",
