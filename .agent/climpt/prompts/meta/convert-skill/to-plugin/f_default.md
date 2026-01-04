@@ -224,6 +224,132 @@ cat .claude/settings.json | jq '.enabledPlugins'
 | `project` | `.claude/settings.json` | Project-specific plugins |
 | `user` | `~/.claude/settings.json` | Personal plugins across projects |
 
+## Local Marketplace Registration (Advanced)
+
+複数プラグインを管理する場合や、チームで共有する場合は `marketplace.json` を使用する。
+
+### marketplace.json の構造
+
+```
+my-marketplace/
+├── .claude-plugin/
+│   └── marketplace.json    # マーケットプレースの定義ファイル
+└── plugins/
+    └── my-plugin/
+        ├── .claude-plugin/
+        │   └── plugin.json
+        ├── skills/
+        │   └── <skill-name>/
+        │       └── SKILL.md
+        └── ...
+```
+
+### marketplace.json の形式
+
+```json
+{
+  "name": "my-plugins",
+  "owner": {
+    "name": "Your Name"
+  },
+  "metadata": {
+    "description": "Local plugin marketplace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "source": "./plugins/my-plugin",
+      "description": "Plugin description"
+    }
+  ]
+}
+```
+
+### marketplace.json の必須フィールド
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | マーケットプレース識別子 (kebab-case) |
+| `owner` | object | Yes | `name` (必須) と `email` (任意) を含む |
+| `plugins` | array | Yes | 利用可能なプラグインのリスト |
+| `metadata.description` | string | No | マーケットプレースの説明 |
+| `metadata.version` | string | No | マーケットプレースのバージョン |
+
+### プラグインソースの指定方法
+
+**ローカルパス (相対パス):**
+```json
+{ "name": "my-plugin", "source": "./plugins/my-plugin" }
+```
+
+**GitHub リポジトリ:**
+```json
+{
+  "name": "github-plugin",
+  "source": {
+    "source": "github",
+    "repo": "owner/plugin-repo"
+  }
+}
+```
+
+**任意の Git リポジトリ:**
+```json
+{
+  "name": "git-plugin",
+  "source": {
+    "source": "url",
+    "url": "https://gitlab.com/team/plugin.git"
+  }
+}
+```
+
+### マーケットプレースの登録
+
+```bash
+# Claude Code CLI でマーケットプレースを追加
+/plugin marketplace add ./my-marketplace
+
+# マーケットプレースからプラグインをインストール
+/plugin install my-plugin@my-plugins
+```
+
+### settings.json での設定
+
+プロジェクトの `.claude/settings.json` に直接設定することも可能:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "my-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "./my-marketplace"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "my-plugin@my-plugins": true
+  }
+}
+```
+
+### marketplace.json vs settings.json の違い
+
+| ファイル | 目的 | 用途 |
+|---------|------|------|
+| `marketplace.json` | プラグインの**定義・配布** | プラグインの所在地を定義 |
+| `settings.json` (enabledPlugins) | プラグインの**有効化・無効化** | どのプラグインを使うか制御 |
+| `settings.json` (extraKnownMarketplaces) | マーケットプレースの**登録** | どのマーケットプレースを参照するか |
+
+### マーケットプレースの検証
+
+```bash
+# Claude Code CLI でマーケットプレースを検証
+/plugin validate .
+```
+
 ## Notes
 
 - The original skill in `.claude/skills/` is NOT deleted
