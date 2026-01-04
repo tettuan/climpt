@@ -276,12 +276,19 @@ my-marketplace/
 | `metadata.description` | string | No | マーケットプレースの説明 |
 | `metadata.version` | string | No | マーケットプレースのバージョン |
 
+**重要な注意点:**
+
+1. **owner フィールドは必須** - `{ "name": "..." }` を必ず含める
+2. **配置場所は `.claude-plugin/` 内** - `plugin.json` と同じディレクトリに `marketplace.json` を置く
+
 ### プラグインソースの指定方法
 
 **ローカルパス (相対パス):**
 ```json
 { "name": "my-plugin", "source": "./plugins/my-plugin" }
 ```
+
+> **注意:** source は `./` で始める（`"."` ではなく `"./"` と記述）
 
 **GitHub リポジトリ:**
 ```json
