@@ -7,9 +7,7 @@ import { query } from "npm:@anthropic-ai/claude-agent-sdk";
 import type { Options, SDKMessage } from "npm:@anthropic-ai/claude-agent-sdk";
 
 import type { Logger } from "./logger.ts";
-import {
-  resolvePluginPathsSafe,
-} from "../../../../lib/plugin-resolver.ts";
+import { resolvePluginPathsSafe } from "../../../../lib/plugin-resolver.ts";
 
 /**
  * Run Claude Agent SDK with the obtained prompt
@@ -35,7 +33,9 @@ export async function runSubAgent(
 
   if (dynamicPlugins.length > 0) {
     await logger.write(
-      `Dynamic plugins resolved: ${dynamicPlugins.map((p) => p.path).join(", ")}`,
+      `Dynamic plugins resolved: ${
+        dynamicPlugins.map((p) => p.path).join(", ")
+      }`,
     );
   }
 

@@ -253,4 +253,3 @@ Deno.test("Integration: handleMessage handles undefined content", async () => {
 
   assertEquals(logger.getCallsByMethod("writeAssistant").length, 0);
 });
-

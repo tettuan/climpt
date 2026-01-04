@@ -185,7 +185,8 @@ function extractJSON(response: string): string {
 }
 
 /** System prompt for JSON-only responses */
-const JSON_SYSTEM_PROMPT = `You are a CLI options resolver. Output ONLY valid JSON.
+const JSON_SYSTEM_PROMPT =
+  `You are a CLI options resolver. Output ONLY valid JSON.
 
 CRITICAL RULES:
 1. Your response must be ONLY a JSON object - no explanations, no markdown
@@ -258,7 +259,9 @@ function buildRetryPrompt(
 RETRY: Your previous response could not be parsed as JSON.
 
 Previous response:
-${previousResponse.substring(0, 500)}${previousResponse.length > 500 ? "..." : ""}
+${previousResponse.substring(0, 500)}${
+    previousResponse.length > 500 ? "..." : ""
+  }
 
 Parse error: ${parseError}
 

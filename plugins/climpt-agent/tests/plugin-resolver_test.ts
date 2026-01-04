@@ -328,7 +328,6 @@ Deno.test("resolvePluginPathsSafe: returns empty array on error", async () => {
   }
 });
 
-
 Deno.test("resolvePluginPathsSafe: works same as resolvePluginPaths on success", async () => {
   const tempDir = await createMockSettingsDir({
     enabledPlugins: {
