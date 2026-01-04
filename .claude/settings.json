@@ -1,0 +1,97 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(cd:*)",
+      "Bash(chmod:*)",
+      "Bash(claude:*)",
+      "Bash(climpt:*)",
+      "Bash(cp:*)",
+      "Bash(curl:*)",
+      "Bash(deno:*)",
+      "Bash(diff:*)",
+      "Bash(echo:*)",
+      "Bash(env:*)",
+      "Bash(file:*)",
+      "Bash(find:*)",
+      "Bash(gh:*)",
+      "Bash(git:*)",
+      "Bash(grep:*)",
+      "Bash(head:*)",
+      "Bash(jq:*)",
+      "Bash(kill:*)",
+      "Bash(ls:*)",
+      "Bash(lsof:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(pkill:*)",
+      "Bash(ps:*)",
+      "Bash(pwd:*)",
+      "Bash(rm:*)",
+      "Bash(sed:*)",
+      "Bash(sleep:*)",
+      "Bash(tail:*)",
+      "Bash(timeout:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(which:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno run --allow-read --allow-env .claude/hooks/validate-dangerous-commands.ts",
+            "timeout": 5,
+            "statusMessage": "危険コマンドを検証中..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "deno fmt",
+            "timeout": 30,
+            "statusMessage": "フォーマット中..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd $CLAUDE_PROJECT_DIR && (deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-env && echo '{}') || echo '{\"decision\": \"block\", \"reason\": \"CI error\"}'",
+            "timeout": 120,
+            "statusMessage": "Running CI..."
+          }
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["jsr.io", "*.jsr.io", "deno.land", "*.deno.land"]
+    }
+  },
+  "enabledPlugins": {
+    "climpt-agent@climpt-marketplace": true,
+    "plugin-dev@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "senlygan-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "./plugins"
+      }
+    }
+  }
+}
