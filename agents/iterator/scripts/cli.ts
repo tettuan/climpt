@@ -4,7 +4,7 @@
  * Parses command-line arguments for the iterate-agent.
  */
 
-import { parseArgs } from "jsr:@std/cli@^1/parse-args";
+import { parseArgs } from "@std/cli/parse-args";
 import type { AgentName, ParsedArgs } from "./types.ts";
 
 /**

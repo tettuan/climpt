@@ -10,7 +10,7 @@
  * and should be run separately with proper mocking.
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert@^1";
+import { assertEquals, assertExists } from "@std/assert";
 
 import { ProjectCompletionHandler } from "./project.ts";
 

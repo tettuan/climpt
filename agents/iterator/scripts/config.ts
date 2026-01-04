@@ -4,7 +4,7 @@
  * Loads and validates configuration from agents/iterator/config.json.
  */
 
-import { join } from "jsr:@std/path@^1";
+import { join } from "@std/path";
 import type {
   AgentConfig,
   AgentName,
