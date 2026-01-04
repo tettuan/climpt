@@ -1,16 +1,19 @@
 /**
  * Review Agent - Configuration Module
  *
- * Handles configuration loading, validation, and system prompt building.
+ * Loads configuration with the following priority:
+ * 1. User config from .agent/reviewer/config.json (if exists)
+ * 2. Package default config (bundled via import)
  */
 
 import { join } from "@std/path";
 import type { AgentConfig, AgentName, ReviewAgentConfig } from "./types.ts";
+import BUNDLED_CONFIG from "../config.json" with { type: "json" };
 
 /**
- * Default configuration file path (relative to working directory)
+ * User config file path (relative to CWD)
  */
-const CONFIG_FILE_PATH = "agents/reviewer/config.json";
+const USER_CONFIG_PATH = ".agent/reviewer/config.json";
 
 /**
  * Default configuration template
@@ -145,35 +148,89 @@ At completion, provide:
 `;
 
 /**
- * Load configuration from file
+ * Validate configuration structure
  *
- * @returns Loaded configuration
- * @throws Error if configuration file not found or invalid
+ * @param config - Configuration to validate
+ * @throws Error if validation fails
+ */
+function validateConfig(config: ReviewAgentConfig): void {
+  if (!config.version) {
+    throw new Error("Configuration missing 'version' field");
+  }
+  if (!config.agents || Object.keys(config.agents).length === 0) {
+    throw new Error("Configuration missing 'agents' field");
+  }
+  if (!config.logging) {
+    throw new Error("Configuration missing 'logging' field");
+  }
+}
+
+/**
+ * Deep merge user config over base config
+ */
+function deepMergeConfig(
+  base: ReviewAgentConfig,
+  user: Partial<ReviewAgentConfig>,
+): ReviewAgentConfig {
+  return {
+    ...base,
+    ...user,
+    agents: {
+      ...base.agents,
+      ...(user.agents ?? {}),
+    },
+    github: {
+      ...base.github,
+      ...(user.github ?? {}),
+      labels: {
+        ...base.github?.labels,
+        ...(user.github?.labels ?? {}),
+      },
+    },
+    logging: {
+      ...base.logging,
+      ...(user.logging ?? {}),
+    },
+    output: {
+      ...base.output,
+      ...(user.output ?? {}),
+    },
+  };
+}
+
+/**
+ * Load configuration with priority:
+ * 1. User config from .agent/reviewer/config.json (merged with default)
+ * 2. Package bundled config (fallback)
+ *
+ * @returns Merged configuration
  */
 export async function loadConfig(): Promise<ReviewAgentConfig> {
-  const cwd = Deno.cwd();
-  const configPath = join(cwd, CONFIG_FILE_PATH);
+  // Start with bundled config as base
+  const baseConfig = BUNDLED_CONFIG as ReviewAgentConfig;
 
   try {
-    const content = await Deno.readTextFile(configPath);
-    const config = JSON.parse(content) as ReviewAgentConfig;
+    // Try to load user config from .agent/reviewer/config.json
+    const userConfigPath = join(Deno.cwd(), USER_CONFIG_PATH);
+    const content = await Deno.readTextFile(userConfigPath);
+    const userConfig = JSON.parse(content) as Partial<ReviewAgentConfig>;
 
-    // Validate required fields
-    if (!config.version) {
-      throw new Error("Configuration missing 'version' field");
-    }
-    if (!config.agents || Object.keys(config.agents).length === 0) {
-      throw new Error("Configuration missing 'agents' field");
-    }
-    if (!config.logging) {
-      throw new Error("Configuration missing 'logging' field");
-    }
+    // Deep merge user config over base config
+    const mergedConfig = deepMergeConfig(baseConfig, userConfig);
 
-    return config;
+    // Validate merged config
+    validateConfig(mergedConfig);
+
+    return mergedConfig;
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
+      // No user config, use bundled config
+      validateConfig(baseConfig);
+      return baseConfig;
+    }
+    if (error instanceof SyntaxError) {
       throw new Error(
-        `Configuration not found at ${configPath}. Run with --init to create.`,
+        `Invalid JSON in user configuration file (${USER_CONFIG_PATH}): ${error.message}`,
       );
     }
     throw error;
@@ -258,9 +315,10 @@ export async function buildSystemPrompt(
 }
 
 /**
- * Initialize configuration files
+ * Initialize user configuration files
  *
- * Creates config.json and prompts/default.md in review-agent directory.
+ * Creates config.json and prompts/default.md in .agent/reviewer/ directory.
+ * These are user-customizable files that override package defaults.
  *
  * @returns Object with created file paths and status
  */
@@ -271,8 +329,8 @@ export async function initializeConfig(): Promise<{
   promptPath: string;
 }> {
   const cwd = Deno.cwd();
-  const configPath = join(cwd, CONFIG_FILE_PATH);
-  const promptPath = join(cwd, "agents/reviewer/prompts/default.md");
+  const configPath = join(cwd, USER_CONFIG_PATH);
+  const promptPath = join(cwd, ".agent/reviewer/prompts/default.md");
 
   let configCreated = false;
   let promptCreated = false;
@@ -284,7 +342,7 @@ export async function initializeConfig(): Promise<{
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Ensure directory exists
-      await Deno.mkdir(join(cwd, "agents/reviewer"), { recursive: true });
+      await Deno.mkdir(join(cwd, ".agent/reviewer"), { recursive: true });
       await Deno.writeTextFile(
         configPath,
         JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
@@ -302,7 +360,7 @@ export async function initializeConfig(): Promise<{
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Ensure directory exists
-      await Deno.mkdir(join(cwd, "agents/reviewer/prompts"), {
+      await Deno.mkdir(join(cwd, ".agent/reviewer/prompts"), {
         recursive: true,
       });
       await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
