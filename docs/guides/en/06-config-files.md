@@ -56,10 +56,11 @@ your-project/
 │       ├── climpt-meta                # meta domain
 │       └── climpt-code                # code domain
 │
-└── iterate-agent/                     # Iterate Agent (optional)
-    ├── config.json
-    └── prompts/
-        └── default.md
+└── agents/                            # Agents (optional)
+    ├── iterator/                      # Iterate Agent
+    │   └── config.json
+    └── reviewer/                      # Review Agent
+        └── config.json
 ```
 
 ### Directory Roles

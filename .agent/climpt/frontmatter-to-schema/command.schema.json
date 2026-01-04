@@ -11,18 +11,18 @@
   "properties": {
     "c1": {
       "type": "string",
-      "pattern": "^[a-z]+(-[a-z]+)?$",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
       "description": "Domain: What domain this acts on (e.g., git, meta, test)"
     },
     "c2": {
       "type": "string",
-      "pattern": "^[a-z]+(-[a-z]+)?$",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
       "description": "Action: What is done (e.g., group-commit, review)"
     },
     "c3": {
       "type": "string",
-      "pattern": "^[a-z]+(-[a-z]+)?$",
-      "description": "Target: What is acted upon (e.g., unstaged-changes, pull-request)"
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
+      "description": "Target: What is acted upon (e.g., unstaged-changes, c3l-command)"
     },
     "title": {
       "type": "string",
