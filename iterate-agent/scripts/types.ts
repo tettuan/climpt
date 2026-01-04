@@ -135,9 +135,6 @@ export interface AgentOptions {
  * Agent configuration
  */
 export interface AgentConfig {
-  /** Path to system prompt template */
-  systemPromptTemplate: string;
-
   /** List of allowed tools for this agent */
   allowedTools: string[];
 

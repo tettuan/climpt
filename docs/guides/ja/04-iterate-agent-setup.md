@@ -149,7 +149,7 @@ Iterate Agent initialized successfully!
 
 Created files:
   - iterate-agent/config.json
-  - iterate-agent/prompts/default.md
+  - .agent/iterator/prompts/dev/*
 
 Next steps:
   1. Review and customize the configuration in iterate-agent/config.json
@@ -166,9 +166,9 @@ Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
 ```
 your-project/
 ├── iterate-agent/
-│   ├── config.json           # メイン設定
-│   └── prompts/
-│       └── default.md        # システムプロンプト
+│   └── config.json           # メイン設定
+├── .agent/iterator/
+│   └── prompts/dev/          # システムプロンプト（C3L形式）
 └── tmp/
     └── logs/
         └── agents/           # 実行ログ（自動作成）
@@ -288,7 +288,6 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
   "version": "1.0.0",
   "agents": {
     "climpt": {
-      "systemPromptTemplate": "iterate-agent/prompts/default.md",
       "allowedTools": [
         "Skill",
         "Read",
@@ -316,7 +315,6 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 | 項目 | 説明 |
 |------|------|
-| `systemPromptTemplate` | エージェントのシステムプロンプトファイル |
 | `allowedTools` | 使用可能なツールのリスト |
 | `permissionMode` | 権限モード |
 | `logging.directory` | ログ出力先 |
@@ -333,28 +331,16 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 ### システムプロンプトのカスタマイズ
 
-`iterate-agent/prompts/default.md` を編集して、エージェントの動作をカスタマイズできます：
+システムプロンプトは `.agent/iterator/prompts/dev/` にC3L形式で配置されています：
 
-```markdown
-# Role
-You are an autonomous agent working on continuous development.
+| ファイル | 用途 |
+|---------|------|
+| `start/default/f_default.md` | イテレーション回数ベースモード |
+| `start/issue/f_default.md` | 単一GitHub Issueモード |
+| `start/project/f_default.md` | GitHub Project準備モード |
+| `review/project/f_default.md` | プロジェクト完了レビューモード |
 
-# Objective
-Execute development tasks autonomously and make continuous progress.
-
-# Working Mode
-- You are running in a perpetual execution cycle
-- Use the **delegate-climpt-agent** Skill with `--agent={{AGENT}}` to execute tasks
-  - `--agent` specifies the registry name defined in `registry_config.json`
-  - Example: `--agent=climpt` uses `.agent/climpt/registry.json`
-- After each task completion, ask Climpt for the next logical task
-- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
-
-# Guidelines
-- Be autonomous: Make decisions without waiting for human approval
-- Be thorough: Ensure each task is properly completed
-- Be organized: Maintain clear context of what has been done
-```
+これらのプロンプトはUV変数を使用して動的にコンテンツを挿入します（例：`{uv-agent_name}`, `{uv-completion_criteria}`）。
 
 ### --agent オプションについて
 
@@ -464,12 +450,12 @@ cd your-project
 deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
-### System prompt template not found
+### Empty output from breakdown CLI
 
-プロンプトファイルが存在することを確認：
+プロンプトテンプレートが存在することを確認：
 
 ```bash
-ls -la iterate-agent/prompts/default.md
+ls -la .agent/iterator/prompts/dev/
 ```
 
 存在しない場合は `--init` を再実行：

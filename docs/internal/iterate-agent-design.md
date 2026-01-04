@@ -253,7 +253,7 @@ ${ROLE_SPECIFIC_GUIDELINES}
 ### 5.2 Role-Specific Prompts
 
 <Note>
-以下のプロンプトは **サンプル** です。実際のプロンプトは `iterate-agent/prompts/{role}.md` ファイルで定義され、プロジェクトの要件に応じて自由にカスタマイズできます。
+以下のプロンプトは **サンプル** です。実際のプロンプトは `.agent/iterator/prompts/dev/` 配下の C3L テンプレートで定義され、プロジェクトの要件に応じて自由にカスタマイズできます。
 </Note>
 
 #### 5.2.1 Product Developer (Sample)
@@ -339,27 +339,22 @@ Location: `iterate-agent/config.json` (プロジェクトルート直下)
   "version": "1.0.0",
   "roles": {
     "product-developer": {
-      "systemPromptTemplate": "iterate-agent/prompts/product-developer.md",
       "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
       "permissionMode": "acceptEdits"
     },
     "qa-engineer": {
-      "systemPromptTemplate": "iterate-agent/prompts/qa-engineer.md",
       "allowedTools": ["Skill", "Read", "Write", "Bash", "Glob", "Grep"],
       "permissionMode": "acceptEdits"
     },
     "architect": {
-      "systemPromptTemplate": "iterate-agent/prompts/architect.md",
       "allowedTools": ["Skill", "Read", "Glob", "Grep"],
       "permissionMode": "default"
     },
     "devops-engineer": {
-      "systemPromptTemplate": "iterate-agent/prompts/devops-engineer.md",
       "allowedTools": ["Skill", "Read", "Write", "Bash", "Glob", "Grep"],
       "permissionMode": "acceptEdits"
     },
     "tech-writer": {
-      "systemPromptTemplate": "iterate-agent/prompts/tech-writer.md",
       "allowedTools": ["Skill", "Read", "Write", "Edit", "Glob", "Grep"],
       "permissionMode": "acceptEdits"
     }
@@ -787,8 +782,6 @@ async function retryWithBackoff<T>(
 ```
 iterate-agent/                           # プロジェクトルート直下に配置
 ├── config.json                          # Main configuration
-├── prompts/
-│   └── default.md                       # Legacy: 共通テンプレート（廃止予定）
 ├── scripts/
 │   ├── agent.ts                         # Main entry point
 │   ├── cli.ts                           # CLI argument parsing

@@ -149,7 +149,7 @@ Iterate Agent initialized successfully!
 
 Created files:
   - iterate-agent/config.json
-  - iterate-agent/prompts/default.md
+  - .agent/iterator/prompts/dev/*
 
 Next steps:
   1. Review and customize the configuration in iterate-agent/config.json
@@ -166,9 +166,9 @@ Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
 ```
 your-project/
 ├── iterate-agent/
-│   ├── config.json           # Main configuration
-│   └── prompts/
-│       └── default.md        # System prompt
+│   └── config.json           # Main configuration
+├── .agent/iterator/
+│   └── prompts/dev/          # System prompts (C3L format)
 └── tmp/
     └── logs/
         └── agents/           # Execution logs (auto-created)
@@ -288,7 +288,6 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
   "version": "1.0.0",
   "agents": {
     "climpt": {
-      "systemPromptTemplate": "iterate-agent/prompts/default.md",
       "allowedTools": [
         "Skill",
         "Read",
@@ -316,7 +315,6 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 | Item | Description |
 |------|-------------|
-| `systemPromptTemplate` | Agent's system prompt file |
 | `allowedTools` | List of available tools |
 | `permissionMode` | Permission mode |
 | `logging.directory` | Log output destination |
@@ -333,28 +331,16 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 ### System Prompt Customization
 
-Edit `iterate-agent/prompts/default.md` to customize the agent's behavior:
+System prompts are located in `.agent/iterator/prompts/dev/` using C3L format:
 
-```markdown
-# Role
-You are an autonomous agent working on continuous development.
+| File | Purpose |
+|------|---------|
+| `start/default/f_default.md` | Iteration-count based mode |
+| `start/issue/f_default.md` | Single GitHub Issue mode |
+| `start/project/f_default.md` | GitHub Project preparation mode |
+| `review/project/f_default.md` | Project completion review mode |
 
-# Objective
-Execute development tasks autonomously and make continuous progress.
-
-# Working Mode
-- You are running in a perpetual execution cycle
-- Use the **delegate-climpt-agent** Skill with `--agent={{AGENT}}` to execute tasks
-  - `--agent` specifies the registry name defined in `registry_config.json`
-  - Example: `--agent=climpt` uses `.agent/climpt/registry.json`
-- After each task completion, ask Climpt for the next logical task
-- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
-
-# Guidelines
-- Be autonomous: Make decisions without waiting for human approval
-- Be thorough: Ensure each task is properly completed
-- Be organized: Maintain clear context of what has been done
-```
+These prompts use UV variables for dynamic content injection (e.g., `{uv-agent_name}`, `{uv-completion_criteria}`).
 
 ### About the --agent Option
 
@@ -464,12 +450,12 @@ cd your-project
 deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
-### System prompt template not found
+### Empty output from breakdown CLI
 
-Verify prompt file exists:
+Verify prompt templates exist:
 
 ```bash
-ls -la iterate-agent/prompts/default.md
+ls -la .agent/iterator/prompts/dev/
 ```
 
 If not found, re-run `--init`:

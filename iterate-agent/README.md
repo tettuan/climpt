@@ -98,16 +98,15 @@ Iterate Agent uses agents defined in
 
 Agent configuration is in `iterate-agent/config.json`:
 
-- System prompt template: `iterate-agent/prompts/default.md`
 - Allowed tools: Configure which tools the agent can use
 - Permission mode: Control how the agent handles operations
+- System prompts: Located in `.agent/iterator/prompts/dev/`
 
 You can add more agents by:
 
 1. Adding the agent to `.agent/climpt/config/registry_config.json` with its
    registry path
 2. Adding agent configuration to `iterate-agent/config.json`
-3. Creating a system prompt template in `iterate-agent/prompts/`
 
 ## Configuration
 
@@ -118,7 +117,6 @@ Main configuration is in `iterate-agent/config.json`:
   "version": "1.0.0",
   "agents": {
     "climpt": {
-      "systemPromptTemplate": "iterate-agent/prompts/default.md",
       "allowedTools": [
         "Skill",
         "Read",
@@ -219,17 +217,15 @@ brew install gh
 
 Run from the project root directory where `iterate-agent/config.json` exists.
 
-### Error: "System prompt template not found"
+### Error: "Empty output from breakdown CLI"
 
-Ensure prompt file exists: `iterate-agent/prompts/default.md`
+Ensure `.agent/iterator/` prompt templates exist. Run `--init` to create them.
 
 ## File Structure
 
 ```
 iterate-agent/
 ├── config.json                    # Main configuration
-├── prompts/
-│   └── default.md                 # System prompt template (fallback)
 ├── scripts/
 │   ├── agent.ts                   # Main entry point
 │   ├── cli.ts                     # CLI argument parsing

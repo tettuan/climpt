@@ -152,7 +152,7 @@ USAGE:
 OPTIONS:
   --init
       Initialize configuration files in the current directory.
-      Creates iterate-agent/config.json and iterate-agent/prompts/default.md
+      Creates iterate-agent/config.json and .agent/iterator/ prompt templates.
       Run this once before first use.
 
   --issue, -i <number>

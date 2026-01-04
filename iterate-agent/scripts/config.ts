@@ -19,7 +19,6 @@ const DEFAULT_CONFIG: IterateAgentConfig = {
   version: "1.0.0",
   agents: {
     climpt: {
-      systemPromptTemplate: "iterate-agent/prompts/default.md",
       allowedTools: ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
       permissionMode: "acceptEdits",
     },
@@ -33,48 +32,6 @@ const DEFAULT_CONFIG: IterateAgentConfig = {
     format: "jsonl",
   },
 };
-
-/**
- * Default system prompt template (deprecated - kept for backwards compatibility)
- */
-const DEFAULT_PROMPT_TEMPLATE = `# Role
-You are an autonomous agent working on continuous development.
-
-# Objective
-Execute development tasks autonomously and make continuous progress.
-
-# Working Mode
-- You are running in a perpetual execution cycle
-- Use the **delegate-climpt-agent** Skill with \`--agent={{AGENT}}\` to execute development tasks
-  - \`--agent\` specifies the registry name defined in \`registry_config.json\`
-  - Example: \`--agent=climpt\` uses \`.agent/climpt/registry.json\`
-- After each task completion, ask Climpt for the next logical task via the Skill
-- Your goal is to make continuous progress on {{COMPLETION_CRITERIA}}
-
-# Task Execution Workflow
-1. Receive current requirements/context
-2. Invoke **delegate-climpt-agent** Skill with task description and \`--agent={{AGENT}}\` (registry name from \`registry_config.json\`)
-3. Review the AI-generated summary from the sub-agent
-4. Evaluate progress against completion criteria
-5. If incomplete, ask Climpt (via Skill) what to do next
-6. Repeat the cycle
-
-# Completion Criteria
-{{COMPLETION_CRITERIA_DETAIL}}
-
-# Guidelines
-- Be autonomous: Make decisions without waiting for human approval
-- Be thorough: Ensure each task is properly completed before moving on
-- Be organized: Maintain clear context of what has been done
-- Be communicative: Provide clear status updates in your responses
-
-## Guidelines for Development
-- Prioritize functionality and code maintainability
-- Follow the project's coding standards and patterns
-- Write clear commit messages
-- Ensure changes don't break existing functionality
-- Consider edge cases and error handling
-`;
 
 /**
  * Breakdown CLI configuration for iterator-dev profile (app config)
@@ -729,11 +686,6 @@ function validateConfig(config: IterateAgentConfig): void {
 
   // Validate each agent has required fields
   for (const [agentName, agentConfig] of Object.entries(config.agents)) {
-    if (!agentConfig.systemPromptTemplate) {
-      throw new Error(
-        `Agent "${agentName}" missing required field: systemPromptTemplate`,
-      );
-    }
     if (!agentConfig.allowedTools || !Array.isArray(agentConfig.allowedTools)) {
       throw new Error(
         `Agent "${agentName}" missing or invalid field: allowedTools`,
@@ -773,33 +725,6 @@ export function getAgentConfig(
 }
 
 /**
- * Load system prompt template for an agent
- *
- * @param agentConfig - Agent configuration
- * @param basePath - Base path for resolving template path (defaults to cwd)
- * @returns System prompt template content
- * @throws Error if template file doesn't exist
- */
-export async function loadSystemPromptTemplate(
-  agentConfig: AgentConfig,
-  basePath: string = Deno.cwd(),
-): Promise<string> {
-  const templatePath = join(basePath, agentConfig.systemPromptTemplate);
-
-  try {
-    return await Deno.readTextFile(templatePath);
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      throw new Error(
-        `System prompt template not found: ${templatePath}\n` +
-          `Run initialization first: deno run -A jsr:@aidevtool/climpt/agents/iterator --init`,
-      );
-    }
-    throw error;
-  }
-}
-
-/**
  * Ensure log directory exists
  *
  * @param config - Main configuration
@@ -828,7 +753,6 @@ export async function ensureLogDirectory(
  */
 export interface InitResult {
   configPath: string;
-  promptPath: string;
   breakdownConfigPaths: string[];
   iteratorPromptPaths: string[];
   /** Files that were created */
@@ -842,7 +766,6 @@ export interface InitResult {
  *
  * Creates:
  * - iterate-agent/config.json (agent configuration)
- * - iterate-agent/prompts/default.md (legacy prompt template)
  * - .agent/climpt/config/iterator-dev-app.yml (breakdown CLI app config)
  * - .agent/climpt/config/iterator-dev-user.yml (breakdown CLI user config)
  * - .agent/iterator/registry.json (command registry)
@@ -855,9 +778,7 @@ export async function initializeConfig(
   basePath: string = Deno.cwd(),
 ): Promise<InitResult> {
   const configDir = join(basePath, "iterate-agent");
-  const promptsDir = join(basePath, "iterate-agent/prompts");
   const configPath = join(configDir, "config.json");
-  const promptPath = join(promptsDir, "default.md");
 
   // Breakdown CLI config paths
   const breakdownConfigDir = join(basePath, ".agent/climpt/config");
@@ -887,7 +808,7 @@ export async function initializeConfig(
   const skipped: string[] = [];
 
   // Create directories (always safe to create)
-  await Deno.mkdir(promptsDir, { recursive: true });
+  await Deno.mkdir(configDir, { recursive: true });
   await Deno.mkdir(breakdownConfigDir, { recursive: true });
   await Deno.mkdir(iteratorDir, { recursive: true });
 
@@ -911,14 +832,6 @@ export async function initializeConfig(
       JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n",
     );
     created.push(configPath);
-  }
-
-  // Write legacy default.md
-  if (await fileExists(promptPath)) {
-    skipped.push(promptPath);
-  } else {
-    await Deno.writeTextFile(promptPath, DEFAULT_PROMPT_TEMPLATE);
-    created.push(promptPath);
   }
 
   // Write breakdown CLI config files
@@ -962,7 +875,6 @@ export async function initializeConfig(
 
   return {
     configPath,
-    promptPath,
     breakdownConfigPaths: [appYmlPath, userYmlPath],
     iteratorPromptPaths,
     created,

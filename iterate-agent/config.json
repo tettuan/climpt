@@ -2,7 +2,6 @@
   "version": "1.0.0",
   "agents": {
     "climpt": {
-      "systemPromptTemplate": "iterate-agent/prompts/default.md",
       "allowedTools": [
         "Skill",
         "Read",
