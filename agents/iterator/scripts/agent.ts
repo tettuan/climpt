@@ -749,6 +749,7 @@ async function runAgentLoop(
             "project",
             processingUvVariables,
             stdinContent,
+            { edition: "processing" },
           );
           await logger.write("info", "Climpt prompt executed", {
             type: "climpt_prompt_used",

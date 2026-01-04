@@ -895,7 +895,7 @@ export type C3LCommand = "start" | "review";
 /**
  * C3L edition option
  */
-export type C3LEdition = "default" | "again";
+export type C3LEdition = "default" | "again" | "processing";
 
 /**
  * Options for loading system prompt via C3L
@@ -903,7 +903,7 @@ export type C3LEdition = "default" | "again";
 export interface C3LPromptOptions {
   /** Command type (c2 value): "start" or "review" */
   command?: C3LCommand;
-  /** Edition option: "default" or "again" */
+  /** Edition option: "default", "again", or "processing" */
   edition?: C3LEdition;
 }
 
