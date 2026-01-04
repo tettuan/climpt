@@ -183,7 +183,7 @@ Use these structured outputs. **Do NOT run \`gh\` commands directly.**
 
     const remainingList = ctx.remainingIssueTitles
       .slice(0, 5)
-      .map((title, i) => `  - ${title}`)
+      .map((title) => `  - ${title}`)
       .join("\n");
     const moreText = ctx.remainingIssueTitles.length > 5
       ? `\n  ... and ${ctx.remainingIssueTitles.length - 5} more`

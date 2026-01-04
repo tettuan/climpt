@@ -371,7 +371,7 @@ async function main(): Promise<void> {
  */
 async function runAgentLoop(
   options: AgentOptions,
-  config: IterateAgentConfig,
+  _config: IterateAgentConfig,
   agentConfig: AgentConfig,
   completionHandler: CompletionHandler,
   systemPrompt: string,
@@ -449,7 +449,6 @@ async function runAgentLoop(
     const executedActions: IssueActionResult[] = [];
     let issueClosed = false;
     let closedIssueNumber: number | null = null;
-    let shouldStopIteration = false;
 
     // Track detected phase outputs (project mode)
     let detectedProjectPlan: ProjectPlanParseResult | null = null;

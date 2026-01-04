@@ -302,7 +302,7 @@ export interface ProjectIssueInfo {
  * @returns Array of label names
  * @throws Error if gh command fails
  */
-async function getIssueLabels(issueNumber: number): Promise<string[]> {
+async function _getIssueLabels(issueNumber: number): Promise<string[]> {
   const command = new Deno.Command("gh", {
     args: [
       "issue",

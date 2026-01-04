@@ -390,7 +390,7 @@ export async function fetchProjectIssuesByLabel(
  * @param requirementsLabel - Label for requirements (default: "docs")
  * @returns Array of requirement issues
  */
-export async function fetchRequirementsIssues(
+export function fetchRequirementsIssues(
   projectNumber: number,
   requirementsLabel: string = "docs",
 ): Promise<GitHubIssue[]> {
@@ -404,7 +404,7 @@ export async function fetchRequirementsIssues(
  * @param reviewLabel - Label for review targets (default: "review")
  * @returns Array of review target issues
  */
-export async function fetchReviewTargetIssues(
+export function fetchReviewTargetIssues(
   projectNumber: number,
   reviewLabel: string = "review",
 ): Promise<GitHubIssue[]> {

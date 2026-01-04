@@ -23,7 +23,7 @@ import {
   parseReviewActions,
   parseTraceabilityIds,
 } from "./github.ts";
-import { createLogger, Logger } from "./logger.ts";
+import { createLogger, type Logger } from "./logger.ts";
 import {
   resolvePluginPathsSafe,
   type SdkPluginConfig,
@@ -117,7 +117,6 @@ function processMessage(
     // Extract tool uses
     // deno-lint-ignore no-explicit-any
     const toolUses = blocks.filter((b: any) => b.type === "tool_use");
-    // deno-lint-ignore no-explicit-any
     for (const tool of toolUses) {
       if (tool.name && !summary.toolsUsed.includes(tool.name)) {
         summary.toolsUsed.push(tool.name);
@@ -131,7 +130,6 @@ function processMessage(
   if (message.message?.role === "user") {
     const content = message.message.content;
     if (Array.isArray(content)) {
-      // deno-lint-ignore no-explicit-any
       for (const block of content) {
         if (block.type === "tool_result" && block.is_error) {
           const errorMsg = String(block.content || "Unknown error");
@@ -363,7 +361,7 @@ async function runAgentLoop(
 
   // Review state
   let iterationCount = 0;
-  let allCreatedIssues: number[] = [];
+  const allCreatedIssues: number[] = [];
   let isComplete = false;
   let currentPrompt = initialPrompt;
 
