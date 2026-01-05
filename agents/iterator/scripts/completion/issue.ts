@@ -18,8 +18,10 @@ export interface ProjectContext {
   projectNumber: number;
   /** Project title */
   projectTitle: string;
-  /** Project description */
+  /** Project description (shortDescription) */
   projectDescription: string | null;
+  /** Project readme */
+  projectReadme: string | null;
   /** Total issues in project (with label filter) */
   totalIssues: number;
   /** Current issue index (1-based) */
@@ -189,10 +191,20 @@ Use these structured outputs. **Do NOT run \`gh\` commands directly.**
       ? `\n  ... and ${ctx.remainingIssueTitles.length - 5} more`
       : "";
 
+    // Build description section
+    const descSection = ctx.projectDescription
+      ? `\n### Description\n${ctx.projectDescription}\n`
+      : "";
+
+    // Build readme section (separate from description)
+    const readmeSection = ctx.projectReadme
+      ? `\n### README\n${ctx.projectReadme}\n`
+      : "";
+
     return `## Project Overview
 
 **Project #${ctx.projectNumber}**: ${ctx.projectTitle}${labelInfo}
-${ctx.projectDescription ? `\n${ctx.projectDescription}\n` : ""}
+${descSection}${readmeSection}
 **Progress**: Issue ${ctx.currentIndex} of ${ctx.totalIssues}
 
 ### Remaining Issues (for context only)

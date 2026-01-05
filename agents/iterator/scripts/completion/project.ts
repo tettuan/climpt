@@ -62,6 +62,7 @@ export class ProjectCompletionHandler implements CompletionHandler {
   /** Cached project info for context */
   private projectTitle = "";
   private projectDescription: string | null = null;
+  private projectReadme: string | null = null;
 
   /** Project plan from preparation phase */
   private projectPlan: ProjectPlan | null = null;
@@ -146,13 +147,22 @@ export class ProjectCompletionHandler implements CompletionHandler {
       this.projectOwner,
     );
     // Parse project title from content (first line after "Project:")
-    const titleMatch = projectContent.match(/^Project: (.+)$/m);
+    const titleMatch = projectContent.match(/^# Project #\d+: (.+)$/m);
     this.projectTitle = titleMatch
       ? titleMatch[1]
       : `Project #${this.projectNumber}`;
-    // Store description (rest of content)
-    const descMatch = projectContent.match(/\n\n(.+)/s);
+
+    // Parse description (content between "## Description" and next "##" or EOF)
+    const descMatch = projectContent.match(
+      /## Description\n([\s\S]*?)(?=\n## |$)/,
+    );
     this.projectDescription = descMatch ? descMatch[1].trim() : null;
+
+    // Parse readme (content between "## README" and next "##" or EOF)
+    const readmeMatch = projectContent.match(
+      /## README\n([\s\S]*?)(?=\n## |$)/,
+    );
+    this.projectReadme = readmeMatch ? readmeMatch[1].trim() : null;
 
     // Fetch issues (includeCompleted controls whether "Done" items are included)
     this.remainingIssues = await getProjectIssues(
@@ -189,6 +199,7 @@ export class ProjectCompletionHandler implements CompletionHandler {
       projectNumber: this.projectNumber,
       projectTitle: this.projectTitle,
       projectDescription: this.projectDescription,
+      projectReadme: this.projectReadme,
       totalIssues: this.totalIssuesAtStart,
       currentIndex: this.issuesCompleted + 1,
       remainingIssueTitles: this.remainingIssues.map(
@@ -238,14 +249,23 @@ ${this.issuesCompleted} issue(s) have been closed.
       .map((i) => `- #${i.issueNumber}: ${i.title}`)
       .join("\n");
 
+    // Build description section
+    const descSection = this.projectDescription
+      ? `\n\n### Description\n${this.projectDescription}`
+      : "";
+
+    // Build readme section (separate from description)
+    const readmeSection = this.projectReadme
+      ? `\n\n### README\n${this.projectReadme}`
+      : "";
+
     if (this.currentIssue) {
       const currentIssueItem =
         `- #${this.currentIssue.issueNumber}: ${this.currentIssue.title}`;
       return `
 ## Project Overview
 
-**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}
-${this.projectDescription || ""}
+**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}${descSection}${readmeSection}
 
 ## Issues to Process (${this.totalIssuesAtStart} total)
 
@@ -268,8 +288,7 @@ Output your plan in the specified project-plan format.
     return `
 ## Project Overview
 
-**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}
-${this.projectDescription || ""}
+**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}${descSection}${readmeSection}
 
 ## Status
 
@@ -284,12 +303,21 @@ Project preparation complete with no work needed.
   private async buildProcessingPrompt(labelInfo: string): Promise<string> {
     // No issues to work on
     if (!this.currentIssueHandler) {
+      // Build description section
+      const descSection = this.projectDescription
+        ? `\n### Description\n${this.projectDescription}`
+        : "";
+
+      // Build readme section (separate from description)
+      const readmeSection = this.projectReadme
+        ? `\n### README\n${this.projectReadme}`
+        : "";
+
       return `
 You are working on GitHub Project #${this.projectNumber}${labelInfo}.
 
 ## Project Overview
-**${this.projectTitle}**
-${this.projectDescription || ""}
+**${this.projectTitle}**${descSection}${readmeSection}
 
 ## Status
 All${

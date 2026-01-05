@@ -211,6 +211,7 @@ export async function fetchProjectRequirements(
     number: rawProject.number ?? projectNumber,
     title: rawProject.title ?? "Untitled",
     description: rawProject.shortDescription ?? rawProject.description ?? null,
+    readme: rawProject.readme ?? null,
     items,
   };
 
@@ -223,11 +224,16 @@ export async function fetchProjectRequirements(
     )
     .join("\n");
 
+  // Build README section only if readme exists
+  const readmeSection = project.readme
+    ? `\n\n## README\n${project.readme}`
+    : "";
+
   return `
 # Project #${projectNumber}: ${project.title || "Untitled"}
 
 ## Description
-${project.description || "(No description)"}
+${project.description || "(No description)"}${readmeSection}
 
 ## Items
 ${itemsList || "(No items)"}
