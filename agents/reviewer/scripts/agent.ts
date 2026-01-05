@@ -39,7 +39,7 @@ import type {
   WorktreeSetupResult,
 } from "./types.ts";
 import { DEFAULT_WORKTREE_CONFIG } from "./types.ts";
-import { setupWorktree } from "../../common/worktree.ts";
+import { cleanupWorktree, setupWorktree } from "../../common/worktree.ts";
 import {
   createPullRequest,
   mergeBranch,
@@ -642,6 +642,13 @@ async function main(): Promise<void> {
 
         // Change back to original directory for merge
         Deno.chdir(originalCwd);
+
+        // Clean up worktree to unlock the branch for merging
+        console.log(`   🧹 Cleaning up worktree...`);
+        await cleanupWorktree(worktreeContext.worktreePath, originalCwd);
+        await logger.write("info", "Worktree cleaned up", {
+          worktreePath: worktreeContext.worktreePath,
+        });
 
         // Attempt merge using Reviewer strategy (ff → squash → merge)
         const mergeResult = await mergeBranch(

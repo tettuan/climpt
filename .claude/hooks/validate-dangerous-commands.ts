@@ -15,6 +15,7 @@ const ALLOWED_PATHS = [
   "/tmp/claude",                        // Claude 一時ディレクトリ (Linux/macOS)
   "/private/tmp/claude",                // macOS の /tmp シンボリックリンク先
   `${HOME}/.claude/plugins/cache`,      // Claude プラグインキャッシュ（クリア用）
+  "/Users/tettuan/github/worktree",     // Git worktree ディレクトリ
 ];
 
 // 危険コマンドとその説明
