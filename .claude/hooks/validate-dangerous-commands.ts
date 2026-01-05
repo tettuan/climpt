@@ -223,7 +223,7 @@ async function main() {
         reason: `[危険] ${cmd} (${reason}) がシステムパスを対象としています: ${path} (パターン: ${pattern})`,
       };
       console.log(JSON.stringify(output));
-      Deno.exit(2);
+      Deno.exit(0);
     }
 
     // 許可リスト外の絶対パスはブロック
@@ -232,7 +232,7 @@ async function main() {
       reason: `[危険] ${cmd} (${reason}) がプロジェクト外の絶対パスを対象としています: ${path}\n許可パス: ${ALLOWED_PATHS.join(", ")}`,
     };
     console.log(JSON.stringify(output));
-    Deno.exit(2);
+    Deno.exit(0);
   }
 
   // 全てのパスが許可範囲内
