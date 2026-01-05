@@ -69,7 +69,7 @@ interface HookInput {
 }
 
 interface HookOutput {
-  decision: "allow" | "block" | "ask";
+  decision: "approve" | "block";
   reason?: string;
 }
 
@@ -171,32 +171,32 @@ async function main() {
     hookInput = JSON.parse(input);
   } catch {
     // JSON パースエラーは許可（フックの問題で操作をブロックしない）
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
   // Bash 以外は許可
   if (hookInput.tool_name !== "Bash") {
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
   const command = hookInput.tool_input.command;
   if (!command) {
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
   // 危険コマンドかチェック
   const { dangerous, cmd, reason } = isDangerousCommand(command);
   if (!dangerous) {
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
   // sed の場合、-i オプションがなければ許可
   if (cmd === "sed" && !hasSedInplaceEdit(command)) {
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
@@ -205,7 +205,7 @@ async function main() {
 
   // 絶対パスがない場合は相対パス（プロジェクト内）として許可
   if (paths.length === 0) {
-    console.log(JSON.stringify({ decision: "allow" }));
+    console.log(JSON.stringify({ decision: "approve" }));
     Deno.exit(0);
   }
 
@@ -237,7 +237,7 @@ async function main() {
   }
 
   // 全てのパスが許可範囲内
-  console.log(JSON.stringify({ decision: "allow" }));
+  console.log(JSON.stringify({ decision: "approve" }));
   Deno.exit(0);
 }
 
