@@ -34,3 +34,47 @@ export {
   pushBranch,
   REVIEWER_MERGE_ORDER,
 } from "./merge.ts";
+
+// Step registry for prompt externalization
+export type {
+  RegistryLoaderOptions,
+  StepDefinition,
+  StepRegistry,
+} from "./step-registry.ts";
+export {
+  addStepDefinition,
+  createEmptyRegistry,
+  getStepDefinition,
+  getStepIds,
+  hasStep,
+  loadStepRegistry,
+  saveStepRegistry,
+  serializeRegistry,
+  validateStepRegistry,
+} from "./step-registry.ts";
+
+// Prompt resolver for external prompt resolution
+export type {
+  FallbackPromptProvider,
+  PromptResolutionResult,
+  PromptResolverOptions,
+  PromptVariables,
+} from "./prompt-resolver.ts";
+export {
+  createFallbackProvider,
+  parseFrontmatter,
+  PromptResolver,
+  removeFrontmatter,
+} from "./prompt-resolver.ts";
+
+// Prompt logger for resolution logging
+export type {
+  PromptLoggerOptions,
+  PromptResolutionLog,
+} from "./prompt-logger.ts";
+export {
+  formatResolutionSummary,
+  logPromptResolution,
+  PromptLogger,
+  timePromptResolution,
+} from "./prompt-logger.ts";

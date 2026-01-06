@@ -17,11 +17,8 @@ import {
 } from "./config.ts";
 import {
   executeReviewAction,
-  fetchRequirementsIssues,
-  fetchReviewTargetIssues,
   getCurrentRepo,
   parseReviewActions,
-  parseTraceabilityIds,
 } from "./github.ts";
 import { createLogger, type Logger } from "./logger.ts";
 import {
@@ -29,7 +26,6 @@ import {
   type SdkPluginConfig,
 } from "./plugin-resolver.ts";
 import type {
-  GitHubIssue,
   IterationSummary,
   ReviewAction,
   ReviewAgentConfig,
@@ -38,6 +34,7 @@ import type {
   UvVariables,
   WorktreeSetupResult,
 } from "./types.ts";
+import { DefaultReviewCompletionHandler } from "./completion/default.ts";
 import { DEFAULT_WORKTREE_CONFIG } from "./types.ts";
 import { cleanupWorktree, setupWorktree } from "../../common/worktree.ts";
 import {
@@ -197,143 +194,8 @@ async function executeActions(
   return createdIssues;
 }
 
-/**
- * Format issues for prompt
- */
-function formatIssuesForPrompt(issues: GitHubIssue[], label: string): string {
-  if (issues.length === 0) {
-    return `No issues with '${label}' label found.`;
-  }
-
-  return issues.map((issue) => {
-    const traceabilityIds = parseTraceabilityIds(issue.body);
-    const idsStr = traceabilityIds.length > 0
-      ? traceabilityIds.map((id) => `\`${id.fullId}\``).join(", ")
-      : "(no traceability IDs)";
-
-    return `### Issue #${issue.number}: ${issue.title}
-- Traceability IDs: ${idsStr}
-- State: ${issue.state}
-
-${issue.body || "(No body)"}`;
-  }).join("\n\n---\n\n");
-}
-
-/**
- * Build initial prompt with project context
- */
-async function buildInitialPrompt(
-  options: ReviewOptions,
-  logger: Logger,
-): Promise<string> {
-  // Fetch requirements issues (docs label)
-  await logger.write(
-    "info",
-    `Fetching requirements issues with '${options.requirementsLabel}' label`,
-  );
-  const requirementsIssues = await fetchRequirementsIssues(
-    options.project,
-    options.requirementsLabel,
-  );
-  await logger.write(
-    "info",
-    `Found ${requirementsIssues.length} requirements issues`,
-  );
-
-  // Fetch review target issues (review label)
-  await logger.write(
-    "info",
-    `Fetching review targets with '${options.reviewLabel}' label`,
-  );
-  const reviewTargets = await fetchReviewTargetIssues(
-    options.project,
-    options.reviewLabel,
-  );
-  await logger.write(
-    "info",
-    `Found ${reviewTargets.length} review target issues`,
-  );
-
-  // Collect all traceability IDs from requirements
-  const allTraceabilityIds = requirementsIssues.flatMap((issue) =>
-    parseTraceabilityIds(issue.body)
-  );
-
-  // Build prompt with context
-  const prompt = `
-# Review Task
-
-Review implementation for GitHub Project #${options.project}
-
-## Label System
-
-- Requirements/Specs: Issues with '${options.requirementsLabel}' label
-- Review Targets: Issues with '${options.reviewLabel}' label
-
-## Requirements Issues (${options.requirementsLabel} label)
-
-${formatIssuesForPrompt(requirementsIssues, options.requirementsLabel)}
-
-## Review Target Issues (${options.reviewLabel} label)
-
-${formatIssuesForPrompt(reviewTargets, options.reviewLabel)}
-
-## All Traceability IDs to Verify
-
-${
-    allTraceabilityIds.length > 0
-      ? allTraceabilityIds.map((id) => `- \`${id.fullId}\``).join("\n")
-      : "- No traceability IDs found in requirements issues"
-  }
-
-## Instructions
-
-1. For each traceability ID from requirements (${options.requirementsLabel}), search the codebase
-2. Verify the implementation meets the requirements
-3. For any gaps found, output a review-action block to create an issue
-4. When complete, output a review-action block with action="complete"
-
-Start by analyzing the codebase for implementations related to the requirements.
-`;
-
-  return prompt;
-}
-
-/**
- * Build continuation prompt for next iteration
- */
-function buildContinuationPrompt(
-  iteration: number,
-  summary: IterationSummary,
-  createdIssues: number[],
-): string {
-  const parts = [
-    `\n# Iteration ${iteration + 1}\n`,
-  ];
-
-  if (createdIssues.length > 0) {
-    parts.push(`Gap issues created so far: ${createdIssues.join(", ")}\n`);
-  }
-
-  if (summary.errors.length > 0) {
-    parts.push(
-      `Errors from previous iteration:\n${summary.errors.join("\n")}\n`,
-    );
-  }
-
-  parts.push(
-    `Continue the review. When all requirements are verified, output a complete action.`,
-  );
-
-  return parts.join("\n");
-}
-
-/**
- * Check if review is complete
- */
-function isReviewComplete(summary: IterationSummary): boolean {
-  return summary.reviewActions.some((action) => action.action === "complete");
-}
+// Note: formatIssuesForPrompt, buildInitialPrompt, buildContinuationPrompt, and isReviewComplete
+// have been moved to DefaultReviewCompletionHandler (./completion/default.ts)
 
 /**
  * Main agent loop
@@ -347,9 +209,11 @@ async function runAgentLoop(
   // Get agent config
   const agentConfig = getAgentConfig(config, options.agentName);
 
-  // Build system prompt via C3L (climpt)
-  const completionCriteria =
-    `Review implementation for GitHub Project #${options.project}. Use '${options.requirementsLabel}' labeled issues as requirements and '${options.reviewLabel}' labeled issues as review targets. Create gap issues for any missing implementations.`;
+  // Create completion handler
+  const completionHandler = new DefaultReviewCompletionHandler(options, logger);
+
+  // Build completion criteria via handler
+  const completionCriteria = completionHandler.buildCompletionCriteria();
 
   // Build uv- parameters for C3L
   const uvVariables: UvVariables = {
@@ -362,7 +226,7 @@ async function runAgentLoop(
   try {
     systemPrompt = await loadSystemPromptViaC3L(
       uvVariables,
-      completionCriteria,
+      completionCriteria.detail,
     );
     await logger.write("info", "Climpt prompt executed", {
       type: "climpt_prompt_used",
@@ -393,8 +257,16 @@ async function runAgentLoop(
   // Get current repo for action execution
   const repo = await getCurrentRepo();
 
-  // Build initial prompt
-  const initialPrompt = await buildInitialPrompt(options, logger);
+  // Build initial prompt using completion handler
+  await logger.write(
+    "info",
+    `Fetching requirements issues with '${options.requirementsLabel}' label`,
+  );
+  await logger.write(
+    "info",
+    `Fetching review targets with '${options.reviewLabel}' label`,
+  );
+  const initialPrompt = await completionHandler.buildInitialPrompt();
 
   // Review state
   let iterationCount = 0;
@@ -453,12 +325,18 @@ async function runAgentLoop(
       );
       allCreatedIssues.push(...newIssues);
 
-      // Check completion
-      isComplete = isReviewComplete(summary);
+      // Check completion using handler
+      isComplete = completionHandler.isComplete(summary);
+
+      // Log completion status
+      await logger.write(
+        "info",
+        completionHandler.getCompletionDescription(summary),
+      );
 
       if (!isComplete) {
-        // Build continuation prompt
-        currentPrompt = buildContinuationPrompt(
+        // Build continuation prompt using handler
+        currentPrompt = completionHandler.buildContinuationPrompt(
           iterationCount,
           summary,
           allCreatedIssues,

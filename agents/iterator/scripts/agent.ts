@@ -115,6 +115,9 @@ import {
 } from "./message-handler.ts";
 import { executeIssueAction, type IssueActionResult } from "./github.ts";
 import { generateReport, logReport, printReport } from "./report.ts";
+import { PromptResolver } from "../../common/prompt-resolver.ts";
+import { loadStepRegistry } from "../../common/step-registry.ts";
+import { createIteratorFallbackProvider } from "./fallback-prompts.ts";
 import type {
   AgentConfig,
   AgentOptions,
@@ -289,6 +292,46 @@ async function main(): Promise<void> {
     await logger.write("debug", "Completion handler created", {
       type: completionHandler.type,
     });
+
+    // 4.5. Initialize PromptResolver for externalized prompts
+    try {
+      const stepRegistry = await loadStepRegistry(
+        "iterator",
+        "agents",
+        { registryPath: ".agent/iterator/steps_registry.json" },
+      );
+      const fallbackProvider = createIteratorFallbackProvider();
+      const promptResolver = new PromptResolver(
+        stepRegistry,
+        fallbackProvider,
+        { workingDir: Deno.cwd() },
+      );
+
+      // Set resolver on completion handler
+      if ("setPromptResolver" in completionHandler) {
+        (completionHandler as {
+          setPromptResolver: (r: PromptResolver) => void;
+        })
+          .setPromptResolver(promptResolver);
+      }
+
+      await logger.write("debug", "PromptResolver initialized", {
+        agentId: stepRegistry.agentId,
+        version: stepRegistry.version,
+        stepCount: Object.keys(stepRegistry.steps).length,
+      });
+    } catch (registryError) {
+      // If registry not found, continue without externalized prompts
+      await logger.write(
+        "debug",
+        "PromptResolver not initialized (fallback to inline)",
+        {
+          reason: registryError instanceof Error
+            ? registryError.message
+            : String(registryError),
+        },
+      );
+    }
 
     // 5. Build system prompt via breakdown CLI
     const completionMode = completionHandler.type as CompletionMode;
@@ -1123,7 +1166,7 @@ async function runAgentLoop(
     previousSessionId = summary.sessionId;
 
     // Prepare prompt for next iteration with previous summary using handler
-    currentPrompt = completionHandler.buildContinuationPrompt(
+    currentPrompt = await completionHandler.buildContinuationPrompt(
       iterationCount,
       previousSummary,
     );
