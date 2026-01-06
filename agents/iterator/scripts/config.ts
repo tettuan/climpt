@@ -783,13 +783,19 @@ export function getAgentConfig(
  *
  * @param config - Main configuration
  * @param agentName - MCP agent name
+ * @param basePath - Base path for log directory (use for worktree isolation)
  * @returns Full path to log directory
  */
 export async function ensureLogDirectory(
   config: IterateAgentConfig,
   agentName: AgentName,
+  basePath?: string,
 ): Promise<string> {
-  const logDir = join(config.logging.directory, agentName);
+  // Use basePath to ensure logs are written to main repo, not worktree
+  const baseDir = basePath
+    ? join(basePath, config.logging.directory)
+    : config.logging.directory;
+  const logDir = join(baseDir, agentName);
 
   try {
     await Deno.mkdir(logDir, { recursive: true });

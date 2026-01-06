@@ -261,8 +261,12 @@ async function main(): Promise<void> {
       console.log("     /plugin install climpt-agent\n");
     }
 
-    // 3. Initialize logger
-    const logDir = await ensureLogDirectory(config, options.agentName);
+    // 3. Initialize logger (use originalCwd to keep logs in main repo, not worktree)
+    const logDir = await ensureLogDirectory(
+      config,
+      options.agentName,
+      originalCwd,
+    );
     logger = await createLogger(
       logDir,
       options.agentName,
