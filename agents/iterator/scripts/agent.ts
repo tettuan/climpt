@@ -461,6 +461,9 @@ async function main(): Promise<void> {
         }
       }
     }
+
+    // 9. Close logger after all work is done
+    await logger.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`\n❌ Error: ${errorMessage}\n`);
@@ -1166,7 +1169,7 @@ async function runAgentLoop(
     );
   }
 
-  await logger.close();
+  // Note: logger.close() is called by main() after worktree integration
 }
 
 // Run main
