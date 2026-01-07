@@ -48,6 +48,8 @@
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
+    "test:common": "deno test --allow-all agents/common/",
+    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
     "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/iterator/scripts/agent.ts",
