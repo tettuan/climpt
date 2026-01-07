@@ -43,6 +43,10 @@ import {
   pushBranch,
   REVIEWER_MERGE_ORDER,
 } from "../../common/merge.ts";
+import {
+  generateCorrelationId,
+  loadCoordinationConfig,
+} from "../../common/coordination.ts";
 
 /**
  * Display init result
@@ -162,12 +166,18 @@ async function executeActions(
   actions: ReviewAction[],
   repo: string,
   logger: Logger,
+  coordinationConfig?:
+    import("../../common/coordination-types.ts").CoordinationConfig,
 ): Promise<number[]> {
   const createdIssues: number[] = [];
 
   for (const action of actions) {
     try {
-      const result = await executeReviewAction(repo, action);
+      const result = await executeReviewAction(
+        repo,
+        action,
+        coordinationConfig,
+      );
 
       if (result.type === "create-issue") {
         const issueNum = (result.result as { issueNumber: number }).issueNumber;
@@ -223,6 +233,8 @@ async function runAgentLoop(
   config: ReviewAgentConfig,
   logger: Logger,
   dynamicPlugins: SdkPluginConfig[],
+  coordinationConfig:
+    import("../../common/coordination-types.ts").CoordinationConfig,
 ): Promise<ReviewSummary> {
   // Get agent config
   const agentConfig = getAgentConfig(config, options.agentName);
@@ -340,6 +352,7 @@ async function runAgentLoop(
         summary.reviewActions,
         repo,
         logger,
+        coordinationConfig,
       );
       allCreatedIssues.push(...newIssues);
 
@@ -479,11 +492,16 @@ async function main(): Promise<void> {
     // Ensure log directory exists
     const logDir = await ensureLogDirectory(config);
 
-    // Create logger
+    // Generate correlation ID for tracing
+    const coordinationConfig = loadCoordinationConfig();
+    const correlationId = generateCorrelationId(coordinationConfig, "reviewer");
+
+    // Create logger with correlation ID
     const logger = await createLogger(
       logDir,
       options.agentName,
       config.logging.maxFiles,
+      correlationId,
     );
 
     await logger.write("info", "Review agent started", {
@@ -491,6 +509,7 @@ async function main(): Promise<void> {
       requirementsLabel: options.requirementsLabel,
       reviewLabel: options.reviewLabel,
       agentName: options.agentName,
+      correlationId,
     });
 
     // Resolve dynamic plugins from settings.json
@@ -522,6 +541,7 @@ async function main(): Promise<void> {
         config,
         logger,
         dynamicPlugins,
+        coordinationConfig,
       );
       iterations = summary.createdIssues.length > 0 ? 1 : 0; // Simplified
 

@@ -140,6 +140,10 @@ import {
   mergeBranch,
   pushBranch,
 } from "../../common/merge.ts";
+import {
+  generateCorrelationId,
+  loadCoordinationConfig,
+} from "../../common/coordination.ts";
 
 /**
  * Main agent loop
@@ -217,9 +221,12 @@ async function main(): Promise<void> {
     const config = await loadConfig();
     const agentConfig = getAgentConfig(config, options.agentName);
 
-    // Apply default label from config if not specified via CLI
-    if (options.label === undefined && config.github?.labels?.filter) {
-      options.label = config.github.labels.filter;
+    // Load coordination config for shared labels
+    const coordinationConfig = loadCoordinationConfig();
+
+    // Apply default label from coordination config if not specified via CLI
+    if (options.label === undefined) {
+      options.label = coordinationConfig.labels.requirements;
     }
 
     // 2.3. Setup worktree if enabled
@@ -272,10 +279,16 @@ async function main(): Promise<void> {
       options.agentName,
       originalCwd,
     );
+
+    // Generate correlation ID for tracing (using coordinationConfig loaded earlier)
+    const correlationId = generateCorrelationId(coordinationConfig, "iterator");
+
+    // Create logger with correlation ID
     logger = await createLogger(
       logDir,
       options.agentName,
       config.logging.maxFiles,
+      correlationId,
     );
 
     await logger.write("info", "Iterate agent started", {
@@ -286,6 +299,7 @@ async function main(): Promise<void> {
       label: options.label,
       iterateMax: options.iterateMax,
       resume: options.resume,
+      correlationId,
     });
 
     // 4. Create completion handler
@@ -340,10 +354,11 @@ async function main(): Promise<void> {
     const { criteria, detail } = completionHandler.buildCompletionCriteria();
 
     // Build uv- parameters (short strings for CLI args)
+    // Note: options.label defaults to coordinationConfig.labels.requirements (e.g., "docs")
     const uvVariables: UvVariables = {
       agent_name: options.agentName,
       completion_criteria: criteria,
-      target_label: options.label || config.github?.labels?.filter || "docs",
+      target_label: options.label || coordinationConfig.labels.requirements,
     };
 
     let systemPrompt: string;

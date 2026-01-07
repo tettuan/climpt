@@ -68,6 +68,8 @@ export interface LogEntry {
   timestamp: string;
   level: LogLevel;
   message: string;
+  /** Correlation ID for tracing across agents */
+  correlationId?: string;
   metadata?: {
     role?: string;
     iterationCount?: number;

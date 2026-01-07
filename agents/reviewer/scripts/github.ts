@@ -6,6 +6,7 @@
  */
 
 import type { GitHubIssue, ReviewAction, TraceabilityId } from "./types.ts";
+import type { CoordinationConfig } from "../../common/coordination-types.ts";
 
 /**
  * Project issue item from gh project item-list
@@ -155,13 +156,17 @@ export async function fetchRequirementDoc(
 /**
  * Create a gap issue in the repository
  *
+ * Uses labels from coordination config if not specified in action.
+ *
  * @param repo - Repository in "owner/repo" format
  * @param action - Review action with issue details
+ * @param coordinationConfig - Optional coordination config for default labels
  * @returns Created issue number
  */
 export async function createGapIssue(
   repo: string,
   action: ReviewAction,
+  coordinationConfig?: CoordinationConfig,
 ): Promise<number> {
   if (!action.title || !action.body) {
     throw new Error("create-issue action requires title and body");
@@ -178,9 +183,13 @@ export async function createGapIssue(
     action.body,
   ];
 
-  // Add labels if specified
-  if (action.labels && action.labels.length > 0) {
-    for (const label of action.labels) {
+  // Use labels from action, fall back to coordination config issueTemplate.labels
+  const labels = action.labels && action.labels.length > 0
+    ? action.labels
+    : coordinationConfig?.handoff?.reviewerToIterator?.issueTemplate?.labels;
+
+  if (labels && labels.length > 0) {
+    for (const label of labels) {
       args.push("--label", label);
     }
   }
@@ -314,15 +323,21 @@ export function parseReviewActions(text: string): ReviewAction[] {
  *
  * @param repo - Repository in "owner/repo" format
  * @param action - Review action to execute
+ * @param coordinationConfig - Optional coordination config for default labels
  * @returns Result of the action (e.g., created issue number)
  */
 export async function executeReviewAction(
   repo: string,
   action: ReviewAction,
+  coordinationConfig?: CoordinationConfig,
 ): Promise<{ type: string; result: unknown }> {
   switch (action.action) {
     case "create-issue": {
-      const issueNumber = await createGapIssue(repo, action);
+      const issueNumber = await createGapIssue(
+        repo,
+        action,
+        coordinationConfig,
+      );
       return { type: "create-issue", result: { issueNumber } };
     }
 

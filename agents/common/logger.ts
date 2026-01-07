@@ -22,6 +22,7 @@ export class Logger {
   private maxFiles: number;
   private logDir: string;
   private stepCounter: number = 0;
+  private correlationId?: string;
 
   /**
    * Create a new Logger instance
@@ -29,10 +30,17 @@ export class Logger {
    * @param logDir - Directory to store log files
    * @param _agentName - Agent name (used in directory path)
    * @param maxFiles - Maximum number of log files to keep
+   * @param correlationId - Optional correlation ID for tracing
    */
-  constructor(logDir: string, _agentName: AgentName, maxFiles: number = 100) {
+  constructor(
+    logDir: string,
+    _agentName: AgentName,
+    maxFiles: number = 100,
+    correlationId?: string,
+  ) {
     this.logDir = logDir;
     this.maxFiles = maxFiles;
+    this.correlationId = correlationId;
 
     // Generate log file path with ISO timestamp
     const timestamp = new Date().toISOString().replace(/:/g, "-").replace(
@@ -90,6 +98,7 @@ export class Logger {
       timestamp: new Date().toISOString(),
       level,
       message,
+      correlationId: this.correlationId,
       metadata,
     };
 
@@ -192,14 +201,16 @@ export class Logger {
  * @param logDir - Log directory
  * @param agentName - Agent name
  * @param maxFiles - Maximum log files to keep
+ * @param correlationId - Optional correlation ID for tracing
  * @returns Initialized logger instance
  */
 export async function createLogger(
   logDir: string,
   agentName: AgentName,
   maxFiles: number = 100,
+  correlationId?: string,
 ): Promise<Logger> {
-  const logger = new Logger(logDir, agentName, maxFiles);
+  const logger = new Logger(logDir, agentName, maxFiles, correlationId);
   await logger.initialize();
   return logger;
 }
