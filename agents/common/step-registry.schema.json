@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://climpt.dev/schemas/step-registry.schema.json",
+  "title": "Step Registry",
+  "description": "Schema for step registry JSON files that define prompt externalization mappings",
+  "type": "object",
+  "required": ["agentId", "version", "steps"],
+  "properties": {
+    "agentId": {
+      "type": "string",
+      "description": "Agent identifier (e.g., 'iterator', 'reviewer')",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "string",
+      "description": "Registry version for compatibility checking",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "steps": {
+      "type": "object",
+      "description": "Step definitions indexed by stepId",
+      "additionalProperties": {
+        "$ref": "#/definitions/StepDefinition"
+      }
+    },
+    "userPromptsBase": {
+      "type": "string",
+      "description": "Default base directory for user prompts (default: .agent/{agentId}/prompts)",
+      "default": ".agent/{agentId}/prompts"
+    }
+  },
+  "definitions": {
+    "StepDefinition": {
+      "type": "object",
+      "description": "Definition for a single step's prompt mapping",
+      "required": [
+        "stepId",
+        "name",
+        "promptPath",
+        "fallbackKey",
+        "uvVariables",
+        "usesStdin"
+      ],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "description": "Unique step identifier (e.g., 'initial.issue', 'continuation.project.processing')",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9.]*[a-z0-9]$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name for logging/debugging",
+          "minLength": 1
+        },
+        "promptPath": {
+          "type": "string",
+          "description": "Relative path to prompt file from user prompts base (e.g., 'initial/issue.md')",
+          "minLength": 1,
+          "pattern": "^[^/].*\\.(md|txt)$"
+        },
+        "fallbackKey": {
+          "type": "string",
+          "description": "Key for fallback prompt in embedded prompts",
+          "minLength": 1
+        },
+        "uvVariables": {
+          "type": "array",
+          "description": "List of UV (user variable) names required by this prompt",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "uniqueItems": true
+        },
+        "usesStdin": {
+          "type": "boolean",
+          "description": "Whether this step uses STDIN input ({input_text} variable)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of what this step does"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

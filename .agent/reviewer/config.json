@@ -1,0 +1,6 @@
+{
+  "worktree": {
+    "forceWorktree": true,
+    "worktreeRoot": "../worktree"
+  }
+}

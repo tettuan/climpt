@@ -3,12 +3,27 @@
  *
  * Handles GitHub Issue-based completion criteria.
  * Can be used standalone or as part of ProjectCompletionHandler.
+ *
+ * ## Prompt Externalization
+ *
+ * This handler uses PromptResolver for customizable prompts:
+ * - User can override prompts by placing files in .agent/iterator/prompts/
+ * - Falls back to embedded prompts in fallback-prompts.ts
+ *
+ * Steps:
+ * - initial.issue: Initial prompt for issue work
+ * - continuation.issue: Continuation prompt for iterations
+ * - section.projectcontext: Project context section (when part of project)
  */
 
 import type { IterationSummary } from "../types.ts";
 import { fetchIssueRequirements, isIssueComplete } from "../github.ts";
 import type { CompletionCriteria, CompletionHandler } from "./types.ts";
 import { formatIterationSummary } from "./types.ts";
+import type {
+  PromptResolver,
+  PromptVariables,
+} from "../../../common/prompt-resolver.ts";
 
 /**
  * Project context for when Issue is part of a Project
@@ -18,8 +33,10 @@ export interface ProjectContext {
   projectNumber: number;
   /** Project title */
   projectTitle: string;
-  /** Project description */
+  /** Project description (shortDescription) */
   projectDescription: string | null;
+  /** Project readme */
+  projectReadme: string | null;
   /** Total issues in project (with label filter) */
   totalIssues: number;
   /** Current issue index (1-based) */
@@ -45,6 +62,9 @@ export class IssueCompletionHandler implements CompletionHandler {
   /** Optional project context */
   private projectContext?: ProjectContext;
 
+  /** Optional prompt resolver for externalized prompts */
+  private promptResolver?: PromptResolver;
+
   /**
    * Create an Issue completion handler
    *
@@ -56,6 +76,15 @@ export class IssueCompletionHandler implements CompletionHandler {
     repository?: string,
   ) {
     this.repository = repository;
+  }
+
+  /**
+   * Set prompt resolver for externalized prompts
+   *
+   * @param resolver - PromptResolver instance
+   */
+  setPromptResolver(resolver: PromptResolver): void {
+    this.promptResolver = resolver;
   }
 
   /**
@@ -91,7 +120,7 @@ export class IssueCompletionHandler implements CompletionHandler {
 
     // Build project context section if available
     const projectSection = this.projectContext
-      ? this.buildProjectContextSection()
+      ? await this.buildProjectContextSection()
       : "";
 
     // Cross-repo note if applicable
@@ -99,6 +128,42 @@ export class IssueCompletionHandler implements CompletionHandler {
       ? `\n**Note**: This issue is from an external repository. All work should be done in the current directory.\n`
       : "";
 
+    // Use PromptResolver if available
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          issue_number: String(this.issueNumber),
+        },
+        custom: {
+          project_context_section: projectSection,
+          issue_content: issueContent,
+          cross_repo_note: crossRepoNote,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.issue",
+        variables,
+      );
+      return result.content;
+    }
+
+    // Fallback to inline prompt (for backward compatibility)
+    return this.buildInlineInitialPrompt(
+      projectSection,
+      issueContent,
+      crossRepoNote,
+    );
+  }
+
+  /**
+   * Build inline initial prompt (fallback when no resolver)
+   */
+  private buildInlineInitialPrompt(
+    projectSection: string,
+    issueContent: string,
+    crossRepoNote: string,
+  ): string {
     return `
 ${projectSection}## Current Task: Issue #${this.issueNumber}
 
@@ -173,7 +238,7 @@ Use these structured outputs. **Do NOT run \`gh\` commands directly.**
   /**
    * Build project context section for prompts
    */
-  private buildProjectContextSection(): string {
+  private async buildProjectContextSection(): Promise<string> {
     if (!this.projectContext) return "";
 
     const ctx = this.projectContext;
@@ -189,10 +254,46 @@ Use these structured outputs. **Do NOT run \`gh\` commands directly.**
       ? `\n  ... and ${ctx.remainingIssueTitles.length - 5} more`
       : "";
 
+    // Build description section
+    const descSection = ctx.projectDescription
+      ? `\n### Description\n${ctx.projectDescription}\n`
+      : "";
+
+    // Build readme section (separate from description)
+    const readmeSection = ctx.projectReadme
+      ? `\n### README\n${ctx.projectReadme}\n`
+      : "";
+
+    // Use PromptResolver if available
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(ctx.projectNumber),
+          project_title: ctx.projectTitle,
+          label_info: labelInfo,
+          current_index: String(ctx.currentIndex),
+          total_issues: String(ctx.totalIssues),
+        },
+        custom: {
+          desc_section: descSection,
+          readme_section: readmeSection,
+          remaining_list: remainingList,
+          more_text: moreText,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "section.projectcontext",
+        variables,
+      );
+      return result.content + "\n\n";
+    }
+
+    // Fallback to inline section
     return `## Project Overview
 
 **Project #${ctx.projectNumber}**: ${ctx.projectTitle}${labelInfo}
-${ctx.projectDescription ? `\n${ctx.projectDescription}\n` : ""}
+${descSection}${readmeSection}
 **Progress**: Issue ${ctx.currentIndex} of ${ctx.totalIssues}
 
 ### Remaining Issues (for context only)
@@ -207,10 +308,10 @@ ${remainingList}${moreText}
    * Build continuation prompt for subsequent iterations
    * Includes project context if set, and issue-action format for completion reporting
    */
-  buildContinuationPrompt(
+  async buildContinuationPrompt(
     completedIterations: number,
     previousSummary?: IterationSummary,
-  ): string {
+  ): Promise<string> {
     const summarySection = previousSummary
       ? formatIterationSummary(previousSummary)
       : "";
@@ -225,6 +326,45 @@ ${remainingList}${moreText}
       ? `\n**Note**: Work in current directory (issue is from external repository).`
       : "";
 
+    // Use PromptResolver if available
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          issue_number: String(this.issueNumber),
+          completed_iterations: String(completedIterations),
+        },
+        custom: {
+          project_header: projectHeader,
+          cross_repo_note: crossRepoNote,
+          summary_section: summarySection,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.issue",
+        variables,
+      );
+      return result.content;
+    }
+
+    // Fallback to inline prompt
+    return this.buildInlineContinuationPrompt(
+      projectHeader,
+      crossRepoNote,
+      summarySection,
+      completedIterations,
+    );
+  }
+
+  /**
+   * Build inline continuation prompt (fallback when no resolver)
+   */
+  private buildInlineContinuationPrompt(
+    projectHeader: string,
+    crossRepoNote: string,
+    summarySection: string,
+    completedIterations: number,
+  ): string {
     return `
 ${projectHeader}You are continuing work on Issue #${this.issueNumber}.
 Iterations completed: ${completedIterations}${crossRepoNote}

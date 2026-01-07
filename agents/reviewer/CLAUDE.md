@@ -10,7 +10,8 @@ GitHub Issue から要件を取得し、実装が要件を満たしているか�
 ## 実行
 
 ```bash
-deno task review-agent --project senlygan-desktop --issue 24
+# プロジェクト全体をレビュー（--issue オプションは非対応）
+deno task review-agent --project 25
 ```
 
 ## iterate-agent との関係
