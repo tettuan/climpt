@@ -37,7 +37,7 @@ export const CLIMPT_VERSION = "1.10.0";
  * const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.7.0";
+export const BREAKDOWN_VERSION = "1.8.0";
 
 /**
  * Version of the frontmatter-to-schema package to use.
