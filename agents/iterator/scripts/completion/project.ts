@@ -7,6 +7,21 @@
  * 3. REVIEW - Check completion status
  * 4. AGAIN - Re-execute if review fails
  * 5. COMPLETE - Done
+ *
+ * ## Prompt Externalization
+ *
+ * This handler uses PromptResolver for customizable prompts:
+ * - User can override prompts by placing files in .agent/iterator/prompts/
+ * - Falls back to embedded prompts in fallback-prompts.ts
+ *
+ * Steps:
+ * - initial.project.preparation: Preparation phase prompt
+ * - initial.project.preparationempty: Preparation with no issues
+ * - initial.project.processingempty: Processing with no current issue
+ * - initial.project.review: Review phase prompt
+ * - initial.project.again: Re-execution phase prompt
+ * - initial.project.complete: Completion message
+ * - continuation.project.*: Continuation prompts for each phase
  */
 
 import type {
@@ -22,6 +37,10 @@ import {
 } from "../github.ts";
 import type { CompletionCriteria, CompletionHandler } from "./types.ts";
 import { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
+import type {
+  PromptResolver,
+  PromptVariables,
+} from "../../../common/prompt-resolver.ts";
 
 /**
  * ProjectCompletionHandler
@@ -62,12 +81,16 @@ export class ProjectCompletionHandler implements CompletionHandler {
   /** Cached project info for context */
   private projectTitle = "";
   private projectDescription: string | null = null;
+  private projectReadme: string | null = null;
 
   /** Project plan from preparation phase */
   private projectPlan: ProjectPlan | null = null;
 
   /** Review result from review phase */
   private reviewResult: ReviewResult | null = null;
+
+  /** Optional prompt resolver for externalized prompts */
+  private promptResolver?: PromptResolver;
 
   /**
    * Create a Project completion handler
@@ -83,6 +106,15 @@ export class ProjectCompletionHandler implements CompletionHandler {
     private readonly includeCompleted: boolean = false,
     private readonly projectOwner?: string,
   ) {}
+
+  /**
+   * Set prompt resolver for externalized prompts
+   *
+   * @param resolver - PromptResolver instance
+   */
+  setPromptResolver(resolver: PromptResolver): void {
+    this.promptResolver = resolver;
+  }
 
   /**
    * Get current phase
@@ -146,13 +178,22 @@ export class ProjectCompletionHandler implements CompletionHandler {
       this.projectOwner,
     );
     // Parse project title from content (first line after "Project:")
-    const titleMatch = projectContent.match(/^Project: (.+)$/m);
+    const titleMatch = projectContent.match(/^# Project #\d+: (.+)$/m);
     this.projectTitle = titleMatch
       ? titleMatch[1]
       : `Project #${this.projectNumber}`;
-    // Store description (rest of content)
-    const descMatch = projectContent.match(/\n\n(.+)/s);
+
+    // Parse description (content between "## Description" and next "##" or EOF)
+    const descMatch = projectContent.match(
+      /## Description\n([\s\S]*?)(?=\n## |$)/,
+    );
     this.projectDescription = descMatch ? descMatch[1].trim() : null;
+
+    // Parse readme (content between "## README" and next "##" or EOF)
+    const readmeMatch = projectContent.match(
+      /## README\n([\s\S]*?)(?=\n## |$)/,
+    );
+    this.projectReadme = readmeMatch ? readmeMatch[1].trim() : null;
 
     // Fetch issues (includeCompleted controls whether "Done" items are included)
     this.remainingIssues = await getProjectIssues(
@@ -184,11 +225,17 @@ export class ProjectCompletionHandler implements CompletionHandler {
       issue.repository,
     );
 
+    // Pass prompt resolver to issue handler
+    if (this.promptResolver) {
+      this.currentIssueHandler.setPromptResolver(this.promptResolver);
+    }
+
     // Set project context on the handler
     const projectContext: ProjectContext = {
       projectNumber: this.projectNumber,
       projectTitle: this.projectTitle,
       projectDescription: this.projectDescription,
+      projectReadme: this.projectReadme,
       totalIssues: this.totalIssuesAtStart,
       currentIndex: this.issuesCompleted + 1,
       remainingIssueTitles: this.remainingIssues.map(
@@ -223,34 +270,65 @@ export class ProjectCompletionHandler implements CompletionHandler {
         return this.buildAgainPrompt(labelInfo);
 
       case "complete":
-        return `
-Project #${this.projectNumber}${labelInfo} is complete!
-${this.issuesCompleted} issue(s) have been closed.
-        `.trim();
+        return this.buildCompletePrompt(labelInfo);
     }
   }
 
   /**
    * Build preparation phase prompt
    */
-  private buildPreparationPrompt(labelInfo: string): string {
+  private async buildPreparationPrompt(labelInfo: string): Promise<string> {
     const issueList = [...this.remainingIssues]
       .map((i) => `- #${i.issueNumber}: ${i.title}`)
       .join("\n");
 
+    // Build description section
+    const descSection = this.projectDescription
+      ? `\n\n### Description\n${this.projectDescription}`
+      : "";
+
+    // Build readme section (separate from description)
+    const readmeSection = this.projectReadme
+      ? `\n\n### README\n${this.projectReadme}`
+      : "";
+
     if (this.currentIssue) {
       const currentIssueItem =
         `- #${this.currentIssue.issueNumber}: ${this.currentIssue.title}`;
+      const fullIssueList = `${currentIssueItem}\n${issueList}`;
+
+      // Use PromptResolver if available
+      if (this.promptResolver) {
+        const variables: PromptVariables = {
+          uv: {
+            project_number: String(this.projectNumber),
+            project_title: this.projectTitle,
+            label_info: labelInfo,
+            total_issues: String(this.totalIssuesAtStart),
+          },
+          custom: {
+            desc_section: descSection,
+            readme_section: readmeSection,
+            issue_list: fullIssueList,
+          },
+        };
+
+        const result = await this.promptResolver.resolve(
+          "initial.project.preparation",
+          variables,
+        );
+        return result.content;
+      }
+
+      // Fallback to inline prompt
       return `
 ## Project Overview
 
-**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}
-${this.projectDescription || ""}
+**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}${descSection}${readmeSection}
 
 ## Issues to Process (${this.totalIssuesAtStart} total)
 
-${currentIssueItem}
-${issueList}
+${fullIssueList}
 
 ## Your Task
 
@@ -265,15 +343,39 @@ Output your plan in the specified project-plan format.
     }
 
     // No issues case
+    const labelFilterText = this.labelFilter
+      ? ` "${this.labelFilter}" labeled`
+      : "";
+
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(this.projectNumber),
+          project_title: this.projectTitle,
+          label_info: labelInfo,
+          label_filter: labelFilterText,
+        },
+        custom: {
+          desc_section: descSection,
+          readme_section: readmeSection,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.project.preparationempty",
+        variables,
+      );
+      return result.content;
+    }
+
     return `
 ## Project Overview
 
-**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}
-${this.projectDescription || ""}
+**Project #${this.projectNumber}**: ${this.projectTitle}${labelInfo}${descSection}${readmeSection}
 
 ## Status
 
-No${this.labelFilter ? ` "${this.labelFilter}" labeled` : ""} issues to process.
+No${labelFilterText} issues to process.
 Project preparation complete with no work needed.
     `.trim();
   }
@@ -284,19 +386,49 @@ Project preparation complete with no work needed.
   private async buildProcessingPrompt(labelInfo: string): Promise<string> {
     // No issues to work on
     if (!this.currentIssueHandler) {
+      // Build description section
+      const descSection = this.projectDescription
+        ? `\n### Description\n${this.projectDescription}`
+        : "";
+
+      // Build readme section (separate from description)
+      const readmeSection = this.projectReadme
+        ? `\n### README\n${this.projectReadme}`
+        : "";
+
+      const labelFilterText = this.labelFilter
+        ? ` "${this.labelFilter}" labeled`
+        : "";
+
+      if (this.promptResolver) {
+        const variables: PromptVariables = {
+          uv: {
+            project_number: String(this.projectNumber),
+            label_info: labelInfo,
+            project_title: this.projectTitle,
+            label_filter: labelFilterText,
+          },
+          custom: {
+            desc_section: descSection,
+            readme_section: readmeSection,
+          },
+        };
+
+        const result = await this.promptResolver.resolve(
+          "initial.project.processingempty",
+          variables,
+        );
+        return result.content;
+      }
+
       return `
 You are working on GitHub Project #${this.projectNumber}${labelInfo}.
 
 ## Project Overview
-**${this.projectTitle}**
-${this.projectDescription || ""}
+**${this.projectTitle}**${descSection}${readmeSection}
 
 ## Status
-All${
-        this.labelFilter
-          ? ` "${this.labelFilter}" labeled`
-          : ""
-      } issues in this project are already complete! No work needed.
+All${labelFilterText} issues in this project are already complete! No work needed.
       `.trim();
     }
 
@@ -307,10 +439,33 @@ All${
   /**
    * Build review phase prompt
    */
-  private buildReviewPrompt(labelInfo: string): string {
+  private async buildReviewPrompt(labelInfo: string): Promise<string> {
     const completedList = Array.from(this.completedIssueNumbers)
       .map((n) => `- #${n}`)
       .join("\n");
+
+    const labelFilterText = this.labelFilter || "any";
+
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(this.projectNumber),
+          project_title: this.projectTitle,
+          label_info: labelInfo,
+          issues_completed: String(this.issuesCompleted),
+          label_filter: labelFilterText,
+        },
+        custom: {
+          completed_list: completedList || "- (none)",
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.project.review",
+        variables,
+      );
+      return result.content;
+    }
 
     return `
 ## Project Review
@@ -325,9 +480,7 @@ ${completedList || "- (none)"}
 ## Your Task
 
 Review the project completion status:
-1. Verify all issues with "${
-      this.labelFilter || "any"
-    }" label are properly closed
+1. Verify all issues with "${labelFilterText}" label are properly closed
 2. Check each issue's resolution quality
 3. Identify any remaining work needed
 
@@ -338,10 +491,33 @@ Output your review in the specified review-result format.
   /**
    * Build again phase prompt (re-execution after failed review)
    */
-  private buildAgainPrompt(labelInfo: string): string {
+  private async buildAgainPrompt(labelInfo: string): Promise<string> {
     const reviewFindings = this.reviewResult?.issues
       ?.map((i) => `- #${i.number}: ${i.reason}`)
       .join("\n") || "- No specific issues identified";
+
+    const reviewSummary = this.reviewResult?.summary ||
+      "Review did not pass";
+
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(this.projectNumber),
+          project_title: this.projectTitle,
+          label_info: labelInfo,
+        },
+        custom: {
+          review_summary: reviewSummary,
+          review_findings: reviewFindings,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.project.again",
+        variables,
+      );
+      return result.content;
+    }
 
     return `
 ## Re-execution Required
@@ -351,7 +527,7 @@ Output your review in the specified review-result format.
 ## Review Findings
 
 The previous review found these issues:
-${this.reviewResult?.summary || "Review did not pass"}
+${reviewSummary}
 
 Issues needing attention:
 ${reviewFindings}
@@ -369,58 +545,203 @@ After addressing all findings, the system will run another review.
   }
 
   /**
+   * Build complete phase prompt
+   */
+  private async buildCompletePrompt(labelInfo: string): Promise<string> {
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(this.projectNumber),
+          label_info: labelInfo,
+          issues_completed: String(this.issuesCompleted),
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.project.complete",
+        variables,
+      );
+      return result.content;
+    }
+
+    return `
+Project #${this.projectNumber}${labelInfo} is complete!
+${this.issuesCompleted} issue(s) have been closed.
+    `.trim();
+  }
+
+  /**
    * Build continuation prompt - delegates to IssueCompletionHandler
    */
-  buildContinuationPrompt(
+  async buildContinuationPrompt(
     completedIterations: number,
     previousSummary?: IterationSummary,
-  ): string {
+  ): Promise<string> {
     // Vary by phase
     switch (this.phase) {
       case "preparation":
-        return `
-Continue preparing the project plan.
-Iterations completed: ${completedIterations}
-
-If you have analyzed all issues, output the project-plan JSON.
-        `.trim();
+        return await this.buildPreparationContinuation(completedIterations);
 
       case "processing":
-        // No current issue handler means all done
-        if (!this.currentIssueHandler) {
-          return `
-All issues in Project #${this.projectNumber} have been processed!
-Iterations: ${completedIterations}, Issues closed: ${this.issuesCompleted}
-
-Moving to review phase.
-          `.trim();
-        }
-
-        // Delegate to IssueCompletionHandler
-        return this.currentIssueHandler.buildContinuationPrompt(
+        return await this.buildProcessingContinuation(
           completedIterations,
           previousSummary,
         );
 
       case "review":
-        return `
+        return await this.buildReviewContinuation(completedIterations);
+
+      case "again":
+        return await this.buildAgainContinuation(completedIterations);
+
+      case "complete":
+        return await this.buildCompleteContinuation();
+    }
+  }
+
+  /**
+   * Build preparation phase continuation
+   */
+  private async buildPreparationContinuation(
+    completedIterations: number,
+  ): Promise<string> {
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          completed_iterations: String(completedIterations),
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.project.preparation",
+        variables,
+      );
+      return result.content;
+    }
+
+    return `
+Continue preparing the project plan.
+Iterations completed: ${completedIterations}
+
+If you have analyzed all issues, output the project-plan JSON.
+    `.trim();
+  }
+
+  /**
+   * Build processing phase continuation
+   */
+  private async buildProcessingContinuation(
+    completedIterations: number,
+    previousSummary?: IterationSummary,
+  ): Promise<string> {
+    // No current issue handler means all done
+    if (!this.currentIssueHandler) {
+      if (this.promptResolver) {
+        const variables: PromptVariables = {
+          uv: {
+            project_number: String(this.projectNumber),
+            completed_iterations: String(completedIterations),
+            issues_completed: String(this.issuesCompleted),
+          },
+        };
+
+        const result = await this.promptResolver.resolve(
+          "continuation.project.processingdone",
+          variables,
+        );
+        return result.content;
+      }
+
+      return `
+All issues in Project #${this.projectNumber} have been processed!
+Iterations: ${completedIterations}, Issues closed: ${this.issuesCompleted}
+
+Moving to review phase.
+      `.trim();
+    }
+
+    // Delegate to IssueCompletionHandler
+    return this.currentIssueHandler.buildContinuationPrompt(
+      completedIterations,
+      previousSummary,
+    );
+  }
+
+  /**
+   * Build review phase continuation
+   */
+  private async buildReviewContinuation(
+    completedIterations: number,
+  ): Promise<string> {
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          completed_iterations: String(completedIterations),
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.project.review",
+        variables,
+      );
+      return result.content;
+    }
+
+    return `
 Continue reviewing the project.
 Iterations completed: ${completedIterations}
 
 Output your review in the review-result format.
-        `.trim();
+    `.trim();
+  }
 
-      case "again":
-        return `
+  /**
+   * Build again phase continuation
+   */
+  private async buildAgainContinuation(
+    completedIterations: number,
+  ): Promise<string> {
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          completed_iterations: String(completedIterations),
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.project.again",
+        variables,
+      );
+      return result.content;
+    }
+
+    return `
 Continue addressing review findings.
 Iterations completed: ${completedIterations}
 
 Work on the issues identified in the review.
-        `.trim();
+    `.trim();
+  }
 
-      case "complete":
-        return `Project #${this.projectNumber} is complete!`;
+  /**
+   * Build complete phase continuation
+   */
+  private async buildCompleteContinuation(): Promise<string> {
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          project_number: String(this.projectNumber),
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.project.complete",
+        variables,
+      );
+      return result.content;
     }
+
+    return `Project #${this.projectNumber} is complete!`;
   }
 
   /**

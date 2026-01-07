@@ -1,0 +1,189 @@
+{
+  "agentId": "iterator",
+  "version": "1.2.0",
+  "userPromptsBase": ".agent/iterator/prompts",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "steps": {
+    "initial.issue": {
+      "stepId": "initial.issue",
+      "name": "Issue Initial Prompt",
+      "c2": "initial",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "issue_initial_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "description": "Initial prompt when working on a single GitHub issue"
+    },
+    "continuation.issue": {
+      "stepId": "continuation.issue",
+      "name": "Issue Continuation Prompt",
+      "c2": "continuation",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "issue_continuation_default",
+      "uvVariables": ["issue_number", "completed_iterations"],
+      "usesStdin": false,
+      "description": "Continuation prompt for issue iterations"
+    },
+    "section.projectcontext": {
+      "stepId": "section.projectcontext",
+      "name": "Project Context Section",
+      "c2": "section",
+      "c3": "project",
+      "edition": "context",
+      "fallbackKey": "section_project_context_default",
+      "uvVariables": ["project_number", "project_title", "label_info", "current_index", "total_issues"],
+      "usesStdin": false,
+      "description": "Project context section inserted into issue prompts when part of a project"
+    },
+    "initial.project.preparation": {
+      "stepId": "initial.project.preparation",
+      "name": "Project Preparation Prompt",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "preparation",
+      "fallbackKey": "project_preparation_default",
+      "uvVariables": ["project_number", "project_title", "label_info", "total_issues"],
+      "usesStdin": false,
+      "description": "Preparation phase prompt for project mode"
+    },
+    "initial.project.preparationempty": {
+      "stepId": "initial.project.preparationempty",
+      "name": "Project Preparation (No Issues)",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "preparation",
+      "adaptation": "empty",
+      "fallbackKey": "project_preparation_no_issues_default",
+      "uvVariables": ["project_number", "project_title", "label_info", "label_filter"],
+      "usesStdin": false,
+      "description": "Preparation phase prompt when no issues found"
+    },
+    "initial.project.processingempty": {
+      "stepId": "initial.project.processingempty",
+      "name": "Project Processing (No Current Issue)",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "processing",
+      "adaptation": "empty",
+      "fallbackKey": "project_processing_empty_default",
+      "uvVariables": ["project_number", "label_info", "project_title", "label_filter"],
+      "usesStdin": false,
+      "description": "Processing phase prompt when no current issue"
+    },
+    "initial.project.review": {
+      "stepId": "initial.project.review",
+      "name": "Project Review Prompt",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "review",
+      "fallbackKey": "project_review_default",
+      "uvVariables": ["project_number", "project_title", "label_info", "issues_completed", "label_filter"],
+      "usesStdin": false,
+      "description": "Review phase prompt for project mode"
+    },
+    "initial.project.again": {
+      "stepId": "initial.project.again",
+      "name": "Project Again Prompt",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "again",
+      "fallbackKey": "project_again_default",
+      "uvVariables": ["project_number", "project_title", "label_info"],
+      "usesStdin": false,
+      "description": "Re-execution phase prompt after failed review"
+    },
+    "initial.project.complete": {
+      "stepId": "initial.project.complete",
+      "name": "Project Complete Message",
+      "c2": "initial",
+      "c3": "project",
+      "edition": "complete",
+      "fallbackKey": "project_complete_default",
+      "uvVariables": ["project_number", "label_info", "issues_completed"],
+      "usesStdin": false,
+      "description": "Completion message for project mode"
+    },
+    "continuation.project.preparation": {
+      "stepId": "continuation.project.preparation",
+      "name": "Project Preparation Continuation",
+      "c2": "continuation",
+      "c3": "project",
+      "edition": "preparation",
+      "fallbackKey": "project_continuation_preparation_default",
+      "uvVariables": ["completed_iterations"],
+      "usesStdin": false,
+      "description": "Continuation prompt for preparation phase"
+    },
+    "continuation.project.processingdone": {
+      "stepId": "continuation.project.processingdone",
+      "name": "Project Processing Done",
+      "c2": "continuation",
+      "c3": "project",
+      "edition": "processing",
+      "adaptation": "done",
+      "fallbackKey": "project_continuation_processing_done_default",
+      "uvVariables": ["project_number", "completed_iterations", "issues_completed"],
+      "usesStdin": false,
+      "description": "Message when all issues are processed"
+    },
+    "continuation.project.review": {
+      "stepId": "continuation.project.review",
+      "name": "Project Review Continuation",
+      "c2": "continuation",
+      "c3": "project",
+      "edition": "review",
+      "fallbackKey": "project_continuation_review_default",
+      "uvVariables": ["completed_iterations"],
+      "usesStdin": false,
+      "description": "Continuation prompt for review phase"
+    },
+    "continuation.project.again": {
+      "stepId": "continuation.project.again",
+      "name": "Project Again Continuation",
+      "c2": "continuation",
+      "c3": "project",
+      "edition": "again",
+      "fallbackKey": "project_continuation_again_default",
+      "uvVariables": ["completed_iterations"],
+      "usesStdin": false,
+      "description": "Continuation prompt for again phase"
+    },
+    "continuation.project.complete": {
+      "stepId": "continuation.project.complete",
+      "name": "Project Complete Continuation",
+      "c2": "continuation",
+      "c3": "project",
+      "edition": "complete",
+      "fallbackKey": "project_continuation_complete_default",
+      "uvVariables": ["project_number"],
+      "usesStdin": false,
+      "description": "Continuation message for complete phase"
+    },
+    "initial.iterate": {
+      "stepId": "initial.iterate",
+      "name": "Iterate Initial Prompt",
+      "c2": "initial",
+      "c3": "iterate",
+      "edition": "default",
+      "fallbackKey": "iterate_initial_default",
+      "uvVariables": ["iterations"],
+      "usesStdin": false,
+      "description": "Initial prompt for iteration-based execution"
+    },
+    "continuation.iterate": {
+      "stepId": "continuation.iterate",
+      "name": "Iterate Continuation Prompt",
+      "c2": "continuation",
+      "c3": "iterate",
+      "edition": "default",
+      "fallbackKey": "iterate_continuation_default",
+      "uvVariables": ["completed_iterations", "remaining"],
+      "usesStdin": false,
+      "description": "Continuation prompt for iteration-based execution"
+    }
+  }
+}

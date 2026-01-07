@@ -115,6 +115,9 @@ import {
 } from "./message-handler.ts";
 import { executeIssueAction, type IssueActionResult } from "./github.ts";
 import { generateReport, logReport, printReport } from "./report.ts";
+import { PromptResolver } from "../../common/prompt-resolver.ts";
+import { loadStepRegistry } from "../../common/step-registry.ts";
+import { createIteratorFallbackProvider } from "./fallback-prompts.ts";
 import type {
   AgentConfig,
   AgentOptions,
@@ -128,7 +131,7 @@ import type {
   WorktreeSetupResult,
 } from "./types.ts";
 import { DEFAULT_WORKTREE_CONFIG } from "./types.ts";
-import { setupWorktree } from "../../common/worktree.ts";
+import { cleanupWorktree, setupWorktree } from "../../common/worktree.ts";
 import {
   createPullRequest,
   ITERATOR_MERGE_ORDER,
@@ -261,8 +264,12 @@ async function main(): Promise<void> {
       console.log("     /plugin install climpt-agent\n");
     }
 
-    // 3. Initialize logger
-    const logDir = await ensureLogDirectory(config, options.agentName);
+    // 3. Initialize logger (use originalCwd to keep logs in main repo, not worktree)
+    const logDir = await ensureLogDirectory(
+      config,
+      options.agentName,
+      originalCwd,
+    );
     logger = await createLogger(
       logDir,
       options.agentName,
@@ -285,6 +292,46 @@ async function main(): Promise<void> {
     await logger.write("debug", "Completion handler created", {
       type: completionHandler.type,
     });
+
+    // 4.5. Initialize PromptResolver for externalized prompts
+    try {
+      const stepRegistry = await loadStepRegistry(
+        "iterator",
+        "agents",
+        { registryPath: ".agent/iterator/steps_registry.json" },
+      );
+      const fallbackProvider = createIteratorFallbackProvider();
+      const promptResolver = new PromptResolver(
+        stepRegistry,
+        fallbackProvider,
+        { workingDir: Deno.cwd(), configSuffix: "steps" },
+      );
+
+      // Set resolver on completion handler
+      if ("setPromptResolver" in completionHandler) {
+        (completionHandler as {
+          setPromptResolver: (r: PromptResolver) => void;
+        })
+          .setPromptResolver(promptResolver);
+      }
+
+      await logger.write("debug", "PromptResolver initialized", {
+        agentId: stepRegistry.agentId,
+        version: stepRegistry.version,
+        stepCount: Object.keys(stepRegistry.steps).length,
+      });
+    } catch (registryError) {
+      // If registry not found, continue without externalized prompts
+      await logger.write(
+        "debug",
+        "PromptResolver not initialized (fallback to inline)",
+        {
+          reason: registryError instanceof Error
+            ? registryError.message
+            : String(registryError),
+        },
+      );
+    }
 
     // 5. Build system prompt via breakdown CLI
     const completionMode = completionHandler.type as CompletionMode;
@@ -312,11 +359,11 @@ async function main(): Promise<void> {
         : completionMode;
       await logger.write("info", "Climpt prompt executed", {
         type: "climpt_prompt_used",
-        c1: "iterator-dev",
+        config: "iterator-dev",
         c2: "start",
         c3: initialC3,
         promptPath:
-          `agent/iterator/prompts/iterator-dev/start/${initialC3}/f_default.md`,
+          `.agent/iterator/prompts/dev/start/${initialC3}/f_default.md`,
       });
       await logger.write("debug", "System prompt loaded via C3L", {
         mode: completionMode,
@@ -393,6 +440,13 @@ async function main(): Promise<void> {
       // Change back to original directory for merge
       Deno.chdir(originalCwd);
 
+      // Clean up worktree to unlock the branch for merging
+      console.log(`   🧹 Cleaning up worktree...`);
+      await cleanupWorktree(worktreeContext.worktreePath, originalCwd);
+      await logger.write("info", "Worktree cleaned up", {
+        worktreePath: worktreeContext.worktreePath,
+      });
+
       // Attempt merge using Iterator strategy (squash → ff → merge)
       const mergeResult = await mergeBranch(
         worktreeContext.branchName,
@@ -450,6 +504,9 @@ async function main(): Promise<void> {
         }
       }
     }
+
+    // 9. Close logger after all work is done
+    await logger.close();
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`\n❌ Error: ${errorMessage}\n`);
@@ -865,11 +922,12 @@ async function runAgentLoop(
           );
           await logger.write("info", "Climpt prompt executed", {
             type: "climpt_prompt_used",
-            c1: "iterator-dev",
+            config: "iterator-dev",
             c2: "start",
             c3: "project",
+            edition: "processing",
             promptPath:
-              "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+              ".agent/iterator/prompts/dev/start/project/f_processing.md",
           });
           await logger.write(
             "debug",
@@ -923,11 +981,12 @@ async function runAgentLoop(
             );
             await logger.write("info", "Climpt prompt executed", {
               type: "climpt_prompt_used",
-              c1: "iterator-dev",
+              config: "iterator-dev",
               c2: "start",
               c3: "project",
+              edition: "again",
               promptPath:
-                "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+                ".agent/iterator/prompts/dev/start/project/f_again.md",
             });
             await logger.write(
               "debug",
@@ -976,11 +1035,11 @@ async function runAgentLoop(
               );
               await logger.write("info", "Climpt prompt executed", {
                 type: "climpt_prompt_used",
-                c1: "iterator-dev",
+                config: "iterator-dev",
                 c2: "review",
                 c3: "project",
                 promptPath:
-                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                  ".agent/iterator/prompts/dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",
@@ -1024,11 +1083,11 @@ async function runAgentLoop(
               );
               await logger.write("info", "Climpt prompt executed", {
                 type: "climpt_prompt_used",
-                c1: "iterator-dev",
+                config: "iterator-dev",
                 c2: "review",
                 c3: "project",
                 promptPath:
-                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                  ".agent/iterator/prompts/dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",
@@ -1109,7 +1168,7 @@ async function runAgentLoop(
     previousSessionId = summary.sessionId;
 
     // Prepare prompt for next iteration with previous summary using handler
-    currentPrompt = completionHandler.buildContinuationPrompt(
+    currentPrompt = await completionHandler.buildContinuationPrompt(
       iterationCount,
       previousSummary,
     );
@@ -1155,7 +1214,7 @@ async function runAgentLoop(
     );
   }
 
-  await logger.close();
+  // Note: logger.close() is called by main() after worktree integration
 }
 
 // Run main

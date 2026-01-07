@@ -2,11 +2,25 @@
  * Iterate Completion Handler
  *
  * Handles iteration count-based completion criteria.
+ *
+ * ## Prompt Externalization
+ *
+ * This handler uses PromptResolver for customizable prompts:
+ * - User can override prompts by placing files in .agent/iterator/prompts/
+ * - Falls back to embedded prompts in fallback-prompts.ts
+ *
+ * Steps:
+ * - initial.iterate: Initial prompt for iteration-based execution
+ * - continuation.iterate: Continuation prompt for iterations
  */
 
 import type { IterationSummary } from "../types.ts";
 import type { CompletionCriteria, CompletionHandler } from "./types.ts";
 import { formatIterationSummary } from "./types.ts";
+import type {
+  PromptResolver,
+  PromptVariables,
+} from "../../../common/prompt-resolver.ts";
 
 /**
  * IterateCompletionHandler
@@ -20,12 +34,24 @@ export class IterateCompletionHandler implements CompletionHandler {
   /** Current iteration count (mutable) */
   private currentIteration = 0;
 
+  /** Optional prompt resolver for externalized prompts */
+  private promptResolver?: PromptResolver;
+
   /**
    * Create an Iterate completion handler
    *
    * @param maxIterations - Maximum number of iterations to execute
    */
   constructor(private readonly maxIterations: number) {}
+
+  /**
+   * Set prompt resolver for externalized prompts
+   *
+   * @param resolver - PromptResolver instance
+   */
+  setPromptResolver(resolver: PromptResolver): void {
+    this.promptResolver = resolver;
+  }
 
   /**
    * Update current iteration count
@@ -41,12 +67,28 @@ export class IterateCompletionHandler implements CompletionHandler {
   /**
    * Build initial prompt for autonomous mode
    */
-  buildInitialPrompt(): Promise<string> {
+  async buildInitialPrompt(): Promise<string> {
     const iterations = this.maxIterations === Infinity
       ? "unlimited"
-      : this.maxIterations;
+      : String(this.maxIterations);
 
-    return Promise.resolve(`
+    // Use PromptResolver if available
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          iterations: iterations,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "initial.iterate",
+        variables,
+      );
+      return result.content;
+    }
+
+    // Fallback to inline prompt
+    return `
 You are running in autonomous development mode for ${iterations} iterations.
 
 ## Your Mission
@@ -56,28 +98,49 @@ You are running in autonomous development mode for ${iterations} iterations.
 
 You have ${iterations} iterations to make meaningful contributions.
 Start by assessing the current state of the project and identifying high-value tasks.
-    `.trim());
+    `.trim();
   }
 
   /**
    * Build continuation prompt for subsequent iterations
    */
-  buildContinuationPrompt(
+  async buildContinuationPrompt(
     completedIterations: number,
     previousSummary?: IterationSummary,
-  ): string {
+  ): Promise<string> {
     const summarySection = previousSummary
       ? formatIterationSummary(previousSummary)
       : "";
 
     const remaining = this.maxIterations === Infinity
       ? "unlimited"
-      : this.maxIterations - completedIterations;
+      : String(this.maxIterations - completedIterations);
 
     const remainingText = this.maxIterations === Infinity
       ? "You can continue indefinitely."
       : `You have ${remaining} iteration(s) remaining.`;
 
+    // Use PromptResolver if available
+    if (this.promptResolver) {
+      const variables: PromptVariables = {
+        uv: {
+          completed_iterations: String(completedIterations),
+          remaining: remaining,
+        },
+        custom: {
+          remaining_text: remainingText,
+          summary_section: summarySection,
+        },
+      };
+
+      const result = await this.promptResolver.resolve(
+        "continuation.iterate",
+        variables,
+      );
+      return result.content;
+    }
+
+    // Fallback to inline prompt
     return `
 You are continuing in autonomous development mode.
 You have completed ${completedIterations} iteration(s). ${remainingText}
