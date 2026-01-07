@@ -182,6 +182,24 @@ async function executeActions(
           },
         });
         console.log(`  Created gap issue #${issueNum}: ${action.title}`);
+      } else if (result.type === "add-comment") {
+        const issueNum = (result.result as { issueNumber: number }).issueNumber;
+        await logger.write("info", `Added comment to issue #${issueNum}`, {
+          reviewAction: {
+            actionType: action.action,
+            issueNumber: issueNum,
+          },
+        });
+        console.log(`  Added comment to issue #${issueNum}`);
+      } else if (result.type === "close-issue") {
+        const issueNum = (result.result as { issueNumber: number }).issueNumber;
+        await logger.write("info", `Closed issue #${issueNum}`, {
+          reviewAction: {
+            actionType: action.action,
+            issueNumber: issueNum,
+          },
+        });
+        console.log(`  Closed issue #${issueNum}`);
       } else if (result.type === "complete") {
         await logger.write("info", "Review completed", {
           summary: action.summary,

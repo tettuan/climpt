@@ -69,11 +69,36 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 {"action":"progress","body":"## Review Progress\n- Checked: X requirements\n- Gaps found: Y\n- Remaining: Z"}
 ```
 
+## Add Comment to Review Issue
+
+レビュー結果を review issue にコメントとして投稿:
+
+```review-action
+{"action":"add-comment","issueNumber":194,"body":"## Review Result\n\n### Summary\n- All requirements verified ✅\n- No gaps found\n\n### Details\n| Requirement | Status |\n|-------------|--------|\n| req:xxx | ✅ Complete |\n\n### Recommendation\nThis issue can be closed."}
+```
+
+## Close Review Issue
+
+レビュー完了後、review issue を close:
+
+```review-action
+{"action":"close-issue","issueNumber":194,"body":"Review completed - all requirements verified"}
+```
+
 ## Complete Review
 
 ```review-action
 {"action":"complete","summary":"## Review Summary\n\n### Reviewed Requirements\n- req:xxx ✅ Complete\n- req:yyy ⚠️ Partial\n- req:zzz ❌ Missing\n\n### Created Issues\n- #XX: Description\n\n### Statistics\n- Total: N\n- Complete: A (X%)\n- Partial: B (Y%)\n- Missing: C (Z%)"}
 ```
+
+# Completion Flow
+
+レビュー完了時は以下の順序でアクションを実行:
+
+1. **Gap あり**: `create-issue` で各 gap を登録
+2. **結果投稿**: `add-comment` で review issue に結果をコメント
+3. **Gap なし**: `close-issue` で review issue を close
+4. **完了報告**: `complete` でサマリー出力
 
 # Guidelines
 
