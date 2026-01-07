@@ -221,6 +221,25 @@ export async function addIssueComment(
 }
 
 /**
+ * Close an issue
+ *
+ * @param repo - Repository in "owner/repo" format
+ * @param issueNumber - Issue number
+ * @param reason - Optional close reason
+ */
+export async function closeIssue(
+  repo: string,
+  issueNumber: number,
+  reason?: string,
+): Promise<void> {
+  const args = ["issue", "close", String(issueNumber), "-R", repo];
+  if (reason) {
+    args.push("--reason", reason);
+  }
+  await execGhCommand(args);
+}
+
+/**
  * Check if issue is closed
  *
  * @param repo - Repository in "owner/repo" format
@@ -305,6 +324,28 @@ export async function executeReviewAction(
     case "create-issue": {
       const issueNumber = await createGapIssue(repo, action);
       return { type: "create-issue", result: { issueNumber } };
+    }
+
+    case "add-comment": {
+      if (!action.issueNumber) {
+        throw new Error("add-comment action requires issueNumber");
+      }
+      await addIssueComment(repo, action.issueNumber, action.body);
+      return {
+        type: "add-comment",
+        result: { issueNumber: action.issueNumber },
+      };
+    }
+
+    case "close-issue": {
+      if (!action.issueNumber) {
+        throw new Error("issueNumber is required for close-issue action");
+      }
+      await closeIssue(repo, action.issueNumber);
+      return {
+        type: "close-issue",
+        result: { issueNumber: action.issueNumber },
+      };
     }
 
     case "progress": {

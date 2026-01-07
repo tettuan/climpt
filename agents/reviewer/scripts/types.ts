@@ -180,10 +180,17 @@ export interface RequirementItem {
  * Review action types
  *
  * - create-issue: Create a new gap issue
+ * - add-comment: Add a comment to an existing issue
+ * - close-issue: Close an issue
  * - progress: Report review progress
  * - complete: Review completed
  */
-export type ReviewActionType = "create-issue" | "progress" | "complete";
+export type ReviewActionType =
+  | "create-issue"
+  | "add-comment"
+  | "close-issue"
+  | "progress"
+  | "complete";
 
 /**
  * Review action from LLM
@@ -192,6 +199,7 @@ export type ReviewActionType = "create-issue" | "progress" | "complete";
  * Format in markdown:
  * ```review-action
  * {"action":"create-issue","title":"[Gap] Description","body":"...","labels":["implementation-gap"]}
+ * {"action":"add-comment","issueNumber":123,"body":"Comment text..."}
  * ```
  */
 export interface ReviewAction {
@@ -209,6 +217,9 @@ export interface ReviewAction {
 
   /** Summary (for complete action) */
   summary?: string;
+
+  /** Issue number (for add-comment action) */
+  issueNumber?: number;
 }
 
 /**
