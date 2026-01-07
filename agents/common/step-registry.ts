@@ -14,6 +14,7 @@ import { join } from "@std/path";
  * Step definition for external prompt resolution
  *
  * Maps a logical step identifier to a prompt file and its requirements.
+ * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
  */
 export interface StepDefinition {
   /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
@@ -23,10 +24,25 @@ export interface StepDefinition {
   name: string;
 
   /**
-   * Relative path to prompt file from .agent/{agent}/prompts/
-   * Example: "initial/issue.md" -> .agent/iterator/prompts/initial/issue.md
+   * C3L path component: c2 (e.g., "initial", "continuation", "section")
    */
-  promptPath: string;
+  c2: string;
+
+  /**
+   * C3L path component: c3 (e.g., "issue", "project", "iterate")
+   */
+  c3: string;
+
+  /**
+   * C3L path component: edition (e.g., "default", "preparation", "review")
+   */
+  edition: string;
+
+  /**
+   * C3L path component: adaptation (optional, e.g., "empty", "done")
+   * Used for variant prompts
+   */
+  adaptation?: string;
 
   /**
    * Key for fallback prompt in embedded prompts
@@ -63,6 +79,24 @@ export interface StepRegistry {
 
   /** Registry version for compatibility checking */
   version: string;
+
+  /**
+   * C3L path component: c1 (e.g., "steps")
+   * Shared by all steps in this registry
+   */
+  c1: string;
+
+  /**
+   * Path template for prompt resolution with adaptation
+   * Example: "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md"
+   */
+  pathTemplate?: string;
+
+  /**
+   * Path template for prompt resolution without adaptation
+   * Example: "{c1}/{c2}/{c3}/f_{edition}.md"
+   */
+  pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
   steps: Record<string, StepDefinition>;
@@ -174,16 +208,19 @@ export function hasStep(registry: StepRegistry, stepId: string): boolean {
  * Create an empty registry for an agent
  *
  * @param agentId - Agent identifier
+ * @param c1 - C3L path component c1 (e.g., "steps")
  * @param version - Registry version (default: "1.0.0")
  * @returns Empty step registry
  */
 export function createEmptyRegistry(
   agentId: string,
+  c1: string = "steps",
   version: string = "1.0.0",
 ): StepRegistry {
   return {
     agentId,
     version,
+    c1,
     steps: {},
     userPromptsBase: `.agent/${agentId}/prompts`,
   };
@@ -222,6 +259,9 @@ export function validateStepRegistry(registry: StepRegistry): void {
   if (typeof registry.version !== "string" || !registry.version) {
     errors.push("version must be a non-empty string");
   }
+  if (typeof registry.c1 !== "string" || !registry.c1) {
+    errors.push("c1 must be a non-empty string");
+  }
   if (typeof registry.steps !== "object" || registry.steps === null) {
     errors.push("steps must be an object");
   }
@@ -236,8 +276,14 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.name !== "string" || !step.name) {
       errors.push(`Step "${stepId}": name must be a non-empty string`);
     }
-    if (typeof step.promptPath !== "string" || !step.promptPath) {
-      errors.push(`Step "${stepId}": promptPath must be a non-empty string`);
+    if (typeof step.c2 !== "string" || !step.c2) {
+      errors.push(`Step "${stepId}": c2 must be a non-empty string`);
+    }
+    if (typeof step.c3 !== "string" || !step.c3) {
+      errors.push(`Step "${stepId}": c3 must be a non-empty string`);
+    }
+    if (typeof step.edition !== "string" || !step.edition) {
+      errors.push(`Step "${stepId}": edition must be a non-empty string`);
     }
     if (typeof step.fallbackKey !== "string" || !step.fallbackKey) {
       errors.push(`Step "${stepId}": fallbackKey must be a non-empty string`);

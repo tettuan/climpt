@@ -22,13 +22,15 @@ Deno.test("createEmptyRegistry - creates valid empty registry", () => {
 
   assertEquals(registry.agentId, "test-agent");
   assertEquals(registry.version, "1.0.0");
+  assertEquals(registry.c1, "steps");
   assertEquals(registry.steps, {});
   assertEquals(registry.userPromptsBase, ".agent/test-agent/prompts");
 });
 
-Deno.test("createEmptyRegistry - accepts custom version", () => {
-  const registry = createEmptyRegistry("test-agent", "2.0.0");
+Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {
+  const registry = createEmptyRegistry("test-agent", "custom", "2.0.0");
 
+  assertEquals(registry.c1, "custom");
   assertEquals(registry.version, "2.0.0");
 });
 
@@ -37,7 +39,9 @@ Deno.test("addStepDefinition - adds step to registry", () => {
   const step: StepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
-    promptPath: "initial/test.md",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
     fallbackKey: "initial_test",
     uvVariables: ["test_var"],
     usesStdin: false,
@@ -53,7 +57,9 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
   const step: StepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
-    promptPath: "initial/test.md",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
     fallbackKey: "initial_test",
     uvVariables: [],
     usesStdin: false,
@@ -73,7 +79,9 @@ Deno.test("getStepDefinition - returns step by ID", () => {
   const step: StepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
-    promptPath: "initial/test.md",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
     fallbackKey: "initial_test",
     uvVariables: [],
     usesStdin: false,
@@ -98,7 +106,9 @@ Deno.test("getStepIds - returns all step IDs", () => {
   addStepDefinition(registry, {
     stepId: "step1",
     name: "Step 1",
-    promptPath: "step1.md",
+    c2: "initial",
+    c3: "step1",
+    edition: "default",
     fallbackKey: "step1",
     uvVariables: [],
     usesStdin: false,
@@ -106,7 +116,9 @@ Deno.test("getStepIds - returns all step IDs", () => {
   addStepDefinition(registry, {
     stepId: "step2",
     name: "Step 2",
-    promptPath: "step2.md",
+    c2: "initial",
+    c3: "step2",
+    edition: "default",
     fallbackKey: "step2",
     uvVariables: [],
     usesStdin: false,
@@ -122,7 +134,9 @@ Deno.test("hasStep - returns true for existing step", () => {
   addStepDefinition(registry, {
     stepId: "existing",
     name: "Existing Step",
-    promptPath: "existing.md",
+    c2: "initial",
+    c3: "existing",
+    edition: "default",
     fallbackKey: "existing",
     uvVariables: [],
     usesStdin: false,
@@ -136,11 +150,14 @@ Deno.test("validateStepRegistry - validates correct registry", () => {
   const registry: StepRegistry = {
     agentId: "test-agent",
     version: "1.0.0",
+    c1: "steps",
     steps: {
       "initial.test": {
         stepId: "initial.test",
         name: "Test Step",
-        promptPath: "initial/test.md",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
         fallbackKey: "test",
         uvVariables: ["var1"],
         usesStdin: true,
@@ -156,6 +173,7 @@ Deno.test("validateStepRegistry - throws on missing agentId", () => {
   const registry = {
     agentId: "",
     version: "1.0.0",
+    c1: "steps",
     steps: {},
   } as StepRegistry;
 
@@ -166,15 +184,33 @@ Deno.test("validateStepRegistry - throws on missing agentId", () => {
   );
 });
 
+Deno.test("validateStepRegistry - throws on missing c1", () => {
+  const registry = {
+    agentId: "test",
+    version: "1.0.0",
+    c1: "",
+    steps: {},
+  } as StepRegistry;
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    "c1 must be a non-empty string",
+  );
+});
+
 Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
   const registry: StepRegistry = {
     agentId: "test",
     version: "1.0.0",
+    c1: "steps",
     steps: {
       "wrong.key": {
         stepId: "different.id",
         name: "Test",
-        promptPath: "test.md",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
         fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
@@ -194,7 +230,9 @@ Deno.test("serializeRegistry - produces valid JSON", () => {
   addStepDefinition(registry, {
     stepId: "test",
     name: "Test",
-    promptPath: "test.md",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
     fallbackKey: "test",
     uvVariables: [],
     usesStdin: false,
@@ -214,11 +252,14 @@ Deno.test("loadStepRegistry - loads from file", async () => {
   const registry: StepRegistry = {
     agentId: "temp-agent",
     version: "1.0.0",
+    c1: "steps",
     steps: {
       "test.step": {
         stepId: "test.step",
         name: "Test Step",
-        promptPath: "test.md",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
         fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
@@ -253,6 +294,7 @@ Deno.test("loadStepRegistry - throws on agentId mismatch", async () => {
   const registry: StepRegistry = {
     agentId: "different-agent",
     version: "1.0.0",
+    c1: "steps",
     steps: {},
   };
   await Deno.writeTextFile(registryPath, JSON.stringify(registry));
@@ -278,7 +320,9 @@ Deno.test("saveStepRegistry - saves to file", async () => {
   addStepDefinition(registry, {
     stepId: "saved",
     name: "Saved Step",
-    promptPath: "saved.md",
+    c2: "initial",
+    c3: "saved",
+    edition: "default",
     fallbackKey: "saved",
     uvVariables: ["x"],
     usesStdin: true,
