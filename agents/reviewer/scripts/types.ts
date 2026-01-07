@@ -4,6 +4,9 @@
  * Core TypeScript types for the review agent system.
  */
 
+// Import common types for local use
+import type { WorktreeConfig } from "../../common/types.ts";
+
 // Re-export common types
 export type {
   AgentName,
@@ -13,10 +16,16 @@ export type {
   LogEntry,
   LoggingConfig,
   LogLevel,
+  MergeResult,
+  MergeStrategy,
   PermissionMode,
   ToolResultInfo,
   ToolUseInfo,
+  WorktreeCLIOptions,
+  WorktreeConfig,
+  WorktreeSetupResult,
 } from "../../common/types.ts";
+export { DEFAULT_WORKTREE_CONFIG } from "../../common/types.ts";
 
 /**
  * Review status for each requirement
@@ -41,6 +50,19 @@ export interface ReviewOptions {
 
   /** Label for review target issues (default: "review") */
   reviewLabel: string;
+
+  /**
+   * Working branch name for worktree mode.
+   * Only effective when forceWorktree is true in config.
+   * If not specified, auto-generated: <currentBranch>-yyyymmdd-hhmmss
+   */
+  branch?: string;
+
+  /**
+   * Base branch (merge target) for worktree mode.
+   * If not specified, uses the current branch at execution time.
+   */
+  baseBranch?: string;
 }
 
 /**
@@ -107,6 +129,8 @@ export interface ReviewAgentConfig {
   output?: {
     issueLabels?: string[];
   };
+  /** Worktree configuration for isolated execution */
+  worktree?: WorktreeConfig;
 }
 
 /**
