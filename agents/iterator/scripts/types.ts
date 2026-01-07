@@ -4,6 +4,9 @@
  * Core TypeScript types for the autonomous agent system.
  */
 
+// Import common types for local use
+import type { WorktreeConfig } from "../../common/types.ts";
+
 // Re-export common types
 export type {
   AgentName,
@@ -13,10 +16,16 @@ export type {
   LogEntry,
   LoggingConfig,
   LogLevel,
+  MergeResult,
+  MergeStrategy,
   PermissionMode,
   ToolResultInfo,
   ToolUseInfo,
+  WorktreeCLIOptions,
+  WorktreeConfig,
+  WorktreeSetupResult,
 } from "../../common/types.ts";
+export { DEFAULT_WORKTREE_CONFIG } from "../../common/types.ts";
 
 /**
  * Completion criteria types
@@ -117,6 +126,19 @@ export interface AgentOptions {
 
   /** Include "Done" items from project board (only used with --project) */
   includeCompleted?: boolean;
+
+  /**
+   * Working branch name for worktree mode.
+   * Only effective when forceWorktree is true in config.
+   * If not specified, auto-generated: <currentBranch>-yyyymmdd-hhmmss
+   */
+  branch?: string;
+
+  /**
+   * Base branch (merge target) for worktree mode.
+   * If not specified, uses the current branch at execution time.
+   */
+  baseBranch?: string;
 }
 
 /**
@@ -154,6 +176,8 @@ export interface IterateAgentConfig {
     maxFiles: number;
     format: string;
   };
+  /** Worktree configuration for isolated execution */
+  worktree?: WorktreeConfig;
 }
 
 /**

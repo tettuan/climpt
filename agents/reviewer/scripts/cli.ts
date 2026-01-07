@@ -29,6 +29,8 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       "iterate-max",
       "requirements-label",
       "review-label",
+      "branch",
+      "base-branch",
     ],
     boolean: ["init", "help"],
     default: {
@@ -43,6 +45,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       n: "name",
       m: "iterate-max",
       h: "help",
+      b: "branch",
     },
   });
 
@@ -91,6 +94,10 @@ export function parseCliArgs(args: string[]): ParsedArgs {
     throw new Error("--iterate-max must be a positive integer");
   }
 
+  // Get worktree options
+  const branch = parsed.branch as string | undefined;
+  const baseBranch = parsed["base-branch"] as string | undefined;
+
   return {
     init: false,
     help: false,
@@ -100,6 +107,8 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       agentName: agentName as AgentName,
       requirementsLabel,
       reviewLabel,
+      branch,
+      baseBranch,
     },
   };
 }
@@ -142,6 +151,15 @@ OPTIONS:
 
   --iterate-max, -m <number>
       Maximum number of iterations. Defaults to unlimited.
+
+  --branch, -b <name>
+      Working branch name for worktree mode. Only effective when forceWorktree
+      is true in config. If not specified, auto-generated as:
+      <currentBranch>-yyyymmdd-hhmmss
+
+  --base-branch <name>
+      Base branch (merge target) for worktree mode. If not specified, uses the
+      current branch at execution time.
 
   --help, -h
       Display this help message.

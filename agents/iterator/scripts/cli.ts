@@ -28,6 +28,8 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       "iterate-max",
       "label",
       "project-owner",
+      "branch",
+      "base-branch",
     ],
     boolean: ["init", "help", "resume", "include-completed"],
     default: {
@@ -47,6 +49,7 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       l: "label",
       c: "include-completed",
       o: "project-owner",
+      b: "branch",
     },
   });
 
@@ -130,6 +133,10 @@ export function parseCliArgs(args: string[]): ParsedArgs {
     throw new Error("--project-owner can only be used with --project");
   }
 
+  // Get worktree options
+  const branch = parsed.branch as string | undefined;
+  const baseBranch = parsed["base-branch"] as string | undefined;
+
   return {
     init: false,
     help: false,
@@ -142,6 +149,8 @@ export function parseCliArgs(args: string[]): ParsedArgs {
       resume,
       label,
       includeCompleted,
+      branch,
+      baseBranch,
     },
   };
 }
@@ -194,6 +203,15 @@ OPTIONS:
   --resume, -r
       Resume previous session instead of starting fresh. Defaults to false.
       When enabled, uses SDK session_id to continue from where the last iteration ended.
+
+  --branch, -b <name>
+      Working branch name for worktree mode. Only effective when forceWorktree
+      is true in config. If not specified, auto-generated as:
+      <currentBranch>-yyyymmdd-hhmmss
+
+  --base-branch <name>
+      Base branch (merge target) for worktree mode. If not specified, uses the
+      current branch at execution time.
 
   --help, -h
       Display this help message.

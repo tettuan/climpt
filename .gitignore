@@ -91,6 +91,8 @@ debug*.ts
 .deno/
 .claude/*
 !.claude/skills/
+!.claude/settings.json
+!.claude/hooks/
 .mcp.json
 
 # MCP runtime config

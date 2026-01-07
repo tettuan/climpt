@@ -32,6 +32,24 @@ Bash({
 
 対象: `git push`, `git pull`, `git fetch`, `git clone`, `gh` コマンド全般
 
+## CI での JSR 接続問題
+
+`deno task ci` 実行時に JSR 接続エラーが発生した場合:
+
+```
+error: JSR package manifest for '@std/path' failed to load.
+Import 'https://jsr.io/@std/path/meta.json' failed.
+```
+
+これはサンドボックス制限が原因の可能性が高い。`dangerouslyDisableSandbox: true` で再実行:
+
+```typescript
+Bash({
+  command: "deno task ci",
+  dangerouslyDisableSandbox: true,
+})
+```
+
 # Iterate Agent
 
 Claude Agent SDK 使用時も `dangerouslyDisableSandbox: true` が必要:
