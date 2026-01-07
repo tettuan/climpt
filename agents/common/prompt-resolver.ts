@@ -1,16 +1,17 @@
 /**
  * Prompt Resolver - External Prompt Resolution System
  *
- * Resolves prompts from external files with fallback support.
+ * Resolves prompts via breakdown (C3L) with fallback support.
  * Key features:
- * - User prompt override: .agent/{agent}/prompts/{path}
- * - Fallback to embedded prompts when user file doesn't exist
+ * - Uses C3LPromptLoader to call runBreakdown
+ * - Falls back to embedded prompts when breakdown fails or returns empty
  * - Variable substitution for {uv-xxx} and {input_text}
  * - Frontmatter removal for clean prompt content
  */
 
 import { join } from "@std/path";
 import type { StepDefinition, StepRegistry } from "./step-registry.ts";
+import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 
 /**
  * Result of prompt resolution
@@ -84,14 +85,17 @@ export interface PromptResolverOptions {
 
   /** Whether to allow missing variables (default: false - throws error) */
   allowMissingVariables?: boolean;
+
+  /** Config suffix for C3LPromptLoader (e.g., "dev" → config="iterator-dev") */
+  configSuffix?: string;
 }
 
 /**
- * PromptResolver - Resolves prompts from external files
+ * PromptResolver - Resolves prompts via breakdown (C3L) with fallback
  *
  * Usage:
  * ```typescript
- * const resolver = new PromptResolver(registry, fallbackProvider);
+ * const resolver = new PromptResolver(registry, fallbackProvider, { configSuffix: "steps" });
  * const result = await resolver.resolve("initial.issue", {
  *   uv: { issue_number: "123", repository: "owner/repo" }
  * });
@@ -103,6 +107,7 @@ export class PromptResolver {
   private userPromptsBase: string;
   private stripFrontmatter: boolean;
   private allowMissingVariables: boolean;
+  private c3lLoader: C3LPromptLoader;
 
   /**
    * Create a new PromptResolver
@@ -122,13 +127,20 @@ export class PromptResolver {
       `.agent/${registry.agentId}/prompts`;
     this.stripFrontmatter = options.stripFrontmatter ?? true;
     this.allowMissingVariables = options.allowMissingVariables ?? false;
+
+    // Create C3LPromptLoader for breakdown integration
+    this.c3lLoader = new C3LPromptLoader({
+      agentId: registry.agentId,
+      configSuffix: options.configSuffix ?? registry.c1,
+      workingDir: this.workingDir,
+    });
   }
 
   /**
    * Resolve a prompt by step ID
    *
    * Resolution order:
-   * 1. Try user file at .agent/{agent}/prompts/{promptPath}
+   * 1. Try breakdown via C3LPromptLoader
    * 2. Fall back to embedded prompt via fallbackProvider
    *
    * @param stepId - Step identifier to resolve
@@ -144,10 +156,10 @@ export class PromptResolver {
       throw new Error(`Unknown step ID: "${stepId}"`);
     }
 
-    // Try user file first
-    const userResult = await this.tryUserFile(step, variables);
-    if (userResult) {
-      return userResult;
+    // Try breakdown first
+    const breakdownResult = await this.tryBreakdown(step, variables);
+    if (breakdownResult) {
+      return breakdownResult;
     }
 
     // Fall back to embedded prompt
@@ -155,39 +167,51 @@ export class PromptResolver {
   }
 
   /**
-   * Try to resolve from user file
+   * Build C3L path from step definition
+   */
+  private buildC3LPath(step: StepDefinition): C3LPath {
+    return {
+      c1: this.registry.c1,
+      c2: step.c2,
+      c3: step.c3,
+      edition: step.edition,
+      adaptation: step.adaptation,
+    };
+  }
+
+  /**
+   * Try to resolve via breakdown (C3LPromptLoader)
    *
    * @param step - Step definition
    * @param variables - Variables for substitution
-   * @returns Resolution result or null if file doesn't exist
+   * @returns Resolution result or null if breakdown fails or returns empty
    */
-  private async tryUserFile(
+  private async tryBreakdown(
     step: StepDefinition,
     variables: PromptVariables,
   ): Promise<PromptResolutionResult | null> {
-    const userPath = join(
-      this.workingDir,
-      this.userPromptsBase,
-      step.promptPath,
-    );
+    const c3lPath = this.buildC3LPath(step);
 
-    try {
-      const rawContent = await Deno.readTextFile(userPath);
-      const content = this.processContent(rawContent, step, variables);
+    const result = await this.c3lLoader.load(c3lPath, {
+      uv: variables.uv,
+      inputText: variables.inputText,
+    });
 
-      return {
-        content,
-        source: "user",
-        promptPath: userPath,
-        stepId: step.stepId,
-        substitutedVariables: this.getSubstitutedVariables(variables),
-      };
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        return null;
-      }
-      throw error;
+    // Check if breakdown succeeded and returned content
+    if (!result.ok || !result.content) {
+      return null;
     }
+
+    // Process content (strip frontmatter if needed, substitute custom variables)
+    const content = this.processContent(result.content, step, variables);
+
+    return {
+      content,
+      source: "user",
+      promptPath: result.promptPath,
+      stepId: step.stepId,
+      substitutedVariables: this.getSubstitutedVariables(variables),
+    };
   }
 
   /**
@@ -332,6 +356,17 @@ export class PromptResolver {
   }
 
   /**
+   * Build prompt file path from step definition
+   */
+  private buildPromptPath(step: StepDefinition): string {
+    const edition = step.edition ?? "default";
+    const filename = step.adaptation
+      ? `f_${edition}_${step.adaptation}.md`
+      : `f_${edition}.md`;
+    return `${this.registry.c1}/${step.c2}/${step.c3}/${filename}`;
+  }
+
+  /**
    * Check if a step can be resolved (has user file or fallback)
    *
    * @param stepId - Step ID to check
@@ -344,11 +379,8 @@ export class PromptResolver {
     }
 
     // Check user file
-    const userPath = join(
-      this.workingDir,
-      this.userPromptsBase,
-      step.promptPath,
-    );
+    const promptPath = this.buildPromptPath(step);
+    const userPath = join(this.workingDir, this.userPromptsBase, promptPath);
     try {
       await Deno.stat(userPath);
       return true;
@@ -369,7 +401,8 @@ export class PromptResolver {
     if (!step) {
       return undefined;
     }
-    return join(this.workingDir, this.userPromptsBase, step.promptPath);
+    const promptPath = this.buildPromptPath(step);
+    return join(this.workingDir, this.userPromptsBase, promptPath);
   }
 }
 

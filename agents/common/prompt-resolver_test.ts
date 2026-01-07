@@ -11,6 +11,111 @@ import {
 } from "./prompt-resolver.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
 
+// =============================================================================
+// Test Agent Setup/Teardown
+// =============================================================================
+
+const TEST_AGENT_ID = "test-agent";
+const TEST_AGENT_DIR = `.agent/${TEST_AGENT_ID}`;
+const TEST_CONFIG_APP = `.agent/climpt/config/${TEST_AGENT_ID}-steps-app.yml`;
+const TEST_CONFIG_USER = `.agent/climpt/config/${TEST_AGENT_ID}-steps-user.yml`;
+const REGISTRY_CONFIG_PATH = ".agent/climpt/config/registry_config.json";
+
+interface RegistryConfig {
+  registries: Record<string, string>;
+}
+
+let originalRegistryConfig: string | null = null;
+
+async function setupTestAgent(): Promise<void> {
+  // Create test-agent directory
+  await Deno.mkdir(TEST_AGENT_DIR, { recursive: true });
+
+  // Create test-agent registry.json
+  const registry = {
+    agentId: TEST_AGENT_ID,
+    version: "1.0.0",
+    c1: "steps",
+    steps: {},
+  };
+  await Deno.writeTextFile(
+    `${TEST_AGENT_DIR}/registry.json`,
+    JSON.stringify(registry, null, 2),
+  );
+
+  // Create test-agent-steps-app.yml
+  const appConfig = `# Test Agent Config (auto-generated for tests)
+working_dir: ".agent/${TEST_AGENT_ID}"
+app_prompt:
+  base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"
+`;
+  await Deno.writeTextFile(TEST_CONFIG_APP, appConfig);
+
+  // Create test-agent-steps-user.yml
+  const userConfig = `# Test Agent User Config (auto-generated for tests)
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation|section)$"
+    layerType:
+      pattern: "^(issue|project|iterate)$"
+`;
+  await Deno.writeTextFile(TEST_CONFIG_USER, userConfig);
+
+  // Update registry_config.json
+  try {
+    originalRegistryConfig = await Deno.readTextFile(REGISTRY_CONFIG_PATH);
+    const config: RegistryConfig = JSON.parse(originalRegistryConfig);
+    if (!config.registries[TEST_AGENT_ID]) {
+      config.registries[TEST_AGENT_ID] = `${TEST_AGENT_DIR}/registry.json`;
+      await Deno.writeTextFile(
+        REGISTRY_CONFIG_PATH,
+        JSON.stringify(config, null, 2) + "\n",
+      );
+    }
+  } catch {
+    // registry_config.json doesn't exist or can't be read
+  }
+}
+
+// Setup before all tests
+await setupTestAgent();
+
+// Teardown after all tests (using unload event)
+globalThis.addEventListener("unload", () => {
+  // Note: async operations may not complete in unload
+  // Use Deno.removeSync for synchronous cleanup
+  try {
+    Deno.removeSync(TEST_AGENT_DIR, { recursive: true });
+  } catch {
+    // Ignore
+  }
+  try {
+    Deno.removeSync(TEST_CONFIG_APP);
+  } catch {
+    // Ignore
+  }
+  try {
+    Deno.removeSync(TEST_CONFIG_USER);
+  } catch {
+    // Ignore
+  }
+  // Restore original registry_config.json
+  if (originalRegistryConfig !== null) {
+    try {
+      Deno.writeTextFileSync(REGISTRY_CONFIG_PATH, originalRegistryConfig);
+    } catch {
+      // Ignore
+    }
+  }
+});
+
+// =============================================================================
+// Tests
+// =============================================================================
+
 // Test removeFrontmatter
 Deno.test("removeFrontmatter - removes YAML frontmatter", () => {
   const content = `---
@@ -115,12 +220,14 @@ Deno.test("createFallbackProvider - provides prompts", () => {
 });
 
 // Test PromptResolver
-Deno.test("PromptResolver - resolves from fallback when no user file", async () => {
+Deno.test("PromptResolver - resolves from fallback when breakdown fails", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "initial.test",
     name: "Test Step",
-    promptPath: "initial/test.md",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
     fallbackKey: "fallback_test",
     uvVariables: [],
     usesStdin: false,
@@ -141,12 +248,14 @@ Deno.test("PromptResolver - resolves from fallback when no user file", async () 
   assertEquals(result.stepId, "initial.test");
 });
 
-Deno.test("PromptResolver - substitutes UV variables", async () => {
+Deno.test("PromptResolver - substitutes UV variables in fallback", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "with.vars",
     name: "With Vars",
-    promptPath: "vars.md",
+    c2: "initial",
+    c3: "vars",
+    edition: "default",
     fallbackKey: "vars_fallback",
     uvVariables: ["name", "count"],
     usesStdin: false,
@@ -169,12 +278,14 @@ Deno.test("PromptResolver - substitutes UV variables", async () => {
   assertEquals(result.substitutedVariables?.["uv-count"], "5");
 });
 
-Deno.test("PromptResolver - substitutes input_text", async () => {
+Deno.test("PromptResolver - substitutes input_text in fallback", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "stdin.step",
     name: "STDIN Step",
-    promptPath: "stdin.md",
+    c2: "initial",
+    c3: "stdin",
+    edition: "default",
     fallbackKey: "stdin_fallback",
     uvVariables: [],
     usesStdin: true,
@@ -200,7 +311,9 @@ Deno.test("PromptResolver - throws on missing required UV variable", async () =>
   addStepDefinition(registry, {
     stepId: "required.vars",
     name: "Required Vars",
-    promptPath: "required.md",
+    c2: "initial",
+    c3: "required",
+    edition: "default",
     fallbackKey: "required_fallback",
     uvVariables: ["required_var"],
     usesStdin: false,
@@ -226,7 +339,9 @@ Deno.test("PromptResolver - allows missing variables when configured", async () 
   addStepDefinition(registry, {
     stepId: "optional.vars",
     name: "Optional Vars",
-    promptPath: "optional.md",
+    c2: "initial",
+    c3: "optional",
+    edition: "default",
     fallbackKey: "optional_fallback",
     uvVariables: ["optional_var"],
     usesStdin: true,
@@ -264,7 +379,9 @@ Deno.test("PromptResolver - throws when no fallback available", async () => {
   addStepDefinition(registry, {
     stepId: "no.fallback",
     name: "No Fallback",
-    promptPath: "nofallback.md",
+    c2: "initial",
+    c3: "nofallback",
+    edition: "default",
     fallbackKey: "missing_key",
     uvVariables: [],
     usesStdin: false,
@@ -288,7 +405,9 @@ Deno.test("PromptResolver - strips frontmatter by default", async () => {
   addStepDefinition(registry, {
     stepId: "with.frontmatter",
     name: "With Frontmatter",
-    promptPath: "frontmatter.md",
+    c2: "initial",
+    c3: "frontmatter",
+    edition: "default",
     fallbackKey: "frontmatter_fallback",
     uvVariables: [],
     usesStdin: false,
@@ -315,7 +434,9 @@ Deno.test("PromptResolver - preserves frontmatter when disabled", async () => {
   addStepDefinition(registry, {
     stepId: "keep.frontmatter",
     name: "Keep Frontmatter",
-    promptPath: "keep.md",
+    c2: "initial",
+    c3: "keep",
+    edition: "default",
     fallbackKey: "keep_fallback",
     uvVariables: [],
     usesStdin: false,
@@ -343,7 +464,9 @@ Deno.test("PromptResolver - canResolve returns true for resolvable step", async 
   addStepDefinition(registry, {
     stepId: "resolvable",
     name: "Resolvable",
-    promptPath: "resolvable.md",
+    c2: "initial",
+    c3: "resolvable",
+    edition: "default",
     fallbackKey: "resolvable_key",
     uvVariables: [],
     usesStdin: false,
@@ -378,7 +501,9 @@ Deno.test("PromptResolver - getUserFilePath returns correct path", () => {
   addStepDefinition(registry, {
     stepId: "file.path",
     name: "File Path",
-    promptPath: "subdir/file.md",
+    c2: "initial",
+    c3: "file",
+    edition: "default",
     fallbackKey: "key",
     uvVariables: [],
     usesStdin: false,
@@ -392,7 +517,40 @@ Deno.test("PromptResolver - getUserFilePath returns correct path", () => {
 
   const path = resolver.getUserFilePath("file.path");
 
-  assertEquals(path, "/work/.agent/test-agent/prompts/subdir/file.md");
+  // Path should be: /work/.agent/test-agent/prompts/steps/initial/file/f_default.md
+  assertEquals(
+    path,
+    "/work/.agent/test-agent/prompts/steps/initial/file/f_default.md",
+  );
+});
+
+Deno.test("PromptResolver - getUserFilePath with adaptation", () => {
+  const registry = createEmptyRegistry("test-agent");
+  addStepDefinition(registry, {
+    stepId: "file.adapted",
+    name: "Adapted File",
+    c2: "initial",
+    c3: "file",
+    edition: "preparation",
+    adaptation: "empty",
+    fallbackKey: "key",
+    uvVariables: [],
+    usesStdin: false,
+  });
+
+  const fallbackProvider = createFallbackProvider({});
+
+  const resolver = new PromptResolver(registry, fallbackProvider, {
+    workingDir: "/work",
+  });
+
+  const path = resolver.getUserFilePath("file.adapted");
+
+  // Path should include adaptation: f_preparation_empty.md
+  assertEquals(
+    path,
+    "/work/.agent/test-agent/prompts/steps/initial/file/f_preparation_empty.md",
+  );
 });
 
 Deno.test("PromptResolver - custom variables substitution", async () => {
@@ -400,7 +558,9 @@ Deno.test("PromptResolver - custom variables substitution", async () => {
   addStepDefinition(registry, {
     stepId: "custom.vars",
     name: "Custom Vars",
-    promptPath: "custom.md",
+    c2: "initial",
+    c3: "custom",
+    edition: "default",
     fallbackKey: "custom_fallback",
     uvVariables: [],
     usesStdin: false,
@@ -422,39 +582,4 @@ Deno.test("PromptResolver - custom variables substitution", async () => {
   });
 
   assertEquals(result.content, "Project: MyProject, Count: 42");
-});
-
-Deno.test("PromptResolver - resolves from user file when exists", async () => {
-  const tempDir = await Deno.makeTempDir();
-  const promptsDir = `${tempDir}/.agent/test-agent/prompts/initial`;
-  await Deno.mkdir(promptsDir, { recursive: true });
-  await Deno.writeTextFile(`${promptsDir}/user.md`, "User provided content");
-
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "initial.user",
-    name: "User Step",
-    promptPath: "initial/user.md",
-    fallbackKey: "user_fallback",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "user_fallback": "Fallback content",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: tempDir,
-  });
-
-  try {
-    const result = await resolver.resolve("initial.user");
-
-    assertEquals(result.source, "user");
-    assertEquals(result.content, "User provided content");
-    assertEquals(result.promptPath?.includes("initial/user.md"), true);
-  } finally {
-    await Deno.remove(tempDir, { recursive: true });
-  }
 });
