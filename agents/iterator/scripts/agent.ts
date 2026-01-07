@@ -304,7 +304,7 @@ async function main(): Promise<void> {
       const promptResolver = new PromptResolver(
         stepRegistry,
         fallbackProvider,
-        { workingDir: Deno.cwd() },
+        { workingDir: Deno.cwd(), configSuffix: "steps" },
       );
 
       // Set resolver on completion handler
@@ -359,11 +359,11 @@ async function main(): Promise<void> {
         : completionMode;
       await logger.write("info", "Climpt prompt executed", {
         type: "climpt_prompt_used",
-        c1: "iterator-dev",
+        config: "iterator-dev",
         c2: "start",
         c3: initialC3,
         promptPath:
-          `agent/iterator/prompts/iterator-dev/start/${initialC3}/f_default.md`,
+          `.agent/iterator/prompts/dev/start/${initialC3}/f_default.md`,
       });
       await logger.write("debug", "System prompt loaded via C3L", {
         mode: completionMode,
@@ -922,11 +922,12 @@ async function runAgentLoop(
           );
           await logger.write("info", "Climpt prompt executed", {
             type: "climpt_prompt_used",
-            c1: "iterator-dev",
+            config: "iterator-dev",
             c2: "start",
             c3: "project",
+            edition: "processing",
             promptPath:
-              "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+              ".agent/iterator/prompts/dev/start/project/f_processing.md",
           });
           await logger.write(
             "debug",
@@ -980,11 +981,12 @@ async function runAgentLoop(
             );
             await logger.write("info", "Climpt prompt executed", {
               type: "climpt_prompt_used",
-              c1: "iterator-dev",
+              config: "iterator-dev",
               c2: "start",
               c3: "project",
+              edition: "again",
               promptPath:
-                "agent/iterator/prompts/iterator-dev/start/project/f_default.md",
+                ".agent/iterator/prompts/dev/start/project/f_again.md",
             });
             await logger.write(
               "debug",
@@ -1033,11 +1035,11 @@ async function runAgentLoop(
               );
               await logger.write("info", "Climpt prompt executed", {
                 type: "climpt_prompt_used",
-                c1: "iterator-dev",
+                config: "iterator-dev",
                 c2: "review",
                 c3: "project",
                 promptPath:
-                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                  ".agent/iterator/prompts/dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",
@@ -1081,11 +1083,11 @@ async function runAgentLoop(
               );
               await logger.write("info", "Climpt prompt executed", {
                 type: "climpt_prompt_used",
-                c1: "iterator-dev",
+                config: "iterator-dev",
                 c2: "review",
                 c3: "project",
                 promptPath:
-                  "agent/iterator/prompts/iterator-dev/review/project/f_default.md",
+                  ".agent/iterator/prompts/dev/review/project/f_default.md",
               });
               await logger.write(
                 "debug",
