@@ -1,0 +1,7 @@
+# Breakdown Configuration for iterator-steps
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation|section)$"
+    layerType:
+      pattern: "^(issue|project|iterate)$"

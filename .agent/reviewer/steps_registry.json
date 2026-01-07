@@ -1,0 +1,25 @@
+{
+  "agentId": "reviewer",
+  "version": "1.0.0",
+  "userPromptsBase": ".agent/reviewer/prompts",
+  "steps": {
+    "initial.default": {
+      "stepId": "initial.default",
+      "name": "Initial Review Prompt",
+      "promptPath": "initial/default.md",
+      "fallbackKey": "initial_default",
+      "uvVariables": ["project", "requirements_label", "review_label"],
+      "usesStdin": false,
+      "description": "Initial prompt for review task with project context"
+    },
+    "continuation.default": {
+      "stepId": "continuation.default",
+      "name": "Continuation Review Prompt",
+      "promptPath": "continuation/default.md",
+      "fallbackKey": "continuation_default",
+      "uvVariables": ["iteration"],
+      "usesStdin": false,
+      "description": "Continuation prompt for subsequent review iterations"
+    }
+  }
+}

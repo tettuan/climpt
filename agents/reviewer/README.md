@@ -204,12 +204,18 @@ The review-agent and iterate-agent form a development cycle:
 
 ### Key Differences from iterate-agent
 
-| Aspect           | iterate-agent           | review-agent                |
-| ---------------- | ----------------------- | --------------------------- |
-| `allowedTools`   | Includes Write, Edit    | Read-only (no Write, Edit)  |
-| `permissionMode` | acceptEdits             | plan                        |
-| Purpose          | Implement features      | Verify implementations      |
-| Input            | Single issue or project | Project with labeled issues |
+| Aspect           | iterate-agent            | review-agent                |
+| ---------------- | ------------------------ | --------------------------- |
+| CLI options      | `--issue` or `--project` | `--project` only            |
+| `allowedTools`   | Includes Write, Edit     | Read-only (no Write, Edit)  |
+| `permissionMode` | acceptEdits              | plan                        |
+| Purpose          | Implement features       | Verify implementations      |
+| Input            | Single issue or project  | Project with labeled issues |
+
+> **Note**: review-agent does not support `--issue` option. It is designed to
+> review an entire project's implementation by fetching all issues with `docs`
+> (requirements) and `review` (targets) labels. Use iterate-agent for
+> single-issue work.
 
 ## Requirements
 

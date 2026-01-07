@@ -187,6 +187,7 @@ export interface GitHubProject {
   number: number;
   title: string;
   description: string | null;
+  readme: string | null;
   items: Array<{
     content?: {
       number?: number;

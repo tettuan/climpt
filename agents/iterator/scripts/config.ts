@@ -783,13 +783,19 @@ export function getAgentConfig(
  *
  * @param config - Main configuration
  * @param agentName - MCP agent name
+ * @param basePath - Base path for log directory (use for worktree isolation)
  * @returns Full path to log directory
  */
 export async function ensureLogDirectory(
   config: IterateAgentConfig,
   agentName: AgentName,
+  basePath?: string,
 ): Promise<string> {
-  const logDir = join(config.logging.directory, agentName);
+  // Use basePath to ensure logs are written to main repo, not worktree
+  const baseDir = basePath
+    ? join(basePath, config.logging.directory)
+    : config.logging.directory;
+  const logDir = join(baseDir, agentName);
 
   try {
     await Deno.mkdir(logDir, { recursive: true });
@@ -962,18 +968,21 @@ export interface C3LPromptOptions {
 }
 
 /**
- * Load system prompt via breakdown CLI
+ * Load system prompt via breakdown with return mode
+ *
+ * Uses @tettuan/breakdown's runBreakdown with returnMode: true
+ * to load prompts directly without spawning a subprocess.
  *
  * Variable passing:
- * - --uv-agent_name, --uv-completion_criteria, --uv-target_label: CLI args
- * - completion_criteria_detail: STDIN (長文対応)
+ * - --uv-agent_name, --uv-completion_criteria, --uv-target_label: args
+ * - completion_criteria_detail (input_text): stdin option
  *
  * @param mode - Completion mode (project, issue, or iterate)
  * @param uvVariables - UV variables for prompt expansion
- * @param stdinContent - Content to pass via STDIN (completion_criteria_detail)
+ * @param stdinContent - Content for {input_text} placeholder
  * @param options - Additional options (command type, edition)
  * @returns Expanded system prompt content
- * @throws Error if breakdown CLI fails or returns empty output
+ * @throws Error if breakdown returns no data
  */
 export async function loadSystemPromptViaC3L(
   mode: CompletionMode,
@@ -981,60 +990,32 @@ export async function loadSystemPromptViaC3L(
   stdinContent: string,
   options?: C3LPromptOptions,
 ): Promise<string> {
+  const { createIteratorPromptLoader } = await import(
+    "../../common/c3l-prompt-loader.ts"
+  );
+
   // Map completion mode to C3L c3 value
   const c3 = mode === "iterate" ? "default" : mode;
   const c2 = options?.command ?? "start";
-  const edition = options?.edition;
+  const edition = options?.edition ?? "default";
 
-  // Build CLI args
-  const args = [
-    "run",
-    "--allow-read",
-    "--allow-write",
-    "--allow-env",
-    "jsr:@aidevtool/climpt",
-    "--config=iterator-dev",
-    c2,
-    c3,
-  ];
+  // Create loader and load prompt
+  const loader = createIteratorPromptLoader();
+  const result = await loader.load(
+    { c1: "dev", c2, c3, edition },
+    {
+      uv: uvVariables as unknown as Record<string, string>,
+      inputText: stdinContent,
+    },
+  );
 
-  // Add edition option if specified (not default)
-  if (edition && edition !== "default") {
-    args.push(`-i=${edition}`);
-  }
-
-  // Add uv- parameters (short strings only)
-  for (const [key, value] of Object.entries(uvVariables)) {
-    if (value !== undefined && value !== "") {
-      args.push(`--uv-${key}=${value}`);
-    }
-  }
-
-  const command = new Deno.Command("deno", {
-    args,
-    stdin: "piped",
-    stdout: "piped",
-    stderr: "piped",
-  });
-
-  const process = command.spawn();
-
-  // Write stdinContent (completion_criteria_detail) to STDIN
-  const writer = process.stdin.getWriter();
-  await writer.write(new TextEncoder().encode(stdinContent));
-  await writer.close();
-
-  const { stdout, stderr } = await process.output();
-  const output = new TextDecoder().decode(stdout).trim();
-
-  if (!output) {
-    const errorOutput = new TextDecoder().decode(stderr);
+  if (!result.ok || !result.content) {
     throw new Error(
-      `Empty output from breakdown CLI.\n` +
-        `Mode: ${mode}, Args: ${args.join(" ")}\n` +
-        `Stderr: ${errorOutput}`,
+      `Failed to load system prompt via C3L.\n` +
+        `Mode: ${mode}, c2: ${c2}, c3: ${c3}, edition: ${edition}\n` +
+        `Error: ${result.error ?? "No content returned"}`,
     );
   }
 
-  return output;
+  return result.content;
 }

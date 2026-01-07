@@ -86,6 +86,9 @@ tmp/*
 .serena
 .serena/
 
+# Guimpt
+.guimpt/
+
 # Deno compiled binaries
 debug*.ts
 .deno/
