@@ -133,7 +133,9 @@ import type {
 import { DEFAULT_WORKTREE_CONFIG } from "./types.ts";
 import { cleanupWorktree, setupWorktree } from "../../common/worktree.ts";
 import {
+  autoCommitChanges,
   createPullRequest,
+  hasUncommittedChanges,
   ITERATOR_MERGE_ORDER,
   mergeBranch,
   pushBranch,
@@ -436,6 +438,35 @@ async function main(): Promise<void> {
         sourceBranch: worktreeContext.branchName,
         targetBranch: worktreeContext.baseBranch,
       });
+
+      // Auto-commit any uncommitted changes before cleanup
+      // This prevents losing work when agent forgets to commit
+      const hasChanges = await hasUncommittedChanges(
+        worktreeContext.worktreePath,
+      );
+      if (hasChanges) {
+        console.log(`   📝 Uncommitted changes detected, auto-committing...`);
+        const commitResult = await autoCommitChanges(
+          `chore: auto-commit agent work before worktree cleanup\n\n` +
+            `Branch: ${worktreeContext.branchName}\n` +
+            `This commit was automatically created to preserve agent work.`,
+          worktreeContext.worktreePath,
+        );
+        if (commitResult.success) {
+          console.log(`   ✅ Auto-commit successful`);
+          await logger.write("info", "Auto-committed uncommitted changes", {
+            branchName: worktreeContext.branchName,
+          });
+        } else {
+          console.log(`   ⚠️ Auto-commit failed: ${commitResult.error}`);
+          await logger.write("error", "Auto-commit failed", {
+            error: {
+              name: "AutoCommitError",
+              message: commitResult.error ?? "Unknown error",
+            },
+          });
+        }
+      }
 
       // Change back to original directory for merge
       Deno.chdir(originalCwd);

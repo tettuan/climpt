@@ -255,6 +255,38 @@ export async function hasUncommittedChanges(cwd?: string): Promise<boolean> {
 }
 
 /**
+ * Auto-commit all changes with the given message
+ *
+ * This is used to ensure worktree changes are preserved before cleanup.
+ *
+ * @param message - Commit message
+ * @param cwd - Working directory
+ * @returns true if commit succeeded, false otherwise
+ */
+export async function autoCommitChanges(
+  message: string,
+  cwd?: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Stage all changes (including untracked)
+  const addResult = await runGit(["add", "-A"], cwd);
+  if (!addResult.success) {
+    return { success: false, error: addResult.error };
+  }
+
+  // Commit
+  const commitResult = await runGit(["commit", "-m", message], cwd);
+  if (!commitResult.success) {
+    // "nothing to commit" is not an error
+    if (commitResult.error.includes("nothing to commit")) {
+      return { success: true };
+    }
+    return { success: false, error: commitResult.error };
+  }
+
+  return { success: true };
+}
+
+/**
  * Get the current branch name
  */
 export async function getCurrentBranch(cwd?: string): Promise<string> {

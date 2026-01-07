@@ -42,6 +42,11 @@ Iterations completed: {uv-completed_iterations}{cross_repo_note}
 {"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
 ```
 
+### Complete Issue
+
+**IMPORTANT: Before closing, ensure all changes are committed.**
+Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+
 ```issue-action
 {"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- Implementation summary\n- Verification done\n- Tasks: N completed"}
 ```
