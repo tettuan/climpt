@@ -1,5 +1,6 @@
 {
   "version": "1.0.0",
+  "$coordination": "../common/coordination-config.json",
   "agents": {
     "climpt": {
       "allowedTools": [
@@ -15,15 +16,19 @@
     }
   },
   "github": {
-    "apiVersion": "2022-11-28",
-    "labels": {
-      "filter": "docs",
-      "feedback": "need clearance"
-    }
+    "apiVersion": "2022-11-28"
   },
   "logging": {
     "directory": "tmp/logs/agents",
     "maxFiles": 100,
     "format": "jsonl"
+  },
+  "coordination": {
+    "role": "implementer",
+    "handoffBehavior": {
+      "onInternalReviewPass": "trigger-handoff",
+      "onAllIssuesClosed": "trigger-handoff",
+      "onError": "comment-and-exit"
+    }
   }
 }

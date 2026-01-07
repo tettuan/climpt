@@ -9,12 +9,27 @@
 import { join } from "@std/path";
 import {
   type AgentConfig,
+  type AgentCoordinationSettings,
   type AgentName,
   DEFAULT_WORKTREE_CONFIG,
   type IterateAgentConfig,
   type UvVariables,
 } from "./types.ts";
 import BUNDLED_CONFIG from "../config.json" with { type: "json" };
+import { loadCoordinationConfig } from "../../common/coordination.ts";
+
+/**
+ * Raw config structure from JSON (before processing)
+ */
+interface RawIterateAgentConfig {
+  version: string;
+  $coordination?: string;
+  agents: Record<string, { allowedTools: string[]; permissionMode: string }>;
+  github?: { apiVersion?: string };
+  logging: { directory: string; maxFiles: number; format: string };
+  worktree?: { forceWorktree?: boolean; worktreeRoot?: string };
+  coordination?: AgentCoordinationSettings;
+}
 
 /**
  * Default configuration for iterate-agent
@@ -647,24 +662,56 @@ Report your review result using this format:
 const USER_CONFIG_PATH = ".agent/iterator/config.json";
 
 /**
+ * Transform raw config to proper IterateAgentConfig
+ */
+function transformRawConfig(raw: RawIterateAgentConfig): IterateAgentConfig {
+  return {
+    version: raw.version,
+    agents: raw.agents as Record<string, AgentConfig>,
+    github: raw.github,
+    logging: raw.logging,
+    worktree: raw.worktree
+      ? {
+        forceWorktree: raw.worktree.forceWorktree ?? false,
+        worktreeRoot: raw.worktree.worktreeRoot ?? "../worktree",
+      }
+      : undefined,
+    agentCoordination: raw.coordination,
+  };
+}
+
+/**
  * Load configuration with priority:
  * 1. User config from .agent/iterator/config.json (merged with default)
  * 2. Package bundled config (fallback)
+ * 3. Coordination config from agents/common/coordination-config.json
  *
  * @returns Merged configuration
  */
 export async function loadConfig(): Promise<IterateAgentConfig> {
   // Start with bundled config as base
-  const baseConfig = BUNDLED_CONFIG as IterateAgentConfig;
+  const rawBaseConfig = BUNDLED_CONFIG as RawIterateAgentConfig;
+  const baseConfig = transformRawConfig(rawBaseConfig);
+
+  // Load coordination config
+  const coordinationConfig = loadCoordinationConfig();
 
   try {
     // Try to load user config from .agent/iterator/config.json
     const userConfigPath = join(Deno.cwd(), USER_CONFIG_PATH);
     const content = await Deno.readTextFile(userConfigPath);
-    const userConfig = JSON.parse(content) as Partial<IterateAgentConfig>;
+    const rawUserConfig = JSON.parse(content) as Partial<RawIterateAgentConfig>;
+    const userConfig = {
+      ...rawUserConfig,
+      agentCoordination: rawUserConfig.coordination,
+      coordination: undefined,
+    } as Partial<IterateAgentConfig>;
 
     // Deep merge user config over base config
     const mergedConfig = deepMergeConfig(baseConfig, userConfig);
+
+    // Add coordination config
+    mergedConfig.coordination = coordinationConfig;
 
     // Validate merged config
     validateConfig(mergedConfig);
@@ -673,8 +720,12 @@ export async function loadConfig(): Promise<IterateAgentConfig> {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // No user config, use bundled config
-      validateConfig(baseConfig);
-      return baseConfig;
+      const configWithCoordination = {
+        ...baseConfig,
+        coordination: coordinationConfig,
+      };
+      validateConfig(configWithCoordination);
+      return configWithCoordination;
     }
     if (error instanceof SyntaxError) {
       throw new Error(
@@ -702,10 +753,6 @@ function deepMergeConfig(
     github: {
       ...base.github,
       ...(user.github ?? {}),
-      labels: {
-        ...base.github?.labels,
-        ...(user.github?.labels ?? {}),
-      },
     },
     logging: {
       ...base.logging,

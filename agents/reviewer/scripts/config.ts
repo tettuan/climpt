@@ -9,12 +9,37 @@
 import { join } from "@std/path";
 import {
   type AgentConfig,
+  type AgentCoordinationSettings,
   type AgentName,
   DEFAULT_WORKTREE_CONFIG,
+  type RequiredParam,
   type ReviewAgentConfig,
   type UvVariables,
 } from "./types.ts";
 import BUNDLED_CONFIG from "../config.json" with { type: "json" };
+import { loadCoordinationConfig } from "../../common/coordination.ts";
+
+/**
+ * Raw config structure from JSON (before processing)
+ */
+interface RawReviewAgentConfig {
+  version: string;
+  $coordination?: string;
+  agents: Record<
+    string,
+    {
+      systemPromptTemplate?: string;
+      allowedTools: string[];
+      permissionMode: string;
+    }
+  >;
+  requiredParams: Record<string, RequiredParam>;
+  github?: { apiVersion?: string; tokenEnvVar?: string };
+  logging: { directory: string; maxFiles: number; format: string };
+  output?: { issueLabels?: string[] };
+  worktree?: { forceWorktree?: boolean; worktreeRoot?: string };
+  coordination?: AgentCoordinationSettings;
+}
 
 /**
  * User config file path (relative to CWD)
@@ -48,10 +73,6 @@ const DEFAULT_CONFIG: ReviewAgentConfig = {
   github: {
     apiVersion: "2022-11-28",
     tokenEnvVar: "GITHUB_TOKEN",
-    labels: {
-      gap: "implementation-gap",
-      reviewer: "from-reviewer",
-    },
   },
   logging: {
     directory: "tmp/logs/review-agent",
@@ -192,10 +213,6 @@ function deepMergeConfig(
     github: {
       ...base.github,
       ...(user.github ?? {}),
-      labels: {
-        ...base.github?.labels,
-        ...(user.github?.labels ?? {}),
-      },
     },
     logging: {
       ...base.logging,
@@ -214,24 +231,58 @@ function deepMergeConfig(
 }
 
 /**
+ * Transform raw config to proper ReviewAgentConfig
+ */
+function transformRawConfig(raw: RawReviewAgentConfig): ReviewAgentConfig {
+  return {
+    version: raw.version,
+    agents: raw.agents as Record<string, AgentConfig>,
+    requiredParams: raw.requiredParams,
+    github: raw.github,
+    logging: raw.logging,
+    output: raw.output,
+    worktree: raw.worktree
+      ? {
+        forceWorktree: raw.worktree.forceWorktree ?? false,
+        worktreeRoot: raw.worktree.worktreeRoot ?? "../worktree",
+      }
+      : undefined,
+    agentCoordination: raw.coordination,
+  };
+}
+
+/**
  * Load configuration with priority:
  * 1. User config from .agent/reviewer/config.json (merged with default)
  * 2. Package bundled config (fallback)
+ * 3. Coordination config from agents/common/coordination-config.json
  *
  * @returns Merged configuration
  */
 export async function loadConfig(): Promise<ReviewAgentConfig> {
   // Start with bundled config as base
-  const baseConfig = BUNDLED_CONFIG as ReviewAgentConfig;
+  const rawBaseConfig = BUNDLED_CONFIG as RawReviewAgentConfig;
+  const baseConfig = transformRawConfig(rawBaseConfig);
+
+  // Load coordination config
+  const coordinationConfig = loadCoordinationConfig();
 
   try {
     // Try to load user config from .agent/reviewer/config.json
     const userConfigPath = join(Deno.cwd(), USER_CONFIG_PATH);
     const content = await Deno.readTextFile(userConfigPath);
-    const userConfig = JSON.parse(content) as Partial<ReviewAgentConfig>;
+    const rawUserConfig = JSON.parse(content) as Partial<RawReviewAgentConfig>;
+    const userConfig = {
+      ...rawUserConfig,
+      agentCoordination: rawUserConfig.coordination,
+      coordination: undefined,
+    } as Partial<ReviewAgentConfig>;
 
     // Deep merge user config over base config
     const mergedConfig = deepMergeConfig(baseConfig, userConfig);
+
+    // Add coordination config
+    mergedConfig.coordination = coordinationConfig;
 
     // Validate merged config
     validateConfig(mergedConfig);
@@ -240,8 +291,12 @@ export async function loadConfig(): Promise<ReviewAgentConfig> {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // No user config, use bundled config
-      validateConfig(baseConfig);
-      return baseConfig;
+      const configWithCoordination = {
+        ...baseConfig,
+        coordination: coordinationConfig,
+      };
+      validateConfig(configWithCoordination);
+      return configWithCoordination;
     }
     if (error instanceof SyntaxError) {
       throw new Error(

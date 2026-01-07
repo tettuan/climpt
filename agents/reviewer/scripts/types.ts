@@ -6,6 +6,7 @@
 
 // Import common types for local use
 import type { WorktreeConfig } from "../../common/types.ts";
+import type { CoordinationConfig } from "../../common/coordination-types.ts";
 
 // Re-export common types
 export type {
@@ -107,6 +108,16 @@ export interface RequiredParam {
 }
 
 /**
+ * Agent-specific coordination settings (from agent's config.json)
+ */
+export interface AgentCoordinationSettings {
+  role?: "implementer" | "verifier";
+  handoffBehavior?: Record<string, string>;
+  labelOverrides?: Record<string, string>;
+  actions?: Record<string, boolean>;
+}
+
+/**
  * Main configuration structure
  */
 export interface ReviewAgentConfig {
@@ -116,10 +127,6 @@ export interface ReviewAgentConfig {
   github?: {
     apiVersion?: string;
     tokenEnvVar?: string;
-    labels?: {
-      gap?: string;
-      reviewer?: string;
-    };
   };
   logging: {
     directory: string;
@@ -131,6 +138,10 @@ export interface ReviewAgentConfig {
   };
   /** Worktree configuration for isolated execution */
   worktree?: WorktreeConfig;
+  /** Agent-specific coordination settings (from agent's config.json) */
+  agentCoordination?: AgentCoordinationSettings;
+  /** Full coordination configuration (merged from coordination-config.json) */
+  coordination?: CoordinationConfig;
 }
 
 /**

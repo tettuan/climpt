@@ -6,6 +6,7 @@
 
 // Import common types for local use
 import type { WorktreeConfig } from "../../common/types.ts";
+import type { CoordinationConfig } from "../../common/coordination-types.ts";
 
 // Re-export common types
 export type {
@@ -157,6 +158,15 @@ export interface AgentConfig {
 }
 
 /**
+ * Agent-specific coordination settings (from agent's config.json)
+ */
+export interface AgentCoordinationSettings {
+  role?: "implementer" | "verifier";
+  handoffBehavior?: Record<string, string>;
+  labelOverrides?: Record<string, string>;
+}
+
+/**
  * Main configuration structure
  */
 export interface IterateAgentConfig {
@@ -164,12 +174,6 @@ export interface IterateAgentConfig {
   agents: Record<string, AgentConfig>;
   github?: {
     apiVersion?: string;
-    labels?: {
-      /** Label to filter project issues (e.g., "docs") */
-      filter?: string;
-      /** Label to add when giving feedback (e.g., "need clearance") */
-      feedback?: string;
-    };
   };
   logging: {
     directory: string;
@@ -178,6 +182,10 @@ export interface IterateAgentConfig {
   };
   /** Worktree configuration for isolated execution */
   worktree?: WorktreeConfig;
+  /** Agent-specific coordination settings (from agent's config.json) */
+  agentCoordination?: AgentCoordinationSettings;
+  /** Full coordination configuration (merged from coordination-config.json) */
+  coordination?: CoordinationConfig;
 }
 
 /**
