@@ -1,0 +1,56 @@
+{
+  "$schema": "./coordination-config.schema.json",
+  "version": "1.0.0",
+
+  "labels": {
+    "requirements": "docs",
+    "review": "review",
+    "gap": "implementation-gap",
+    "fromReviewer": "from-reviewer",
+    "feedback": "need clearance"
+  },
+
+  "handoff": {
+    "iteratorToReviewer": {
+      "trigger": "internal-review-pass",
+      "action": "add-review-label",
+      "commentTemplate": "[Agent Handoff] Ready for review by Reviewer Agent\n\n- Session: {session_id}\n- Completed Issues: {issue_count}\n- Log: {log_path}"
+    },
+    "reviewerToIterator": {
+      "trigger": "gaps-found",
+      "action": "create-gap-issues",
+      "issueTemplate": {
+        "titlePrefix": "[Gap]",
+        "labels": ["implementation-gap", "from-reviewer"],
+        "bodyTemplate": "## Gap Summary\n{summary}\n\n## Requirement Reference\n- Source Docs Issue: {source_issue}\n- Review Target: {review_issue}\n- Completion criteria: \"{completion_criteria}\"\n\n## Current State\n{current_state}\n\n## Expected State\n{expected_state}\n\n## Affected Files\n{affected_files}\n\n## Impact\n{impact}"
+      }
+    },
+    "reviewerComplete": {
+      "trigger": "no-gaps",
+      "action": "close-review-issue",
+      "commentTemplate": "[Agent Review Complete] All requirements verified\n\n{summary}"
+    }
+  },
+
+  "retry": {
+    "maxAttempts": 3,
+    "delayMs": 1000,
+    "backoffMultiplier": 2
+  },
+
+  "orchestration": {
+    "maxCycles": 5,
+    "cycleDelayMs": 5000,
+    "autoTrigger": false
+  },
+
+  "logging": {
+    "correlationIdFormat": "coord-{timestamp}-{agent}",
+    "retainDays": 30
+  },
+
+  "traceability": {
+    "idFormat": "req:{category}:{name}#{date}",
+    "requireInGapIssues": true
+  }
+}
