@@ -1,6 +1,11 @@
 {
   "version": "1.0.0",
   "$coordination": "../common/coordination-config.json",
+  "prompts": {
+    "registry": "registry.json",
+    "fallbackDir": "prompts/",
+    "systemPromptPath": "prompts/system.md"
+  },
   "agents": {
     "reviewer": {
       "systemPromptTemplate": "agents/reviewer/prompts/default.md",

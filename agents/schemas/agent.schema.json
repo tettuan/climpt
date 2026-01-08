@@ -1,0 +1,274 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/tettuan/climpt/main/agents/schemas/agent.schema.json",
+  "title": "Climpt Agent Definition",
+  "description": "Schema for climpt-agents agent definition files",
+  "type": "object",
+  "required": [
+    "version",
+    "name",
+    "displayName",
+    "description",
+    "behavior",
+    "prompts",
+    "logging"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for validation"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version (semver format)"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Agent identifier (lowercase kebab-case)"
+    },
+    "displayName": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Agent description"
+    },
+    "behavior": {
+      "$ref": "#/definitions/AgentBehavior"
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ParameterDefinition"
+      },
+      "description": "CLI parameters the agent accepts"
+    },
+    "prompts": {
+      "$ref": "#/definitions/PromptConfig"
+    },
+    "actions": {
+      "$ref": "#/definitions/ActionConfig"
+    },
+    "github": {
+      "$ref": "#/definitions/GitHubConfig"
+    },
+    "worktree": {
+      "$ref": "#/definitions/WorktreeConfig"
+    },
+    "logging": {
+      "$ref": "#/definitions/LoggingConfig"
+    }
+  },
+  "definitions": {
+    "AgentBehavior": {
+      "type": "object",
+      "required": [
+        "systemPromptPath",
+        "completionType",
+        "allowedTools",
+        "permissionMode"
+      ],
+      "properties": {
+        "systemPromptPath": {
+          "type": "string",
+          "description": "Path to system prompt (relative to .agent/{name}/)"
+        },
+        "completionType": {
+          "type": "string",
+          "enum": [
+            "issue",
+            "project",
+            "iterate",
+            "manual",
+            "custom",
+            "stepFlow"
+          ],
+          "description": "How the agent determines completion. Use 'stepFlow' for step-based execution with state machine transitions."
+        },
+        "completionConfig": {
+          "type": "object",
+          "description": "Configuration for the completion type",
+          "properties": {
+            "maxIterations": {
+              "type": "number",
+              "minimum": 1,
+              "description": "Maximum iterations (for iterate type)"
+            },
+            "completionKeyword": {
+              "type": "string",
+              "description": "Keyword to signal completion (for manual type)"
+            },
+            "handlerPath": {
+              "type": "string",
+              "description": "Path to custom handler (for custom type)"
+            }
+          }
+        },
+        "allowedTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tools the agent is allowed to use"
+        },
+        "permissionMode": {
+          "type": "string",
+          "enum": ["plan", "acceptEdits", "bypassPermissions"],
+          "description": "Claude permission mode"
+        },
+        "disableSandbox": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable sandbox mode for agent execution"
+        }
+      }
+    },
+    "ParameterDefinition": {
+      "type": "object",
+      "required": ["type", "description", "required", "cli"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "array"],
+          "description": "Parameter type"
+        },
+        "description": {
+          "type": "string",
+          "description": "Parameter description"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the parameter is required"
+        },
+        "default": {
+          "description": "Default value"
+        },
+        "cli": {
+          "type": "string",
+          "pattern": "^--[a-z][a-z0-9-]*$",
+          "description": "CLI flag (e.g., '--topic')"
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number",
+              "description": "Minimum value (for numbers)"
+            },
+            "max": {
+              "type": "number",
+              "description": "Maximum value (for numbers)"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern (for strings)"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Allowed values"
+            }
+          }
+        }
+      }
+    },
+    "PromptConfig": {
+      "type": "object",
+      "required": ["registry", "fallbackDir"],
+      "properties": {
+        "registry": {
+          "type": "string",
+          "description": "Path to steps registry JSON"
+        },
+        "fallbackDir": {
+          "type": "string",
+          "description": "Fallback directory for prompts"
+        }
+      }
+    },
+    "ActionConfig": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable action detection and execution"
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowed action types"
+        },
+        "outputFormat": {
+          "type": "string",
+          "description": "Markdown code block marker format"
+        },
+        "handlers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Handler mapping (type -> handler spec)"
+        }
+      }
+    },
+    "GitHubConfig": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable GitHub integration"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Label mappings"
+        }
+      }
+    },
+    "WorktreeConfig": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable git worktree"
+        },
+        "root": {
+          "type": "string",
+          "description": "Worktree root directory"
+        }
+      }
+    },
+    "LoggingConfig": {
+      "type": "object",
+      "required": ["directory", "format"],
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Log directory path"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["jsonl", "text"],
+          "description": "Log format"
+        },
+        "maxFiles": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Maximum number of log files to keep"
+        }
+      }
+    }
+  }
+}

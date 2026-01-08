@@ -2,38 +2,44 @@
  * Iterate Agent Module
  *
  * Autonomous agent that executes development cycles through iterations.
- * Uses Claude Agent SDK to work on GitHub Issues, Projects, or run for a set number of iterations.
+ * Uses the unified AgentRunner architecture with Claude Agent SDK.
  *
  * @module
  *
- * @example Basic usage
+ * @example Basic usage with AgentRunner (recommended)
  * ```typescript
- * import {
- *   parseCliArgs,
- *   loadConfig,
- *   createLogger,
- *   createCompletionHandler,
- * } from "@aidevtool/climpt/iterate-agent";
+ * import { createIteratorRunner } from "@aidevtool/climpt/agents/iterator";
  *
- * const options = parseCliArgs(["--issue", "123"]);
- * const config = await loadConfig();
- * const handler = createCompletionHandler(options);
- * const logger = await createLogger("./logs", "climpt");
+ * const runner = await createIteratorRunner();
+ * const result = await runner.run({
+ *   args: { issue: 123 },
+ *   plugins: ["/path/to/plugin"],
+ * });
  * ```
  *
- * @example Type-only imports
- * ```typescript
- * import type {
- *   AgentOptions,
- *   AgentConfig,
- *   IterateAgentConfig,
- *   CompletionHandler,
- *   LogEntry,
- * } from "@aidevtool/climpt/iterate-agent";
+ * @example Direct CLI usage
+ * ```bash
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+ * deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
  * ```
  */
 
-// Re-export types from types.ts
+// Re-export types from the common architecture
+export type {
+  AgentDefinition,
+  AgentResult,
+  IterationSummary,
+} from "../src_common/types.ts";
+
+// Re-export runner components
+export { AgentRunner, type RunnerOptions } from "../runner/mod.ts";
+export {
+  type CompletionCriteria,
+  type CompletionHandler,
+  createCompletionHandler,
+} from "../completion/mod.ts";
+
+// Re-export iterator-specific types
 export type {
   AgentConfig,
   AgentName,
@@ -42,7 +48,6 @@ export type {
   GitHubIssue,
   GitHubProject,
   IterateAgentConfig,
-  IterationSummary,
   LogEntry,
   LogLevel,
   ParsedArgs,
@@ -51,9 +56,9 @@ export type {
   UvVariables,
 } from "./scripts/types.ts";
 
-// Re-export completion handler types and factory
+// Re-export existing completion handler types and factory
 export {
-  createCompletionHandler,
+  createCompletionHandler as createIteratorCompletionHandler,
   formatIterationSummary,
   IssueCompletionHandler,
   IterateCompletionHandler,
@@ -61,8 +66,8 @@ export {
 } from "./scripts/completion/mod.ts";
 
 export type {
-  CompletionCriteria,
-  CompletionHandler,
+  CompletionCriteria as IteratorCompletionCriteria,
+  CompletionHandler as IteratorCompletionHandler,
   CompletionType,
 } from "./scripts/completion/mod.ts";
 
@@ -74,7 +79,7 @@ export {
 } from "./scripts/message-handler.ts";
 
 // Re-export CLI functions
-export { displayHelp, parseCliArgs } from "./scripts/cli.ts";
+export { displayHelp, parseCliArgs, toRunnerOptions } from "./scripts/cli.ts";
 
 // Re-export config functions
 export {
@@ -96,3 +101,36 @@ export {
   isIssueComplete,
   isProjectComplete,
 } from "./scripts/github.ts";
+
+// Import for factory function
+import { AgentRunner, type RunnerOptions } from "../runner/mod.ts";
+import { loadAgentDefinition } from "../runner/loader.ts";
+
+/**
+ * Create an iterator agent runner with default configuration
+ *
+ * This is the recommended way to create an iterator agent instance
+ * using the new unified architecture.
+ *
+ * @param cwd - Working directory (defaults to Deno.cwd())
+ * @returns Configured AgentRunner instance
+ */
+export async function createIteratorRunner(
+  cwd: string = Deno.cwd(),
+): Promise<AgentRunner> {
+  const definition = await loadAgentDefinition("iterator", cwd);
+  return new AgentRunner(definition);
+}
+
+/**
+ * Run the iterator agent with the given options
+ *
+ * Convenience function that creates a runner and executes it.
+ *
+ * @param options - Runner options including args and plugins
+ * @returns Agent execution result
+ */
+export async function runIterator(options: RunnerOptions) {
+  const runner = await createIteratorRunner(options.cwd);
+  return runner.run(options);
+}

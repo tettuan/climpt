@@ -2,10 +2,12 @@
  * Review Agent - CLI Argument Parser
  *
  * Parses command-line arguments for the review-agent.
+ * Integrates with the unified runner/cli module for consistent CLI handling.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import type { AgentName, ParsedArgs } from "./types.ts";
+import type { RunnerOptions } from "../../runner/mod.ts";
 
 /**
  * Default values
@@ -193,4 +195,49 @@ NOTES:
   - This agent is read-only: it does NOT modify implementation code
   - Logs are saved to tmp/logs/agents/reviewer/session-{timestamp}.jsonl
 `);
+}
+
+/**
+ * Convert ParsedArgs to RunnerOptions for the unified AgentRunner
+ *
+ * This function bridges the existing CLI parsing with the new unified runner architecture.
+ *
+ * @param parsed - Parsed CLI arguments
+ * @param cwd - Working directory (defaults to Deno.cwd())
+ * @returns RunnerOptions compatible with AgentRunner
+ */
+export function toRunnerOptions(
+  parsed: ParsedArgs,
+  cwd?: string,
+): RunnerOptions {
+  if (!parsed.options) {
+    throw new Error(
+      "No options available - check for init or help flags first",
+    );
+  }
+
+  const options = parsed.options;
+  const args: Record<string, unknown> = {};
+
+  // Map options to args
+  args.project = options.project;
+  args.requirementsLabel = options.requirementsLabel;
+  args.reviewLabel = options.reviewLabel;
+  args.agentName = options.agentName;
+
+  if (options.iterateMax !== Infinity) {
+    args.maxIterations = options.iterateMax;
+  }
+  if (options.branch !== undefined) {
+    args.branch = options.branch;
+  }
+  if (options.baseBranch !== undefined) {
+    args.baseBranch = options.baseBranch;
+  }
+
+  return {
+    cwd: cwd ?? Deno.cwd(),
+    args,
+    plugins: [],
+  };
 }

@@ -1,6 +1,6 @@
 ---
-version: "1.0"
 stepId: initial.default
+name: Initial Review Prompt
 description: Initial prompt for review task with project context
 uvVariables:
   - project
@@ -35,7 +35,8 @@ Review implementation for GitHub Project #{uv-project}
 
 ## Instructions
 
-1. For each traceability ID from requirements ({uv-requirements_label}), search the codebase
+1. For each traceability ID from requirements ({uv-requirements_label}), search
+   the codebase
 2. Verify the implementation meets the requirements
 3. For any gaps found, output a review-action block to create an issue
 4. When complete, output a review-action block with action="complete"

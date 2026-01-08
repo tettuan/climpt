@@ -2,10 +2,12 @@
  * Iterate Agent - CLI Argument Parser
  *
  * Parses command-line arguments for the iterate-agent.
+ * Integrates with the unified runner/cli module for consistent CLI handling.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import type { AgentName, ParsedArgs } from "./types.ts";
+import type { RunnerOptions } from "../../runner/mod.ts";
 
 /**
  * Valid agent names (defined in .agent/climpt/config/registry_config.json)
@@ -241,4 +243,63 @@ NOTES:
   - Logs are saved to tmp/logs/agents/{agent-name}/session-{timestamp}.jsonl
   - Maximum 100 log files per agent (auto-rotated)
 `);
+}
+
+/**
+ * Convert ParsedArgs to RunnerOptions for the unified AgentRunner
+ *
+ * This function bridges the existing CLI parsing with the new unified runner architecture.
+ *
+ * @param parsed - Parsed CLI arguments
+ * @param cwd - Working directory (defaults to Deno.cwd())
+ * @returns RunnerOptions compatible with AgentRunner
+ */
+export function toRunnerOptions(
+  parsed: ParsedArgs,
+  cwd?: string,
+): RunnerOptions {
+  if (!parsed.options) {
+    throw new Error(
+      "No options available - check for init or help flags first",
+    );
+  }
+
+  const options = parsed.options;
+  const args: Record<string, unknown> = {};
+
+  // Map options to args
+  if (options.issue !== undefined) {
+    args.issue = options.issue;
+  }
+  if (options.project !== undefined) {
+    args.project = options.project;
+  }
+  if (options.projectOwner !== undefined) {
+    args.projectOwner = options.projectOwner;
+  }
+  if (options.iterateMax !== Infinity) {
+    args.maxIterations = options.iterateMax;
+  }
+  if (options.label !== undefined) {
+    args.label = options.label;
+  }
+  if (options.includeCompleted) {
+    args.includeCompleted = options.includeCompleted;
+  }
+  if (options.resume) {
+    args.resume = options.resume;
+  }
+  if (options.branch !== undefined) {
+    args.branch = options.branch;
+  }
+  if (options.baseBranch !== undefined) {
+    args.baseBranch = options.baseBranch;
+  }
+  args.agentName = options.agentName;
+
+  return {
+    cwd: cwd ?? Deno.cwd(),
+    args,
+    plugins: [],
+  };
 }
