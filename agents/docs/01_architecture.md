@@ -62,7 +62,7 @@ Agent SDK.
                                    |
                                    v
 +-------------------------------------------------------------------------+
-|                   jsr:@anthropic-ai/claude-code                          |
+|                   npm:@anthropic-ai/claude-agent-sdk                     |
 |                                                                          |
 |  - Claude Agent SDK                                                     |
 |  - query() API for agent execution                                      |
@@ -205,7 +205,7 @@ agents/
 ```json
 {
   "imports": {
-    "@anthropic-ai/claude-code": "jsr:@anthropic-ai/claude-code@^0.2.0",
+    "@anthropic-ai/claude-agent-sdk": "npm:@anthropic-ai/claude-agent-sdk@^0.2.0",
     "@aidevtool/climpt": "jsr:@aidevtool/climpt@^1.10.1",
     "@std/cli": "jsr:@std/cli@^1.0.0",
     "@std/path": "jsr:@std/path@^1.0.0",

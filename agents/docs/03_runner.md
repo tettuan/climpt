@@ -38,7 +38,7 @@ execution model for all agent types.
 ```typescript
 // agents/common/runner.ts
 
-import { query } from "@anthropic-ai/claude-code";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentDefinition,
   AgentResult,
