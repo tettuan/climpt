@@ -188,7 +188,7 @@ export class AgentRunner {
 
     try {
       // Dynamic import of Claude Code SDK
-      const { query } = await import("@anthropic-ai/claude-code");
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
       const queryOptions: Record<string, unknown> = {
         cwd: this.cwd,
