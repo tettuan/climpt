@@ -1,0 +1,99 @@
+{
+  "agentId": "facilitator",
+  "version": "1.0.0",
+  "userPromptsBase": ".agent/facilitator/prompts",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "steps": {
+    "initial.statuscheck": {
+      "stepId": "initial.statuscheck",
+      "name": "Status Check Initial Prompt",
+      "c2": "initial",
+      "c3": "statuscheck",
+      "edition": "default",
+      "fallbackKey": "statuscheck_initial_default",
+      "uvVariables": ["project_number", "project_title", "label_info"],
+      "usesStdin": false,
+      "description": "Initial prompt for project status check phase"
+    },
+    "initial.statuscheck.empty": {
+      "stepId": "initial.statuscheck.empty",
+      "name": "Status Check (No Issues)",
+      "c2": "initial",
+      "c3": "statuscheck",
+      "edition": "default",
+      "adaptation": "empty",
+      "fallbackKey": "statuscheck_initial_empty",
+      "uvVariables": ["project_number", "project_title", "label_info"],
+      "usesStdin": false,
+      "description": "Status check when no issues found in project"
+    },
+    "initial.blockercheck": {
+      "stepId": "initial.blockercheck",
+      "name": "Blocker Check Initial Prompt",
+      "c2": "initial",
+      "c3": "blockercheck",
+      "edition": "default",
+      "fallbackKey": "blockercheck_initial_default",
+      "uvVariables": ["project_number", "blocked_issues"],
+      "usesStdin": false,
+      "description": "Initial prompt for identifying blockers"
+    },
+    "initial.stalecheck": {
+      "stepId": "initial.stalecheck",
+      "name": "Stale Item Check Prompt",
+      "c2": "initial",
+      "c3": "stalecheck",
+      "edition": "default",
+      "fallbackKey": "stalecheck_initial_default",
+      "uvVariables": ["project_number", "stale_threshold_days"],
+      "usesStdin": false,
+      "description": "Check for stale issues with no recent activity"
+    },
+    "initial.report": {
+      "stepId": "initial.report",
+      "name": "Generate Status Report",
+      "c2": "initial",
+      "c3": "report",
+      "edition": "default",
+      "fallbackKey": "report_initial_default",
+      "uvVariables": ["project_number", "project_title", "report_type"],
+      "usesStdin": false,
+      "description": "Generate project status report"
+    },
+    "initial.facilitate": {
+      "stepId": "initial.facilitate",
+      "name": "Facilitation Action Prompt",
+      "c2": "initial",
+      "c3": "facilitate",
+      "edition": "default",
+      "fallbackKey": "facilitate_initial_default",
+      "uvVariables": ["project_number", "issue_number", "action_type"],
+      "usesStdin": false,
+      "description": "Execute facilitation action on specific issue"
+    },
+    "continuation.statuscheck": {
+      "stepId": "continuation.statuscheck",
+      "name": "Status Check Continuation",
+      "c2": "continuation",
+      "c3": "statuscheck",
+      "edition": "default",
+      "fallbackKey": "statuscheck_continuation_default",
+      "uvVariables": ["completed_iterations", "previous_status"],
+      "usesStdin": false,
+      "description": "Continuation prompt for ongoing status monitoring"
+    },
+    "continuation.complete": {
+      "stepId": "continuation.complete",
+      "name": "Facilitation Complete",
+      "c2": "continuation",
+      "c3": "complete",
+      "edition": "default",
+      "fallbackKey": "complete_continuation_default",
+      "uvVariables": ["project_number", "actions_taken"],
+      "usesStdin": false,
+      "description": "Completion message after facilitation cycle"
+    }
+  }
+}

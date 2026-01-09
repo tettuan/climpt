@@ -39,7 +39,8 @@ export type CompletionType =
   | "iterate"
   | "manual"
   | "custom"
-  | "stepFlow";
+  | "stepFlow"
+  | "facilitator";
 
 /**
  * Completion configuration - uses optional properties for flexibility
