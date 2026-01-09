@@ -12,8 +12,7 @@
       "maxIterations": 50
     },
     "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-    "permissionMode": "plan",
-    "disableSandbox": false
+    "permissionMode": "plan"
   },
   "parameters": {
     "project": {

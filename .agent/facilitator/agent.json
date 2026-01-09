@@ -1,28 +1,36 @@
 {
   "$schema": "../../schemas/agent-definition.schema.json",
   "version": "1.10.0",
-  "name": "iterator",
-  "displayName": "Iterator Agent",
-  "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",
+  "name": "facilitator",
+  "displayName": "Facilitator Agent",
+  "description": "Autonomous facilitator agent that monitors project status and ensures smooth progress through field management rather than direct control",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
     "completionType": "project",
     "completionConfig": {
-      "maxIterations": 100
+      "maxIterations": 50
     },
-    "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "TodoWrite"],
-    "permissionMode": "acceptEdits"
+    "allowedTools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Task",
+      "WebFetch"
+    ],
+    "permissionMode": "bypassPermissions"
   },
   "parameters": {
     "issue": {
       "type": "number",
-      "description": "GitHub Issue number to work on",
+      "description": "GitHub Issue number to work on (takes priority over project)",
       "required": false,
       "cli": "--issue"
     },
     "project": {
       "type": "number",
-      "description": "GitHub Project number to work on",
+      "description": "GitHub Project number to facilitate",
       "required": false,
       "cli": "--project"
     },
@@ -42,22 +50,15 @@
       "type": "number",
       "description": "Maximum number of iterations",
       "required": false,
-      "default": 100,
+      "default": 50,
       "cli": "--iterate-max"
     },
-    "resume": {
-      "type": "boolean",
-      "description": "Resume previous session",
+    "checkInterval": {
+      "type": "number",
+      "description": "Status check interval in minutes",
       "required": false,
-      "default": false,
-      "cli": "--resume"
-    },
-    "includeCompleted": {
-      "type": "boolean",
-      "description": "Include items marked as Done on project board",
-      "required": false,
-      "default": false,
-      "cli": "--include-completed"
+      "default": 30,
+      "cli": "--check-interval"
     },
     "branch": {
       "type": "string",
@@ -78,15 +79,15 @@
   },
   "actions": {
     "enabled": true,
-    "types": ["issue-action", "project-plan", "review-result"],
+    "types": ["facilitate-action", "status-report"],
     "outputFormat": "json"
   },
   "github": {
     "enabled": true,
     "labels": {
-      "requirements": "docs",
-      "inProgress": "in-progress",
-      "blocked": "need clearance"
+      "blocked": "need clearance",
+      "attention": "needs-attention",
+      "stale": "stale"
     }
   },
   "worktree": {
@@ -94,7 +95,7 @@
     "root": "../worktree"
   },
   "logging": {
-    "directory": "tmp/logs/agents/iterator",
+    "directory": "tmp/logs/agents/facilitator",
     "format": "jsonl",
     "maxFiles": 100
   }

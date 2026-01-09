@@ -29,8 +29,32 @@ export interface AgentBehavior {
   completionConfig: CompletionConfigUnion;
   allowedTools: string[];
   permissionMode: PermissionMode;
-  /** Disable sandbox mode for agent execution (default: false) */
-  disableSandbox?: boolean;
+  /** Fine-grained sandbox configuration (uses defaults if not specified) */
+  sandboxConfig?: SandboxConfig;
+}
+
+/**
+ * Sandbox configuration for controlled network and filesystem access
+ */
+export interface SandboxConfig {
+  /** Enable sandbox mode (default: true) */
+  enabled?: boolean;
+  /** Network access configuration */
+  network?: SandboxNetworkConfig;
+  /** Filesystem access configuration */
+  filesystem?: SandboxFilesystemConfig;
+}
+
+export interface SandboxNetworkConfig {
+  /** Network access mode */
+  mode?: "trusted" | "none" | "custom";
+  /** List of allowed domains (supports wildcards like *.github.com) */
+  trustedDomains?: string[];
+}
+
+export interface SandboxFilesystemConfig {
+  /** Additional paths to allow write access */
+  allowedPaths?: string[];
 }
 
 export type CompletionType =
@@ -39,7 +63,8 @@ export type CompletionType =
   | "iterate"
   | "manual"
   | "custom"
-  | "stepFlow";
+  | "stepFlow"
+  | "facilitator";
 
 /**
  * Completion configuration - uses optional properties for flexibility

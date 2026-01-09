@@ -9,6 +9,7 @@ import { IssueCompletionHandler } from "./issue.ts";
 import { ProjectCompletionHandler } from "./project.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
+import { FacilitatorCompletionHandler } from "./facilitator.ts";
 
 /**
  * Options for creating a completion handler
@@ -66,16 +67,11 @@ export async function createCompletionHandler(
 
   switch (completionType) {
     case "issue": {
-      if (args.issue === undefined) {
-        throw new Error("--issue is required for issue completion type");
-      }
-      const issueHandler = new IssueCompletionHandler(
-        args.issue,
-        args.repository as string | undefined,
+      // This case is only reached when args.issue is undefined
+      // (when args.issue is provided, we return early above)
+      throw new Error(
+        "Issue completion type requires --issue parameter",
       );
-      issueHandler.setPromptResolver(promptResolver);
-      handler = issueHandler;
-      break;
     }
 
     case "project": {
@@ -121,6 +117,16 @@ export async function createCompletionHandler(
         agentDir,
       );
       handler = customHandler;
+      break;
+    }
+
+    case "facilitator": {
+      const facilitatorHandler = new FacilitatorCompletionHandler(
+        args.project as number,
+        args.projectOwner as string | undefined,
+      );
+      facilitatorHandler.setPromptResolver(promptResolver);
+      handler = facilitatorHandler;
       break;
     }
 
