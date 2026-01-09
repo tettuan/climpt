@@ -34,7 +34,7 @@ async function ensureDir(path: string): Promise<void> {
 }
 
 /**
- * Meta domain 用の設定ファイルコンテンツ
+ * Configuration file content for Meta domain
  */
 const META_APP_CONFIG = `# Build Configuration for meta domain
 working_dir: ".agent/climpt"
@@ -53,7 +53,7 @@ params:
       pattern: "^(frontmatter|instruction)$"
 `;
 
-// 埋め込みプロンプト定義（META_PROMPTS より先に定義する必要がある）
+// Embedded prompt definitions (must be defined before META_PROMPTS)
 const BUILD_FRONTMATTER_PROMPT = `---
 c1: meta
 c2: build
@@ -150,7 +150,7 @@ uv:
 climpt-code convert source-file --uv-target_language=python --uv-output_format=json
 \`\`\`
 
-**Template Expansion**: \`{uv-target_language}\` → \`python\`, \`{uv-output_format}\` → \`json\`
+**Template Expansion**: \`{uv-target_language}\` -> \`python\`, \`{uv-output_format}\` -> \`json\`
 
 ## Naming Conventions
 
@@ -564,7 +564,7 @@ After completion, verify the following files exist and are correct:
 `;
 
 /**
- * Meta domain prompts (埋め込み)
+ * Meta domain prompts (embedded)
  */
 const META_PROMPTS: Record<string, string> = {
   "build/frontmatter/f_default.md": BUILD_FRONTMATTER_PROMPT,
@@ -572,7 +572,7 @@ const META_PROMPTS: Record<string, string> = {
 };
 
 /**
- * Meta domain 初期化を実行
+ * Execute Meta domain initialization
  */
 export async function initMetaDomain(
   workingDir: string,
@@ -582,17 +582,17 @@ export async function initMetaDomain(
   const configDir = resolve(workingDir, "config");
   const promptsDir = resolve(workingDir, "prompts");
 
-  // 1. meta-app.yml 生成
+  // 1. Generate meta-app.yml
   const metaAppResult = await createMetaAppYml(configDir, force);
   result.created.push(...metaAppResult.created);
   result.skipped.push(...metaAppResult.skipped);
 
-  // 2. meta-user.yml 生成
+  // 2. Generate meta-user.yml
   const metaUserResult = await createMetaUserYml(configDir, force);
   result.created.push(...metaUserResult.created);
   result.skipped.push(...metaUserResult.skipped);
 
-  // 3. meta prompts 配置
+  // 3. Deploy meta prompts
   const promptsResult = await deployMetaPrompts(promptsDir, force);
   result.created.push(...promptsResult.created);
   result.skipped.push(...promptsResult.skipped);
@@ -601,7 +601,7 @@ export async function initMetaDomain(
 }
 
 /**
- * meta-app.yml を生成
+ * Generate meta-app.yml
  */
 async function createMetaAppYml(
   configDir: string,
@@ -612,6 +612,7 @@ async function createMetaAppYml(
 
   if ((await exists(path)) && !force) {
     result.skipped.push(path);
+    // deno-lint-ignore no-console
     console.log(`  Skip: ${path} (already exists)`);
     return result;
   }
@@ -619,13 +620,14 @@ async function createMetaAppYml(
   await ensureDir(configDir);
   await Deno.writeTextFile(path, META_APP_CONFIG);
   result.created.push(path);
+  // deno-lint-ignore no-console
   console.log(`  Created: ${path}`);
 
   return result;
 }
 
 /**
- * meta-user.yml を生成
+ * Generate meta-user.yml
  */
 async function createMetaUserYml(
   configDir: string,
@@ -636,19 +638,21 @@ async function createMetaUserYml(
 
   if ((await exists(path)) && !force) {
     result.skipped.push(path);
+    // deno-lint-ignore no-console
     console.log(`  Skip: ${path} (already exists)`);
     return result;
   }
 
   await Deno.writeTextFile(path, META_USER_CONFIG);
   result.created.push(path);
+  // deno-lint-ignore no-console
   console.log(`  Created: ${path}`);
 
   return result;
 }
 
 /**
- * Meta domain prompts を配置
+ * Deploy Meta domain prompts
  */
 async function deployMetaPrompts(
   promptsDir: string,
@@ -664,6 +668,7 @@ async function deployMetaPrompts(
     // deno-lint-ignore no-await-in-loop
     if ((await exists(fullPath)) && !force) {
       result.skipped.push(fullPath);
+      // deno-lint-ignore no-console
       console.log(`  Skip: ${fullPath} (already exists)`);
       continue;
     }
@@ -673,6 +678,7 @@ async function deployMetaPrompts(
     // deno-lint-ignore no-await-in-loop
     await Deno.writeTextFile(fullPath, content);
     result.created.push(fullPath);
+    // deno-lint-ignore no-console
     console.log(`  Created: ${fullPath}`);
   }
 

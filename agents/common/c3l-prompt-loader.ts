@@ -57,7 +57,7 @@ export interface PromptLoadResult {
 export interface C3LPromptLoaderOptions {
   /** Agent ID (e.g., "iterator", "reviewer") */
   agentId: string;
-  /** Config name suffix (e.g., "dev" → config="iterator-dev") */
+  /** Config name suffix (e.g., "dev" results in config="iterator-dev") */
   configSuffix?: string;
   /** Working directory (defaults to Deno.cwd()) */
   workingDir?: string;

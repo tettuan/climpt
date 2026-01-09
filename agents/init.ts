@@ -188,16 +188,23 @@ When complete, output \`{{uv-completion_keyword}}\`.
     continuationPrompt,
   );
 
+  // deno-lint-ignore no-console
   console.log(`Agent '${agentName}' initialized at ${agentDir}`);
+  // deno-lint-ignore no-console
   console.log("\nFiles created:");
+  // deno-lint-ignore no-console
   console.log(`  - ${join(agentDir, "agent.json")}`);
+  // deno-lint-ignore no-console
   console.log(`  - ${join(agentDir, "steps_registry.json")}`);
+  // deno-lint-ignore no-console
   console.log(`  - ${join(agentDir, "prompts", "system.md")}`);
+  // deno-lint-ignore no-console
   console.log(
     `  - ${
       join(agentDir, "prompts", "steps", "initial", "manual", "f_default.md")
     }`,
   );
+  // deno-lint-ignore no-console
   console.log(
     `  - ${
       join(
@@ -210,6 +217,7 @@ When complete, output \`{{uv-completion_keyword}}\`.
       )
     }`,
   );
+  // deno-lint-ignore no-console
   console.log(
     `\nRun with: deno task agent --agent ${agentName} --topic "Your topic"`,
   );

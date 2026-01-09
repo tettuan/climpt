@@ -87,7 +87,9 @@
         "explicit-function-return-type",
         "no-non-null-assertion",
         "no-await-in-loop",
-        "default-param-last"
+        "default-param-last",
+        "prefer-ascii",
+        "no-console"
       ]
     }
   }

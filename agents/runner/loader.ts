@@ -50,6 +50,7 @@ export async function loadAgentDefinition(
 
   // Log warnings
   for (const warning of validation.warnings) {
+    // deno-lint-ignore no-console
     console.warn(`Warning: ${warning}`);
   }
 

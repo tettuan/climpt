@@ -35,6 +35,7 @@ async function importBreakdown(): Promise<void> {
  * @internal
  */
 function showHelp(): void {
+  // deno-lint-ignore no-console
   console.log(
     `Climpt v${CLIMPT_VERSION} - AI-Assisted Development Instruction Tool
 
@@ -210,9 +211,12 @@ export async function main(_args: string[] = []): Promise<void> {
 
     // Handle version argument
     if (_args.includes("-v") || _args.includes("--version")) {
+      // deno-lint-ignore no-console
       console.log(`Climpt v${CLIMPT_VERSION}`);
-      console.log(`├── Breakdown v${BREAKDOWN_VERSION}`);
-      console.log(`└── FrontmatterToSchema v${FRONTMATTER_TO_SCHEMA_VERSION}`);
+      // deno-lint-ignore no-console
+      console.log(`|-- Breakdown v${BREAKDOWN_VERSION}`);
+      // deno-lint-ignore no-console
+      console.log(`\\-- FrontmatterToSchema v${FRONTMATTER_TO_SCHEMA_VERSION}`);
       return;
     }
 
@@ -231,6 +235,7 @@ export async function main(_args: string[] = []): Promise<void> {
     // Call the runBreakdown function with arguments
     await runBreakdown(_args);
   } catch (error) {
+    // deno-lint-ignore no-console
     console.error("Failed to execute:", error);
     Deno.exit(1);
   }

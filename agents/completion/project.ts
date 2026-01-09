@@ -138,6 +138,7 @@ export class ProjectCompletionHandler extends BaseCompletionHandler {
         }
       }
     } catch (error) {
+      // deno-lint-ignore no-console
       console.error("Failed to fetch project issues:", error);
       this.remainingIssues = [];
     }

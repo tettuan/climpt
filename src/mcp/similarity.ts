@@ -23,9 +23,9 @@ const BM25_B = 0.75; // Document length normalization parameter
  *
  * Splits text on:
  * - Whitespace
- * - Hyphens (group-commit → group, commit, group-commit)
- * - Underscores (unstaged_changes → unstaged, changes, unstaged_changes)
- * - CamelCase boundaries (groupCommit → group, commit, groupcommit)
+ * - Hyphens (group-commit -> group, commit, group-commit)
+ * - Underscores (unstaged_changes -> unstaged, changes, unstaged_changes)
+ * - CamelCase boundaries (groupCommit -> group, commit, groupcommit)
  *
  * Original compound tokens are preserved to maintain backward compatibility.
  *
@@ -55,7 +55,7 @@ export function tokenize(text: string): string[] {
     }
 
     // Step 4: Split by camelCase boundaries (must use original case)
-    // Match: lowercase followed by uppercase (groupCommit → group|Commit)
+    // Match: lowercase followed by uppercase (groupCommit -> group|Commit)
     const camelParts = word.replace(/([a-z])([A-Z])/g, "$1 $2").split(/\s+/);
     if (camelParts.length > 1) {
       tokens.push(...camelParts.map((p) => p.toLowerCase()));
@@ -157,7 +157,7 @@ function calculateIDF(term: string, corpus: CorpusStats): number {
  * Calculate BM25 score for a query against a document
  *
  * BM25 formula:
- * score(D, Q) = Σ IDF(qi) × (f(qi, D) × (k1 + 1)) / (f(qi, D) + k1 × (1 - b + b × |D| / avgdl))
+ * score(D, Q) = SUM IDF(qi) * (f(qi, D) * (k1 + 1)) / (f(qi, D) + k1 * (1 - b + b * |D| / avgdl))
  *
  * @param queryTokens Tokenized query
  * @param docStats Document statistics
@@ -272,7 +272,7 @@ const RRF_K = 60;
  * Search commands using RRF (Reciprocal Rank Fusion) with multiple queries.
  *
  * RRF combines rankings from multiple search queries using the formula:
- *   score(d) = Σ 1/(k + rank_i(d))
+ *   score(d) = SUM 1/(k + rank_i(d))
  *
  * This is useful for C3L-aligned dual queries:
  * - query1: Action-focused (emphasizes c2 - what to do)

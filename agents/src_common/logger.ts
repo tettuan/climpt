@@ -90,15 +90,19 @@ export class Logger {
 
     switch (level) {
       case "debug":
+        // deno-lint-ignore no-console
         console.debug(consoleMessage);
         break;
       case "info":
+        // deno-lint-ignore no-console
         console.log(consoleMessage);
         break;
       case "warn":
+        // deno-lint-ignore no-console
         console.warn(consoleMessage);
         break;
       case "error":
+        // deno-lint-ignore no-console
         console.error(consoleMessage);
         break;
     }

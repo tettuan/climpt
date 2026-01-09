@@ -1,9 +1,9 @@
 /**
  * Climpt MCP Server - Prompt Execution Logger
  *
- * プロンプト実行ログをJSONL形式で出力
- * - セッション単位でファイル作成
- * - 自動ローテーション（最大100ファイル）
+ * Output prompt execution logs in JSONL format
+ * - Create file per session
+ * - Automatic rotation (max 100 files)
  */
 
 import { join } from "@std/path";
@@ -170,6 +170,7 @@ export class PromptLogger {
         try {
           await Deno.remove(filePath);
         } catch (error) {
+          // deno-lint-ignore no-console
           console.warn(`Failed to delete old log file ${filePath}:`, error);
         }
       });

@@ -181,6 +181,7 @@ export class Logger {
         try {
           await Deno.remove(filePath);
         } catch (error) {
+          // deno-lint-ignore no-console
           console.warn(`Failed to delete old log file ${filePath}:`, error);
         }
       });

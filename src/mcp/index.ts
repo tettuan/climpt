@@ -26,8 +26,10 @@ import {
 } from "./registry.ts";
 import { getPromptLogger } from "./prompt-logger.ts";
 
-console.error("🚀 MCP Server starting...");
-console.error(`📦 Climpt version: ${CLIMPT_VERSION}`);
+// deno-lint-ignore no-console
+console.error("[START] MCP Server starting...");
+// deno-lint-ignore no-console
+console.error(`[INFO] Climpt version: ${CLIMPT_VERSION}`);
 
 /**
  * MCP configuration loaded from config.json
@@ -75,7 +77,10 @@ MCP_CONFIG = await loadMCPConfig();
 
 // Load default registry for climpt
 const defaultCommands = await loadRegistryForAgent("climpt");
-console.error(`✅ Initialized with ${defaultCommands.length} default commands`);
+// deno-lint-ignore no-console
+console.error(
+  `[OK] Initialized with ${defaultCommands.length} default commands`,
+);
 
 const server = new Server(
   {
@@ -105,7 +110,8 @@ const server = new Server(
 server.setRequestHandler(
   ListToolsRequestSchema,
   (_request: ListToolsRequest) => {
-    console.error("🔧 ListToolsRequest received");
+    // deno-lint-ignore no-console
+    console.error("[TOOLS] ListToolsRequest received");
 
     const tools = [
       {
@@ -240,7 +246,8 @@ server.setRequestHandler(
   CallToolRequestSchema,
   async (request: CallToolRequest) => {
     const { name, arguments: args } = request.params;
-    console.error(`⚡ CallToolRequest received for: ${name}`);
+    // deno-lint-ignore no-console
+    console.error(`[CALL] CallToolRequest received for: ${name}`);
 
     try {
       if (name === "search") {
@@ -378,8 +385,9 @@ server.setRequestHandler(
         const optionsStr = options && options.length > 0
           ? ` ${options.join(" ")}`
           : "";
+        // deno-lint-ignore no-console
         console.error(
-          `🚀 Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
+          `[EXEC] Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
         );
 
         // Log prompt execution for Guimpt IDE usage statistics
@@ -388,7 +396,11 @@ server.setRequestHandler(
           await logger.writeExecutionLog({ agent, c1, c2, c3 });
         } catch (logError) {
           // Log errors should not block execution
-          console.error("⚠️ Failed to write prompt execution log:", logError);
+          // deno-lint-ignore no-console
+          console.error(
+            "[WARN] Failed to write prompt execution log:",
+            logError,
+          );
         }
 
         const { code, stdout, stderr } = await command.output();
@@ -424,14 +436,16 @@ server.setRequestHandler(
         if (agent) {
           // Reload specific agent
           REGISTRY_CACHE.delete(agent);
-          console.error(`🔄 Cleared cache for agent: ${agent}`);
+          // deno-lint-ignore no-console
+          console.error(`[RELOAD] Cleared cache for agent: ${agent}`);
 
           const commands = await loadRegistryForAgent(agent);
           const message = commands.length > 0
             ? `Successfully reloaded ${commands.length} commands for agent '${agent}'`
             : `No commands found for agent '${agent}' - please check the registry path in MCP config`;
 
-          console.error(`✅ ${message}`);
+          // deno-lint-ignore no-console
+          console.error(`[OK] ${message}`);
 
           return {
             content: [
@@ -450,8 +464,9 @@ server.setRequestHandler(
           // Clear all caches and reload all configured agents
           const cacheSize = REGISTRY_CACHE.size;
           REGISTRY_CACHE.clear();
+          // deno-lint-ignore no-console
           console.error(
-            `🔄 Cleared cache for all agents (${cacheSize} agents)`,
+            `[RELOAD] Cleared cache for all agents (${cacheSize} agents)`,
           );
 
           // Reload all agents defined in MCP_CONFIG in parallel
@@ -460,8 +475,9 @@ server.setRequestHandler(
           const reloadResults = await Promise.all(
             configuredAgents.map(async (agentName) => {
               const commands = await loadRegistryForAgent(agentName);
+              // deno-lint-ignore no-console
               console.error(
-                `✅ Reloaded ${commands.length} commands for agent '${agentName}'`,
+                `[OK] Reloaded ${commands.length} commands for agent '${agentName}'`,
               );
               return {
                 agent: agentName,
@@ -478,7 +494,8 @@ server.setRequestHandler(
           const message =
             `Cleared cache for all agents and reloaded ${configuredAgents.length} agents with ${totalCommands} total commands`;
 
-          console.error(`✅ ${message}`);
+          // deno-lint-ignore no-console
+          console.error(`[OK] ${message}`);
 
           return {
             content: [
@@ -499,7 +516,8 @@ server.setRequestHandler(
         throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      console.error(`❌ Error executing tool ${name}:`, error);
+      // deno-lint-ignore no-console
+      console.error(`[ERROR] Error executing tool ${name}:`, error);
       return {
         content: [
           {
@@ -544,20 +562,25 @@ server.setRequestHandler(
  * ```
  */
 async function main(): Promise<void> {
-  console.error("🔌 Connecting to StdioServerTransport...");
+  // deno-lint-ignore no-console
+  console.error("[+] Connecting to StdioServerTransport...");
   const transport = new StdioServerTransport();
-  console.error("✅ Transport created, connecting server...");
+  // deno-lint-ignore no-console
+  console.error("[OK] Transport created, connecting server...");
   await server.connect(transport);
-  console.error("🎉 MCP Server connected and ready!");
+  // deno-lint-ignore no-console
+  console.error("[OK] MCP Server connected and ready!");
 }
 
 // Export main function for programmatic use
 export default main;
 
 if (import.meta.main) {
-  console.error("📝 Script is main module, starting server...");
+  // deno-lint-ignore no-console
+  console.error("[*] Script is main module, starting server...");
   main().catch((error) => {
-    console.error("❌ Server error:", error);
+    // deno-lint-ignore no-console
+    console.error("[ERROR] Server error:", error);
     Deno.exit(1);
   });
 }
