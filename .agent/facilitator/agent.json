@@ -19,14 +19,19 @@
       "Task",
       "WebFetch"
     ],
-    "permissionMode": "plan",
-    "disableSandbox": false
+    "permissionMode": "bypassPermissions"
   },
   "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to work on (takes priority over project)",
+      "required": false,
+      "cli": "--issue"
+    },
     "project": {
       "type": "number",
       "description": "GitHub Project number to facilitate",
-      "required": true,
+      "required": false,
       "cli": "--project"
     },
     "projectOwner": {

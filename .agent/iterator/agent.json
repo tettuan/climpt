@@ -11,8 +11,7 @@
       "maxIterations": 100
     },
     "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "TodoWrite"],
-    "permissionMode": "acceptEdits",
-    "disableSandbox": false
+    "permissionMode": "acceptEdits"
   },
   "parameters": {
     "issue": {

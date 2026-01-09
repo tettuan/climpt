@@ -119,10 +119,46 @@
           "enum": ["plan", "acceptEdits", "bypassPermissions"],
           "description": "Claude permission mode"
         },
-        "disableSandbox": {
+        "sandboxConfig": {
+          "$ref": "#/definitions/SandboxConfig",
+          "description": "Fine-grained sandbox configuration"
+        }
+      }
+    },
+    "SandboxConfig": {
+      "type": "object",
+      "description": "Sandbox configuration for controlled access",
+      "properties": {
+        "enabled": {
           "type": "boolean",
-          "default": false,
-          "description": "Disable sandbox mode for agent execution"
+          "default": true,
+          "description": "Enable sandbox mode"
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["trusted", "none", "custom"],
+              "default": "trusted",
+              "description": "Network access mode: trusted (pre-approved domains), none (no network), custom (user-defined)"
+            },
+            "trustedDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of allowed domains (supports wildcards like *.github.com)"
+            }
+          }
+        },
+        "filesystem": {
+          "type": "object",
+          "properties": {
+            "allowedPaths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Additional paths to allow write access"
+            }
+          }
         }
       }
     },
