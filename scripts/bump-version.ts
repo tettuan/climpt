@@ -161,7 +161,9 @@ Examples:
     console.error(
       "\nError: No version specified and not on a release/* branch",
     );
-    console.error("Usage: bump-version.ts <version> or run on release/* branch");
+    console.error(
+      "Usage: bump-version.ts <version> or run on release/* branch",
+    );
     Deno.exit(1);
   }
 
@@ -185,7 +187,7 @@ Examples:
   if (!dryRun) {
     console.log("\nDone! Next steps:");
     console.log("  1. deno task ci");
-    console.log('  2. git add deno.json src/version.ts');
+    console.log("  2. git add deno.json src/version.ts");
     console.log(`  3. git commit -m "chore: bump version to ${targetVersion}"`);
   }
 }

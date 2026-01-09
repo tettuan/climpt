@@ -6,7 +6,6 @@ import { assertEquals } from "@std/assert";
 import {
   type BlockerInfo,
   FacilitatorCompletionHandler,
-  type ProjectStatus,
 } from "./facilitator.ts";
 
 Deno.test("FacilitatorCompletionHandler - initial phase is monitoring", () => {
