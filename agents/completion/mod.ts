@@ -3,27 +3,27 @@
  */
 
 export type { CompletionCriteria, CompletionHandler } from "./types.ts";
-export { BaseCompletionHandler } from "./types.ts";
+export { BaseCompletionHandler, formatIterationSummary } from "./types.ts";
+export type { CompletionType, IterationSummary } from "./types.ts";
 
 export {
+  type CompletionHandlerOptions,
   createCompletionHandler,
+  createCompletionHandlerFromOptions,
   getRegisteredHandler,
   registerCompletionHandler,
 } from "./factory.ts";
 
-export { IssueCompletionHandler, type IssueHandlerOptions } from "./issue.ts";
+export { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
 
 export {
   ProjectCompletionHandler,
-  type ProjectHandlerOptions,
+  type ProjectIssueInfo,
+  type ProjectPhase,
+  type ProjectPlan,
+  type ReviewResult,
 } from "./project.ts";
 
-export {
-  IterateCompletionHandler,
-  type IterateHandlerOptions,
-} from "./iterate.ts";
+export { IterateCompletionHandler } from "./iterate.ts";
 
-export {
-  ManualCompletionHandler,
-  type ManualHandlerOptions,
-} from "./manual.ts";
+export { ManualCompletionHandler } from "./manual.ts";

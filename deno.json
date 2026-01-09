@@ -20,8 +20,8 @@
     "./cli": "./cli.ts",
     "./mcp": "./mcp.ts",
     "./reg": "./reg.ts",
-    "./agents/iterator": "./agents/iterator/scripts/agent.ts",
-    "./agents/reviewer": "./agents/reviewer/scripts/agent.ts"
+    "./agents": "./agents/mod.ts",
+    "./agents/runner": "./agents/scripts/run-agent.ts"
   },
   "include": [
     "README.md",
@@ -52,8 +52,8 @@
     "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
-    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/iterator/scripts/agent.ts",
-    "review-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/reviewer/scripts/agent.ts"
+    "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
+    "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer"
   },
   "imports": {
     "@aidevtool/frontmatter-to-schema": "jsr:@aidevtool/frontmatter-to-schema@^1.7.1",

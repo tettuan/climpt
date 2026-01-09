@@ -1,0 +1,102 @@
+{
+  "$schema": "../../schemas/agent-definition.schema.json",
+  "version": "1.10.0",
+  "name": "iterator",
+  "displayName": "Iterator Agent",
+  "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "project",
+    "completionConfig": {
+      "maxIterations": 100
+    },
+    "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "TodoWrite"],
+    "permissionMode": "acceptEdits",
+    "disableSandbox": false
+  },
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to work on",
+      "required": false,
+      "cli": "--issue"
+    },
+    "project": {
+      "type": "number",
+      "description": "GitHub Project number to work on",
+      "required": false,
+      "cli": "--project"
+    },
+    "projectOwner": {
+      "type": "string",
+      "description": "GitHub Project owner (user login or org name)",
+      "required": false,
+      "cli": "--project-owner"
+    },
+    "label": {
+      "type": "string",
+      "description": "Filter project issues by label",
+      "required": false,
+      "cli": "--label"
+    },
+    "iterateMax": {
+      "type": "number",
+      "description": "Maximum number of iterations",
+      "required": false,
+      "default": 100,
+      "cli": "--iterate-max"
+    },
+    "resume": {
+      "type": "boolean",
+      "description": "Resume previous session",
+      "required": false,
+      "default": false,
+      "cli": "--resume"
+    },
+    "includeCompleted": {
+      "type": "boolean",
+      "description": "Include items marked as Done on project board",
+      "required": false,
+      "default": false,
+      "cli": "--include-completed"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Working branch name for worktree mode",
+      "required": false,
+      "cli": "--branch"
+    },
+    "baseBranch": {
+      "type": "string",
+      "description": "Base branch (merge target) for worktree mode",
+      "required": false,
+      "cli": "--base-branch"
+    }
+  },
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "actions": {
+    "enabled": true,
+    "types": ["issue-action", "project-plan", "review-result"],
+    "outputFormat": "json"
+  },
+  "github": {
+    "enabled": true,
+    "labels": {
+      "requirements": "docs",
+      "inProgress": "in-progress",
+      "blocked": "need clearance"
+    }
+  },
+  "worktree": {
+    "enabled": true,
+    "root": "../worktree"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/iterator",
+    "format": "jsonl",
+    "maxFiles": 100
+  }
+}

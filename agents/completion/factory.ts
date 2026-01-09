@@ -11,6 +11,30 @@ import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 
 /**
+ * Options for creating a completion handler
+ */
+export interface CompletionHandlerOptions {
+  /** Issue number (for issue completion) */
+  issue?: number;
+  /** Repository for cross-repo issues */
+  repository?: string;
+  /** Project number (for project completion) */
+  project?: number;
+  /** Project owner (for project completion) */
+  projectOwner?: string;
+  /** Label filter (for project completion) */
+  labelFilter?: string;
+  /** Include completed items (for project completion) */
+  includeCompleted?: boolean;
+  /** Max iterations (for iterate completion) */
+  maxIterations?: number;
+  /** Completion keyword (for manual completion) */
+  completionKeyword?: string;
+  /** Prompt resolver (optional) */
+  promptResolver?: PromptResolver;
+}
+
+/**
  * Create a completion handler based on agent definition
  */
 export async function createCompletionHandler(
@@ -28,43 +52,113 @@ export async function createCompletionHandler(
     fallbackDir: definition.prompts.fallbackDir,
   });
 
+  let handler: CompletionHandler;
+
   switch (completionType) {
-    case "issue":
-      return new IssueCompletionHandler({
-        issueNumber: args.issue as number,
-        promptResolver,
-      });
+    case "issue": {
+      const issueHandler = new IssueCompletionHandler(
+        args.issue as number,
+        args.repository as string | undefined,
+      );
+      issueHandler.setPromptResolver(promptResolver);
+      handler = issueHandler;
+      break;
+    }
 
-    case "project":
-      return new ProjectCompletionHandler({
-        projectNumber: args.project as number,
-        promptResolver,
-        labels: definition.github?.labels,
-      });
+    case "project": {
+      const projectHandler = new ProjectCompletionHandler(
+        args.project as number,
+        args.label as string | undefined,
+        args.includeCompleted as boolean | undefined,
+        args.projectOwner as string | undefined,
+      );
+      projectHandler.setPromptResolver(promptResolver);
+      handler = projectHandler;
+      break;
+    }
 
-    case "iterate":
-      return new IterateCompletionHandler({
-        maxIterations: completionConfig.maxIterations!,
-        promptResolver,
-      });
+    case "iterate": {
+      const iterateHandler = new IterateCompletionHandler(
+        completionConfig.maxIterations ?? 100,
+      );
+      iterateHandler.setPromptResolver(promptResolver);
+      handler = iterateHandler;
+      break;
+    }
 
-    case "manual":
-      return new ManualCompletionHandler({
-        completionKeyword: completionConfig.completionKeyword!,
-        promptResolver,
-      });
+    case "manual": {
+      const manualHandler = new ManualCompletionHandler(
+        completionConfig.completionKeyword ?? "TASK_COMPLETE",
+      );
+      manualHandler.setPromptResolver(promptResolver);
+      handler = manualHandler;
+      break;
+    }
 
     case "custom":
-      return await loadCustomHandler(
+      handler = await loadCustomHandler(
         definition,
         completionConfig.handlerPath!,
         args,
         agentDir,
       );
+      break;
 
     default:
       throw new Error(`Unknown completion type: ${completionType}`);
   }
+
+  return handler;
+}
+
+/**
+ * Create a completion handler from options (alternative factory)
+ */
+export function createCompletionHandlerFromOptions(
+  options: CompletionHandlerOptions,
+): CompletionHandler {
+  let handler: CompletionHandler;
+
+  if (options.issue !== undefined) {
+    const issueHandler = new IssueCompletionHandler(
+      options.issue,
+      options.repository,
+    );
+    if (options.promptResolver) {
+      issueHandler.setPromptResolver(options.promptResolver);
+    }
+    handler = issueHandler;
+  } else if (options.project !== undefined) {
+    const projectHandler = new ProjectCompletionHandler(
+      options.project,
+      options.labelFilter,
+      options.includeCompleted,
+      options.projectOwner,
+    );
+    if (options.promptResolver) {
+      projectHandler.setPromptResolver(options.promptResolver);
+    }
+    handler = projectHandler;
+  } else if (options.maxIterations !== undefined) {
+    const iterateHandler = new IterateCompletionHandler(options.maxIterations);
+    if (options.promptResolver) {
+      iterateHandler.setPromptResolver(options.promptResolver);
+    }
+    handler = iterateHandler;
+  } else if (options.completionKeyword !== undefined) {
+    const manualHandler = new ManualCompletionHandler(
+      options.completionKeyword,
+    );
+    if (options.promptResolver) {
+      manualHandler.setPromptResolver(options.promptResolver);
+    }
+    handler = manualHandler;
+  } else {
+    // Default to iterate with 100 iterations
+    handler = new IterateCompletionHandler(100);
+  }
+
+  return handler;
 }
 
 /**

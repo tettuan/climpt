@@ -79,7 +79,7 @@ export class AgentRunner {
   async run(options: RunnerOptions): Promise<AgentResult> {
     await this.initialize(options);
 
-    const { args, plugins = [] } = options;
+    const { args: _args, plugins = [] } = options;
 
     this.logger.info(`Starting agent: ${this.definition.displayName}`);
 
@@ -93,11 +93,14 @@ export class AgentRunner {
         this.logger.info(`=== Iteration ${iteration} ===`);
 
         // Build prompt
+        const lastSummary = summaries.length > 0
+          ? summaries[summaries.length - 1]
+          : undefined;
         const prompt = iteration === 1
-          ? await this.completionHandler.buildInitialPrompt(args)
+          ? await this.completionHandler.buildInitialPrompt()
           : await this.completionHandler.buildContinuationPrompt(
-            iteration,
-            summaries,
+            iteration - 1, // completedIterations
+            lastSummary,
           );
 
         const systemPrompt = await this.promptResolver.resolveSystemPrompt({
@@ -127,7 +130,7 @@ export class AgentRunner {
         }
 
         // Check completion
-        if (await this.completionHandler.isComplete(summary)) {
+        if (await this.completionHandler.isComplete()) {
           this.logger.info("Agent completed");
           break;
         }
@@ -144,9 +147,8 @@ export class AgentRunner {
         success: true,
         totalIterations: iteration,
         summaries,
-        completionReason: await this.completionHandler.getCompletionDescription(
-          summaries[summaries.length - 1],
-        ),
+        completionReason: await this.completionHandler
+          .getCompletionDescription(),
       };
     } catch (error) {
       const errorMessage = error instanceof Error

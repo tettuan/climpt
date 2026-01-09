@@ -2,47 +2,105 @@
  * Iterate completion handler - completes after N iterations
  */
 
-import type { IterationSummary } from "../src_common/types.ts";
 import type { PromptResolver } from "../prompts/resolver.ts";
-import { BaseCompletionHandler, type CompletionCriteria } from "./types.ts";
-
-export interface IterateHandlerOptions {
-  maxIterations: number;
-  promptResolver: PromptResolver;
-}
+import {
+  BaseCompletionHandler,
+  type CompletionCriteria,
+  type IterationSummary,
+} from "./types.ts";
 
 export class IterateCompletionHandler extends BaseCompletionHandler {
   readonly type = "iterate" as const;
-  private maxIterations: number;
   private currentIteration = 0;
-  private promptResolver: PromptResolver;
+  private promptResolver?: PromptResolver;
 
-  constructor(options: IterateHandlerOptions) {
+  constructor(private readonly maxIterations: number) {
     super();
-    this.maxIterations = options.maxIterations;
-    this.promptResolver = options.promptResolver;
   }
 
-  async buildInitialPrompt(args: Record<string, unknown>): Promise<string> {
-    return await this.promptResolver.resolve("initial_iterate", {
-      "uv-max_iterations": String(this.maxIterations),
-      ...this.argsToUvVars(args),
-    });
+  /**
+   * Set prompt resolver for externalized prompts
+   */
+  setPromptResolver(resolver: PromptResolver): void {
+    this.promptResolver = resolver;
+  }
+
+  /**
+   * Set current iteration (called by runner)
+   */
+  setCurrentIteration(iteration: number): void {
+    this.currentIteration = iteration;
+  }
+
+  async buildInitialPrompt(): Promise<string> {
+    if (this.promptResolver) {
+      return await this.promptResolver.resolve("initial_iterate", {
+        "uv-max_iterations": String(this.maxIterations),
+      });
+    }
+
+    // Fallback inline prompt
+    return `
+You are working in iteration mode with a maximum of ${this.maxIterations} iterations.
+
+## Objective
+
+Execute development tasks autonomously and make continuous progress.
+
+## Working Mode
+
+- Each iteration is a chance to make progress on your goal
+- Use TodoWrite to track tasks and progress
+- Delegate complex work to sub-agents using Task tool
+- Report progress at each iteration
+
+## Iteration Info
+
+- Maximum iterations: ${this.maxIterations}
+- Current iteration: 1
+
+Work efficiently to complete your goal within the iteration limit.
+    `.trim();
   }
 
   async buildContinuationPrompt(
-    iteration: number,
-    summaries: IterationSummary[],
+    completedIterations: number,
+    previousSummary?: IterationSummary,
   ): Promise<string> {
-    this.currentIteration = iteration;
-    const remaining = this.maxIterations - iteration;
+    this.currentIteration = completedIterations;
+    const remaining = this.maxIterations - completedIterations;
 
-    return await this.promptResolver.resolve("continuation_iterate", {
-      "uv-iteration": String(iteration),
-      "uv-max_iterations": String(this.maxIterations),
-      "uv-remaining": String(remaining),
-      "uv-previous_summary": this.formatSummaries(summaries.slice(-3)),
-    });
+    if (this.promptResolver) {
+      const summaryText = previousSummary
+        ? this.formatIterationSummary(previousSummary)
+        : "";
+      return await this.promptResolver.resolve("continuation_iterate", {
+        "uv-iteration": String(completedIterations),
+        "uv-max_iterations": String(this.maxIterations),
+        "uv-remaining": String(remaining),
+        "uv-previous_summary": summaryText,
+      });
+    }
+
+    // Fallback inline prompt
+    const summarySection = previousSummary
+      ? this.formatIterationSummary(previousSummary)
+      : "";
+
+    return `
+Continue working. Iteration ${completedIterations} of ${this.maxIterations} (${remaining} remaining).
+
+${summarySection}
+
+## Continue
+
+1. Check TodoWrite for pending tasks
+2. Execute next task
+3. Mark completed and move forward
+4. Report progress
+
+Work efficiently to complete your goal.
+    `.trim();
   }
 
   buildCompletionCriteria(): CompletionCriteria {
@@ -53,11 +111,11 @@ export class IterateCompletionHandler extends BaseCompletionHandler {
     };
   }
 
-  isComplete(_summary: IterationSummary): Promise<boolean> {
+  isComplete(): Promise<boolean> {
     return Promise.resolve(this.currentIteration >= this.maxIterations);
   }
 
-  getCompletionDescription(_summary: IterationSummary): Promise<string> {
+  getCompletionDescription(): Promise<string> {
     return Promise.resolve(
       `Completed ${this.currentIteration}/${this.maxIterations} iterations`,
     );
