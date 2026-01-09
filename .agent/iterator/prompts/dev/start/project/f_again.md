@@ -90,6 +90,10 @@ With strengthened skills, address each finding:
 Use these structured outputs. **Do NOT run `gh` commands directly.**
 
 ## Complete Issue (after proper fix)
+
+**IMPORTANT: Before closing, ensure all changes are committed.**
+Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+
 ```issue-action
 {"action":"close","issue":ISSUE_NUMBER,"body":"## Resolution\n- Root cause: [what was wrong]\n- Fix applied: [what was done]\n- Skills used: [which skills helped]"}
 ```

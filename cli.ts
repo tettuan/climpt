@@ -10,7 +10,7 @@
  *
  * ## Features
  *
- * - Convert and decompose project documentation (project → issue → task)
+ * - Convert and decompose project documentation (project -> issue -> task)
  * - Generate summaries and overviews from unorganized information
  * - Create fix proposals from defect information and error logs
  * - Initialize and manage breakdown configurations

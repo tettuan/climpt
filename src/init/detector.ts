@@ -22,7 +22,7 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * 既存のclimpt設定を検出
+ * Detect existing climpt configuration
  */
 export async function detectExisting(
   projectRoot: string,
@@ -44,7 +44,7 @@ export async function detectExisting(
 }
 
 /**
- * 上書きが必要かチェック
+ * Check if overwrite is needed
  */
 export function hasExistingFiles(detection: DetectionResult): boolean {
   return detection.hasMetaAppYml ||

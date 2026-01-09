@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/climpt",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "description": "A CLI wrapper around @tettuan/breakdown for AI-assisted development instruction tools. Provides unified interface for creating, managing, and executing development instructions using TypeScript and JSON Schema for AI system interpretation.",
   "license": "MIT",
   "author": "tettuan",
@@ -20,8 +20,8 @@
     "./cli": "./cli.ts",
     "./mcp": "./mcp.ts",
     "./reg": "./reg.ts",
-    "./agents/iterator": "./agents/iterator/scripts/agent.ts",
-    "./agents/reviewer": "./agents/reviewer/scripts/agent.ts"
+    "./agents": "./agents/mod.ts",
+    "./agents/runner": "./agents/scripts/run-agent.ts"
   },
   "include": [
     "README.md",
@@ -48,14 +48,18 @@
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
+    "test:common": "deno test --allow-all agents/common/",
+    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
-    "iterate-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/iterator/scripts/agent.ts",
-    "review-agent": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys agents/reviewer/scripts/agent.ts"
+    "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
+    "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer",
+    "bump-version": "deno run --allow-read --allow-write --allow-run scripts/bump-version.ts"
   },
   "imports": {
     "@aidevtool/frontmatter-to-schema": "jsr:@aidevtool/frontmatter-to-schema@^1.7.1",
     "@anthropic-ai/claude-agent-sdk": "npm:@anthropic-ai/claude-agent-sdk@^0.1.73",
+    "@anthropic-ai/claude-code": "npm:@anthropic-ai/claude-code@^2.1.2",
     "@modelcontextprotocol/sdk/server": "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js",
     "@modelcontextprotocol/sdk/server/stdio": "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js",
     "@modelcontextprotocol/sdk/types": "npm:@modelcontextprotocol/sdk@0.7.0/types.js",
@@ -75,6 +79,18 @@
   },
   "lint": {
     "include": ["src/", "*.ts", "agents/"],
-    "exclude": ["dist/", "node_modules/"]
+    "exclude": ["dist/", "node_modules/"],
+    "rules": {
+      "tags": ["recommended"],
+      "include": [
+        "eqeqeq",
+        "explicit-function-return-type",
+        "no-non-null-assertion",
+        "no-await-in-loop",
+        "default-param-last",
+        "prefer-ascii",
+        "no-console"
+      ]
+    }
   }
 }

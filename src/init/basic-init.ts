@@ -34,8 +34,8 @@ async function ensureDir(path: string): Promise<void> {
 }
 
 /**
- * 基本構成初期化を実行
- * ※ default-app.yml は作成しない（meta のみ初期化）
+ * Execute basic configuration initialization
+ * Note: default-app.yml is not created (only meta initialization)
  */
 export async function initBasic(
   projectRoot: string,
@@ -44,21 +44,23 @@ export async function initBasic(
   const result = { created: [] as string[], skipped: [] as string[] };
   const fullWorkingDir = resolve(projectRoot, workingDir);
 
-  // 作業ディレクトリ作成（config/, prompts/, schema/ のみ）
+  // Create working directories (config/, prompts/, schema/ only)
   const directories = [
     "config",
     "prompts",
     "schema",
   ];
 
-  for (const dir of directories) {
+  const createPromises = directories.map(async (dir) => {
     const fullPath = resolve(fullWorkingDir, dir);
     if (!(await exists(fullPath))) {
       await ensureDir(fullPath);
       result.created.push(fullPath);
+      // deno-lint-ignore no-console
       console.log(`  Created: ${fullPath}`);
     }
-  }
+  });
+  await Promise.all(createPromises);
 
   return result;
 }

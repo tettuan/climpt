@@ -1,0 +1,121 @@
+{
+  "agentId": "facilitator",
+  "version": "2.0.0",
+  "userPromptsBase": ".agent/facilitator/prompts",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "steps": {
+    "initial.discover": {
+      "stepId": "initial.discover",
+      "name": "Agent Discovery",
+      "c2": "initial",
+      "c3": "discover",
+      "edition": "default",
+      "fallbackKey": "discover_initial_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "description": "Discover available agents and build registry (責務0: 発見)"
+    },
+    "initial.statuscheck": {
+      "stepId": "initial.statuscheck",
+      "name": "Status Check Initial Prompt",
+      "c2": "initial",
+      "c3": "statuscheck",
+      "edition": "default",
+      "fallbackKey": "statuscheck_initial_default",
+      "uvVariables": ["project_number", "project_title", "label_info", "previous_observation"],
+      "usesStdin": false,
+      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)"
+    },
+    "initial.statuscheck.empty": {
+      "stepId": "initial.statuscheck.empty",
+      "name": "Status Check (No Issues)",
+      "c2": "initial",
+      "c3": "statuscheck",
+      "edition": "default",
+      "adaptation": "empty",
+      "fallbackKey": "statuscheck_initial_empty",
+      "uvVariables": ["project_number", "project_title", "label_info"],
+      "usesStdin": false,
+      "description": "Status check when no issues found in project"
+    },
+    "initial.blockercheck": {
+      "stepId": "initial.blockercheck",
+      "name": "Blocker Check Initial Prompt",
+      "c2": "initial",
+      "c3": "blockercheck",
+      "edition": "default",
+      "fallbackKey": "blockercheck_initial_default",
+      "uvVariables": ["project_number", "blocked_issues"],
+      "usesStdin": false,
+      "description": "Identify blockers and dependencies (責務1: 把握)"
+    },
+    "initial.stalecheck": {
+      "stepId": "initial.stalecheck",
+      "name": "Stale Item Check Prompt",
+      "c2": "initial",
+      "c3": "stalecheck",
+      "edition": "default",
+      "fallbackKey": "stalecheck_initial_default",
+      "uvVariables": ["project_number", "stale_threshold_days"],
+      "usesStdin": false,
+      "description": "Check for stale issues with no recent activity (責務1: 把握)"
+    },
+    "initial.judge": {
+      "stepId": "initial.judge",
+      "name": "Issue State Judgment",
+      "c2": "initial",
+      "c3": "judge",
+      "edition": "default",
+      "fallbackKey": "judge_initial_default",
+      "uvVariables": ["project_number"],
+      "usesStdin": false,
+      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)"
+    },
+    "initial.facilitate": {
+      "stepId": "initial.facilitate",
+      "name": "Facilitation Maintenance Action",
+      "c2": "initial",
+      "c3": "facilitate",
+      "edition": "default",
+      "fallbackKey": "facilitate_initial_default",
+      "uvVariables": ["project_number", "issue_number", "action_type"],
+      "usesStdin": false,
+      "description": "Maintain actionable state with comments and labels (責務3: 整備)"
+    },
+    "initial.report": {
+      "stepId": "initial.report",
+      "name": "Generate Recommendation Report",
+      "c2": "initial",
+      "c3": "report",
+      "edition": "default",
+      "fallbackKey": "report_initial_default",
+      "uvVariables": ["project_number", "project_title", "report_type"],
+      "usesStdin": false,
+      "description": "Recommend next agent with scored suggestions (責務4: 推奨)"
+    },
+    "continuation.statuscheck": {
+      "stepId": "continuation.statuscheck",
+      "name": "Status Check Continuation",
+      "c2": "continuation",
+      "c3": "statuscheck",
+      "edition": "default",
+      "fallbackKey": "statuscheck_continuation_default",
+      "uvVariables": ["completed_iterations", "previous_status"],
+      "usesStdin": false,
+      "description": "Continuation prompt for ongoing status monitoring"
+    },
+    "continuation.complete": {
+      "stepId": "continuation.complete",
+      "name": "Facilitation Complete",
+      "c2": "continuation",
+      "c3": "complete",
+      "edition": "default",
+      "fallbackKey": "complete_continuation_default",
+      "uvVariables": ["project_number", "actions_taken"],
+      "usesStdin": false,
+      "description": "Completion message after facilitation cycle"
+    }
+  }
+}

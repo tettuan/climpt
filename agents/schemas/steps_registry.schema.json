@@ -1,0 +1,264 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/tettuan/climpt/main/agents/schemas/steps_registry.schema.json",
+  "title": "Climpt Steps Registry",
+  "description": "Schema for step flow definitions with state machine-like transitions",
+  "type": "object",
+  "required": ["version", "basePath", "entryStep", "steps"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for validation"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Schema version (semver format)"
+    },
+    "basePath": {
+      "type": "string",
+      "description": "Base path for prompt files (relative to agent directory)"
+    },
+    "entryStep": {
+      "type": "string",
+      "description": "ID of the first step to execute"
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/StepDefinition"
+      },
+      "description": "Map of step ID to step definition"
+    },
+    "editions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Edition name mappings for C3L paths"
+    },
+    "entryStepMapping": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Mode-based entry step mapping. Keys are mode names, values are step IDs. Example: { \"issue\": \"s_init_issue\", \"project\": \"s_init_project\" }"
+    }
+  },
+  "definitions": {
+    "StepDefinition": {
+      "type": "object",
+      "required": ["id", "name", "prompt"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^s_[a-f0-9]{4,8}$",
+          "description": "Unique step identifier (hash format: s_xxxx)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable step name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        },
+        "prompt": {
+          "$ref": "#/definitions/PromptReference",
+          "description": "Prompt to execute for this step"
+        },
+        "iterations": {
+          "$ref": "#/definitions/IterationConfig",
+          "description": "Iteration configuration for this step"
+        },
+        "check": {
+          "$ref": "#/definitions/CheckDefinition",
+          "description": "Completion check configuration"
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "User variables (uv-xxx) used in this step's prompt"
+        },
+        "customVariables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CustomVariableDefinition"
+          },
+          "description": "Custom variables injected at runtime from external sources"
+        },
+        "usesStdin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this step accepts stdin input"
+        }
+      }
+    },
+    "CustomVariableDefinition": {
+      "type": "object",
+      "required": ["name", "source"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Variable name (without braces)"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["stdin", "github", "computed", "parameter", "context"],
+          "description": "Source of the variable value"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the variable is required"
+        }
+      }
+    },
+    "PromptReference": {
+      "type": "object",
+      "description": "Reference to a prompt file (either path or C3L)",
+      "oneOf": [
+        {
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Direct path to prompt file (relative to basePath)"
+            },
+            "fallback": {
+              "type": "string",
+              "description": "Fallback path if primary prompt not found"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "required": ["c1", "c2", "c3"],
+          "properties": {
+            "c1": {
+              "type": "string",
+              "description": "C3L Category (first level directory)"
+            },
+            "c2": {
+              "type": "string",
+              "description": "C3L Classification (second level directory)"
+            },
+            "c3": {
+              "type": "string",
+              "description": "C3L Chapter (third level directory)"
+            },
+            "edition": {
+              "type": "string",
+              "default": "default",
+              "description": "Edition name for f_{edition}.md filename"
+            },
+            "adaptation": {
+              "type": "string",
+              "description": "Adaptation variant within an edition. Path pattern: f_{edition}_{adaptation}.md"
+            },
+            "fallback": {
+              "type": "string",
+              "description": "Fallback C3L reference or path if primary prompt not found"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "IterationConfig": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Minimum iterations for this step"
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Maximum iterations for this step"
+        }
+      }
+    },
+    "CheckDefinition": {
+      "type": "object",
+      "required": ["prompt", "responseFormat", "onPass", "onFail"],
+      "properties": {
+        "prompt": {
+          "$ref": "#/definitions/PromptReference",
+          "description": "Prompt for checking step completion"
+        },
+        "responseFormat": {
+          "$ref": "#/definitions/ResponseFormat",
+          "description": "Expected response format from check"
+        },
+        "onPass": {
+          "$ref": "#/definitions/TransitionDefinition",
+          "description": "Action when check passes"
+        },
+        "onFail": {
+          "$ref": "#/definitions/TransitionDefinition",
+          "description": "Action when check fails"
+        }
+      }
+    },
+    "ResponseFormat": {
+      "type": "object",
+      "required": ["result"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["ok|ng", "pass|fail", "boolean"],
+          "description": "Result field format"
+        },
+        "message": {
+          "type": "string",
+          "enum": ["string", "optional"],
+          "description": "Message field format"
+        }
+      },
+      "additionalProperties": {
+        "type": "string",
+        "description": "Additional response fields"
+      }
+    },
+    "TransitionDefinition": {
+      "type": "object",
+      "description": "Defines what happens after check result",
+      "properties": {
+        "next": {
+          "type": "string",
+          "description": "Step ID to transition to"
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Step ID to fall back to on failure"
+        },
+        "retry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Retry current step"
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Maximum retry attempts (0 = no limit when retry is true)"
+        },
+        "complete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Mark agent as complete"
+        }
+      }
+    }
+  }
+}

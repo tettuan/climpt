@@ -60,6 +60,10 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 ```
 
 ### Complete Issue (REQUIRED when done)
+
+**IMPORTANT: Before closing, ensure all changes are committed.**
+Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+
 ```issue-action
 {"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Tasks completed: N"}
 ```

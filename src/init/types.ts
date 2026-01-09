@@ -4,45 +4,45 @@
  */
 
 /**
- * climpt init コマンドのオプション
+ * Options for climpt init command
  */
 export interface InitOptions {
-  /** 作業ディレクトリ (default: ".agent/climpt") */
+  /** Working directory (default: ".agent/climpt") */
   workingDir: string;
-  /** 既存ファイルを上書き */
+  /** Overwrite existing files */
   force: boolean;
-  /** Meta Domain初期化をスキップ */
+  /** Skip Meta Domain initialization */
   skipMeta: boolean;
-  /** Registry生成をスキップ */
+  /** Skip Registry generation */
   skipRegistry: boolean;
-  /** プロジェクトルート */
+  /** Project root directory */
   projectRoot: string;
 }
 
 /**
- * 検出結果
+ * Detection result
  */
 export interface DetectionResult {
-  /** working_dir 存在 */
+  /** working_dir exists */
   hasWorkingDir: boolean;
-  /** meta-app.yml 存在 */
+  /** meta-app.yml exists */
   hasMetaAppYml: boolean;
-  /** meta-user.yml 存在 */
+  /** meta-user.yml exists */
   hasMetaUserYml: boolean;
-  /** registry_config.json 存在 */
+  /** registry_config.json exists */
   hasRegistryConfig: boolean;
-  /** registry.json 存在 */
+  /** registry.json exists */
   hasRegistry: boolean;
-  /** frontmatter-to-schema/ 存在 */
+  /** frontmatter-to-schema/ exists */
   hasSchemaDir: boolean;
-  /** prompts/ 存在 */
+  /** prompts/ exists */
   hasPromptsDir: boolean;
-  /** prompts/meta/ 存在 */
+  /** prompts/meta/ exists */
   hasMetaPromptsDir: boolean;
 }
 
 /**
- * Init処理結果
+ * Init process result
  */
 export interface InitResult {
   success: boolean;
@@ -52,7 +52,7 @@ export interface InitResult {
 }
 
 /**
- * Registry Config構造
+ * Registry Config structure
  */
 export interface RegistryConfig {
   version: string;
@@ -64,7 +64,7 @@ export interface RegistryConfig {
 }
 
 /**
- * Registry構造
+ * Registry structure
  */
 export interface Registry {
   version: string;
@@ -76,7 +76,7 @@ export interface Registry {
 }
 
 /**
- * C3Lコマンド定義
+ * C3L command definition
  */
 export interface Command {
   c1: string;
