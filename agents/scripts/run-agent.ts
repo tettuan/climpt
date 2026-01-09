@@ -22,6 +22,7 @@ import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
 
 function printHelp(): void {
+  // deno-lint-ignore no-console
   console.log(`
 Unified Agent Runner
 
@@ -94,18 +95,23 @@ async function main(): Promise<void> {
 
   // List available agents
   if (args.list) {
+    // deno-lint-ignore no-console
     console.log("\nAvailable agents:");
     const agents = await listAgents(Deno.cwd());
     for (const agent of agents) {
+      // deno-lint-ignore no-console
       console.log(`  - ${agent}`);
     }
+    // deno-lint-ignore no-console
     console.log("");
     Deno.exit(0);
   }
 
   // Agent name is required
   if (!args.agent) {
+    // deno-lint-ignore no-console
     console.error("Error: --agent <name> is required");
+    // deno-lint-ignore no-console
     console.error(
       "Use --help for usage information or --list to see available agents",
     );
@@ -116,8 +122,10 @@ async function main(): Promise<void> {
 
   try {
     // Load agent definition
+    // deno-lint-ignore no-console
     console.log(`\nLoading agent: ${agentName}`);
     const definition = await loadAgentDefinition(agentName, Deno.cwd());
+    // deno-lint-ignore no-console
     console.log(`  ${definition.displayName}: ${definition.description}`);
 
     // Build args for the runner
@@ -137,6 +145,7 @@ async function main(): Promise<void> {
 
     // Create and run the agent
     const runner = new AgentRunner(definition);
+    // deno-lint-ignore no-console
     console.log(`\nStarting ${definition.displayName}...\n`);
 
     const result = await runner.run({
@@ -146,17 +155,24 @@ async function main(): Promise<void> {
     });
 
     // Report result
+    // deno-lint-ignore no-console
     console.log(`\n${"=".repeat(60)}`);
+    // deno-lint-ignore no-console
     console.log(`Agent completed: ${result.success ? "SUCCESS" : "FAILED"}`);
+    // deno-lint-ignore no-console
     console.log(`Total iterations: ${result.totalIterations}`);
+    // deno-lint-ignore no-console
     console.log(`Reason: ${result.completionReason}`);
     if (result.error) {
+      // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);
     }
+    // deno-lint-ignore no-console
     console.log(`${"=".repeat(60)}\n`);
 
     Deno.exit(result.success ? 0 : 1);
   } catch (error) {
+    // deno-lint-ignore no-console
     console.error(
       `\nError: ${error instanceof Error ? error.message : String(error)}`,
     );

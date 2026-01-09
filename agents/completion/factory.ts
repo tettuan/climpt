@@ -78,8 +78,8 @@ export async function createCompletionHandler(
       const projectHandler = new ProjectCompletionHandler(
         args.project as number,
         args.label as string | undefined,
-        args.includeCompleted as boolean | undefined,
         args.projectOwner as string | undefined,
+        args.includeCompleted as boolean | undefined,
       );
       projectHandler.setPromptResolver(promptResolver);
       handler = projectHandler;
@@ -104,14 +104,21 @@ export async function createCompletionHandler(
       break;
     }
 
-    case "custom":
-      handler = await loadCustomHandler(
+    case "custom": {
+      if (!completionConfig.handlerPath) {
+        throw new Error(
+          `Custom completion type requires handlerPath in completionConfig`,
+        );
+      }
+      const customHandler = await loadCustomHandler(
         definition,
-        completionConfig.handlerPath!,
+        completionConfig.handlerPath,
         args,
         agentDir,
       );
+      handler = customHandler;
       break;
+    }
 
     case "facilitator": {
       const facilitatorHandler = new FacilitatorCompletionHandler(
@@ -151,8 +158,8 @@ export function createCompletionHandlerFromOptions(
     const projectHandler = new ProjectCompletionHandler(
       options.project,
       options.labelFilter,
-      options.includeCompleted,
       options.projectOwner,
+      options.includeCompleted,
     );
     if (options.promptResolver) {
       projectHandler.setPromptResolver(options.promptResolver);

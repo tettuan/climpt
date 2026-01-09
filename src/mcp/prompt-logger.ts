@@ -1,9 +1,9 @@
 /**
  * Climpt MCP Server - Prompt Execution Logger
  *
- * プロンプト実行ログをJSONL形式で出力
- * - セッション単位でファイル作成
- * - 自動ローテーション（最大100ファイル）
+ * Output prompt execution logs in JSONL format
+ * - Create file per session
+ * - Automatic rotation (max 100 files)
  */
 
 import { join } from "@std/path";
@@ -108,7 +108,9 @@ export class PromptLogger {
 
     const line = JSON.stringify(entry) + "\n";
     const encoder = new TextEncoder();
-    await this.file!.write(encoder.encode(line));
+    if (this.file) {
+      await this.file.write(encoder.encode(line));
+    }
   }
 
   /**
@@ -129,16 +131,23 @@ export class PromptLogger {
 
     // List all .jsonl files in log directory
     try {
+      // Collect all jsonl file names first
+      const jsonlFiles: string[] = [];
       for await (const entry of Deno.readDir(this.logDir)) {
         if (entry.isFile && entry.name.endsWith(".jsonl")) {
-          const filePath = join(this.logDir, entry.name);
-          const stat = await Deno.stat(filePath);
-          files.push({
-            name: entry.name,
-            mtime: stat.mtime,
-          });
+          jsonlFiles.push(entry.name);
         }
       }
+
+      // Stat all files in parallel
+      const statResults = await Promise.all(
+        jsonlFiles.map(async (name) => {
+          const filePath = join(this.logDir, name);
+          const stat = await Deno.stat(filePath);
+          return { name, mtime: stat.mtime };
+        }),
+      );
+      files.push(...statResults);
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         // Directory doesn't exist yet, no rotation needed
@@ -156,14 +165,16 @@ export class PromptLogger {
     // Delete oldest files if count exceeds maxFiles
     const filesToDelete = files.length - this.maxFiles + 1; // +1 for new file
     if (filesToDelete > 0) {
-      for (let i = 0; i < filesToDelete; i++) {
-        const filePath = join(this.logDir, files[i].name);
+      const deletePromises = files.slice(0, filesToDelete).map(async (file) => {
+        const filePath = join(this.logDir, file.name);
         try {
           await Deno.remove(filePath);
         } catch (error) {
+          // deno-lint-ignore no-console
           console.warn(`Failed to delete old log file ${filePath}:`, error);
         }
-      }
+      });
+      await Promise.all(deletePromises);
     }
   }
 

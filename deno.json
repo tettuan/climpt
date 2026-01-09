@@ -79,6 +79,18 @@
   },
   "lint": {
     "include": ["src/", "*.ts", "agents/"],
-    "exclude": ["dist/", "node_modules/"]
+    "exclude": ["dist/", "node_modules/"],
+    "rules": {
+      "tags": ["recommended"],
+      "include": [
+        "eqeqeq",
+        "explicit-function-return-type",
+        "no-non-null-assertion",
+        "no-await-in-loop",
+        "default-param-last",
+        "prefer-ascii",
+        "no-console"
+      ]
+    }
   }
 }

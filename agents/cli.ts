@@ -23,6 +23,7 @@ export async function run(): Promise<void> {
 
     if (parsed.init) {
       if (!parsed.agentName) {
+        // deno-lint-ignore no-console
         console.error("Error: --agent <name> is required for init");
         Deno.exit(1);
       }
@@ -40,18 +41,24 @@ export async function run(): Promise<void> {
       args: parsed.args,
     });
 
+    // deno-lint-ignore no-console
     console.log("\n=== Agent Complete ===");
+    // deno-lint-ignore no-console
     console.log(`Total iterations: ${result.totalIterations}`);
+    // deno-lint-ignore no-console
     console.log(`Reason: ${result.completionReason}`);
 
     if (!result.success) {
+      // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);
       Deno.exit(1);
     }
   } catch (error) {
     if (error instanceof Error) {
+      // deno-lint-ignore no-console
       console.error(`Error: ${error.message}`);
     } else {
+      // deno-lint-ignore no-console
       console.error(`Error: ${String(error)}`);
     }
     Deno.exit(1);
@@ -59,6 +66,7 @@ export async function run(): Promise<void> {
 }
 
 function printHelp(): void {
+  // deno-lint-ignore no-console
   console.log(`
 climpt-agents - Generic Agent Runner
 
@@ -95,27 +103,49 @@ async function printAgentList(cwd?: string): Promise<void> {
   const agents = await listAgents(cwd);
 
   if (agents.length === 0) {
+    // deno-lint-ignore no-console
     console.log("No agents found in .agent/ directory");
+    // deno-lint-ignore no-console
     console.log("\nCreate a new agent with:");
+    // deno-lint-ignore no-console
     console.log("  deno task init --agent my-agent");
     return;
   }
 
+  // deno-lint-ignore no-console
   console.log("Available agents:\n");
 
-  for (const agentName of agents) {
-    try {
-      const definition = await loadAgentDefinition(agentName, cwd);
-      console.log(`  ${agentName}`);
-      console.log(`    ${definition.description}`);
-      console.log(`    Type: ${definition.behavior.completionType}`);
-      console.log("");
-    } catch {
+  // Load all agent definitions in parallel
+  const definitions = await Promise.all(
+    agents.map(async (agentName) => {
+      try {
+        const definition = await loadAgentDefinition(agentName, cwd);
+        return { agentName, definition, error: false };
+      } catch {
+        return { agentName, definition: null, error: true };
+      }
+    }),
+  );
+
+  for (const { agentName, definition, error } of definitions) {
+    if (error || !definition) {
+      // deno-lint-ignore no-console
       console.log(`  ${agentName} (error loading definition)`);
+    } else {
+      // deno-lint-ignore no-console
+      console.log(`  ${agentName}`);
+      // deno-lint-ignore no-console
+      console.log(`    ${definition.description}`);
+      // deno-lint-ignore no-console
+      console.log(`    Type: ${definition.behavior.completionType}`);
+      // deno-lint-ignore no-console
+      console.log("");
     }
   }
 
+  // deno-lint-ignore no-console
   console.log("Run an agent with:");
+  // deno-lint-ignore no-console
   console.log("  deno task agent --agent <name> [options]");
 }
 

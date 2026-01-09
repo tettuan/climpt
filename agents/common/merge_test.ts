@@ -459,8 +459,8 @@ Deno.test("mergeBranch - returns conflict info when conflict occurs", async () =
     assertEquals(result.success, false);
     assertEquals(result.strategy, "merge-commit");
     assertEquals(result.conflictFiles !== undefined, true);
-    assertEquals(result.conflictFiles!.length > 0, true);
-    assertEquals(result.conflictFiles!.includes("README.md"), true);
+    assertEquals((result.conflictFiles ?? []).length > 0, true);
+    assertEquals((result.conflictFiles ?? []).includes("README.md"), true);
   } finally {
     await repo.cleanup();
   }
@@ -498,7 +498,7 @@ Deno.test("mergeBranch - squash returns conflict info when conflict occurs", asy
     assertEquals(result.success, false);
     assertEquals(result.strategy, "squash");
     assertEquals(result.conflictFiles !== undefined, true);
-    assertEquals(result.conflictFiles!.length > 0, true);
+    assertEquals((result.conflictFiles ?? []).length > 0, true);
   } finally {
     await repo.cleanup();
   }

@@ -44,6 +44,7 @@ Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
     },
   );
 
+  // deno-lint-ignore no-console
   console.log("Load result:", {
     ok: result.ok,
     hasContent: !!result.content,
@@ -68,6 +69,7 @@ Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
       ".agent/iterator/prompts/dev/start/issue/f_default.md",
     );
   } else {
+    // deno-lint-ignore no-console
     console.error("Load failed:", result.error);
   }
 });
@@ -87,6 +89,7 @@ Deno.test("C3LPromptLoader - load with custom edition", async () => {
     },
   );
 
+  // deno-lint-ignore no-console
   console.log("Processing edition result:", {
     ok: result.ok,
     promptPath: result.promptPath,

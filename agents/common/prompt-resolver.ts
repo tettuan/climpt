@@ -86,7 +86,7 @@ export interface PromptResolverOptions {
   /** Whether to allow missing variables (default: false - throws error) */
   allowMissingVariables?: boolean;
 
-  /** Config suffix for C3LPromptLoader (e.g., "dev" → config="iterator-dev") */
+  /** Config suffix for C3LPromptLoader (e.g., "dev" results in config="iterator-dev") */
   configSuffix?: string;
 }
 

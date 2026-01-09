@@ -104,10 +104,13 @@ export class StepFlowRunner {
         );
 
         // Execute step prompt
+        // Note: Sequential execution required - step must complete before check
+        // deno-lint-ignore no-await-in-loop
         const _summary = await this.executeStepPrompt(step, args, plugins);
 
         // Check if step has completion check
         if (step.check) {
+          // deno-lint-ignore no-await-in-loop
           const checkResult = await this.executeCheck(
             step.check,
             args,

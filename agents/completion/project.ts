@@ -67,8 +67,8 @@ export class ProjectCompletionHandler extends BaseCompletionHandler {
   constructor(
     private readonly projectNumber: number,
     private readonly labelFilter?: string,
-    private readonly includeCompleted: boolean = false,
     private readonly projectOwner?: string,
+    private readonly includeCompleted: boolean = false,
   ) {
     super();
   }
@@ -132,9 +132,13 @@ export class ProjectCompletionHandler extends BaseCompletionHandler {
       this.projectTitle = `Project #${this.projectNumber}`;
 
       if (this.remainingIssues.length > 0) {
-        this.setCurrentIssue(this.remainingIssues.shift()!);
+        const nextIssue = this.remainingIssues.shift();
+        if (nextIssue) {
+          this.setCurrentIssue(nextIssue);
+        }
       }
     } catch (error) {
+      // deno-lint-ignore no-console
       console.error("Failed to fetch project issues:", error);
       this.remainingIssues = [];
     }
@@ -168,8 +172,9 @@ export class ProjectCompletionHandler extends BaseCompletionHandler {
       // Filter by label if specified
       let items = data.items || [];
       if (this.labelFilter) {
+        const filterLabel = this.labelFilter;
         items = items.filter((item: { labels?: string[] }) =>
-          item.labels?.includes(this.labelFilter!)
+          item.labels?.includes(filterLabel)
         );
       }
 
@@ -450,7 +455,10 @@ ${summarySection}
       }
 
       if (this.remainingIssues.length > 0) {
-        this.setCurrentIssue(this.remainingIssues.shift()!);
+        const nextIssue = this.remainingIssues.shift();
+        if (nextIssue) {
+          this.setCurrentIssue(nextIssue);
+        }
         return false;
       }
 
@@ -496,7 +504,10 @@ ${summarySection}
       this.issuesCompleted++;
       this.completedIssueNumbers.add(issueNumber);
       if (this.remainingIssues.length > 0) {
-        this.setCurrentIssue(this.remainingIssues.shift()!);
+        const nextIssue = this.remainingIssues.shift();
+        if (nextIssue) {
+          this.setCurrentIssue(nextIssue);
+        }
       } else {
         this.currentIssue = null;
         this.currentIssueHandler = null;
