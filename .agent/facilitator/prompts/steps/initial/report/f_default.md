@@ -1,55 +1,123 @@
-# Generate Status Report
+# Generate Recommendation Report
 
-Create a {{report_type}} status report for GitHub Project #{{project_number}}.
+Generate a recommendation report for Project #{{project_number}}.
 
 ## Project Information
 
 - Title: {{project_title}}
+- Report Type: {{report_type}}
 
-## Report Sections
+## Purpose
 
-1. **Executive Summary**
-   - Overall project health (Green/Yellow/Red)
-   - Key accomplishments since last report
-   - Main concerns or risks
+Based on the issue assessments and agent registry, recommend the next agent to invoke with scored suggestions.
 
-2. **Metrics Dashboard**
-   - Issue counts by status
-   - Velocity (issues closed per period)
-   - Blocked items count
-   - Stale items count
+## Input
 
-3. **Progress Highlights**
-   - Recently completed items
-   - Items actively being worked on
-   - Upcoming milestones
+Use the following information gathered in previous steps:
 
-4. **Attention Items**
-   - Blocked issues requiring action
-   - Stale issues needing review
-   - Dependencies at risk
+1. **Agent Registry** - Available agents and their capabilities
+2. **Issue Assessments** - State of each issue with required capabilities
+3. **Work Logs** - Recent agent activity
 
-5. **Recommendations**
-   - Suggested priorities
-   - Process improvements
-   - Resource considerations
+## Tasks
+
+1. **Match Issues to Capabilities**
+   - For each issue with state other than `done`
+   - Identify the required capability
+   - Find agents with matching capabilities
+
+2. **Score Each Recommendation**
+
+   | Factor | Weight | Criteria |
+   |--------|--------|----------|
+   | State urgency | 0.4 | blocked > in_progress > incomplete |
+   | Capability match | 0.3 | Exact match vs partial |
+   | Issue priority | 0.2 | High > medium > low |
+   | Recent activity | 0.1 | Recent work on same issue |
+
+3. **Determine Priority**
+
+   | Priority | Criteria |
+   |----------|----------|
+   | `high` | Blocker resolution, deadline, dependency chain |
+   | `medium` | Normal incomplete/in_progress work |
+   | `low` | Improvements, refactoring |
+
+4. **Generate Suggestions**
+   - Create multiple suggestions (2-4)
+   - Order by score descending
+   - Include concrete command for each
 
 ## Output
 
-```status-report
+Output the recommendation:
+
+```recommend-action
 {
-  "type": "{{report_type}}",
-  "project": {{project_number}},
-  "summary": "Executive summary here",
-  "metrics": {
-    "open": N,
-    "in_progress": N,
-    "done": N,
-    "blocked": N,
-    "stale": N
-  },
-  "health": "green|yellow|red",
-  "highlights": ["..."],
-  "concerns": ["..."]
+  "nextAgent": "{{recommended_agent}}",
+  "targetIssues": [ISSUE_NUMBERS],
+  "reason": "Why this agent for these issues",
+  "availableAgents": ["agent1", "agent2"],
+  "suggestions": [
+    {
+      "agent": "agent-name",
+      "command": "deno task agents:run {agent} --issue {N}",
+      "description": "What this will accomplish",
+      "priority": "high|medium|low",
+      "score": 0.0-1.0,
+      "rationale": "Why this score and priority"
+    }
+  ]
+}
+```
+
+## Example Output
+
+```recommend-action
+{
+  "nextAgent": "iterator",
+  "targetIssues": [123, 125],
+  "reason": "#123 is in_progress, #125 is incomplete. iterator has issue-action capability.",
+  "availableAgents": ["iterator", "reviewer"],
+  "suggestions": [
+    {
+      "agent": "iterator",
+      "command": "deno task agents:run iterator --issue 123",
+      "description": "Continue implementation of Issue #123",
+      "priority": "high",
+      "score": 0.9,
+      "rationale": "In-progress work should be completed first. Exact capability match."
+    },
+    {
+      "agent": "iterator",
+      "command": "deno task agents:run iterator --issue 125",
+      "description": "Start implementation of Issue #125",
+      "priority": "medium",
+      "score": 0.6,
+      "rationale": "Incomplete but no blockers. Better to finish #123 first."
+    },
+    {
+      "agent": "reviewer",
+      "command": "deno task agents:run reviewer --project {{project_number}}",
+      "description": "Review completed work if any PRs pending",
+      "priority": "low",
+      "score": 0.3,
+      "rationale": "No review_pending issues currently."
+    }
+  ]
+}
+```
+
+## If No Action Needed
+
+If all issues are `done`:
+
+```recommend-action
+{
+  "nextAgent": "none",
+  "targetIssues": [],
+  "reason": "All issues are complete. No agent action needed.",
+  "availableAgents": ["iterator", "reviewer"],
+  "suggestions": []
 }
 ```

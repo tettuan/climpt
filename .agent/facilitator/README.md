@@ -602,12 +602,13 @@ prompts/
 ├── system.md                              # システムプロンプト (責務の定義)
 └── steps/
     ├── initial/
-    │   ├── discover/f_default.md          # 発見: Agent 発見
-    │   ├── statuscheck/f_default.md       # 把握: 状態チェック
-    │   ├── blockercheck/f_default.md      # 把握: ブロッカーチェック
-    │   ├── stalecheck/f_default.md        # 把握: 古いアイテムチェック
-    │   ├── facilitate/f_default.md        # 整備: ファシリテーションアクション
-    │   └── report/f_default.md            # 推奨: レポート生成
+    │   ├── discover/f_default.md          # 責務0: 発見 - Agent 発見
+    │   ├── statuscheck/f_default.md       # 責務1: 把握 - 状態チェック
+    │   ├── blockercheck/f_default.md      # 責務1: 把握 - ブロッカーチェック
+    │   ├── stalecheck/f_default.md        # 責務1: 把握 - 古いアイテムチェック
+    │   ├── judge/f_default.md             # 責務2: 判断 - Issue 状態判定
+    │   ├── facilitate/f_default.md        # 責務3: 整備 - 整備アクション
+    │   └── report/f_default.md            # 責務4: 推奨 - レポート生成
     └── continuation/
         ├── statuscheck/f_default.md       # 継続的状態チェック
         └── complete/f_default.md          # 完了

@@ -1,11 +1,22 @@
 {
   "agentId": "facilitator",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "userPromptsBase": ".agent/facilitator/prompts",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "steps": {
+    "initial.discover": {
+      "stepId": "initial.discover",
+      "name": "Agent Discovery",
+      "c2": "initial",
+      "c3": "discover",
+      "edition": "default",
+      "fallbackKey": "discover_initial_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "description": "Discover available agents and build registry (責務0: 発見)"
+    },
     "initial.statuscheck": {
       "stepId": "initial.statuscheck",
       "name": "Status Check Initial Prompt",
@@ -15,7 +26,7 @@
       "fallbackKey": "statuscheck_initial_default",
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
-      "description": "Initial prompt for project status check phase"
+      "description": "Gather project metrics and status (責務1: 把握)"
     },
     "initial.statuscheck.empty": {
       "stepId": "initial.statuscheck.empty",
@@ -38,7 +49,7 @@
       "fallbackKey": "blockercheck_initial_default",
       "uvVariables": ["project_number", "blocked_issues"],
       "usesStdin": false,
-      "description": "Initial prompt for identifying blockers"
+      "description": "Identify blockers and dependencies (責務1: 把握)"
     },
     "initial.stalecheck": {
       "stepId": "initial.stalecheck",
@@ -49,29 +60,40 @@
       "fallbackKey": "stalecheck_initial_default",
       "uvVariables": ["project_number", "stale_threshold_days"],
       "usesStdin": false,
-      "description": "Check for stale issues with no recent activity"
+      "description": "Check for stale issues with no recent activity (責務1: 把握)"
     },
-    "initial.report": {
-      "stepId": "initial.report",
-      "name": "Generate Status Report",
+    "initial.judge": {
+      "stepId": "initial.judge",
+      "name": "Issue State Judgment",
       "c2": "initial",
-      "c3": "report",
+      "c3": "judge",
       "edition": "default",
-      "fallbackKey": "report_initial_default",
-      "uvVariables": ["project_number", "project_title", "report_type"],
+      "fallbackKey": "judge_initial_default",
+      "uvVariables": ["project_number"],
       "usesStdin": false,
-      "description": "Generate project status report"
+      "description": "Judge state of each issue based on evidence (責務2: 判断)"
     },
     "initial.facilitate": {
       "stepId": "initial.facilitate",
-      "name": "Facilitation Action Prompt",
+      "name": "Facilitation Maintenance Action",
       "c2": "initial",
       "c3": "facilitate",
       "edition": "default",
       "fallbackKey": "facilitate_initial_default",
       "uvVariables": ["project_number", "issue_number", "action_type"],
       "usesStdin": false,
-      "description": "Execute facilitation action on specific issue"
+      "description": "Maintain actionable state with comments and labels (責務3: 整備)"
+    },
+    "initial.report": {
+      "stepId": "initial.report",
+      "name": "Generate Recommendation Report",
+      "c2": "initial",
+      "c3": "report",
+      "edition": "default",
+      "fallbackKey": "report_initial_default",
+      "uvVariables": ["project_number", "project_title", "report_type"],
+      "usesStdin": false,
+      "description": "Recommend next agent with scored suggestions (責務4: 推奨)"
     },
     "continuation.statuscheck": {
       "stepId": "continuation.statuscheck",
