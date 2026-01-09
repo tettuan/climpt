@@ -4,30 +4,33 @@
 
 **場の状態を把握し、次の一手を明らかにする Agent。**
 
-Iterator / Reviewer が「作業」を担うのに対し、Facilitator は「場」を担う。
+他の Agent が「作業」を担うのに対し、Facilitator は「場」を担う。
 
 ```mermaid
 flowchart LR
-    subgraph 作業層
-        ITER[Iterator<br/>実装する]
-        REV[Reviewer<br/>検証する]
+    subgraph 作業層[作業層 - 動的に発見]
+        A1[Agent A]
+        A2[Agent B]
+        A3[Agent ...]
     end
 
     subgraph 場の層
         FAC[Facilitator<br/>場を整える]
     end
 
-    FAC -.->|推奨| ITER
-    FAC -.->|推奨| REV
-    ITER -->|作業結果| FAC
-    REV -->|検証結果| FAC
+    FAC -.->|推奨| A1
+    FAC -.->|推奨| A2
+    FAC -.->|推奨| A3
+    A1 -->|作業結果| FAC
+    A2 -->|作業結果| FAC
+    A3 -->|作業結果| FAC
 ```
 
 ## Why: なぜ場の制御が必要か
 
 ### 問題
 
-Iterator / Reviewer が作業した後、以下の状態が発生する:
+Agent が作業した後、以下の状態が発生する:
 
 | 状況 | 結果 |
 |------|------|
@@ -43,7 +46,75 @@ Iterator / Reviewer が作業した後、以下の状態が発生する:
 - 各 Issue の状態が明確
 - 次のアクションが分かる
 - ブロッカーが可視化されている
-- Iterator / Reviewer が迷わず作業できる
+- 適切な Agent が迷わず作業できる
+
+---
+
+## Agent 発見 - 定義
+
+Facilitator は他の Agent を**動的に発見**し、その役割を把握したうえで推奨を行う。
+
+### Agent 発見メカニズム
+
+```mermaid
+flowchart TD
+    START[Facilitator 起動] --> SCAN[.agent/ ディレクトリをスキャン]
+    SCAN --> READ[各 agent.json を読み込み]
+    READ --> PARSE[Agent 情報を抽出]
+    PARSE --> REGISTRY[Agent Registry を構築]
+
+    subgraph Agent Registry
+        REG[name, description, parameters, ...]
+    end
+```
+
+### Agent 情報の取得元
+
+| 情報 | 取得元 | 用途 |
+|------|--------|------|
+| **name** | `agent.json` の `name` | Agent の識別子 |
+| **description** | `agent.json` の `description` | 役割の把握 |
+| **parameters** | `agent.json` の `parameters` | 実行コマンドの構築 |
+| **actions** | `agent.json` の `actions.types` | 対応可能なアクション |
+
+### Agent Registry の構造
+
+```typescript
+interface AgentInfo {
+  name: string;
+  displayName: string;
+  description: string;
+  parameters: Record<string, ParameterDef>;
+  capabilities: string[];  // actions.types から抽出
+}
+
+interface AgentRegistry {
+  agents: AgentInfo[];
+  getByCapability(capability: string): AgentInfo[];
+  getByName(name: string): AgentInfo | undefined;
+}
+```
+
+### 発見される Agent の例
+
+```json
+{
+  "agents": [
+    {
+      "name": "iterator",
+      "displayName": "Iterator Agent",
+      "description": "Autonomous development agent that works on GitHub Issues/Projects",
+      "capabilities": ["issue-action", "project-plan"]
+    },
+    {
+      "name": "reviewer",
+      "displayName": "Reviewer Agent",
+      "description": "Autonomous review agent that verifies implementation against requirements",
+      "capabilities": ["review-action"]
+    }
+  ]
+}
+```
 
 ---
 
@@ -130,7 +201,7 @@ flowchart LR
 stateDiagram-v2
     [*] --> incomplete: Issue 作成
 
-    incomplete --> in_progress: Iterator 着手
+    incomplete --> in_progress: Agent 着手
     incomplete --> blocked: ブロッカー発見
 
     in_progress --> review_pending: PR 作成
@@ -145,26 +216,56 @@ stateDiagram-v2
     done --> [*]
 ```
 
-### 状態と推奨アクション
+### 状態と推奨 Agent（動的マッチング）
 
-| 状態 | 推奨アクション | 推奨 Agent |
-|------|---------------|------------|
-| `done` | Close 可能 | `none` |
-| `review_pending` | レビュー実施 | `reviewer` |
-| `in_progress` | 作業継続 | `iterator` |
-| `incomplete` | 作業開始 | `iterator` |
-| `blocked` | ブロッカー解消 | 状況による |
-| `unknown` | 追加調査 | `facilitator` (自己継続) |
+| 状態 | 必要な capability | マッチする Agent (例) |
+|------|-------------------|----------------------|
+| `done` | - | `none` |
+| `review_pending` | `review-action` | 発見された Agent から検索 |
+| `in_progress` | `issue-action` | 発見された Agent から検索 |
+| `incomplete` | `issue-action` | 発見された Agent から検索 |
+| `blocked` | 状況による | ブロッカーの性質に応じて |
+| `unknown` | - | `facilitator` (自己継続) |
 
 ---
 
 ## Facilitator の責務 - 定義
 
-### 4つの責務
+### 5つの責務
 
 ```mermaid
 flowchart LR
-    R1[把握] --> R2[判断] --> R3[整備] --> R4[推奨]
+    R0[発見] --> R1[把握] --> R2[判断] --> R3[整備] --> R4[推奨]
+```
+
+### 0. 発見 (Discover)
+
+**目的**: 利用可能な Agent を把握する
+
+**入力**: `.agent/` ディレクトリ
+
+**処理**:
+1. `.agent/*/agent.json` をスキャン
+2. 各 Agent の情報を抽出
+3. Agent Registry を構築
+
+**出力**: Agent Registry
+
+```json
+{
+  "agents": [
+    {
+      "name": "iterator",
+      "description": "Autonomous development agent...",
+      "capabilities": ["issue-action", "project-plan"]
+    },
+    {
+      "name": "reviewer",
+      "description": "Autonomous review agent...",
+      "capabilities": ["review-action"]
+    }
+  ]
+}
 ```
 
 ### 1. 把握 (Grasp)
@@ -184,7 +285,7 @@ flowchart LR
 {
   "events": [
     { "time": "2024-01-15T10:00:00Z", "type": "issue_created", "issue": 123 },
-    { "time": "2024-01-15T11:00:00Z", "type": "iterator_started", "issue": 123 },
+    { "time": "2024-01-15T11:00:00Z", "type": "agent_started", "agent": "iterator", "issue": 123 },
     { "time": "2024-01-15T12:00:00Z", "type": "commit_pushed", "issue": 123, "sha": "abc1234" }
   ]
 }
@@ -261,26 +362,33 @@ flowchart TD
 
 **目的**: 次に呼ぶべき Agent を返す
 
-**入力**: Issue 状態リスト
+**入力**: Issue 状態リスト + Agent Registry
 
 **ロジック**:
 
 ```mermaid
 flowchart TD
-    START[判定結果] --> Q1{review_pending あり?}
+    START[判定結果] --> MATCH[必要な capability を特定]
+    MATCH --> SEARCH[Agent Registry から検索]
+    SEARCH --> FOUND{該当 Agent あり?}
 
-    Q1 -->|Yes| REV[reviewer を推奨]
-    Q1 -->|No| Q2{incomplete あり?}
+    FOUND -->|Yes| SCORE[スコアリング]
+    FOUND -->|No| NONE[none<br/>対応可能な Agent なし]
 
-    Q2 -->|Yes| ITER_START[iterator を推奨<br/>新規着手]
-    Q2 -->|No| Q3{in_progress あり?}
-
-    Q3 -->|Yes| ITER_CONT[iterator を推奨<br/>継続]
-    Q3 -->|No| Q4{blocked のみ?}
-
-    Q4 -->|Yes| BLOCK[ブロッカー解消を推奨]
-    Q4 -->|No| NONE[none<br/>作業不要]
+    SCORE --> OUTPUT[推奨を出力]
 ```
+
+**Agent 選択ロジック**:
+
+1. Issue の状態から必要な capability を特定
+   - `review_pending` → `review-action`
+   - `incomplete`, `in_progress` → `issue-action`
+
+2. Agent Registry から capability を持つ Agent を検索
+
+3. 複数候補がある場合はスコアリング
+   - Agent の description と Issue の内容の適合度
+   - 過去の作業履歴
 
 **出力**: 推奨
 
@@ -288,7 +396,7 @@ flowchart TD
 {
   "nextAgent": "iterator",
   "targetIssues": [123, 125],
-  "reason": "#123 は作業中、#125 は未着手",
+  "reason": "#123 は作業中、#125 は未着手。issue-action capability を持つ iterator を推奨。",
   "priority": "high"
 }
 ```
@@ -303,15 +411,16 @@ Facilitator の完了時には、**次に着手可能な手立て**が示され�
 
 Facilitator は以下を全て満たしたとき完了する:
 
-1. 全 Issue の状態が判定済み (`unknown` が 0)
-2. 次のアクションが特定されている
-3. 整備アクションが実行済み
+1. Agent Registry が構築済み
+2. 全 Issue の状態が判定済み (`unknown` が 0)
+3. 次のアクションが特定されている
+4. 整備アクションが実行済み
 
 ### 完了時に出力すべきもの
 
 | 出力 | 内容 | 目的 |
 |------|------|------|
-| **推奨 Agent** | `iterator` / `reviewer` / `none` | 次に何を呼ぶべきか |
+| **推奨 Agent** | 発見された Agent の name | 次に何を呼ぶべきか |
 | **対象 Issue** | Issue 番号リスト | どの Issue に対して |
 | **理由** | 判断根拠 | なぜそう判断したか |
 | **実行サジェスト** | 具体的なコマンド | すぐに実行できる形で |
@@ -327,15 +436,18 @@ Facilitator は推奨だけでなく、**具体的な実行コマンド**を優�
   "nextAgent": "iterator",
   "targetIssues": [123, 125],
   "reason": "#123 は作業中、#125 は未着手",
+  "availableAgents": ["iterator", "reviewer"],
   "suggestions": [
     {
+      "agent": "iterator",
       "command": "deno task agents:run iterator --issue 123",
       "description": "Issue #123 の実装を継続",
       "priority": "high",
       "score": 0.9,
-      "rationale": "作業中のため継続が効率的"
+      "rationale": "作業中のため継続が効率的。issue-action capability にマッチ。"
     },
     {
+      "agent": "iterator",
       "command": "deno task agents:run iterator --issue 125",
       "description": "Issue #125 の実装を新規着手",
       "priority": "medium",
@@ -343,6 +455,7 @@ Facilitator は推奨だけでなく、**具体的な実行コマンド**を優�
       "rationale": "未着手だが #123 完了後が望ましい"
     },
     {
+      "agent": "reviewer",
       "command": "deno task agents:run reviewer --project 5",
       "description": "レビュー待ち PR がある場合",
       "priority": "low",
@@ -372,12 +485,11 @@ Facilitator は推奨だけでなく、**具体的な実行コマンド**を優�
 
 ### サジェストのパターン
 
-| 推奨 Agent | サジェストコマンド |
-|------------|-------------------|
-| `iterator` (単一 Issue) | `deno task agents:run iterator --issue {N}` |
-| `iterator` (Project) | `deno task agents:run iterator --project {N}` |
-| `reviewer` | `deno task agents:run reviewer --project {N}` |
-| `none` | `gh issue close {N}` または「作業完了」 |
+| 状況 | サジェストコマンド |
+|------|-------------------|
+| 単一 Issue | `deno task agents:run {agent} --issue {N}` |
+| Project 全体 | `deno task agents:run {agent} --project {N}` |
+| 作業不要 | `gh issue close {N}` または「作業完了」 |
 | ブロッカー解消 | ブロッカーの Issue 番号と解消方法を提示 |
 
 ---
@@ -388,17 +500,19 @@ Facilitator は推奨だけでなく、**具体的な実行コマンド**を優�
 
 ```typescript
 interface Suggestion {
+  agent: string;           // 発見された Agent の name
   command: string;
   description: string;
   priority: "high" | "medium" | "low";
-  score: number;  // 0.0 - 1.0
+  score: number;           // 0.0 - 1.0
   rationale: string;
 }
 
 interface RecommendAction {
-  nextAgent: "iterator" | "reviewer" | "none";
+  nextAgent: string;       // 最も推奨される Agent の name
   targetIssues: number[];
   reason: string;
+  availableAgents: string[];  // 発見された全 Agent
   suggestions: Suggestion[];
 }
 ```
@@ -411,6 +525,7 @@ interface IssueAssessment {
   state: "done" | "review_pending" | "in_progress" | "incomplete" | "blocked" | "unknown";
   evidence: string[];
   recommendation: string;
+  requiredCapability?: string;  // この Issue に必要な capability
 }
 ```
 
@@ -425,16 +540,35 @@ interface FacilitateAction {
 }
 ```
 
+### agent-registry
+
+```typescript
+interface AgentInfo {
+  name: string;
+  displayName: string;
+  description: string;
+  capabilities: string[];
+  parameters: Record<string, unknown>;
+}
+
+interface AgentRegistry {
+  agents: AgentInfo[];
+  discoveredAt: string;  // ISO 8601
+}
+```
+
 ---
 
 ## やること / やらないこと
 
 | やること | やらないこと |
 |----------|--------------|
+| Agent を発見する | Agent を実行する |
+| Agent の役割を把握する | Agent の動作を制御する |
 | 状態を把握する | コードを実装する |
 | 状態を判定する | PR をレビューする |
 | コメントで状況を明確化する | Issue を直接クローズする |
-| 次の Agent を推奨する | ブランチを操作する |
+| 適切な Agent を推奨する | ブランチを操作する |
 | 完了条件の更新を提案する | テストを実行する |
 | ラベルを付与する | マージを実行する |
 
@@ -459,6 +593,7 @@ deno task agents:run facilitator --project 5 --project-owner "username"
 |------|------|------------|
 | `iterateMax` | 最大イテレーション数 | 50 |
 | `checkInterval` | チェック間隔 (分) | 30 |
+| `agentDiscoveryPath` | Agent 発見パス | `.agent/` |
 
 ## Prompt Structure
 
@@ -467,6 +602,7 @@ prompts/
 ├── system.md                              # システムプロンプト (責務の定義)
 └── steps/
     ├── initial/
+    │   ├── discover/f_default.md          # 発見: Agent 発見
     │   ├── statuscheck/f_default.md       # 把握: 状態チェック
     │   ├── blockercheck/f_default.md      # 把握: ブロッカーチェック
     │   ├── stalecheck/f_default.md        # 把握: 古いアイテムチェック
