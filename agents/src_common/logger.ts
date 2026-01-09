@@ -137,7 +137,7 @@ export class Logger {
     switch (type) {
       case "assistant":
         this.debug("Assistant response", {
-          content: String(msg.message).substring(0, 200),
+          content: this.extractTextContent(msg.message).substring(0, 200),
         });
         break;
       case "tool_use":
@@ -155,6 +155,30 @@ export class Logger {
       default:
         this.debug(`SDK message: ${type}`);
     }
+  }
+
+  private extractTextContent(message: unknown): string {
+    if (typeof message === "string") {
+      return message;
+    }
+    if (typeof message === "object" && message !== null) {
+      const msg = message as Record<string, unknown>;
+      if (typeof msg.content === "string") {
+        return msg.content;
+      }
+      if (Array.isArray(msg.content)) {
+        return msg.content
+          .filter(
+            (c) =>
+              typeof c === "object" &&
+              c !== null &&
+              (c as Record<string, unknown>).type === "text",
+          )
+          .map((c) => (c as Record<string, unknown>).text as string)
+          .join("\n");
+      }
+    }
+    return JSON.stringify(message);
   }
 
   async close(): Promise<void> {

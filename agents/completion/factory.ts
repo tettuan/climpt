@@ -54,6 +54,16 @@ export async function createCompletionHandler(
 
   let handler: CompletionHandler;
 
+  // If --issue is provided, always use IssueCompletionHandler regardless of completionType
+  if (args.issue !== undefined) {
+    const issueHandler = new IssueCompletionHandler(
+      args.issue as number,
+      args.repository as string | undefined,
+    );
+    issueHandler.setPromptResolver(promptResolver);
+    return issueHandler;
+  }
+
   switch (completionType) {
     case "issue": {
       const issueHandler = new IssueCompletionHandler(
