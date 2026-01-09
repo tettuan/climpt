@@ -1,36 +1,94 @@
 # Facilitator Agent
 
-An autonomous facilitator agent focused on project health monitoring and smooth
-progress facilitation.
+An autonomous facilitator agent focused on project state analysis and enabling
+next actions for other agents.
 
 ## Overview
 
 The facilitator agent is designed around the concept of "場の制御" (field
-management) - creating conditions for productive work rather than directing the
-work itself. It observes, identifies issues, and provides recommendations
-without taking over the execution.
+control) - maintaining the project in an actionable state so other agents can
+proceed with their work.
 
-## Key Concepts
+## 場の制御 (Field Control) - Definition
 
-### Field Management (場の制御)
+### 前提 (Premise)
 
-- Focus on environment and conditions
-- Enable autonomous work by others
-- Remove obstacles silently
-- Support rather than direct
+Iterator や Reviewer が作業した後、あるいは何をしたか不明な状態である。
 
-### Status Awareness
+### 疑問 (Questions to Resolve)
 
-- Continuous project health monitoring
-- Proactive issue identification
-- Data-driven insights
+- Project 内の残 issue は実施が必要なのか？
+- 次に何をすべきか？
+- Issue は作業後に追加されたのか？作業前からあるものが残ったのか？
+- どこまで進んだのか？
 
-### Smooth Progress Facilitation
+### 確認すること (Analysis)
 
-- Identify blockers early
-- Flag stale items
-- Suggest priorities based on analysis
-- Connect related work items
+作業ログ、commit、残 issue を並べて時系列に分析する:
+
+1. **作業ログ確認** - Agent のセッションログから実行履歴を把握
+2. **Commit 履歴** - 実際に行われた変更を確認
+3. **残 Issue 分析** - Project 内の未完了 issue の状態を確認
+4. **Issue コメント** - 疑問が残れば issue のコメントを確認
+
+### 判断 (Decision)
+
+| 状況           | 対応                                                   |
+| -------------- | ------------------------------------------------------ |
+| 作業継続が必要 | Issue にコメントし作業を促す、完了条件を Update        |
+| 作業不要       | Close が必要か判断が必要である旨、コメントを残す       |
+| ブロッカーあり | ブロッカーを明示し、解消方法を提案                     |
+| 状態不明       | 追加調査が必要な項目を明記                             |
+
+**重要**: 着手可能な状態を維持することが目的。
+
+### 完了時 (Completion)
+
+他の Agent に何をさせるべきかを返す:
+
+```json
+{
+  "recommendation": {
+    "nextAgent": "iterator | reviewer | none",
+    "targetIssues": [123, 456],
+    "reason": "Why this action is recommended"
+  }
+}
+```
+
+### 狙い (Goal)
+
+Project / Issue の状態が、実装状況と照らして手を打つべきなのか判断する:
+
+- Iterator を呼ぶべきか？（実装作業が必要）
+- Reviewer を呼ぶべきか？（レビュー待ちがある）
+- 何もしなくてよいか？（全て完了、または判断待ち）
+
+## Workflow
+
+```
+[Iterator/Reviewer 作業後]
+         │
+         ▼
+    ┌─────────────────┐
+    │  状態分析       │  ← 作業ログ、commit、残issue
+    └────────┬────────┘
+             │
+             ▼
+    ┌─────────────────┐
+    │  疑問解消       │  ← Issue コメント確認
+    └────────┬────────┘
+             │
+             ▼
+    ┌─────────────────┐
+    │  判断・対応     │  ← コメント追加、状態更新
+    └────────┬────────┘
+             │
+             ▼
+    ┌─────────────────┐
+    │  推奨アクション │  ← 次に呼ぶべき Agent を返す
+    └─────────────────┘
+```
 
 ## Usage
 
@@ -45,23 +103,39 @@ deno task agents:run facilitator --project 5 --label "sprint-1"
 deno task agents:run facilitator --project 5 --project-owner "username"
 ```
 
-## Actions
+## Outputs
 
-The facilitator outputs structured action blocks:
+### Health Score
+
+プロジェクト健全性スコア (0-100):
+
+- Blocked issue: -15 点/件
+- Stale issue (7 日以上更新なし): -10 点/件
+- 完了率ボーナス: 最大 +20 点
 
 ### facilitate-action
 
-- `status` - Report project status
-- `attention` - Flag issue needing attention
-- `blocker` - Report identified blocker
-- `suggest` - Suggest prioritization
-- `stale` - Mark item as stale
+- `status` - プロジェクト状態レポート
+- `attention` - 注意が必要な issue を通知
+- `blocker` - ブロッカーを報告
+- `suggest` - 優先度を提案
+- `stale` - Stale アイテムをマーク
 
 ### status-report
 
-- `check` - Status check result
-- `daily` - Daily status report
-- `cycle-complete` - End of facilitation cycle
+- `check` - 状態チェック結果
+- `daily` - 日次状態レポート
+- `cycle-complete` - 確認サイクル完了
+
+### recommendation
+
+```json
+{
+  "nextAgent": "iterator",
+  "targetIssues": [123],
+  "reason": "Issue #123 has pending implementation work"
+}
+```
 
 ## Configuration
 
