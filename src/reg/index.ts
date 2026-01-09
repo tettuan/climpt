@@ -131,7 +131,9 @@ async function resolveWithFallback(
     return { path: localPath, isTemp: false };
   }
 
+  // deno-lint-ignore no-console
   console.log(`  Local file not found: ${localPath}`);
+  // deno-lint-ignore no-console
   console.log(`  Fetching from JSR package...`);
 
   const tempPath = await fetchFromJsr(jsrPath, filename);
@@ -141,11 +143,14 @@ async function resolveWithFallback(
 /**
  * Clean up temp files
  */
-async function cleanupTemp(paths: { path: string; isTemp: boolean }[]) {
+async function cleanupTemp(
+  paths: { path: string; isTemp: boolean }[],
+): Promise<void> {
   for (const { path, isTemp } of paths) {
     if (isTemp) {
       try {
         const dir = path.substring(0, path.lastIndexOf("/"));
+        // deno-lint-ignore no-await-in-loop
         await Deno.remove(dir, { recursive: true });
       } catch {
         // Ignore cleanup errors
@@ -271,7 +276,8 @@ function parseArgs(args: string[]): GenerateOptions {
 /**
  * Print help message
  */
-function printHelp() {
+function printHelp(): void {
+  // deno-lint-ignore no-console
   console.log(`
 Usage: deno run jsr:@aidevtool/climpt/reg [options]
 
@@ -300,19 +306,25 @@ Examples:
 /**
  * Main CLI entry point
  */
-export async function main(args: string[] = Deno.args) {
+export async function main(args: string[] = Deno.args): Promise<void> {
   const options = parseArgs(args);
 
+  // deno-lint-ignore no-console
   console.log("Generating registry.json from prompt frontmatter...");
 
   try {
     const { processedDocuments, outputPath, executionTime } =
       await generateRegistry(options);
+    // deno-lint-ignore no-console
     console.log(`\nSuccess! Generated registry.json`);
+    // deno-lint-ignore no-console
     console.log(`  Processed: ${processedDocuments} documents`);
+    // deno-lint-ignore no-console
     console.log(`  Output: ${outputPath}`);
+    // deno-lint-ignore no-console
     console.log(`  Time: ${executionTime}ms`);
   } catch (error) {
+    // deno-lint-ignore no-console
     console.error(`\nError:`, error);
     Deno.exit(1);
   }

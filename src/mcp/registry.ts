@@ -32,11 +32,14 @@ export async function loadMCPConfig(): Promise<MCPConfig> {
   ];
 
   // Try to load existing config
+  // Sequential execution required: try paths in priority order, return on first success
   for (const configPath of configPaths) {
     try {
+      // deno-lint-ignore no-await-in-loop
       const configText = await Deno.readTextFile(configPath);
       const config = JSON.parse(configText) as MCPConfig;
-      console.error(`⚙️ Loaded MCP config from ${configPath}`);
+      // deno-lint-ignore no-console
+      console.error(`Loaded MCP config from ${configPath}`);
       return config;
     } catch {
       // Continue to next path
@@ -51,9 +54,11 @@ export async function loadMCPConfig(): Promise<MCPConfig> {
       defaultConfigPath,
       JSON.stringify(DEFAULT_MCP_CONFIG, null, 2),
     );
-    console.error(`✨ Created default MCP config at ${defaultConfigPath}`);
+    // deno-lint-ignore no-console
+    console.error(`Created default MCP config at ${defaultConfigPath}`);
   } catch (error) {
-    console.error("⚠️ Failed to create MCP config:", error);
+    // deno-lint-ignore no-console
+    console.error("Failed to create MCP config:", error);
   }
 
   return DEFAULT_MCP_CONFIG;
@@ -76,7 +81,8 @@ export async function loadRegistryForAgent(
 ): Promise<Command[]> {
   const registryPath = config.registries[agentName];
   if (!registryPath) {
-    console.error(`⚠️ No registry path configured for agent: ${agentName}`);
+    // deno-lint-ignore no-console
+    console.error(`No registry path configured for agent: ${agentName}`);
     return [];
   }
 
@@ -95,13 +101,15 @@ export async function loadRegistryForAgent(
     const registry: Registry = JSON.parse(configText);
     const commands = registry.tools?.commands || [];
 
+    // deno-lint-ignore no-console
     console.error(
-      `⚙️ Loaded ${commands.length} commands for agent '${agentName}'`,
+      `Loaded ${commands.length} commands for agent '${agentName}'`,
     );
     return commands;
   } catch (error) {
+    // deno-lint-ignore no-console
     console.error(
-      `⚠️ Failed to load registry for agent '${agentName}':`,
+      `Failed to load registry for agent '${agentName}':`,
       error,
     );
     return [];

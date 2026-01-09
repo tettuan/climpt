@@ -64,6 +64,10 @@ Use these structured outputs to communicate with the Issue.
 ```
 
 ## Complete Issue (when done)
+
+**IMPORTANT: Before closing, ensure all changes are committed.**
+Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+
 ```issue-action
 {"action":"close","issue":ISSUE_NUMBER,"body":"## Resolution\n- What was implemented\n- How it was verified"}
 ```

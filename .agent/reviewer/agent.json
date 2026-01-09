@@ -1,0 +1,84 @@
+{
+  "$schema": "../../schemas/agent-definition.schema.json",
+  "version": "1.10.0",
+  "name": "reviewer",
+  "displayName": "Reviewer Agent",
+  "description": "Autonomous review agent that verifies implementation against requirements in GitHub Projects",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "custom",
+    "completionConfig": {
+      "handlerPath": "completion/review.ts",
+      "maxIterations": 50
+    },
+    "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
+    "permissionMode": "plan"
+  },
+  "parameters": {
+    "project": {
+      "type": "number",
+      "description": "GitHub Project number to review",
+      "required": true,
+      "cli": "--project"
+    },
+    "requirementsLabel": {
+      "type": "string",
+      "description": "Label for requirement/specification issues",
+      "required": false,
+      "default": "docs",
+      "cli": "--requirements-label"
+    },
+    "reviewLabel": {
+      "type": "string",
+      "description": "Label for issues to review",
+      "required": false,
+      "default": "review",
+      "cli": "--review-label"
+    },
+    "iterateMax": {
+      "type": "number",
+      "description": "Maximum number of iterations",
+      "required": false,
+      "default": 50,
+      "cli": "--iterate-max"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Working branch name for worktree mode",
+      "required": false,
+      "cli": "--branch"
+    },
+    "baseBranch": {
+      "type": "string",
+      "description": "Base branch (merge target) for worktree mode",
+      "required": false,
+      "cli": "--base-branch"
+    }
+  },
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "actions": {
+    "enabled": true,
+    "types": ["review-action"],
+    "outputFormat": "json"
+  },
+  "github": {
+    "enabled": true,
+    "labels": {
+      "requirements": "docs",
+      "review": "review",
+      "gap": "implementation-gap"
+    }
+  },
+  "worktree": {
+    "enabled": true,
+    "root": "../worktree"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/reviewer",
+    "format": "jsonl",
+    "maxFiles": 100
+  }
+}

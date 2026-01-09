@@ -20,7 +20,7 @@ const DEFAULT_OPTIONS: InitOptions = {
 };
 
 /**
- * climpt init メイン処理
+ * Main processing for climpt init
  */
 export async function runInit(args: string[]): Promise<InitResult> {
   const options = parseInitArgs(args);
@@ -31,9 +31,11 @@ export async function runInit(args: string[]): Promise<InitResult> {
     errors: [],
   };
 
+  // deno-lint-ignore no-console
   console.log("\nInitializing Climpt...\n");
 
-  // Phase 1: 環境検出
+  // Phase 1: Environment detection
+  // deno-lint-ignore no-console
   console.log("Phase 1: Detecting existing configuration");
   const detection = await detectExisting(
     options.projectRoot,
@@ -41,20 +43,25 @@ export async function runInit(args: string[]): Promise<InitResult> {
   );
 
   if (detection.hasWorkingDir) {
+    // deno-lint-ignore no-console
     console.log(`  Working directory: ${options.workingDir} (found)`);
   } else {
+    // deno-lint-ignore no-console
     console.log(`  Working directory: ${options.workingDir} (not found)`);
   }
 
-  // 上書き確認
+  // Confirm overwrite
   if (hasExistingFiles(detection) && !options.force) {
+    // deno-lint-ignore no-console
     console.log("\nExisting configuration detected.");
+    // deno-lint-ignore no-console
     console.log("Use --force to overwrite existing files.");
     result.success = false;
     return result;
   }
 
-  // Phase 2: 基本構成初期化（ディレクトリ作成のみ）
+  // Phase 2: Basic configuration initialization (directory creation only)
+  // deno-lint-ignore no-console
   console.log("\nPhase 2: Basic configuration initialization");
   try {
     const basicResult = await initBasic(
@@ -68,8 +75,9 @@ export async function runInit(args: string[]): Promise<InitResult> {
     result.errors.push(`Basic init failed: ${errorMessage}`);
   }
 
-  // Phase 3: Meta Domain初期化
+  // Phase 3: Meta Domain initialization
   if (!options.skipMeta) {
+    // deno-lint-ignore no-console
     console.log("\nPhase 3: Meta domain initialization");
     try {
       const fullWorkingDir = resolve(options.projectRoot, options.workingDir);
@@ -83,11 +91,13 @@ export async function runInit(args: string[]): Promise<InitResult> {
       result.errors.push(`Meta init failed: ${errorMessage}`);
     }
   } else {
+    // deno-lint-ignore no-console
     console.log("\nPhase 3: Meta domain initialization (skipped)");
   }
 
-  // Phase 4: Registry & Schema初期化
+  // Phase 4: Registry & Schema initialization
   if (!options.skipRegistry) {
+    // deno-lint-ignore no-console
     console.log("\nPhase 4: Registry & Schema initialization");
     try {
       const registryResult = await initRegistryAndSchema(
@@ -104,16 +114,19 @@ export async function runInit(args: string[]): Promise<InitResult> {
       result.errors.push(`Registry init failed: ${errorMessage}`);
     }
   } else {
+    // deno-lint-ignore no-console
     console.log("\nPhase 4: Registry & Schema initialization (skipped)");
   }
 
-  // Phase 5: Registry Generation (プロンプトからregistry.json生成)
+  // Phase 5: Registry Generation (generate registry.json from prompts)
   if (!options.skipRegistry && !options.skipMeta) {
+    // deno-lint-ignore no-console
     console.log("\nPhase 5: Generating registry from prompts");
     try {
       const genResult = await generateRegistry({
         baseDir: options.projectRoot,
       });
+      // deno-lint-ignore no-console
       console.log(`  Generated: ${genResult.processedDocuments} commands`);
     } catch (error) {
       const errorMessage = error instanceof Error
@@ -122,10 +135,11 @@ export async function runInit(args: string[]): Promise<InitResult> {
       result.errors.push(`Registry generation failed: ${errorMessage}`);
     }
   } else {
+    // deno-lint-ignore no-console
     console.log("\nPhase 5: Registry generation (skipped)");
   }
 
-  // 完了メッセージ
+  // Completion message
   printSummary(result, options);
 
   result.success = result.errors.length === 0;
@@ -133,7 +147,7 @@ export async function runInit(args: string[]): Promise<InitResult> {
 }
 
 /**
- * CLI引数をパース
+ * Parse CLI arguments
  */
 function parseInitArgs(args: string[]): InitOptions {
   const options = { ...DEFAULT_OPTIONS };
@@ -154,49 +168,67 @@ function parseInitArgs(args: string[]): InitOptions {
 }
 
 /**
- * 結果サマリーを表示
+ * Display result summary
  */
 function printSummary(result: InitResult, options: InitOptions): void {
+  // deno-lint-ignore no-console
   console.log("\n" + "=".repeat(50));
+  // deno-lint-ignore no-console
   console.log("Initialization complete!");
+  // deno-lint-ignore no-console
   console.log("=".repeat(50));
 
   if (result.created.length > 0) {
+    // deno-lint-ignore no-console
     console.log(`\nCreated (${result.created.length} items)`);
   }
 
   if (result.skipped.length > 0) {
+    // deno-lint-ignore no-console
     console.log(`Skipped (${result.skipped.length} items - already exist)`);
   }
 
   if (result.errors.length > 0) {
+    // deno-lint-ignore no-console
     console.log(`\nErrors:`);
     for (const error of result.errors) {
+      // deno-lint-ignore no-console
       console.log(`  - ${error}`);
     }
   }
 
+  // deno-lint-ignore no-console
   console.log("\nAvailable meta commands:");
+  // deno-lint-ignore no-console
   console.log(
     "  climpt-meta build frontmatter    # Generate C3L frontmatter for new instruction",
   );
+  // deno-lint-ignore no-console
   console.log(
     "  climpt-meta create instruction   # Create new Climpt instruction file",
   );
 
+  // deno-lint-ignore no-console
   console.log("\nNext steps:");
+  // deno-lint-ignore no-console
   console.log("  1. Create new instruction:");
+  // deno-lint-ignore no-console
   console.log(
     '     echo "Domain: code, Action: review, Target: pull-request" | climpt-meta create instruction',
   );
+  // deno-lint-ignore no-console
   console.log(
     `  2. Or add prompts manually to ${options.workingDir}/prompts/<domain>/`,
   );
+  // deno-lint-ignore no-console
   console.log(
     "  3. After adding prompts, run 'climpt generate-registry' to update registry",
   );
 
+  // deno-lint-ignore no-console
   console.log("\nClaude Code Plugin:");
+  // deno-lint-ignore no-console
   console.log("  /plugin marketplace add tettuan/climpt");
+  // deno-lint-ignore no-console
   console.log("  /plugin install climpt-agent");
 }

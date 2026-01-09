@@ -210,18 +210,21 @@ export async function mergeBranch(
     };
   }
 
-  // Try each strategy in order
+  // Sequential execution required: try strategies one at a time until success
   for (const strategy of strategies) {
     let result: MergeResult;
 
     switch (strategy) {
       case "fast-forward":
+        // deno-lint-ignore no-await-in-loop
         result = await tryFastForward(sourceBranch, cwd);
         break;
       case "squash":
+        // deno-lint-ignore no-await-in-loop
         result = await trySquash(sourceBranch, cwd);
         break;
       case "merge-commit":
+        // deno-lint-ignore no-await-in-loop
         result = await tryMergeCommit(sourceBranch, cwd);
         break;
     }
@@ -252,6 +255,38 @@ export async function mergeBranch(
 export async function hasUncommittedChanges(cwd?: string): Promise<boolean> {
   const result = await runGit(["status", "--porcelain"], cwd);
   return result.output.length > 0;
+}
+
+/**
+ * Auto-commit all changes with the given message
+ *
+ * This is used to ensure worktree changes are preserved before cleanup.
+ *
+ * @param message - Commit message
+ * @param cwd - Working directory
+ * @returns true if commit succeeded, false otherwise
+ */
+export async function autoCommitChanges(
+  message: string,
+  cwd?: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Stage all changes (including untracked)
+  const addResult = await runGit(["add", "-A"], cwd);
+  if (!addResult.success) {
+    return { success: false, error: addResult.error };
+  }
+
+  // Commit
+  const commitResult = await runGit(["commit", "-m", message], cwd);
+  if (!commitResult.success) {
+    // "nothing to commit" is not an error
+    if (commitResult.error.includes("nothing to commit")) {
+      return { success: true };
+    }
+    return { success: false, error: commitResult.error };
+  }
+
+  return { success: true };
 }
 
 /**

@@ -42,7 +42,7 @@ async function ensureDir(path: string): Promise<void> {
 }
 
 /**
- * Registry & Schema初期化を実行
+ * Execute Registry & Schema initialization
  */
 export async function initRegistryAndSchema(
   projectRoot: string,
@@ -52,12 +52,12 @@ export async function initRegistryAndSchema(
   const result = { created: [] as string[], skipped: [] as string[] };
   const fullWorkingDir = resolve(projectRoot, workingDir);
 
-  // 1. frontmatter-to-schema/ 配置
+  // 1. Deploy frontmatter-to-schema/ files
   const schemaResult = await deploySchemaFiles(fullWorkingDir, force);
   result.created.push(...schemaResult.created);
   result.skipped.push(...schemaResult.skipped);
 
-  // 2. registry_config.json 生成
+  // 2. Generate registry_config.json
   const configResult = await createRegistryConfig(
     fullWorkingDir,
     workingDir,
@@ -66,7 +66,7 @@ export async function initRegistryAndSchema(
   result.created.push(...configResult.created);
   result.skipped.push(...configResult.skipped);
 
-  // 3. registry.json 初期化
+  // 3. Initialize registry.json
   const registryResult = await initRegistry(fullWorkingDir, force);
   result.created.push(...registryResult.created);
   result.skipped.push(...registryResult.skipped);
@@ -75,7 +75,7 @@ export async function initRegistryAndSchema(
 }
 
 /**
- * frontmatter-to-schema ファイルを配置
+ * Deploy frontmatter-to-schema files
  */
 async function deploySchemaFiles(
   workingDir: string,
@@ -86,11 +86,13 @@ async function deploySchemaFiles(
 
   if ((await exists(schemaDir)) && !force) {
     result.skipped.push(schemaDir);
+    // deno-lint-ignore no-console
     console.log(`  Skip: ${schemaDir} (already exists)`);
     return result;
   }
 
   await ensureDir(schemaDir);
+  // deno-lint-ignore no-console
   console.log(`  Created: ${schemaDir}`);
 
   for (const fileName of SCHEMA_FILES) {
@@ -98,8 +100,10 @@ async function deploySchemaFiles(
     const embedded = getEmbeddedSchema(fileName);
 
     if (embedded) {
+      // deno-lint-ignore no-await-in-loop
       await Deno.writeTextFile(filePath, embedded);
       result.created.push(filePath);
+      // deno-lint-ignore no-console
       console.log(`  Deployed: ${fileName}`);
     }
   }
@@ -108,7 +112,7 @@ async function deploySchemaFiles(
 }
 
 /**
- * 埋め込みスキーマを取得
+ * Get embedded schema
  * Note: These schemas must match the full versions in .agent/climpt/frontmatter-to-schema/
  * The x- attributes are required by @aidevtool/frontmatter-to-schema for aggregation
  */
@@ -284,7 +288,7 @@ function getEmbeddedSchema(fileName: string): string | null {
 }
 
 /**
- * registry_config.json を生成
+ * Generate registry_config.json
  */
 async function createRegistryConfig(
   workingDir: string,
@@ -296,11 +300,12 @@ async function createRegistryConfig(
 
   if ((await exists(configPath)) && !force) {
     result.skipped.push(configPath);
+    // deno-lint-ignore no-console
     console.log(`  Skip: ${configPath} (already exists)`);
     return result;
   }
 
-  // プロジェクトルートからの相対パスで設定
+  // Configure with relative path from project root
   const registryConfig = {
     registries: {
       climpt: `${workingDirRelative}/registry.json`,
@@ -312,13 +317,14 @@ async function createRegistryConfig(
     JSON.stringify(registryConfig, null, 2) + "\n",
   );
   result.created.push(configPath);
+  // deno-lint-ignore no-console
   console.log(`  Created: ${configPath}`);
 
   return result;
 }
 
 /**
- * registry.json を初期化
+ * Initialize registry.json
  */
 async function initRegistry(
   workingDir: string,
@@ -329,6 +335,7 @@ async function initRegistry(
 
   if ((await exists(registryPath)) && !force) {
     result.skipped.push(registryPath);
+    // deno-lint-ignore no-console
     console.log(`  Skip: ${registryPath} (already exists)`);
     return result;
   }
@@ -347,6 +354,7 @@ async function initRegistry(
     JSON.stringify(registry, null, 2) + "\n",
   );
   result.created.push(registryPath);
+  // deno-lint-ignore no-console
   console.log(`  Created: ${registryPath}`);
 
   return result;

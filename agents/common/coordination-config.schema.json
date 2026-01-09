@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "coordination-config.schema.json",
+  "title": "Agent Coordination Configuration",
+  "type": "object",
+  "required": ["version", "labels", "handoff"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "labels": {
+      "type": "object",
+      "required": ["requirements", "review", "gap", "fromReviewer", "feedback"],
+      "properties": {
+        "requirements": { "type": "string" },
+        "review": { "type": "string" },
+        "gap": { "type": "string" },
+        "fromReviewer": { "type": "string" },
+        "feedback": { "type": "string" }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "required": [
+        "iteratorToReviewer",
+        "reviewerToIterator",
+        "reviewerComplete"
+      ],
+      "properties": {
+        "iteratorToReviewer": {
+          "type": "object",
+          "required": ["trigger", "action", "commentTemplate"],
+          "properties": {
+            "trigger": {
+              "enum": ["internal-review-pass", "all-issues-closed", "manual"]
+            },
+            "action": {
+              "enum": ["add-review-label", "comment-only", "none"]
+            },
+            "commentTemplate": { "type": "string" }
+          }
+        },
+        "reviewerToIterator": {
+          "type": "object",
+          "required": ["trigger", "action", "issueTemplate"],
+          "properties": {
+            "trigger": { "const": "gaps-found" },
+            "action": { "const": "create-gap-issues" },
+            "issueTemplate": {
+              "type": "object",
+              "required": ["titlePrefix", "labels", "bodyTemplate"],
+              "properties": {
+                "titlePrefix": { "type": "string" },
+                "labels": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "bodyTemplate": { "type": "string" }
+              }
+            }
+          }
+        },
+        "reviewerComplete": {
+          "type": "object",
+          "required": ["trigger", "action", "commentTemplate"],
+          "properties": {
+            "trigger": { "const": "no-gaps" },
+            "action": {
+              "enum": ["close-review-issue", "comment-only", "none"]
+            },
+            "commentTemplate": { "type": "string" }
+          }
+        }
+      }
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "maxAttempts": { "type": "integer", "minimum": 1, "default": 3 },
+        "delayMs": { "type": "integer", "minimum": 0, "default": 1000 },
+        "backoffMultiplier": { "type": "number", "minimum": 1, "default": 2 }
+      }
+    },
+    "orchestration": {
+      "type": "object",
+      "properties": {
+        "maxCycles": { "type": "integer", "minimum": 1, "default": 5 },
+        "cycleDelayMs": { "type": "integer", "minimum": 0, "default": 5000 },
+        "autoTrigger": { "type": "boolean", "default": false }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "correlationIdFormat": { "type": "string" },
+        "retainDays": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "properties": {
+        "idFormat": { "type": "string" },
+        "requireInGapIssues": { "type": "boolean" }
+      }
+    }
+  }
+}

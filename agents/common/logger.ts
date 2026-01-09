@@ -22,16 +22,24 @@ export class Logger {
   private maxFiles: number;
   private logDir: string;
   private stepCounter: number = 0;
+  private correlationId?: string;
 
   /**
    * Create a new Logger instance
    *
    * @param logDir - Directory to store log files
    * @param _agentName - Agent name (used in directory path)
+   * @param correlationId - Optional correlation ID for tracing
    * @param maxFiles - Maximum number of log files to keep
    */
-  constructor(logDir: string, _agentName: AgentName, maxFiles: number = 100) {
+  constructor(
+    logDir: string,
+    _agentName: AgentName,
+    correlationId?: string,
+    maxFiles: number = 100,
+  ) {
     this.logDir = logDir;
+    this.correlationId = correlationId;
     this.maxFiles = maxFiles;
 
     // Generate log file path with ISO timestamp
@@ -90,6 +98,7 @@ export class Logger {
       timestamp: new Date().toISOString(),
       level,
       message,
+      correlationId: this.correlationId,
       metadata,
     };
 
@@ -167,14 +176,16 @@ export class Logger {
     // Delete oldest files if count exceeds maxFiles
     const filesToDelete = files.length - this.maxFiles + 1; // +1 for new file
     if (filesToDelete > 0) {
-      for (let i = 0; i < filesToDelete; i++) {
-        const filePath = join(this.logDir, files[i].name);
+      const deletePromises = files.slice(0, filesToDelete).map(async (file) => {
+        const filePath = join(this.logDir, file.name);
         try {
           await Deno.remove(filePath);
         } catch (error) {
+          // deno-lint-ignore no-console
           console.warn(`Failed to delete old log file ${filePath}:`, error);
         }
-      }
+      });
+      await Promise.all(deletePromises);
     }
   }
 
@@ -191,15 +202,17 @@ export class Logger {
  *
  * @param logDir - Log directory
  * @param agentName - Agent name
+ * @param correlationId - Optional correlation ID for tracing
  * @param maxFiles - Maximum log files to keep
  * @returns Initialized logger instance
  */
 export async function createLogger(
   logDir: string,
   agentName: AgentName,
+  correlationId?: string,
   maxFiles: number = 100,
 ): Promise<Logger> {
-  const logger = new Logger(logDir, agentName, maxFiles);
+  const logger = new Logger(logDir, agentName, correlationId, maxFiles);
   await logger.initialize();
   return logger;
 }

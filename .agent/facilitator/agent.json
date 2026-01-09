@@ -1,0 +1,102 @@
+{
+  "$schema": "../../schemas/agent-definition.schema.json",
+  "version": "1.10.0",
+  "name": "facilitator",
+  "displayName": "Facilitator Agent",
+  "description": "Autonomous facilitator agent that monitors project status and ensures smooth progress through field management rather than direct control",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "project",
+    "completionConfig": {
+      "maxIterations": 50
+    },
+    "allowedTools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Task",
+      "WebFetch"
+    ],
+    "permissionMode": "bypassPermissions"
+  },
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to work on (takes priority over project)",
+      "required": false,
+      "cli": "--issue"
+    },
+    "project": {
+      "type": "number",
+      "description": "GitHub Project number to facilitate",
+      "required": false,
+      "cli": "--project"
+    },
+    "projectOwner": {
+      "type": "string",
+      "description": "GitHub Project owner (user login or org name)",
+      "required": false,
+      "cli": "--project-owner"
+    },
+    "label": {
+      "type": "string",
+      "description": "Filter project issues by label",
+      "required": false,
+      "cli": "--label"
+    },
+    "iterateMax": {
+      "type": "number",
+      "description": "Maximum number of iterations",
+      "required": false,
+      "default": 50,
+      "cli": "--iterate-max"
+    },
+    "checkInterval": {
+      "type": "number",
+      "description": "Status check interval in minutes",
+      "required": false,
+      "default": 30,
+      "cli": "--check-interval"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Working branch name for worktree mode",
+      "required": false,
+      "cli": "--branch"
+    },
+    "baseBranch": {
+      "type": "string",
+      "description": "Base branch (merge target) for worktree mode",
+      "required": false,
+      "cli": "--base-branch"
+    }
+  },
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "actions": {
+    "enabled": true,
+    "types": ["facilitate-action", "status-report"],
+    "outputFormat": "json"
+  },
+  "github": {
+    "enabled": true,
+    "labels": {
+      "blocked": "need clearance",
+      "attention": "needs-attention",
+      "stale": "stale"
+    }
+  },
+  "worktree": {
+    "enabled": true,
+    "root": "../worktree"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/facilitator",
+    "format": "jsonl",
+    "maxFiles": 100
+  }
+}
