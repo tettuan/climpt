@@ -27,3 +27,11 @@ export {
 export { IterateCompletionHandler } from "./iterate.ts";
 
 export { ManualCompletionHandler } from "./manual.ts";
+
+export {
+  type BlockerInfo,
+  FacilitatorCompletionHandler,
+  type FacilitatorPhase,
+  type FacilitatorReport,
+  type ProjectStatus,
+} from "./facilitator.ts";

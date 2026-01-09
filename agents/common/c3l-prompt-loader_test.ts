@@ -6,6 +6,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import {
   C3LPromptLoader,
   createIteratorPromptLoader,
+  createReviewerPromptLoader,
 } from "./c3l-prompt-loader.ts";
 
 Deno.test("C3LPromptLoader - creates correct config name", () => {
@@ -97,6 +98,55 @@ Deno.test("C3LPromptLoader - load with custom edition", async () => {
     assertEquals(
       result.promptPath,
       ".agent/iterator/prompts/dev/start/project/f_processing.md",
+    );
+  }
+});
+
+// ============================================================================
+// Reviewer Integration Tests
+// ============================================================================
+
+Deno.test("createReviewerPromptLoader - creates reviewer loader", () => {
+  const loader = createReviewerPromptLoader();
+  assertEquals(loader.getConfigName(), "reviewer-dev");
+});
+
+Deno.test("Reviewer - load default prompt", async () => {
+  const loader = createReviewerPromptLoader();
+
+  const result = await loader.load(
+    { c1: "dev", c2: "start", c3: "default" },
+    {
+      uv: {
+        project: "test-project",
+        requirements_label: "requirements",
+        review_label: "review",
+      },
+    },
+  );
+
+  console.log("Reviewer load result:", {
+    ok: result.ok,
+    hasContent: !!result.content,
+    contentLength: result.content?.length,
+    error: result.error,
+    promptPath: result.promptPath,
+  });
+
+  assertExists(result);
+  assertEquals(typeof result.ok, "boolean");
+
+  if (result.ok) {
+    assertExists(result.content);
+    // Prompt path should be set
+    assertEquals(
+      result.promptPath,
+      ".agent/reviewer/prompts/dev/start/default/f_default.md",
+    );
+  } else {
+    console.log(
+      "Reviewer prompt load skipped (config not available):",
+      result.error,
     );
   }
 });

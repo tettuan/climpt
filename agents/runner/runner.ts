@@ -16,6 +16,7 @@ import { PromptResolver } from "../prompts/resolver.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
+import { mergeSandboxConfig } from "./sandbox-defaults.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -200,9 +201,14 @@ export class AgentRunner {
         resume: sessionId,
       };
 
-      // Disable sandbox if configured
-      if (this.definition.behavior.disableSandbox) {
+      // Configure sandbox (merge agent config with defaults)
+      const sandboxConfig = mergeSandboxConfig(
+        this.definition.behavior.sandboxConfig,
+      );
+      if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;
+      } else {
+        queryOptions.sandbox = sandboxConfig;
       }
 
       const queryIterator = query({
