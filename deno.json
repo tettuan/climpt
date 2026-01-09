@@ -53,7 +53,8 @@
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
     "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
-    "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer"
+    "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer",
+    "bump-version": "deno run --allow-read --allow-write --allow-run scripts/bump-version.ts"
   },
   "imports": {
     "@aidevtool/frontmatter-to-schema": "jsr:@aidevtool/frontmatter-to-schema@^1.7.1",

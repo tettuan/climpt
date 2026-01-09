@@ -10,6 +10,30 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob]
 
 バージョンアップとリリースが正しい手順で行われることを担保する。
 
+## リリースブランチ作成時のチェックリスト
+
+**release/* ブランチを作成したら、必ず以下を実行:**
+
+```bash
+# 1. バージョン自動更新（ブランチ名から検出）
+deno task bump-version
+
+# 2. 確認
+grep '"version"' deno.json
+grep 'CLIMPT_VERSION' src/version.ts
+
+# 3. ローカルCI
+deno task ci
+
+# 4. コミット & プッシュ
+git add deno.json src/version.ts
+git commit -m "chore: bump version to x.y.z"
+git push -u origin release/x.y.z
+```
+
+**重要**: `deno task bump-version` は release/* ブランチ名からバージョンを自動検出する。
+手動指定も可能: `deno task bump-version 1.10.2`
+
 ## 重要: 連続マージの禁止事項
 
 **release/* → develop → main への連続マージは、必ずユーザーの明示的な指示を受けてから実行すること。**
@@ -124,10 +148,16 @@ git checkout -b release/x.y.z
 git checkout release/x.y.z
 ```
 
-deno.json と version.ts を編集:
+バージョン更新（自動スクリプト使用）:
 
 ```bash
-# 編集後、確認
+# ブランチ名から自動検出してバージョン更新
+deno task bump-version
+
+# または明示的に指定
+deno task bump-version x.y.z
+
+# 確認
 grep '"version"' deno.json
 grep 'export const CLIMPT_VERSION' src/version.ts
 ```
