@@ -128,6 +128,7 @@ Deno.test("Reviewer - load default prompt", async () => {
     },
   );
 
+  // deno-lint-ignore no-console
   console.log("Reviewer load result:", {
     ok: result.ok,
     hasContent: !!result.content,
@@ -147,6 +148,7 @@ Deno.test("Reviewer - load default prompt", async () => {
       ".agent/reviewer/prompts/dev/start/default/f_default.md",
     );
   } else {
+    // deno-lint-ignore no-console
     console.log(
       "Reviewer prompt load skipped (config not available):",
       result.error,

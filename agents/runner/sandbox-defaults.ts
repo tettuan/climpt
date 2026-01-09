@@ -54,14 +54,15 @@ export function mergeSandboxConfig(
     return agentConfig;
   }
 
-  // Merge network config
+  // Merge network config - DEFAULT_SANDBOX_CONFIG.network is always defined
+  const defaultNetwork = DEFAULT_SANDBOX_CONFIG.network;
   const mergedNetwork = agentConfig.network
     ? {
-      mode: agentConfig.network.mode ?? DEFAULT_SANDBOX_CONFIG.network!.mode,
+      mode: agentConfig.network.mode ?? defaultNetwork?.mode,
       trustedDomains: agentConfig.network.trustedDomains ??
-        DEFAULT_SANDBOX_CONFIG.network!.trustedDomains,
+        defaultNetwork?.trustedDomains,
     }
-    : DEFAULT_SANDBOX_CONFIG.network;
+    : defaultNetwork;
 
   return {
     enabled: agentConfig.enabled ?? DEFAULT_SANDBOX_CONFIG.enabled,

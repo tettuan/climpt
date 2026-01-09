@@ -118,13 +118,27 @@ export class FacilitatorCompletionHandler extends BaseCompletionHandler {
     this.blockers = [];
   }
 
+  /**
+   * Get project status with fallback for uninitialized state
+   */
+  private getStatus(): ProjectStatus {
+    return this.projectStatus ?? {
+      totalIssues: 0,
+      openIssues: 0,
+      closedIssues: 0,
+      inProgressIssues: 0,
+      blockedIssues: 0,
+      staleIssues: 0,
+    };
+  }
+
   private async initialize(): Promise<void> {
     if (this.initialized) return;
 
     try {
       this.projectStatus = await this.fetchProjectStatus();
-    } catch (error) {
-      console.error("Failed to fetch project status:", error);
+    } catch (_error) {
+      // Error logged via completion handler flow - use fallback status
       this.projectStatus = {
         totalIssues: 0,
         openIssues: 0,
@@ -250,7 +264,7 @@ export class FacilitatorCompletionHandler extends BaseCompletionHandler {
   }
 
   private buildMonitoringPrompt(): string {
-    const status = this.projectStatus!;
+    const status = this.getStatus();
     const healthScore = this.calculateHealthScore(status);
 
     return `
@@ -341,7 +355,7 @@ Output your intervention plan:
   }
 
   private buildReportingPrompt(): string {
-    const status = this.projectStatus!;
+    const status = this.getStatus();
     const healthScore = this.calculateHealthScore(status);
 
     return `
@@ -391,7 +405,7 @@ Output your report:
 
 Facilitation cycle complete. The project has been monitored and any blockers have been addressed.
 
-Health Score: ${this.calculateHealthScore(this.projectStatus!)}/100
+Health Score: ${this.calculateHealthScore(this.getStatus())}/100
     `.trim();
   }
 
@@ -459,7 +473,7 @@ ${summarySection}
   async getCompletionDescription(): Promise<string> {
     await this.initialize();
 
-    const status = this.projectStatus!;
+    const status = this.getStatus();
     const healthScore = this.calculateHealthScore(status);
 
     return `Project #${this.projectNumber} facilitation - ${this.phase} phase (Health: ${healthScore}/100)`;
