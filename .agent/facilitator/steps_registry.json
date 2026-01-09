@@ -24,9 +24,9 @@
       "c3": "statuscheck",
       "edition": "default",
       "fallbackKey": "statuscheck_initial_default",
-      "uvVariables": ["project_number", "project_title", "label_info"],
+      "uvVariables": ["project_number", "project_title", "label_info", "previous_observation"],
       "usesStdin": false,
-      "description": "Gather project metrics and status (責務1: 把握)"
+      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)"
     },
     "initial.statuscheck.empty": {
       "stepId": "initial.statuscheck.empty",
@@ -71,7 +71,7 @@
       "fallbackKey": "judge_initial_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
-      "description": "Judge state of each issue based on evidence (責務2: 判断)"
+      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)"
     },
     "initial.facilitate": {
       "stepId": "initial.facilitate",

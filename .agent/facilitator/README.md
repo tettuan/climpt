@@ -123,7 +123,7 @@ interface AgentRegistry {
 ### 場 (Field)
 
 ```
-場 = { Issue群, 状態群, 関係群 }
+場 = { Issue群, 状態群, 関係群, 時点 }
 ```
 
 | 構成要素 | 定義 | 例 |
@@ -131,6 +131,19 @@ interface AgentRegistry {
 | **Issue群** | Project に属する Issue の集合 | #123, #124, #125 |
 | **状態群** | 各 Issue の現在状態 | 完了, 作業中, ブロック |
 | **関係群** | Issue 間の依存・関連 | #124 は #123 に依存 |
+| **時点** | 場を観測した時刻と前回観測時刻 | current: 2026-01-09T14:00Z, previous: 2026-01-05T10:00Z |
+
+**場は時間とともに変化する**。異なる時点の場を比較することで「変化」が分かる。
+
+```typescript
+interface Field {
+  issues: Issue[];
+  states: Map<IssueNumber, State>;
+  relations: Relation[];
+  observedAt: ISO8601;           // 現在の観測時点
+  previousObservation?: ISO8601; // 前回の観測時点
+}
+```
 
 ### 制御 (Control)
 
@@ -270,7 +283,7 @@ flowchart LR
 
 ### 1. 把握 (Grasp)
 
-**目的**: 何が起きたかを知る
+**目的**: 何が起きたかを知る + **何が変わったかを知る**
 
 | 入力 | 取得元 | 取得内容 |
 |------|--------|----------|
@@ -278,30 +291,62 @@ flowchart LR
 | commit | `git log` | どの Issue に対応する変更があるか |
 | Issue | `gh project item-list` | 現在の Issue 一覧 |
 | コメント | `gh issue view` | Issue の詳細・議論 |
+| **前回観測時点** | 前回の出力 / 不明なら 7 日前 | 差分検出の基準 |
 
-**出力**: 時系列イベントリスト
+**出力**: 時系列イベントリスト + **観測情報** + **差分サマリー**
 
 ```json
 {
+  "observation": {
+    "current": "2026-01-09T14:00:00Z",
+    "previous": "2026-01-05T10:00:00Z",
+    "deltaHours": 100
+  },
   "events": [
-    { "time": "2024-01-15T10:00:00Z", "type": "issue_created", "issue": 123 },
-    { "time": "2024-01-15T11:00:00Z", "type": "agent_started", "agent": "iterator", "issue": 123 },
-    { "time": "2024-01-15T12:00:00Z", "type": "commit_pushed", "issue": 123, "sha": "abc1234" }
-  ]
+    { "time": "2026-01-05T10:00:00Z", "type": "issue_created", "issue": 123 },
+    { "time": "2026-01-09T11:00:00Z", "type": "agent_started", "agent": "iterator", "issue": 123 },
+    { "time": "2026-01-09T12:00:00Z", "type": "commit_pushed", "issue": 123, "sha": "abc1234" }
+  ],
+  "delta": {
+    "sinceLastObservation": {
+      "newCommits": ["abc1234", "def5678"],
+      "newEvents": 2,
+      "changedIssues": [123]
+    },
+    "summary": "前回観測以降、2 commits、Issue #123 に活動あり"
+  }
 }
+```
+
+**差分検出ロジック**:
+
+```
+前回観測時点が分かる場合:
+  git log --since="{previous}" で新規 commit を取得
+  作業ログのタイムスタンプで新規活動を特定
+
+前回観測時点が不明な場合:
+  直近 7 日間を「前回以降」として扱う
 ```
 
 ### 2. 判断 (Judge)
 
-**目的**: 各 Issue の状態を判定する
+**目的**: 各 Issue の状態を判定する + **状態の鮮度を評価する**
 
-**入力**: 時系列イベントリスト + Issue 一覧
+**入力**: 時系列イベントリスト + Issue 一覧 + **差分サマリー**
 
 **ロジック**:
 
 ```mermaid
 flowchart TD
-    START[Issue] --> Q1{commit あり?}
+    START[Issue] --> DELTA{前回以降の変化?}
+
+    DELTA -->|Yes| FRESH[鮮度: active/recent]
+    DELTA -->|No| STALE[鮮度: stale]
+
+    FRESH --> Q1{commit あり?}
+    STALE --> LOWCONF[信頼度 low]
+    LOWCONF --> Q1
 
     Q1 -->|Yes| Q2{PR あり?}
     Q1 -->|No| Q5{作業ログあり?}
@@ -312,20 +357,61 @@ flowchart TD
     Q3 -->|Yes| DONE[done]
     Q3 -->|No| REVIEW[review_pending]
 
-    Q5 -->|Yes| WIP
+    Q5 -->|Yes| Q5A{ログは最近?}
     Q5 -->|No| Q6{ブロッカーあり?}
+
+    Q5A -->|Yes| WIP
+    Q5A -->|No| STALEWORK[in_progress + stale]
 
     Q6 -->|Yes| BLOCKED[blocked]
     Q6 -->|No| INCOMPLETE[incomplete]
 ```
 
-**出力**: Issue 状態リスト
+**鮮度 (Freshness) の分類**:
+
+| 分類 | 条件 | 信頼度 | 意味 |
+|------|------|--------|------|
+| `active` | 24時間以内に活動 | high | 状態判定の確度が高い |
+| `recent` | 7日以内に活動 | medium | 状態は妥当だが変化の可能性あり |
+| `stale` | 7日以上活動なし | low | 状態が実態と乖離している可能性 |
+
+**出力**: Issue 状態リスト + **鮮度** + **状態変化**
 
 ```json
 {
   "assessments": [
-    { "issue": 123, "state": "in_progress", "evidence": ["commit abc1234", "log session-xxx"] },
-    { "issue": 124, "state": "blocked", "blocker": "depends on #123" }
+    {
+      "issue": 123,
+      "state": "in_progress",
+      "evidence": ["commit abc1234", "log session-xxx"],
+      "freshness": {
+        "lastActivity": "2026-01-09T12:00:00Z",
+        "hoursSinceActivity": 2,
+        "classification": "active"
+      },
+      "stateChange": {
+        "changed": true,
+        "previousState": "incomplete",
+        "reason": "新規 commit により incomplete → in_progress"
+      },
+      "confidence": "high"
+    },
+    {
+      "issue": 124,
+      "state": "blocked",
+      "blocker": "depends on #123",
+      "freshness": {
+        "lastActivity": "2026-01-02T10:00:00Z",
+        "hoursSinceActivity": 172,
+        "classification": "stale"
+      },
+      "stateChange": {
+        "changed": false,
+        "previousState": "blocked",
+        "reason": "依然として #123 待ち"
+      },
+      "confidence": "low"
+    }
   ]
 }
 ```
