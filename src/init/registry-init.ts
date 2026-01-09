@@ -98,6 +98,7 @@ async function deploySchemaFiles(
     const embedded = getEmbeddedSchema(fileName);
 
     if (embedded) {
+      // deno-lint-ignore no-await-in-loop
       await Deno.writeTextFile(filePath, embedded);
       result.created.push(filePath);
       console.log(`  Deployed: ${fileName}`);

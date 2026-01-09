@@ -103,15 +103,26 @@ async function printAgentList(cwd?: string): Promise<void> {
 
   console.log("Available agents:\n");
 
-  for (const agentName of agents) {
-    try {
-      const definition = await loadAgentDefinition(agentName, cwd);
+  // Load all agent definitions in parallel
+  const definitions = await Promise.all(
+    agents.map(async (agentName) => {
+      try {
+        const definition = await loadAgentDefinition(agentName, cwd);
+        return { agentName, definition, error: false };
+      } catch {
+        return { agentName, definition: null, error: true };
+      }
+    }),
+  );
+
+  for (const { agentName, definition, error } of definitions) {
+    if (error || !definition) {
+      console.log(`  ${agentName} (error loading definition)`);
+    } else {
       console.log(`  ${agentName}`);
       console.log(`    ${definition.description}`);
       console.log(`    Type: ${definition.behavior.completionType}`);
       console.log("");
-    } catch {
-      console.log(`  ${agentName} (error loading definition)`);
     }
   }
 

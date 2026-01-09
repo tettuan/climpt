@@ -91,43 +91,45 @@ export class ActionExecutor {
    * Execute a list of detected actions
    */
   async execute(actions: DetectedAction[]): Promise<ActionResult[]> {
-    const results: ActionResult[] = [];
-
-    for (const action of actions) {
+    const executeAction = async (
+      action: DetectedAction,
+    ): Promise<ActionResult> => {
       const handler = this.handlers.get(action.type);
 
       if (!handler) {
-        results.push({
+        return {
           action,
           success: false,
           error: `No handler for action type: ${action.type}`,
-        });
-        continue;
+        };
       }
 
       try {
         const result = await handler.execute(action, this.context);
-        results.push(result);
 
         this.context.logger.info(`[Action: ${action.type}]`, {
           success: result.success,
           content: action.content.substring(0, 100),
         });
+
+        return result;
       } catch (error) {
         const result: ActionResult = {
           action,
           success: false,
           error: error instanceof Error ? error.message : String(error),
         };
-        results.push(result);
 
         this.context.logger.error(`[Action: ${action.type}] Failed`, {
           error: error instanceof Error ? error.message : String(error),
         });
-      }
-    }
 
-    return results;
+        return result;
+      }
+    };
+
+    // Execute all actions in parallel using Promise.all
+    return await Promise.all(actions.map(executeAction));
   }
 
   /**

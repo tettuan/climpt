@@ -88,6 +88,7 @@ export class AgentRunner {
     const summaries: IterationSummary[] = [];
 
     try {
+      // Sequential execution required: each iteration depends on previous results
       while (true) {
         iteration++;
         this.logger.info(`=== Iteration ${iteration} ===`);
@@ -97,12 +98,15 @@ export class AgentRunner {
           ? summaries[summaries.length - 1]
           : undefined;
         const prompt = iteration === 1
+          // deno-lint-ignore no-await-in-loop
           ? await this.completionHandler.buildInitialPrompt()
+          // deno-lint-ignore no-await-in-loop
           : await this.completionHandler.buildContinuationPrompt(
             iteration - 1, // completedIterations
             lastSummary,
           );
 
+        // deno-lint-ignore no-await-in-loop
         const systemPrompt = await this.promptResolver.resolveSystemPrompt({
           "uv-agent_name": this.definition.name,
           "uv-completion_criteria":
@@ -110,6 +114,7 @@ export class AgentRunner {
         });
 
         // Execute Claude SDK query
+        // deno-lint-ignore no-await-in-loop
         const summary = await this.executeQuery({
           prompt,
           systemPrompt,
@@ -124,12 +129,14 @@ export class AgentRunner {
         // Execute detected actions
         if (this.actionExecutor && summary.detectedActions.length > 0) {
           this.actionExecutor.setIteration(iteration);
+          // deno-lint-ignore no-await-in-loop
           summary.actionResults = await this.actionExecutor.execute(
             summary.detectedActions,
           );
         }
 
         // Check completion
+        // deno-lint-ignore no-await-in-loop
         if (await this.completionHandler.isComplete()) {
           this.logger.info("Agent completed");
           break;

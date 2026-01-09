@@ -210,18 +210,21 @@ export async function mergeBranch(
     };
   }
 
-  // Try each strategy in order
+  // Sequential execution required: try strategies one at a time until success
   for (const strategy of strategies) {
     let result: MergeResult;
 
     switch (strategy) {
       case "fast-forward":
+        // deno-lint-ignore no-await-in-loop
         result = await tryFastForward(sourceBranch, cwd);
         break;
       case "squash":
+        // deno-lint-ignore no-await-in-loop
         result = await trySquash(sourceBranch, cwd);
         break;
       case "merge-commit":
+        // deno-lint-ignore no-await-in-loop
         result = await tryMergeCommit(sourceBranch, cwd);
         break;
     }

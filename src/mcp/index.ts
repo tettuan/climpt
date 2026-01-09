@@ -52,8 +52,9 @@ const REGISTRY_CACHE = new Map<string, Command[]>();
  */
 async function loadRegistryForAgent(agentName: string): Promise<Command[]> {
   // Check cache first
-  if (REGISTRY_CACHE.has(agentName)) {
-    return REGISTRY_CACHE.get(agentName)!;
+  const cached = REGISTRY_CACHE.get(agentName);
+  if (cached) {
+    return cached;
   }
 
   // Use shared loading utility
@@ -453,25 +454,22 @@ server.setRequestHandler(
             `🔄 Cleared cache for all agents (${cacheSize} agents)`,
           );
 
-          // Reload all agents defined in MCP_CONFIG
+          // Reload all agents defined in MCP_CONFIG in parallel
           const configuredAgents = Object.keys(MCP_CONFIG.registries);
-          const reloadResults: Array<{
-            agent: string;
-            commandCount: number;
-            success: boolean;
-          }> = [];
 
-          for (const agentName of configuredAgents) {
-            const commands = await loadRegistryForAgent(agentName);
-            reloadResults.push({
-              agent: agentName,
-              commandCount: commands.length,
-              success: commands.length > 0,
-            });
-            console.error(
-              `✅ Reloaded ${commands.length} commands for agent '${agentName}'`,
-            );
-          }
+          const reloadResults = await Promise.all(
+            configuredAgents.map(async (agentName) => {
+              const commands = await loadRegistryForAgent(agentName);
+              console.error(
+                `✅ Reloaded ${commands.length} commands for agent '${agentName}'`,
+              );
+              return {
+                agent: agentName,
+                commandCount: commands.length,
+                success: commands.length > 0,
+              };
+            }),
+          );
 
           const totalCommands = reloadResults.reduce(
             (sum, result) => sum + result.commandCount,

@@ -661,13 +661,16 @@ async function deployMetaPrompts(
     const fullPath = resolve(metaDir, relativePath);
     const dir = dirname(fullPath);
 
+    // deno-lint-ignore no-await-in-loop
     if ((await exists(fullPath)) && !force) {
       result.skipped.push(fullPath);
       console.log(`  Skip: ${fullPath} (already exists)`);
       continue;
     }
 
+    // deno-lint-ignore no-await-in-loop
     await ensureDir(dir);
+    // deno-lint-ignore no-await-in-loop
     await Deno.writeTextFile(fullPath, content);
     result.created.push(fullPath);
     console.log(`  Created: ${fullPath}`);

@@ -51,14 +51,15 @@ export async function initBasic(
     "schema",
   ];
 
-  for (const dir of directories) {
+  const createPromises = directories.map(async (dir) => {
     const fullPath = resolve(fullWorkingDir, dir);
     if (!(await exists(fullPath))) {
       await ensureDir(fullPath);
       result.created.push(fullPath);
       console.log(`  Created: ${fullPath}`);
     }
-  }
+  });
+  await Promise.all(createPromises);
 
   return result;
 }
