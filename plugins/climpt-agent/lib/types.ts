@@ -19,7 +19,7 @@ export interface UserVariable {
 /**
  * Command definition loaded from registry.json
  *
- * @see docs/internal/registry-specification.md#command-スキーマ
+ * @see docs/internal/registry-specification.md#command-schema
  */
 export interface Command {
   /** Domain identifier (C3L level 1) */
@@ -57,7 +57,7 @@ export interface Command {
 /**
  * Search result with similarity score
  *
- * @see docs/internal/command-operations.md#結果フォーマット
+ * @see docs/internal/command-operations.md#result-format
  */
 export interface SearchResult {
   c1: string;
@@ -71,7 +71,7 @@ export interface SearchResult {
 /**
  * Registry structure
  *
- * @see docs/internal/registry-specification.md#registry-スキーマ
+ * @see docs/internal/registry-specification.md#registry-schema
  */
 export interface Registry {
   version: string;

@@ -54,6 +54,7 @@ export class Logger {
 
     for (let i = maxFiles; i < files.length; i++) {
       try {
+        // deno-lint-ignore no-await-in-loop
         await Deno.remove(files[i].name);
       } catch {
         // Ignore deletion errors
