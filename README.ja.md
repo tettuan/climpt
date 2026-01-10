@@ -111,24 +111,114 @@ MCPでClaudeまたはCursorと連携：
 
 **前提条件**: エージェントには GitHub CLI (`gh`) のインストールと認証、および GitHub にプッシュされた Git リポジトリが必要です。
 
-### Iterator Agent
+### エージェント構成
 
-Claude Agent SDKを使用した自律開発システム：
+各エージェントは `.agent/{agent-name}/` に以下の構成で定義されます：
+
+```
+.agent/{agent-name}/
+├── agent.json          # エージェント設定
+├── steps_registry.json # プロンプト用ステップ定義
+└── prompts/            # プロンプトテンプレート
+    └── system.md       # システムプロンプト
+```
+
+**agent.json** の主要プロパティ：
+- `name`, `displayName`, `version` - エージェント識別情報
+- `behavior.completionType` - 実行モード（後述）
+- `behavior.allowedTools` - エージェントが利用可能なツール
+- `prompts.registry` - ステップレジストリへのパス
+- `logging.directory` - ログ出力先
+
+**steps_registry.json** は各実行ステップのプロンプト選択ロジックを定義します。
+
+### 新規エージェント作成
 
 ```bash
-# 最初に初期化（必須）
-deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+deno task agent --init --agent {agent-name}
+```
 
-# その後 issue を指定して実行
+テンプレートファイルを含むディレクトリ構成が生成されます。
+
+### エージェント実行
+
+```bash
+# 利用可能なエージェントを一覧表示
+deno task agent --list
+
+# GitHub Issue を指定して実行
+deno task agent --agent {name} --issue {number}
+
+# GitHub Project を指定して実行
+deno task agent --agent {name} --project {number}
+
+# 反復モードで実行
+deno task agent --agent {name} --iterate-max 10
+```
+
+### 完了タイプ
+
+| タイプ | 説明 |
+|--------|------|
+| `issue` | GitHub Issue がクローズされたら完了 |
+| `project` | GitHub Project から複数の Issue を処理 |
+| `iterate` | 指定回数（`maxIterations`）反復実行 |
+| `manual` | エージェントが `completionKeyword` を出力したら終了 |
+| `custom` | カスタムハンドラー（`handlerPath`）を使用 |
+| `facilitator` | プロジェクト状況を定期的に監視 |
+| `stepFlow` | ステップベースの実行フローに従う |
+
+### 組み込みエージェント
+
+**Iterator Agent** - 自律開発：
+```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
-### Reviewer Agent
-
-自律的なコードレビューエージェント：
-
+**Reviewer Agent** - コードレビュー：
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/reviewer --pr 456
+deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 1
+```
+
+**Facilitator Agent** - プロジェクト監視：
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
+```
+
+### 設定例
+
+最小限の `agent.json`：
+
+```json
+{
+  "name": "my-agent",
+  "displayName": "My Agent",
+  "version": "1.0.0",
+  "description": "カスタムエージェントの説明",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "issue",
+    "completionConfig": {},
+    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+    "permissionMode": "plan"
+  },
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue 番号",
+      "required": true,
+      "cli": "--issue"
+    }
+  },
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/my-agent",
+    "format": "jsonl"
+  }
+}
 ```
 
 📖 [エージェントドキュメント](https://tettuan.github.io/climpt/)
