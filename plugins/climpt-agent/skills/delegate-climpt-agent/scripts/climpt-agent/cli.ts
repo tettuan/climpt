@@ -49,26 +49,39 @@ export function validateArgs(
  * Display help message
  */
 export function displayHelp(): void {
+  // deno-lint-ignore no-console
   console.error(
     "Usage: climpt-agent.ts --action=... --target=... [--intent=...] [--agent=...] [--options=...]",
   );
+  // deno-lint-ignore no-console
   console.error("");
+  // deno-lint-ignore no-console
   console.error("Required Parameters:");
+  // deno-lint-ignore no-console
   console.error(
     "  --action   Action-focused query (what to do, e.g., 'execute test')",
   );
+  // deno-lint-ignore no-console
   console.error(
     "  --target   Target-focused query (what to act on, e.g., 'specific file')",
   );
+  // deno-lint-ignore no-console
   console.error("");
+  // deno-lint-ignore no-console
   console.error("Optional Parameters:");
+  // deno-lint-ignore no-console
   console.error(
     "  --intent   Detailed description for option resolution (defaults to action+target)",
   );
+  // deno-lint-ignore no-console
   console.error('  --agent    Agent name (default: "climpt")');
+  // deno-lint-ignore no-console
   console.error("  --options  Comma-separated list of options");
+  // deno-lint-ignore no-console
   console.error("");
+  // deno-lint-ignore no-console
   console.error("Example:");
+  // deno-lint-ignore no-console
   console.error(
     '  climpt-agent.ts --action="execute test" --target="specific file unit test"',
   );
