@@ -79,7 +79,14 @@
   },
   "sandbox": {
     "network": {
-      "allowedDomains": ["jsr.io", "*.jsr.io", "deno.land", "*.deno.land"]
+      "allowedDomains": [
+        "jsr.io",
+        "*.jsr.io",
+        "deno.land",
+        "*.deno.land",
+        "github.com",
+        "api.github.com"
+      ]
     }
   },
   "enabledPlugins": {

@@ -4,29 +4,29 @@ description: Use when running 'deno task ci', local CI checks, or pre-push valid
 allowed-tools: [Bash, Read, Edit, Grep, Glob, Task]
 ---
 
-# Local CI 実行
+# Local CI Execution
 
-## 概要
+## Overview
 
-ローカルで CI を実行してコードの品質を確認する。
+Run CI locally to verify code quality before pushing.
 
-**重要**: CI 実行は sub agent に委譲してコンテキストを節約すること。
+**Recommendation**: Delegate to sub agent to save context.
 
-## 実行方法
+## Execution Methods
 
-### Sub Agent への委譲（推奨）
+### Sub Agent Delegation (Preferred)
 
 ```typescript
 Task({
   subagent_type: "Bash",
-  prompt: "deno task ci を実行して結果を報告してください",
+  prompt: "Run deno task ci and report results",
   description: "Run local CI"
 })
 ```
 
-### 直接実行（サンドボックス制限に注意）
+### Direct Execution (Watch for Sandbox)
 
-JSR 接続が必要な場合は `dangerouslyDisableSandbox: true` が必要:
+When JSR/Deno packages need to be fetched:
 
 ```typescript
 Bash({
@@ -35,37 +35,58 @@ Bash({
 })
 ```
 
-## CI の内容
+## CI Pipeline Stages
 
-`deno task ci` は以下を実行:
+`deno task ci` runs in order:
 
-1. **Lockfile Initialization** - `deno cache deps.ts`
-2. **Type Check** - `deno check`
-3. **Format Check** - `deno fmt --check`
-4. **Lint** - `deno lint`
-5. **Test** - `deno test`
+1. **deps** - Cache dependencies (`deno.lock`)
+2. **check** - Type checking
+3. **jsr-check** - JSR publish dry-run
+4. **test** - Run tests (216+ tests)
+5. **lint** - Deno lint
+6. **fmt** - Format check
 
-## エラー対処
+## Pre-Push Workflow
 
-### JSR 接続エラー
-
-```
-error: JSR package manifest for '@std/path' failed to load.
-```
-
-→ `/ci-troubleshooting` skill 参照
-
-### 型エラー
-
-型チェックで失敗した場合:
-1. エラーメッセージを確認
-2. 該当ファイルを修正
-3. 再度 CI 実行
-
-## プッシュ前の確認
-
-リモートへプッシュする前に必ずローカル CI を通すこと:
+Always pass local CI before pushing:
 
 ```bash
 deno task ci && git push origin branch-name
+```
+
+Or with sandbox bypass:
+
+```typescript
+Bash({
+  command: "deno task ci && git push origin branch-name",
+  dangerouslyDisableSandbox: true,
+})
+```
+
+## Error Handling
+
+| Error Type | Skill Reference |
+|------------|-----------------|
+| JSR connection failed | `/ci-troubleshooting` |
+| Lint errors | `/ci-troubleshooting` |
+| Test failures | `/ci-troubleshooting` |
+| Network blocked | `/git-gh-sandbox` |
+
+## Quick Commands
+
+```bash
+# Full CI
+deno task ci
+
+# Type check only
+deno check src/**/*.ts
+
+# Lint only
+deno lint
+
+# Test only
+deno test --allow-all
+
+# Format only
+deno fmt --check
 ```
