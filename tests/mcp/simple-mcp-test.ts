@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
+// deno-lint-ignore-file no-console prefer-ascii explicit-function-return-type
 
 import { Server } from "npm:@modelcontextprotocol/sdk@0.7.0/server/index.js";
 import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk@0.7.0/server/stdio.js";

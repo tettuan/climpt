@@ -1,3 +1,4 @@
+// deno-lint-ignore-file prefer-ascii
 /**
  * @fileoverview Tests for climpt-agent plugin
  *

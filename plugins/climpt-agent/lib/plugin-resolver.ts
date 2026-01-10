@@ -170,10 +170,12 @@ export async function resolvePluginPaths(
   settingsFiles.push(join(workDir, ".claude", "settings.local.json"));
 
   // Collect plugins from all settings files
+  // Sequential execution required: deduplicate plugins across multiple settings files
   const allPlugins: SdkPluginConfig[] = [];
   const seenPaths = new Set<string>();
 
   for (const settingsPath of settingsFiles) {
+    // deno-lint-ignore no-await-in-loop
     const plugins = await extractPluginsFromSettings(settingsPath);
     for (const plugin of plugins) {
       // Deduplicate by path

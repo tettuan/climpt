@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-console prefer-ascii
 /**
  * @fileoverview Minimal test suite for MCP tools
  *

@@ -1,3 +1,4 @@
+// deno-lint-ignore-file prefer-ascii
 /**
  * @fileoverview BM25-based semantic similarity search for commands
  * @module climpt-plugins/climpt-agent/lib/similarity
