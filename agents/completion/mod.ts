@@ -57,10 +57,10 @@ export {
 } from "./facilitator.ts";
 
 // checkBudget - Complete after N status checks (new)
-export { CheckBudgetCompletionHandler } from "./check_budget.ts";
+export { CheckBudgetCompletionHandler } from "./check-budget.ts";
 
 // structuredSignal - Complete when LLM outputs specific JSON signal (new)
-export { StructuredSignalCompletionHandler } from "./structured_signal.ts";
+export { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 
 // composite - Combines multiple conditions with AND/OR logic (new)
 export {

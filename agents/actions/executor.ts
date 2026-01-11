@@ -14,7 +14,7 @@ import { LogActionHandler } from "./handlers/log.ts";
 import {
   GitHubCommentHandler,
   GitHubIssueHandler,
-} from "./handlers/github_issue.ts";
+} from "./handlers/github-issue.ts";
 import { FileActionHandler } from "./handlers/file.ts";
 
 export interface ExecutorOptions {

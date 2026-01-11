@@ -9,7 +9,7 @@ import type { CoordinationConfig, LabelConfig } from "./coordination-types.ts";
 import COORDINATION_CONFIG from "./coordination-config.json" with {
   type: "json",
 };
-import { deepMerge } from "../src_common/deep_merge.ts";
+import { deepMerge } from "../src_common/deep-merge.ts";
 
 /**
  * Default coordination configuration

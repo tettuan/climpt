@@ -23,8 +23,8 @@ import { IssueCompletionHandler } from "./issue.ts";
 import { ProjectCompletionHandler } from "./project.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
-import { CheckBudgetCompletionHandler } from "./check_budget.ts";
-import { StructuredSignalCompletionHandler } from "./structured_signal.ts";
+import { CheckBudgetCompletionHandler } from "./check-budget.ts";
+import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 import { resolveCompletionType } from "../src_common/types.ts";
 
 export type CompositeOperator = "and" | "or" | "first";

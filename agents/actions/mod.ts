@@ -20,5 +20,5 @@ export { LogActionHandler } from "./handlers/log.ts";
 export {
   GitHubCommentHandler,
   GitHubIssueHandler,
-} from "./handlers/github_issue.ts";
+} from "./handlers/github-issue.ts";
 export { FileActionHandler } from "./handlers/file.ts";
