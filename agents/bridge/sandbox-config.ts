@@ -1,20 +1,23 @@
 /**
- * Default sandbox configuration for all agents
+ * Sandbox Configuration - Default settings and utilities for SDK sandbox
  *
- * Agents can override these defaults via sandboxConfig in agent.json
+ * Responsibility: Sandbox configuration defaults, merging, and SDK format conversion
+ * Side effects: None (environment variable reads only)
  *
- * @deprecated Use `agents/bridge/sandbox-config.ts` instead.
- * This file will be removed in a future version.
- * Migration: Import from `../bridge/mod.ts` or `../bridge/sandbox-config.ts`
+ * @module
  */
 
 import type { SandboxConfig } from "../src_common/types.ts";
+
+// ============================================================================
+// Default Trusted Domains
+// ============================================================================
 
 /**
  * Default trusted domains for network access
  * These are commonly needed for development workflows
  */
-export const DEFAULT_TRUSTED_DOMAINS = [
+export const DEFAULT_TRUSTED_DOMAINS: readonly string[] = [
   // Anthropic API and services (required for Claude Agent SDK)
   "api.anthropic.com",
   "statsig.anthropic.com",
@@ -38,9 +41,15 @@ export const DEFAULT_TRUSTED_DOMAINS = [
   "registry.npmjs.org",
 ];
 
+// ============================================================================
+// Default Filesystem Paths
+// ============================================================================
+
 /**
- * Default allowed filesystem paths for write access
+ * Get default allowed filesystem paths for write access
  * These are required by Claude Agent SDK for session management
+ *
+ * @returns Array of default filesystem paths, empty if HOME not set
  */
 export function getDefaultFilesystemPaths(): string[] {
   const home = Deno.env.get("HOME") ?? "";
@@ -55,6 +64,10 @@ export function getDefaultFilesystemPaths(): string[] {
   ];
 }
 
+// ============================================================================
+// Default Configuration
+// ============================================================================
+
 /**
  * Default sandbox configuration
  *
@@ -66,19 +79,46 @@ export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
   enabled: true,
   network: {
     mode: "custom",
-    trustedDomains: DEFAULT_TRUSTED_DOMAINS,
+    trustedDomains: [...DEFAULT_TRUSTED_DOMAINS],
   },
   filesystem: {
     allowedPaths: getDefaultFilesystemPaths(),
   },
 };
 
+// ============================================================================
+// SDK Format Conversion
+// ============================================================================
+
+/**
+ * SDK SandboxSettings format for the Claude Agent SDK
+ */
+export interface SdkSandboxSettings {
+  /** Whether sandbox is enabled */
+  enabled?: boolean;
+  /** Network restrictions */
+  network?: {
+    /** Allowed domains for network access */
+    allowedDomains?: string[];
+  };
+  /** Violations to ignore */
+  ignoreViolations?: {
+    /** Filesystem paths where write violations are ignored */
+    write?: string[];
+  };
+}
+
 /**
  * Convert internal SandboxConfig to SDK SandboxSettings format
+ *
+ * The SDK uses a different structure:
+ * - `network.trustedDomains` -> `network.allowedDomains`
+ * - `filesystem.allowedPaths` -> `ignoreViolations.write`
+ *
+ * @param config - Internal sandbox configuration
+ * @returns SDK-compatible sandbox settings
  */
-export function toSdkSandboxConfig(
-  config: SandboxConfig,
-): Record<string, unknown> {
+export function toSdkSandboxConfig(config: SandboxConfig): SdkSandboxSettings {
   return {
     enabled: config.enabled,
     network: config.network?.trustedDomains
@@ -91,9 +131,21 @@ export function toSdkSandboxConfig(
   };
 }
 
+// ============================================================================
+// Configuration Merging
+// ============================================================================
+
 /**
  * Merge agent's sandbox config with defaults
- * Agent config takes precedence over defaults
+ *
+ * Merging rules:
+ * - If agent config is undefined, use defaults
+ * - If agent explicitly disables sandbox, respect that
+ * - Network: agent config takes precedence, falls back to defaults
+ * - Filesystem: default paths are combined with agent-specific paths
+ *
+ * @param agentConfig - Agent-specific sandbox configuration
+ * @returns Merged configuration with defaults applied
  */
 export function mergeSandboxConfig(
   agentConfig?: SandboxConfig,

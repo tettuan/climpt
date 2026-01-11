@@ -1,6 +1,9 @@
 /**
  * Agent Runner - main execution engine
  *
+ * @deprecated Use AgentLifecycle from agents/lifecycle/mod.ts instead.
+ * This file is kept for backward compatibility.
+ *
  * Supports dependency injection for testability.
  * Use AgentRunnerBuilder for convenient construction with custom dependencies.
  */
@@ -39,7 +42,6 @@ import {
   AgentEventEmitter,
   type AgentEventHandler,
 } from "./events.ts";
-import type { ProjectPlan, ReviewResult } from "../completion/project.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -321,12 +323,17 @@ export class AgentRunner {
         }
       }
 
+      const completionReason = await ctx.completionHandler
+        .getCompletionDescription();
       const result: AgentResult = {
         success: true,
+        // v2 fields
+        iterations: iteration,
+        reason: completionReason,
+        // deprecated fields (for backward compatibility)
         totalIterations: iteration,
+        completionReason,
         summaries,
-        completionReason: await ctx.completionHandler
-          .getCompletionDescription(),
       };
 
       // Emit completed event
@@ -348,12 +355,17 @@ export class AgentRunner {
         recoverable: isAgentError(error) ? error.recoverable : false,
       });
 
+      const errorReason = agentError.message;
       return {
         success: false,
+        // v2 fields
+        iterations: iteration,
+        reason: errorReason,
+        // deprecated fields (for backward compatibility)
         totalIterations: iteration,
-        summaries,
         completionReason: "Error occurred",
-        error: agentError.message,
+        summaries,
+        error: errorReason,
       };
     } finally {
       await ctx.logger.close();
@@ -501,28 +513,12 @@ export class AgentRunner {
     for (const result of results) {
       if (!result.completionSignal) continue;
 
-      const { type, data } = result.completionSignal;
+      const { type } = result.completionSignal;
 
       // Interface-based check for type safety
       const handler = ctx.completionHandler;
 
       switch (type) {
-        case "project-plan":
-          if ("setProjectPlan" in handler && "advancePhase" in handler) {
-            (handler as { setProjectPlan: (plan: ProjectPlan) => void })
-              .setProjectPlan(data as ProjectPlan);
-            (handler as { advancePhase: () => void }).advancePhase();
-            ctx.logger.info("Completion signal: project-plan processed");
-          }
-          break;
-        case "review-result":
-          if ("setReviewResult" in handler && "advancePhase" in handler) {
-            (handler as { setReviewResult: (result: ReviewResult) => void })
-              .setReviewResult(data as ReviewResult);
-            (handler as { advancePhase: () => void }).advancePhase();
-            ctx.logger.info("Completion signal: review-result processed");
-          }
-          break;
         case "phase-advance":
           if ("advancePhase" in handler) {
             (handler as { advancePhase: () => void }).advancePhase();

@@ -67,7 +67,6 @@ export interface SandboxFilesystemConfig {
  * - checkBudget: Complete after N status checks (monitoring scenarios)
  * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
  * - structuredSignal: Complete when LLM outputs specific JSON signal
- * - phaseCompletion: Complete when workflow reaches terminal phase (was: project)
  * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
  * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
  * - custom: Fully custom handler implementation
@@ -79,7 +78,6 @@ export type CompletionType =
   | "checkBudget"
   | "keywordSignal"
   | "structuredSignal"
-  | "phaseCompletion"
   | "stepMachine"
   | "composite"
   | "custom"
@@ -87,7 +85,6 @@ export type CompletionType =
   | "issue" // -> externalState
   | "iterate" // -> iterationBudget
   | "manual" // -> keywordSignal
-  | "project" // -> phaseCompletion
   | "stepFlow" // -> stepMachine
   | "facilitator"; // -> composite
 
@@ -99,7 +96,6 @@ export const COMPLETION_TYPE_ALIASES: Record<string, CompletionType> = {
   issue: "externalState",
   iterate: "iterationBudget",
   manual: "keywordSignal",
-  project: "phaseCompletion",
   stepFlow: "stepMachine",
   facilitator: "composite",
 };
@@ -128,7 +124,6 @@ export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
   "checkBudget",
   "keywordSignal",
   "structuredSignal",
-  "phaseCompletion",
   "stepMachine",
   "composite",
   "custom",
@@ -136,7 +131,6 @@ export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
   "issue",
   "iterate",
   "manual",
-  "project",
   "stepFlow",
   "facilitator",
 ] as const;
@@ -165,8 +159,6 @@ export interface CompletionConfigUnion {
   /** For structuredSignal completion type */
   signalType?: string;
   requiredFields?: Record<string, unknown>;
-  /** For phaseCompletion completion type */
-  terminalPhases?: string[];
   /** For stepMachine completion type */
   registryPath?: string;
   entryStep?: string;
@@ -280,12 +272,59 @@ export interface LoggingConfig {
 // Runtime Types
 // ============================================================================
 
+/**
+ * Result of agent execution.
+ *
+ * v2 Design Compliance:
+ * - `iterations` (v2 name) replaces `totalIterations` (deprecated)
+ * - `reason` (v2 name) replaces `completionReason` (deprecated)
+ *
+ * Invariants (from design):
+ * - success=true  => reason is completion reason
+ * - success=false => reason is error content
+ */
 export interface AgentResult {
+  /** Whether agent completed successfully */
   success: boolean;
+
+  /**
+   * Total number of iterations executed.
+   * @v2
+   */
+  iterations: number;
+
+  /**
+   * Completion reason (success) or error content (failure).
+   * @v2
+   */
+  reason: string;
+
+  /**
+   * @deprecated Use `iterations` instead. Will be removed in next major version.
+   */
   totalIterations: number;
-  summaries: IterationSummary[];
+
+  /**
+   * @deprecated Use `reason` instead. Will be removed in next major version.
+   */
   completionReason: string;
+
+  /** Detailed iteration summaries */
+  summaries: IterationSummary[];
+
+  /** Error message (for backward compatibility) */
   error?: string;
+}
+
+/**
+ * Detailed result information separated from core result.
+ * Use this when you need full execution details beyond the core AgentResult.
+ */
+export interface AgentResultDetail extends AgentResult {
+  /** Session ID if available */
+  sessionId?: string;
+  /** Stack trace or additional error info */
+  errorDetails?: string;
 }
 
 export interface IterationSummary {
@@ -306,7 +345,7 @@ export interface DetectedAction {
 }
 
 export interface CompletionSignal {
-  type: "project-plan" | "review-result" | "phase-advance" | "complete";
+  type: "phase-advance" | "complete";
   data?: unknown;
 }
 
@@ -316,6 +355,44 @@ export interface ActionResult {
   result?: unknown;
   error?: string;
   completionSignal?: CompletionSignal;
+}
+
+// ============================================================================
+// LLM Query Types (v2)
+// ============================================================================
+
+/**
+ * Result from LLM query.
+ * Represents the outcome of a single LLM interaction.
+ */
+export interface QueryResult {
+  /** Session ID (for continuing conversation) */
+  sessionId: string;
+  /** Response text content */
+  content: string;
+  /** Tools that were used */
+  toolsUsed: string[];
+  /** Whether query completed successfully */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+}
+
+/**
+ * SDK message from streaming query.
+ * Represents individual messages from the Claude SDK stream.
+ */
+export interface SdkMessage {
+  /** Message type */
+  type: string;
+  /** Message content */
+  content?: unknown;
+  /** Tool use information */
+  toolUse?: {
+    name: string;
+    input: unknown;
+    result?: unknown;
+  };
 }
 
 // ============================================================================

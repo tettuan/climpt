@@ -70,11 +70,7 @@ export class ActionExecutor {
           return new FileActionHandler(type);
         case "completion-signal":
           return new CompletionSignalHandler(
-            type as
-              | "project-plan"
-              | "review-result"
-              | "phase-advance"
-              | "complete",
+            type as "phase-advance" | "complete",
           );
         default:
           throw new Error(`Unknown builtin handler: ${builtin}`);

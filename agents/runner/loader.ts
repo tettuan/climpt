@@ -1,5 +1,13 @@
 /**
  * Agent definition loader and validator
+ *
+ * @deprecated Use agents/config/mod.ts instead.
+ * This file is kept for backward compatibility.
+ *
+ * Migration guide:
+ * - loadAgentDefinition() -> use ConfigurationService.load() or loadConfiguration()
+ * - validateAgentDefinition() -> use validate() or validateComplete() from agents/config/validator.ts
+ * - getAgentDir() -> use getAgentDir() from agents/config/loader.ts
  */
 
 import { join } from "@std/path";
@@ -286,10 +294,8 @@ function validateCompletionConfig(
       // registryPath is optional, uses default from prompts.registry if not specified
       break;
 
-    // externalState (was: issue), phaseCompletion (was: project)
-    // These types don't require specific config - they use runtime parameters
+    // externalState (was: issue) - uses runtime parameters
     case "externalState":
-    case "phaseCompletion":
       break;
   }
 }

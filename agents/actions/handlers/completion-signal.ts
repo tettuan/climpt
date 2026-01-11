@@ -14,14 +14,10 @@ import type {
 
 export class CompletionSignalHandler implements ActionHandler {
   readonly type: string;
-  private signalType:
-    | "project-plan"
-    | "review-result"
-    | "phase-advance"
-    | "complete";
+  private signalType: "phase-advance" | "complete";
 
   constructor(
-    signalType: "project-plan" | "review-result" | "phase-advance" | "complete",
+    signalType: "phase-advance" | "complete",
   ) {
     this.type = signalType;
     this.signalType = signalType;

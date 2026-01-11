@@ -10,35 +10,68 @@
  * - checkBudget: Complete after N status checks (new)
  * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
  * - structuredSignal: Complete when LLM outputs specific JSON signal (new)
- * - phaseCompletion: Complete when workflow reaches terminal phase (was: project)
  * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
  * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
  * - custom: Fully custom handler implementation
+ *
+ * V2 Interfaces (Contract-compliant):
+ * - CompletionHandlerV2: Interface with no side effects in check()
+ * - IssueCompletionHandlerV2: Issue handler using external state checker
+ * - ExternalStateChecker: Interface for external state retrieval
  */
 
+// V1 Types (existing, maintained for backward compatibility)
 export type { CompletionCriteria, CompletionHandler } from "./types.ts";
 export { BaseCompletionHandler, formatIterationSummary } from "./types.ts";
 export type { CompletionType, IterationSummary } from "./types.ts";
 
+// V2 Types (contract-compliant)
+export type {
+  CheckContext,
+  CompletionHandlerV2,
+  CompletionResult,
+  StepResult,
+} from "./types.ts";
+
+// V1 Factory (deprecated, maintained for backward compatibility)
 export {
+  /** @deprecated Use createCompletionHandlerV2 instead */
   type CompletionHandlerOptions,
+  /** @deprecated Use createCompletionHandlerV2 instead */
   createCompletionHandler,
+  /** @deprecated Use createCompletionHandlerV2 instead */
   createCompletionHandlerFromOptions,
   getRegisteredHandler,
   registerCompletionHandler,
 } from "./factory.ts";
 
-// externalState (was: issue) - Complete when external resource reaches target state
-export { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
-
-// phaseCompletion (was: project) - Complete when workflow reaches terminal phase
+// V2 Factory (contract-compliant)
 export {
-  ProjectCompletionHandler,
-  type ProjectIssueInfo,
-  type ProjectPhase,
-  type ProjectPlan,
-  type ReviewResult,
-} from "./project.ts";
+  type CompletionHandlerV2Options,
+  createCompletionHandlerV2,
+} from "./factory.ts";
+
+// External State Checker (V2)
+export {
+  type ExternalStateChecker,
+  GitHubStateChecker,
+  type IssueState,
+  MockStateChecker,
+} from "./external-state-checker.ts";
+
+// externalState (was: issue) - Complete when external resource reaches target state
+// V1 handler (deprecated)
+export {
+  /** @deprecated Use IssueCompletionHandlerV2 instead */
+  IssueCompletionHandler,
+  type ProjectContext,
+} from "./issue.ts";
+
+// V2 handler (contract-compliant)
+export {
+  type IssueCompletionConfigV2,
+  IssueCompletionHandlerV2,
+} from "./issue.ts";
 
 // iterationBudget (was: iterate) - Complete after N iterations
 export { IterateCompletionHandler } from "./iterate.ts";
@@ -46,17 +79,7 @@ export { IterateCompletionHandler } from "./iterate.ts";
 // keywordSignal (was: manual) - Complete when LLM outputs specific keyword
 export { ManualCompletionHandler } from "./manual.ts";
 
-// composite (was: facilitator) - Combines multiple conditions with AND/OR logic
-// Note: FacilitatorCompletionHandler is kept for backward compatibility
-export {
-  type BlockerInfo,
-  FacilitatorCompletionHandler,
-  type FacilitatorPhase,
-  type FacilitatorReport,
-  type ProjectStatus,
-} from "./facilitator.ts";
-
-// checkBudget - Complete after N status checks (new)
+// checkBudget - Complete after N status checks
 export { CheckBudgetCompletionHandler } from "./check-budget.ts";
 
 // structuredSignal - Complete when LLM outputs specific JSON signal (new)

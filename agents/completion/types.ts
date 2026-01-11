@@ -3,12 +3,22 @@
  *
  * Unified interface combining features from runner and iterator implementations.
  * Uses Strategy pattern for different completion conditions.
+ *
+ * V2 interfaces are based on: agents/docs/12_contracts.md
  */
 
 import type { CompletionType, IterationSummary } from "../src_common/types.ts";
+import type {
+  CheckContext,
+  CompletionResult,
+  StepResult,
+} from "../src_common/contracts.ts";
 
 // Re-export for convenience
 export type { CompletionType, IterationSummary };
+
+// Re-export contract types for V2 API
+export type { CheckContext, CompletionResult, StepResult };
 
 /**
  * Completion criteria for system prompt and logging
@@ -139,4 +149,63 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
       })
       .join("\n");
   }
+}
+
+// ============================================================================
+// V2 Interfaces (Contract-compliant)
+// ============================================================================
+
+/**
+ * Completion Handler Interface V2
+ *
+ * Based on: agents/docs/12_contracts.md CompletionContract
+ *
+ * Contract guarantees:
+ * - check() is a Query method (no side effects)
+ * - transition() is a Query method (no side effects)
+ * - buildPrompt() is a Query method (no side effects)
+ * - External state retrieval is delegated to ExternalStateChecker
+ *
+ * Use IssueCompletionHandlerV2 and other V2 handlers for contract compliance.
+ */
+export interface CompletionHandlerV2 {
+  /** Completion type identifier */
+  readonly type: CompletionType;
+
+  /**
+   * Check if completion condition is met.
+   *
+   * @pre context.iteration > 0
+   * @post No side effects (Query method)
+   * @param context - Current iteration context
+   * @returns Completion decision
+   */
+  check(context: CheckContext): CompletionResult;
+
+  /**
+   * Determine next step after current step completes.
+   *
+   * @post No side effects (Query method)
+   * @param result - Step execution result
+   * @returns Next step ID or "complete" to finish
+   */
+  transition(result: StepResult): string | "complete";
+
+  /**
+   * Build prompt for the given phase.
+   *
+   * @post No side effects (Query method)
+   * @param phase - "initial" for first iteration, "continuation" for subsequent
+   * @param iteration - Current iteration number
+   * @returns Prompt string
+   */
+  buildPrompt(phase: "initial" | "continuation", iteration: number): string;
+
+  /**
+   * Get completion criteria description.
+   *
+   * @post No side effects (Query method)
+   * @returns Completion criteria with summary and detailed description
+   */
+  getCompletionCriteria(): { summary: string; detailed: string };
 }

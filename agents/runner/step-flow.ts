@@ -1,5 +1,9 @@
 /**
- * Step Flow Runner - executes step-based agent flows
+ * Step Flow Runner - step-based execution
+ *
+ * @deprecated Use AgentLoop from agents/loop/mod.ts instead.
+ * This file is kept for backward compatibility.
+ * The step flow functionality has been integrated into the AgentLoop.
  */
 
 import { join } from "@std/path";
