@@ -182,20 +182,17 @@ Deno.test("generateCorrelationId - generates reviewer ID", () => {
 Deno.test("generateCorrelationId - IDs are unique", async () => {
   const config = loadCoordinationConfig();
 
-  // Generate IDs with staggered delays to ensure unique timestamps
-  // Using Promise.all with explicit delay offsets to avoid no-await-in-loop
-  const idPromises = Array.from(
-    { length: 10 },
-    (_, i) =>
-      new Promise<string>((resolve) =>
-        setTimeout(
-          () => resolve(generateCorrelationId(config, "iterator")),
-          i * 2,
-        )
-      ),
-  );
+  // Generate IDs sequentially with delays to ensure unique timestamps
+  // Timestamp has millisecond precision, so 5ms delay ensures uniqueness
+  const idsArray: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    idsArray.push(generateCorrelationId(config, "iterator"));
+    if (i < 9) {
+      // deno-lint-ignore no-await-in-loop
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
 
-  const idsArray = await Promise.all(idPromises);
   const ids = new Set(idsArray);
 
   // All 10 IDs should be unique

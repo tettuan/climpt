@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-sys
+// deno-lint-ignore-file no-console no-await-in-loop
 
 /**
  * @fileoverview Climpt Agent - Multi-stage workflow sub-agent builder

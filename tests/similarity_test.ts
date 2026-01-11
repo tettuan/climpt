@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-console
 /**
  * @fileoverview Unit tests for similarity module functions
  * @module tests/similarity_test

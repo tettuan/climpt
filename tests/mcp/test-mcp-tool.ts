@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env --allow-run
+// deno-lint-ignore-file no-console prefer-ascii no-await-in-loop
 
 // Test MCP tool functionality
 const cmd = new Deno.Command("deno", {

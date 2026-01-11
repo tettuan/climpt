@@ -6,11 +6,12 @@ import type { Logger } from "../src_common/logger.ts";
 import type {
   ActionConfig,
   ActionResult,
+  CompletionSignal,
   DetectedAction,
 } from "../src_common/types.ts";
 
 // Re-export from common types
-export type { ActionConfig, ActionResult, DetectedAction };
+export type { ActionConfig, ActionResult, CompletionSignal, DetectedAction };
 
 /**
  * Context passed to action handlers during execution

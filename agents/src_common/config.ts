@@ -3,7 +3,7 @@
  */
 
 import { join } from "@std/path";
-import { deepMerge } from "./deep_merge.ts";
+import { deepMerge } from "./deep-merge.ts";
 import type { AgentDefinition } from "./types.ts";
 
 export interface RuntimeConfig {

@@ -18,7 +18,7 @@ import type {
 } from "../src_common/types.ts";
 import { Logger } from "../src_common/logger.ts";
 import { getAgentDir } from "./loader.ts";
-import { mergeSandboxConfig } from "./sandbox-defaults.ts";
+import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 
 export interface StepFlowOptions {
   cwd?: string;
@@ -456,14 +456,14 @@ export class StepFlowRunner {
         resume: this.sessionId,
       };
 
-      // Configure sandbox (merge agent config with defaults)
+      // Configure sandbox (merge agent config with defaults, convert to SDK format)
       const sandboxConfig = mergeSandboxConfig(
         this.definition.behavior.sandboxConfig,
       );
       if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;
       } else {
-        queryOptions.sandbox = sandboxConfig;
+        queryOptions.sandbox = toSdkSandboxConfig(sandboxConfig);
       }
 
       const queryIterator = query({

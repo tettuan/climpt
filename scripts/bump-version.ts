@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
+// deno-lint-ignore-file no-console
 /**
  * Version Bump Script
  *
@@ -136,7 +137,6 @@ Examples:
 
   // Get current state
   const current = await getCurrentVersions();
-  console.log("\nCurrent versions:");
   console.log(`  deno.json:   ${current.denoJson}`);
   console.log(`  version.ts:  ${current.versionTs}`);
   console.log(`  branch:      ${current.branch ?? "(not on release branch)"}`);

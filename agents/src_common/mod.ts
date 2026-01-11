@@ -3,7 +3,7 @@
  */
 
 export * from "./types.ts";
-export { deepMerge, deepMergeAll } from "./deep_merge.ts";
+export { deepMerge, deepMergeAll } from "./deep-merge.ts";
 export { type LogEntry, Logger, type LoggerOptions } from "./logger.ts";
 export {
   applyDefaults,

@@ -1,22 +1,45 @@
 /**
  * Agent Runner - main execution engine
+ *
+ * Supports dependency injection for testability.
+ * Use AgentRunnerBuilder for convenient construction with custom dependencies.
  */
 
 import type {
+  ActionResult,
   AgentDefinition,
   AgentResult,
   IterationSummary,
+  RuntimeContext,
 } from "../src_common/types.ts";
-import { Logger } from "../src_common/logger.ts";
 import {
-  type CompletionHandler,
-  createCompletionHandler,
-} from "../completion/mod.ts";
-import { PromptResolver } from "../prompts/resolver.ts";
+  AgentMaxIterationsError,
+  AgentNotInitializedError,
+  AgentQueryError,
+  isAgentError,
+  normalizeToAgentError,
+} from "./errors.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
-import { mergeSandboxConfig } from "./sandbox-defaults.ts";
+import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
+import type { AgentDependencies } from "./builder.ts";
+import {
+  createDefaultDependencies,
+  DefaultActionSystemFactory,
+} from "./builder.ts";
+import {
+  isAssistantMessage,
+  isErrorMessage,
+  isResultMessage,
+  isToolUseMessage,
+} from "./message-types.ts";
+import {
+  type AgentEvent,
+  AgentEventEmitter,
+  type AgentEventHandler,
+} from "./events.ts";
+import type { ProjectPlan, ReviewResult } from "../completion/project.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -28,61 +51,150 @@ export interface RunnerOptions {
 }
 
 export class AgentRunner {
-  private definition: AgentDefinition;
-  private completionHandler!: CompletionHandler;
-  private promptResolver!: PromptResolver;
-  private actionDetector?: ActionDetector;
-  private actionExecutor?: ActionExecutor;
-  private logger!: Logger;
-  private cwd!: string;
+  private readonly definition: AgentDefinition;
+  private readonly dependencies: AgentDependencies;
+  private readonly eventEmitter: AgentEventEmitter;
+  private context: RuntimeContext | null = null;
 
-  constructor(definition: AgentDefinition) {
+  /**
+   * Create an AgentRunner with optional dependency injection.
+   *
+   * @param definition - Agent definition from config
+   * @param dependencies - Optional dependencies for testing. Uses defaults if not provided.
+   *
+   * @example
+   * // Standard usage (uses default dependencies)
+   * const runner = new AgentRunner(definition);
+   *
+   * @example
+   * // With custom dependencies (for testing)
+   * const runner = new AgentRunner(definition, {
+   *   loggerFactory: mockLoggerFactory,
+   *   completionHandlerFactory: mockCompletionFactory,
+   *   promptResolverFactory: mockPromptFactory,
+   * });
+   *
+   * @example
+   * // Using the builder (recommended for testing)
+   * const runner = await new AgentRunnerBuilder()
+   *   .withDefinition(definition)
+   *   .withLoggerFactory(mockLoggerFactory)
+   *   .build();
+   */
+  constructor(definition: AgentDefinition, dependencies?: AgentDependencies) {
     this.definition = definition;
+    this.dependencies = dependencies ?? createDefaultDependencies();
+    this.eventEmitter = new AgentEventEmitter();
+  }
+
+  /**
+   * Subscribe to agent lifecycle events.
+   *
+   * @param event - The event type to subscribe to
+   * @param handler - Handler function called when event occurs
+   * @returns Unsubscribe function
+   *
+   * @example
+   * const unsubscribe = runner.on("iterationStart", ({ iteration }) => {
+   *   console.log(`Starting iteration ${iteration}`);
+   * });
+   * // Later: unsubscribe();
+   */
+  on<E extends AgentEvent>(
+    event: E,
+    handler: AgentEventHandler<E>,
+  ): () => void {
+    return this.eventEmitter.on(event, handler);
+  }
+
+  /**
+   * Get runtime context, throwing if not initialized.
+   * This replaces non-null assertions with explicit error handling.
+   */
+  private getContext(): RuntimeContext {
+    if (this.context === null) {
+      throw new AgentNotInitializedError();
+    }
+    return this.context;
   }
 
   async initialize(options: RunnerOptions): Promise<void> {
-    this.cwd = options.cwd ?? Deno.cwd();
-    const agentDir = getAgentDir(this.definition.name, this.cwd);
+    const cwd = options.cwd ?? Deno.cwd();
+    const agentDir = getAgentDir(this.definition.name, cwd);
 
-    // Initialize logger
-    this.logger = await Logger.create({
+    // Initialize logger using injected factory
+    const logger = await this.dependencies.loggerFactory.create({
       agentName: this.definition.name,
       directory: this.definition.logging.directory,
       format: this.definition.logging.format,
     });
 
-    // Initialize completion handler
-    this.completionHandler = await createCompletionHandler(
-      this.definition,
-      options.args,
-      agentDir,
+    // Initialize completion handler using injected factory
+    const completionHandler = await this.dependencies.completionHandlerFactory
+      .create(
+        this.definition,
+        options.args,
+        agentDir,
+      );
+
+    // Initialize prompt resolver using injected factory
+    const promptResolver = await this.dependencies.promptResolverFactory.create(
+      {
+        agentName: this.definition.name,
+        agentDir,
+        registryPath: this.definition.prompts.registry,
+        fallbackDir: this.definition.prompts.fallbackDir,
+      },
     );
 
-    // Initialize prompt resolver
-    this.promptResolver = await PromptResolver.create({
-      agentName: this.definition.name,
-      agentDir,
-      registryPath: this.definition.prompts.registry,
-      fallbackDir: this.definition.prompts.fallbackDir,
-    });
-
     // Initialize action system if enabled
+    let actionDetector: ActionDetector | undefined;
+    let actionExecutor: ActionExecutor | undefined;
     if (this.definition.actions?.enabled) {
-      this.actionDetector = new ActionDetector(this.definition.actions);
-      this.actionExecutor = new ActionExecutor(this.definition.actions, {
-        agentName: this.definition.name,
-        logger: this.logger,
-        cwd: this.cwd,
-      });
+      const actionFactory = this.dependencies.actionSystemFactory;
+      if (actionFactory) {
+        // Ensure the factory is initialized if it's the default one
+        if (actionFactory instanceof DefaultActionSystemFactory) {
+          await actionFactory.initialize();
+        }
+        actionDetector = actionFactory.createDetector(this.definition.actions);
+        actionExecutor = actionFactory.createExecutor(this.definition.actions, {
+          agentName: this.definition.name,
+          logger,
+          cwd,
+        });
+      } else {
+        // Fallback to direct instantiation if no factory provided
+        actionDetector = new ActionDetector(this.definition.actions);
+        actionExecutor = new ActionExecutor(this.definition.actions, {
+          agentName: this.definition.name,
+          logger,
+          cwd,
+        });
+      }
     }
+
+    // Assign all context at once (atomic initialization)
+    this.context = {
+      completionHandler,
+      promptResolver,
+      actionDetector,
+      actionExecutor,
+      logger,
+      cwd,
+    };
   }
 
   async run(options: RunnerOptions): Promise<AgentResult> {
     await this.initialize(options);
 
     const { args: _args, plugins = [] } = options;
+    const ctx = this.getContext();
 
-    this.logger.info(`Starting agent: ${this.definition.displayName}`);
+    // Emit initialized event
+    await this.eventEmitter.emit("initialized", { cwd: ctx.cwd });
+
+    ctx.logger.info(`Starting agent: ${this.definition.displayName}`);
 
     let iteration = 0;
     let sessionId: string | undefined;
@@ -92,7 +204,12 @@ export class AgentRunner {
       // Sequential execution required: each iteration depends on previous results
       while (true) {
         iteration++;
-        this.logger.info(`=== Iteration ${iteration} ===`);
+
+        // Emit iterationStart event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationStart", { iteration });
+
+        ctx.logger.info(`=== Iteration ${iteration} ===`);
 
         // Build prompt
         const lastSummary = summaries.length > 0
@@ -100,19 +217,23 @@ export class AgentRunner {
           : undefined;
         const prompt = iteration === 1
           // deno-lint-ignore no-await-in-loop
-          ? await this.completionHandler.buildInitialPrompt()
+          ? await ctx.completionHandler.buildInitialPrompt()
           // deno-lint-ignore no-await-in-loop
-          : await this.completionHandler.buildContinuationPrompt(
+          : await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1, // completedIterations
             lastSummary,
           );
 
         // deno-lint-ignore no-await-in-loop
-        const systemPrompt = await this.promptResolver.resolveSystemPrompt({
+        const systemPrompt = await ctx.promptResolver.resolveSystemPrompt({
           "uv-agent_name": this.definition.name,
           "uv-completion_criteria":
-            this.completionHandler.buildCompletionCriteria().detailed,
+            ctx.completionHandler.buildCompletionCriteria().detailed,
         });
+
+        // Emit promptBuilt event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("promptBuilt", { prompt, systemPrompt });
 
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
@@ -124,55 +245,118 @@ export class AgentRunner {
           iteration,
         });
 
+        // Emit queryExecuted event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("queryExecuted", { summary });
+
         summaries.push(summary);
         sessionId = summary.sessionId;
 
-        // Execute detected actions
-        if (this.actionExecutor && summary.detectedActions.length > 0) {
-          this.actionExecutor.setIteration(iteration);
+        // Emit actionDetected event if actions were detected
+        if (summary.detectedActions.length > 0) {
           // deno-lint-ignore no-await-in-loop
-          summary.actionResults = await this.actionExecutor.execute(
+          await this.eventEmitter.emit("actionDetected", {
+            actions: summary.detectedActions,
+          });
+        }
+
+        // Execute detected actions
+        if (ctx.actionExecutor && summary.detectedActions.length > 0) {
+          ctx.actionExecutor.setIteration(iteration);
+          // deno-lint-ignore no-await-in-loop
+          summary.actionResults = await ctx.actionExecutor.execute(
             summary.detectedActions,
           );
+
+          // Process completion signals from action results
+          this.processCompletionSignals(ctx, summary.actionResults);
+
+          // Emit actionExecuted event
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("actionExecuted", {
+            results: summary.actionResults,
+          });
         }
 
         // Check completion
         // deno-lint-ignore no-await-in-loop
-        if (await this.completionHandler.isComplete()) {
-          this.logger.info("Agent completed");
+        const isComplete = await ctx.completionHandler.isComplete();
+        // deno-lint-ignore no-await-in-loop
+        const completionReason = await ctx.completionHandler
+          .getCompletionDescription();
+
+        // Emit completionChecked event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("completionChecked", {
+          isComplete,
+          reason: completionReason,
+        });
+
+        // Emit iterationEnd event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationEnd", { iteration, summary });
+
+        if (isComplete) {
+          ctx.logger.info("Agent completed");
           break;
         }
 
         // Max iteration check
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
-          this.logger.warn(`Max iterations (${maxIterations}) reached`);
+          const maxIterError = new AgentMaxIterationsError(
+            maxIterations,
+            iteration,
+          );
+          ctx.logger.warn(maxIterError.message);
+
+          // Emit error event for max iterations
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("error", {
+            error: maxIterError,
+            recoverable: maxIterError.recoverable,
+          });
+
           break;
         }
       }
 
-      return {
+      const result: AgentResult = {
         success: true,
         totalIterations: iteration,
         summaries,
-        completionReason: await this.completionHandler
+        completionReason: await ctx.completionHandler
           .getCompletionDescription(),
       };
+
+      // Emit completed event
+      await this.eventEmitter.emit("completed", { result });
+
+      return result;
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
-      this.logger.error("Agent failed", { error: errorMessage });
+      // Normalize error to AgentError for structured handling
+      const agentError = normalizeToAgentError(error, { iteration });
+      ctx.logger.error("Agent failed", {
+        error: agentError.message,
+        code: agentError.code,
+        iteration: agentError.iteration,
+      });
+
+      // Emit error event with structured error
+      await this.eventEmitter.emit("error", {
+        error: agentError,
+        recoverable: isAgentError(error) ? error.recoverable : false,
+      });
 
       return {
         success: false,
         totalIterations: iteration,
         summaries,
         completionReason: "Error occurred",
-        error: errorMessage,
+        error: agentError.message,
       };
     } finally {
-      await this.logger.close();
+      await ctx.logger.close();
     }
   }
 
@@ -184,6 +368,7 @@ export class AgentRunner {
     iteration: number;
   }): Promise<IterationSummary> {
     const { prompt, systemPrompt, plugins, sessionId, iteration } = options;
+    const ctx = this.getContext();
 
     const summary: IterationSummary = {
       iteration,
@@ -199,7 +384,7 @@ export class AgentRunner {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
       const queryOptions: Record<string, unknown> = {
-        cwd: this.cwd,
+        cwd: ctx.cwd,
         systemPrompt,
         allowedTools: this.definition.behavior.allowedTools,
         permissionMode: this.definition.behavior.permissionMode,
@@ -208,14 +393,14 @@ export class AgentRunner {
         resume: sessionId,
       };
 
-      // Configure sandbox (merge agent config with defaults)
+      // Configure sandbox (merge agent config with defaults, convert to SDK format)
       const sandboxConfig = mergeSandboxConfig(
         this.definition.behavior.sandboxConfig,
       );
       if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;
       } else {
-        queryOptions.sandbox = sandboxConfig;
+        queryOptions.sandbox = toSdkSandboxConfig(sandboxConfig);
       }
 
       const queryIterator = query({
@@ -224,59 +409,50 @@ export class AgentRunner {
       });
 
       for await (const message of queryIterator) {
-        this.logger.logSdkMessage(message);
+        ctx.logger.logSdkMessage(message);
         this.processMessage(message, summary);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
-      summary.errors.push(errorMessage);
-      this.logger.error("Query execution failed", { error: errorMessage });
+      const queryError = new AgentQueryError(
+        error instanceof Error ? error.message : String(error),
+        {
+          cause: error instanceof Error ? error : undefined,
+          iteration,
+        },
+      );
+      summary.errors.push(queryError.message);
+      ctx.logger.error("Query execution failed", {
+        error: queryError.message,
+        code: queryError.code,
+        iteration: queryError.iteration,
+      });
     }
 
     return summary;
   }
 
   private processMessage(message: unknown, summary: IterationSummary): void {
-    if (typeof message !== "object" || message === null) {
-      return;
-    }
+    const ctx = this.getContext();
 
-    const msg = message as Record<string, unknown>;
-    const type = msg.type as string;
+    if (isAssistantMessage(message)) {
+      const content = this.extractContent(message.message);
+      if (content) {
+        summary.assistantResponses.push(content);
 
-    switch (type) {
-      case "assistant": {
-        const content = this.extractContent(msg.message);
-        if (content) {
-          summary.assistantResponses.push(content);
-
-          // Detect actions
-          if (this.actionDetector) {
-            const actions = this.actionDetector.detect(content);
-            summary.detectedActions.push(...actions);
-          }
+        // Detect actions
+        if (ctx.actionDetector) {
+          const actions = ctx.actionDetector.detect(content);
+          summary.detectedActions.push(...actions);
         }
-        break;
       }
-
-      case "tool_use":
-        summary.toolsUsed.push(msg.tool_name as string);
-        break;
-
-      case "result":
-        summary.sessionId = msg.session_id as string;
-        break;
-
-      case "error": {
-        const errorObj = msg.error as Record<string, unknown>;
-        summary.errors.push(
-          (errorObj?.message as string) ?? "Unknown error",
-        );
-        break;
-      }
+    } else if (isToolUseMessage(message)) {
+      summary.toolsUsed.push(message.tool_name);
+    } else if (isResultMessage(message)) {
+      summary.sessionId = message.session_id;
+    } else if (isErrorMessage(message)) {
+      summary.errors.push(message.error.message ?? "Unknown error");
     }
+    // Unknown message types are silently ignored (defensive)
   }
 
   private extractContent(message: unknown): string {
@@ -312,5 +488,51 @@ export class AgentRunner {
       );
     }
     return 100; // Default max
+  }
+
+  /**
+   * Process completion signals from action results
+   * Updates CompletionHandler state based on detected signals
+   */
+  private processCompletionSignals(
+    ctx: RuntimeContext,
+    results: ActionResult[],
+  ): void {
+    for (const result of results) {
+      if (!result.completionSignal) continue;
+
+      const { type, data } = result.completionSignal;
+
+      // Interface-based check for type safety
+      const handler = ctx.completionHandler;
+
+      switch (type) {
+        case "project-plan":
+          if ("setProjectPlan" in handler && "advancePhase" in handler) {
+            (handler as { setProjectPlan: (plan: ProjectPlan) => void })
+              .setProjectPlan(data as ProjectPlan);
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: project-plan processed");
+          }
+          break;
+        case "review-result":
+          if ("setReviewResult" in handler && "advancePhase" in handler) {
+            (handler as { setReviewResult: (result: ReviewResult) => void })
+              .setReviewResult(data as ReviewResult);
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: review-result processed");
+          }
+          break;
+        case "phase-advance":
+          if ("advancePhase" in handler) {
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: phase advanced");
+          }
+          break;
+        case "complete":
+          ctx.logger.info("Completion signal: direct complete received");
+          break;
+      }
+    }
   }
 }

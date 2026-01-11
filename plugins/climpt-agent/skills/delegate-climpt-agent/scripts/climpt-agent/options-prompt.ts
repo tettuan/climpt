@@ -1,3 +1,4 @@
+// deno-lint-ignore-file prefer-ascii no-await-in-loop
 /**
  * @fileoverview LLM-based option resolution for Climpt Agent
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/options-prompt
@@ -353,7 +354,7 @@ const SKIP_CLI_ARG_OPTIONS = new Set(["stdin"]);
  */
 export function toCLIArgs(resolved: ResolvedOptions): string[] {
   return Object.entries(resolved)
-    .filter(([k, v]) => v != null && v !== "" && !SKIP_CLI_ARG_OPTIONS.has(k))
+    .filter(([k, v]) => v !== null && v !== "" && !SKIP_CLI_ARG_OPTIONS.has(k))
     .map(([k, v]) => {
       const cliArg = OPTION_TO_CLI_ARG[k] || k;
       return `--${cliArg}=${v}`;

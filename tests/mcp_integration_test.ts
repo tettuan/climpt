@@ -28,6 +28,7 @@ Deno.test("MCP tool names match availableConfigs", async () => {
     if (error instanceof Deno.errors.NotFound) {
       // Registry doesn't exist - this is valid during development
       // The MCP server will use defaults from types.ts
+      // deno-lint-ignore no-console
       console.log("Registry file not found - skipping command validation");
     } else {
       throw error;

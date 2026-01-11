@@ -18,9 +18,13 @@ const SCHEMA_PATH =
 const INPUT_PATTERN = `${baseDir}/.agent/climpt/prompts/**/*.md`;
 const OUTPUT_PATH = `${baseDir}/.agent/climpt/registry.json`;
 
+// deno-lint-ignore no-console
 console.log("Generating registry.json from prompt frontmatter...");
+// deno-lint-ignore no-console
 console.log(`  Schema: ${SCHEMA_PATH}`);
+// deno-lint-ignore no-console
 console.log(`  Input: ${INPUT_PATTERN}`);
+// deno-lint-ignore no-console
 console.log(`  Output: ${OUTPUT_PATH}`);
 
 const TEMPLATE_PATH =
@@ -35,11 +39,16 @@ const result = await transformFiles({
 
 if (result.isOk()) {
   const { processedDocuments, outputPath, executionTime } = result.unwrap();
+  // deno-lint-ignore no-console
   console.log(`\nSuccess! Generated registry.json`);
+  // deno-lint-ignore no-console
   console.log(`  Processed: ${processedDocuments} documents`);
+  // deno-lint-ignore no-console
   console.log(`  Output: ${outputPath}`);
+  // deno-lint-ignore no-console
   console.log(`  Time: ${executionTime}ms`);
 } else {
+  // deno-lint-ignore no-console
   console.error(`\nError:`, result);
   Deno.exit(1);
 }
