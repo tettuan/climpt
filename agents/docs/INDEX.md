@@ -22,6 +22,13 @@
 
 以下の3ファイルが設計の基準。他のドキュメントはこれらに整合するよう見直す。
 
+**思考実験による検証**:
+
+- `tmp/gecko/` - 動物名（gecko）で26個の穴を発見
+- `tmp/rudder/` - 乗物操作名（rudder）で38個の穴を発見
+- `tmp/saucier/` - コース料理名（saucier）で46個の穴を発見
+- 合計110個の設計観点を反映済み
+
 | ファイル                       | 抽象度 | 内容                | 役割                     |
 | ------------------------------ | ------ | ------------------- | ------------------------ |
 | `00_abstraction_layers.md`     | 最高   | 6層の抽象化レイヤー | **設計の骨格**           |
@@ -36,8 +43,10 @@
 Layer -1: Configuration  - 設定読み込み、依存組み立て
 Layer  0: Lifecycle      - 起動から停止までの全体制御
 Layer  1: Loop           - 実行ループの制御
+Layer  1.5: Scheduler    - 並列実行、リソース管理、同期（Saucier実験で発見）
 Layer  2: SDK Bridge     - Claude Agent SDKとの接続
 Layer  3: Completion     - 完了条件の判定
+Layer  3.5: StepCheck    - ステップ単位の遷移判定（Rudder実験で発見）
 Layer  4: Prompt         - 外部プロンプトの解決
 ```
 

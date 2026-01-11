@@ -404,3 +404,232 @@ class StepMachineImpl implements StepMachine {
   }
 }
 ```
+
+## Composite Completion実装（Rudder実験で追加）
+
+### 評価ロジック
+
+```typescript
+class CompositeCompletionHandler implements CompletionHandler {
+  private handlers: Map<string, CompletionHandler>;
+  private config: CompositeCompletionConfig;
+  private conditionStates: Record<string, boolean> = {};
+
+  async check(context: CompletionContext): Promise<CompletionResult> {
+    const results: Array<{ name: string; result: CompletionResult }> = [];
+
+    // 配列順に評価
+    for (const condition of this.config.conditions) {
+      const handler = this.handlers.get(condition.type);
+      const result = await handler.check(context);
+      results.push({ name: condition.type, result });
+      this.conditionStates[condition.type] = result.complete;
+
+      // mode="any" で短絡評価
+      if (this.config.mode === "any" && result.complete) {
+        return {
+          complete: true,
+          reason: `${condition.type}: ${result.reason}`,
+        };
+      }
+    }
+
+    // mode="all" の判定
+    if (this.config.mode === "all") {
+      const allComplete = results.every((r) => r.result.complete);
+      if (allComplete) {
+        return {
+          complete: true,
+          reason: results.map((r) => r.result.reason).join("; "),
+        };
+      }
+    }
+
+    return { complete: false };
+  }
+
+  getConditionStates(): Record<string, boolean> {
+    return { ...this.conditionStates };
+  }
+}
+```
+
+### Handler生成順序
+
+```typescript
+// Composite用Handlerの生成順序
+// 1. 各condition用のHandlerを先に生成
+// 2. CompositeHandlerを生成し、子Handlerを注入
+
+function buildCompositeHandler(
+  config: CompositeCompletionConfig,
+  factory: CompletionHandlerFactory,
+): CompositeCompletionHandler {
+  const handlers = new Map<string, CompletionHandler>();
+
+  for (const condition of config.conditions) {
+    handlers.set(condition.type, factory.create(condition));
+  }
+
+  return new CompositeCompletionHandler(config, handlers);
+}
+```
+
+## StepCheck実装（Rudder実験で追加）
+
+### check type別の実装
+
+```typescript
+class StepCheckerFactory {
+  create(checkDef: StepCheckDefinition): StepChecker {
+    switch (checkDef.type) {
+      case "keyword":
+        return new KeywordStepChecker(checkDef.keywords);
+      case "action":
+        return new ActionStepChecker(checkDef.actionType);
+      case "prompt":
+        return new PromptStepChecker(checkDef.prompt, this.sdkBridge);
+    }
+  }
+}
+
+class KeywordStepChecker implements StepChecker {
+  async check(context: StepCheckContext): Promise<StepCheckResult> {
+    const responseText = this.extractText(context.response);
+    const found = this.keywords.some((k) => responseText.includes(k));
+    return { passed: found, reason: found ? `Keyword found` : undefined };
+  }
+}
+
+class ActionStepChecker implements StepChecker {
+  async check(context: StepCheckContext): Promise<StepCheckResult> {
+    const found = context.actionResults?.some(
+      (ar) => ar.type === this.actionType,
+    );
+    return { passed: !!found };
+  }
+}
+
+class PromptStepChecker implements StepChecker {
+  async check(context: StepCheckContext): Promise<StepCheckResult> {
+    // 追加のLLM呼び出し（新規セッション）
+    const checkPrompt = await this.resolver.resolve(this.promptRef);
+    const result = await this.sdkBridge.query(checkPrompt, {
+      sessionId: undefined, // 新規セッション
+      maxTurns: 1,
+    });
+    const responseText = this.extractText(result);
+    const passed = responseText.includes("PASS");
+    return { passed, reason: responseText };
+  }
+}
+```
+
+### Retry管理
+
+```typescript
+interface RetryState {
+  counts: Record<string, number>; // stepId -> retryCount
+}
+
+class RetryManager {
+  private state: RetryState = { counts: {} };
+
+  increment(stepId: string): number {
+    this.state.counts[stepId] = (this.state.counts[stepId] || 0) + 1;
+    return this.state.counts[stepId];
+  }
+
+  reset(stepId: string): void {
+    this.state.counts[stepId] = 0;
+  }
+
+  isExhausted(stepId: string, maxRetries: number): boolean {
+    return (this.state.counts[stepId] || 0) >= maxRetries;
+  }
+
+  handleExhausted(
+    stepId: string,
+    policy: RetryPolicy,
+  ): { action: "error" | "next"; nextStep?: string } {
+    switch (policy.onExhausted) {
+      case "error":
+        throw new StepRetryExhaustedError(stepId, policy.maxRetries);
+      case "fallback":
+        return { action: "next", nextStep: policy.fallbackStep };
+      case "skip":
+        return { action: "next" }; // onFail.next を使用
+    }
+  }
+}
+```
+
+## ステップループ検出（Rudder実験で追加）
+
+```typescript
+interface LoopDetector {
+  record(stepId: string): void;
+  isLooping(stepId: string, limit: number): boolean;
+}
+
+class StepLoopDetector implements LoopDetector {
+  private history: string[] = [];
+  private consecutiveCounts: Record<string, number> = {};
+
+  record(stepId: string): void {
+    // 連続実行カウント
+    const last = this.history[this.history.length - 1];
+    if (last === stepId) {
+      this.consecutiveCounts[stepId] = (this.consecutiveCounts[stepId] || 1) +
+        1;
+    } else {
+      this.consecutiveCounts[stepId] = 1;
+    }
+    this.history.push(stepId);
+  }
+
+  isLooping(stepId: string, limit: number): boolean {
+    return (this.consecutiveCounts[stepId] || 0) > limit;
+  }
+
+  // パターン検出（A→B→A→B の繰り返し）
+  detectCycle(windowSize: number = 4): string[] | null {
+    if (this.history.length < windowSize * 2) return null;
+
+    const recent = this.history.slice(-windowSize);
+    const previous = this.history.slice(-windowSize * 2, -windowSize);
+
+    if (JSON.stringify(recent) === JSON.stringify(previous)) {
+      return recent;
+    }
+    return null;
+  }
+}
+```
+
+## C3Lパス解決の詳細（Rudder実験で補足）
+
+```typescript
+// steps_registry での C3L参照
+// { c1: "navigation", c2: "assess", c3: "situation" }
+
+// 実ファイルへの変換パターン
+// パターンA: prompts/steps/{c2}_{c3}.md
+// パターンB: prompts/{c1}/{c2}/{c3}/f_default.md
+
+// 決定: パターンA を採用（フラット構造）
+// 理由: 小規模エージェントでは深い階層は不要
+
+function resolveStepPromptPath(
+  basePath: string,
+  ref: C3LReference,
+): string {
+  // steps_registry の場合、c1 は無視してフラットに配置
+  return `${basePath}/prompts/steps/${ref.c2}_${ref.c3}.md`;
+}
+
+// agent.json の相対パスとの併存
+// - agent.json: "prompts/system.md" → そのまま使用
+// - steps_registry: { c1, c2, c3 } → 変換して使用
+// - PromptResolver が両方をサポート
+```
