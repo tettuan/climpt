@@ -68,11 +68,19 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 
 ### Complete Issue (REQUIRED when done)
 
-**IMPORTANT: Before closing, ensure all changes are committed.**
-Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+> **⚠️ MANDATORY PRE-CLOSE CHECKLIST ⚠️**
+>
+> **You MUST complete ALL of these steps before using `issue-action close`:**
+>
+> 1. **Run `git status`** - Check for uncommitted changes
+> 2. **If changes exist**: Run `git add .` then `git commit -m "..."`
+> 3. **Verify clean state**: Run `git status` again to confirm "nothing to commit"
+> 4. **Only then**: Use the close action below
+>
+> **NEVER close an issue with uncommitted changes. This is a hard requirement.**
 
 ```issue-action
-{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Tasks completed: N"}
+{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N"}
 ```
 
 ### Ask a Question (if blocked)
