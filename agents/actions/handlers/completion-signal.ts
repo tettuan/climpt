@@ -31,7 +31,8 @@ export class CompletionSignalHandler implements ActionHandler {
     return action.type === this.type;
   }
 
-  async execute(
+  // Sync implementation returning Promise for interface compliance
+  execute(
     action: DetectedAction,
     ctx: ActionContext,
   ): Promise<ActionResult> {
@@ -43,26 +44,26 @@ export class CompletionSignalHandler implements ActionHandler {
         hasData: !!data,
       });
 
-      return {
+      return Promise.resolve({
         action,
         success: true,
         completionSignal: {
           type: this.signalType,
           data,
         },
-      };
+      });
     } catch (error) {
       ctx.logger.error(`[CompletionSignal: ${this.signalType}] Parse error`, {
         error: error instanceof Error ? error.message : String(error),
       });
 
-      return {
+      return Promise.resolve({
         action,
         success: false,
         error: `Failed to parse completion signal: ${
           error instanceof Error ? error.message : String(error)
         }`,
-      };
+      });
     }
   }
 }
