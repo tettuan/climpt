@@ -173,7 +173,13 @@ export class FacilitatorCompletionHandler extends BaseCompletionHandler {
       }
 
       const output = new TextDecoder().decode(result.stdout);
-      const data = JSON.parse(output);
+      let data;
+      try {
+        data = JSON.parse(output);
+      } catch {
+        // Invalid JSON from gh CLI - use empty status
+        return this.emptyStatus();
+      }
       const items = data.items || [];
 
       // Calculate status from items

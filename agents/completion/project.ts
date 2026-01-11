@@ -167,7 +167,13 @@ export class ProjectCompletionHandler extends BaseCompletionHandler {
       }
 
       const output = new TextDecoder().decode(result.stdout);
-      const data = JSON.parse(output);
+      let data;
+      try {
+        data = JSON.parse(output);
+      } catch {
+        // Invalid JSON from gh CLI - return empty array
+        return [];
+      }
 
       // Filter by label if specified
       let items = data.items || [];

@@ -19,6 +19,41 @@ import { StructuredSignalCompletionHandler } from "./structured_signal.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
 
 /**
+ * Type guard helpers for args validation
+ */
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && !Number.isNaN(value);
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
+}
+
+function isOptionalBoolean(value: unknown): value is boolean | undefined {
+  return value === undefined || typeof value === "boolean";
+}
+
+/**
+ * Validate and extract issue number from args
+ */
+function getIssueNumber(args: Record<string, unknown>): number {
+  if (!isNumber(args.issue)) {
+    throw new Error(`Invalid issue number: ${args.issue}`);
+  }
+  return args.issue;
+}
+
+/**
+ * Validate and extract project number from args
+ */
+function getProjectNumber(args: Record<string, unknown>): number {
+  if (!isNumber(args.project)) {
+    throw new Error(`Invalid project number: ${args.project}`);
+  }
+  return args.project;
+}
+
+/**
  * Options for creating a completion handler
  */
 export interface CompletionHandlerOptions {
@@ -71,8 +106,8 @@ export async function createCompletionHandler(
   // If --issue is provided, always use IssueCompletionHandler regardless of completionType
   if (args.issue !== undefined) {
     const issueHandler = new IssueCompletionHandler(
-      args.issue as number,
-      args.repository as string | undefined,
+      getIssueNumber(args),
+      isOptionalString(args.repository) ? args.repository : undefined,
     );
     issueHandler.setPromptResolver(promptResolver);
     return issueHandler;
@@ -91,10 +126,12 @@ export async function createCompletionHandler(
     // phaseCompletion (was: project) - Complete when workflow reaches terminal phase
     case "phaseCompletion": {
       const projectHandler = new ProjectCompletionHandler(
-        args.project as number,
-        args.label as string | undefined,
-        args.projectOwner as string | undefined,
-        args.includeCompleted as boolean | undefined,
+        getProjectNumber(args),
+        isOptionalString(args.label) ? args.label : undefined,
+        isOptionalString(args.projectOwner) ? args.projectOwner : undefined,
+        isOptionalBoolean(args.includeCompleted)
+          ? args.includeCompleted
+          : undefined,
       );
       projectHandler.setPromptResolver(promptResolver);
       handler = projectHandler;
@@ -156,8 +193,8 @@ export async function createCompletionHandler(
       } else {
         // Legacy facilitator behavior - use FacilitatorCompletionHandler
         const facilitatorHandler = new FacilitatorCompletionHandler(
-          args.project as number,
-          args.projectOwner as string | undefined,
+          getProjectNumber(args),
+          isOptionalString(args.projectOwner) ? args.projectOwner : undefined,
         );
         facilitatorHandler.setPromptResolver(promptResolver);
         handler = facilitatorHandler;
