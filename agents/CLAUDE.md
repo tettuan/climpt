@@ -70,6 +70,34 @@ Agent の実行は **Agent 自身の動作検証** が目的である。
 - Agent の出力を schema でバリデーションする
 - 実行前に前提条件をチェックする
 
+## Claude Code 内からの実行
+
+**二重 Sandbox の制限**
+
+Claude Code の Bash ツールから Agent を実行すると、二重の sandbox が適用される：
+
+```
+Claude Code Bash tool sandbox (外側)
+  └─ Agent Runner
+       └─ SDK sandbox (内側)
+```
+
+内側の SDK sandbox で `api.anthropic.com` を許可しても、外側の Bash tool sandbox
+が先にブロックする。
+
+**解決策**
+
+```typescript
+Bash({
+  command: "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
+  dangerouslyDisableSandbox: true, // 外側の sandbox を無効化
+});
+```
+
+または、ターミナルから直接実行する。
+
+詳細: `docs/internal/claude-agent-sdk.md`
+
 ## 禁止事項
 
 - Agent のエラーを手動でリカバリーすること
