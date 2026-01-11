@@ -4,6 +4,11 @@
 
 import { join } from "@std/path";
 import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
+import {
+  ALL_COMPLETION_TYPES,
+  isLegacyCompletionType,
+  resolveCompletionType,
+} from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
 
 /**
@@ -100,22 +105,26 @@ export function validateAgentDefinition(
       errors.push("behavior.permissionMode is required");
     }
 
-    // Validate completion type
-    const validCompletionTypes = [
-      "issue",
-      "project",
-      "iterate",
-      "manual",
-      "custom",
-    ];
+    // Validate completion type (accepts both new and legacy names)
     if (
       def.behavior.completionType &&
-      !validCompletionTypes.includes(def.behavior.completionType)
+      !ALL_COMPLETION_TYPES.includes(def.behavior.completionType)
     ) {
       errors.push(
         `behavior.completionType must be one of: ${
-          validCompletionTypes.join(", ")
+          ALL_COMPLETION_TYPES.join(", ")
         }`,
+      );
+    }
+
+    // Warn about deprecated completion type names
+    if (
+      def.behavior.completionType &&
+      isLegacyCompletionType(def.behavior.completionType)
+    ) {
+      const newType = resolveCompletionType(def.behavior.completionType);
+      warnings.push(
+        `behavior.completionType "${def.behavior.completionType}" is deprecated, use "${newType}" instead`,
       );
     }
 
@@ -191,11 +200,15 @@ function validateCompletionConfig(
 ): void {
   const { completionType, completionConfig } = def.behavior;
 
-  switch (completionType) {
-    case "iterate":
+  // Resolve legacy type names to new names for validation
+  const resolvedType = resolveCompletionType(completionType);
+
+  switch (resolvedType) {
+    // iterationBudget (was: iterate)
+    case "iterationBudget":
       if (!completionConfig?.maxIterations) {
         errors.push(
-          "behavior.completionConfig.maxIterations is required for iterate completion type",
+          "behavior.completionConfig.maxIterations is required for iterationBudget/iterate completion type",
         );
       } else if (
         typeof completionConfig.maxIterations !== "number" ||
@@ -207,20 +220,76 @@ function validateCompletionConfig(
       }
       break;
 
-    case "manual":
+    // keywordSignal (was: manual)
+    case "keywordSignal":
       if (!completionConfig?.completionKeyword) {
         errors.push(
-          "behavior.completionConfig.completionKeyword is required for manual completion type",
+          "behavior.completionConfig.completionKeyword is required for keywordSignal/manual completion type",
         );
       }
       break;
 
+    // custom - unchanged
     case "custom":
       if (!completionConfig?.handlerPath) {
         errors.push(
           "behavior.completionConfig.handlerPath is required for custom completion type",
         );
       }
+      break;
+
+    // checkBudget - new type
+    case "checkBudget":
+      if (!completionConfig?.maxChecks) {
+        errors.push(
+          "behavior.completionConfig.maxChecks is required for checkBudget completion type",
+        );
+      } else if (
+        typeof completionConfig.maxChecks !== "number" ||
+        completionConfig.maxChecks < 1
+      ) {
+        errors.push(
+          "behavior.completionConfig.maxChecks must be a positive number",
+        );
+      }
+      break;
+
+    // structuredSignal - new type
+    case "structuredSignal":
+      if (!completionConfig?.signalType) {
+        errors.push(
+          "behavior.completionConfig.signalType is required for structuredSignal completion type",
+        );
+      }
+      break;
+
+    // composite (was: facilitator) - new type
+    case "composite":
+      if (!completionConfig?.operator) {
+        errors.push(
+          "behavior.completionConfig.operator is required for composite completion type",
+        );
+      }
+      if (
+        !completionConfig?.conditions ||
+        !Array.isArray(completionConfig.conditions) ||
+        completionConfig.conditions.length === 0
+      ) {
+        errors.push(
+          "behavior.completionConfig.conditions is required for composite completion type",
+        );
+      }
+      break;
+
+    // stepMachine (was: stepFlow) - validate registry path if provided
+    case "stepMachine":
+      // registryPath is optional, uses default from prompts.registry if not specified
+      break;
+
+    // externalState (was: issue), phaseCompletion (was: project)
+    // These types don't require specific config - they use runtime parameters
+    case "externalState":
+    case "phaseCompletion":
       break;
   }
 }
