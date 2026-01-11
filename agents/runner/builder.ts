@@ -1,0 +1,329 @@
+/**
+ * AgentRunnerBuilder - Builder pattern for testable AgentRunner construction
+ *
+ * This module provides dependency injection support for AgentRunner,
+ * enabling easier testing through mock factories.
+ */
+
+import type {
+  ActionConfig,
+  AgentDefinition,
+  LoggingConfig,
+} from "../src_common/types.ts";
+import type { CompletionHandler } from "../completion/types.ts";
+import type { Logger } from "../src_common/logger.ts";
+import type { PromptResolver } from "../prompts/resolver.ts";
+import type { ActionDetector } from "../actions/detector.ts";
+import type { ActionExecutor, ExecutorOptions } from "../actions/executor.ts";
+
+// ============================================================================
+// Factory Interfaces
+// ============================================================================
+
+/**
+ * Factory interface for Logger creation.
+ * Allows injection of mock loggers for testing.
+ */
+export interface LoggerFactory {
+  create(options: LoggerFactoryOptions): Promise<Logger>;
+}
+
+/**
+ * Options for Logger creation via factory.
+ * Named differently from src_common/logger.ts LoggerOptions to avoid export conflicts.
+ */
+export interface LoggerFactoryOptions {
+  agentName: string;
+  directory: string;
+  format: LoggingConfig["format"];
+}
+
+/**
+ * Factory interface for CompletionHandler creation.
+ * Allows injection of mock completion handlers for testing.
+ */
+export interface CompletionHandlerFactory {
+  create(
+    definition: AgentDefinition,
+    args: Record<string, unknown>,
+    agentDir: string,
+  ): Promise<CompletionHandler>;
+}
+
+/**
+ * Factory interface for PromptResolver creation.
+ * Allows injection of mock prompt resolvers for testing.
+ */
+export interface PromptResolverFactory {
+  create(options: PromptResolverFactoryOptions): Promise<PromptResolver>;
+}
+
+/**
+ * Options for PromptResolver creation via factory.
+ * Named differently from prompts/resolver.ts PromptResolverOptions to avoid export conflicts.
+ */
+export interface PromptResolverFactoryOptions {
+  agentName: string;
+  agentDir: string;
+  registryPath: string;
+  fallbackDir?: string;
+}
+
+/**
+ * Factory interface for Action system components.
+ * Allows injection of mock detectors and executors for testing.
+ */
+export interface ActionSystemFactory {
+  createDetector(config: ActionConfig): ActionDetector;
+  createExecutor(
+    config: ActionConfig,
+    options: ExecutorOptions,
+  ): ActionExecutor;
+}
+
+// ============================================================================
+// Dependencies Interface
+// ============================================================================
+
+/**
+ * All injectable dependencies for AgentRunner.
+ * Using readonly to ensure immutability after creation.
+ */
+export interface AgentDependencies {
+  readonly loggerFactory: LoggerFactory;
+  readonly completionHandlerFactory: CompletionHandlerFactory;
+  readonly promptResolverFactory: PromptResolverFactory;
+  readonly actionSystemFactory?: ActionSystemFactory;
+}
+
+/**
+ * Mutable version of AgentDependencies for internal builder use.
+ * This allows the builder to collect factories before creating the final immutable object.
+ */
+interface MutableAgentDependencies {
+  loggerFactory?: LoggerFactory;
+  completionHandlerFactory?: CompletionHandlerFactory;
+  promptResolverFactory?: PromptResolverFactory;
+  actionSystemFactory?: ActionSystemFactory;
+}
+
+// ============================================================================
+// Default Factory Implementations
+// ============================================================================
+
+/**
+ * Default factory implementation for Logger.
+ * Wraps the static Logger.create() method.
+ */
+export class DefaultLoggerFactory implements LoggerFactory {
+  async create(options: LoggerFactoryOptions): Promise<Logger> {
+    // Dynamic import to avoid circular dependencies
+    const { Logger } = await import("../src_common/logger.ts");
+    return Logger.create(options);
+  }
+}
+
+/**
+ * Default factory implementation for CompletionHandler.
+ * Wraps the createCompletionHandler factory function.
+ */
+export class DefaultCompletionHandlerFactory
+  implements CompletionHandlerFactory {
+  async create(
+    definition: AgentDefinition,
+    args: Record<string, unknown>,
+    agentDir: string,
+  ): Promise<CompletionHandler> {
+    // Dynamic import to avoid circular dependencies
+    const { createCompletionHandler } = await import("../completion/mod.ts");
+    return createCompletionHandler(definition, args, agentDir);
+  }
+}
+
+/**
+ * Default factory implementation for PromptResolver.
+ * Wraps the static PromptResolver.create() method.
+ */
+export class DefaultPromptResolverFactory implements PromptResolverFactory {
+  async create(options: PromptResolverFactoryOptions): Promise<PromptResolver> {
+    // Dynamic import to avoid circular dependencies
+    const { PromptResolver } = await import("../prompts/resolver.ts");
+    return PromptResolver.create(options);
+  }
+}
+
+/**
+ * Default factory implementation for Action system components.
+ * Wraps the ActionDetector and ActionExecutor constructors.
+ */
+export class DefaultActionSystemFactory implements ActionSystemFactory {
+  private ActionDetectorClass: typeof ActionDetector | null = null;
+  private ActionExecutorClass: typeof ActionExecutor | null = null;
+
+  private async ensureImported(): Promise<void> {
+    if (!this.ActionDetectorClass || !this.ActionExecutorClass) {
+      // Dynamic import to avoid circular dependencies
+      const detectorModule = await import("../actions/detector.ts");
+      const executorModule = await import("../actions/executor.ts");
+      this.ActionDetectorClass = detectorModule.ActionDetector;
+      this.ActionExecutorClass = executorModule.ActionExecutor;
+    }
+  }
+
+  createDetector(config: ActionConfig): ActionDetector {
+    // Note: For synchronous creation, we need pre-imported classes
+    // This will throw if ensureImported() wasn't called
+    if (!this.ActionDetectorClass) {
+      throw new Error(
+        "ActionDetectorClass not imported. Call ensureImported() first.",
+      );
+    }
+    return new this.ActionDetectorClass(config);
+  }
+
+  createExecutor(
+    config: ActionConfig,
+    options: ExecutorOptions,
+  ): ActionExecutor {
+    // Note: For synchronous creation, we need pre-imported classes
+    if (!this.ActionExecutorClass) {
+      throw new Error(
+        "ActionExecutorClass not imported. Call ensureImported() first.",
+      );
+    }
+    return new this.ActionExecutorClass(config, options);
+  }
+
+  /**
+   * Async initialization to import classes.
+   * Must be called before createDetector/createExecutor.
+   */
+  async initialize(): Promise<void> {
+    await this.ensureImported();
+  }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Create default dependencies for AgentRunner.
+ * Used when no custom dependencies are provided.
+ */
+export function createDefaultDependencies(): AgentDependencies {
+  return {
+    loggerFactory: new DefaultLoggerFactory(),
+    completionHandlerFactory: new DefaultCompletionHandlerFactory(),
+    promptResolverFactory: new DefaultPromptResolverFactory(),
+    actionSystemFactory: new DefaultActionSystemFactory(),
+  };
+}
+
+// ============================================================================
+// Builder Class
+// ============================================================================
+
+// Forward declaration - AgentRunner is imported dynamically to avoid circular deps
+type AgentRunnerType = import("./runner.ts").AgentRunner;
+
+/**
+ * Builder for creating AgentRunner instances with dependency injection.
+ *
+ * @example
+ * // Create with defaults
+ * const runner = await new AgentRunnerBuilder()
+ *   .withDefinition(definition)
+ *   .build();
+ *
+ * @example
+ * // Create with custom factories for testing
+ * const runner = await new AgentRunnerBuilder()
+ *   .withDefinition(definition)
+ *   .withLoggerFactory(mockLoggerFactory)
+ *   .withCompletionHandlerFactory(mockCompletionFactory)
+ *   .build();
+ */
+export class AgentRunnerBuilder {
+  private definition?: AgentDefinition;
+  private dependencies: MutableAgentDependencies = {};
+
+  /**
+   * Set the agent definition.
+   */
+  withDefinition(def: AgentDefinition): this {
+    this.definition = def;
+    return this;
+  }
+
+  /**
+   * Set a custom logger factory.
+   */
+  withLoggerFactory(factory: LoggerFactory): this {
+    this.dependencies.loggerFactory = factory;
+    return this;
+  }
+
+  /**
+   * Set a custom completion handler factory.
+   */
+  withCompletionHandlerFactory(factory: CompletionHandlerFactory): this {
+    this.dependencies.completionHandlerFactory = factory;
+    return this;
+  }
+
+  /**
+   * Set a custom prompt resolver factory.
+   */
+  withPromptResolverFactory(factory: PromptResolverFactory): this {
+    this.dependencies.promptResolverFactory = factory;
+    return this;
+  }
+
+  /**
+   * Set a custom action system factory.
+   */
+  withActionSystemFactory(factory: ActionSystemFactory): this {
+    this.dependencies.actionSystemFactory = factory;
+    return this;
+  }
+
+  /**
+   * Build the AgentRunner with configured dependencies.
+   * @throws Error if AgentDefinition is not set
+   */
+  async build(): Promise<AgentRunnerType> {
+    if (!this.definition) {
+      throw new Error(
+        "AgentDefinition is required. Call withDefinition() first.",
+      );
+    }
+
+    const deps = this.buildDependencies();
+
+    // Initialize action system factory if it's the default one
+    if (deps.actionSystemFactory instanceof DefaultActionSystemFactory) {
+      await deps.actionSystemFactory.initialize();
+    }
+
+    // Dynamic import to avoid circular dependencies
+    const { AgentRunner } = await import("./runner.ts");
+    return new AgentRunner(this.definition, deps);
+  }
+
+  /**
+   * Build dependencies by merging custom factories with defaults.
+   */
+  private buildDependencies(): AgentDependencies {
+    const defaults = createDefaultDependencies();
+    return {
+      loggerFactory: this.dependencies.loggerFactory ?? defaults.loggerFactory,
+      completionHandlerFactory: this.dependencies.completionHandlerFactory ??
+        defaults.completionHandlerFactory,
+      promptResolverFactory: this.dependencies.promptResolverFactory ??
+        defaults.promptResolverFactory,
+      actionSystemFactory: this.dependencies.actionSystemFactory ??
+        defaults.actionSystemFactory,
+    };
+  }
+}

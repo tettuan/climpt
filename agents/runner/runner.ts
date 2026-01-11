@@ -1,5 +1,8 @@
 /**
  * Agent Runner - main execution engine
+ *
+ * Supports dependency injection for testability.
+ * Use AgentRunnerBuilder for convenient construction with custom dependencies.
  */
 
 import type {
@@ -9,13 +12,15 @@ import type {
   RuntimeContext,
 } from "../src_common/types.ts";
 import { RuntimeContextNotInitializedError } from "../src_common/types.ts";
-import { Logger } from "../src_common/logger.ts";
-import { createCompletionHandler } from "../completion/mod.ts";
-import { PromptResolver } from "../prompts/resolver.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
+import type { AgentDependencies } from "./builder.ts";
+import {
+  createDefaultDependencies,
+  DefaultActionSystemFactory,
+} from "./builder.ts";
 import {
   isAssistantMessage,
   isErrorMessage,
@@ -33,11 +38,38 @@ export interface RunnerOptions {
 }
 
 export class AgentRunner {
-  private definition: AgentDefinition;
+  private readonly definition: AgentDefinition;
+  private readonly dependencies: AgentDependencies;
   private context: RuntimeContext | null = null;
 
-  constructor(definition: AgentDefinition) {
+  /**
+   * Create an AgentRunner with optional dependency injection.
+   *
+   * @param definition - Agent definition from config
+   * @param dependencies - Optional dependencies for testing. Uses defaults if not provided.
+   *
+   * @example
+   * // Standard usage (uses default dependencies)
+   * const runner = new AgentRunner(definition);
+   *
+   * @example
+   * // With custom dependencies (for testing)
+   * const runner = new AgentRunner(definition, {
+   *   loggerFactory: mockLoggerFactory,
+   *   completionHandlerFactory: mockCompletionFactory,
+   *   promptResolverFactory: mockPromptFactory,
+   * });
+   *
+   * @example
+   * // Using the builder (recommended for testing)
+   * const runner = await new AgentRunnerBuilder()
+   *   .withDefinition(definition)
+   *   .withLoggerFactory(mockLoggerFactory)
+   *   .build();
+   */
+  constructor(definition: AgentDefinition, dependencies?: AgentDependencies) {
     this.definition = definition;
+    this.dependencies = dependencies ?? createDefaultDependencies();
   }
 
   /**
@@ -55,38 +87,56 @@ export class AgentRunner {
     const cwd = options.cwd ?? Deno.cwd();
     const agentDir = getAgentDir(this.definition.name, cwd);
 
-    // Initialize logger
-    const logger = await Logger.create({
+    // Initialize logger using injected factory
+    const logger = await this.dependencies.loggerFactory.create({
       agentName: this.definition.name,
       directory: this.definition.logging.directory,
       format: this.definition.logging.format,
     });
 
-    // Initialize completion handler
-    const completionHandler = await createCompletionHandler(
-      this.definition,
-      options.args,
-      agentDir,
-    );
+    // Initialize completion handler using injected factory
+    const completionHandler = await this.dependencies.completionHandlerFactory
+      .create(
+        this.definition,
+        options.args,
+        agentDir,
+      );
 
-    // Initialize prompt resolver
-    const promptResolver = await PromptResolver.create({
-      agentName: this.definition.name,
-      agentDir,
-      registryPath: this.definition.prompts.registry,
-      fallbackDir: this.definition.prompts.fallbackDir,
-    });
+    // Initialize prompt resolver using injected factory
+    const promptResolver = await this.dependencies.promptResolverFactory.create(
+      {
+        agentName: this.definition.name,
+        agentDir,
+        registryPath: this.definition.prompts.registry,
+        fallbackDir: this.definition.prompts.fallbackDir,
+      },
+    );
 
     // Initialize action system if enabled
     let actionDetector: ActionDetector | undefined;
     let actionExecutor: ActionExecutor | undefined;
     if (this.definition.actions?.enabled) {
-      actionDetector = new ActionDetector(this.definition.actions);
-      actionExecutor = new ActionExecutor(this.definition.actions, {
-        agentName: this.definition.name,
-        logger,
-        cwd,
-      });
+      const actionFactory = this.dependencies.actionSystemFactory;
+      if (actionFactory) {
+        // Ensure the factory is initialized if it's the default one
+        if (actionFactory instanceof DefaultActionSystemFactory) {
+          await actionFactory.initialize();
+        }
+        actionDetector = actionFactory.createDetector(this.definition.actions);
+        actionExecutor = actionFactory.createExecutor(this.definition.actions, {
+          agentName: this.definition.name,
+          logger,
+          cwd,
+        });
+      } else {
+        // Fallback to direct instantiation if no factory provided
+        actionDetector = new ActionDetector(this.definition.actions);
+        actionExecutor = new ActionExecutor(this.definition.actions, {
+          agentName: this.definition.name,
+          logger,
+          cwd,
+        });
+      }
     }
 
     // Assign all context at once (atomic initialization)
