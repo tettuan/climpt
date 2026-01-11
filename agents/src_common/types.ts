@@ -549,6 +549,9 @@ export interface RuntimeContext {
 
 /**
  * Error thrown when attempting to access runtime context before initialization
+ *
+ * @deprecated Use AgentNotInitializedError from agents/runner/errors.ts instead.
+ * This class is kept for backward compatibility but will be removed in a future version.
  */
 export class RuntimeContextNotInitializedError extends Error {
   constructor() {

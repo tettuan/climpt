@@ -4,6 +4,17 @@
 
 export { AgentRunner, type RunnerOptions } from "./runner.ts";
 export {
+  AgentActionError,
+  AgentCompletionError,
+  AgentError,
+  AgentMaxIterationsError,
+  AgentNotInitializedError,
+  AgentQueryError,
+  AgentTimeoutError,
+  isAgentError,
+  normalizeToAgentError,
+} from "./errors.ts";
+export {
   type AgentEvent,
   AgentEventEmitter,
   type AgentEventHandler,

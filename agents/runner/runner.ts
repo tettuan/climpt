@@ -11,7 +11,13 @@ import type {
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
-import { RuntimeContextNotInitializedError } from "../src_common/types.ts";
+import {
+  AgentMaxIterationsError,
+  AgentNotInitializedError,
+  AgentQueryError,
+  isAgentError,
+  normalizeToAgentError,
+} from "./errors.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
@@ -105,7 +111,7 @@ export class AgentRunner {
    */
   private getContext(): RuntimeContext {
     if (this.context === null) {
-      throw new RuntimeContextNotInitializedError();
+      throw new AgentNotInitializedError();
     }
     return this.context;
   }
@@ -293,7 +299,19 @@ export class AgentRunner {
         // Max iteration check
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
-          ctx.logger.warn(`Max iterations (${maxIterations}) reached`);
+          const maxIterError = new AgentMaxIterationsError(
+            maxIterations,
+            iteration,
+          );
+          ctx.logger.warn(maxIterError.message);
+
+          // Emit error event for max iterations
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("error", {
+            error: maxIterError,
+            recoverable: maxIterError.recoverable,
+          });
+
           break;
         }
       }
@@ -311,16 +329,18 @@ export class AgentRunner {
 
       return result;
     } catch (error) {
-      const errorObj = error instanceof Error
-        ? error
-        : new Error(String(error));
-      const errorMessage = errorObj.message;
-      ctx.logger.error("Agent failed", { error: errorMessage });
+      // Normalize error to AgentError for structured handling
+      const agentError = normalizeToAgentError(error, { iteration });
+      ctx.logger.error("Agent failed", {
+        error: agentError.message,
+        code: agentError.code,
+        iteration: agentError.iteration,
+      });
 
-      // Emit error event
+      // Emit error event with structured error
       await this.eventEmitter.emit("error", {
-        error: errorObj,
-        recoverable: false,
+        error: agentError,
+        recoverable: isAgentError(error) ? error.recoverable : false,
       });
 
       return {
@@ -328,7 +348,7 @@ export class AgentRunner {
         totalIterations: iteration,
         summaries,
         completionReason: "Error occurred",
-        error: errorMessage,
+        error: agentError.message,
       };
     } finally {
       await ctx.logger.close();
@@ -388,11 +408,19 @@ export class AgentRunner {
         this.processMessage(message, summary);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
-      summary.errors.push(errorMessage);
-      ctx.logger.error("Query execution failed", { error: errorMessage });
+      const queryError = new AgentQueryError(
+        error instanceof Error ? error.message : String(error),
+        {
+          cause: error instanceof Error ? error : undefined,
+          iteration,
+        },
+      );
+      summary.errors.push(queryError.message);
+      ctx.logger.error("Query execution failed", {
+        error: queryError.message,
+        code: queryError.code,
+        iteration: queryError.iteration,
+      });
     }
 
     return summary;
