@@ -26,8 +26,9 @@
 
 - `tmp/gecko/` - 動物名（gecko）で26個の穴を発見
 - `tmp/rudder/` - 乗物操作名（rudder）で38個の穴を発見
-- `tmp/saucier/` - コース料理名（saucier）で46個の穴を発見
-- 合計110個の設計観点を反映済み
+- `tmp/saucier/` -
+  コース料理名（saucier）で46個の穴を発見（並列実行関連はスコープ外）
+- 合計110個の設計観点を発見（並列実行関連はスコープ外として除外）
 
 | ファイル                       | 抽象度 | 内容                | 役割                     |
 | ------------------------------ | ------ | ------------------- | ------------------------ |
@@ -43,11 +44,14 @@
 Layer -1: Configuration  - 設定読み込み、依存組み立て
 Layer  0: Lifecycle      - 起動から停止までの全体制御
 Layer  1: Loop           - 実行ループの制御
-Layer  1.5: Scheduler    - 並列実行、リソース管理、同期（Saucier実験で発見）
 Layer  2: SDK Bridge     - Claude Agent SDKとの接続
 Layer  3: Completion     - 完了条件の判定
 Layer  3.5: StepCheck    - ステップ単位の遷移判定（Rudder実験で発見）
 Layer  4: Prompt         - 外部プロンプトの解決
+
+# 並列実行について（スコープ外）
+# Layer 1.5 Scheduler は過剰実装のため除外。
+# 並列実行が必要な場合は、複数のAgentインスタンスを起動して対応する。
 ```
 
 ### 04_design_contracts.md

@@ -389,212 +389,44 @@ interface StepTransitionContract {
 const STEP_LOOP_LIMIT = 10; // 設定可能
 ```
 
-## Layer 1.5: Scheduler（Saucier実験で発見）
+## 並列実行について（スコープ外）
 
-並列実行、リソース管理、同期ポイントを統括する。
+Saucier実験で Layer 1.5
+Scheduler（並列実行、リソース管理、同期ポイント）の必要性を発見したが、
+**過剰実装のためスコープ外**とする。
 
-### Scheduler
+### 設計判断
 
-```typescript
-interface Scheduler {
-  /**
-   * @pre steps は有効なステップIDの配列
-   * @post すべてのステップが完了またはエラー
-   * @side-effect 並列実行、リソース取得/解放
-   */
-  executeParallel(
-    steps: string[],
-    options: ParallelOptions,
-  ): Promise<ParallelResult[]>;
+並列実行が必要な場合は、**複数のAgentインスタンスを起動**して対応する。
 
-  /**
-   * @pre waitFor のすべてのステップが開始済み
-   * @post すべてのステップが完了、またはタイムアウト
-   * @side-effect 待機状態の管理
-   */
-  awaitSyncPoint(
-    pointName: string,
-    config: SyncPointConfig,
-  ): Promise<SyncPointResult>;
+```
+# 並列実行の代替案
+Agent A (appetizer担当)  ─┐
+Agent B (fish担当)       ─┼─→ 外部オーケストレーター
+Agent C (meat担当)       ─┘
 
-  /**
-   * @pre resources はresourcePoolに定義済み
-   * @post すべてのリソースが取得済み、またはタイムアウト
-   * @side-effect リソース状態の更新
-   */
-  acquireResources(
-    resources: string[],
-    options: AcquireOptions,
-  ): Promise<ResourceLock[]>;
-
-  /**
-   * @pre locks は acquireResources() の戻り値
-   * @post リソースが解放済み
-   * @side-effect リソース状態の更新、待機中ステップの通知
-   */
-  releaseResources(locks: ResourceLock[]): void;
-}
+# 利点:
+# - 各Agentは単純な単一ループを維持
+# - 並列制御は外部（シェルスクリプト、ワークフローエンジン等）に委譲
+# - Agent自体の複雑性を抑制
 ```
 
-### ParallelOptions契約
+### スコープ外とした項目
 
-```typescript
-interface ParallelOptions {
-  maxConcurrency: number; // 同時実行数の上限
-  errorHandling: ParallelErrorPolicy;
-  // 契約:
-  // - "fail_fast": 一つでも失敗したら全体を中止
-  // - "continue": 失敗を無視して残りを実行
-  // - "retry_failed": 失敗したステップのみリトライ
-}
+以下はSaucier実験で発見したが、設計には含めない:
 
-type ParallelErrorPolicy = "fail_fast" | "continue" | "retry_failed";
+- Layer 1.5: Scheduler
+- ParallelOptions, SyncPoint, ResourceLock 契約
+- DependencyResolver, TimingConstraint 契約
+- parallelGroup, maxConcurrency, syncPoints 設定
+- リソース競合解決、デッドロック検出
 
-interface ParallelResult {
-  stepId: string;
-  success: boolean;
-  result?: unknown;
-  error?: Error;
-  duration: number; // ミリ秒
-}
-```
+### 残す項目
 
-### SyncPoint契約
+以下はSaucier実験で発見し、設計に含める:
 
-```typescript
-interface SyncPointConfig {
-  type: "barrier" | "latch" | "countdown";
-  waitFor: string[]; // 待機対象のステップID
-  timeout?: Duration; // 待機タイムアウト
-  onTimeout?: TimeoutAction;
-  // 契約:
-  // - barrier: 全ステップ完了で解放
-  // - latch: 一度開いたら閉じない
-  // - countdown: 指定数完了で解放
-}
-
-type TimeoutAction =
-  | { action: "abort" }
-  | { action: "partial"; excludeIncomplete: true }
-  | { action: "extend"; additionalTime: Duration };
-
-interface SyncPointResult {
-  success: boolean;
-  completedSteps: string[];
-  timedOut: boolean;
-  excludedSteps?: string[]; // partial の場合
-}
-
-// Duration の表現:
-// - 文字列: "30min", "5s", "1h30m"
-// - または数値（ミリ秒）
-type Duration = string | number;
-```
-
-### ResourceLock契約
-
-```typescript
-interface AcquireOptions {
-  timeout?: Duration;
-  priority?: number; // 高いほど優先
-  exclusive: boolean;
-  allOrNothing: boolean;
-  // 契約:
-  // - allOrNothing=true: すべて取得できなければ全部解放してリトライ
-  // - allOrNothing=false: 取得できたものから保持
-}
-
-interface ResourceLock {
-  resourceName: string;
-  acquiredAt: Date;
-  stepId: string;
-  exclusive: boolean;
-}
-
-// 契約:
-// - 同一リソースを exclusive=true で複数取得は不可
-// - exclusive=false なら共有可能（読み取り専用など）
-// - 取得待ちはFIFO、ただしpriority考慮
-```
-
-### 競合解決契約
-
-```typescript
-interface ConflictResolution {
-  // conflictsWith で定義されたステップの競合解決
-  // 契約:
-  // - 同時に実行不可のステップを定義
-  // - リソースベースの競合とは別管理
-  // - 優先度が同じ場合: 先に開始要求した方が優先
-}
-
-// デッドロック検出:
-// - タイムアウトによる検出（推奨）
-// - グラフベースの検出（オプション）
-// - 検出時: DeadlockError をスロー、全ロック解放
-```
-
-## 依存関係契約（Saucier実験で発見）
-
-### DependencyResolver
-
-```typescript
-interface DependencyResolver {
-  /**
-   * @pre stepId は registry.steps に存在
-   * @post 依存グラフが構築済み
-   * @throws CyclicDependencyError - 循環依存を検出
-   */
-  resolve(stepId: string): Promise<DependencyGraph>;
-
-  /**
-   * @post 実行可能なステップの順序を返す
-   */
-  getExecutionOrder(): string[];
-}
-
-interface DependencyGraph {
-  nodes: Map<string, DependencyNode>;
-  edges: DependencyEdge[];
-}
-
-interface DependencyNode {
-  stepId: string;
-  status: "pending" | "running" | "completed" | "failed";
-}
-
-interface DependencyEdge {
-  from: string;
-  to: string;
-  type: DependencyType;
-}
-
-type DependencyType = "hard" | "soft" | "data";
-// 契約:
-// - hard: 完了必須、失敗で後続も失敗
-// - soft: 可能なら完了を待つ、タイムアウトで続行
-// - data: 特定のデータが必要、データ到着で続行
-```
-
-## タイミング制約契約（Saucier実験で発見）
-
-```typescript
-interface TimingConstraint {
-  estimatedDuration?: Duration;
-  intervalBetweenSteps?: Duration;
-  maxWaitTime?: Duration;
-  coolingRequired?: boolean;
-  // 契約:
-  // - estimatedDuration: スケジューリングのヒント、超過は警告
-  // - intervalBetweenSteps: 次ステップ開始までの最小待機時間
-  // - maxWaitTime: 次ステップ開始までの最大待機時間
-  // - coolingRequired: ステップ完了後に指定時間待機が必要
-}
-
-// 待機の実装:
-// - 待機中は他のステップを実行可能（並列性の活用）
-// - 待機完了はイベントで通知
-```
+- **エスカレーション契約**: ステップ間のジャンプ、外部通知
+- **SubStep契約**: 入れ子構造のステップ定義（ただし sequential=true のみ）
 
 ## エスカレーション契約（Saucier実験で発見）
 
@@ -619,20 +451,19 @@ interface EscalationConfig {
 
 ```typescript
 interface SubStepConfig {
-  sequential: boolean;
+  sequential: true; // 並列実行はスコープ外
   subSteps: string[];
   // 契約:
-  // - sequential=true: subSteps を順番に実行
-  // - sequential=false: subSteps を並列実行
+  // - subSteps を順番に実行
   // - 親ステップの完了: すべての subSteps 完了で完了
   // - 親ステップの失敗: いずれかの subSteps 失敗で失敗
 }
 
 // ステップ型の区別:
-type StepType = "normal" | "syncPoint" | "gateway" | "subStep";
+type StepType = "normal" | "gateway" | "subStep";
 // 契約:
 // - normal: 通常のプロンプト実行ステップ
-// - syncPoint: 同期待機ステップ（プロンプトなし）
 // - gateway: 分岐/合流ポイント
 // - subStep: 親ステップの一部として実行
+// 注: syncPoint はスコープ外（複数Agent起動で対応）
 ```
