@@ -6,6 +6,7 @@
  */
 
 import type {
+  ActionResult,
   AgentDefinition,
   AgentResult,
   IterationSummary,
@@ -38,6 +39,7 @@ import {
   AgentEventEmitter,
   type AgentEventHandler,
 } from "./events.ts";
+import type { ProjectPlan, ReviewResult } from "../completion/project.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -266,6 +268,9 @@ export class AgentRunner {
             summary.detectedActions,
           );
 
+          // Process completion signals from action results
+          this.processCompletionSignals(ctx, summary.actionResults);
+
           // Emit actionExecuted event
           // deno-lint-ignore no-await-in-loop
           await this.eventEmitter.emit("actionExecuted", {
@@ -483,5 +488,51 @@ export class AgentRunner {
       );
     }
     return 100; // Default max
+  }
+
+  /**
+   * Process completion signals from action results
+   * Updates CompletionHandler state based on detected signals
+   */
+  private processCompletionSignals(
+    ctx: RuntimeContext,
+    results: ActionResult[],
+  ): void {
+    for (const result of results) {
+      if (!result.completionSignal) continue;
+
+      const { type, data } = result.completionSignal;
+
+      // Interface-based check for type safety
+      const handler = ctx.completionHandler;
+
+      switch (type) {
+        case "project-plan":
+          if ("setProjectPlan" in handler && "advancePhase" in handler) {
+            (handler as { setProjectPlan: (plan: ProjectPlan) => void })
+              .setProjectPlan(data as ProjectPlan);
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: project-plan processed");
+          }
+          break;
+        case "review-result":
+          if ("setReviewResult" in handler && "advancePhase" in handler) {
+            (handler as { setReviewResult: (result: ReviewResult) => void })
+              .setReviewResult(data as ReviewResult);
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: review-result processed");
+          }
+          break;
+        case "phase-advance":
+          if ("advancePhase" in handler) {
+            (handler as { advancePhase: () => void }).advancePhase();
+            ctx.logger.info("Completion signal: phase advanced");
+          }
+          break;
+        case "complete":
+          ctx.logger.info("Completion signal: direct complete received");
+          break;
+      }
+    }
   }
 }

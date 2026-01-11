@@ -16,6 +16,7 @@ import {
   GitHubIssueHandler,
 } from "./handlers/github-issue.ts";
 import { FileActionHandler } from "./handlers/file.ts";
+import { CompletionSignalHandler } from "./handlers/completion-signal.ts";
 
 export interface ExecutorOptions {
   agentName: string;
@@ -67,6 +68,14 @@ export class ActionExecutor {
           return new GitHubCommentHandler(type);
         case "file":
           return new FileActionHandler(type);
+        case "completion-signal":
+          return new CompletionSignalHandler(
+            type as
+              | "project-plan"
+              | "review-result"
+              | "phase-advance"
+              | "complete",
+          );
         default:
           throw new Error(`Unknown builtin handler: ${builtin}`);
       }

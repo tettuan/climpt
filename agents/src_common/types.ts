@@ -305,11 +305,17 @@ export interface DetectedAction {
   raw: string;
 }
 
+export interface CompletionSignal {
+  type: "project-plan" | "review-result" | "phase-advance" | "complete";
+  data?: unknown;
+}
+
 export interface ActionResult {
   action: DetectedAction;
   success: boolean;
   result?: unknown;
   error?: string;
+  completionSignal?: CompletionSignal;
 }
 
 // ============================================================================

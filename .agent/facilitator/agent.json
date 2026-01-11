@@ -79,8 +79,12 @@
   },
   "actions": {
     "enabled": true,
-    "types": ["facilitate-action", "status-report"],
-    "outputFormat": "json"
+    "types": ["facilitate-action", "status-report", "project-plan", "review-result"],
+    "outputFormat": "json",
+    "handlers": {
+      "project-plan": "builtin:completion-signal",
+      "review-result": "builtin:completion-signal"
+    }
   },
   "github": {
     "enabled": true,
