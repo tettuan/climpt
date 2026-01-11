@@ -6,7 +6,10 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
-import { resolveCompletionType } from "../src_common/types.ts";
+import {
+  isLegacyCompletionType,
+  resolveCompletionType,
+} from "../src_common/types.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
 import type { CompletionHandler } from "./types.ts";
 import { IssueCompletionHandler } from "./issue.ts";
@@ -92,6 +95,16 @@ export async function createCompletionHandler(
 
   // Resolve legacy type names to new names
   const resolvedType = resolveCompletionType(completionType);
+
+  // Warn about deprecated completion type names at runtime
+  if (isLegacyCompletionType(completionType)) {
+    // deno-lint-ignore no-console
+    console.warn(
+      `[Deprecated] CompletionType "${completionType}" is deprecated. ` +
+        `Use "${resolvedType}" instead. ` +
+        `This will be removed in a future version.`,
+    );
+  }
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
