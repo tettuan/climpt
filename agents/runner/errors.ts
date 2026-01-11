@@ -211,3 +211,105 @@ export function normalizeToAgentError(
     iteration: options?.iteration,
   });
 }
+
+// Import types for new error classes
+// Note: These are imported here to avoid circular dependencies
+// and because the base errors.ts should remain independent
+
+/**
+ * SDK Error Category (duplicated to avoid circular import)
+ * Full definition in error-classifier.ts
+ */
+export type SdkErrorCategoryType =
+  | "environment"
+  | "network"
+  | "api"
+  | "input"
+  | "internal"
+  | "unknown";
+
+/**
+ * Environment information (duplicated to avoid circular import)
+ * Full definition in environment-checker.ts
+ */
+export interface EnvironmentInfoType {
+  insideClaudeCode: boolean;
+  sandboxed: boolean;
+  nestLevel: number;
+  warnings: string[];
+}
+
+/**
+ * Environment constraint error (e.g., double sandbox)
+ *
+ * This error indicates the execution environment does not support
+ * SDK operations. It is not recoverable without changing the
+ * execution context.
+ */
+export class AgentEnvironmentError extends AgentError {
+  readonly code = "AGENT_ENVIRONMENT_ERROR";
+  readonly recoverable = false;
+  readonly category: SdkErrorCategoryType;
+  readonly guidance: string;
+  readonly environment: EnvironmentInfoType;
+
+  constructor(
+    message: string,
+    options: {
+      category: SdkErrorCategoryType;
+      guidance: string;
+      environment: EnvironmentInfoType;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.category = options.category;
+    this.guidance = options.guidance;
+    this.environment = options.environment;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      category: this.category,
+      guidance: this.guidance,
+      environment: this.environment,
+    };
+  }
+}
+
+/**
+ * Retryable query error with additional context
+ *
+ * This error indicates a query failure that may be recovered
+ * by retrying after a delay.
+ */
+export class AgentRetryableQueryError extends AgentError {
+  readonly code = "AGENT_RETRYABLE_QUERY_ERROR";
+  readonly recoverable = true;
+  readonly category: SdkErrorCategoryType;
+  readonly retryAfterMs?: number;
+
+  constructor(
+    message: string,
+    options: {
+      category: SdkErrorCategoryType;
+      retryAfterMs?: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.category = options.category;
+    this.retryAfterMs = options.retryAfterMs;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      category: this.category,
+      retryAfterMs: this.retryAfterMs,
+    };
+  }
+}
