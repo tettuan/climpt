@@ -16,6 +16,12 @@ import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
+import {
+  isAssistantMessage,
+  isErrorMessage,
+  isResultMessage,
+  isToolUseMessage,
+} from "./message-types.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -258,45 +264,27 @@ export class AgentRunner {
   }
 
   private processMessage(message: unknown, summary: IterationSummary): void {
-    if (typeof message !== "object" || message === null) {
-      return;
-    }
-
-    const msg = message as Record<string, unknown>;
-    const type = msg.type as string;
     const ctx = this.getContext();
 
-    switch (type) {
-      case "assistant": {
-        const content = this.extractContent(msg.message);
-        if (content) {
-          summary.assistantResponses.push(content);
+    if (isAssistantMessage(message)) {
+      const content = this.extractContent(message.message);
+      if (content) {
+        summary.assistantResponses.push(content);
 
-          // Detect actions
-          if (ctx.actionDetector) {
-            const actions = ctx.actionDetector.detect(content);
-            summary.detectedActions.push(...actions);
-          }
+        // Detect actions
+        if (ctx.actionDetector) {
+          const actions = ctx.actionDetector.detect(content);
+          summary.detectedActions.push(...actions);
         }
-        break;
       }
-
-      case "tool_use":
-        summary.toolsUsed.push(msg.tool_name as string);
-        break;
-
-      case "result":
-        summary.sessionId = msg.session_id as string;
-        break;
-
-      case "error": {
-        const errorObj = msg.error as Record<string, unknown>;
-        summary.errors.push(
-          (errorObj?.message as string) ?? "Unknown error",
-        );
-        break;
-      }
+    } else if (isToolUseMessage(message)) {
+      summary.toolsUsed.push(message.tool_name);
+    } else if (isResultMessage(message)) {
+      summary.sessionId = message.session_id;
+    } else if (isErrorMessage(message)) {
+      summary.errors.push(message.error.message ?? "Unknown error");
     }
+    // Unknown message types are silently ignored (defensive)
   }
 
   private extractContent(message: unknown): string {
