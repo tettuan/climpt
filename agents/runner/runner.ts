@@ -6,12 +6,11 @@ import type {
   AgentDefinition,
   AgentResult,
   IterationSummary,
+  RuntimeContext,
 } from "../src_common/types.ts";
+import { RuntimeContextNotInitializedError } from "../src_common/types.ts";
 import { Logger } from "../src_common/logger.ts";
-import {
-  type CompletionHandler,
-  createCompletionHandler,
-} from "../completion/mod.ts";
+import { createCompletionHandler } from "../completion/mod.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
@@ -29,37 +28,43 @@ export interface RunnerOptions {
 
 export class AgentRunner {
   private definition: AgentDefinition;
-  private completionHandler!: CompletionHandler;
-  private promptResolver!: PromptResolver;
-  private actionDetector?: ActionDetector;
-  private actionExecutor?: ActionExecutor;
-  private logger!: Logger;
-  private cwd!: string;
+  private context: RuntimeContext | null = null;
 
   constructor(definition: AgentDefinition) {
     this.definition = definition;
   }
 
+  /**
+   * Get runtime context, throwing if not initialized.
+   * This replaces non-null assertions with explicit error handling.
+   */
+  private getContext(): RuntimeContext {
+    if (this.context === null) {
+      throw new RuntimeContextNotInitializedError();
+    }
+    return this.context;
+  }
+
   async initialize(options: RunnerOptions): Promise<void> {
-    this.cwd = options.cwd ?? Deno.cwd();
-    const agentDir = getAgentDir(this.definition.name, this.cwd);
+    const cwd = options.cwd ?? Deno.cwd();
+    const agentDir = getAgentDir(this.definition.name, cwd);
 
     // Initialize logger
-    this.logger = await Logger.create({
+    const logger = await Logger.create({
       agentName: this.definition.name,
       directory: this.definition.logging.directory,
       format: this.definition.logging.format,
     });
 
     // Initialize completion handler
-    this.completionHandler = await createCompletionHandler(
+    const completionHandler = await createCompletionHandler(
       this.definition,
       options.args,
       agentDir,
     );
 
     // Initialize prompt resolver
-    this.promptResolver = await PromptResolver.create({
+    const promptResolver = await PromptResolver.create({
       agentName: this.definition.name,
       agentDir,
       registryPath: this.definition.prompts.registry,
@@ -67,22 +72,35 @@ export class AgentRunner {
     });
 
     // Initialize action system if enabled
+    let actionDetector: ActionDetector | undefined;
+    let actionExecutor: ActionExecutor | undefined;
     if (this.definition.actions?.enabled) {
-      this.actionDetector = new ActionDetector(this.definition.actions);
-      this.actionExecutor = new ActionExecutor(this.definition.actions, {
+      actionDetector = new ActionDetector(this.definition.actions);
+      actionExecutor = new ActionExecutor(this.definition.actions, {
         agentName: this.definition.name,
-        logger: this.logger,
-        cwd: this.cwd,
+        logger,
+        cwd,
       });
     }
+
+    // Assign all context at once (atomic initialization)
+    this.context = {
+      completionHandler,
+      promptResolver,
+      actionDetector,
+      actionExecutor,
+      logger,
+      cwd,
+    };
   }
 
   async run(options: RunnerOptions): Promise<AgentResult> {
     await this.initialize(options);
 
     const { args: _args, plugins = [] } = options;
+    const ctx = this.getContext();
 
-    this.logger.info(`Starting agent: ${this.definition.displayName}`);
+    ctx.logger.info(`Starting agent: ${this.definition.displayName}`);
 
     let iteration = 0;
     let sessionId: string | undefined;
@@ -92,7 +110,7 @@ export class AgentRunner {
       // Sequential execution required: each iteration depends on previous results
       while (true) {
         iteration++;
-        this.logger.info(`=== Iteration ${iteration} ===`);
+        ctx.logger.info(`=== Iteration ${iteration} ===`);
 
         // Build prompt
         const lastSummary = summaries.length > 0
@@ -100,18 +118,18 @@ export class AgentRunner {
           : undefined;
         const prompt = iteration === 1
           // deno-lint-ignore no-await-in-loop
-          ? await this.completionHandler.buildInitialPrompt()
+          ? await ctx.completionHandler.buildInitialPrompt()
           // deno-lint-ignore no-await-in-loop
-          : await this.completionHandler.buildContinuationPrompt(
+          : await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1, // completedIterations
             lastSummary,
           );
 
         // deno-lint-ignore no-await-in-loop
-        const systemPrompt = await this.promptResolver.resolveSystemPrompt({
+        const systemPrompt = await ctx.promptResolver.resolveSystemPrompt({
           "uv-agent_name": this.definition.name,
           "uv-completion_criteria":
-            this.completionHandler.buildCompletionCriteria().detailed,
+            ctx.completionHandler.buildCompletionCriteria().detailed,
         });
 
         // Execute Claude SDK query
@@ -128,25 +146,25 @@ export class AgentRunner {
         sessionId = summary.sessionId;
 
         // Execute detected actions
-        if (this.actionExecutor && summary.detectedActions.length > 0) {
-          this.actionExecutor.setIteration(iteration);
+        if (ctx.actionExecutor && summary.detectedActions.length > 0) {
+          ctx.actionExecutor.setIteration(iteration);
           // deno-lint-ignore no-await-in-loop
-          summary.actionResults = await this.actionExecutor.execute(
+          summary.actionResults = await ctx.actionExecutor.execute(
             summary.detectedActions,
           );
         }
 
         // Check completion
         // deno-lint-ignore no-await-in-loop
-        if (await this.completionHandler.isComplete()) {
-          this.logger.info("Agent completed");
+        if (await ctx.completionHandler.isComplete()) {
+          ctx.logger.info("Agent completed");
           break;
         }
 
         // Max iteration check
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
-          this.logger.warn(`Max iterations (${maxIterations}) reached`);
+          ctx.logger.warn(`Max iterations (${maxIterations}) reached`);
           break;
         }
       }
@@ -155,14 +173,14 @@ export class AgentRunner {
         success: true,
         totalIterations: iteration,
         summaries,
-        completionReason: await this.completionHandler
+        completionReason: await ctx.completionHandler
           .getCompletionDescription(),
       };
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
         : String(error);
-      this.logger.error("Agent failed", { error: errorMessage });
+      ctx.logger.error("Agent failed", { error: errorMessage });
 
       return {
         success: false,
@@ -172,7 +190,7 @@ export class AgentRunner {
         error: errorMessage,
       };
     } finally {
-      await this.logger.close();
+      await ctx.logger.close();
     }
   }
 
@@ -184,6 +202,7 @@ export class AgentRunner {
     iteration: number;
   }): Promise<IterationSummary> {
     const { prompt, systemPrompt, plugins, sessionId, iteration } = options;
+    const ctx = this.getContext();
 
     const summary: IterationSummary = {
       iteration,
@@ -199,7 +218,7 @@ export class AgentRunner {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
       const queryOptions: Record<string, unknown> = {
-        cwd: this.cwd,
+        cwd: ctx.cwd,
         systemPrompt,
         allowedTools: this.definition.behavior.allowedTools,
         permissionMode: this.definition.behavior.permissionMode,
@@ -224,7 +243,7 @@ export class AgentRunner {
       });
 
       for await (const message of queryIterator) {
-        this.logger.logSdkMessage(message);
+        ctx.logger.logSdkMessage(message);
         this.processMessage(message, summary);
       }
     } catch (error) {
@@ -232,7 +251,7 @@ export class AgentRunner {
         ? error.message
         : String(error);
       summary.errors.push(errorMessage);
-      this.logger.error("Query execution failed", { error: errorMessage });
+      ctx.logger.error("Query execution failed", { error: errorMessage });
     }
 
     return summary;
@@ -245,6 +264,7 @@ export class AgentRunner {
 
     const msg = message as Record<string, unknown>;
     const type = msg.type as string;
+    const ctx = this.getContext();
 
     switch (type) {
       case "assistant": {
@@ -253,8 +273,8 @@ export class AgentRunner {
           summary.assistantResponses.push(content);
 
           // Detect actions
-          if (this.actionDetector) {
-            const actions = this.actionDetector.detect(content);
+          if (ctx.actionDetector) {
+            const actions = ctx.actionDetector.detect(content);
             summary.detectedActions.push(...actions);
           }
         }

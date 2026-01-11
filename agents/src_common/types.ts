@@ -488,3 +488,73 @@ export interface StepFlowResult {
   completionReason: string;
   error?: string;
 }
+
+// ============================================================================
+// Agent Runner State Types
+// ============================================================================
+
+/**
+ * Agent execution state - tracks the lifecycle of an agent run.
+ * Replaces non-null assertion pattern with explicit state tracking.
+ */
+export interface AgentState {
+  readonly status:
+    | "created"
+    | "initializing"
+    | "running"
+    | "completed"
+    | "failed";
+  readonly iteration: number;
+  readonly sessionId: string | null;
+  readonly summaries: readonly IterationSummary[];
+  readonly cwd: string;
+  readonly startedAt: Date | null;
+  readonly completedAt: Date | null;
+}
+
+/**
+ * Initial state for a newly created agent
+ */
+export const INITIAL_AGENT_STATE: AgentState = {
+  status: "created",
+  iteration: 0,
+  sessionId: null,
+  summaries: [],
+  cwd: "",
+  startedAt: null,
+  completedAt: null,
+};
+
+// Forward declarations for RuntimeContext dependencies
+// These are imported from other modules, but we need the interface here
+import type { CompletionHandler } from "../completion/mod.ts";
+import type { PromptResolver } from "../prompts/resolver.ts";
+import type { ActionDetector } from "../actions/detector.ts";
+import type { ActionExecutor } from "../actions/executor.ts";
+import type { Logger } from "./logger.ts";
+
+/**
+ * Runtime context containing initialized dependencies.
+ * This pattern replaces non-null assertions by ensuring all dependencies
+ * are available only after successful initialization.
+ */
+export interface RuntimeContext {
+  readonly completionHandler: CompletionHandler;
+  readonly promptResolver: PromptResolver;
+  readonly actionDetector?: ActionDetector;
+  readonly actionExecutor?: ActionExecutor;
+  readonly logger: Logger;
+  readonly cwd: string;
+}
+
+/**
+ * Error thrown when attempting to access runtime context before initialization
+ */
+export class RuntimeContextNotInitializedError extends Error {
+  constructor() {
+    super(
+      "Agent runtime context is not initialized. Call initialize() before accessing runtime dependencies.",
+    );
+    this.name = "RuntimeContextNotInitializedError";
+  }
+}
