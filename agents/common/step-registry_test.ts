@@ -6,12 +6,17 @@ import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   addStepDefinition,
   createEmptyRegistry,
+  getFlow,
+  getFlowModes,
+  getFlowSteps,
   getStepDefinition,
   getStepIds,
+  hasFlow,
   hasStep,
   loadStepRegistry,
   saveStepRegistry,
   serializeRegistry,
+  type StepContext,
   type StepDefinition,
   type StepRegistry,
   validateStepRegistry,
@@ -339,4 +344,359 @@ Deno.test("saveStepRegistry - saves to file", async () => {
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
+});
+
+// =============================================================================
+// Flow Tests
+// =============================================================================
+
+Deno.test("getFlow - returns flow for existing mode", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+      project: ["prepare", "process", "review"],
+    },
+    steps: {},
+  };
+
+  const issueFlow = getFlow(registry, "issue");
+  assertEquals(issueFlow, ["work", "validate", "complete"]);
+
+  const projectFlow = getFlow(registry, "project");
+  assertEquals(projectFlow, ["prepare", "process", "review"]);
+});
+
+Deno.test("getFlow - returns undefined for nonexistent mode", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {},
+  };
+
+  const unknownFlow = getFlow(registry, "unknown");
+  assertEquals(unknownFlow, undefined);
+});
+
+Deno.test("getFlow - returns undefined when no flow defined", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {},
+  };
+
+  const flow = getFlow(registry, "issue");
+  assertEquals(flow, undefined);
+});
+
+Deno.test("getFlowModes - returns all defined modes", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+      project: ["prepare", "process", "review"],
+    },
+    steps: {},
+  };
+
+  const modes = getFlowModes(registry);
+  assertEquals(modes.sort(), ["issue", "project"]);
+});
+
+Deno.test("getFlowModes - returns empty array when no flow defined", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {},
+  };
+
+  const modes = getFlowModes(registry);
+  assertEquals(modes, []);
+});
+
+Deno.test("hasFlow - returns true for existing flow", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {},
+  };
+
+  assertEquals(hasFlow(registry, "issue"), true);
+  assertEquals(hasFlow(registry, "nonexistent"), false);
+});
+
+Deno.test("hasFlow - returns false when no flow defined", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {},
+  };
+
+  assertEquals(hasFlow(registry, "issue"), false);
+});
+
+Deno.test("getFlowSteps - returns step definitions in order", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {
+      work: {
+        stepId: "work",
+        name: "Work Step",
+        type: "prompt",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "work",
+        uvVariables: ["issue_number"],
+        usesStdin: false,
+      },
+      validate: {
+        stepId: "validate",
+        name: "Validate Step",
+        type: "prompt",
+        c2: "validate",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "validate",
+        uvVariables: [],
+        usesStdin: false,
+        context: {
+          validators: ["git-clean"],
+        },
+      },
+      complete: {
+        stepId: "complete",
+        name: "Complete Step",
+        type: "prompt",
+        c2: "complete",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "complete",
+        uvVariables: ["issue_number"],
+        usesStdin: false,
+        context: {
+          format: "structuredSignal",
+          signalType: "issue-action",
+        },
+      },
+    },
+  };
+
+  const flowSteps = getFlowSteps(registry, "issue");
+
+  assertEquals(flowSteps.length, 3);
+  assertEquals(flowSteps[0].stepId, "work");
+  assertEquals(flowSteps[1].stepId, "validate");
+  assertEquals(flowSteps[2].stepId, "complete");
+});
+
+Deno.test("getFlowSteps - skips undefined steps", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "nonexistent", "complete"],
+    },
+    steps: {
+      work: {
+        stepId: "work",
+        name: "Work Step",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "work",
+        uvVariables: [],
+        usesStdin: false,
+      },
+      complete: {
+        stepId: "complete",
+        name: "Complete Step",
+        c2: "complete",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "complete",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  const flowSteps = getFlowSteps(registry, "issue");
+
+  assertEquals(flowSteps.length, 2);
+  assertEquals(flowSteps[0].stepId, "work");
+  assertEquals(flowSteps[1].stepId, "complete");
+});
+
+Deno.test("getFlowSteps - returns empty array for nonexistent mode", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {},
+  };
+
+  const flowSteps = getFlowSteps(registry, "unknown");
+  assertEquals(flowSteps, []);
+});
+
+// =============================================================================
+// Step Type and Context Tests
+// =============================================================================
+
+Deno.test("StepDefinition - supports type field", () => {
+  const step: StepDefinition = {
+    stepId: "test",
+    name: "Test Step",
+    type: "prompt",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
+    fallbackKey: "test",
+    uvVariables: [],
+    usesStdin: false,
+  };
+
+  assertEquals(step.type, "prompt");
+});
+
+Deno.test("StepDefinition - supports context field", () => {
+  const context: StepContext = {
+    validators: ["git-clean"],
+    format: "structuredSignal",
+    signalType: "issue-action",
+    customField: "custom-value",
+  };
+
+  const step: StepDefinition = {
+    stepId: "validate",
+    name: "Validate Step",
+    type: "prompt",
+    c2: "validate",
+    c3: "issue",
+    edition: "default",
+    fallbackKey: "validate",
+    uvVariables: [],
+    usesStdin: false,
+    context,
+  };
+
+  assertEquals(step.context?.validators, ["git-clean"]);
+  assertEquals(step.context?.format, "structuredSignal");
+  assertEquals(step.context?.signalType, "issue-action");
+  assertEquals(step.context?.customField, "custom-value");
+});
+
+Deno.test("validateStepRegistry - validates registry with flow", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {
+      work: {
+        stepId: "work",
+        name: "Work Step",
+        type: "prompt",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "work",
+        uvVariables: [],
+        usesStdin: false,
+      },
+      validate: {
+        stepId: "validate",
+        name: "Validate Step",
+        type: "prompt",
+        c2: "validate",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "validate",
+        uvVariables: [],
+        usesStdin: false,
+        context: {
+          validators: ["git-clean"],
+        },
+      },
+      complete: {
+        stepId: "complete",
+        name: "Complete Step",
+        type: "prompt",
+        c2: "complete",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "complete",
+        uvVariables: ["issue_number"],
+        usesStdin: false,
+        context: {
+          format: "structuredSignal",
+          signalType: "issue-action",
+        },
+      },
+    },
+  };
+
+  // Should not throw
+  validateStepRegistry(registry);
+});
+
+Deno.test("serializeRegistry - includes flow in JSON", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "2.0.0",
+    c1: "steps",
+    flow: {
+      issue: ["work", "validate", "complete"],
+    },
+    steps: {
+      work: {
+        stepId: "work",
+        name: "Work Step",
+        type: "prompt",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "work",
+        uvVariables: [],
+        usesStdin: false,
+        context: {
+          validators: ["git-clean"],
+        },
+      },
+    },
+  };
+
+  const json = serializeRegistry(registry);
+  const parsed = JSON.parse(json);
+
+  assertEquals(parsed.flow.issue, ["work", "validate", "complete"]);
+  assertEquals(parsed.steps.work.type, "prompt");
+  assertEquals(parsed.steps.work.context.validators, ["git-clean"]);
 });
