@@ -57,38 +57,169 @@ export interface SandboxFilesystemConfig {
   allowedPaths?: string[];
 }
 
+/**
+ * Completion types based on HOW completion is determined,
+ * not WHO uses the completion handler.
+ *
+ * New behavior-based naming convention:
+ * - externalState: Complete when external resource reaches target state (was: issue)
+ * - iterationBudget: Complete after N iterations (was: iterate)
+ * - checkBudget: Complete after N status checks (monitoring scenarios)
+ * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
+ * - structuredSignal: Complete when LLM outputs specific JSON signal
+ * - phaseCompletion: Complete when workflow reaches terminal phase (was: project)
+ * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
+ * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
+ * - custom: Fully custom handler implementation
+ */
 export type CompletionType =
-  | "issue"
-  | "project"
-  | "iterate"
-  | "manual"
+  // New behavior-based names
+  | "externalState"
+  | "iterationBudget"
+  | "checkBudget"
+  | "keywordSignal"
+  | "structuredSignal"
+  | "phaseCompletion"
+  | "stepMachine"
+  | "composite"
   | "custom"
-  | "stepFlow"
-  | "facilitator";
+  // Legacy aliases (deprecated, use behavior-based names instead)
+  | "issue" // -> externalState
+  | "iterate" // -> iterationBudget
+  | "manual" // -> keywordSignal
+  | "project" // -> phaseCompletion
+  | "stepFlow" // -> stepMachine
+  | "facilitator"; // -> composite
+
+/**
+ * Type alias mapping from old names to new names
+ */
+export const COMPLETION_TYPE_ALIASES: Record<string, CompletionType> = {
+  // Old -> New mapping
+  issue: "externalState",
+  iterate: "iterationBudget",
+  manual: "keywordSignal",
+  project: "phaseCompletion",
+  stepFlow: "stepMachine",
+  facilitator: "composite",
+};
+
+/**
+ * Resolve a completion type to its canonical (new) name
+ */
+export function resolveCompletionType(type: CompletionType): CompletionType {
+  return COMPLETION_TYPE_ALIASES[type] ?? type;
+}
+
+/**
+ * Check if a completion type is a legacy/deprecated name
+ */
+export function isLegacyCompletionType(type: CompletionType): boolean {
+  return type in COMPLETION_TYPE_ALIASES;
+}
+
+/**
+ * All valid completion types (both new and legacy)
+ */
+export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
+  // New behavior-based names
+  "externalState",
+  "iterationBudget",
+  "checkBudget",
+  "keywordSignal",
+  "structuredSignal",
+  "phaseCompletion",
+  "stepMachine",
+  "composite",
+  "custom",
+  // Legacy aliases
+  "issue",
+  "iterate",
+  "manual",
+  "project",
+  "stepFlow",
+  "facilitator",
+] as const;
 
 /**
  * Completion configuration - uses optional properties for flexibility
  */
 export interface CompletionConfigUnion {
-  /** For iterate completion type */
+  /** For iterationBudget/iterate completion type */
   maxIterations?: number;
-  /** For manual completion type */
+  /** For keywordSignal/manual completion type */
   completionKeyword?: string;
   /** For custom completion type */
   handlerPath?: string;
+  /** For checkBudget completion type */
+  maxChecks?: number;
+  /** For externalState completion type */
+  resourceType?: "github-issue" | "github-project" | "file" | "api";
+  targetState?: string | Record<string, unknown>;
+  /** For composite completion type */
+  operator?: "and" | "or" | "first";
+  conditions?: Array<{
+    type: CompletionType;
+    config: CompletionConfigUnion;
+  }>;
+  /** For structuredSignal completion type */
+  signalType?: string;
+  requiredFields?: Record<string, unknown>;
+  /** For phaseCompletion completion type */
+  terminalPhases?: string[];
+  /** For stepMachine completion type */
+  registryPath?: string;
+  entryStep?: string;
 }
 
-// Type aliases for documentation purposes
+// Type aliases for documentation purposes (updated with new names)
+/** @deprecated Use ExternalStateCompletionConfig instead */
 export type IssueCompletionConfig = CompletionConfigUnion;
+/** @deprecated Use PhaseCompletionConfig instead */
 export type ProjectCompletionConfig = CompletionConfigUnion;
+/** @deprecated Use IterationBudgetCompletionConfig instead */
 export type IterateCompletionConfig = CompletionConfigUnion & {
   maxIterations: number;
 };
+/** @deprecated Use KeywordSignalCompletionConfig instead */
 export type ManualCompletionConfig = CompletionConfigUnion & {
   completionKeyword: string;
 };
 export type CustomCompletionConfig = CompletionConfigUnion & {
   handlerPath: string;
+};
+
+// New behavior-based config types
+export type ExternalStateCompletionConfig = CompletionConfigUnion & {
+  resourceType: "github-issue" | "github-project" | "file" | "api";
+  targetState: string | Record<string, unknown>;
+};
+export type IterationBudgetCompletionConfig = CompletionConfigUnion & {
+  maxIterations: number;
+};
+export type CheckBudgetCompletionConfig = CompletionConfigUnion & {
+  maxChecks: number;
+};
+export type KeywordSignalCompletionConfig = CompletionConfigUnion & {
+  completionKeyword: string;
+};
+export type StructuredSignalCompletionConfig = CompletionConfigUnion & {
+  signalType: string;
+  requiredFields?: Record<string, unknown>;
+};
+export type PhaseCompletionConfig = CompletionConfigUnion & {
+  terminalPhases: string[];
+};
+export type StepMachineCompletionConfig = CompletionConfigUnion & {
+  registryPath: string;
+  entryStep?: string;
+};
+export type CompositeCompletionConfig = CompletionConfigUnion & {
+  operator: "and" | "or" | "first";
+  conditions: Array<{
+    type: CompletionType;
+    config: CompletionConfigUnion;
+  }>;
 };
 
 export type PermissionMode = "plan" | "acceptEdits" | "bypassPermissions";

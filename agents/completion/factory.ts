@@ -1,8 +1,12 @@
 /**
  * Completion handler factory
+ *
+ * Supports both new behavior-based type names and legacy aliases.
+ * Legacy types are automatically resolved to their new equivalents.
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
+import { resolveCompletionType } from "../src_common/types.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
 import type { CompletionHandler } from "./types.ts";
 import { IssueCompletionHandler } from "./issue.ts";
@@ -10,6 +14,9 @@ import { ProjectCompletionHandler } from "./project.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { FacilitatorCompletionHandler } from "./facilitator.ts";
+import { CheckBudgetCompletionHandler } from "./check_budget.ts";
+import { StructuredSignalCompletionHandler } from "./structured_signal.ts";
+import { CompositeCompletionHandler } from "./composite.ts";
 
 /**
  * Options for creating a completion handler
@@ -37,6 +44,9 @@ export interface CompletionHandlerOptions {
 
 /**
  * Create a completion handler based on agent definition
+ *
+ * Supports both new behavior-based type names and legacy aliases.
+ * The factory resolves legacy names to their new equivalents automatically.
  */
 export async function createCompletionHandler(
   definition: AgentDefinition,
@@ -44,6 +54,9 @@ export async function createCompletionHandler(
   agentDir: string,
 ): Promise<CompletionHandler> {
   const { completionType, completionConfig } = definition.behavior;
+
+  // Resolve legacy type names to new names
+  const resolvedType = resolveCompletionType(completionType);
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
@@ -65,16 +78,18 @@ export async function createCompletionHandler(
     return issueHandler;
   }
 
-  switch (completionType) {
-    case "issue": {
+  switch (resolvedType) {
+    // externalState (was: issue) - Complete when external resource reaches target state
+    case "externalState": {
       // This case is only reached when args.issue is undefined
       // (when args.issue is provided, we return early above)
       throw new Error(
-        "Issue completion type requires --issue parameter",
+        "externalState/issue completion type requires --issue parameter",
       );
     }
 
-    case "project": {
+    // phaseCompletion (was: project) - Complete when workflow reaches terminal phase
+    case "phaseCompletion": {
       const projectHandler = new ProjectCompletionHandler(
         args.project as number,
         args.label as string | undefined,
@@ -86,7 +101,8 @@ export async function createCompletionHandler(
       break;
     }
 
-    case "iterate": {
+    // iterationBudget (was: iterate) - Complete after N iterations
+    case "iterationBudget": {
       const iterateHandler = new IterateCompletionHandler(
         completionConfig.maxIterations ?? 100,
       );
@@ -95,7 +111,8 @@ export async function createCompletionHandler(
       break;
     }
 
-    case "manual": {
+    // keywordSignal (was: manual) - Complete when LLM outputs specific keyword
+    case "keywordSignal": {
       const manualHandler = new ManualCompletionHandler(
         completionConfig.completionKeyword ?? "TASK_COMPLETE",
       );
@@ -104,6 +121,7 @@ export async function createCompletionHandler(
       break;
     }
 
+    // custom - Fully custom handler implementation
     case "custom": {
       if (!completionConfig.handlerPath) {
         throw new Error(
@@ -120,17 +138,74 @@ export async function createCompletionHandler(
       break;
     }
 
-    case "facilitator": {
-      const facilitatorHandler = new FacilitatorCompletionHandler(
-        args.project as number,
-        args.projectOwner as string | undefined,
+    // composite (was: facilitator) - Combines multiple conditions
+    // For backward compatibility, map "facilitator" to the original FacilitatorCompletionHandler
+    // New "composite" with conditions array uses CompositeCompletionHandler
+    case "composite": {
+      // Check if using new composite config with conditions
+      if (completionConfig.conditions && completionConfig.operator) {
+        const compositeHandler = new CompositeCompletionHandler(
+          completionConfig.operator,
+          completionConfig.conditions,
+          args,
+          agentDir,
+          definition,
+        );
+        compositeHandler.setPromptResolver(promptResolver);
+        handler = compositeHandler;
+      } else {
+        // Legacy facilitator behavior - use FacilitatorCompletionHandler
+        const facilitatorHandler = new FacilitatorCompletionHandler(
+          args.project as number,
+          args.projectOwner as string | undefined,
+        );
+        facilitatorHandler.setPromptResolver(promptResolver);
+        handler = facilitatorHandler;
+      }
+      break;
+    }
+
+    // checkBudget - Complete after N status checks
+    case "checkBudget": {
+      const checkHandler = new CheckBudgetCompletionHandler(
+        completionConfig.maxChecks ?? 10,
       );
-      facilitatorHandler.setPromptResolver(promptResolver);
-      handler = facilitatorHandler;
+      checkHandler.setPromptResolver(promptResolver);
+      handler = checkHandler;
+      break;
+    }
+
+    // structuredSignal - Complete when LLM outputs specific JSON signal
+    case "structuredSignal": {
+      if (!completionConfig.signalType) {
+        throw new Error(
+          `structuredSignal completion type requires signalType in completionConfig`,
+        );
+      }
+      const signalHandler = new StructuredSignalCompletionHandler(
+        completionConfig.signalType,
+        completionConfig.requiredFields,
+      );
+      signalHandler.setPromptResolver(promptResolver);
+      handler = signalHandler;
+      break;
+    }
+
+    // stepMachine (was: stepFlow) - Complete when step state machine reaches terminal
+    case "stepMachine": {
+      // stepMachine uses the step flow infrastructure
+      // For now, default to iterate behavior until full step flow integration
+      // TODO: Implement StepMachineCompletionHandler when step flow is fully integrated
+      const iterateHandler = new IterateCompletionHandler(
+        completionConfig.maxIterations ?? 100,
+      );
+      iterateHandler.setPromptResolver(promptResolver);
+      handler = iterateHandler;
       break;
     }
 
     default:
+      // Handle any unrecognized type (shouldn't happen with proper validation)
       throw new Error(`Unknown completion type: ${completionType}`);
   }
 
