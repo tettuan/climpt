@@ -14,6 +14,13 @@ customVariables:
 
 {issue_content}
 {cross_repo_note}
+## Context Reference Rule
+
+**IMPORTANT**: If the issue body contains a "詳細コンテキスト" (Detailed Context) section:
+1. **Read all referenced files FIRST** before starting any work
+2. These files contain critical background information for this task
+3. Understanding this context is MANDATORY before proceeding
+
 ## Working Style: Task-Driven & Progressive
 
 **IMPORTANT**: Work in small, trackable steps with frequent progress updates.
