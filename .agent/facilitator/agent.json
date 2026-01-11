@@ -21,7 +21,11 @@
       "Task",
       "WebFetch"
     ],
-    "permissionMode": "bypassPermissions"
+    "permissionMode": "bypassPermissions",
+    "preCloseValidation": {
+      "enabled": false,
+      "validators": []
+    }
   },
   "parameters": {
     "issue": {

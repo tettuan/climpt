@@ -154,6 +154,11 @@ export class AgentRunner {
     let actionExecutor: ActionExecutor | undefined;
     if (this.definition.actions?.enabled) {
       const actionFactory = this.dependencies.actionSystemFactory;
+      // Extract agentBehavior config for pre-close validation
+      const agentBehavior = this.definition.behavior.preCloseValidation
+        ? { preCloseValidation: this.definition.behavior.preCloseValidation }
+        : undefined;
+
       if (actionFactory) {
         // Ensure the factory is initialized if it's the default one
         if (actionFactory instanceof DefaultActionSystemFactory) {
@@ -164,6 +169,7 @@ export class AgentRunner {
           agentName: this.definition.name,
           logger,
           cwd,
+          agentBehavior,
         });
       } else {
         // Fallback to direct instantiation if no factory provided
@@ -172,6 +178,7 @@ export class AgentRunner {
           agentName: this.definition.name,
           logger,
           cwd,
+          agentBehavior,
         });
       }
     }

@@ -10,6 +10,7 @@ import type {
   ActionResult,
   DetectedAction,
 } from "./types.ts";
+import type { PreCloseValidationConfig } from "../src_common/types.ts";
 import { LogActionHandler } from "./handlers/log.ts";
 import {
   GitHubCommentHandler,
@@ -17,16 +18,35 @@ import {
 } from "./handlers/github-issue.ts";
 import { FileActionHandler } from "./handlers/file.ts";
 import { CompletionSignalHandler } from "./handlers/completion-signal.ts";
+import { IssueActionHandler } from "./handlers/issue-action.ts";
+
+/**
+ * Agent behavior configuration for executor
+ */
+export interface AgentBehaviorConfig {
+  preCloseValidation?: PreCloseValidationConfig;
+}
 
 export interface ExecutorOptions {
   agentName: string;
   logger: Logger;
   cwd: string;
+  /** Agent behavior configuration (optional, for validation support) */
+  agentBehavior?: AgentBehaviorConfig;
+}
+
+/**
+ * Extended action context with agent configuration
+ */
+interface ExtendedActionContext extends ActionContext {
+  agentConfig?: {
+    behavior?: AgentBehaviorConfig;
+  };
 }
 
 export class ActionExecutor {
   private handlers: Map<string, ActionHandler>;
-  private context: ActionContext;
+  private context: ExtendedActionContext;
 
   constructor(config: ActionConfig, options: ExecutorOptions) {
     this.context = {
@@ -34,6 +54,10 @@ export class ActionExecutor {
       iteration: 0,
       logger: options.logger,
       cwd: options.cwd,
+      // Include agent config for validation support
+      agentConfig: options.agentBehavior
+        ? { behavior: options.agentBehavior }
+        : undefined,
     };
     this.handlers = this.initializeHandlers(config);
   }
@@ -49,7 +73,12 @@ export class ActionExecutor {
     // Add default handlers for unspecified types
     for (const type of config.types) {
       if (!handlers.has(type)) {
-        handlers.set(type, new LogActionHandler(type));
+        // Use IssueActionHandler for issue-action type by default
+        if (type === "issue-action") {
+          handlers.set(type, new IssueActionHandler());
+        } else {
+          handlers.set(type, new LogActionHandler(type));
+        }
       }
     }
 
@@ -72,6 +101,8 @@ export class ActionExecutor {
           return new CompletionSignalHandler(
             type as "phase-advance" | "complete",
           );
+        case "issue-action":
+          return new IssueActionHandler();
         default:
           throw new Error(`Unknown builtin handler: ${builtin}`);
       }

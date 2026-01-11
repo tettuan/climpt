@@ -31,6 +31,20 @@ export interface AgentBehavior {
   permissionMode: PermissionMode;
   /** Fine-grained sandbox configuration (uses defaults if not specified) */
   sandboxConfig?: SandboxConfig;
+  /** Pre-close validation configuration for issue-action close */
+  preCloseValidation?: PreCloseValidationConfig;
+}
+
+/**
+ * Pre-close validation configuration
+ */
+export interface PreCloseValidationConfig {
+  /** Whether pre-close validation is enabled */
+  enabled: boolean;
+  /** List of validator IDs to run before close */
+  validators: string[];
+  /** Action on validation failure: 'block' prevents close, 'warn' only logs */
+  onFailure?: "block" | "warn";
 }
 
 /**

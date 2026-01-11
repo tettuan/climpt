@@ -11,7 +11,12 @@
       "maxIterations": 500
     },
     "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "TodoWrite"],
-    "permissionMode": "acceptEdits"
+    "permissionMode": "acceptEdits",
+    "preCloseValidation": {
+      "enabled": true,
+      "validators": ["git-clean"],
+      "onFailure": "block"
+    }
   },
   "parameters": {
     "issue": {

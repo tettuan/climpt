@@ -6,14 +6,18 @@
   "description": "Autonomous review agent that verifies implementation against requirements for a GitHub Issue",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "structuredSignal",
+    "completionType": "externalState",
     "completionConfig": {
-      "signalType": "review_decision",
-      "requiredFields": ["verdict", "findings"],
+      "type": "issueClose",
+      "issueParam": "issue",
       "maxIterations": 300
     },
     "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-    "permissionMode": "plan"
+    "permissionMode": "acceptEdits",
+    "preCloseValidation": {
+      "enabled": false,
+      "validators": []
+    }
   },
   "parameters": {
     "issue": {

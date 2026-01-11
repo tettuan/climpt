@@ -81,6 +81,9 @@ export interface ActionSystemFactory {
   ): ActionExecutor;
 }
 
+// Re-export ExecutorOptions for external use
+export type { ExecutorOptions };
+
 // ============================================================================
 // Dependencies Interface
 // ============================================================================
