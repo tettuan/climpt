@@ -27,6 +27,11 @@ import {
   isResultMessage,
   isToolUseMessage,
 } from "./message-types.ts";
+import {
+  type AgentEvent,
+  AgentEventEmitter,
+  type AgentEventHandler,
+} from "./events.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -40,6 +45,7 @@ export interface RunnerOptions {
 export class AgentRunner {
   private readonly definition: AgentDefinition;
   private readonly dependencies: AgentDependencies;
+  private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
 
   /**
@@ -70,6 +76,27 @@ export class AgentRunner {
   constructor(definition: AgentDefinition, dependencies?: AgentDependencies) {
     this.definition = definition;
     this.dependencies = dependencies ?? createDefaultDependencies();
+    this.eventEmitter = new AgentEventEmitter();
+  }
+
+  /**
+   * Subscribe to agent lifecycle events.
+   *
+   * @param event - The event type to subscribe to
+   * @param handler - Handler function called when event occurs
+   * @returns Unsubscribe function
+   *
+   * @example
+   * const unsubscribe = runner.on("iterationStart", ({ iteration }) => {
+   *   console.log(`Starting iteration ${iteration}`);
+   * });
+   * // Later: unsubscribe();
+   */
+  on<E extends AgentEvent>(
+    event: E,
+    handler: AgentEventHandler<E>,
+  ): () => void {
+    return this.eventEmitter.on(event, handler);
   }
 
   /**
@@ -156,6 +183,9 @@ export class AgentRunner {
     const { args: _args, plugins = [] } = options;
     const ctx = this.getContext();
 
+    // Emit initialized event
+    await this.eventEmitter.emit("initialized", { cwd: ctx.cwd });
+
     ctx.logger.info(`Starting agent: ${this.definition.displayName}`);
 
     let iteration = 0;
@@ -166,6 +196,11 @@ export class AgentRunner {
       // Sequential execution required: each iteration depends on previous results
       while (true) {
         iteration++;
+
+        // Emit iterationStart event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationStart", { iteration });
+
         ctx.logger.info(`=== Iteration ${iteration} ===`);
 
         // Build prompt
@@ -188,6 +223,10 @@ export class AgentRunner {
             ctx.completionHandler.buildCompletionCriteria().detailed,
         });
 
+        // Emit promptBuilt event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("promptBuilt", { prompt, systemPrompt });
+
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
         const summary = await this.executeQuery({
@@ -198,8 +237,20 @@ export class AgentRunner {
           iteration,
         });
 
+        // Emit queryExecuted event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("queryExecuted", { summary });
+
         summaries.push(summary);
         sessionId = summary.sessionId;
+
+        // Emit actionDetected event if actions were detected
+        if (summary.detectedActions.length > 0) {
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("actionDetected", {
+            actions: summary.detectedActions,
+          });
+        }
 
         // Execute detected actions
         if (ctx.actionExecutor && summary.detectedActions.length > 0) {
@@ -208,11 +259,33 @@ export class AgentRunner {
           summary.actionResults = await ctx.actionExecutor.execute(
             summary.detectedActions,
           );
+
+          // Emit actionExecuted event
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("actionExecuted", {
+            results: summary.actionResults,
+          });
         }
 
         // Check completion
         // deno-lint-ignore no-await-in-loop
-        if (await ctx.completionHandler.isComplete()) {
+        const isComplete = await ctx.completionHandler.isComplete();
+        // deno-lint-ignore no-await-in-loop
+        const completionReason = await ctx.completionHandler
+          .getCompletionDescription();
+
+        // Emit completionChecked event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("completionChecked", {
+          isComplete,
+          reason: completionReason,
+        });
+
+        // Emit iterationEnd event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationEnd", { iteration, summary });
+
+        if (isComplete) {
           ctx.logger.info("Agent completed");
           break;
         }
@@ -225,18 +298,30 @@ export class AgentRunner {
         }
       }
 
-      return {
+      const result: AgentResult = {
         success: true,
         totalIterations: iteration,
         summaries,
         completionReason: await ctx.completionHandler
           .getCompletionDescription(),
       };
+
+      // Emit completed event
+      await this.eventEmitter.emit("completed", { result });
+
+      return result;
     } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
+      const errorObj = error instanceof Error
+        ? error
+        : new Error(String(error));
+      const errorMessage = errorObj.message;
       ctx.logger.error("Agent failed", { error: errorMessage });
+
+      // Emit error event
+      await this.eventEmitter.emit("error", {
+        error: errorObj,
+        recoverable: false,
+      });
 
       return {
         success: false,

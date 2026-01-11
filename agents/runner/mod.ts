@@ -4,6 +4,12 @@
 
 export { AgentRunner, type RunnerOptions } from "./runner.ts";
 export {
+  type AgentEvent,
+  AgentEventEmitter,
+  type AgentEventHandler,
+  type AgentEventPayloads,
+} from "./events.ts";
+export {
   agentExists,
   getAgentDir,
   listAgents,
