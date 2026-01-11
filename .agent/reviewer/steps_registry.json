@@ -3,6 +3,17 @@
   "version": "1.0.0",
   "userPromptsBase": ".agent/reviewer/prompts",
   "steps": {
+    "initial.issue": {
+      "stepId": "initial.issue",
+      "name": "Issue Review Prompt",
+      "promptPath": "initial/issue.md",
+      "fallbackKey": "initial_issue",
+      "uvVariables": ["issue"],
+      "usesStdin": false,
+      "description": "Initial prompt for reviewing a specific GitHub Issue",
+      "condition": "args.issue !== undefined",
+      "priority": 10
+    },
     "initial.default": {
       "stepId": "initial.default",
       "name": "Initial Review Prompt",
@@ -10,7 +21,9 @@
       "fallbackKey": "initial_default",
       "uvVariables": ["project", "requirements_label", "review_label"],
       "usesStdin": false,
-      "description": "Initial prompt for review task with project context"
+      "description": "Initial prompt for review task with project context",
+      "condition": "args.project !== undefined",
+      "priority": 5
     },
     "continuation.default": {
       "stepId": "continuation.default",

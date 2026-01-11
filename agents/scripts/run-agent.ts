@@ -13,7 +13,7 @@
  *
  * @example Run reviewer agent
  * ```bash
- * deno run -A agents/scripts/run-agent.ts --agent reviewer --project 5
+ * deno run -A agents/scripts/run-agent.ts --agent reviewer --issue 123
  * ```
  */
 
@@ -49,10 +49,10 @@ Iterator Options:
   --base-branch <name>   Base branch for worktree mode
 
 Reviewer Options:
-  --project, -p <number> GitHub Project number to review (required)
-  --requirements-label   Label for requirement issues (default: docs)
-  --review-label         Label for issues to review (default: review)
-  --iterate-max <n>      Maximum iterations (default: 50)
+  --issue, -i <number>   GitHub Issue number to review (required)
+  --iterate-max <n>      Maximum iterations (default: 300)
+  --branch <name>        Working branch for worktree mode
+  --base-branch <name>   Base branch for worktree mode
 
 Examples:
   # Work on a GitHub Issue
@@ -61,8 +61,8 @@ Examples:
   # Work on a GitHub Project
   run-agent.ts --agent iterator --project 5 --label docs
 
-  # Review a project
-  run-agent.ts --agent reviewer --project 5
+  # Review an issue
+  run-agent.ts --agent reviewer --issue 123
 `);
 }
 
