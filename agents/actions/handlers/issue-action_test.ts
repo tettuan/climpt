@@ -106,7 +106,103 @@ Deno.test("IssueActionHandler", async (t) => {
     assertEquals(result.error?.includes("requires"), true);
   });
 
-  await t.step("blocks close when validation fails", async () => {
+  await t.step(
+    "blocks close when self-reported validation is missing",
+    async () => {
+      clearValidators();
+
+      const action: DetectedAction = {
+        type: "issue-action",
+        content: "",
+        metadata: {},
+        raw: '{"action": "close", "issue": 123}',
+      };
+
+      const ctx: IssueActionContext = {
+        agentName: "test",
+        iteration: 1,
+        logger: mockLogger,
+        cwd: "/tmp",
+      };
+
+      const result = await handler.execute(action, ctx);
+      assertEquals(result.success, false);
+      assertExists(result.error);
+      assertEquals(result.error?.includes("validation results"), true);
+      assertEquals(
+        (result.result as { validationFailed?: boolean })?.validationFailed,
+        true,
+      );
+    },
+  );
+
+  await t.step(
+    "blocks close when self-reported git_clean is false",
+    async () => {
+      clearValidators();
+
+      const action: DetectedAction = {
+        type: "issue-action",
+        content: "",
+        metadata: {},
+        raw: JSON.stringify({
+          action: "close",
+          issue: 123,
+          validation: {
+            git_clean: false,
+            type_check_passed: true,
+          },
+        }),
+      };
+
+      const ctx: IssueActionContext = {
+        agentName: "test",
+        iteration: 1,
+        logger: mockLogger,
+        cwd: "/tmp",
+      };
+
+      const result = await handler.execute(action, ctx);
+      assertEquals(result.success, false);
+      assertExists(result.error);
+      assertEquals(result.error?.includes("git_clean is false"), true);
+    },
+  );
+
+  await t.step("blocks close when evidence contradicts claims", async () => {
+    clearValidators();
+
+    const action: DetectedAction = {
+      type: "issue-action",
+      content: "",
+      metadata: {},
+      raw: JSON.stringify({
+        action: "close",
+        issue: 123,
+        validation: {
+          git_clean: true,
+          type_check_passed: true,
+        },
+        evidence: {
+          git_status_output: " M some-file.ts",
+        },
+      }),
+    };
+
+    const ctx: IssueActionContext = {
+      agentName: "test",
+      iteration: 1,
+      logger: mockLogger,
+      cwd: "/tmp",
+    };
+
+    const result = await handler.execute(action, ctx);
+    assertEquals(result.success, false);
+    assertExists(result.error);
+    assertEquals(result.error?.includes("contradicts"), true);
+  });
+
+  await t.step("blocks close when pre-close validation fails", async () => {
     // Register a failing validator
     clearValidators();
     const failValidator = createFailingValidator(
@@ -120,7 +216,14 @@ Deno.test("IssueActionHandler", async (t) => {
       type: "issue-action",
       content: "",
       metadata: {},
-      raw: '{"action": "close", "issue": 123}',
+      raw: JSON.stringify({
+        action: "close",
+        issue: 123,
+        validation: {
+          git_clean: true,
+          type_check_passed: true,
+        },
+      }),
     };
 
     const ctx: IssueActionContext = {
@@ -142,14 +245,13 @@ Deno.test("IssueActionHandler", async (t) => {
     const result = await handler.execute(action, ctx);
     assertEquals(result.success, false);
     assertExists(result.error);
-    assertEquals(result.error?.includes("validation failed"), true);
     assertEquals(
       (result.result as { validationFailed?: boolean })?.validationFailed,
       true,
     );
   });
 
-  await t.step("allows close when validation passes", async () => {
+  await t.step("allows close when all validations pass", async () => {
     // Register a passing validator
     clearValidators();
     const passValidator = createPassingValidator("test-pass");
@@ -159,7 +261,17 @@ Deno.test("IssueActionHandler", async (t) => {
       type: "issue-action",
       content: "",
       metadata: {},
-      raw: '{"action": "close", "issue": 123}',
+      raw: JSON.stringify({
+        action: "close",
+        issue: 123,
+        validation: {
+          git_clean: true,
+          type_check_passed: true,
+        },
+        evidence: {
+          git_status_output: "",
+        },
+      }),
     };
 
     // Note: This will fail because gh command isn't available in test
@@ -185,14 +297,14 @@ Deno.test("IssueActionHandler", async (t) => {
     // So check that the error is NOT validation-related
     if (!result.success) {
       assertEquals(
-        result.error?.includes("validation failed"),
+        result.error?.includes("validation"),
         false,
         "Error should not be validation failure",
       );
     }
   });
 
-  await t.step("skips validation when disabled", async () => {
+  await t.step("skips pre-close validation when disabled", async () => {
     // Register a failing validator that should not be called
     clearValidators();
     let validatorCalled = false;
@@ -211,7 +323,14 @@ Deno.test("IssueActionHandler", async (t) => {
       type: "issue-action",
       content: "",
       metadata: {},
-      raw: '{"action": "close", "issue": 123}',
+      raw: JSON.stringify({
+        action: "close",
+        issue: 123,
+        validation: {
+          git_clean: true,
+          type_check_passed: true,
+        },
+      }),
     };
 
     const ctx: IssueActionContext = {
@@ -249,7 +368,14 @@ Deno.test("IssueActionHandler", async (t) => {
       type: "issue-action",
       content: "",
       metadata: {},
-      raw: '{"action": "close", "issue": 123}',
+      raw: JSON.stringify({
+        action: "close",
+        issue: 123,
+        validation: {
+          git_clean: true,
+          type_check_passed: true,
+        },
+      }),
     };
 
     const ctx: IssueActionContext = {

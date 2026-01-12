@@ -27,6 +27,28 @@ export interface IssueActionContext extends ActionContext {
 }
 
 /**
+ * Validation results reported by the agent
+ */
+interface ValidationReport {
+  git_clean: boolean;
+  type_check_passed: boolean;
+  tests_passed?: boolean;
+  lint_passed?: boolean;
+  format_check_passed?: boolean;
+}
+
+/**
+ * Evidence of validation (command outputs)
+ */
+interface ValidationEvidence {
+  git_status_output?: string;
+  type_check_output?: string;
+  test_summary?: string;
+  lint_output?: string;
+  format_output?: string;
+}
+
+/**
  * Issue action data structure
  */
 interface IssueActionData {
@@ -34,6 +56,10 @@ interface IssueActionData {
   issue: number;
   body?: string;
   label?: string;
+  /** Self-reported validation results (required for close action) */
+  validation?: ValidationReport;
+  /** Evidence supporting validation claims */
+  evidence?: ValidationEvidence;
 }
 
 /**
@@ -86,16 +112,53 @@ export class IssueActionHandler extends BaseActionHandler {
   }
 
   /**
-   * Handle close action with pre-close validation
+   * Handle close action with structured validation
    */
   private async handleClose(
     action: DetectedAction,
     context: IssueActionContext,
     data: IssueActionData,
   ): Promise<ActionResult> {
-    const config = context.agentConfig?.behavior?.preCloseValidation;
+    // 1. Check self-reported validation (required for close)
+    const selfValidationResult = this.validateSelfReport(data, context);
+    if (!selfValidationResult.valid) {
+      context.logger.warn(
+        "[IssueActionHandler] Self-reported validation failed or missing",
+        { errors: selfValidationResult.errors },
+      );
+      return {
+        action,
+        success: false,
+        error: selfValidationResult.message,
+        result: {
+          validationFailed: true,
+          requiresRetry: true,
+          errors: selfValidationResult.errors,
+        },
+      };
+    }
 
-    // Run pre-close validation if enabled
+    // 2. Verify evidence matches claims (detect dishonest reports)
+    const evidenceResult = this.verifyEvidence(data, context);
+    if (!evidenceResult.valid) {
+      context.logger.warn(
+        "[IssueActionHandler] Evidence verification failed",
+        { errors: evidenceResult.errors },
+      );
+      return {
+        action,
+        success: false,
+        error: evidenceResult.message,
+        result: {
+          validationFailed: true,
+          requiresRetry: true,
+          errors: evidenceResult.errors,
+        },
+      };
+    }
+
+    // 3. Run system-side pre-close validation if enabled (double-check)
+    const config = context.agentConfig?.behavior?.preCloseValidation;
     if (config?.enabled && config.validators.length > 0) {
       context.logger.info("[IssueActionHandler] Running pre-close validation", {
         validators: config.validators,
@@ -144,8 +207,144 @@ export class IssueActionHandler extends BaseActionHandler {
       }
     }
 
+    context.logger.info("[IssueActionHandler] All validations passed");
+
     // Execute the close action
     return await this.executeGhIssueClose(action, context, data);
+  }
+
+  /**
+   * Validate self-reported validation results
+   */
+  private validateSelfReport(
+    data: IssueActionData,
+    context: IssueActionContext,
+  ): { valid: boolean; message: string; errors: string[] } {
+    const errors: string[] = [];
+
+    // Check if validation field is present
+    if (!data.validation) {
+      return {
+        valid: false,
+        message:
+          "Close action requires validation results. Please run validation checks and include the results.",
+        errors: ["Missing 'validation' field in close action"],
+      };
+    }
+
+    const v = data.validation;
+
+    // Check required fields
+    if (typeof v.git_clean !== "boolean") {
+      errors.push("Missing git_clean validation result");
+    } else if (!v.git_clean) {
+      errors.push(
+        "git_clean is false - please commit or stash changes before closing",
+      );
+    }
+
+    if (typeof v.type_check_passed !== "boolean") {
+      errors.push("Missing type_check_passed validation result");
+    } else if (!v.type_check_passed) {
+      errors.push("type_check_passed is false - please fix type errors");
+    }
+
+    // Optional but if reported as false, block
+    if (v.tests_passed === false) {
+      errors.push("tests_passed is false - please fix failing tests");
+    }
+    if (v.lint_passed === false) {
+      errors.push("lint_passed is false - please fix lint errors");
+    }
+    if (v.format_check_passed === false) {
+      errors.push("format_check_passed is false - please run formatter");
+    }
+
+    if (errors.length > 0) {
+      context.logger.debug(
+        "[IssueActionHandler] Self-report validation errors",
+        {
+          errors,
+        },
+      );
+      return {
+        valid: false,
+        message: `Validation failed:\n${
+          errors.map((e) => `- ${e}`).join("\n")
+        }`,
+        errors,
+      };
+    }
+
+    return { valid: true, message: "", errors: [] };
+  }
+
+  /**
+   * Verify evidence matches validation claims
+   */
+  private verifyEvidence(
+    data: IssueActionData,
+    context: IssueActionContext,
+  ): { valid: boolean; message: string; errors: string[] } {
+    const errors: string[] = [];
+    const evidence = data.evidence;
+
+    // If no evidence provided, skip verification (trust self-report)
+    if (!evidence) {
+      context.logger.debug(
+        "[IssueActionHandler] No evidence provided, trusting self-report",
+      );
+      return { valid: true, message: "", errors: [] };
+    }
+
+    // Verify git_clean claim
+    if (data.validation?.git_clean && evidence.git_status_output) {
+      const output = evidence.git_status_output.trim();
+      if (output.length > 0) {
+        errors.push(
+          `Evidence contradicts git_clean=true: git status shows changes:\n${output}`,
+        );
+      }
+    }
+
+    // Verify type_check_passed claim
+    if (data.validation?.type_check_passed && evidence.type_check_output) {
+      const output = evidence.type_check_output.toLowerCase();
+      if (output.includes("error") && !output.includes("0 error")) {
+        errors.push(
+          `Evidence contradicts type_check_passed=true: output contains errors`,
+        );
+      }
+    }
+
+    // Verify tests_passed claim
+    if (data.validation?.tests_passed && evidence.test_summary) {
+      const summary = evidence.test_summary.toLowerCase();
+      if (
+        summary.includes("failed") &&
+        !summary.includes("0 failed") &&
+        !summary.includes("0 failures")
+      ) {
+        errors.push(
+          `Evidence contradicts tests_passed=true: test summary shows failures`,
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      context.logger.warn("[IssueActionHandler] Evidence verification failed", {
+        errors,
+      });
+      return {
+        valid: false,
+        message: `Evidence verification failed:\n${
+          errors.map((e) => `- ${e}`).join("\n")
+        }`,
+        errors,
+      };
+    }
+
+    return { valid: true, message: "", errors: [] };
   }
 
   /**
