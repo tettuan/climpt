@@ -22,27 +22,44 @@ import {
   type AgentStatus,
   InvalidTransitionError,
 } from "./state-machine.ts";
+import type {
+  ActionSystemFactory,
+  CompletionHandlerFactory,
+  CompletionValidatorFactory,
+  LoggerFactory,
+  PromptResolverFactory,
+  RetryHandlerFactory,
+} from "../runner/builder.ts";
+import type { Logger } from "../src_common/logger.ts";
+import type { CompletionHandler } from "../completion/types.ts";
+import type { PromptResolver } from "../prompts/resolver.ts";
+import type { ActionDetector } from "../actions/detector.ts";
+import type { ActionExecutor } from "../actions/executor.ts";
 
 export interface LifecycleOptions {
   /** Factory for creating completion handler */
-  completionHandlerFactory?: unknown;
+  completionHandlerFactory?: CompletionHandlerFactory;
   /** Factory for creating prompt resolver */
-  promptResolverFactory?: unknown;
+  promptResolverFactory?: PromptResolverFactory;
   /** Factory for creating logger */
-  loggerFactory?: unknown;
+  loggerFactory?: LoggerFactory;
   /** Factory for creating action system */
-  actionSystemFactory?: unknown;
+  actionSystemFactory?: ActionSystemFactory;
+  /** Factory for creating completion validator */
+  completionValidatorFactory?: CompletionValidatorFactory;
+  /** Factory for creating retry handler */
+  retryHandlerFactory?: RetryHandlerFactory;
 }
 
 export interface LifecycleContext {
   cwd: string;
   args: Record<string, unknown>;
   plugins: string[];
-  logger?: unknown;
-  completionHandler?: unknown;
-  promptResolver?: unknown;
-  actionDetector?: unknown;
-  actionExecutor?: unknown;
+  logger?: Logger;
+  completionHandler?: CompletionHandler;
+  promptResolver?: PromptResolver;
+  actionDetector?: ActionDetector;
+  actionExecutor?: ActionExecutor;
 }
 
 /**
