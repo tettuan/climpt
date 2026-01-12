@@ -25,6 +25,7 @@ import type { StepRegistry } from "../common/step-registry.ts";
 import { IterationExecutor } from "./iteration.ts";
 import { StepContextImpl } from "./step-context.ts";
 import { type ExpandedContext, FlowExecutor } from "./flow-executor.ts";
+import { FormatValidator, type ResponseFormat } from "./format-validator.ts";
 
 /**
  * Step prompt builder function type
@@ -80,6 +81,52 @@ export interface FlowExecutionOptions {
 }
 
 /**
+ * Step check definition for format validation
+ */
+export interface StepCheckDefinition {
+  /** Expected response format */
+  responseFormat: ResponseFormat;
+  /** Action when check passes */
+  onPass: {
+    /** Mark as complete */
+    complete?: boolean;
+    /** Transition to next step */
+    next?: string;
+  };
+  /** Action when check fails */
+  onFail: {
+    /** Retry the step */
+    retry?: boolean;
+    /** Maximum retry attempts */
+    maxRetries?: number;
+    /** Retry prompt path configuration */
+    retryPrompt?: {
+      c2: string;
+      c3: string;
+      edition: string;
+    };
+  };
+}
+
+/**
+ * Step validation result
+ */
+export interface StepValidationResult {
+  /** Whether step execution was successful */
+  success: boolean;
+  /** Summary of the execution */
+  summary: IterationSummary;
+  /** Updated session ID */
+  sessionId?: string;
+  /** Whether format validation passed */
+  formatValid: boolean;
+  /** Format validation error if any */
+  formatError?: string;
+  /** Extracted data from validated response */
+  extractedData?: unknown;
+}
+
+/**
  * Flow Agent Loop
  *
  * Executes agent iterations following a defined flow of steps.
@@ -103,6 +150,7 @@ export interface FlowExecutionOptions {
 export class FlowAgentLoop {
   private readonly iterationExecutor = new IterationExecutor();
   private readonly stepContext = new StepContextImpl();
+  private readonly formatValidator = new FormatValidator();
 
   /**
    * Execute the agent loop with flow-based step execution.
@@ -164,28 +212,34 @@ export class FlowAgentLoop {
       const variables = flowExecutor.buildStepVariables(baseVariables);
       const expandedContext = flowExecutor.expandContext();
 
-      // Build prompts
-      const prompt = await context.buildStepPrompt(
-        currentStepId,
-        variables,
-        expandedContext,
-      );
-      const systemPrompt = await context.buildSystemPrompt();
+      // Get step definition to check for validation
+      const stepDef = flowExecutor.getStep(currentStepId);
+      const stepCheck = stepDef?.context?.check as
+        | StepCheckDefinition
+        | undefined;
 
-      // Execute iteration for this step
-      const result = await this.iterationExecutor.execute(
-        { iteration, sessionId, prompt, systemPrompt },
+      // Execute with validation if check is defined
+      const validationResult = await this.executeStepWithValidation(
+        {
+          stepId: currentStepId,
+          variables,
+          expandedContext,
+          check: stepCheck,
+          iteration,
+          sessionId,
+        },
+        context,
         queryFn,
       );
 
-      summaries.push(result.summary);
-      sessionId = result.sessionId;
+      summaries.push(validationResult.summary);
+      sessionId = validationResult.sessionId;
 
       // Store step output in context
       this.stepContext.set(currentStepId, {
         iteration,
-        responses: result.summary.assistantResponses,
-        tools: result.summary.toolsUsed,
+        responses: validationResult.summary.assistantResponses,
+        tools: validationResult.summary.toolsUsed,
       });
 
       // Check completion after each step
@@ -285,6 +339,189 @@ export class FlowAgentLoop {
       summaries,
       stepsExecuted: ["work"],
     };
+  }
+
+  /**
+   * Execute a step with format validation and retry support.
+   *
+   * @param stepOptions - Step execution options
+   * @param context - Flow loop context
+   * @param queryFn - SDK query function
+   * @returns Step validation result
+   */
+  private async executeStepWithValidation(
+    stepOptions: {
+      stepId: string;
+      variables: Record<string, string>;
+      expandedContext: ExpandedContext | null;
+      check?: StepCheckDefinition;
+      iteration: number;
+      sessionId?: string;
+    },
+    context: FlowLoopContext,
+    queryFn: (
+      prompt: string,
+      systemPrompt: string,
+      sessionId?: string,
+    ) => AsyncIterable<SdkMessage>,
+  ): Promise<StepValidationResult> {
+    const { stepId, variables, expandedContext, check, iteration } =
+      stepOptions;
+    let { sessionId } = stepOptions;
+    let retryCount = 0;
+    const maxRetries = check?.onFail?.maxRetries ?? 0;
+    let lastError: string | undefined;
+
+    while (true) {
+      // Build prompt - use retry prompt if this is a retry
+      let prompt: string;
+      if (retryCount === 0) {
+        prompt = await context.buildStepPrompt(
+          stepId,
+          variables,
+          expandedContext,
+        );
+      } else {
+        // Build retry prompt with error information
+        prompt = await this.buildRetryPrompt(
+          context,
+          variables,
+          lastError ?? "Format validation failed",
+          check?.onFail?.retryPrompt,
+        );
+      }
+
+      const systemPrompt = await context.buildSystemPrompt();
+
+      // Execute iteration
+      const result = await this.iterationExecutor.execute(
+        { iteration, sessionId, prompt, systemPrompt },
+        queryFn,
+      );
+
+      sessionId = result.sessionId;
+
+      // If no check is defined, return immediately
+      if (!check?.responseFormat) {
+        return {
+          success: true,
+          summary: result.summary,
+          sessionId,
+          formatValid: true,
+        };
+      }
+
+      // Validate the response format
+      const validation = this.formatValidator.validate(
+        result.summary,
+        check.responseFormat,
+      );
+
+      if (validation.valid) {
+        // Success: return with extracted data
+        return {
+          success: true,
+          summary: result.summary,
+          sessionId,
+          formatValid: true,
+          extractedData: validation.extracted,
+        };
+      }
+
+      // Validation failed
+      lastError = validation.error;
+
+      // Check if we should retry
+      if (check.onFail?.retry && retryCount < maxRetries) {
+        retryCount++;
+        continue; // Retry with new prompt
+      }
+
+      // No more retries - return with validation failure
+      return {
+        success: true, // Step executed, but format was invalid
+        summary: result.summary,
+        sessionId,
+        formatValid: false,
+        formatError: validation.error,
+      };
+    }
+  }
+
+  /**
+   * Build retry prompt for format validation failure.
+   *
+   * @param context - Flow loop context
+   * @param variables - Current variables
+   * @param errorMessage - Validation error message
+   * @param retryPromptConfig - Optional retry prompt configuration
+   * @returns Retry prompt string
+   */
+  private async buildRetryPrompt(
+    context: FlowLoopContext,
+    variables: Record<string, string>,
+    errorMessage: string,
+    retryPromptConfig?: { c2: string; c3: string; edition: string },
+  ): Promise<string> {
+    // Add error message to variables
+    const retryVariables = {
+      ...variables,
+      "uv-error_message": errorMessage,
+    };
+
+    // If retry prompt config is provided, try to resolve it
+    if (retryPromptConfig) {
+      const retryStepId = `${retryPromptConfig.c2}.${retryPromptConfig.c3}`;
+      try {
+        return await context.buildStepPrompt(retryStepId, retryVariables, null);
+      } catch {
+        // Fall through to default
+      }
+    }
+
+    // Default retry prompt
+    return this.buildDefaultRetryPrompt(errorMessage, variables);
+  }
+
+  /**
+   * Build default retry prompt when no custom retry prompt is configured.
+   */
+  private buildDefaultRetryPrompt(
+    errorMessage: string,
+    variables: Record<string, string>,
+  ): string {
+    const issueNumber = variables["uv-issue_number"] ?? "UNKNOWN";
+
+    return `# Format Error - Please Retry
+
+Your previous response did not match the expected format.
+
+## Error
+
+${errorMessage}
+
+## Expected Format
+
+Please output in the following format:
+
+\`\`\`issue-action
+{
+  "action": "close",
+  "issue": ${issueNumber},
+  "body": "## Resolution\\n\\n- Summary of changes\\n- Verification method\\n- Git status: clean"
+}
+\`\`\`
+
+## Requirements
+
+1. Use the \`issue-action\` code block format above
+2. Include all required fields:
+   - \`action\`: must be "close"
+   - \`issue\`: must be the issue number (${issueNumber})
+   - \`body\`: resolution summary
+
+**Important**: Output ONLY the structured signal above. No additional explanation needed.
+`;
   }
 
   /**

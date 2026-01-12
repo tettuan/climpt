@@ -229,8 +229,42 @@
       "description": "Completion step - instructs structured signal format for closing",
       "context": {
         "format": "structuredSignal",
-        "signalType": "issue-action"
+        "signalType": "issue-action",
+        "check": {
+          "responseFormat": {
+            "type": "action-block",
+            "blockType": "issue-action",
+            "requiredFields": {
+              "action": "close",
+              "issue": "number"
+            }
+          },
+          "onPass": {
+            "complete": true
+          },
+          "onFail": {
+            "retry": true,
+            "maxRetries": 2,
+            "retryPrompt": {
+              "c2": "retry",
+              "c3": "format-error",
+              "edition": "default"
+            }
+          }
+        }
       }
+    },
+    "retry.format-error": {
+      "stepId": "retry.format-error",
+      "name": "Format Error Retry",
+      "type": "prompt",
+      "c2": "retry",
+      "c3": "format-error",
+      "edition": "default",
+      "fallbackKey": "retry_format_error_default",
+      "uvVariables": ["issue_number", "error_message"],
+      "usesStdin": false,
+      "description": "Re-request prompt when output format is incorrect"
     }
   }
 }
