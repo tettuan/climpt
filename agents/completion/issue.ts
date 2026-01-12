@@ -179,6 +179,7 @@ ${summarySection}
 
   async isComplete(): Promise<boolean> {
     try {
+      // Check 1: Is the issue closed on GitHub?
       const args = this.repository
         ? [
           "issue",
@@ -203,17 +204,82 @@ ${summarySection}
 
       const output = new TextDecoder().decode(result.stdout);
       const data = JSON.parse(output);
-      return data.state === "CLOSED";
+      const isIssueClosed = data.state === "CLOSED";
+
+      if (!isIssueClosed) {
+        return false;
+      }
+
+      // Check 2: Is the git working directory clean?
+      // This prevents completion when agent closes issue via direct gh command
+      // without committing changes (bypassing pre-close validation)
+      const gitResult = await new Deno.Command("git", {
+        args: ["status", "--porcelain"],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+
+      if (!gitResult.success) {
+        // If git status fails, assume not clean (conservative approach)
+        return false;
+      }
+
+      const gitOutput = new TextDecoder().decode(gitResult.stdout).trim();
+      const isGitClean = gitOutput === "";
+
+      return isIssueClosed && isGitClean;
     } catch {
       return false;
     }
   }
 
   async getCompletionDescription(): Promise<string> {
-    const complete = await this.isComplete();
-    return complete
-      ? `Issue #${this.issueNumber} is now CLOSED`
-      : `Issue #${this.issueNumber} is still OPEN`;
+    try {
+      // Check issue state
+      const args = this.repository
+        ? [
+          "issue",
+          "view",
+          String(this.issueNumber),
+          "-R",
+          this.repository,
+          "--json",
+          "state",
+        ]
+        : ["issue", "view", String(this.issueNumber), "--json", "state"];
+
+      const result = await new Deno.Command("gh", {
+        args,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+
+      const isIssueClosed = result.success &&
+        JSON.parse(new TextDecoder().decode(result.stdout)).state === "CLOSED";
+
+      // Check git status
+      const gitResult = await new Deno.Command("git", {
+        args: ["status", "--porcelain"],
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+
+      const gitOutput = gitResult.success
+        ? new TextDecoder().decode(gitResult.stdout).trim()
+        : "";
+      const isGitClean = gitOutput === "";
+
+      // Provide informative description
+      if (isIssueClosed && isGitClean) {
+        return `Issue #${this.issueNumber} is CLOSED and git is clean`;
+      } else if (isIssueClosed && !isGitClean) {
+        return `Issue #${this.issueNumber} is CLOSED but git has uncommitted changes`;
+      } else {
+        return `Issue #${this.issueNumber} is still OPEN`;
+      }
+    } catch {
+      return `Issue #${this.issueNumber} status unknown`;
+    }
   }
 }
 
