@@ -20,6 +20,11 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
+import { cleanupWorktree, setupWorktree } from "../common/worktree.ts";
+import type {
+  WorktreeSetupConfig,
+  WorktreeSetupResult,
+} from "../common/types.ts";
 
 function printHelp(): void {
   // deno-lint-ignore no-console
@@ -143,13 +148,40 @@ async function main(): Promise<void> {
       }
     }
 
+    // Setup worktree if enabled
+    let workingDir = Deno.cwd();
+    let worktreeResult: WorktreeSetupResult | undefined;
+
+    const worktreeConfig = definition.worktree;
+    if (worktreeConfig?.enabled && (args.branch || args["base-branch"])) {
+      const setupConfig: WorktreeSetupConfig = {
+        forceWorktree: true,
+        worktreeRoot: worktreeConfig.root ?? ".worktrees",
+      };
+
+      // deno-lint-ignore no-console
+      console.log(`\nSetting up worktree...`);
+      worktreeResult = await setupWorktree(setupConfig, {
+        branch: args.branch as string | undefined,
+        baseBranch: args["base-branch"] as string | undefined,
+      });
+
+      workingDir = worktreeResult.worktreePath;
+      // deno-lint-ignore no-console
+      console.log(`  Branch: ${worktreeResult.branchName}`);
+      // deno-lint-ignore no-console
+      console.log(`  Base: ${worktreeResult.baseBranch}`);
+      // deno-lint-ignore no-console
+      console.log(`  Path: ${worktreeResult.worktreePath}`);
+    }
+
     // Create and run the agent
     const runner = new AgentRunner(definition);
     // deno-lint-ignore no-console
     console.log(`\nStarting ${definition.displayName}...\n`);
 
     const result = await runner.run({
-      cwd: Deno.cwd(),
+      cwd: workingDir,
       args: runnerArgs,
       plugins: [],
     });
@@ -167,6 +199,27 @@ async function main(): Promise<void> {
       // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);
     }
+
+    // Cleanup worktree on success (branch should be merged)
+    if (result.success && worktreeResult) {
+      // deno-lint-ignore no-console
+      console.log(`\nCleaning up worktree...`);
+      try {
+        await cleanupWorktree(worktreeResult.worktreePath, Deno.cwd());
+        // deno-lint-ignore no-console
+        console.log(`  Removed: ${worktreeResult.worktreePath}`);
+      } catch (cleanupError) {
+        // deno-lint-ignore no-console
+        console.warn(
+          `  Warning: Failed to cleanup worktree: ${
+            cleanupError instanceof Error
+              ? cleanupError.message
+              : String(cleanupError)
+          }`,
+        );
+      }
+    }
+
     // deno-lint-ignore no-console
     console.log(`${"=".repeat(60)}\n`);
 

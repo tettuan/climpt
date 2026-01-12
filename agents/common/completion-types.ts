@@ -60,7 +60,10 @@ export type ExtractorType =
   | "stdout"
   | "exitCode"
   | "missingPaths"
-  | "expectedPath";
+  | "expectedPath"
+  | "parseBranchName"
+  | "parseRemoteStatus"
+  | "parseMergeStatus";
 
 /**
  * Validator type

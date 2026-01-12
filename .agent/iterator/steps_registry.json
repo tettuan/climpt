@@ -43,6 +43,18 @@
       "edition": "failed",
       "adaptation": "file-not-exists",
       "params": ["missingFiles", "expectedPath"]
+    },
+    "branch-not-pushed": {
+      "description": "ブランチがリモートにプッシュされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-pushed",
+      "params": ["branchName", "remoteStatus"]
+    },
+    "branch-not-merged": {
+      "description": "ブランチがマージされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-merged",
+      "params": ["branchName", "baseBranch", "mergeStatus"]
     }
   },
 
@@ -96,6 +108,27 @@
         "files": "parseFormatOutput",
         "diff": "generateDiff"
       }
+    },
+    "branch-pushed": {
+      "type": "command",
+      "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "successWhen": "exitCode:0",
+      "failurePattern": "branch-not-pushed",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "remoteStatus": "parseRemoteStatus"
+      }
+    },
+    "branch-merged": {
+      "type": "command",
+      "command": "git log origin/develop..HEAD --oneline",
+      "successWhen": "empty",
+      "failurePattern": "branch-not-merged",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "baseBranch": "stdout",
+        "mergeStatus": "parseMergeStatus"
+      }
     }
   },
 
@@ -107,7 +140,9 @@
       "c3": "issue",
       "completionConditions": [
         { "validator": "git-clean" },
-        { "validator": "type-check" }
+        { "validator": "type-check" },
+        { "validator": "branch-pushed" },
+        { "validator": "branch-merged" }
       ],
       "onFailure": {
         "action": "retry",
@@ -117,7 +152,7 @@
         "file": "issue.schema.json",
         "schema": "complete.issue"
       },
-      "description": "Validate issue completion with git-clean, type-check using structured output"
+      "description": "Validate issue completion with git-clean, type-check, branch-pushed, branch-merged using structured output"
     }
   },
 
@@ -317,6 +352,38 @@
         "schema": "continuation.iterate"
       },
       "description": "Continuation prompt for iteration-based execution"
+    },
+    "initial.externalState": {
+      "stepId": "initial.externalState",
+      "name": "External State Initial Prompt",
+      "type": "prompt",
+      "c2": "initial",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_initial_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "initial.externalState"
+      },
+      "description": "Initial prompt for external state completion (GitHub Issue state)"
+    },
+    "continuation.externalState": {
+      "stepId": "continuation.externalState",
+      "name": "External State Continuation Prompt",
+      "type": "prompt",
+      "c2": "continuation",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_continuation_default",
+      "uvVariables": ["issue_number", "completed_iterations"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "continuation.externalState"
+      },
+      "description": "Continuation prompt for external state completion"
     }
   }
 }
