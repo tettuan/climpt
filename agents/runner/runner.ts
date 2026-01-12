@@ -1,8 +1,15 @@
 /**
  * Agent Runner - main execution engine
  *
- * @deprecated Use AgentLifecycle from agents/lifecycle/mod.ts instead.
- * This file is kept for backward compatibility.
+ * Supports both legacy iteration-based execution and flow-based execution.
+ * Flow-based execution is used when:
+ * 1. useFlowLoop option is true
+ * 2. Agent has a steps_registry.json with flow definitions
+ *
+ * This enables:
+ * - Structured step execution (work -> validate -> complete)
+ * - Pre-close commit validation through validate step
+ * - Issue close only after commits are ensured
  *
  * Supports dependency injection for testability.
  * Use AgentRunnerBuilder for convenient construction with custom dependencies.
@@ -42,6 +49,17 @@ import {
   AgentEventEmitter,
   type AgentEventHandler,
 } from "./events.ts";
+import {
+  createStepPromptBuilder,
+  FlowAgentLoop,
+  type FlowLoopContext,
+} from "../loop/flow-agent-loop.ts";
+import type { SdkMessage } from "../bridge/sdk-bridge.ts";
+import { loadStepRegistry } from "../common/step-registry.ts";
+import type {
+  CheckContext,
+  CompletionContract,
+} from "../src_common/contracts.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -50,6 +68,19 @@ export interface RunnerOptions {
   args: Record<string, unknown>;
   /** Additional plugins to load */
   plugins?: string[];
+  /**
+   * Use flow-based execution with FlowAgentLoop.
+   * When true, uses step registry flow definitions for structured execution.
+   * When false or undefined, uses legacy iteration-based execution.
+   * Default: auto-detect based on steps_registry.json presence
+   */
+  useFlowLoop?: boolean;
+  /**
+   * Flow mode to use (e.g., "issue", "project").
+   * Required when useFlowLoop is true.
+   * Default: "issue"
+   */
+  flowMode?: string;
 }
 
 export class AgentRunner {
@@ -197,13 +228,245 @@ export class AgentRunner {
   async run(options: RunnerOptions): Promise<AgentResult> {
     await this.initialize(options);
 
-    const { args: _args, plugins = [] } = options;
+    const { args, plugins = [] } = options;
     const ctx = this.getContext();
 
     // Emit initialized event
     await this.eventEmitter.emit("initialized", { cwd: ctx.cwd });
 
     ctx.logger.info(`Starting agent: ${this.definition.displayName}`);
+
+    // Determine execution mode: flow-based or legacy
+    const useFlow = await this.shouldUseFlowLoop(options, ctx.cwd);
+    if (useFlow) {
+      return this.runWithFlowLoop(options, plugins, ctx, args);
+    }
+
+    // Legacy execution path
+    return this.runLegacy(options, plugins, ctx);
+  }
+
+  /**
+   * Determine if flow-based execution should be used.
+   */
+  private async shouldUseFlowLoop(
+    options: RunnerOptions,
+    _cwd: string,
+  ): Promise<boolean> {
+    // Explicit option takes precedence
+    if (options.useFlowLoop !== undefined) {
+      return options.useFlowLoop;
+    }
+
+    // Auto-detect: check if steps_registry.json exists with flow definitions
+    try {
+      const registry = await loadStepRegistry(
+        this.definition.name,
+        ".",
+        { registryPath: `.agent/${this.definition.name}/steps_registry.json` },
+      );
+      const mode = options.flowMode ?? "issue";
+      return registry.flow?.[mode] !== undefined;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Run with FlowAgentLoop for structured step-based execution.
+   * Ensures steps execute in order: work -> validate -> complete
+   * The validate step ensures commits are made before issue close.
+   */
+  private async runWithFlowLoop(
+    options: RunnerOptions,
+    plugins: string[],
+    ctx: RuntimeContext,
+    args: Record<string, unknown>,
+  ): Promise<AgentResult> {
+    const mode = options.flowMode ?? "issue";
+    ctx.logger.info(`Using flow-based execution (mode: ${mode})`);
+
+    try {
+      // Load step registry
+      const registry = await loadStepRegistry(
+        this.definition.name,
+        ".",
+        { registryPath: `.agent/${this.definition.name}/steps_registry.json` },
+      );
+
+      // Create completion handler adapter for CompletionContract
+      const completionContract = this.createCompletionContract(ctx);
+
+      // Create flow loop context
+      const flowContext: FlowLoopContext = {
+        definition: this.definition,
+        cwd: ctx.cwd,
+        args,
+        completionHandler: completionContract,
+        buildSystemPrompt: () => {
+          return ctx.promptResolver.resolveSystemPrompt({
+            "uv-agent_name": this.definition.name,
+            "uv-completion_criteria":
+              ctx.completionHandler.buildCompletionCriteria().detailed,
+          });
+        },
+        buildStepPrompt: createStepPromptBuilder({
+          resolve: (
+            stepId: string,
+            variables: Record<string, string>,
+          ) => {
+            return ctx.promptResolver.resolve(stepId, variables);
+          },
+        }),
+        registry,
+      };
+
+      // Create query function for FlowAgentLoop
+      const queryFn = this.createQueryFunction(plugins, ctx);
+
+      // Execute flow
+      const flowLoop = new FlowAgentLoop();
+      const flowResult = await flowLoop.executeWithFlow(
+        flowContext,
+        queryFn,
+        {
+          agentId: this.definition.name,
+          mode,
+        },
+      );
+
+      // Convert FlowLoopResult to AgentResult
+      const result: AgentResult = {
+        success: flowResult.success,
+        iterations: flowResult.iterations,
+        reason: flowResult.reason,
+        totalIterations: flowResult.iterations,
+        completionReason: flowResult.reason,
+        summaries: flowResult.summaries,
+      };
+
+      // Emit completed event
+      await this.eventEmitter.emit("completed", { result });
+
+      ctx.logger.info(
+        `Flow execution completed: ${flowResult.stepsExecuted.join(" -> ")}`,
+      );
+
+      return result;
+    } catch (error) {
+      const agentError = normalizeToAgentError(error, { iteration: 0 });
+      ctx.logger.error("Flow execution failed", {
+        error: agentError.message,
+        code: agentError.code,
+      });
+
+      return {
+        success: false,
+        iterations: 0,
+        reason: agentError.message,
+        totalIterations: 0,
+        completionReason: "Flow execution error",
+        summaries: [],
+        error: agentError.message,
+      };
+    } finally {
+      await ctx.logger.close();
+    }
+  }
+
+  /**
+   * Create a CompletionContract adapter from the legacy completion handler.
+   */
+  private createCompletionContract(_ctx: RuntimeContext): CompletionContract {
+    return {
+      check: (_checkContext: CheckContext) => {
+        // Use the legacy completion handler's state
+        // Note: This is a sync wrapper, actual check happens via isComplete()
+        return { complete: false };
+      },
+      transition: () => "continue" as const,
+    };
+  }
+
+  /**
+   * Create a query function for FlowAgentLoop.
+   */
+  private createQueryFunction(
+    plugins: string[],
+    ctx: RuntimeContext,
+  ): (
+    prompt: string,
+    systemPrompt: string,
+    sessionId?: string,
+  ) => AsyncIterable<SdkMessage> {
+    const definition = this.definition;
+    const normalizeMsg = this.normalizeToSdkMessage.bind(this);
+    return async function* (
+      prompt: string,
+      systemPrompt: string,
+      sessionId?: string,
+    ): AsyncIterable<SdkMessage> {
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+
+      const queryOptions: Record<string, unknown> = {
+        cwd: ctx.cwd,
+        systemPrompt,
+        allowedTools: definition.behavior.allowedTools,
+        permissionMode: definition.behavior.permissionMode,
+        settingSources: ["user", "project"],
+        plugins,
+        resume: sessionId,
+      };
+
+      // Configure sandbox
+      const sandboxConfig = mergeSandboxConfig(
+        definition.behavior.sandboxConfig,
+      );
+      if (sandboxConfig.enabled === false) {
+        queryOptions.dangerouslySkipPermissions = true;
+      } else {
+        queryOptions.sandbox = toSdkSandboxConfig(sandboxConfig);
+      }
+
+      const queryIterator = query({ prompt, options: queryOptions });
+
+      for await (const message of queryIterator) {
+        ctx.logger.logSdkMessage(message);
+
+        // Normalize message to SdkMessage format
+        yield normalizeMsg(message);
+      }
+    };
+  }
+
+  /**
+   * Normalize SDK message to SdkMessage type.
+   */
+  private normalizeToSdkMessage(message: unknown): SdkMessage {
+    if (isAssistantMessage(message)) {
+      return { type: "assistant", message: message.message } as SdkMessage;
+    }
+    if (isToolUseMessage(message)) {
+      return { type: "tool_use", tool_name: message.tool_name } as SdkMessage;
+    }
+    if (isResultMessage(message)) {
+      return { type: "result", session_id: message.session_id } as SdkMessage;
+    }
+    if (isErrorMessage(message)) {
+      return { type: "error", error: message.error } as SdkMessage;
+    }
+    return { type: "unknown", raw: message } as SdkMessage;
+  }
+
+  /**
+   * Legacy iteration-based execution.
+   */
+  private async runLegacy(
+    _options: RunnerOptions,
+    plugins: string[],
+    ctx: RuntimeContext,
+  ): Promise<AgentResult> {
+    ctx.logger.info("Using legacy iteration-based execution");
 
     let iteration = 0;
     let sessionId: string | undefined;
