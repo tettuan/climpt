@@ -31,11 +31,13 @@ export interface ToolUseMessage {
 }
 
 /**
- * Result message containing session information
+ * Result message containing session information and optional structured output
  */
 export interface ResultMessage {
   readonly type: "result";
   readonly session_id: string;
+  readonly subtype?: string;
+  readonly structured_output?: Record<string, unknown>;
 }
 
 /**

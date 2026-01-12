@@ -173,9 +173,16 @@ export class Logger {
       case "error":
         this.error("SDK error", { error: msg.error });
         break;
-      case "result":
-        this.debug("SDK result", { sessionId: msg.session_id });
+      case "result": {
+        const resultData: Record<string, unknown> = {
+          sessionId: msg.session_id,
+        };
+        if (msg.structured_output !== undefined) {
+          resultData.structuredOutput = msg.structured_output;
+        }
+        this.debug("SDK result", resultData);
         break;
+      }
       default:
         this.debug(`SDK message: ${type}`);
     }

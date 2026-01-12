@@ -49,6 +49,37 @@ Issue 完了の検証:
 → テスト修正のプロンプトだけ送信してリトライ
 ```
 
+## SDK Structured Output
+
+Step に `outputSchemaRef` を指定すると、SDK の `outputFormat` パラメータに JSON
+Schema が渡される。LLM は Schema に従った JSON を生成し、SDK が
+`structured_output` フィールドで返す。
+
+```typescript
+// Runner での利用
+const schema = loadSchemaForStep(stepId);
+const response = await sdk.query({
+  prompt,
+  outputFormat: { type: "json_schema", schema },
+});
+// response.structured_output に検証済み JSON が含まれる
+```
+
+### steps_registry.json での設定
+
+```json
+{
+  "steps": {
+    "initial.issue": {
+      "outputSchemaRef": "schemas/issue.schema.json"
+    }
+  }
+}
+```
+
+この方式は外部コマンドによる完了条件検証とは独立しており、LLM
+出力のフォーマット保証に使用する。
+
 ## 完了パターン
 
 ### パターン一覧

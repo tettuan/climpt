@@ -340,6 +340,8 @@ export interface IterationSummary {
   detectedActions: DetectedAction[];
   actionResults?: ActionResult[];
   errors: string[];
+  /** Structured output from SDK result (when outputFormat is configured) */
+  structuredOutput?: Record<string, unknown>;
 }
 
 export interface DetectedAction {

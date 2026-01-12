@@ -38,8 +38,10 @@ import {
   type CompletionStepConfig,
   type ExtendedStepsRegistry,
   isExtendedRegistry,
+  type OutputSchemaRef,
   type StepCheckConfig,
 } from "../common/completion-types.ts";
+import type { PromptStepDefinition } from "../common/step-registry.ts";
 import {
   type FormatValidationResult,
   FormatValidator,
@@ -83,6 +85,7 @@ export class AgentRunner {
   private readonly dependencies: AgentDependencies;
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
+  private args: Record<string, unknown> = {};
 
   // Completion validation
   private completionValidator: CompletionValidator | null = null;
@@ -157,6 +160,9 @@ export class AgentRunner {
   async initialize(options: RunnerOptions): Promise<void> {
     const cwd = options.cwd ?? Deno.cwd();
     const agentDir = getAgentDir(this.definition.name, cwd);
+
+    // Store args for later use (e.g., determining step ID)
+    this.args = options.args;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -288,6 +294,9 @@ export class AgentRunner {
         // deno-lint-ignore no-await-in-loop
         await this.eventEmitter.emit("promptBuilt", { prompt, systemPrompt });
 
+        // Determine step ID for this iteration
+        const stepId = this.getStepIdForIteration(iteration);
+
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
         const summary = await this.executeQuery({
@@ -296,6 +305,7 @@ export class AgentRunner {
           plugins,
           sessionId,
           iteration,
+          stepId,
         });
 
         // Emit queryExecuted event
@@ -447,8 +457,10 @@ export class AgentRunner {
     plugins: string[];
     sessionId?: string;
     iteration: number;
+    stepId?: string;
   }): Promise<IterationSummary> {
-    const { prompt, systemPrompt, plugins, sessionId, iteration } = options;
+    const { prompt, systemPrompt, plugins, sessionId, iteration, stepId } =
+      options;
     const ctx = this.getContext();
 
     const summary: IterationSummary = {
@@ -482,6 +494,20 @@ export class AgentRunner {
         queryOptions.dangerouslySkipPermissions = true;
       } else {
         queryOptions.sandbox = toSdkSandboxConfig(sandboxConfig);
+      }
+
+      // Configure structured output if step has outputSchemaRef
+      if (stepId) {
+        const schema = await this.loadSchemaForStep(stepId, ctx.logger);
+        if (schema) {
+          queryOptions.outputFormat = {
+            type: "json_schema",
+            schema,
+          };
+          ctx.logger.info(
+            `[StructuredOutput] Using schema for step: ${stepId}`,
+          );
+        }
       }
 
       const queryIterator = query({
@@ -530,6 +556,10 @@ export class AgentRunner {
       summary.toolsUsed.push(message.tool_name);
     } else if (isResultMessage(message)) {
       summary.sessionId = message.session_id;
+      if (message.structured_output) {
+        summary.structuredOutput = message.structured_output;
+        ctx.logger.info("[StructuredOutput] Got structured output from result");
+      }
     } else if (isErrorMessage(message)) {
       summary.errors.push(message.error.message ?? "Unknown error");
     }
@@ -954,5 +984,93 @@ Please provide a response in the correct format.`;
     }
     // Default fallback
     return "complete.issue";
+  }
+
+  /**
+   * Get step ID for a given iteration.
+   *
+   * Maps iteration number to step ID based on completionType from agent definition.
+   * The completionType defines "what completion means" for this agent.
+   *
+   * Step ID format:
+   * - iteration 1: initial.{completionType}
+   * - iteration 2+: continuation.{completionType}
+   */
+  private getStepIdForIteration(iteration: number): string {
+    const completionType = this.definition.behavior.completionType;
+    const prefix = iteration === 1 ? "initial" : "continuation";
+    return `${prefix}.${completionType}`;
+  }
+
+  /**
+   * Load JSON Schema for a step from outputSchemaRef.
+   *
+   * Looks up the step in the registry, then loads the schema from the
+   * external file specified in outputSchemaRef.
+   *
+   * @param stepId - Step identifier (e.g., "initial.issue")
+   * @param logger - Logger instance
+   * @returns Loaded schema or undefined if not available
+   */
+  private async loadSchemaForStep(
+    stepId: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<Record<string, unknown> | undefined> {
+    if (!this.stepsRegistry) {
+      return undefined;
+    }
+
+    // Look up step definition in registry
+    const stepDef = this.stepsRegistry.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef?.outputSchemaRef) {
+      logger.debug(`No outputSchemaRef for step: ${stepId}`);
+      return undefined;
+    }
+
+    return await this.loadSchemaFromRef(stepDef.outputSchemaRef, logger);
+  }
+
+  /**
+   * Load schema from outputSchemaRef.
+   *
+   * @param ref - Schema reference with file and schema name
+   * @param logger - Logger instance
+   * @returns Loaded schema or undefined on error
+   */
+  private async loadSchemaFromRef(
+    ref: OutputSchemaRef,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<Record<string, unknown> | undefined> {
+    const ctx = this.getContext();
+    const schemasBase = this.stepsRegistry?.schemasBase ??
+      `.agent/${this.definition.name}/schemas`;
+    const schemaPath = join(ctx.cwd, schemasBase, ref.file);
+
+    try {
+      const content = await Deno.readTextFile(schemaPath);
+      const schemas = JSON.parse(content);
+      const schema = schemas[ref.schema];
+
+      if (!schema) {
+        logger.warn(
+          `Schema "${ref.schema}" not found in ${ref.file}`,
+        );
+        return undefined;
+      }
+
+      logger.debug(`Loaded schema: ${ref.file}#${ref.schema}`);
+      return schema as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        logger.debug(`Schema file not found: ${schemaPath}`);
+      } else {
+        logger.warn(`Failed to load schema from ${schemaPath}`, {
+          error: String(error),
+        });
+      }
+      return undefined;
+    }
   }
 }
