@@ -160,9 +160,9 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log(`Agent completed: ${result.success ? "SUCCESS" : "FAILED"}`);
     // deno-lint-ignore no-console
-    console.log(`Total iterations: ${result.totalIterations}`);
+    console.log(`Total iterations: ${result.iterations}`);
     // deno-lint-ignore no-console
-    console.log(`Reason: ${result.completionReason}`);
+    console.log(`Reason: ${result.reason}`);
     if (result.error) {
       // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);

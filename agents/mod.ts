@@ -42,6 +42,7 @@ export type {
   CustomVariableDefinition,
   DetectedAction,
   ExternalStateCompletionConfig,
+  FlowStepDefinition,
   GitHubConfig,
   IterationBudgetCompletionConfig,
   IterationConfig,
@@ -61,7 +62,7 @@ export type {
   SandboxConfig,
   SandboxFilesystemConfig,
   SandboxNetworkConfig,
-  StepDefinition,
+  StepDefinition, // @deprecated: use FlowStepDefinition
   StepFlowResult,
   StepFlowState,
   StepHistoryEntry,

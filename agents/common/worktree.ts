@@ -7,7 +7,7 @@
 import { resolve } from "@std/path";
 import type {
   WorktreeCLIOptions,
-  WorktreeConfig,
+  WorktreeSetupConfig,
   WorktreeSetupResult,
 } from "./types.ts";
 
@@ -125,7 +125,7 @@ export async function removeWorktree(
  * @returns Setup result with worktree path and branch info
  */
 export async function setupWorktree(
-  config: WorktreeConfig,
+  config: WorktreeSetupConfig,
   options: WorktreeCLIOptions,
   cwd?: string,
 ): Promise<WorktreeSetupResult> {

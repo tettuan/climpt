@@ -379,16 +379,12 @@ export class AgentRunner {
         }
       }
 
-      const completionReason = await ctx.completionHandler
+      const completionDescription = await ctx.completionHandler
         .getCompletionDescription();
       const result: AgentResult = {
         success: true,
-        // v2 fields
         iterations: iteration,
-        reason: completionReason,
-        // deprecated fields (for backward compatibility)
-        totalIterations: iteration,
-        completionReason,
+        reason: completionDescription,
         summaries,
       };
 
@@ -414,12 +410,8 @@ export class AgentRunner {
       const errorReason = agentError.message;
       return {
         success: false,
-        // v2 fields
         iterations: iteration,
         reason: errorReason,
-        // deprecated fields (for backward compatibility)
-        totalIterations: iteration,
-        completionReason: "Error occurred",
         summaries,
         error: errorReason,
       };
@@ -713,12 +705,20 @@ export class AgentRunner {
 
   /**
    * Check if any action result indicates a close action
+   *
+   * IssueActionHandler returns ActionResult with:
+   * - action.type === "issue-action"
+   * - result: { action: "close", issue: number, closed: boolean }
    */
   private hasCloseAction(results: ActionResult[]): boolean {
-    return results.some((r) =>
-      r.action?.type === "issue-action" &&
-      (r.action as { action?: string }).action === "close"
-    );
+    return results.some((r) => {
+      if (r.action?.type !== "issue-action") return false;
+
+      // Check if result contains a close action
+      // IssueActionHandler sets result.action = "close" for close actions
+      const result = r.result as { action?: string } | undefined;
+      return result?.action === "close";
+    });
   }
 
   /**

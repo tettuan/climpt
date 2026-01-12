@@ -37,8 +37,9 @@ export {
 
 // Step registry for prompt externalization
 export type {
+  PromptStepDefinition,
   RegistryLoaderOptions,
-  StepDefinition,
+  StepDefinition, // @deprecated: use PromptStepDefinition
   StepRegistry,
 } from "./step-registry.ts";
 export {

@@ -17,12 +17,16 @@ import { join } from "@std/path";
 export type StepType = "prompt";
 
 /**
- * Step definition for external prompt resolution
+ * Step definition for external prompt resolution (C3L-based)
  *
  * Maps a logical step identifier to a prompt file and its requirements.
  * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
+ *
+ * NOTE: This is different from FlowStepDefinition in src_common/types.ts.
+ * - PromptStepDefinition (here): C3L-based prompt file resolution
+ * - FlowStepDefinition (src_common): Step flow execution control
  */
-export interface StepDefinition {
+export interface PromptStepDefinition {
   /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
   stepId: string;
 
@@ -81,6 +85,11 @@ export interface StepDefinition {
 }
 
 /**
+ * @deprecated Use PromptStepDefinition instead. Kept for backward compatibility.
+ */
+export type StepDefinition = PromptStepDefinition;
+
+/**
  * Step registry for an agent
  *
  * Contains all step definitions and metadata for the agent.
@@ -111,7 +120,7 @@ export interface StepRegistry {
   pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
-  steps: Record<string, StepDefinition>;
+  steps: Record<string, PromptStepDefinition>;
 
   /**
    * Default base directory for user prompts
@@ -191,7 +200,7 @@ export async function loadStepRegistry(
 export function getStepDefinition(
   registry: StepRegistry,
   stepId: string,
-): StepDefinition | undefined {
+): PromptStepDefinition | undefined {
   return registry.steps[stepId];
 }
 
@@ -247,7 +256,7 @@ export function createEmptyRegistry(
  */
 export function addStepDefinition(
   registry: StepRegistry,
-  step: StepDefinition,
+  step: PromptStepDefinition,
 ): void {
   if (registry.steps[step.stepId]) {
     throw new Error(`Step "${step.stepId}" already exists in registry`);

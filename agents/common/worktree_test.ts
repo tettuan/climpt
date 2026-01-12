@@ -14,7 +14,7 @@ import {
   setupWorktree,
   worktreeExists,
 } from "./worktree.ts";
-import type { WorktreeCLIOptions, WorktreeConfig } from "./types.ts";
+import type { WorktreeCLIOptions, WorktreeSetupConfig } from "./types.ts";
 
 // ============================================================================
 // Test Helpers
@@ -157,7 +157,7 @@ Deno.test("setupWorktree - uses exact branch name when --branch specified", asyn
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -187,7 +187,7 @@ Deno.test("setupWorktree - generates timestamped name when --branch not specifie
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -226,7 +226,7 @@ Deno.test("setupWorktree - uses specified base branch when --base-branch specifi
       "Develop commit",
     );
 
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -256,7 +256,7 @@ Deno.test("setupWorktree - uses current branch as base when --base-branch not sp
     // Get current branch (should be master or main)
     const currentBranch = await getCurrentBranch(repo.path);
 
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -286,7 +286,7 @@ Deno.test("setupWorktree - sanitizes branch name for filesystem (/ to -)", async
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -319,7 +319,7 @@ Deno.test("worktree lifecycle - create, verify, list, cleanup", async () => {
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };
@@ -355,7 +355,7 @@ Deno.test("setupWorktree - reuses existing worktree if already exists", async ()
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
       worktreeRoot: "../worktree",
     };

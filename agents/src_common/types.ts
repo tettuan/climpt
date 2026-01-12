@@ -228,7 +228,18 @@ export type CompositeCompletionConfig = CompletionConfigUnion & {
   }>;
 };
 
-export type PermissionMode = "plan" | "acceptEdits" | "bypassPermissions";
+/**
+ * Permission mode types (from Claude Agent SDK)
+ * - "default": Normal mode with default permissions
+ * - "plan": Plan mode (read-only exploration)
+ * - "acceptEdits": Auto-accept file edits
+ * - "bypassPermissions": Bypass all permission checks
+ */
+export type PermissionMode =
+  | "default"
+  | "plan"
+  | "acceptEdits"
+  | "bypassPermissions";
 
 // ============================================================================
 // Parameter Types
@@ -289,11 +300,7 @@ export interface LoggingConfig {
 /**
  * Result of agent execution.
  *
- * v2 Design Compliance:
- * - `iterations` (v2 name) replaces `totalIterations` (deprecated)
- * - `reason` (v2 name) replaces `completionReason` (deprecated)
- *
- * Invariants (from design):
+ * Invariants:
  * - success=true  => reason is completion reason
  * - success=false => reason is error content
  */
@@ -301,32 +308,16 @@ export interface AgentResult {
   /** Whether agent completed successfully */
   success: boolean;
 
-  /**
-   * Total number of iterations executed.
-   * @v2
-   */
+  /** Total number of iterations executed */
   iterations: number;
 
-  /**
-   * Completion reason (success) or error content (failure).
-   * @v2
-   */
+  /** Completion reason (success) or error content (failure) */
   reason: string;
-
-  /**
-   * @deprecated Use `iterations` instead. Will be removed in next major version.
-   */
-  totalIterations: number;
-
-  /**
-   * @deprecated Use `reason` instead. Will be removed in next major version.
-   */
-  completionReason: string;
 
   /** Detailed iteration summaries */
   summaries: IterationSummary[];
 
-  /** Error message (for backward compatibility) */
+  /** Error message if failed */
   error?: string;
 }
 
@@ -431,7 +422,7 @@ export interface StepsRegistry {
   version: string;
   basePath: string;
   entryStep: string;
-  steps: Record<string, StepDefinition>;
+  steps: Record<string, FlowStepDefinition>;
   editions?: Record<string, string>;
   /**
    * Mode-based entry step mapping.
@@ -442,9 +433,13 @@ export interface StepsRegistry {
 }
 
 /**
- * Individual step definition
+ * Step definition for step flow execution control.
+ *
+ * NOTE: This is different from PromptStepDefinition in common/step-registry.ts.
+ * - FlowStepDefinition (here): Step flow execution and state machine control
+ * - PromptStepDefinition (common): C3L-based prompt file resolution
  */
-export interface StepDefinition {
+export interface FlowStepDefinition {
   id: string;
   name: string;
   description?: string;
@@ -461,6 +456,11 @@ export interface StepDefinition {
   /** Whether this step accepts stdin input */
   usesStdin?: boolean;
 }
+
+/**
+ * @deprecated Use FlowStepDefinition instead. Kept for backward compatibility.
+ */
+export type StepDefinition = FlowStepDefinition;
 
 /**
  * Definition for a custom variable injected at runtime
