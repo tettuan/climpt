@@ -1,0 +1,170 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "common.schema.json",
+  "description": "共通のスキーマ定義",
+
+  "$defs": {
+    "stepResponse": {
+      "type": "object",
+      "description": "全stepレスポンスの基底型",
+      "required": ["stepId", "status", "summary"],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "description": "実行されたstep識別子"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "in_progress", "failed", "needs_retry", "skipped"],
+          "description": "処理状態"
+        },
+        "summary": {
+          "type": "string",
+          "description": "人間可読な処理サマリー"
+        },
+        "tools_used": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/toolUsage" },
+          "description": "使用したツール一覧"
+        },
+        "next_action": {
+          "$ref": "#/$defs/nextAction",
+          "description": "次に推奨されるアクション"
+        },
+        "error": {
+          "$ref": "#/$defs/errorInfo",
+          "description": "エラー情報（status=failed時）"
+        }
+      }
+    },
+
+    "toolUsage": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "ツール名（Read, Write, Edit, Bash, etc.）"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "使用回数"
+        },
+        "targets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "対象ファイルやコマンド"
+        }
+      }
+    },
+
+    "nextAction": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["continue", "complete", "retry", "escalate", "wait"],
+          "description": "推奨アクション"
+        },
+        "reason": {
+          "type": "string",
+          "description": "アクション理由"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "アクション固有の詳細情報"
+        }
+      }
+    },
+
+    "errorInfo": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "エラーコード"
+        },
+        "message": {
+          "type": "string",
+          "description": "エラーメッセージ"
+        },
+        "recoverable": {
+          "type": "boolean",
+          "description": "リトライ可能かどうか"
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "エラーコンテキスト"
+        }
+      }
+    },
+
+    "fileChange": {
+      "type": "object",
+      "required": ["path", "action"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "ファイルパス"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["created", "modified", "deleted", "renamed"],
+          "description": "変更種別"
+        },
+        "lines_added": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lines_removed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+
+    "commitInfo": {
+      "type": "object",
+      "required": ["hash", "message"],
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "コミットハッシュ（短縮形可）"
+        },
+        "message": {
+          "type": "string",
+          "description": "コミットメッセージ"
+        },
+        "files_changed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+
+    "validationResult": {
+      "type": "object",
+      "required": ["passed"],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" },
+          "description": "各検証項目の結果"
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "検証結果のエビデンス"
+        }
+      }
+    }
+  }
+}

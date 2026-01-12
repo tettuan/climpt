@@ -173,6 +173,20 @@ export interface StepCheckConfig {
 }
 
 // ============================================================================
+// OutputSchemaRef - Reference to external schema file
+// ============================================================================
+
+/**
+ * Reference to an external JSON Schema file
+ */
+export interface OutputSchemaRef {
+  /** Schema file name (relative to schemasBase) */
+  file: string;
+  /** Schema name within the file (top-level key) */
+  schema: string;
+}
+
+// ============================================================================
 // CompletionStepConfig - Step configuration with completion conditions
 // ============================================================================
 
@@ -197,11 +211,16 @@ export interface CompletionStepConfig {
   /** Response format check with retry support */
   check?: StepCheckConfig;
   /**
-   * JSON Schema for structured output.
+   * JSON Schema for structured output (inline definition).
    * When specified, the query uses SDK's outputFormat parameter
    * to get validated JSON responses.
    */
   outputSchema?: Record<string, unknown>;
+  /**
+   * Reference to external JSON Schema file.
+   * Alternative to inline outputSchema.
+   */
+  outputSchemaRef?: OutputSchemaRef;
   /** Description */
   description?: string;
 }
@@ -238,6 +257,9 @@ export interface ValidatorResult {
  * Extends existing StepRegistry with completionPatterns and validators.
  */
 export interface ExtendedStepsRegistry extends StepRegistry {
+  /** Base path for schema files */
+  schemasBase?: string;
+
   /** Failure pattern definitions */
   completionPatterns?: Record<string, CompletionPattern>;
 

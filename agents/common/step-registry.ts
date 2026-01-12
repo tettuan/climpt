@@ -79,6 +79,17 @@ export interface PromptStepDefinition {
   usesStdin: boolean;
 
   /**
+   * Reference to external JSON Schema for structured output.
+   * Alternative to inline schema definition.
+   */
+  outputSchemaRef?: {
+    /** Schema file name (relative to schemasBase) */
+    file: string;
+    /** Schema name within the file (top-level key) */
+    schema: string;
+  };
+
+  /**
    * Optional description of what this step does
    */
   description?: string;
@@ -127,6 +138,12 @@ export interface StepRegistry {
    * Default: ".agent/{agentId}/prompts"
    */
   userPromptsBase?: string;
+
+  /**
+   * Base directory for schema files
+   * Default: ".agent/{agentId}/schemas"
+   */
+  schemasBase?: string;
 }
 
 /**

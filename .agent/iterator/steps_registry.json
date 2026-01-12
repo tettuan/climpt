@@ -2,6 +2,7 @@
   "agentId": "iterator",
   "version": "3.0.0",
   "userPromptsBase": ".agent/iterator/prompts",
+  "schemasBase": ".agent/iterator/schemas",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
@@ -112,46 +113,9 @@
         "action": "retry",
         "maxAttempts": 3
       },
-      "outputSchema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "required": ["action", "issue", "validation"],
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "type": "string",
-            "const": "close"
-          },
-          "issue": {
-            "type": "number"
-          },
-          "body": {
-            "type": "string"
-          },
-          "validation": {
-            "type": "object",
-            "required": ["git_clean", "type_check_passed"],
-            "additionalProperties": false,
-            "properties": {
-              "git_clean": { "type": "boolean" },
-              "type_check_passed": { "type": "boolean" },
-              "tests_passed": { "type": "boolean" },
-              "lint_passed": { "type": "boolean" },
-              "format_check_passed": { "type": "boolean" }
-            }
-          },
-          "evidence": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "git_status_output": { "type": "string" },
-              "type_check_output": { "type": "string" },
-              "test_summary": { "type": "string" },
-              "lint_output": { "type": "string" },
-              "format_output": { "type": "string" }
-            }
-          }
-        }
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "complete.issue"
       },
       "description": "Validate issue completion with git-clean, type-check using structured output"
     }
@@ -168,6 +132,10 @@
       "fallbackKey": "issue_initial_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "initial.issue"
+      },
       "description": "Initial prompt when working on a single GitHub issue"
     },
     "continuation.issue": {
@@ -179,6 +147,10 @@
       "fallbackKey": "issue_continuation_default",
       "uvVariables": ["issue_number", "completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "continuation.issue"
+      },
       "description": "Continuation prompt for issue iterations"
     },
     "section.projectcontext": {
@@ -325,6 +297,10 @@
       "fallbackKey": "iterate_initial_default",
       "uvVariables": ["iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "initial.iterate"
+      },
       "description": "Initial prompt for iteration-based execution"
     },
     "continuation.iterate": {
@@ -336,6 +312,10 @@
       "fallbackKey": "iterate_continuation_default",
       "uvVariables": ["completed_iterations", "remaining"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "continuation.iterate"
+      },
       "description": "Continuation prompt for iteration-based execution"
     }
   }
