@@ -1,7 +1,7 @@
 /**
  * RetryHandler Types
  *
- * リトライプロンプト生成のための型定義。
+ * Type definitions for retry prompt generation.
  */
 
 import type { Logger } from "../src_common/logger.ts";
@@ -15,41 +15,41 @@ export type {
 } from "../common/completion-types.ts";
 
 /**
- * RetryHandler のコンテキスト
+ * RetryHandler context
  */
 export interface RetryHandlerContext {
-  /** 作業ディレクトリ */
+  /** Working directory */
   workingDir: string;
-  /** ロガー */
+  /** Logger */
   logger: Logger;
   /** Agent ID */
   agentId: string;
 }
 
 /**
- * C3L パス解決オプション
+ * C3L path resolution options
  */
 export interface C3LResolveOptions {
-  /** C3L c1 コンポーネント */
+  /** C3L c1 component */
   c1: string;
-  /** C3L c2 コンポーネント */
+  /** C3L c2 component */
   c2: string;
-  /** C3L c3 コンポーネント */
+  /** C3L c3 component */
   c3: string;
-  /** C3L edition コンポーネント */
+  /** C3L edition component */
   edition: string;
-  /** C3L adaptation コンポーネント（オプション） */
+  /** C3L adaptation component (optional) */
   adaptation?: string;
 }
 
 /**
- * リトライプロンプト生成結果
+ * Retry prompt generation result
  */
 export interface RetryPromptResult {
-  /** 生成されたプロンプト */
+  /** Generated prompt */
   prompt: string;
-  /** 使用したパターン */
+  /** Used pattern */
   pattern: string;
-  /** 注入されたパラメータ */
+  /** Injected parameters */
   params: Record<string, unknown>;
 }

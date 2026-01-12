@@ -1,8 +1,8 @@
 /**
  * CompletionValidator Types
  *
- * CompletionValidator 専用の型定義。
- * 共通型は agents/common/completion-types.ts から re-export する。
+ * Type definitions specific to CompletionValidator.
+ * Common types are re-exported from agents/common/completion-types.ts.
  */
 
 import type { Logger } from "../../src_common/logger.ts";
@@ -30,27 +30,27 @@ export {
 } from "../../common/completion-types.ts";
 
 /**
- * CompletionValidator のコンテキスト
+ * CompletionValidator context
  */
 export interface CompletionValidatorContext {
-  /** 作業ディレクトリ */
+  /** Working directory */
   workingDir: string;
-  /** ロガー */
+  /** Logger */
   logger: Logger;
   /** Agent ID */
   agentId?: string;
 }
 
 /**
- * Validator レジストリインタフェース
+ * Validator registry interface
  */
 export interface ValidatorRegistry {
-  /** Validator 定義のマップ */
+  /** Map of validator definitions */
   validators: Record<
     string,
     import("../../common/completion-types.ts").ValidatorDefinition
   >;
-  /** 完了パターンのマップ */
+  /** Map of completion patterns */
   completionPatterns?: Record<
     string,
     import("../../common/completion-types.ts").CompletionPattern
@@ -58,19 +58,19 @@ export interface ValidatorRegistry {
 }
 
 /**
- * 単一 Validator の実行結果
+ * Single validator execution result
  */
 export interface ValidatorRunResult {
-  /** 検証成功フラグ */
+  /** Validation success flag */
   valid: boolean;
-  /** 抽出されたパラメータ */
+  /** Extracted parameters */
   params?: Record<string, unknown>;
-  /** エラーメッセージ */
+  /** Error message */
   error?: string;
 }
 
 /**
- * パラメータ抽出関数のシグネチャ
+ * Parameter extraction function signature
  */
 export type ExtractorFunction = (
   stdout: string,
@@ -79,6 +79,6 @@ export type ExtractorFunction = (
 ) => unknown;
 
 /**
- * 抽出関数のレジストリ型
+ * Extractor function registry type
  */
 export type ExtractorRegistry = Map<string, ExtractorFunction>;

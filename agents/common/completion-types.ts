@@ -1,42 +1,42 @@
 /**
  * Completion Validation Types (V3)
  *
- * 完了条件検証と部分リトライのための型定義。
- * 既存の validators/ システムと連携して動作する。
+ * Type definitions for completion condition validation and partial retry.
+ * Works in conjunction with the existing validators/ system.
  */
 
 import type { StepRegistry } from "./step-registry.ts";
 
 // ============================================================================
-// CompletionPattern - C3L連携のための失敗パターン定義
+// CompletionPattern - Failure pattern definitions for C3L integration
 // ============================================================================
 
 /**
- * 失敗パターン定義
- * パターン名からC3Lプロンプトパスへのマッピングを提供
+ * Failure pattern definition
+ * Provides mapping from pattern names to C3L prompt paths
  */
 export interface CompletionPattern {
-  /** パターンの説明 */
+  /** Description of the pattern */
   description: string;
   /** C3L edition (e.g., "failed") */
   edition: string;
   /** C3L adaptation (e.g., "git-dirty") */
   adaptation: string;
-  /** リトライプロンプトに注入するパラメータ名 */
+  /** Parameter names to inject into retry prompts */
   params: string[];
 }
 
 // ============================================================================
-// ValidatorDefinition - JSON定義可能なValidator仕様
+// ValidatorDefinition - JSON-definable Validator specification
 // ============================================================================
 
 /**
- * Validator の成功条件
+ * Validator success conditions
  *
- * - "empty": 出力が空（git status --porcelain が空）
- * - "exitCode:N": 終了コードがN
- * - "contains:STRING": 出力に文字列を含む
- * - "matches:REGEX": 出力が正規表現にマッチ
+ * - "empty": Output is empty (git status --porcelain is empty)
+ * - "exitCode:N": Exit code is N
+ * - "contains:STRING": Output contains the string
+ * - "matches:REGEX": Output matches the regex pattern
  */
 export type SuccessCondition =
   | "empty"
@@ -45,7 +45,7 @@ export type SuccessCondition =
   | `matches:${string}`;
 
 /**
- * パラメータ抽出ルール名
+ * Parameter extraction rule names
  */
 export type ExtractorType =
   | "parseChangedFiles"
@@ -63,133 +63,133 @@ export type ExtractorType =
   | "expectedPath";
 
 /**
- * Validator タイプ
+ * Validator type
  */
 export type ValidatorType = "command" | "file" | "custom";
 
 /**
- * Validator の宣言的定義（JSON形式）
+ * Declarative validator definition (JSON format)
  *
- * 実行ロジックは CompletionValidator が担当する。
+ * Execution logic is handled by CompletionValidator.
  */
 export interface ValidatorDefinition {
-  /** Validator タイプ */
+  /** Validator type */
   type: ValidatorType;
-  /** command タイプの場合: 実行コマンド */
+  /** For command type: command to execute */
   command?: string;
-  /** file タイプの場合: チェック対象パス */
+  /** For file type: path to check */
   path?: string;
-  /** 成功条件 */
+  /** Success condition */
   successWhen: SuccessCondition;
-  /** 失敗時のパターン名（completionPatterns のキー） */
+  /** Pattern name on failure (key in completionPatterns) */
   failurePattern: string;
-  /** パラメータ抽出ルール */
+  /** Parameter extraction rules */
   extractParams: Record<string, ExtractorType | string>;
 }
 
 // ============================================================================
-// CompletionCondition - ステップの完了条件
+// CompletionCondition - Step completion conditions
 // ============================================================================
 
 /**
- * 単一の完了条件
+ * Single completion condition
  */
 export interface CompletionCondition {
-  /** validator ID または validators のキー */
+  /** validator ID or key in validators */
   validator: string;
-  /** validator へのオプショナルパラメータ */
+  /** Optional parameters for the validator */
   params?: Record<string, unknown>;
 }
 
 /**
- * 失敗時のアクション
+ * Action on failure
  */
 export type FailureAction = "retry" | "abort" | "skip";
 
 /**
- * 失敗時のアクション定義
+ * On-failure action configuration
  */
 export interface OnFailureConfig {
-  /** 失敗時のアクション */
+  /** Action on failure */
   action: FailureAction;
-  /** retry の場合の最大試行回数 */
+  /** Maximum retry attempts (for retry action) */
   maxAttempts?: number;
 }
 
 // ============================================================================
-// StepConfigV3 - V3 ステップ設定
+// StepConfigV3 - V3 step configuration
 // ============================================================================
 
 /**
- * V3 ステップ設定
+ * V3 step configuration
  *
- * 完了条件とリトライ設定を含む拡張版のステップ定義。
+ * Extended step definition including completion conditions and retry settings.
  */
 export interface StepConfigV3 {
-  /** ステップID */
+  /** Step ID */
   stepId: string;
-  /** 表示名 */
+  /** Display name */
   name: string;
   /** C3L path component: c2 (retry, complete, etc.) */
   c2: string;
   /** C3L path component: c3 (issue, project, etc.) */
   c3: string;
-  /** 完了条件の配列（AND条件） */
+  /** Array of completion conditions (AND conditions) */
   completionConditions: CompletionCondition[];
-  /** 失敗時の動作 */
+  /** Behavior on failure */
   onFailure: OnFailureConfig;
-  /** 説明 */
+  /** Description */
   description?: string;
 }
 
 // ============================================================================
-// ValidationResult (V3拡張)
+// ValidationResult (V3 extension)
 // ============================================================================
 
 /**
- * V3 検証結果
+ * V3 validation result
  *
- * パターンとパラメータを含む拡張版の検証結果。
+ * Extended validation result including pattern and parameters.
  */
 export interface ValidationResultV3 {
-  /** 検証成功/失敗 */
+  /** Validation success/failure */
   valid: boolean;
-  /** 失敗時のパターン名 */
+  /** Pattern name on failure */
   pattern?: string;
-  /** 抽出されたパラメータ（リトライプロンプト注入用） */
+  /** Extracted parameters (for retry prompt injection) */
   params?: Record<string, unknown>;
-  /** エラーメッセージ */
+  /** Error message */
   error?: string;
-  /** 詳細情報 */
+  /** Detailed information */
   details?: string[];
 }
 
 // ============================================================================
-// StepsRegistryV3 - 統合レジストリ
+// StepsRegistryV3 - Unified registry
 // ============================================================================
 
 /**
  * V3 Steps Registry
  *
- * 既存の StepRegistry を拡張し、completionPatterns と validators を追加。
+ * Extends existing StepRegistry with completionPatterns and validators.
  */
 export interface StepsRegistryV3 extends StepRegistry {
-  /** 失敗パターン定義 */
+  /** Failure pattern definitions */
   completionPatterns?: Record<string, CompletionPattern>;
 
-  /** Validator 定義 */
+  /** Validator definitions */
   validators?: Record<string, ValidatorDefinition>;
 
-  /** V3 ステップ設定（completionConditions 付き） */
+  /** V3 step configurations (with completionConditions) */
   stepsV3?: Record<string, StepConfigV3>;
 }
 
 // ============================================================================
-// 型ガード
+// Type guards
 // ============================================================================
 
 /**
- * V3 ステップ設定かどうか判定
+ * Check if the step is a V3 step configuration
  */
 export function isStepConfigV3(
   step: unknown,
@@ -203,7 +203,7 @@ export function isStepConfigV3(
 }
 
 /**
- * V3 レジストリかどうか判定
+ * Check if the registry is a V3 registry
  */
 export function isRegistryV3(
   registry: unknown,
@@ -216,7 +216,7 @@ export function isRegistryV3(
 }
 
 /**
- * 検証結果からパターンを取得
+ * Get pattern from validation result
  */
 export function getPatternFromResult(
   result: ValidationResultV3,
@@ -225,19 +225,19 @@ export function getPatternFromResult(
 }
 
 // ============================================================================
-// コマンド実行結果
+// Command execution result
 // ============================================================================
 
 /**
- * コマンド実行結果
+ * Command execution result
  */
 export interface CommandResult {
-  /** 成功フラグ */
+  /** Success flag */
   success: boolean;
-  /** 終了コード */
+  /** Exit code */
   exitCode: number;
-  /** 標準出力 */
+  /** Standard output */
   stdout: string;
-  /** 標準エラー出力 */
+  /** Standard error output */
   stderr: string;
 }

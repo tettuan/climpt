@@ -1,10 +1,121 @@
 {
   "agentId": "iterator",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "userPromptsBase": ".agent/iterator/prompts",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+
+  "completionPatterns": {
+    "git-dirty": {
+      "description": "未コミットの変更がある",
+      "edition": "failed",
+      "adaptation": "git-dirty",
+      "params": ["changedFiles", "untrackedFiles"]
+    },
+    "test-failed": {
+      "description": "テストが失敗",
+      "edition": "failed",
+      "adaptation": "test-failed",
+      "params": ["failedTests", "errorOutput"]
+    },
+    "type-error": {
+      "description": "型エラー",
+      "edition": "failed",
+      "adaptation": "type-error",
+      "params": ["errors", "files"]
+    },
+    "lint-error": {
+      "description": "リントエラー",
+      "edition": "failed",
+      "adaptation": "lint-error",
+      "params": ["errors", "files"]
+    },
+    "format-error": {
+      "description": "フォーマットエラー",
+      "edition": "failed",
+      "adaptation": "format-error",
+      "params": ["files", "diff"]
+    },
+    "file-not-exists": {
+      "description": "必要なファイルが存在しない",
+      "edition": "failed",
+      "adaptation": "file-not-exists",
+      "params": ["missingFiles", "expectedPath"]
+    }
+  },
+
+  "validators": {
+    "git-clean": {
+      "type": "command",
+      "command": "git status --porcelain",
+      "successWhen": "empty",
+      "failurePattern": "git-dirty",
+      "extractParams": {
+        "changedFiles": "parseChangedFiles",
+        "untrackedFiles": "parseUntrackedFiles"
+      }
+    },
+    "tests-pass": {
+      "type": "command",
+      "command": "deno task test",
+      "successWhen": "exitCode:0",
+      "failurePattern": "test-failed",
+      "extractParams": {
+        "failedTests": "parseTestOutput",
+        "errorOutput": "stderr"
+      }
+    },
+    "type-check": {
+      "type": "command",
+      "command": "deno task check",
+      "successWhen": "exitCode:0",
+      "failurePattern": "type-error",
+      "extractParams": {
+        "errors": "parseTypeErrors",
+        "files": "extractFiles"
+      }
+    },
+    "lint-check": {
+      "type": "command",
+      "command": "deno task lint",
+      "successWhen": "exitCode:0",
+      "failurePattern": "lint-error",
+      "extractParams": {
+        "errors": "parseLintErrors",
+        "files": "extractFiles"
+      }
+    },
+    "format-check": {
+      "type": "command",
+      "command": "deno fmt --check",
+      "successWhen": "exitCode:0",
+      "failurePattern": "format-error",
+      "extractParams": {
+        "files": "parseFormatOutput",
+        "diff": "generateDiff"
+      }
+    }
+  },
+
+  "stepsV3": {
+    "complete.issue": {
+      "stepId": "complete.issue",
+      "name": "Issue Completion Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "description": "Validate issue completion with git-clean and type-check"
+    }
+  },
+
   "steps": {
     "initial.issue": {
       "stepId": "initial.issue",
