@@ -9,9 +9,10 @@
 export type {
   AggregateValidationResult,
   PreCloseValidationConfig,
-  ValidationResult,
+  ValidationResult, // deprecated, use ValidatorResult
   Validator,
   ValidatorContext,
+  ValidatorResult,
 } from "./types.ts";
 
 // Registry exports

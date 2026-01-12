@@ -25,9 +25,14 @@ export interface ValidatorContext {
 }
 
 /**
- * Result of a validation check
+ * Result of a pre-close validator check
+ *
+ * Named ValidatorResult to distinguish from other validation result types:
+ * - ValidatorResult: Pre-close validator checks (this file)
+ * - FormatValidationResult: Response format validation (loop/format-validator.ts)
+ * - ValidationResult: Generic validation (src_common/types.ts)
  */
-export interface ValidationResult {
+export interface ValidatorResult {
   /** Whether the validation passed */
   valid: boolean;
   /** Error message if validation failed */
@@ -35,6 +40,9 @@ export interface ValidationResult {
   /** Detailed information (e.g., list of uncommitted files) */
   details?: string[];
 }
+
+/** @deprecated Use ValidatorResult instead */
+export type ValidationResult = ValidatorResult;
 
 /**
  * Validator interface for pre-close checks
@@ -47,7 +55,7 @@ export interface Validator {
   /** Description of what this validator checks */
   readonly description: string;
   /** Perform the validation check */
-  validate(ctx: ValidatorContext): Promise<ValidationResult>;
+  validate(ctx: ValidatorContext): Promise<ValidatorResult>;
 }
 
 /**
@@ -61,5 +69,5 @@ export interface AggregateValidationResult {
   /** Combined details from all failed validations */
   details: string[];
   /** Individual results keyed by validator ID */
-  results: Record<string, ValidationResult>;
+  results: Record<string, ValidatorResult>;
 }

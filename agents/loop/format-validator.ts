@@ -38,8 +38,13 @@ export interface ResponseFormat {
 
 /**
  * Result of format validation
+ *
+ * Named FormatValidationResult to distinguish from other ValidationResult types:
+ * - FormatValidationResult: Response format validation (this file)
+ * - ValidatorResult: Pre-close validator checks (validators/types.ts)
+ * - ValidationResult: Generic validation (src_common/types.ts)
  */
-export interface ValidationResult {
+export interface FormatValidationResult {
   /** Whether the response matches the expected format */
   valid: boolean;
 
@@ -49,6 +54,9 @@ export interface ValidationResult {
   /** Extracted data from the response (if valid) */
   extracted?: unknown;
 }
+
+/** @deprecated Use FormatValidationResult instead */
+export type ValidationResult = FormatValidationResult;
 
 // ============================================================================
 // FormatValidator Class
@@ -73,7 +81,7 @@ export class FormatValidator {
   validate(
     summary: IterationSummary,
     format: ResponseFormat,
-  ): ValidationResult {
+  ): FormatValidationResult {
     switch (format.type) {
       case "action-block":
         return this.validateActionBlock(summary, format);
@@ -98,7 +106,7 @@ export class FormatValidator {
   private validateActionBlock(
     summary: IterationSummary,
     format: ResponseFormat,
-  ): ValidationResult {
+  ): FormatValidationResult {
     if (!format.blockType) {
       return {
         valid: false,
@@ -210,7 +218,7 @@ export class FormatValidator {
   private validateJson(
     summary: IterationSummary,
     format: ResponseFormat,
-  ): ValidationResult {
+  ): FormatValidationResult {
     // Look for JSON in assistant responses
     for (const response of summary.assistantResponses) {
       // Try to find JSON in the response
@@ -258,7 +266,7 @@ export class FormatValidator {
   private validatePattern(
     summary: IterationSummary,
     format: ResponseFormat,
-  ): ValidationResult {
+  ): FormatValidationResult {
     if (!format.pattern) {
       return {
         valid: false,

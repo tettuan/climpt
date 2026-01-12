@@ -19,7 +19,8 @@ export {
   type StepValidationResult,
 } from "./agent-loop.ts";
 export {
+  type FormatValidationResult,
   FormatValidator,
   type ResponseFormat,
-  type ValidationResult,
+  type ValidationResult, // deprecated, use FormatValidationResult
 } from "./format-validator.ts";
