@@ -32,13 +32,14 @@
 
 設計を具体化したドキュメント。
 
-| ファイル                 | 内容                 |
-| ------------------------ | -------------------- |
-| `02_agent_definition.md` | agent.json スキーマ  |
-| `03_runner.md`           | Runner の契約と構造  |
-| `05_prompt_system.md`    | C3L プロンプト解決   |
-| `06_action_system.md`    | アクション検出・実行 |
-| `07_config_system.md`    | 設定の階層とマージ   |
+| ファイル                   | 内容                             |
+| -------------------------- | -------------------------------- |
+| `02_agent_definition.md`   | agent.json スキーマ              |
+| `03_runner.md`             | Runner の契約と構造              |
+| `05_prompt_system.md`      | C3L プロンプト解決               |
+| `06_action_system.md`      | アクション検出・実行（廃止予定） |
+| `07_config_system.md`      | 設定の階層とマージ               |
+| `08_structured_outputs.md` | 完了条件検証と部分リトライ       |
 
 ## 拡張ドキュメント
 

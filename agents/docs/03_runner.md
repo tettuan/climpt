@@ -43,16 +43,20 @@ interface AgentResult {
    load(name) → definition
 
 2. コンポーネント初期化
-   - CompletionHandler（完了判定）
+   - CompletionValidator（完了条件検証）
    - PromptResolver（プロンプト解決）
-   - ActionExecutor（アクション実行、省略可）
+   - RetryHandler（リトライプロンプト生成）
 
 3. ループ実行
    while (!complete) {
      prompt = 解決()
      response = LLM 問い合わせ()
-     actions = 検出・実行()
-     complete = 判定()
+     validation = 完了条件検証()
+     if (validation.valid) {
+       complete = true
+     } else {
+       retryPrompt = リトライプロンプト生成(validation.pattern)
+     }
    }
 
 4. 結果返却
@@ -61,16 +65,16 @@ interface AgentResult {
 
 ## コンポーネント
 
-### CompletionHandler
+### CompletionValidator
 
-完了判定を行う。
+完了条件を検証する。詳細は `08_structured_outputs.md` を参照。
 
 ```
-check(context) → { complete, reason? }
+validate(conditions) → ValidationResult
 
-入力:    イテレーション情報、レスポンス
-出力:    完了状態と理由
-副作用:  内部フラグ更新
+入力:    完了条件の配列（steps_registry.json の completionConditions）
+出力:    検証結果（成功 or 失敗パターン + パラメータ）
+副作用:  コマンド実行（git status, deno task test 等）
 ```
 
 ### PromptResolver
@@ -85,16 +89,16 @@ resolve(stepId, variables) → string
 副作用:  ファイル読み込み
 ```
 
-### ActionExecutor
+### RetryHandler
 
-アクションを実行する（省略可）。
+失敗パターンに応じたリトライプロンプトを生成する。
 
 ```
-execute(actions) → ActionResult[]
+buildRetryPrompt(pattern, params) → string
 
-入力:    検出されたアクション
-出力:    実行結果
-副作用:  外部操作（Issue 作成等）
+入力:    失敗パターン名、抽出パラメータ
+出力:    C3L で解決されたリトライプロンプト
+副作用:  なし
 ```
 
 ## SDK 接続

@@ -1,5 +1,11 @@
 # Step Flow Design
 
+> **注記**: この設計は複数フェーズの遷移（analyze → implement →
+> review）を定義します。 各ステップの完了検証については
+> `08_structured_outputs.md`
+> の「完了条件検証と部分リトライ」を参照してください。 Check Prompts
+> による検証は、Validators による検証に置き換わる予定です。
+
 ## Overview
 
 Step flow is an execution model that defines agent execution as a chain of named

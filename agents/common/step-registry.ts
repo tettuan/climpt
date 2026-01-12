@@ -17,21 +17,6 @@ import { join } from "@std/path";
 export type StepType = "prompt";
 
 /**
- * Step context for additional configuration
- * Contains step-specific context variables for prompt expansion
- */
-export interface StepContext {
-  /** Validator names for validation steps (e.g., ["git-clean"]) */
-  validators?: string[];
-  /** Output format for completion steps (e.g., "structuredSignal") */
-  format?: string;
-  /** Signal type for structured signals (e.g., "issue-action") */
-  signalType?: string;
-  /** Additional custom context variables */
-  [key: string]: unknown;
-}
-
-/**
  * Step definition for external prompt resolution
  *
  * Maps a logical step identifier to a prompt file and its requirements.
@@ -93,19 +78,7 @@ export interface StepDefinition {
    * Optional description of what this step does
    */
   description?: string;
-
-  /**
-   * Optional context for step-specific configuration
-   * Used for validators, output formats, etc.
-   */
-  context?: StepContext;
 }
-
-/**
- * Flow definition maps a mode to an ordered list of step IDs
- * Example: { "issue": ["work", "validate", "complete"] }
- */
-export type FlowDefinition = Record<string, string[]>;
 
 /**
  * Step registry for an agent
@@ -118,13 +91,6 @@ export interface StepRegistry {
 
   /** Registry version for compatibility checking */
   version: string;
-
-  /**
-   * Flow definitions mapping modes to step sequences
-   * Example: { "issue": ["work", "validate", "complete"] }
-   * The executor can use this to determine step order for a given mode
-   */
-  flow?: FlowDefinition;
 
   /**
    * C3L path component: c1 (e.g., "steps")
@@ -373,59 +339,4 @@ export async function saveStepRegistry(
 ): Promise<void> {
   const content = serializeRegistry(registry);
   await Deno.writeTextFile(filePath, content + "\n");
-}
-
-/**
- * Get the flow for a specific mode
- *
- * @param registry - Step registry
- * @param mode - Mode name (e.g., "issue", "project")
- * @returns Array of step IDs in execution order, or undefined if no flow defined
- */
-export function getFlow(
-  registry: StepRegistry,
-  mode: string,
-): string[] | undefined {
-  return registry.flow?.[mode];
-}
-
-/**
- * Get all defined modes in a registry
- *
- * @param registry - Step registry
- * @returns Array of mode names with defined flows
- */
-export function getFlowModes(registry: StepRegistry): string[] {
-  return registry.flow ? Object.keys(registry.flow) : [];
-}
-
-/**
- * Check if a registry has a flow defined for a mode
- *
- * @param registry - Step registry
- * @param mode - Mode name to check
- * @returns true if flow exists for the mode
- */
-export function hasFlow(registry: StepRegistry, mode: string): boolean {
-  return registry.flow?.[mode] !== undefined;
-}
-
-/**
- * Get step definitions for a flow in order
- *
- * @param registry - Step registry
- * @param mode - Mode name
- * @returns Array of step definitions in execution order, or empty array if no flow
- */
-export function getFlowSteps(
-  registry: StepRegistry,
-  mode: string,
-): StepDefinition[] {
-  const flow = getFlow(registry, mode);
-  if (!flow) {
-    return [];
-  }
-  return flow
-    .map((stepId) => registry.steps[stepId])
-    .filter((step): step is StepDefinition => step !== undefined);
 }
