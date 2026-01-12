@@ -2,6 +2,9 @@
  * Loop Module - Entry Point
  *
  * Provides the agent execution loop components.
+ *
+ * Note: AgentLoop has been removed - FormatValidator is now integrated
+ * directly into AgentRunner for unified completion validation.
  */
 
 export { StepContextImpl } from "./step-context.ts";
@@ -11,16 +14,8 @@ export {
   type IterationResult,
 } from "./iteration.ts";
 export {
-  AgentLoop,
-  type LoopContext,
-  type LoopResult,
-  type QueryFunction,
-  type StepCheckDefinition,
-  type StepValidationResult,
-} from "./agent-loop.ts";
-export {
   type FormatValidationResult,
   FormatValidator,
-  type ResponseFormat,
   type ValidationResult, // deprecated, use FormatValidationResult
 } from "./format-validator.ts";
+// ResponseFormat is now exported from common/completion-types.ts

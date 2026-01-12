@@ -29,13 +29,16 @@ export type {
   LifecycleOptions,
 } from "../lifecycle/mod.ts";
 
-// Loop Layer
-export { AgentLoop, IterationExecutor, StepContextImpl } from "../loop/mod.ts";
+// Loop Layer (FormatValidator now integrated into AgentRunner)
+export {
+  FormatValidator,
+  IterationExecutor,
+  StepContextImpl,
+} from "../loop/mod.ts";
 export type {
+  FormatValidationResult,
   IterationOptions,
   IterationResult,
-  LoopContext,
-  LoopResult,
 } from "../loop/mod.ts";
 
 // SDK Bridge Layer

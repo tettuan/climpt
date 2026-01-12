@@ -2,39 +2,15 @@
  * Format Validator - Step Response Format Validation
  *
  * Responsibility: Validate agent responses against expected format specifications
- * Used by: AgentLoop for complete step validation with retry capability
+ * Used by: AgentRunner for complete step validation with retry capability
  * Side effects: None (pure validation)
  */
 
 import type { IterationSummary } from "../src_common/types.ts";
+import type { ResponseFormat } from "../common/completion-types.ts";
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Response format specification for validation
- */
-export interface ResponseFormat {
-  /** Type of format to validate */
-  type: "action-block" | "json" | "text-pattern";
-
-  /** For action-block type: the block type name (e.g., "issue-action") */
-  blockType?: string;
-
-  /**
-   * Required fields and their expected types or literal values.
-   * For types: "string", "number", "boolean"
-   * For literal values: the exact value expected (e.g., "close")
-   */
-  requiredFields?: Record<string, string | number | boolean>;
-
-  /** For json type: JSON Schema for validation */
-  schema?: Record<string, unknown>;
-
-  /** For text-pattern type: Regex pattern */
-  pattern?: string;
-}
+// Re-export ResponseFormat for backwards compatibility
+export type { ResponseFormat } from "../common/completion-types.ts";
 
 /**
  * Result of format validation

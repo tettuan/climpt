@@ -117,6 +117,62 @@ export interface OnFailureConfig {
 }
 
 // ============================================================================
+// Response Format - Agent response format specification
+// ============================================================================
+
+/**
+ * Response format specification for validation
+ */
+export interface ResponseFormat {
+  /** Type of format to validate */
+  type: "action-block" | "json" | "text-pattern";
+
+  /** For action-block type: the block type name (e.g., "issue-action") */
+  blockType?: string;
+
+  /**
+   * Required fields and their expected types or literal values.
+   * For types: "string", "number", "boolean"
+   * For literal values: the exact value expected (e.g., "close")
+   */
+  requiredFields?: Record<string, string | number | boolean>;
+
+  /** For json type: JSON Schema for validation */
+  schema?: Record<string, unknown>;
+
+  /** For text-pattern type: Regex pattern */
+  pattern?: string;
+}
+
+/**
+ * Step check configuration for format validation with retry
+ */
+export interface StepCheckConfig {
+  /** Expected response format */
+  responseFormat: ResponseFormat;
+  /** Action when check passes */
+  onPass: {
+    /** Mark as complete */
+    complete?: boolean;
+    /** Next step ID */
+    next?: string;
+  };
+  /** Action when check fails */
+  onFail: {
+    /** Retry the step */
+    retry?: boolean;
+    /** Maximum retry attempts */
+    maxRetries?: number;
+    /** Prompt configuration for retry request */
+    retryPrompt?: {
+      c2: string;
+      c3: string;
+      edition: string;
+    };
+  };
+}
+
+// ============================================================================
 // StepConfigV3 - V3 step configuration
 // ============================================================================
 
@@ -138,6 +194,8 @@ export interface StepConfigV3 {
   completionConditions: CompletionCondition[];
   /** Behavior on failure */
   onFailure: OnFailureConfig;
+  /** Response format check with retry support */
+  check?: StepCheckConfig;
   /** Description */
   description?: string;
 }

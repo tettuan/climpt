@@ -36,8 +36,13 @@ import type { CompletionValidator } from "../validators/completion/validator.ts"
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
   isRegistryV3,
+  type StepCheckConfig,
   type StepsRegistryV3,
 } from "../common/completion-types.ts";
+import {
+  type FormatValidationResult,
+  FormatValidator,
+} from "../loop/format-validator.ts";
 import { join } from "@std/path";
 import {
   isAssistantMessage,
@@ -60,6 +65,18 @@ export interface RunnerOptions {
   plugins?: string[];
 }
 
+/**
+ * Result of completion validation
+ */
+export interface CompletionValidationResult {
+  /** Whether validation passed */
+  valid: boolean;
+  /** Retry prompt if validation failed */
+  retryPrompt?: string;
+  /** Format validation result (if applicable) */
+  formatValidation?: FormatValidationResult;
+}
+
 export class AgentRunner {
   private readonly definition: AgentDefinition;
   private readonly dependencies: AgentDependencies;
@@ -71,6 +88,8 @@ export class AgentRunner {
   private retryHandler: RetryHandler | null = null;
   private stepsRegistry: StepsRegistryV3 | null = null;
   private pendingRetryPrompt: string | null = null;
+  private readonly formatValidator = new FormatValidator();
+  private formatRetryCount = 0;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -316,6 +335,7 @@ export class AgentRunner {
             // deno-lint-ignore no-await-in-loop
             const validation = await this.validateCompletionConditions(
               stepId,
+              summary,
               ctx.logger,
             );
 
@@ -652,26 +672,85 @@ export class AgentRunner {
   }
 
   /**
-   * Validate completion conditions for a step
+   * Validate completion conditions for a step.
    *
    * Called after a close action is detected to verify all conditions are met.
+   * Validates both:
+   * 1. Response format (check.responseFormat) - agent output format
+   * 2. Completion conditions - command execution results (git status, tests, etc.)
+   *
    * Returns retry prompt if validation fails.
    */
   private async validateCompletionConditions(
     stepId: string,
+    summary: IterationSummary,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<{ valid: boolean; retryPrompt?: string }> {
-    if (!this.completionValidator || !this.stepsRegistry) {
+  ): Promise<CompletionValidationResult> {
+    if (!this.stepsRegistry) {
       return { valid: true }; // No V3 validation configured
     }
 
     // Get step config from V3 registry
     const stepConfig = this.stepsRegistry.stepsV3?.[stepId];
-    if (!stepConfig || !stepConfig.completionConditions?.length) {
-      return { valid: true }; // No completion conditions for this step
+    if (!stepConfig) {
+      return { valid: true }; // No step config for this step
     }
 
-    logger.info(`Validating completion conditions for step: ${stepId}`);
+    logger.info(`Validating completion for step: ${stepId}`);
+
+    // 1. Validate response format (if check.responseFormat is defined)
+    if (stepConfig.check?.responseFormat) {
+      const formatResult = this.formatValidator.validate(
+        summary,
+        stepConfig.check.responseFormat,
+      );
+
+      if (!formatResult.valid) {
+        const maxRetries = stepConfig.check.onFail?.maxRetries ?? 2;
+
+        if (
+          stepConfig.check.onFail?.retry && this.formatRetryCount < maxRetries
+        ) {
+          this.formatRetryCount++;
+          logger.warn(
+            `Format validation failed (attempt ${this.formatRetryCount}/${maxRetries}): ${formatResult.error}`,
+          );
+
+          // Build retry prompt for format error
+          const retryPrompt = this.buildFormatRetryPrompt(
+            stepConfig.check,
+            formatResult.error ?? "Invalid response format",
+          );
+          return {
+            valid: false,
+            retryPrompt,
+            formatValidation: formatResult,
+          };
+        }
+
+        logger.error(
+          `Format validation failed after ${this.formatRetryCount} attempts: ${formatResult.error}`,
+        );
+        return {
+          valid: false,
+          retryPrompt:
+            `Response format validation failed: ${formatResult.error}`,
+          formatValidation: formatResult,
+        };
+      }
+
+      // Reset retry count on success
+      this.formatRetryCount = 0;
+      logger.debug("Response format validation passed");
+    }
+
+    // 2. Validate completion conditions (if defined)
+    if (
+      !this.completionValidator ||
+      !stepConfig.completionConditions?.length
+    ) {
+      return { valid: true }; // No completion conditions to check
+    }
 
     // Run completion validators
     const result = await this.completionValidator.validate(
@@ -701,6 +780,40 @@ export class AgentRunner {
         result.error ?? result.pattern
       }`,
     };
+  }
+
+  /**
+   * Build retry prompt for format validation failure
+   */
+  private buildFormatRetryPrompt(
+    check: StepCheckConfig,
+    error: string,
+  ): string {
+    // If retryPrompt config is defined, could use C3L to load template
+    // For now, return a generic retry prompt
+    const format = check.responseFormat;
+    let formatDescription = "";
+
+    if (format.type === "action-block" && format.blockType) {
+      formatDescription =
+        `Expected format: \`\`\`${format.blockType}\n{...}\n\`\`\``;
+      if (format.requiredFields) {
+        const fields = Object.entries(format.requiredFields)
+          .map(([k, v]) => `"${k}": ${JSON.stringify(v)}`)
+          .join(", ");
+        formatDescription += `\nRequired fields: { ${fields} }`;
+      }
+    } else if (format.type === "json") {
+      formatDescription = "Expected format: JSON block";
+    } else if (format.type === "text-pattern" && format.pattern) {
+      formatDescription = `Expected pattern: ${format.pattern}`;
+    }
+
+    return `The response format was invalid: ${error}
+
+${formatDescription}
+
+Please provide a response in the correct format.`;
   }
 
   /**
