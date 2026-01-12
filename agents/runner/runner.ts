@@ -29,7 +29,16 @@ import type { AgentDependencies } from "./builder.ts";
 import {
   createDefaultDependencies,
   DefaultActionSystemFactory,
+  DefaultCompletionValidatorFactory,
+  DefaultRetryHandlerFactory,
 } from "./builder.ts";
+import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { RetryHandler } from "../retry/retry-handler.ts";
+import {
+  isRegistryV3,
+  type StepsRegistryV3,
+} from "../common/completion-types.ts";
+import { join } from "@std/path";
 import {
   isAssistantMessage,
   isErrorMessage,
@@ -56,6 +65,12 @@ export class AgentRunner {
   private readonly dependencies: AgentDependencies;
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
+
+  // V3 completion validation
+  private completionValidator: CompletionValidator | null = null;
+  private retryHandler: RetryHandler | null = null;
+  private stepsRegistry: StepsRegistryV3 | null = null;
+  private pendingRetryPrompt: string | null = null;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -182,6 +197,9 @@ export class AgentRunner {
       }
     }
 
+    // Initialize V3 completion validation if registry supports it
+    await this.initializeCompletionValidation(agentDir, cwd, logger);
+
     // Assign all context at once (atomic initialization)
     this.context = {
       completionHandler,
@@ -219,18 +237,25 @@ export class AgentRunner {
 
         ctx.logger.info(`=== Iteration ${iteration} ===`);
 
-        // Build prompt
+        // Build prompt (use retry prompt if available from failed completion validation)
         const lastSummary = summaries.length > 0
           ? summaries[summaries.length - 1]
           : undefined;
-        const prompt = iteration === 1
+        let prompt: string;
+        if (this.pendingRetryPrompt) {
+          prompt = this.pendingRetryPrompt;
+          this.pendingRetryPrompt = null; // Clear after use
+          ctx.logger.debug("Using retry prompt from completion validation");
+        } else if (iteration === 1) {
           // deno-lint-ignore no-await-in-loop
-          ? await ctx.completionHandler.buildInitialPrompt()
+          prompt = await ctx.completionHandler.buildInitialPrompt();
+        } else {
           // deno-lint-ignore no-await-in-loop
-          : await ctx.completionHandler.buildContinuationPrompt(
+          prompt = await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1, // completedIterations
             lastSummary,
           );
+        }
 
         // deno-lint-ignore no-await-in-loop
         const systemPrompt = await ctx.promptResolver.resolveSystemPrompt({
@@ -284,11 +309,36 @@ export class AgentRunner {
           await this.eventEmitter.emit("actionExecuted", {
             results: summary.actionResults,
           });
+
+          // V3 completion validation: validate conditions after close action
+          if (this.hasCloseAction(summary.actionResults)) {
+            const stepId = this.getCompletionStepId();
+            // deno-lint-ignore no-await-in-loop
+            const validation = await this.validateCompletionConditions(
+              stepId,
+              ctx.logger,
+            );
+
+            if (!validation.valid) {
+              // Store retry prompt for next iteration
+              this.pendingRetryPrompt = validation.retryPrompt ?? null;
+              ctx.logger.info(
+                "Completion conditions not met, will retry in next iteration",
+              );
+            }
+          }
         }
 
         // Check completion
-        // deno-lint-ignore no-await-in-loop
-        const isComplete = await ctx.completionHandler.isComplete();
+        // If there's a pending retry prompt, completion conditions failed - don't complete yet
+        let isComplete: boolean;
+        if (this.pendingRetryPrompt) {
+          isComplete = false;
+          ctx.logger.debug("Skipping completion check due to pending retry");
+        } else {
+          // deno-lint-ignore no-await-in-loop
+          isComplete = await ctx.completionHandler.isComplete();
+        }
         // deno-lint-ignore no-await-in-loop
         const completionReason = await ctx.completionHandler
           .getCompletionDescription();
@@ -536,5 +586,150 @@ export class AgentRunner {
           break;
       }
     }
+  }
+
+  /**
+   * Initialize V3 completion validation system
+   *
+   * Loads steps_registry.json and creates CompletionValidator and RetryHandler
+   * if the registry uses V3 format (has completionPatterns or validators).
+   */
+  private async initializeCompletionValidation(
+    agentDir: string,
+    cwd: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<void> {
+    // Load steps_registry.json from agent directory
+    const registryPath = join(agentDir, "steps_registry.json");
+
+    try {
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+
+      // Check if it's a V3 registry
+      if (!isRegistryV3(registry)) {
+        logger.debug(
+          "Registry is not V3 format, skipping completion validation setup",
+        );
+        return;
+      }
+
+      this.stepsRegistry = registry;
+      logger.info(
+        "Loaded V3 steps registry with completion validation support",
+      );
+
+      // Initialize CompletionValidator factory
+      const validatorFactory = this.dependencies.completionValidatorFactory;
+      if (validatorFactory) {
+        if (validatorFactory instanceof DefaultCompletionValidatorFactory) {
+          await validatorFactory.initialize();
+        }
+        this.completionValidator = validatorFactory.create({
+          registry: this.stepsRegistry,
+          workingDir: cwd,
+          logger,
+          agentId: this.definition.name,
+        });
+        logger.debug("CompletionValidator initialized");
+      }
+
+      // Initialize RetryHandler factory
+      const retryFactory = this.dependencies.retryHandlerFactory;
+      if (retryFactory) {
+        if (retryFactory instanceof DefaultRetryHandlerFactory) {
+          await retryFactory.initialize();
+        }
+        this.retryHandler = retryFactory.create({
+          registry: this.stepsRegistry,
+          workingDir: cwd,
+          logger,
+          agentId: this.definition.name,
+        });
+        logger.debug("RetryHandler initialized");
+      }
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        logger.debug(
+          `Steps registry not found at ${registryPath}, using default completion`,
+        );
+      } else {
+        logger.warn(`Failed to load steps registry: ${error}`);
+      }
+    }
+  }
+
+  /**
+   * Validate completion conditions for a step
+   *
+   * Called after a close action is detected to verify all conditions are met.
+   * Returns retry prompt if validation fails.
+   */
+  private async validateCompletionConditions(
+    stepId: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<{ valid: boolean; retryPrompt?: string }> {
+    if (!this.completionValidator || !this.stepsRegistry) {
+      return { valid: true }; // No V3 validation configured
+    }
+
+    // Get step config from V3 registry
+    const stepConfig = this.stepsRegistry.stepsV3?.[stepId];
+    if (!stepConfig || !stepConfig.completionConditions?.length) {
+      return { valid: true }; // No completion conditions for this step
+    }
+
+    logger.info(`Validating completion conditions for step: ${stepId}`);
+
+    // Run completion validators
+    const result = await this.completionValidator.validate(
+      stepConfig.completionConditions,
+    );
+
+    if (result.valid) {
+      logger.info("All completion conditions passed");
+      return { valid: true };
+    }
+
+    logger.warn(`Completion validation failed: pattern=${result.pattern}`);
+
+    // Build retry prompt if RetryHandler is available
+    if (this.retryHandler && result.pattern) {
+      const retryPrompt = await this.retryHandler.buildRetryPrompt(
+        stepConfig,
+        result,
+      );
+      return { valid: false, retryPrompt };
+    }
+
+    // Fallback: return generic failure message
+    return {
+      valid: false,
+      retryPrompt: `Completion conditions not met: ${
+        result.error ?? result.pattern
+      }`,
+    };
+  }
+
+  /**
+   * Check if any action result indicates a close action
+   */
+  private hasCloseAction(results: ActionResult[]): boolean {
+    return results.some((r) =>
+      r.action?.type === "issue-action" &&
+      (r.action as { action?: string }).action === "close"
+    );
+  }
+
+  /**
+   * Get completion step ID based on completion type
+   */
+  private getCompletionStepId(): string {
+    // For issue-based completion, use "complete.issue"
+    if (this.definition.behavior.completionType === "issue") {
+      return "complete.issue";
+    }
+    // Default fallback
+    return "complete.issue";
   }
 }

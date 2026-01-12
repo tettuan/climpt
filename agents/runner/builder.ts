@@ -15,6 +15,9 @@ import type { Logger } from "../src_common/logger.ts";
 import type { PromptResolver } from "../prompts/resolver.ts";
 import type { ActionDetector } from "../actions/detector.ts";
 import type { ActionExecutor, ExecutorOptions } from "../actions/executor.ts";
+import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { RetryHandler } from "../retry/retry-handler.ts";
+import type { StepsRegistryV3 } from "../common/completion-types.ts";
 
 // ============================================================================
 // Factory Interfaces
@@ -81,6 +84,42 @@ export interface ActionSystemFactory {
   ): ActionExecutor;
 }
 
+/**
+ * Options for CompletionValidator creation via factory.
+ */
+export interface CompletionValidatorFactoryOptions {
+  registry: StepsRegistryV3;
+  workingDir: string;
+  logger: Logger;
+  agentId: string;
+}
+
+/**
+ * Factory interface for CompletionValidator creation.
+ * Allows injection of mock validators for testing.
+ */
+export interface CompletionValidatorFactory {
+  create(options: CompletionValidatorFactoryOptions): CompletionValidator;
+}
+
+/**
+ * Options for RetryHandler creation via factory.
+ */
+export interface RetryHandlerFactoryOptions {
+  registry: StepsRegistryV3;
+  workingDir: string;
+  logger: Logger;
+  agentId: string;
+}
+
+/**
+ * Factory interface for RetryHandler creation.
+ * Allows injection of mock handlers for testing.
+ */
+export interface RetryHandlerFactory {
+  create(options: RetryHandlerFactoryOptions): RetryHandler;
+}
+
 // Re-export ExecutorOptions for external use
 export type { ExecutorOptions };
 
@@ -97,6 +136,8 @@ export interface AgentDependencies {
   readonly completionHandlerFactory: CompletionHandlerFactory;
   readonly promptResolverFactory: PromptResolverFactory;
   readonly actionSystemFactory?: ActionSystemFactory;
+  readonly completionValidatorFactory?: CompletionValidatorFactory;
+  readonly retryHandlerFactory?: RetryHandlerFactory;
 }
 
 /**
@@ -108,6 +149,8 @@ interface MutableAgentDependencies {
   completionHandlerFactory?: CompletionHandlerFactory;
   promptResolverFactory?: PromptResolverFactory;
   actionSystemFactory?: ActionSystemFactory;
+  completionValidatorFactory?: CompletionValidatorFactory;
+  retryHandlerFactory?: RetryHandlerFactory;
 }
 
 // ============================================================================
@@ -206,6 +249,76 @@ export class DefaultActionSystemFactory implements ActionSystemFactory {
   }
 }
 
+/**
+ * Default factory implementation for CompletionValidator.
+ * Wraps the createCompletionValidator factory function.
+ */
+export class DefaultCompletionValidatorFactory
+  implements CompletionValidatorFactory {
+  private createFn:
+    | ((
+      registry: import("../validators/completion/types.ts").ValidatorRegistry,
+      ctx:
+        import("../validators/completion/types.ts").CompletionValidatorContext,
+    ) => CompletionValidator)
+    | null = null;
+
+  async initialize(): Promise<void> {
+    const mod = await import("../validators/completion/validator.ts");
+    this.createFn = mod.createCompletionValidator;
+  }
+
+  create(options: CompletionValidatorFactoryOptions): CompletionValidator {
+    if (!this.createFn) {
+      throw new Error(
+        "DefaultCompletionValidatorFactory not initialized. Call initialize() first.",
+      );
+    }
+    return this.createFn(
+      {
+        validators: options.registry.validators ?? {},
+        completionPatterns: options.registry.completionPatterns,
+      },
+      {
+        workingDir: options.workingDir,
+        logger: options.logger,
+        agentId: options.agentId,
+      },
+    );
+  }
+}
+
+/**
+ * Default factory implementation for RetryHandler.
+ * Wraps the createRetryHandler factory function.
+ */
+export class DefaultRetryHandlerFactory implements RetryHandlerFactory {
+  private createFn:
+    | ((
+      registry: StepsRegistryV3,
+      ctx: { workingDir: string; logger: Logger; agentId: string },
+    ) => RetryHandler)
+    | null = null;
+
+  async initialize(): Promise<void> {
+    const mod = await import("../retry/retry-handler.ts");
+    this.createFn = mod.createRetryHandler;
+  }
+
+  create(options: RetryHandlerFactoryOptions): RetryHandler {
+    if (!this.createFn) {
+      throw new Error(
+        "DefaultRetryHandlerFactory not initialized. Call initialize() first.",
+      );
+    }
+    return this.createFn(options.registry, {
+      workingDir: options.workingDir,
+      logger: options.logger,
+      agentId: options.agentId,
+    });
+  }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -220,6 +333,8 @@ export function createDefaultDependencies(): AgentDependencies {
     completionHandlerFactory: new DefaultCompletionHandlerFactory(),
     promptResolverFactory: new DefaultPromptResolverFactory(),
     actionSystemFactory: new DefaultActionSystemFactory(),
+    completionValidatorFactory: new DefaultCompletionValidatorFactory(),
+    retryHandlerFactory: new DefaultRetryHandlerFactory(),
   };
 }
 
@@ -315,6 +430,22 @@ export class AgentRunnerBuilder {
   }
 
   /**
+   * Set a custom completion validator factory.
+   */
+  withCompletionValidatorFactory(factory: CompletionValidatorFactory): this {
+    this.dependencies.completionValidatorFactory = factory;
+    return this;
+  }
+
+  /**
+   * Set a custom retry handler factory.
+   */
+  withRetryHandlerFactory(factory: RetryHandlerFactory): this {
+    this.dependencies.retryHandlerFactory = factory;
+    return this;
+  }
+
+  /**
    * Build dependencies by merging custom factories with defaults.
    */
   private buildDependencies(): AgentDependencies {
@@ -327,6 +458,11 @@ export class AgentRunnerBuilder {
         defaults.promptResolverFactory,
       actionSystemFactory: this.dependencies.actionSystemFactory ??
         defaults.actionSystemFactory,
+      completionValidatorFactory:
+        this.dependencies.completionValidatorFactory ??
+          defaults.completionValidatorFactory,
+      retryHandlerFactory: this.dependencies.retryHandlerFactory ??
+        defaults.retryHandlerFactory,
     };
   }
 }
