@@ -112,7 +112,29 @@
         "action": "retry",
         "maxAttempts": 3
       },
-      "description": "Validate issue completion with git-clean and type-check"
+      "check": {
+        "responseFormat": {
+          "type": "action-block",
+          "blockType": "issue-action",
+          "requiredFields": {
+            "action": "close",
+            "issue": "number"
+          }
+        },
+        "onPass": {
+          "complete": true
+        },
+        "onFail": {
+          "retry": true,
+          "maxRetries": 2,
+          "retryPrompt": {
+            "c2": "retry",
+            "c3": "format-error",
+            "edition": "default"
+          }
+        }
+      },
+      "description": "Validate issue completion with git-clean, type-check, and format validation"
     }
   },
 

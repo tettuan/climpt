@@ -10,4 +10,16 @@ export {
   type IterationOptions,
   type IterationResult,
 } from "./iteration.ts";
-export { AgentLoop, type LoopContext, type LoopResult } from "./agent-loop.ts";
+export {
+  AgentLoop,
+  type LoopContext,
+  type LoopResult,
+  type QueryFunction,
+  type StepCheckDefinition,
+  type StepValidationResult,
+} from "./agent-loop.ts";
+export {
+  FormatValidator,
+  type ResponseFormat,
+  type ValidationResult,
+} from "./format-validator.ts";
