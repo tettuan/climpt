@@ -37,6 +37,7 @@ import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
   isRegistryV3,
   type StepCheckConfig,
+  type StepConfigV3,
   type StepsRegistryV3,
 } from "../common/completion-types.ts";
 import {
@@ -675,15 +676,15 @@ export class AgentRunner {
    * Validate completion conditions for a step.
    *
    * Called after a close action is detected to verify all conditions are met.
-   * Validates both:
-   * 1. Response format (check.responseFormat) - agent output format
-   * 2. Completion conditions - command execution results (git status, tests, etc.)
+   * Validates using:
+   * 1. Structured output query (if outputSchema is defined) - SDK-level validation
+   * 2. Fallback to command-based validators (if no outputSchema)
    *
    * Returns retry prompt if validation fails.
    */
   private async validateCompletionConditions(
     stepId: string,
-    summary: IterationSummary,
+    _summary: IterationSummary,
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<CompletionValidationResult> {
     if (!this.stepsRegistry) {
@@ -698,53 +699,12 @@ export class AgentRunner {
 
     logger.info(`Validating completion for step: ${stepId}`);
 
-    // 1. Validate response format (if check.responseFormat is defined)
-    if (stepConfig.check?.responseFormat) {
-      const formatResult = this.formatValidator.validate(
-        summary,
-        stepConfig.check.responseFormat,
-      );
-
-      if (!formatResult.valid) {
-        const maxRetries = stepConfig.check.onFail?.maxRetries ?? 2;
-
-        if (
-          stepConfig.check.onFail?.retry && this.formatRetryCount < maxRetries
-        ) {
-          this.formatRetryCount++;
-          logger.warn(
-            `Format validation failed (attempt ${this.formatRetryCount}/${maxRetries}): ${formatResult.error}`,
-          );
-
-          // Build retry prompt for format error
-          const retryPrompt = this.buildFormatRetryPrompt(
-            stepConfig.check,
-            formatResult.error ?? "Invalid response format",
-          );
-          return {
-            valid: false,
-            retryPrompt,
-            formatValidation: formatResult,
-          };
-        }
-
-        logger.error(
-          `Format validation failed after ${this.formatRetryCount} attempts: ${formatResult.error}`,
-        );
-        return {
-          valid: false,
-          retryPrompt:
-            `Response format validation failed: ${formatResult.error}`,
-          formatValidation: formatResult,
-        };
-      }
-
-      // Reset retry count on success
-      this.formatRetryCount = 0;
-      logger.debug("Response format validation passed");
+    // 1. Use structured output query if outputSchema is defined
+    if (stepConfig.outputSchema) {
+      return await this.validateWithStructuredOutput(stepConfig, logger);
     }
 
-    // 2. Validate completion conditions (if defined)
+    // 2. Fallback to command-based validation
     if (
       !this.completionValidator ||
       !stepConfig.completionConditions?.length
@@ -780,6 +740,156 @@ export class AgentRunner {
         result.error ?? result.pattern
       }`,
     };
+  }
+
+  /**
+   * Validate completion using structured output query.
+   *
+   * Executes a query with outputFormat to get validated JSON response.
+   * The agent runs validation checks (git status, type check) and
+   * returns results in the schema-defined format.
+   */
+  private async validateWithStructuredOutput(
+    stepConfig: StepConfigV3,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<CompletionValidationResult> {
+    const ctx = this.getContext();
+
+    logger.info("[StructuredOutput] Running validation query with schema");
+
+    try {
+      // Dynamic import of Claude Code SDK
+      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+
+      const prompt = this.buildValidationPrompt();
+
+      const queryOptions: Record<string, unknown> = {
+        cwd: ctx.cwd,
+        allowedTools: ["Bash", "Read"],
+        permissionMode: "auto",
+        outputFormat: {
+          type: "json_schema",
+          schema: stepConfig.outputSchema,
+        },
+      };
+
+      let structuredOutput: Record<string, unknown> | undefined;
+      let queryError: string | undefined;
+
+      const queryIterator = query({
+        prompt,
+        options: queryOptions,
+      });
+
+      for await (const message of queryIterator) {
+        ctx.logger.logSdkMessage(message);
+
+        const msg = message as Record<string, unknown>;
+
+        if (msg.type === "result") {
+          if (msg.subtype === "success" && msg.structured_output) {
+            structuredOutput = msg.structured_output as Record<string, unknown>;
+            logger.info("[StructuredOutput] Got validation result");
+          } else if (msg.subtype === "error_max_structured_output_retries") {
+            queryError = "Could not produce valid validation output";
+            logger.error("[StructuredOutput] Failed to produce valid output");
+          }
+        }
+      }
+
+      if (!structuredOutput) {
+        return {
+          valid: false,
+          retryPrompt: queryError ?? "Validation query failed",
+        };
+      }
+
+      // Check validation results from structured output
+      return this.checkValidationResults(structuredOutput, logger);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error("[StructuredOutput] Query failed", { error: errorMessage });
+      return {
+        valid: false,
+        retryPrompt: `Validation query failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * Build the prompt for validation query
+   */
+  private buildValidationPrompt(): string {
+    return `Run the following validation checks and report the results:
+
+1. **Git status**: Run \`git status --porcelain\` to check for uncommitted changes
+   - Set git_clean to true only if the output is empty
+   - Include the actual output in evidence.git_status_output
+
+2. **Type check**: Run \`deno task check\` or \`deno check\`
+   - Set type_check_passed to true only if exit code is 0
+   - Include relevant output in evidence.type_check_output
+
+Report your findings in the required JSON format with:
+- validation.git_clean: boolean
+- validation.type_check_passed: boolean
+- evidence: actual command outputs`;
+  }
+
+  /**
+   * Check validation results from structured output
+   */
+  private checkValidationResults(
+    output: Record<string, unknown>,
+    logger: import("../src_common/logger.ts").Logger,
+  ): CompletionValidationResult {
+    const validation = output.validation as Record<string, boolean> | undefined;
+
+    if (!validation) {
+      return {
+        valid: false,
+        retryPrompt: "Missing validation field in response",
+      };
+    }
+
+    const errors: string[] = [];
+
+    // Check required fields
+    if (validation.git_clean !== true) {
+      errors.push(
+        "git_clean is false - please commit or stash changes before closing",
+      );
+    }
+
+    if (validation.type_check_passed !== true) {
+      errors.push("type_check_passed is false - please fix type errors");
+    }
+
+    // Check optional fields (only fail if explicitly false)
+    if (validation.tests_passed === false) {
+      errors.push("tests_passed is false - please fix failing tests");
+    }
+
+    if (validation.lint_passed === false) {
+      errors.push("lint_passed is false - please fix lint errors");
+    }
+
+    if (validation.format_check_passed === false) {
+      errors.push("format_check_passed is false - please run formatter");
+    }
+
+    if (errors.length > 0) {
+      logger.warn("[StructuredOutput] Validation failed", { errors });
+      return {
+        valid: false,
+        retryPrompt: `Completion validation failed:\n${
+          errors.map((e) => `- ${e}`).join("\n")
+        }`,
+      };
+    }
+
+    logger.info("[StructuredOutput] All validation checks passed");
+    return { valid: true };
   }
 
   /**

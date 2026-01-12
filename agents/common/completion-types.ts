@@ -196,6 +196,12 @@ export interface StepConfigV3 {
   onFailure: OnFailureConfig;
   /** Response format check with retry support */
   check?: StepCheckConfig;
+  /**
+   * JSON Schema for structured output.
+   * When specified, the query uses SDK's outputFormat parameter
+   * to get validated JSON responses.
+   */
+  outputSchema?: Record<string, unknown>;
   /** Description */
   description?: string;
 }

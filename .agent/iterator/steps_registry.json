@@ -112,29 +112,48 @@
         "action": "retry",
         "maxAttempts": 3
       },
-      "check": {
-        "responseFormat": {
-          "type": "action-block",
-          "blockType": "issue-action",
-          "requiredFields": {
-            "action": "close",
-            "issue": "number"
-          }
-        },
-        "onPass": {
-          "complete": true
-        },
-        "onFail": {
-          "retry": true,
-          "maxRetries": 2,
-          "retryPrompt": {
-            "c2": "retry",
-            "c3": "format-error",
-            "edition": "default"
+      "outputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "required": ["action", "issue", "validation"],
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "type": "string",
+            "const": "close"
+          },
+          "issue": {
+            "type": "number"
+          },
+          "body": {
+            "type": "string"
+          },
+          "validation": {
+            "type": "object",
+            "required": ["git_clean", "type_check_passed"],
+            "additionalProperties": false,
+            "properties": {
+              "git_clean": { "type": "boolean" },
+              "type_check_passed": { "type": "boolean" },
+              "tests_passed": { "type": "boolean" },
+              "lint_passed": { "type": "boolean" },
+              "format_check_passed": { "type": "boolean" }
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "git_status_output": { "type": "string" },
+              "type_check_output": { "type": "string" },
+              "test_summary": { "type": "string" },
+              "lint_output": { "type": "string" },
+              "format_output": { "type": "string" }
+            }
           }
         }
       },
-      "description": "Validate issue completion with git-clean, type-check, and format validation"
+      "description": "Validate issue completion with git-clean, type-check using structured output"
     }
   },
 
