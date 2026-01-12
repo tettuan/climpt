@@ -35,10 +35,10 @@ import {
 import type { CompletionValidator } from "../validators/completion/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
-  isRegistryV3,
+  type CompletionStepConfig,
+  type ExtendedStepsRegistry,
+  isExtendedRegistry,
   type StepCheckConfig,
-  type StepConfigV3,
-  type StepsRegistryV3,
 } from "../common/completion-types.ts";
 import {
   type FormatValidationResult,
@@ -84,10 +84,10 @@ export class AgentRunner {
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
 
-  // V3 completion validation
+  // Completion validation
   private completionValidator: CompletionValidator | null = null;
   private retryHandler: RetryHandler | null = null;
-  private stepsRegistry: StepsRegistryV3 | null = null;
+  private stepsRegistry: ExtendedStepsRegistry | null = null;
   private pendingRetryPrompt: string | null = null;
   private readonly formatValidator = new FormatValidator();
   private formatRetryCount = 0;
@@ -217,7 +217,7 @@ export class AgentRunner {
       }
     }
 
-    // Initialize V3 completion validation if registry supports it
+    // Initialize Completion validation if registry supports it
     await this.initializeCompletionValidation(agentDir, cwd, logger);
 
     // Assign all context at once (atomic initialization)
@@ -330,7 +330,7 @@ export class AgentRunner {
             results: summary.actionResults,
           });
 
-          // V3 completion validation: validate conditions after close action
+          // Completion validation: validate conditions after close action
           if (this.hasCloseAction(summary.actionResults)) {
             const stepId = this.getCompletionStepId();
             // deno-lint-ignore no-await-in-loop
@@ -602,10 +602,10 @@ export class AgentRunner {
   }
 
   /**
-   * Initialize V3 completion validation system
+   * Initialize Completion validation system
    *
    * Loads steps_registry.json and creates CompletionValidator and RetryHandler
-   * if the registry uses V3 format (has completionPatterns or validators).
+   * if the registry uses extended format (has completionPatterns or validators).
    */
   private async initializeCompletionValidation(
     agentDir: string,
@@ -619,17 +619,17 @@ export class AgentRunner {
       const content = await Deno.readTextFile(registryPath);
       const registry = JSON.parse(content);
 
-      // Check if it's a V3 registry
-      if (!isRegistryV3(registry)) {
+      // Check if it's a extended registry
+      if (!isExtendedRegistry(registry)) {
         logger.debug(
-          "Registry is not V3 format, skipping completion validation setup",
+          "Registry is not extended format, skipping completion validation setup",
         );
         return;
       }
 
       this.stepsRegistry = registry;
       logger.info(
-        "Loaded V3 steps registry with completion validation support",
+        "Loaded extended steps registry with completion validation support",
       );
 
       // Initialize CompletionValidator factory
@@ -688,11 +688,11 @@ export class AgentRunner {
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<CompletionValidationResult> {
     if (!this.stepsRegistry) {
-      return { valid: true }; // No V3 validation configured
+      return { valid: true }; // No validation configured
     }
 
-    // Get step config from V3 registry
-    const stepConfig = this.stepsRegistry.stepsV3?.[stepId];
+    // Get step config from extended registry
+    const stepConfig = this.stepsRegistry.completionSteps?.[stepId];
     if (!stepConfig) {
       return { valid: true }; // No step config for this step
     }
@@ -750,7 +750,7 @@ export class AgentRunner {
    * returns results in the schema-defined format.
    */
   private async validateWithStructuredOutput(
-    stepConfig: StepConfigV3,
+    stepConfig: CompletionStepConfig,
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<CompletionValidationResult> {
     const ctx = this.getContext();

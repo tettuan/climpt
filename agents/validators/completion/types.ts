@@ -12,21 +12,21 @@ export type {
   CommandResult,
   CompletionCondition,
   CompletionPattern,
+  CompletionStepConfig,
+  ExtendedStepsRegistry,
   ExtractorType,
   FailureAction,
   OnFailureConfig,
-  StepConfigV3,
-  StepsRegistryV3,
   SuccessCondition,
-  ValidationResultV3,
   ValidatorDefinition,
+  ValidatorResult,
   ValidatorType,
 } from "../../common/completion-types.ts";
 
 export {
   getPatternFromResult,
-  isRegistryV3,
-  isStepConfigV3,
+  isCompletionStepConfig,
+  isExtendedRegistry,
 } from "../../common/completion-types.ts";
 
 /**

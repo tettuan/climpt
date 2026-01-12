@@ -98,7 +98,7 @@
     }
   },
 
-  "stepsV3": {
+  "completionSteps": {
     "complete.issue": {
       "stepId": "complete.issue",
       "name": "Issue Completion Validation",

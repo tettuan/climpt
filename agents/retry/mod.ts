@@ -7,9 +7,9 @@
 // Types
 export type {
   CompletionPattern,
-  StepConfigV3,
-  StepsRegistryV3,
-  ValidationResultV3,
+  CompletionStepConfig,
+  ExtendedStepsRegistry,
+  ValidatorResult,
 } from "./types.ts";
 
 export type {

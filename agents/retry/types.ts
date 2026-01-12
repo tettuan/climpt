@@ -9,9 +9,9 @@ import type { Logger } from "../src_common/logger.ts";
 // Re-export common types
 export type {
   CompletionPattern,
-  StepConfigV3,
-  StepsRegistryV3,
-  ValidationResultV3,
+  CompletionStepConfig,
+  ExtendedStepsRegistry,
+  ValidatorResult,
 } from "../common/completion-types.ts";
 
 /**

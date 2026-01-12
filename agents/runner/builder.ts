@@ -17,7 +17,7 @@ import type { ActionDetector } from "../actions/detector.ts";
 import type { ActionExecutor, ExecutorOptions } from "../actions/executor.ts";
 import type { CompletionValidator } from "../validators/completion/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
-import type { StepsRegistryV3 } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 
 // ============================================================================
 // Factory Interfaces
@@ -88,7 +88,7 @@ export interface ActionSystemFactory {
  * Options for CompletionValidator creation via factory.
  */
 export interface CompletionValidatorFactoryOptions {
-  registry: StepsRegistryV3;
+  registry: ExtendedStepsRegistry;
   workingDir: string;
   logger: Logger;
   agentId: string;
@@ -106,7 +106,7 @@ export interface CompletionValidatorFactory {
  * Options for RetryHandler creation via factory.
  */
 export interface RetryHandlerFactoryOptions {
-  registry: StepsRegistryV3;
+  registry: ExtendedStepsRegistry;
   workingDir: string;
   logger: Logger;
   agentId: string;
@@ -295,7 +295,7 @@ export class DefaultCompletionValidatorFactory
 export class DefaultRetryHandlerFactory implements RetryHandlerFactory {
   private createFn:
     | ((
-      registry: StepsRegistryV3,
+      registry: ExtendedStepsRegistry,
       ctx: { workingDir: string; logger: Logger; agentId: string },
     ) => RetryHandler)
     | null = null;

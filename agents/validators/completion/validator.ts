@@ -7,9 +7,9 @@
 import type {
   CompletionCondition,
   CompletionValidatorContext,
-  ValidationResultV3,
   ValidatorDefinition,
   ValidatorRegistry,
+  ValidatorResult,
   ValidatorRunResult,
 } from "./types.ts";
 import { checkSuccessCondition, CommandRunner } from "./command-runner.ts";
@@ -45,7 +45,7 @@ export class CompletionValidator {
    */
   async validate(
     conditions: CompletionCondition[],
-  ): Promise<ValidationResultV3> {
+  ): Promise<ValidatorResult> {
     for (const condition of conditions) {
       const def = this.registry.validators[condition.validator];
       if (!def) {

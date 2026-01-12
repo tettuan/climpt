@@ -244,7 +244,7 @@ interface CompletionPattern {
   params: string[];
 }
 
-interface StepConfigV3 {
+interface CompletionStepConfig {
   stepId: string;
   name: string;
   c2: string;
@@ -261,12 +261,12 @@ interface CompletionCondition {
   params?: Record<string, unknown>;
 }
 
-interface StepsRegistryV3 {
+interface ExtendedStepsRegistry {
   agentId: string;
   version: string;
   completionPatterns: Record<string, CompletionPattern>;
   validators: Record<string, ValidatorDefinition>;
-  steps: Record<string, StepConfigV3>;
+  steps: Record<string, CompletionStepConfig>;
 }
 ```
 
@@ -322,7 +322,7 @@ export class CompletionValidator {
 ```typescript
 export class RetryHandler {
   async buildRetryPrompt(
-    stepConfig: StepConfigV3,
+    stepConfig: CompletionStepConfig,
     validationResult: ValidationResult,
   ): Promise<string> {
     const pattern = this.registry.completionPatterns[validationResult.pattern!];

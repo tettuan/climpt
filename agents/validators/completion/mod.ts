@@ -9,22 +9,26 @@ export type {
   CommandResult,
   CompletionCondition,
   CompletionPattern,
+  CompletionStepConfig,
   CompletionValidatorContext,
+  ExtendedStepsRegistry,
   ExtractorType,
   FailureAction,
   OnFailureConfig,
-  StepConfigV3,
-  StepsRegistryV3,
   SuccessCondition,
-  ValidationResultV3,
   ValidatorDefinition,
   ValidatorRegistry,
+  ValidatorResult,
   ValidatorRunResult,
   ValidatorType,
 } from "./types.ts";
 
 // Type guards
-export { getPatternFromResult, isRegistryV3, isStepConfigV3 } from "./types.ts";
+export {
+  getPatternFromResult,
+  isCompletionStepConfig,
+  isExtendedRegistry,
+} from "./types.ts";
 
 // Validator
 export { CompletionValidator, createCompletionValidator } from "./validator.ts";

@@ -1,5 +1,5 @@
 /**
- * Completion Validation Types (V3)
+ * Completion Validation Types
  *
  * Type definitions for completion condition validation and partial retry.
  * Works in conjunction with the existing validators/ system.
@@ -173,15 +173,15 @@ export interface StepCheckConfig {
 }
 
 // ============================================================================
-// StepConfigV3 - V3 step configuration
+// CompletionStepConfig - Step configuration with completion conditions
 // ============================================================================
 
 /**
- * V3 step configuration
+ * Step configuration with completion conditions
  *
  * Extended step definition including completion conditions and retry settings.
  */
-export interface StepConfigV3 {
+export interface CompletionStepConfig {
   /** Step ID */
   stepId: string;
   /** Display name */
@@ -207,15 +207,15 @@ export interface StepConfigV3 {
 }
 
 // ============================================================================
-// ValidationResult (V3 extension)
+// ValidatorResult - Validation result with pattern info
 // ============================================================================
 
 /**
- * V3 validation result
+ * Validation result with pattern and parameters
  *
- * Extended validation result including pattern and parameters.
+ * Extended validation result including pattern and parameters for retry.
  */
-export interface ValidationResultV3 {
+export interface ValidatorResult {
   /** Validation success/failure */
   valid: boolean;
   /** Pattern name on failure */
@@ -229,23 +229,23 @@ export interface ValidationResultV3 {
 }
 
 // ============================================================================
-// StepsRegistryV3 - Unified registry
+// ExtendedStepsRegistry - Registry with completion patterns
 // ============================================================================
 
 /**
- * V3 Steps Registry
+ * Extended Steps Registry
  *
  * Extends existing StepRegistry with completionPatterns and validators.
  */
-export interface StepsRegistryV3 extends StepRegistry {
+export interface ExtendedStepsRegistry extends StepRegistry {
   /** Failure pattern definitions */
   completionPatterns?: Record<string, CompletionPattern>;
 
   /** Validator definitions */
   validators?: Record<string, ValidatorDefinition>;
 
-  /** V3 step configurations (with completionConditions) */
-  stepsV3?: Record<string, StepConfigV3>;
+  /** Step configurations with completion conditions */
+  completionSteps?: Record<string, CompletionStepConfig>;
 }
 
 // ============================================================================
@@ -253,25 +253,25 @@ export interface StepsRegistryV3 extends StepRegistry {
 // ============================================================================
 
 /**
- * Check if the step is a V3 step configuration
+ * Check if the step is a completion step configuration
  */
-export function isStepConfigV3(
+export function isCompletionStepConfig(
   step: unknown,
-): step is StepConfigV3 {
+): step is CompletionStepConfig {
   return (
     typeof step === "object" &&
     step !== null &&
     "completionConditions" in step &&
-    Array.isArray((step as StepConfigV3).completionConditions)
+    Array.isArray((step as CompletionStepConfig).completionConditions)
   );
 }
 
 /**
- * Check if the registry is a V3 registry
+ * Check if the registry is an extended registry
  */
-export function isRegistryV3(
+export function isExtendedRegistry(
   registry: unknown,
-): registry is StepsRegistryV3 {
+): registry is ExtendedStepsRegistry {
   return (
     typeof registry === "object" &&
     registry !== null &&
@@ -283,7 +283,7 @@ export function isRegistryV3(
  * Get pattern from validation result
  */
 export function getPatternFromResult(
-  result: ValidationResultV3,
+  result: ValidatorResult,
 ): string | undefined {
   return result.pattern;
 }

@@ -7,9 +7,9 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Logger } from "../src_common/logger.ts";
 import type {
-  StepConfigV3,
-  StepsRegistryV3,
-  ValidationResultV3,
+  CompletionStepConfig,
+  ExtendedStepsRegistry,
+  ValidatorResult,
 } from "./types.ts";
 import { RetryHandler, type RetryHandlerContext } from "./retry-handler.ts";
 
@@ -27,7 +27,7 @@ const mockLogger: Logger = {
 } as unknown as Logger;
 
 // Test fixtures
-const testStepConfig: StepConfigV3 = {
+const testStepConfig: CompletionStepConfig = {
   stepId: "test-step",
   name: "Test Step",
   c2: "retry",
@@ -51,7 +51,7 @@ const baseRegistryProps = {
 };
 
 // Test registry with completionPatterns
-const testRegistry: StepsRegistryV3 = {
+const testRegistry: ExtendedStepsRegistry = {
   ...baseRegistryProps,
   completionPatterns: {
     "git-dirty": {
@@ -94,7 +94,7 @@ Deno.test("getPattern - returns undefined for unknown pattern", () => {
 });
 
 Deno.test("getPattern - returns undefined when registry has no completionPatterns", () => {
-  const emptyRegistry: StepsRegistryV3 = {
+  const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
   const handler = new RetryHandler(emptyRegistry, testContext);
@@ -110,12 +110,12 @@ Deno.test("getPattern - returns undefined when registry has no completionPattern
 
 Deno.test("buildGenericRetryPrompt - generates generic message when no prompts found", async () => {
   // Use empty registry with no completionPatterns to trigger fallback path
-  const emptyRegistry: StepsRegistryV3 = {
+  const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
   const handler = new RetryHandler(emptyRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: "unknown-pattern",
     error: "Some error occurred",
@@ -146,12 +146,12 @@ Deno.test("buildGenericRetryPrompt - generates generic message when no prompts f
 });
 
 Deno.test("buildGenericRetryPrompt - handles validation result without pattern", async () => {
-  const emptyRegistry: StepsRegistryV3 = {
+  const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
   const handler = new RetryHandler(emptyRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     error: "Generic failure",
   };
@@ -168,12 +168,12 @@ Deno.test("buildGenericRetryPrompt - handles validation result without pattern",
 });
 
 Deno.test("buildGenericRetryPrompt - handles empty params gracefully", async () => {
-  const emptyRegistry: StepsRegistryV3 = {
+  const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
   const handler = new RetryHandler(emptyRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: "test-pattern",
     params: {},
@@ -193,12 +193,12 @@ Deno.test("buildGenericRetryPrompt - handles empty params gracefully", async () 
 });
 
 Deno.test("buildGenericRetryPrompt - handles array params with objects", async () => {
-  const emptyRegistry: StepsRegistryV3 = {
+  const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
   const handler = new RetryHandler(emptyRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: "test-errors",
     params: {
@@ -227,7 +227,7 @@ Deno.test("buildRetryPrompt - falls back when pattern not in registry", async ()
   // Registry has patterns but not the one in validation result
   const handler = new RetryHandler(testRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: "non-existent-pattern",
     error: "Pattern not found error",
@@ -246,7 +246,7 @@ Deno.test("buildRetryPrompt - falls back when pattern not in registry", async ()
 Deno.test("buildRetryPrompt - falls back when pattern is undefined", async () => {
   const handler = new RetryHandler(testRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: undefined,
     error: "No pattern provided",
@@ -272,7 +272,7 @@ Deno.test("buildFallbackPrompt - loads generic f_failed.md path on pattern promp
   // Since we can't mock C3LPromptLoader easily, we test the fallback to generic message
   const handler = new RetryHandler(testRegistry, testContext);
 
-  const validationResult: ValidationResultV3 = {
+  const validationResult: ValidatorResult = {
     valid: false,
     pattern: "git-dirty", // Valid pattern in registry
     error: "Git directory is dirty",

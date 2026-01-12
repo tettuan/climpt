@@ -7,9 +7,9 @@
 import type { Logger } from "../src_common/logger.ts";
 import type {
   CompletionPattern,
-  StepConfigV3,
-  StepsRegistryV3,
-  ValidationResultV3,
+  CompletionStepConfig,
+  ExtendedStepsRegistry,
+  ValidatorResult,
 } from "./types.ts";
 import { C3LPromptLoader } from "../common/c3l-prompt-loader.ts";
 import { injectParams } from "./param-injector.ts";
@@ -33,12 +33,12 @@ export interface RetryHandlerContext {
  * Works with C3LPromptLoader to resolve prompts for failure patterns.
  */
 export class RetryHandler {
-  private readonly registry: StepsRegistryV3;
+  private readonly registry: ExtendedStepsRegistry;
   private readonly promptLoader: C3LPromptLoader;
   private readonly ctx: RetryHandlerContext;
 
   constructor(
-    registry: StepsRegistryV3,
+    registry: ExtendedStepsRegistry,
     ctx: RetryHandlerContext,
   ) {
     this.registry = registry;
@@ -58,8 +58,8 @@ export class RetryHandler {
    * @returns Generated retry prompt
    */
   async buildRetryPrompt(
-    stepConfig: StepConfigV3,
-    validationResult: ValidationResultV3,
+    stepConfig: CompletionStepConfig,
+    validationResult: ValidatorResult,
   ): Promise<string> {
     const patternName = validationResult.pattern;
 
@@ -110,8 +110,8 @@ export class RetryHandler {
    * Used when pattern-specific prompt is not found.
    */
   private async buildFallbackPrompt(
-    stepConfig: StepConfigV3,
-    validationResult: ValidationResultV3,
+    stepConfig: CompletionStepConfig,
+    validationResult: ValidatorResult,
   ): Promise<string> {
     // Fallback: try f_failed.md
     const loadResult = await this.promptLoader.load(
@@ -136,7 +136,7 @@ export class RetryHandler {
    * Build generic retry prompt
    */
   private buildGenericRetryPrompt(
-    validationResult: ValidationResultV3,
+    validationResult: ValidatorResult,
   ): string {
     const lines: string[] = [
       "## Completion conditions not met",
@@ -192,7 +192,7 @@ export class RetryHandler {
  * RetryHandler factory function
  */
 export function createRetryHandler(
-  registry: StepsRegistryV3,
+  registry: ExtendedStepsRegistry,
   ctx: RetryHandlerContext,
 ): RetryHandler {
   return new RetryHandler(registry, ctx);
