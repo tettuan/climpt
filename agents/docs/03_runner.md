@@ -96,10 +96,10 @@ validate(conditions) → ValidationResult
 LLM 出力の形式を検証する。
 
 ```
-validate(response, schema) → FormatValidationResult
+validate(summary, format) → FormatValidationResult
 
-入力:    LLM 応答、期待するスキーマ
-出力:    { valid: boolean, errors: string[], response?: string }
+入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
+出力:    { valid: boolean, error?: string, extracted?: unknown }
 副作用:  なし
 ```
 
@@ -143,11 +143,12 @@ LLM 出力が期待形式に合致しない場合のリトライ。
 
 ```
 設定:
-  step.check.onFail.maxRetries (デフォルト: 2)
+  step.check.onFail.maxRetries (デフォルト: 3)
 
 動作:
   formatRetryCount < maxRetries → リトライプロンプトで続行
-  formatRetryCount >= maxRetries → 中断
+  formatRetryCount >= maxRetries → 警告ログを出力し、エラーを記録して続行
+                                    （中断はしない）
 ```
 
 ### 完了条件リトライ
@@ -165,21 +166,21 @@ LLM 出力が期待形式に合致しない場合のリトライ。
 
 ## Worktree 連携
 
-> **現状**: 実装済みだが CLI 統合が未完了。
-
 設計上、各 Agent インスタンスは独立した worktree で動作する。
 
 ```
 1 Issue = 1 Branch = 1 Worktree = 1 Agent Instance
 
-期待動作:
-  --branch オプション指定時
-  → setupWorktree() で作業ディレクトリを作成
-  → run({ cwd: worktreePath }) で実行
+動作:
+  Agent 定義で worktree.enabled = true の場合
+  → setupWorktree() で作業ディレクトリを自動作成
+  → --branch 未指定時はブランチ名を自動生成（例: feature/docs-20260105-143022）
+  → run({ cwd: worktreePath }) で worktree 内で実行
+  → 成功時は cleanupWorktree() で worktree を削除
 
-現状:
-  --branch, --base-branch はパースされるが未使用
-  → run({ cwd: Deno.cwd() }) で現在ディレクトリを使用
+オプション:
+  --branch <name>       使用するブランチ名（省略時は自動生成）
+  --base-branch <name>  派生元ブランチ（省略時は現在のブランチ）
 ```
 
 ## 依存性注入
@@ -236,12 +237,15 @@ options:
 ## 使用例
 
 ```bash
-# CLI
-deno run -A agents/iterator/mod.ts --issue 123
+# 統一 Agent Runner
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
 
-# タスク
-deno task agent:iterator --issue 123
+# GitHub Project から Issue を処理
+deno run -A agents/scripts/run-agent.ts --agent iterator --project 5 --label docs
 
-# Worktree 指定（現状未動作）
-deno task agent:iterator --issue 123 --branch feature/issue-123
+# Worktree 指定（worktree.enabled = true の場合）
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --branch feature/issue-123
+
+# 利用可能な Agent 一覧
+deno run -A agents/scripts/run-agent.ts --list
 ```

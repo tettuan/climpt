@@ -187,45 +187,39 @@ Agent 自体は単一ループ。並列化は外部オーケストレーター�
 
 同じブランチで複数 Agent は動かない。
 
-> **現状**: worktree 機能は `agents/common/worktree.ts` に実装済みですが、 CLI
-> との統合が未完了です。
->
-> **実装済み**:
->
-> - `setupWorktree()`: worktree の作成とセットアップ
-> - `createWorktree()`: 新規 worktree 作成
-> - `removeWorktree()`: worktree 削除
-> - `cleanupWorktree()`: クリーンアップ
-> - `getCurrentBranch()`, `getRepoRoot()`, `generateBranchName()`
->
-> **未統合**:
->
-> - `run-agent.ts` が `setupWorktree()` を呼び出していない
-> - `--branch`, `--base-branch` オプションはパースされるが使用されない
-> - 現在は `Deno.cwd()` を作業ディレクトリとして使用
->
-> **統合予定の実装**:
->
-> ```typescript
-> // run-agent.ts
-> const worktreeConfig = definition.worktree;
-> let workingDir = Deno.cwd();
->
-> if (worktreeConfig?.enabled && options.branch) {
->   const worktreeResult = await setupWorktree({
->     branch: options.branch,
->     baseBranch: options.baseBranch,
->     root: worktreeConfig.root ?? ".worktrees",
->   });
->   workingDir = worktreeResult.path;
-> }
->
-> const result = await runner.run({
->   cwd: workingDir,
->   args: runnerArgs,
->   plugins: [],
-> });
-> ```
+worktree 機能は `agents/common/worktree.ts` に実装され、`run-agent.ts`
+と統合済み。
+
+**実装済み**:
+
+- `setupWorktree()`: worktree の作成とセットアップ
+- `createWorktree()`: 新規 worktree 作成
+- `removeWorktree()`: worktree 削除
+- `cleanupWorktree()`: クリーンアップ
+- `getCurrentBranch()`, `getRepoRoot()`, `generateBranchName()`
+
+**CLI 統合**:
+
+Agent 定義で `worktree.enabled = true` の場合、`run-agent.ts` は自動的に
+worktree を作成する。 `--branch` が未指定の場合、ブランチ名は自動生成される（例:
+`feature/docs-20260105-143022`）。
+
+```typescript
+// run-agent.ts の実装
+const worktreeConfig = definition.worktree;
+if (worktreeConfig?.enabled) {
+  const worktreeResult = await setupWorktree(setupConfig, {
+    branch: args.branch, // 省略可（自動生成）
+    baseBranch: args.baseBranch, // 省略可（現在のブランチ）
+  });
+  workingDir = worktreeResult.worktreePath;
+}
+
+// 成功時は worktree を削除
+if (result.success && worktreeResult) {
+  await cleanupWorktree(worktreeResult.worktreePath);
+}
+```
 
 ## 実装状況
 
@@ -236,6 +230,6 @@ Agent 自体は単一ループ。並列化は外部オーケストレーター�
 | 完了条件検証     | ✓    | ✓    | ✓    | 動作確認済み                 |
 | 形式検証         | ✓    | ✓    | ✓    | 動作確認済み                 |
 | リトライハンドラ | ✓    | ✓    | ✓    | 動作確認済み                 |
-| Worktree         | ✓    | ✓    | -    | CLI 統合待ち                 |
+| Worktree         | ✓    | ✓    | ✓    | 動作確認済み                 |
 | StepContext      | ✓    | -    | -    | Step Flow 機能として将来実装 |
 | 複数ステップ遷移 | ✓    | -    | -    | Step Flow 機能として将来実装 |

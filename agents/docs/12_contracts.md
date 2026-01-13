@@ -65,10 +65,10 @@ CompletionValidator.validate(conditions) → CompletionValidationResult
 ### 形式検証
 
 ```
-FormatValidator.validate(response, schema) → FormatValidationResult
+FormatValidator.validate(summary, format) → FormatValidationResult
 
-入力:    LLM 応答、期待スキーマ
-出力:    { valid: boolean, errors: string[], response?: string }
+入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
+出力:    { valid: boolean, error?: string, extracted?: unknown }
 副作用:  なし
 ```
 
@@ -134,8 +134,8 @@ interface CompletionValidationResult {
 ```typescript
 interface FormatValidationResult {
   valid: boolean;
-  errors: string[];
-  response?: string; // 解析済みレスポンス
+  error?: string; // エラーメッセージ（単一）
+  extracted?: unknown; // 抽出されたデータ
 }
 ```
 
@@ -229,7 +229,7 @@ Issue #N
 - 同一ブランチで複数 Agent ⇒ 起動エラー
 ```
 
-> **現状**: worktree 統合は未完了です。詳細は `11_core_architecture.md` を参照。
+worktree 機能は CLI と統合済み。詳細は `11_core_architecture.md` を参照。
 
 ## 互換性の契約
 

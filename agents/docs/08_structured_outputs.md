@@ -32,10 +32,10 @@ LLM 応答
 ### 形式検証
 
 ```
-FormatValidator.validate(response, schema) → FormatValidationResult
+FormatValidator.validate(summary, format) → FormatValidationResult
 
-入力:    LLM 応答、期待スキーマ
-出力:    { valid: boolean, errors: string[], response?: string }
+入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
+出力:    { valid: boolean, error?: string, extracted?: unknown }
 副作用:  なし
 ```
 
@@ -193,8 +193,8 @@ interface ValidatorDefinition {
 
 interface FormatValidationResult {
   valid: boolean;
-  errors: string[];
-  response?: string;
+  error?: string;
+  extracted?: unknown;
 }
 
 interface CompletionValidationResult {
