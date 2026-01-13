@@ -6,6 +6,7 @@
  */
 
 import type { Logger } from "../src_common/logger.ts";
+import type { BaseValidationResult } from "../src_common/types.ts";
 
 // Re-export PreCloseValidationConfig from src_common for consistency
 export type { PreCloseValidationConfig } from "../src_common/types.ts";
@@ -25,24 +26,14 @@ export interface ValidatorContext {
 }
 
 /**
- * Result of a pre-close validator check
+ * Result of a pre-close validator check.
  *
- * Named ValidatorResult to distinguish from other validation result types:
- * - ValidatorResult: Pre-close validator checks (this file)
- * - FormatValidationResult: Response format validation (loop/format-validator.ts)
- * - ValidationResult: Generic validation (src_common/types.ts)
+ * Extends BaseValidationResult with details specific to pre-close validation.
  */
-export interface ValidatorResult {
-  /** Whether the validation passed */
-  valid: boolean;
-  /** Error message if validation failed */
-  error?: string;
+export interface ValidatorResult extends BaseValidationResult {
   /** Detailed information (e.g., list of uncommitted files) */
   details?: string[];
 }
-
-/** @deprecated Use ValidatorResult instead */
-export type ValidationResult = ValidatorResult;
 
 /**
  * Validator interface for pre-close checks

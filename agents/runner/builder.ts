@@ -24,6 +24,33 @@ import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 // ============================================================================
 
 /**
+ * Interface for factories that require async initialization.
+ *
+ * Factories implementing this interface must have `initialize()` called
+ * before `create()` can be used. This pattern supports lazy loading and
+ * dynamic imports while providing a consistent initialization API.
+ */
+export interface Initializable {
+  /**
+   * Initialize the factory (load dependencies, etc.)
+   * Must be called before create() for factories that implement this.
+   */
+  initialize(): Promise<void>;
+}
+
+/**
+ * Type guard to check if a factory is initializable.
+ */
+export function isInitializable(obj: unknown): obj is Initializable {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "initialize" in obj &&
+    typeof (obj as Initializable).initialize === "function"
+  );
+}
+
+/**
  * Factory interface for Logger creation.
  * Allows injection of mock loggers for testing.
  */
@@ -202,7 +229,8 @@ export class DefaultPromptResolverFactory implements PromptResolverFactory {
  * Default factory implementation for Action system components.
  * Wraps the ActionDetector and ActionExecutor constructors.
  */
-export class DefaultActionSystemFactory implements ActionSystemFactory {
+export class DefaultActionSystemFactory
+  implements ActionSystemFactory, Initializable {
   private ActionDetectorClass: typeof ActionDetector | null = null;
   private ActionExecutorClass: typeof ActionExecutor | null = null;
 
@@ -254,7 +282,7 @@ export class DefaultActionSystemFactory implements ActionSystemFactory {
  * Wraps the createCompletionValidator factory function.
  */
 export class DefaultCompletionValidatorFactory
-  implements CompletionValidatorFactory {
+  implements CompletionValidatorFactory, Initializable {
   private createFn:
     | ((
       registry: import("../validators/completion/types.ts").ValidatorRegistry,
@@ -292,7 +320,8 @@ export class DefaultCompletionValidatorFactory
  * Default factory implementation for RetryHandler.
  * Wraps the createRetryHandler factory function.
  */
-export class DefaultRetryHandlerFactory implements RetryHandlerFactory {
+export class DefaultRetryHandlerFactory
+  implements RetryHandlerFactory, Initializable {
   private createFn:
     | ((
       registry: ExtendedStepsRegistry,
@@ -419,8 +448,8 @@ export class AgentRunnerBuilder {
 
     const deps = this.buildDependencies();
 
-    // Initialize action system factory if it's the default one
-    if (deps.actionSystemFactory instanceof DefaultActionSystemFactory) {
+    // Initialize factories that support initialization
+    if (isInitializable(deps.actionSystemFactory)) {
       await deps.actionSystemFactory.initialize();
     }
 

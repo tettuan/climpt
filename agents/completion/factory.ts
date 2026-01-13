@@ -11,11 +11,11 @@ import {
   resolveCompletionType,
 } from "../src_common/types.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
-import type { CompletionHandler, CompletionHandlerV2 } from "./types.ts";
+import type { CompletionHandler, ContractCompletionHandler } from "./types.ts";
 import {
-  type IssueCompletionConfigV2,
   IssueCompletionHandler,
-  IssueCompletionHandlerV2,
+  type IssueContractConfig,
+  IssueContractHandler,
 } from "./issue.ts";
 import {
   type ExternalStateChecker,
@@ -319,11 +319,11 @@ async function loadCustomHandler(
 // ============================================================================
 
 /**
- * Options for creating a V2 completion handler.
+ * Options for creating a contract-compliant completion handler.
  */
 export interface CompletionHandlerV2Options {
   /** Issue configuration (for issue completion) */
-  issue?: IssueCompletionConfigV2;
+  issue?: IssueContractConfig;
   /** External state checker (optional, defaults to GitHubStateChecker) */
   stateChecker?: ExternalStateChecker;
   /** Default repository for GitHub operations */
@@ -331,7 +331,7 @@ export interface CompletionHandlerV2Options {
 }
 
 /**
- * Create a contract-compliant completion handler (V2).
+ * Create a contract-compliant completion handler.
  *
  * Unlike createCompletionHandler, this factory:
  * - Returns handlers that have no side effects in check()
@@ -339,7 +339,7 @@ export interface CompletionHandlerV2Options {
  * - Uses dependency injection for external state checkers
  *
  * Currently supports:
- * - Issue completion (IssueCompletionHandlerV2)
+ * - Issue completion (IssueContractHandler)
  *
  * @example
  * ```typescript
@@ -355,12 +355,12 @@ export interface CompletionHandlerV2Options {
  */
 export function createCompletionHandlerV2(
   options: CompletionHandlerV2Options,
-): CompletionHandlerV2 {
+): ContractCompletionHandler {
   if (options.issue) {
     const stateChecker = options.stateChecker ??
       new GitHubStateChecker(options.defaultRepo);
 
-    return new IssueCompletionHandlerV2(options.issue, stateChecker);
+    return new IssueContractHandler(options.issue, stateChecker);
   }
 
   throw new Error(

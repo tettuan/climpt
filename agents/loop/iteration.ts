@@ -1,6 +1,9 @@
 /**
  * Iteration - Single Iteration Execution
  *
+ * @deprecated This module is not used. Iteration execution is handled
+ * directly in AgentRunner (runner/runner.ts). Consider removing in future.
+ *
  * Responsibility: Prompt resolution -> Query execution -> Response processing
  * Side effects: SDK calls, log output
  */

@@ -11,9 +11,11 @@ import type {
   ActionResult,
   AgentDefinition,
   AgentResult,
+  BaseValidationResult,
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
+import { isRecord, isString } from "../src_common/type-guards.ts";
 import {
   AgentMaxIterationsError,
   AgentNotInitializedError,
@@ -26,12 +28,7 @@ import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 import type { AgentDependencies } from "./builder.ts";
-import {
-  createDefaultDependencies,
-  DefaultActionSystemFactory,
-  DefaultCompletionValidatorFactory,
-  DefaultRetryHandlerFactory,
-} from "./builder.ts";
+import { createDefaultDependencies, isInitializable } from "./builder.ts";
 import type { CompletionValidator } from "../validators/completion/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
@@ -69,11 +66,11 @@ export interface RunnerOptions {
 }
 
 /**
- * Result of completion validation
+ * Result of completion validation.
+ *
+ * Extends BaseValidationResult with retry prompt for agent loop.
  */
-export interface CompletionValidationResult {
-  /** Whether validation passed */
-  valid: boolean;
+export interface CompletionValidationResult extends BaseValidationResult {
   /** Retry prompt if validation failed */
   retryPrompt?: string;
   /** Format validation result (if applicable) */
@@ -200,8 +197,8 @@ export class AgentRunner {
         : undefined;
 
       if (actionFactory) {
-        // Ensure the factory is initialized if it's the default one
-        if (actionFactory instanceof DefaultActionSystemFactory) {
+        // Ensure the factory is initialized if it supports initialization
+        if (isInitializable(actionFactory)) {
           await actionFactory.initialize();
         }
         actionDetector = actionFactory.createDetector(this.definition.actions);
@@ -567,21 +564,19 @@ export class AgentRunner {
   }
 
   private extractContent(message: unknown): string {
-    if (typeof message === "string") {
+    if (isString(message)) {
       return message;
     }
-    if (typeof message === "object" && message !== null) {
-      const msg = message as Record<string, unknown>;
-      if (typeof msg.content === "string") {
-        return msg.content;
+    if (isRecord(message)) {
+      if (isString(message.content)) {
+        return message.content;
       }
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter((c) =>
-            typeof c === "object" && c !== null &&
-            (c as Record<string, unknown>).type === "text"
+      if (Array.isArray(message.content)) {
+        return message.content
+          .filter((c): c is Record<string, unknown> =>
+            isRecord(c) && c.type === "text"
           )
-          .map((c) => (c as Record<string, unknown>).text as string)
+          .map((c) => isString(c.text) ? c.text : "")
           .join("\n");
       }
     }
@@ -665,7 +660,7 @@ export class AgentRunner {
       // Initialize CompletionValidator factory
       const validatorFactory = this.dependencies.completionValidatorFactory;
       if (validatorFactory) {
-        if (validatorFactory instanceof DefaultCompletionValidatorFactory) {
+        if (isInitializable(validatorFactory)) {
           await validatorFactory.initialize();
         }
         this.completionValidator = validatorFactory.create({
@@ -680,7 +675,7 @@ export class AgentRunner {
       // Initialize RetryHandler factory
       const retryFactory = this.dependencies.retryHandlerFactory;
       if (retryFactory) {
-        if (retryFactory instanceof DefaultRetryHandlerFactory) {
+        if (isInitializable(retryFactory)) {
           await retryFactory.initialize();
         }
         this.retryHandler = retryFactory.create({
@@ -814,13 +809,18 @@ export class AgentRunner {
       for await (const message of queryIterator) {
         ctx.logger.logSdkMessage(message);
 
-        const msg = message as Record<string, unknown>;
+        if (!isRecord(message)) continue;
 
-        if (msg.type === "result") {
-          if (msg.subtype === "success" && msg.structured_output) {
-            structuredOutput = msg.structured_output as Record<string, unknown>;
+        if (message.type === "result") {
+          if (
+            message.subtype === "success" &&
+            isRecord(message.structured_output)
+          ) {
+            structuredOutput = message.structured_output;
             logger.info("[StructuredOutput] Got validation result");
-          } else if (msg.subtype === "error_max_structured_output_retries") {
+          } else if (
+            message.subtype === "error_max_structured_output_retries"
+          ) {
             queryError = "Could not produce valid validation output";
             logger.error("[StructuredOutput] Failed to produce valid output");
           }
@@ -873,15 +873,14 @@ Report your findings in the required JSON format with:
     output: Record<string, unknown>,
     logger: import("../src_common/logger.ts").Logger,
   ): CompletionValidationResult {
-    const validation = output.validation as Record<string, boolean> | undefined;
-
-    if (!validation) {
+    if (!isRecord(output.validation)) {
       return {
         valid: false,
         retryPrompt: "Missing validation field in response",
       };
     }
 
+    const validation = output.validation;
     const errors: string[] = [];
 
     // Check required fields
@@ -969,8 +968,8 @@ Please provide a response in the correct format.`;
 
       // Check if result contains a close action
       // IssueActionHandler sets result.action = "close" for close actions
-      const result = r.result as { action?: string } | undefined;
-      return result?.action === "close";
+      if (!isRecord(r.result)) return false;
+      return r.result.action === "close";
     });
   }
 

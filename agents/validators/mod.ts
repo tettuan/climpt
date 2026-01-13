@@ -9,7 +9,6 @@
 export type {
   AggregateValidationResult,
   PreCloseValidationConfig,
-  ValidationResult, // deprecated, use ValidatorResult
   Validator,
   ValidatorContext,
   ValidatorResult,

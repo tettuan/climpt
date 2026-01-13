@@ -114,6 +114,13 @@ export {
 /** @deprecated Use AgentLifecycle instead */
 export { AgentRunner, type RunnerOptions } from "./runner.ts";
 
+// Completion Chain (extracted from runner.ts)
+export {
+  CompletionChain,
+  type CompletionChainOptions,
+  type CompletionValidationResult,
+} from "./completion-chain.ts";
+
 /** @deprecated Use AgentRunnerBuilder with v2 components */
 export {
   type ActionSystemFactory,

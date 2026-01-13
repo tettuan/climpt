@@ -6,33 +6,24 @@
  * Side effects: None (pure validation)
  */
 
-import type { IterationSummary } from "../src_common/types.ts";
+import type {
+  BaseValidationResult,
+  IterationSummary,
+} from "../src_common/types.ts";
 import type { ResponseFormat } from "../common/completion-types.ts";
 
 // Re-export ResponseFormat for backwards compatibility
 export type { ResponseFormat } from "../common/completion-types.ts";
 
 /**
- * Result of format validation
+ * Result of format validation.
  *
- * Named FormatValidationResult to distinguish from other ValidationResult types:
- * - FormatValidationResult: Response format validation (this file)
- * - ValidatorResult: Pre-close validator checks (validators/types.ts)
- * - ValidationResult: Generic validation (src_common/types.ts)
+ * Extends BaseValidationResult with extracted data.
  */
-export interface FormatValidationResult {
-  /** Whether the response matches the expected format */
-  valid: boolean;
-
-  /** Error message if validation failed */
-  error?: string;
-
+export interface FormatValidationResult extends BaseValidationResult {
   /** Extracted data from the response (if valid) */
   extracted?: unknown;
 }
-
-/** @deprecated Use FormatValidationResult instead */
-export type ValidationResult = FormatValidationResult;
 
 // ============================================================================
 // FormatValidator Class

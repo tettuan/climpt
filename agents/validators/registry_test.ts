@@ -12,7 +12,7 @@ import {
   resetValidators,
   runValidators,
 } from "./registry.ts";
-import type { ValidationResult, Validator, ValidatorContext } from "./types.ts";
+import type { Validator, ValidatorContext, ValidatorResult } from "./types.ts";
 import type { Logger } from "../src_common/logger.ts";
 
 // Mock logger for testing
@@ -31,7 +31,7 @@ const mockLogger: Logger = {
 // Helper to create a mock validator
 function createMockValidator(
   id: string,
-  result: ValidationResult,
+  result: ValidatorResult,
 ): Validator {
   return {
     id,

@@ -3,7 +3,7 @@
  *
  * This module provides two implementations:
  * - IssueCompletionHandler: Original implementation (external calls in isComplete)
- * - IssueCompletionHandlerV2: Contract-compliant (external calls separated)
+ * - IssueContractHandler: Contract-compliant (external calls separated)
  *
  * @refactored Phase 6 - External state checking separated to ExternalStateChecker
  */
@@ -13,9 +13,9 @@ import {
   BaseCompletionHandler,
   type CheckContext,
   type CompletionCriteria,
-  type CompletionHandlerV2,
   type CompletionResult,
   type CompletionType,
+  type ContractCompletionHandler,
   type IterationSummary,
   type StepResult,
 } from "./types.ts";
@@ -284,13 +284,13 @@ ${summarySection}
 }
 
 // ============================================================================
-// V2 Implementation (Contract-compliant)
+// Contract-compliant Implementation
 // ============================================================================
 
 /**
- * Configuration for IssueCompletionHandlerV2.
+ * Configuration for IssueContractHandler.
  */
-export interface IssueCompletionConfigV2 {
+export interface IssueContractConfig {
   /** Issue number to track */
   issueNumber: number;
   /** Repository in "owner/repo" format (optional) */
@@ -299,13 +299,16 @@ export interface IssueCompletionConfigV2 {
   checkInterval?: number;
 }
 
+/** Alias for backwards compatibility */
+export type IssueCompletionConfigV2 = IssueContractConfig;
+
 /**
- * Issue-based completion handler V2.
+ * Issue-based completion handler with contract compliance.
  *
  * Contract-compliant implementation that separates external state checking
  * from completion judgment logic.
  *
- * Key differences from V1:
+ * Key characteristics:
  * - check() uses cached state only - no external calls
  * - refreshState() method for explicit state updates
  * - External state checker is injected as dependency
@@ -313,7 +316,7 @@ export interface IssueCompletionConfigV2 {
  * Usage:
  * ```typescript
  * const checker = new GitHubStateChecker();
- * const handler = new IssueCompletionHandlerV2(
+ * const handler = new IssueContractHandler(
  *   { issueNumber: 123, repo: "owner/repo" },
  *   checker
  * );
@@ -325,14 +328,14 @@ export interface IssueCompletionConfigV2 {
  * const result = handler.check({ iteration: 1 });
  * ```
  */
-export class IssueCompletionHandlerV2 implements CompletionHandlerV2 {
+export class IssueContractHandler implements ContractCompletionHandler {
   readonly type: CompletionType = "issue";
 
   private cachedState?: IssueState;
   private lastCheckTime = 0;
 
   constructor(
-    private readonly config: IssueCompletionConfigV2,
+    private readonly config: IssueContractConfig,
     private readonly stateChecker: ExternalStateChecker,
   ) {}
 
@@ -458,3 +461,6 @@ export class IssueCompletionHandlerV2 implements CompletionHandlerV2 {
     return now - this.lastCheckTime >= interval;
   }
 }
+
+/** Alias for backwards compatibility */
+export const IssueCompletionHandlerV2 = IssueContractHandler;

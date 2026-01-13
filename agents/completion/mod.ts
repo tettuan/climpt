@@ -2,56 +2,54 @@
  * Completion handlers module exports
  *
  * This module provides completion handlers for different completion strategies.
- * Handlers use behavior-based naming (new) with aliases for legacy names (deprecated).
+ * Handlers use behavior-based naming with aliases for legacy names.
  *
- * New behavior-based names:
- * - externalState: Complete when external resource reaches target state (was: issue)
- * - iterationBudget: Complete after N iterations (was: iterate)
- * - checkBudget: Complete after N status checks (new)
- * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
- * - structuredSignal: Complete when LLM outputs specific JSON signal (new)
- * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
- * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
+ * Completion types:
+ * - externalState: Complete when external resource reaches target state
+ * - iterationBudget: Complete after N iterations
+ * - checkBudget: Complete after N status checks
+ * - keywordSignal: Complete when LLM outputs specific keyword
+ * - structuredSignal: Complete when LLM outputs specific JSON signal
+ * - stepMachine: Complete when step state machine reaches terminal
+ * - composite: Combines multiple conditions with AND/OR logic
  * - custom: Fully custom handler implementation
  *
- * V2 Interfaces (Contract-compliant):
- * - CompletionHandlerV2: Interface with no side effects in check()
- * - IssueCompletionHandlerV2: Issue handler using external state checker
+ * Contract-compliant Interfaces:
+ * - ContractCompletionHandler: Interface with no side effects in check()
+ * - IssueContractHandler: Issue handler using external state checker
  * - ExternalStateChecker: Interface for external state retrieval
  */
 
-// V1 Types (existing, maintained for backward compatibility)
+// Types
 export type { CompletionCriteria, CompletionHandler } from "./types.ts";
 export { BaseCompletionHandler, formatIterationSummary } from "./types.ts";
 export type { CompletionType, IterationSummary } from "./types.ts";
 
-// V2 Types (contract-compliant)
+// Contract-compliant types
 export type {
   CheckContext,
   CompletionHandlerV2,
   CompletionResult,
+  ContractCompletionHandler,
   StepResult,
 } from "./types.ts";
 
-// V1 Factory (deprecated, maintained for backward compatibility)
+// Factory functions
 export {
-  /** @deprecated Use createCompletionHandlerV2 instead */
   type CompletionHandlerOptions,
-  /** @deprecated Use createCompletionHandlerV2 instead */
   createCompletionHandler,
-  /** @deprecated Use createCompletionHandlerV2 instead */
   createCompletionHandlerFromOptions,
   getRegisteredHandler,
   registerCompletionHandler,
 } from "./factory.ts";
 
-// V2 Factory (contract-compliant)
+// Contract-compliant factory
 export {
   type CompletionHandlerV2Options,
   createCompletionHandlerV2,
 } from "./factory.ts";
 
-// External State Checker (V2)
+// External State Checker
 export {
   type ExternalStateChecker,
   GitHubStateChecker,
@@ -59,18 +57,15 @@ export {
   MockStateChecker,
 } from "./external-state-checker.ts";
 
-// externalState (was: issue) - Complete when external resource reaches target state
-// V1 handler (deprecated)
-export {
-  /** @deprecated Use IssueCompletionHandlerV2 instead */
-  IssueCompletionHandler,
-  type ProjectContext,
-} from "./issue.ts";
+// Issue completion handlers
+export { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
 
-// V2 handler (contract-compliant)
+// Contract-compliant issue handler
 export {
   type IssueCompletionConfigV2,
   IssueCompletionHandlerV2,
+  type IssueContractConfig,
+  IssueContractHandler,
 } from "./issue.ts";
 
 // iterationBudget (was: iterate) - Complete after N iterations

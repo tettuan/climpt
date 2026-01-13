@@ -3,8 +3,6 @@
  *
  * Unified interface combining features from runner and iterator implementations.
  * Uses Strategy pattern for different completion conditions.
- *
- * V2 interfaces are based on: agents/docs/12_contracts.md
  */
 
 import type { CompletionType, IterationSummary } from "../src_common/types.ts";
@@ -152,11 +150,11 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
 }
 
 // ============================================================================
-// V2 Interfaces (Contract-compliant)
+// Contract-compliant Handler Interface
 // ============================================================================
 
 /**
- * Completion Handler Interface V2
+ * Contract-compliant Completion Handler Interface
  *
  * Based on: agents/docs/12_contracts.md CompletionContract
  *
@@ -165,10 +163,8 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
  * - transition() is a Query method (no side effects)
  * - buildPrompt() is a Query method (no side effects)
  * - External state retrieval is delegated to ExternalStateChecker
- *
- * Use IssueCompletionHandlerV2 and other V2 handlers for contract compliance.
  */
-export interface CompletionHandlerV2 {
+export interface ContractCompletionHandler {
   /** Completion type identifier */
   readonly type: CompletionType;
 
@@ -209,3 +205,6 @@ export interface CompletionHandlerV2 {
    */
   getCompletionCriteria(): { summary: string; detailed: string };
 }
+
+/** Alias for backwards compatibility */
+export type CompletionHandlerV2 = ContractCompletionHandler;

@@ -5,11 +5,7 @@
  * This ensures agents commit their work before closing issues.
  */
 
-import type {
-  ValidationResult,
-  Validator,
-  ValidatorContext,
-} from "../types.ts";
+import type { Validator, ValidatorContext, ValidatorResult } from "../types.ts";
 
 /**
  * Git clean validator - checks for uncommitted changes
@@ -19,7 +15,7 @@ export const gitCleanValidator: Validator = {
   name: "Git Clean Validator",
   description: "Ensures no uncommitted changes exist in the working directory",
 
-  async validate(ctx: ValidatorContext): Promise<ValidationResult> {
+  async validate(ctx: ValidatorContext): Promise<ValidatorResult> {
     try {
       // Run git status --porcelain to get list of changed files
       const command = new Deno.Command("git", {

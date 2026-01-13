@@ -14,3 +14,14 @@ export {
   resolveAgentPaths,
   type RuntimeConfig,
 } from "./config.ts";
+export {
+  getNumberProperty,
+  getProperty,
+  getStringProperty,
+  isArray,
+  isBoolean,
+  isNumber,
+  isRecord,
+  isString,
+  isStringArray,
+} from "./type-guards.ts";
