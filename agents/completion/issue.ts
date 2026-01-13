@@ -43,6 +43,7 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
   private promptResolver?: PromptResolver;
   private projectContext?: ProjectContext;
   private repository?: string;
+  private cwd?: string;
 
   constructor(
     private readonly issueNumber: number,
@@ -50,6 +51,14 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
   ) {
     super();
     this.repository = repository;
+  }
+
+  /**
+   * Set working directory for command execution.
+   * Required for correct behavior in worktree mode.
+   */
+  setCwd(cwd: string): void {
+    this.cwd = cwd;
   }
 
   /**
@@ -196,6 +205,7 @@ ${summarySection}
         args,
         stdout: "piped",
         stderr: "piped",
+        cwd: this.cwd,
       }).output();
 
       if (!result.success) {
@@ -217,6 +227,7 @@ ${summarySection}
         args: ["status", "--porcelain"],
         stdout: "piped",
         stderr: "piped",
+        cwd: this.cwd,
       }).output();
 
       if (!gitResult.success) {
@@ -252,6 +263,7 @@ ${summarySection}
         args,
         stdout: "piped",
         stderr: "piped",
+        cwd: this.cwd,
       }).output();
 
       const isIssueClosed = result.success &&
@@ -262,6 +274,7 @@ ${summarySection}
         args: ["status", "--porcelain"],
         stdout: "piped",
         stderr: "piped",
+        cwd: this.cwd,
       }).output();
 
       const gitOutput = gitResult.success

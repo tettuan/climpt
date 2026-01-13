@@ -176,6 +176,11 @@ export class AgentRunner {
         agentDir,
       );
 
+    // Set working directory for completion handler (required for worktree mode)
+    if ("setCwd" in completionHandler) {
+      (completionHandler as { setCwd: (cwd: string) => void }).setCwd(cwd);
+    }
+
     // Initialize prompt resolver using injected factory
     const promptResolver = await this.dependencies.promptResolverFactory.create(
       {
