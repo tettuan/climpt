@@ -1,6 +1,8 @@
 /**
  * Agent State Machine - State Transition Management
  *
+ * @experimental This module is experimental and subject to change.
+ *
  * State transitions: Created -> Initializing -> Ready -> Running -> Completed/Failed
  * Only forward transitions allowed (no reuse)
  */

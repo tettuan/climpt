@@ -4,6 +4,7 @@
 
 import { ensureDir } from "@std/fs";
 import { join } from "@std/path";
+import { isRecord, isString } from "./type-guards.ts";
 
 export interface LoggerOptions {
   agentName: string;
@@ -192,20 +193,16 @@ export class Logger {
     if (typeof message === "string") {
       return message;
     }
-    if (typeof message === "object" && message !== null) {
-      const msg = message as Record<string, unknown>;
-      if (typeof msg.content === "string") {
-        return msg.content;
+    if (isRecord(message)) {
+      if (isString(message.content)) {
+        return message.content;
       }
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter(
-            (c) =>
-              typeof c === "object" &&
-              c !== null &&
-              (c as Record<string, unknown>).type === "text",
+      if (Array.isArray(message.content)) {
+        return message.content
+          .filter((c): c is Record<string, unknown> =>
+            isRecord(c) && c.type === "text"
           )
-          .map((c) => (c as Record<string, unknown>).text as string)
+          .map((c) => isString(c.text) ? c.text : "")
           .join("\n");
       }
     }

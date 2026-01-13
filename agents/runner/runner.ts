@@ -11,7 +11,6 @@ import type {
   ActionResult,
   AgentDefinition,
   AgentResult,
-  BaseValidationResult,
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
@@ -39,10 +38,8 @@ import {
   type StepCheckConfig,
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
-import {
-  type FormatValidationResult,
-  FormatValidator,
-} from "../loop/format-validator.ts";
+import { FormatValidator } from "../loop/format-validator.ts";
+import type { CompletionValidationResult } from "./completion-chain.ts";
 import { join } from "@std/path";
 import {
   isAssistantMessage,
@@ -65,17 +62,9 @@ export interface RunnerOptions {
   plugins?: string[];
 }
 
-/**
- * Result of completion validation.
- *
- * Extends BaseValidationResult with retry prompt for agent loop.
- */
-export interface CompletionValidationResult extends BaseValidationResult {
-  /** Retry prompt if validation failed */
-  retryPrompt?: string;
-  /** Format validation result (if applicable) */
-  formatValidation?: FormatValidationResult;
-}
+// CompletionValidationResult is now imported from completion-chain.ts
+// Re-export for backward compatibility
+export type { CompletionValidationResult } from "./completion-chain.ts";
 
 export class AgentRunner {
   private readonly definition: AgentDefinition;

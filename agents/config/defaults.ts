@@ -9,6 +9,7 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
+import { isRecord } from "../src_common/type-guards.ts";
 
 /**
  * Default values for agent definition.
@@ -53,12 +54,16 @@ const DEFAULTS = {
  * @returns AgentDefinition with defaults applied
  */
 export function applyDefaults(raw: unknown): AgentDefinition {
-  const def = raw as Record<string, unknown>;
-  const rawBehavior = (def.behavior as Record<string, unknown>) ?? {};
-  const rawPrompts = (def.prompts as Record<string, unknown>) ?? {};
-  const rawLogging = (def.logging as Record<string, unknown>) ?? {};
-  const rawCompletionConfig =
-    (rawBehavior.completionConfig as Record<string, unknown>) ?? {};
+  if (!isRecord(raw)) {
+    throw new Error("applyDefaults: input must be an object");
+  }
+  const def = raw;
+  const rawBehavior = isRecord(def.behavior) ? def.behavior : {};
+  const rawPrompts = isRecord(def.prompts) ? def.prompts : {};
+  const rawLogging = isRecord(def.logging) ? def.logging : {};
+  const rawCompletionConfig = isRecord(rawBehavior.completionConfig)
+    ? rawBehavior.completionConfig
+    : {};
 
   // Deep merge with defaults
   return {

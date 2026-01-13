@@ -2,6 +2,8 @@
 /**
  * Agent Lifecycle - Agent Lifetime Management
  *
+ * @experimental This module is experimental and subject to change.
+ *
  * ExecutionContract implementation
  *
  * Responsibilities:

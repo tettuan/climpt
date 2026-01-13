@@ -5,19 +5,12 @@
  *
  * Note: AgentLoop has been removed - FormatValidator is now integrated
  * directly into AgentRunner for unified completion validation.
+ *
+ * Note: IterationExecutor was removed - iteration execution is handled
+ * directly in AgentRunner.
  */
 
 export { StepContextImpl } from "./step-context.ts";
-
-/** @deprecated Not used - iteration execution handled in AgentRunner */
-export {
-  /** @deprecated */
-  IterationExecutor,
-  /** @deprecated */
-  type IterationOptions,
-  /** @deprecated */
-  type IterationResult,
-} from "./iteration.ts";
 export {
   type FormatValidationResult,
   FormatValidator,
