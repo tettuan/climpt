@@ -1,8 +1,40 @@
 # アクションシステム
 
 > **廃止予定**: このシステムは `08_structured_outputs.md`
-> の「完了条件検証と部分リトライ」に置き換えられます。 Action
-> 検知は手段に過ぎず、本質は「完了条件の検証」と「パターンベースの部分リトライ」です。
+> の「完了条件検証と部分リトライ」に置き換えられます。
+
+## 現状と移行
+
+### 現行 Runner での扱い
+
+**現行 Runner はまだ `actions/` ディレクトリのコードを読み込んでいます**。
+
+```
+runner.ts
+  ├─ ActionDetector.detect()  ← 現在も動作
+  └─ ActionExecutor.execute() ← 現在も動作
+```
+
+ただし、**完了判定** は `completionConditions` で行うことを推奨します。
+アクション検知は「LLM 出力から情報を抽出する手段」であり、
+「タスクが完了したかどうかの判定」とは責務が異なります。
+
+### 移行の考え方
+
+| 用途             | 現状                | 推奨                    |
+| ---------------- | ------------------- | ----------------------- |
+| 完了判定         | action close 検出   | completionConditions    |
+| Issue 操作       | action-item handler | GitHub CLI 直接呼び出し |
+| ログ記録         | decision handler    | 継続使用可              |
+| 構造化データ抽出 | action 検出         | SDK structured output   |
+
+### 廃止タイムライン
+
+1. **現在**: 警告なしで動作（移行期間）
+2. **次リリース**: 起動時に deprecation 警告を出力
+3. **2リリース後**: actions 設定でエラー、明示的なフラグで動作
+
+## 概要
 
 LLM 出力から構造化データを検出し、自動処理する。
 
@@ -114,3 +146,43 @@ interface ActionResult {
   error?: string;
 }
 ```
+
+## completionConditions への移行例
+
+### 従来: action で完了判定
+
+```json
+{
+  "actions": {
+    "enabled": true,
+    "types": ["issue-action"],
+    "handlers": {
+      "issue-action": "builtin:github-issue"
+    }
+  }
+}
+```
+
+Runner は `action.type === "issue-action"` かつ `result.action === "close"`
+で完了と判定。
+
+### 推奨: completionConditions で完了判定
+
+```json
+{
+  "steps": {
+    "complete.issue": {
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "tests-pass" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      }
+    }
+  }
+}
+```
+
+LLM が「完了」を宣言した後、外部状態（git、テスト等）を検証して完了を判定。

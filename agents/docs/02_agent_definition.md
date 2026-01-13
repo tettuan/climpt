@@ -24,7 +24,7 @@ Agent の振る舞い。
 {
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "iterate | manual | issue | project | custom",
+    "completionType": "externalState | iterationBudget | keywordSignal | composite",
     "completionConfig": { "..." },
     "allowedTools": ["Read", "Write", "Edit", "Bash"],
     "permissionMode": "plan | acceptEdits | bypassPermissions"
@@ -34,13 +34,34 @@ Agent の振る舞い。
 
 ### completionType
 
-| タイプ    | 完了条件                    | 必須設定                 |
-| --------- | --------------------------- | ------------------------ |
-| `iterate` | 指定回数実行後              | `maxIterations: number`  |
-| `manual`  | キーワード出力              | `completionKeyword: str` |
-| `issue`   | GitHub Issue クローズ       | なし（CLI で指定）       |
-| `project` | GitHub Project フェーズ終了 | なし（CLI で指定）       |
-| `custom`  | カスタムハンドラ            | `handlerPath: string`    |
+| タイプ            | 完了条件                   | 必須設定                    |
+| ----------------- | -------------------------- | --------------------------- |
+| `externalState`   | 外部状態の検証（Issue 等） | `validators` 参照           |
+| `iterationBudget` | 指定回数実行後             | `maxIterations: number`     |
+| `keywordSignal`   | キーワード出力             | `completionKeyword: string` |
+| `composite`       | 複数条件の組み合わせ       | `completionConditions` 配列 |
+
+### completionConditions
+
+steps_registry.json で完了条件を定義する。詳細は `08_structured_outputs.md`
+を参照。
+
+```json
+{
+  "steps": {
+    "complete.issue": {
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "tests-pass" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      }
+    }
+  }
+}
+```
 
 ## parameters
 
@@ -92,7 +113,11 @@ CLI 引数の定義。
 
 ## オプション
 
-### actions
+### actions（廃止予定）
+
+> **注意**: アクションシステムは廃止予定です。
+> 完了条件検証（`completionConditions`）への移行を推奨します。 詳細は
+> `06_action_system.md` および `08_structured_outputs.md` を参照。
 
 アクション検出（省略可）。
 
@@ -106,9 +131,17 @@ CLI 引数の定義。
 }
 ```
 
+現行 Runner はまだ `actions/` ディレクトリのコードを読み込んでいますが、
+完了判定は `completionConditions` で行うことを推奨します。
+
 ### github / worktree
 
 外部連携（省略可）。
+
+> **現状**: worktree 機能は実装済みですが、CLI との統合が未完了です。
+> `--branch`, `--base-branch`
+> オプションはパースされますが、実行には反映されません。 統合完了までは手動で
+> worktree を設定してください。
 
 ```json
 {
@@ -140,4 +173,5 @@ load(path) → parse → validate → 起動 or エラー
 - 必須フィールドの存在
 - completionConfig と completionType の整合性
 - 参照ファイルの存在
+- completionConditions の validator 参照の妥当性
 ```

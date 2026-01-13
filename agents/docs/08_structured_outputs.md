@@ -2,22 +2,57 @@
 
 Step の完了を検証し、失敗時はパターンベースでリトライする。
 
-## 契約
+## 概要
 
-### 検証
+### 二つの検証
+
+| 検証                | 責務               | トリガー   |
+| ------------------- | ------------------ | ---------- |
+| FormatValidator     | LLM 出力の形式検証 | 出力受信時 |
+| CompletionValidator | 外部状態の検証     | 完了宣言後 |
+
+**FormatValidator** は「出力が期待形式か」を検証する。 **CompletionValidator**
+は「タスクが実際に完了したか」を検証する。
 
 ```
-validate(conditions) → ValidationResult
+LLM 応答
+  │
+  ├─ FormatValidator: 形式は正しいか？
+  │   └─ NG → 形式リトライ
+  │
+  └─ 完了宣言を検出
+       │
+       └─ CompletionValidator: 条件を満たしているか？
+            ├─ OK → 完了
+            └─ NG → 条件リトライ（パターンベース）
+```
+
+## 契約
+
+### 形式検証
+
+```
+FormatValidator.validate(response, schema) → FormatValidationResult
+
+入力:    LLM 応答、期待スキーマ
+出力:    { valid: boolean, errors: string[], response?: string }
+副作用:  なし
+```
+
+### 完了検証
+
+```
+CompletionValidator.validate(conditions) → CompletionValidationResult
 
 入力:    完了条件の配列
-出力:    検証結果（成功 or 失敗パターン + パラメータ）
+出力:    { valid: boolean, pattern?: string, params?: Record }
 副作用:  コマンド実行（git status, deno task test 等）
 ```
 
 ### リトライ
 
 ```
-buildRetryPrompt(pattern, params) → string
+RetryHandler.buildRetryPrompt(pattern, params) → string
 
 入力:    失敗パターン、抽出パラメータ
 出力:    C3L で解決されたリトライプロンプト
@@ -156,7 +191,13 @@ interface ValidatorDefinition {
   extractParams: Record<string, string>;
 }
 
-interface ValidationResult {
+interface FormatValidationResult {
+  valid: boolean;
+  errors: string[];
+  response?: string;
+}
+
+interface CompletionValidationResult {
   valid: boolean;
   pattern?: string;
   params?: Record<string, unknown>;
@@ -225,7 +266,6 @@ params:
 ```json
 {
   "agentId": "iterator",
-  "version": "3.0.0",
 
   "completionPatterns": {
     "git-dirty": { ... },
@@ -292,9 +332,8 @@ interface CompletionCondition {
   params?: Record<string, unknown>;
 }
 
-interface ExtendedStepsRegistry {
+interface StepsRegistry {
   agentId: string;
-  version: string;
   completionPatterns: Record<string, CompletionPattern>;
   validators: Record<string, ValidatorDefinition>;
   steps: Record<string, CompletionStepConfig>;
@@ -330,7 +369,9 @@ Step 実行
 
 ```typescript
 export class CompletionValidator {
-  async validate(conditions: CompletionCondition[]): Promise<ValidationResult> {
+  async validate(
+    conditions: CompletionCondition[],
+  ): Promise<CompletionValidationResult> {
     for (const condition of conditions) {
       const def = this.registry.validators[condition.validator];
       const result = await this.runValidator(def);
@@ -354,7 +395,7 @@ export class CompletionValidator {
 export class RetryHandler {
   async buildRetryPrompt(
     stepConfig: CompletionStepConfig,
-    validationResult: ValidationResult,
+    validationResult: CompletionValidationResult,
   ): Promise<string> {
     const pattern = this.registry.completionPatterns[validationResult.pattern!];
 

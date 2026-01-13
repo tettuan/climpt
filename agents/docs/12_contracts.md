@@ -37,39 +37,16 @@ validate(definition) → ValidationResult
 
 ## 実行の契約
 
-### 開始
-
-```
-start(options) → void | Error
-
-入力:    実行オプション（cwd, args）
-出力:    なし
-副作用:  状態を「準備」から「実行中」へ
-前提:    状態が「準備」
-エラー:  AlreadyStarted
-```
-
 ### 実行
 
 ```
-run() → AgentResult
+run(options) → AgentResult
 
-入力:    なし
+入力:    { cwd: string, args: Record, plugins?: Plugin[] }
 出力:    実行結果
-副作用:  ループ実行、状態更新
-前提:    start() 完了済み
+副作用:  ループ実行、LLM 呼び出し、ファイル操作
+前提:    定義が有効
 保証:    必ず Result を返す（例外で終わらない）
-```
-
-### 停止
-
-```
-stop() → AgentResult
-
-入力:    なし
-出力:    最終結果
-副作用:  リソース解放
-保証:    冪等（何度呼んでも安全）
 ```
 
 ## 判定の契約
@@ -77,21 +54,21 @@ stop() → AgentResult
 ### 完了判定
 
 ```
-check(context) → CompletionResult
+CompletionValidator.validate(conditions) → CompletionValidationResult
 
-入力:    現在のイテレーション情報
-出力:    { complete: boolean, reason?: string }
-副作用:  内部フラグ更新
-保証:    complete=true ⇒ reason が設定される
+入力:    完了条件の配列
+出力:    { valid: boolean, pattern?: string, params?: Record }
+副作用:  コマンド実行（git status, deno task test 等）
+保証:    valid=false ⇒ pattern が設定される
 ```
 
-### 遷移判定
+### 形式検証
 
 ```
-transition(result) → string | "complete"
+FormatValidator.validate(response, schema) → FormatValidationResult
 
-入力:    ステップ実行結果
-出力:    次のステップ ID または完了
+入力:    LLM 応答、期待スキーマ
+出力:    { valid: boolean, errors: string[], response?: string }
 副作用:  なし
 ```
 
@@ -137,6 +114,34 @@ interface AgentResult {
 // success=true  ⇒ reason は完了理由
 // success=false ⇒ reason はエラー内容
 ```
+
+### CompletionValidationResult
+
+```typescript
+interface CompletionValidationResult {
+  valid: boolean;
+  pattern?: string; // 失敗パターン名
+  params?: Record<string, unknown>; // 抽出パラメータ
+}
+
+// 不変条件:
+// valid=true  ⇒ pattern は undefined
+// valid=false ⇒ pattern は設定される
+```
+
+### FormatValidationResult
+
+```typescript
+interface FormatValidationResult {
+  valid: boolean;
+  errors: string[];
+  response?: string; // 解析済みレスポンス
+}
+```
+
+## 将来の契約（未実装）
+
+> 以下の契約は設計段階です。Step Flow 機能で実装予定です。
 
 ### StepContext
 
@@ -223,6 +228,8 @@ Issue #N
 違反:
 - 同一ブランチで複数 Agent ⇒ 起動エラー
 ```
+
+> **現状**: worktree 統合は未完了です。詳細は `11_core_architecture.md` を参照。
 
 ## 互換性の契約
 

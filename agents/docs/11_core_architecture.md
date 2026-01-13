@@ -115,6 +115,10 @@ prompts/           →      PromptSet
 
 ### ステップ間のデータ引き継ぎ
 
+> **現状**: この機能は設計段階です。現行 Runner は単一ステップで動作しており、
+> ステップ間のデータ引き継ぎは実装されていません。 将来の Step Flow
+> 機能で実装予定です。
+
 ```
 Step A             Step B             Step C
   │                  │                  │
@@ -175,10 +179,63 @@ Agent 自体は単一ループ。並列化は外部オーケストレーター�
 [Agent A] [Agent B] [Agent C]
 ```
 
-**1:1:1:1 マッピング**:
+### 1:1:1:1 マッピング
 
 ```
 1 Issue = 1 Branch = 1 Worktree = 1 Agent Instance
 ```
 
 同じブランチで複数 Agent は動かない。
+
+> **現状**: worktree 機能は `agents/common/worktree.ts` に実装済みですが、 CLI
+> との統合が未完了です。
+>
+> **実装済み**:
+>
+> - `setupWorktree()`: worktree の作成とセットアップ
+> - `createWorktree()`: 新規 worktree 作成
+> - `removeWorktree()`: worktree 削除
+> - `cleanupWorktree()`: クリーンアップ
+> - `getCurrentBranch()`, `getRepoRoot()`, `generateBranchName()`
+>
+> **未統合**:
+>
+> - `run-agent.ts` が `setupWorktree()` を呼び出していない
+> - `--branch`, `--base-branch` オプションはパースされるが使用されない
+> - 現在は `Deno.cwd()` を作業ディレクトリとして使用
+>
+> **統合予定の実装**:
+>
+> ```typescript
+> // run-agent.ts
+> const worktreeConfig = definition.worktree;
+> let workingDir = Deno.cwd();
+>
+> if (worktreeConfig?.enabled && options.branch) {
+>   const worktreeResult = await setupWorktree({
+>     branch: options.branch,
+>     baseBranch: options.baseBranch,
+>     root: worktreeConfig.root ?? ".worktrees",
+>   });
+>   workingDir = worktreeResult.path;
+> }
+>
+> const result = await runner.run({
+>   cwd: workingDir,
+>   args: runnerArgs,
+>   plugins: [],
+> });
+> ```
+
+## 実装状況
+
+| 機能             | 設計 | 実装 | 統合 | 備考                         |
+| ---------------- | ---- | ---- | ---- | ---------------------------- |
+| 設定読み込み     | ✓    | ✓    | ✓    | 動作確認済み                 |
+| 実行ループ       | ✓    | ✓    | ✓    | 動作確認済み                 |
+| 完了条件検証     | ✓    | ✓    | ✓    | 動作確認済み                 |
+| 形式検証         | ✓    | ✓    | ✓    | 動作確認済み                 |
+| リトライハンドラ | ✓    | ✓    | ✓    | 動作確認済み                 |
+| Worktree         | ✓    | ✓    | -    | CLI 統合待ち                 |
+| StepContext      | ✓    | -    | -    | Step Flow 機能として将来実装 |
+| 複数ステップ遷移 | ✓    | -    | -    | Step Flow 機能として将来実装 |

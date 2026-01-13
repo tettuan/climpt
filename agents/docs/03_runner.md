@@ -44,18 +44,32 @@ interface AgentResult {
 
 2. コンポーネント初期化
    - CompletionValidator（完了条件検証）
+   - FormatValidator（出力形式検証）
    - PromptResolver（プロンプト解決）
    - RetryHandler（リトライプロンプト生成）
 
 3. ループ実行
-   while (!complete) {
+   while (!complete && iteration < maxIterations) {
      prompt = 解決()
      response = LLM 問い合わせ()
-     validation = 完了条件検証()
-     if (validation.valid) {
-       complete = true
-     } else {
-       retryPrompt = リトライプロンプト生成(validation.pattern)
+
+     // 完了宣言の検出
+     if (hasCompletionSignal(response)) {
+       // 形式検証
+       formatResult = FormatValidator.validate(response)
+       if (!formatResult.valid && formatRetryCount < maxFormatRetries) {
+         formatRetryCount++
+         retryPrompt = 形式エラープロンプト生成()
+         continue
+       }
+
+       // 完了条件検証
+       validation = CompletionValidator.validate(conditions)
+       if (validation.valid) {
+         complete = true
+       } else {
+         retryPrompt = RetryHandler.buildRetryPrompt(validation.pattern)
+       }
      }
    }
 
@@ -76,6 +90,26 @@ validate(conditions) → ValidationResult
 出力:    検証結果（成功 or 失敗パターン + パラメータ）
 副作用:  コマンド実行（git status, deno task test 等）
 ```
+
+### FormatValidator
+
+LLM 出力の形式を検証する。
+
+```
+validate(response, schema) → FormatValidationResult
+
+入力:    LLM 応答、期待するスキーマ
+出力:    { valid: boolean, errors: string[], response?: string }
+副作用:  なし
+```
+
+**検証タイプ**:
+
+| タイプ         | 説明                        |
+| -------------- | --------------------------- |
+| `action-block` | agent-action コードブロック |
+| `json`         | JSON スキーマ準拠           |
+| `text-pattern` | テキストパターンマッチ      |
 
 ### PromptResolver
 
@@ -101,6 +135,74 @@ buildRetryPrompt(pattern, params) → string
 副作用:  なし
 ```
 
+## リトライ制御
+
+### 形式リトライ
+
+LLM 出力が期待形式に合致しない場合のリトライ。
+
+```
+設定:
+  step.check.onFail.maxRetries (デフォルト: 2)
+
+動作:
+  formatRetryCount < maxRetries → リトライプロンプトで続行
+  formatRetryCount >= maxRetries → 中断
+```
+
+### 完了条件リトライ
+
+外部検証（テスト、lint 等）が失敗した場合のリトライ。
+
+```
+設定:
+  step.onFailure.maxAttempts (デフォルト: 3)
+
+動作:
+  失敗パターンに応じた C3L プロンプトで修正を指示
+  maxAttempts 超過 → 中断
+```
+
+## Worktree 連携
+
+> **現状**: 実装済みだが CLI 統合が未完了。
+
+設計上、各 Agent インスタンスは独立した worktree で動作する。
+
+```
+1 Issue = 1 Branch = 1 Worktree = 1 Agent Instance
+
+期待動作:
+  --branch オプション指定時
+  → setupWorktree() で作業ディレクトリを作成
+  → run({ cwd: worktreePath }) で実行
+
+現状:
+  --branch, --base-branch はパースされるが未使用
+  → run({ cwd: Deno.cwd() }) で現在ディレクトリを使用
+```
+
+## 依存性注入
+
+builder.ts で依存性を注入する。
+
+```typescript
+interface RunnerDependencies {
+  logger: Logger;
+  completionHandler: CompletionHandler;
+  promptResolver: PromptResolver;
+  actionFactory?: ActionSystemFactory;
+  completionValidator?: CompletionValidator;
+  retryHandler?: RetryHandler;
+}
+
+// カスタム依存性での実行
+const runner = new AgentRunner(definition, {
+  logger: customLogger,
+  completionValidator: mockValidator,
+});
+```
+
 ## SDK 接続
 
 Claude Agent SDK を使用。
@@ -112,6 +214,7 @@ options:
   - sessionId: セッション継続
   - tools: 許可ツール
   - permissionMode: 権限モード
+  - outputFormat: 構造化出力スキーマ
 ```
 
 ## エラー処理
@@ -121,10 +224,13 @@ options:
   - 接続タイムアウト → リトライ
   - レート制限 → 待機してリトライ
   - セッション期限切れ → 新規セッション
+  - 形式エラー → 形式リトライ
+  - 完了条件失敗 → 条件リトライ
 
 回復不能:
   - 設定エラー → 即座に停止
   - ハード上限超過 → 即座に停止
+  - リトライ上限超過 → 即座に停止
 ```
 
 ## 使用例
@@ -135,4 +241,7 @@ deno run -A agents/iterator/mod.ts --issue 123
 
 # タスク
 deno task agent:iterator --issue 123
+
+# Worktree 指定（現状未動作）
+deno task agent:iterator --issue 123 --branch feature/issue-123
 ```
