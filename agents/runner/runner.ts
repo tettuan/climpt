@@ -19,9 +19,11 @@ import {
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
+  AgentRateLimitError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
+import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
 import { ActionDetector } from "../actions/detector.ts";
 import { ActionExecutor } from "../actions/executor.ts";
 import { getAgentDir } from "./loader.ts";
@@ -39,7 +41,11 @@ import {
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { FormatValidator } from "../loop/format-validator.ts";
-import type { CompletionValidationResult } from "./completion-chain.ts";
+import {
+  CompletionChain,
+  type CompletionValidationResult,
+} from "./completion-chain.ts";
+import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { join } from "@std/path";
 import {
   isAssistantMessage,
@@ -77,9 +83,14 @@ export class AgentRunner {
   private completionValidator: CompletionValidator | null = null;
   private retryHandler: RetryHandler | null = null;
   private stepsRegistry: ExtendedStepsRegistry | null = null;
+  private completionChain: CompletionChain | null = null;
   private pendingRetryPrompt: string | null = null;
   private readonly formatValidator = new FormatValidator();
   private formatRetryCount = 0;
+
+  // Rate limit handling
+  private rateLimitRetryCount = 0;
+  private static readonly MAX_RATE_LIMIT_RETRIES = 5;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -301,6 +312,18 @@ export class AgentRunner {
         summaries.push(summary);
         sessionId = summary.sessionId;
 
+        // Handle rate limit retry: wait before next iteration
+        if (summary.rateLimitRetry) {
+          const { waitMs, attempt } = summary.rateLimitRetry;
+          ctx.logger.info(
+            `Waiting ${waitMs}ms for rate limit retry (attempt ${attempt})`,
+          );
+          // deno-lint-ignore no-await-in-loop
+          await this.delay(waitMs);
+          // Continue to next iteration without processing actions
+          continue;
+        }
+
         // Emit actionDetected event if actions were detected
         if (summary.detectedActions.length > 0) {
           // deno-lint-ignore no-await-in-loop
@@ -506,22 +529,130 @@ export class AgentRunner {
         this.processMessage(message, summary);
       }
     } catch (error) {
-      const queryError = new AgentQueryError(
-        error instanceof Error ? error.message : String(error),
-        {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : String(error);
+
+      // Check for rate limit error
+      if (isRateLimitError(errorMessage)) {
+        this.rateLimitRetryCount++;
+
+        if (this.rateLimitRetryCount >= AgentRunner.MAX_RATE_LIMIT_RETRIES) {
+          const rateLimitError = new AgentRateLimitError(
+            `Rate limit exceeded after ${this.rateLimitRetryCount} retries`,
+            {
+              attempts: this.rateLimitRetryCount,
+              cause: error instanceof Error ? error : undefined,
+              iteration,
+            },
+          );
+          summary.errors.push(rateLimitError.message);
+          ctx.logger.error("Rate limit retries exhausted", {
+            error: rateLimitError.message,
+            attempts: this.rateLimitRetryCount,
+          });
+          // Throw to stop the agent
+          throw rateLimitError;
+        }
+
+        const waitTime = calculateBackoff(this.rateLimitRetryCount - 1);
+        ctx.logger.warn(
+          `Rate limit hit, waiting ${waitTime}ms before retry ` +
+            `(attempt ${this.rateLimitRetryCount}/${AgentRunner.MAX_RATE_LIMIT_RETRIES})`,
+        );
+
+        // Wait and signal retry needed
+        summary.errors.push(`Rate limit hit, will retry after ${waitTime}ms`);
+        summary.rateLimitRetry = {
+          waitMs: waitTime,
+          attempt: this.rateLimitRetryCount,
+        };
+      } else {
+        // Non-rate-limit error: reset counter
+        this.rateLimitRetryCount = 0;
+
+        const queryError = new AgentQueryError(errorMessage, {
           cause: error instanceof Error ? error : undefined,
           iteration,
-        },
-      );
-      summary.errors.push(queryError.message);
-      ctx.logger.error("Query execution failed", {
-        error: queryError.message,
-        code: queryError.code,
-        iteration: queryError.iteration,
-      });
+        });
+        summary.errors.push(queryError.message);
+        ctx.logger.error("Query execution failed", {
+          error: queryError.message,
+          code: queryError.code,
+          iteration: queryError.iteration,
+        });
+      }
+    }
+
+    // Format validation: check response format if step has responseFormat config
+    if (stepId) {
+      const formatResult = await this.validateResponseFormat(stepId, summary);
+      if (formatResult && !formatResult.valid) {
+        summary.errors.push(formatResult.error ?? "Format validation failed");
+        ctx.logger.debug("[FormatValidator] Format validation failed", {
+          stepId,
+          error: formatResult.error,
+        });
+      }
     }
 
     return summary;
+  }
+
+  /**
+   * Validate response format for a step.
+   *
+   * Checks if the step has a responseFormat config in its check definition.
+   * Returns validation result or undefined if no format check is configured.
+   */
+  private async validateResponseFormat(
+    stepId: string,
+    summary: IterationSummary,
+  ): Promise<FormatValidationResult | undefined> {
+    const checkConfig = this.getStepCheckConfig(stepId);
+    if (!checkConfig?.responseFormat) {
+      return undefined;
+    }
+
+    const result = this.formatValidator.validate(
+      summary,
+      checkConfig.responseFormat,
+    );
+
+    if (!result.valid) {
+      const maxRetries = checkConfig.onFail?.maxRetries ?? 3;
+      if (this.formatRetryCount < maxRetries) {
+        this.formatRetryCount++;
+        this.pendingRetryPrompt = this.buildFormatRetryPrompt(
+          checkConfig,
+          result.error ?? "Format validation failed",
+        );
+        this.getContext().logger.info(
+          `[FormatValidator] Will retry (attempt ${this.formatRetryCount}/${maxRetries})`,
+        );
+      } else {
+        this.getContext().logger.warn(
+          `[FormatValidator] Max retries reached (${maxRetries})`,
+        );
+      }
+    } else {
+      // Reset retry count on success
+      this.formatRetryCount = 0;
+    }
+
+    await Promise.resolve(); // Ensure async signature
+    return result;
+  }
+
+  /**
+   * Get step check configuration from registry.
+   */
+  private getStepCheckConfig(stepId: string): StepCheckConfig | undefined {
+    if (!this.stepsRegistry?.completionSteps) {
+      return undefined;
+    }
+    const stepConfig = this.stepsRegistry.completionSteps[stepId];
+    return stepConfig?.check;
   }
 
   private processMessage(message: unknown, summary: IterationSummary): void {
@@ -675,6 +806,17 @@ export class AgentRunner {
         });
         logger.debug("RetryHandler initialized");
       }
+
+      // Initialize CompletionChain with all validators
+      this.completionChain = new CompletionChain({
+        workingDir: cwd,
+        logger,
+        stepsRegistry: this.stepsRegistry,
+        completionValidator: this.completionValidator,
+        retryHandler: this.retryHandler,
+        agentId: this.definition.name,
+      });
+      logger.debug("CompletionChain initialized");
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(
@@ -945,33 +1087,40 @@ Please provide a response in the correct format.`;
   }
 
   /**
-   * Check if any action result indicates a close action
-   *
-   * IssueActionHandler returns ActionResult with:
-   * - action.type === "issue-action"
-   * - result: { action: "close", issue: number, closed: boolean }
+   * Check if any action result indicates a close action.
+   * Delegates to CompletionChain when available.
    */
   private hasCloseAction(results: ActionResult[]): boolean {
+    if (this.completionChain) {
+      return this.completionChain.hasCloseAction(results);
+    }
+    // Fallback if CompletionChain not initialized
     return results.some((r) => {
       if (r.action?.type !== "issue-action") return false;
-
-      // Check if result contains a close action
-      // IssueActionHandler sets result.action = "close" for close actions
       if (!isRecord(r.result)) return false;
       return r.result.action === "close";
     });
   }
 
   /**
-   * Get completion step ID based on completion type
+   * Get completion step ID based on completion type.
+   * Delegates to CompletionChain when available.
    */
   private getCompletionStepId(): string {
-    // For issue-based completion, use "complete.issue"
-    if (this.definition.behavior.completionType === "issue") {
-      return "complete.issue";
+    if (this.completionChain) {
+      return this.completionChain.getCompletionStepId(
+        this.definition.behavior.completionType,
+      );
     }
-    // Default fallback
+    // Fallback
     return "complete.issue";
+  }
+
+  /**
+   * Delay execution for a specified duration.
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

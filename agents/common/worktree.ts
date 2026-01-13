@@ -10,43 +10,15 @@ import type {
   WorktreeSetupConfig,
   WorktreeSetupResult,
 } from "./types.ts";
+import {
+  getCurrentBranch,
+  getRepoRoot,
+  isInsideWorktree as gitIsInsideWorktree,
+  runGit,
+} from "./git-utils.ts";
 
-/**
- * Execute a git command and return the output
- */
-async function runGit(args: string[], cwd?: string): Promise<string> {
-  const command = new Deno.Command("git", {
-    args,
-    cwd,
-    stdout: "piped",
-    stderr: "piped",
-  });
-
-  const { code, stdout, stderr } = await command.output();
-
-  if (code !== 0) {
-    const errorMessage = new TextDecoder().decode(stderr);
-    throw new Error(
-      `Git command failed: git ${args.join(" ")}\n${errorMessage}`,
-    );
-  }
-
-  return new TextDecoder().decode(stdout).trim();
-}
-
-/**
- * Get the current branch name
- */
-export async function getCurrentBranch(cwd?: string): Promise<string> {
-  return await runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
-}
-
-/**
- * Get the repository root directory
- */
-export async function getRepoRoot(cwd?: string): Promise<string> {
-  return await runGit(["rev-parse", "--show-toplevel"], cwd);
-}
+// Re-export for backwards compatibility
+export { getCurrentBranch, getRepoRoot } from "./git-utils.ts";
 
 /**
  * Generate a timestamped branch name
@@ -179,15 +151,7 @@ export async function cleanupWorktree(
  * Check if the current directory is inside a worktree
  */
 export async function isInsideWorktree(cwd?: string): Promise<boolean> {
-  try {
-    const output = await runGit(
-      ["rev-parse", "--is-inside-work-tree"],
-      cwd,
-    );
-    return output === "true";
-  } catch {
-    return false;
-  }
+  return await gitIsInsideWorktree(cwd);
 }
 
 /**

@@ -7,14 +7,28 @@
 export * from "./types.ts";
 export { createLogger, Logger, summarizeToolInput } from "./logger.ts";
 
+// Git utilities (shared)
+export {
+  checkoutBranch as gitCheckoutBranch,
+  commit as gitCommit,
+  getCurrentBranch,
+  getRepoRoot,
+  GitCommandError,
+  type GitCommandResult,
+  hasUncommittedChanges as gitHasUncommittedChanges,
+  isInsideWorktree as gitIsInsideWorktree,
+  pushBranch as gitPushBranch,
+  runGit,
+  runGitSafe,
+  stageAll,
+} from "./git-utils.ts";
+
 // Worktree utilities
 export {
   cleanupWorktree,
   createWorktree,
   generateBranchName,
-  getCurrentBranch,
   getMainWorktreePath,
-  getRepoRoot,
   isInsideWorktree,
   listWorktrees,
   removeWorktree,

@@ -148,12 +148,13 @@ async function main(): Promise<void> {
       }
     }
 
-    // Setup worktree if enabled
+    // Setup worktree if enabled in config
+    // When worktree is enabled, branch name is auto-generated if not specified
     let workingDir = Deno.cwd();
     let worktreeResult: WorktreeSetupResult | undefined;
 
     const worktreeConfig = definition.worktree;
-    if (worktreeConfig?.enabled && (args.branch || args["base-branch"])) {
+    if (worktreeConfig?.enabled) {
       const setupConfig: WorktreeSetupConfig = {
         forceWorktree: true,
         worktreeRoot: worktreeConfig.root ?? ".worktrees",
@@ -173,6 +174,13 @@ async function main(): Promise<void> {
       console.log(`  Base: ${worktreeResult.baseBranch}`);
       // deno-lint-ignore no-console
       console.log(`  Path: ${worktreeResult.worktreePath}`);
+      if (worktreeResult.created) {
+        // deno-lint-ignore no-console
+        console.log(`  Status: Created new worktree`);
+      } else {
+        // deno-lint-ignore no-console
+        console.log(`  Status: Using existing worktree`);
+      }
     }
 
     // Create and run the agent

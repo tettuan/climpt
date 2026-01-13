@@ -280,6 +280,41 @@ export class AgentEnvironmentError extends AgentError {
 }
 
 /**
+ * Rate limit error
+ *
+ * This error indicates the API rate limit has been reached.
+ * The agent should wait before retrying.
+ */
+export class AgentRateLimitError extends AgentError {
+  readonly code = "AGENT_RATE_LIMIT";
+  readonly recoverable = true;
+  readonly retryAfterMs: number;
+  readonly attempts: number;
+
+  constructor(
+    message: string,
+    options: {
+      retryAfterMs?: number;
+      attempts?: number;
+      cause?: Error;
+      iteration?: number;
+    } = {},
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.retryAfterMs = options.retryAfterMs ?? 0;
+    this.attempts = options.attempts ?? 0;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      retryAfterMs: this.retryAfterMs,
+      attempts: this.attempts,
+    };
+  }
+}
+
+/**
  * Retryable query error with additional context
  *
  * This error indicates a query failure that may be recovered

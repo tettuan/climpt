@@ -342,6 +342,11 @@ export interface IterationSummary {
   errors: string[];
   /** Structured output from SDK result (when outputFormat is configured) */
   structuredOutput?: Record<string, unknown>;
+  /** Rate limit retry info (when rate limit is hit) */
+  rateLimitRetry?: {
+    waitMs: number;
+    attempt: number;
+  };
 }
 
 export interface DetectedAction {

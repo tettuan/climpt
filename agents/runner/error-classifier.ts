@@ -98,7 +98,14 @@ const ERROR_PATTERNS: ErrorPattern[] = [
 
   // API rate limiting (recoverable)
   {
-    patterns: [/rate.?limit/i, /429/i, /too many requests/i],
+    patterns: [
+      /rate.?limit/i,
+      /429/i,
+      /too many requests/i,
+      /You've hit your limit/i,
+      /resets.*\d+am/i, // Claude Code specific rate limit message
+      /usage limit/i,
+    ],
     category: SdkErrorCategory.API,
     recoverable: true,
     guidance: "API rate limit reached. Please wait and retry",
@@ -193,4 +200,37 @@ export function isNetworkError(category: SdkErrorCategory): boolean {
  */
 export function isApiError(category: SdkErrorCategory): boolean {
   return category === SdkErrorCategory.API;
+}
+
+/**
+ * Check if an error is a rate limit error
+ */
+export function isRateLimitError(error: Error | string): boolean {
+  const message = typeof error === "string" ? error : error.message ?? "";
+  const patterns = [
+    /rate.?limit/i,
+    /429/i,
+    /too many requests/i,
+    /You've hit your limit/i,
+    /resets.*\d+am/i,
+    /usage limit/i,
+  ];
+  return patterns.some((p) => p.test(message));
+}
+
+/**
+ * Calculate exponential backoff delay for retries
+ *
+ * @param attempt - Current attempt number (0-based)
+ * @param baseMs - Base delay in milliseconds (default 5000)
+ * @param maxMs - Maximum delay in milliseconds (default 60000)
+ * @returns Delay in milliseconds
+ */
+export function calculateBackoff(
+  attempt: number,
+  baseMs = 5000,
+  maxMs = 60000,
+): number {
+  const delay = baseMs * Math.pow(2, attempt);
+  return Math.min(delay, maxMs);
 }
