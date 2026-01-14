@@ -11,9 +11,14 @@ import type {
   WorktreeSetupResult,
 } from "./types.ts";
 import {
+  checkoutBranch,
+  deleteBranch,
+  getCommitsAhead,
   getCurrentBranch,
   getRepoRoot,
+  hasCommitsToMerge,
   isInsideWorktree as gitIsInsideWorktree,
+  mergeBranch,
   runGit,
 } from "./git-utils.ts";
 
@@ -152,6 +157,107 @@ export async function cleanupWorktree(
  */
 export async function isInsideWorktree(cwd?: string): Promise<boolean> {
   return await gitIsInsideWorktree(cwd);
+}
+
+/**
+ * Result of merging a worktree branch
+ */
+export interface MergeWorktreeResult {
+  /** Whether the merge was successful */
+  merged: boolean;
+  /** Number of commits that were merged */
+  commitsMerged: number;
+  /** Whether the branch was deleted after merge */
+  branchDeleted: boolean;
+  /** Reason/description of what happened */
+  reason: string;
+}
+
+/**
+ * Merge worktree branch into parent branch
+ *
+ * This function:
+ * 1. Checks if there are commits to merge
+ * 2. Checks out the parent branch in the main repository
+ * 3. Merges the worktree branch
+ * 4. Deletes the worktree branch after successful merge
+ *
+ * @param worktreeBranch - The branch created for the worktree
+ * @param parentBranch - The base branch to merge into
+ * @param parentCwd - Working directory of the main repository (not worktree)
+ * @returns Result of the merge operation
+ */
+export async function mergeWorktreeBranch(
+  worktreeBranch: string,
+  parentBranch: string,
+  parentCwd: string,
+): Promise<MergeWorktreeResult> {
+  // Check if there are commits to merge
+  const hasCommits = await hasCommitsToMerge(
+    worktreeBranch,
+    parentBranch,
+    parentCwd,
+  );
+
+  if (!hasCommits) {
+    // No commits to merge - just delete the branch
+    const deleted = await deleteBranch(worktreeBranch, parentCwd, true);
+    return {
+      merged: false,
+      commitsMerged: 0,
+      branchDeleted: deleted,
+      reason: "No commits to merge (worktree branch is same as parent)",
+    };
+  }
+
+  // Count commits before merge
+  const commitCount = await getCommitsAhead(
+    worktreeBranch,
+    parentBranch,
+    parentCwd,
+  );
+
+  // Checkout parent branch
+  const checkoutSuccess = await checkoutBranch(parentBranch, parentCwd);
+  if (!checkoutSuccess) {
+    return {
+      merged: false,
+      commitsMerged: 0,
+      branchDeleted: false,
+      reason: `Failed to checkout parent branch: ${parentBranch}`,
+    };
+  }
+
+  // Merge worktree branch with merge commit
+  const mergeResult = await mergeBranch(worktreeBranch, parentCwd, {
+    noFf: true,
+    message: `Merge branch '${worktreeBranch}' into ${parentBranch}`,
+  });
+
+  if (!mergeResult.success) {
+    // Attempt to abort merge if it failed
+    await runGit(["merge", "--abort"], parentCwd).catch(() => {
+      // Ignore error - might not be in merge state
+    });
+
+    return {
+      merged: false,
+      commitsMerged: 0,
+      branchDeleted: false,
+      reason: `Merge failed: ${mergeResult.error}`,
+    };
+  }
+
+  // Delete the worktree branch after successful merge
+  const deleted = await deleteBranch(worktreeBranch, parentCwd, true);
+
+  return {
+    merged: true,
+    commitsMerged: commitCount,
+    branchDeleted: deleted,
+    reason:
+      `Successfully merged ${commitCount} commit(s) from ${worktreeBranch}`,
+  };
 }
 
 /**

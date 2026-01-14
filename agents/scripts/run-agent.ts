@@ -20,7 +20,11 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
-import { cleanupWorktree, setupWorktree } from "../common/worktree.ts";
+import {
+  cleanupWorktree,
+  mergeWorktreeBranch,
+  setupWorktree,
+} from "../common/worktree.ts";
 import type {
   WorktreeSetupConfig,
   WorktreeSetupResult,
@@ -208,12 +212,41 @@ async function main(): Promise<void> {
       console.error(`Error: ${result.error}`);
     }
 
-    // Cleanup worktree on success (branch should be merged)
+    // Merge and cleanup worktree on success
     if (result.success && worktreeResult) {
+      const parentCwd = Deno.cwd();
+
+      // Step 1: Merge worktree branch into parent branch
+      // deno-lint-ignore no-console
+      console.log(`\nMerging worktree branch...`);
+      try {
+        const mergeResult = await mergeWorktreeBranch(
+          worktreeResult.branchName,
+          worktreeResult.baseBranch,
+          parentCwd,
+        );
+        // deno-lint-ignore no-console
+        console.log(`  ${mergeResult.reason}`);
+        if (mergeResult.branchDeleted) {
+          // deno-lint-ignore no-console
+          console.log(`  Branch deleted: ${worktreeResult.branchName}`);
+        }
+      } catch (mergeError) {
+        // deno-lint-ignore no-console
+        console.warn(
+          `  Warning: Failed to merge worktree branch: ${
+            mergeError instanceof Error
+              ? mergeError.message
+              : String(mergeError)
+          }`,
+        );
+      }
+
+      // Step 2: Cleanup worktree directory
       // deno-lint-ignore no-console
       console.log(`\nCleaning up worktree...`);
       try {
-        await cleanupWorktree(worktreeResult.worktreePath, Deno.cwd());
+        await cleanupWorktree(worktreeResult.worktreePath, parentCwd);
         // deno-lint-ignore no-console
         console.log(`  Removed: ${worktreeResult.worktreePath}`);
       } catch (cleanupError) {

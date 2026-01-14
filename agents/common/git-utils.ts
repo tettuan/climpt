@@ -163,3 +163,83 @@ export async function pushBranch(
   const result = await runGitSafe(args, cwd);
   return result.success;
 }
+
+/**
+ * Get the number of commits in branch that are not in baseBranch
+ *
+ * @returns Number of commits ahead, or -1 if error
+ */
+export async function getCommitsAhead(
+  branch: string,
+  baseBranch: string,
+  cwd?: string,
+): Promise<number> {
+  const result = await runGitSafe(
+    ["rev-list", "--count", `${baseBranch}..${branch}`],
+    cwd,
+  );
+
+  if (!result.success) {
+    return -1;
+  }
+
+  return parseInt(result.output, 10);
+}
+
+/**
+ * Check if branch has commits that are not in baseBranch
+ */
+export async function hasCommitsToMerge(
+  branch: string,
+  baseBranch: string,
+  cwd?: string,
+): Promise<boolean> {
+  const count = await getCommitsAhead(branch, baseBranch, cwd);
+  return count > 0;
+}
+
+/**
+ * Merge a branch into the current branch
+ *
+ * @param branchName - Branch to merge
+ * @param cwd - Working directory
+ * @param options - Merge options
+ * @returns Result with success status and merge details
+ */
+export async function mergeBranch(
+  branchName: string,
+  cwd?: string,
+  options?: { noFf?: boolean; message?: string },
+): Promise<GitCommandResult> {
+  const args = ["merge"];
+
+  if (options?.noFf) {
+    args.push("--no-ff");
+  }
+
+  if (options?.message) {
+    args.push("-m", options.message);
+  }
+
+  args.push(branchName);
+
+  return await runGitSafe(args, cwd);
+}
+
+/**
+ * Delete a local branch
+ *
+ * @param branchName - Branch to delete
+ * @param cwd - Working directory
+ * @param force - Force delete even if not merged
+ * @returns true if deleted, false otherwise
+ */
+export async function deleteBranch(
+  branchName: string,
+  cwd?: string,
+  force = false,
+): Promise<boolean> {
+  const flag = force ? "-D" : "-d";
+  const result = await runGitSafe(["branch", flag, branchName], cwd);
+  return result.success;
+}

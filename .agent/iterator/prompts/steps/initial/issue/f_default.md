@@ -78,6 +78,8 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 > 4. **Only then**: Use the close action below
 >
 > **NEVER close an issue with uncommitted changes. This is a hard requirement.**
+>
+> **Note**: In worktree mode, branch merge to parent is handled automatically by the runner after completion. You do NOT need to push or merge.
 
 ```issue-action
 {"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N"}

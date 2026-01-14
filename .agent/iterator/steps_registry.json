@@ -140,9 +140,7 @@
       "c3": "issue",
       "completionConditions": [
         { "validator": "git-clean" },
-        { "validator": "type-check" },
-        { "validator": "branch-pushed" },
-        { "validator": "branch-merged" }
+        { "validator": "type-check" }
       ],
       "onFailure": {
         "action": "retry",
@@ -152,7 +150,7 @@
         "file": "issue.schema.json",
         "schema": "complete.issue"
       },
-      "description": "Validate issue completion with git-clean, type-check, branch-pushed, branch-merged using structured output"
+      "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
     }
   },
 
