@@ -81,7 +81,7 @@
     },
     "type-check": {
       "type": "command",
-      "command": "deno task check",
+      "command": "deno check src/**/*.ts agents/**/*.ts *.ts",
       "successWhen": "exitCode:0",
       "failurePattern": "type-error",
       "extractParams": {

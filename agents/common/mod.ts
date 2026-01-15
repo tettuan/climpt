@@ -93,3 +93,6 @@ export {
   PromptLogger,
   timePromptResolution,
 } from "./prompt-logger.ts";
+
+// Schema resolver for structured output
+export { resolveSchema, SchemaResolver } from "./schema-resolver.ts";

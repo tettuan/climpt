@@ -72,6 +72,42 @@ FormatValidator.validate(summary, format) → FormatValidationResult
 副作用:  なし
 ```
 
+### CompletionHandler
+
+```
+CompletionHandler インターフェース
+
+setCurrentSummary(summary) → void
+入力:    IterationSummary（structuredOutput 含む）
+出力:    なし
+副作用:  内部状態の更新（lastSummary）
+用途:    isComplete() 呼び出し前に現在の iteration 情報を渡す
+
+isComplete() → Promise<boolean>
+入力:    なし（内部状態を使用）
+出力:    完了フラグ
+副作用:  外部コマンド実行（git status, gh issue view 等）
+保証:    AI 宣言と外部条件の両方を考慮
+```
+
+**Structured Output 統合**:
+
+```
+判定ロジック（IssueCompletionHandler）:
+
+① getStructuredOutputStatus() で AI 宣言を取得
+   - status === "completed"
+   - next_action.action === "complete"
+
+② 外部条件をチェック
+   - GitHub Issue が CLOSED か
+   - git working directory が clean か
+
+③ 統合判定
+   - AI 宣言 && !外部条件 → false（リトライへ）
+   - 外部条件 → true
+```
+
 ## 接続の契約
 
 ### LLM 問い合わせ

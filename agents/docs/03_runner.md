@@ -44,7 +44,7 @@ interface AgentResult {
 
 2. コンポーネント初期化
    - CompletionValidator（完了条件検証）
-   - FormatValidator（出力形式検証）
+   - FormatValidator（出力形式検証、オプション）
    - PromptResolver（プロンプト解決）
    - RetryHandler（リトライプロンプト生成）
 
@@ -52,16 +52,22 @@ interface AgentResult {
    while (!complete && iteration < maxIterations) {
      prompt = 解決()
      response = LLM 問い合わせ()
+     summary = サマリー生成(response)
 
      // 完了宣言の検出
      if (hasCompletionSignal(response)) {
-       // 形式検証
-       formatResult = FormatValidator.validate(response)
-       if (!formatResult.valid && formatRetryCount < maxFormatRetries) {
-         formatRetryCount++
-         retryPrompt = 形式エラープロンプト生成()
-         continue
+       // 形式検証（responseFormat が設定されている場合のみ）
+       if (step.check.responseFormat) {
+         formatResult = FormatValidator.validate(response)
+         if (!formatResult.valid && formatRetryCount < maxFormatRetries) {
+           formatRetryCount++
+           retryPrompt = 形式エラープロンプト生成()
+           continue
+         }
        }
+
+       // Structured Output を CompletionHandler に渡す
+       completionHandler.setCurrentSummary(summary)
 
        // 完了条件検証
        validation = CompletionValidator.validate(conditions)
@@ -77,6 +83,10 @@ interface AgentResult {
    { success, reason, iterations }
 ```
 
+> **注**: FormatValidator は `steps_registry.json` で `responseFormat`
+> が定義されている ステップでのみ実行される。現在の iterator 設定では
+> `responseFormat` は未定義のため、 FormatValidator は実行されない。
+
 ## コンポーネント
 
 ### CompletionValidator
@@ -91,9 +101,30 @@ validate(conditions) → ValidationResult
 副作用:  コマンド実行（git status, deno task test 等）
 ```
 
-### FormatValidator
+### CompletionHandler と Structured Output 連携
 
-LLM 出力の形式を検証する。
+`CompletionHandler` は `setCurrentSummary()` メソッドで現在の iteration の
+structured output を受け取る。これにより：
+
+1. AI の宣言（`status`, `next_action`）を完了判定に活用
+2. AI 宣言と外部条件の乖離を検出
+3. 次 iteration への継続情報として伝達
+
+```
+setCurrentSummary(summary) → void
+
+入力:    IterationSummary（structuredOutput 含む）
+出力:    なし
+副作用:  内部状態の更新
+```
+
+詳細は `08_structured_outputs.md` の「Structured Output
+の完了判定への統合」を参照。
+
+### FormatValidator（オプション）
+
+LLM 出力の形式を検証する。`steps_registry.json` で `responseFormat`
+が定義されている ステップでのみ実行される。
 
 ```
 validate(summary, format) → FormatValidationResult
@@ -101,6 +132,7 @@ validate(summary, format) → FormatValidationResult
 入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
 出力:    { valid: boolean, error?: string, extracted?: unknown }
 副作用:  なし
+前提:    step.check.responseFormat が定義されている
 ```
 
 **検証タイプ**:
@@ -110,6 +142,9 @@ validate(summary, format) → FormatValidationResult
 | `action-block` | agent-action コードブロック |
 | `json`         | JSON スキーマ準拠           |
 | `text-pattern` | テキストパターンマッチ      |
+
+> **現状**: iterator の `steps_registry.json` では `responseFormat` は未設定。
+> そのため FormatValidator は現時点では実行されない。
 
 ### PromptResolver
 
@@ -176,12 +211,17 @@ LLM 出力が期待形式に合致しない場合のリトライ。
   → setupWorktree() で作業ディレクトリを自動作成
   → --branch 未指定時はブランチ名を自動生成（例: feature/docs-20260105-143022）
   → run({ cwd: worktreePath }) で worktree 内で実行
-  → 成功時は cleanupWorktree() で worktree を削除
+  → 成功時は cleanupWorktree() で worktree をローカルマージ後削除
 
 オプション:
   --branch <name>       使用するブランチ名（省略時は自動生成）
   --base-branch <name>  派生元ブランチ（省略時は現在のブランチ）
 ```
+
+> **制限**: 現在の実装はローカルのみ。リモート push や PR
+> 作成は手動で行う必要がある。 失敗時（`result.success = false`）は worktree
+> が残存するため、手動クリーンアップが必要。 詳細は `11_core_architecture.md`
+> の「ライフサイクル制限」を参照。
 
 ## 依存性注入
 

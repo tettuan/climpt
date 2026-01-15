@@ -32,6 +32,7 @@ export interface CompletionCriteria {
  * Format iteration summary for inclusion in continuation prompts
  *
  * Shared utility used by all completion handlers.
+ * Includes structured output (status, next_action) for iteration continuity.
  *
  * @param summary - Iteration summary to format
  * @returns Formatted markdown string
@@ -40,6 +41,29 @@ export function formatIterationSummary(summary: IterationSummary): string {
   const parts: string[] = [];
 
   parts.push(`## Previous Iteration Summary (Iteration ${summary.iteration})`);
+
+  // Include structured output status and next_action for continuity
+  if (summary.structuredOutput) {
+    const so = summary.structuredOutput as Record<string, unknown>;
+    const statusParts: string[] = [];
+
+    if (so.status) {
+      statusParts.push(`**Reported Status**: ${so.status}`);
+    }
+
+    if (so.next_action) {
+      const nextAction = so.next_action as Record<string, unknown>;
+      const action = nextAction.action ?? nextAction;
+      const reason = nextAction.reason;
+      statusParts.push(
+        `**Declared Next Action**: ${action}${reason ? ` (${reason})` : ""}`,
+      );
+    }
+
+    if (statusParts.length > 0) {
+      parts.push(`### Previous Iteration Decision\n${statusParts.join("\n")}`);
+    }
+  }
 
   // Include last assistant response (most likely to contain the summary)
   if (summary.assistantResponses.length > 0) {
@@ -88,6 +112,13 @@ export interface CompletionHandler {
    * Context is obtained through setters, not function arguments.
    */
   buildInitialPrompt(): Promise<string>;
+
+  /**
+   * Set the current iteration summary before completion check.
+   * Called by runner before isComplete() to provide structured output context.
+   * Optional - not all handlers need this.
+   */
+  setCurrentSummary?(summary: IterationSummary): void;
 
   /**
    * Build continuation prompt for subsequent iterations

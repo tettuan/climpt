@@ -44,6 +44,7 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
   private projectContext?: ProjectContext;
   private repository?: string;
   private cwd?: string;
+  private lastSummary?: IterationSummary;
 
   constructor(
     private readonly issueNumber: number,
@@ -143,6 +144,11 @@ Start by analyzing the issue requirements and creating a task breakdown.
     completedIterations: number,
     previousSummary?: IterationSummary,
   ): Promise<string> {
+    // Store the summary for use in isComplete()
+    if (previousSummary) {
+      this.lastSummary = previousSummary;
+    }
+
     if (this.promptResolver) {
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
@@ -186,8 +192,59 @@ ${summarySection}
     };
   }
 
+  /**
+   * Get the declared status and next_action from structured output
+   */
+  getStructuredOutputStatus(): {
+    status?: string;
+    nextAction?: string;
+    nextActionReason?: string;
+  } {
+    if (!this.lastSummary?.structuredOutput) {
+      return {};
+    }
+
+    const so = this.lastSummary.structuredOutput as Record<string, unknown>;
+    const result: {
+      status?: string;
+      nextAction?: string;
+      nextActionReason?: string;
+    } = {};
+
+    if (typeof so.status === "string") {
+      result.status = so.status;
+    }
+
+    if (so.next_action) {
+      const nextAction = so.next_action as Record<string, unknown>;
+      if (typeof nextAction === "string") {
+        result.nextAction = nextAction;
+      } else if (typeof nextAction.action === "string") {
+        result.nextAction = nextAction.action;
+        if (typeof nextAction.reason === "string") {
+          result.nextActionReason = nextAction.reason;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Set the current iteration summary before completion check.
+   * Implements CompletionHandler.setCurrentSummary interface method.
+   */
+  setCurrentSummary(summary: IterationSummary): void {
+    this.lastSummary = summary;
+  }
+
   async isComplete(): Promise<boolean> {
     try {
+      // Check structured output declaration first
+      const soStatus = this.getStructuredOutputStatus();
+      const aiDeclaredComplete = soStatus.status === "completed" ||
+        soStatus.nextAction === "complete";
+
       // Check 1: Is the issue closed on GitHub?
       const args = this.repository
         ? [
@@ -216,10 +273,6 @@ ${summarySection}
       const data = JSON.parse(output);
       const isIssueClosed = data.state === "CLOSED";
 
-      if (!isIssueClosed) {
-        return false;
-      }
-
       // Check 2: Is the git working directory clean?
       // This prevents completion when agent closes issue via direct gh command
       // without committing changes (bypassing pre-close validation)
@@ -238,7 +291,21 @@ ${summarySection}
       const gitOutput = new TextDecoder().decode(gitResult.stdout).trim();
       const isGitClean = gitOutput === "";
 
-      return isIssueClosed && isGitClean;
+      const externalConditionsMet = isIssueClosed && isGitClean;
+
+      // Integration: Use both AI declaration AND external validation
+      // - If AI declared complete but external conditions not met: NOT complete
+      //   (prevents premature completion, agent should fix issues first)
+      // - If external conditions met but AI didn't declare complete: complete
+      //   (handles cases where structured output isn't used)
+      // - If both agree: complete
+      if (aiDeclaredComplete && !externalConditionsMet) {
+        // AI thinks it's done but conditions not met
+        // This will trigger retry with the discrepancy visible in next prompt
+        return false;
+      }
+
+      return externalConditionsMet;
     } catch {
       return false;
     }
@@ -246,6 +313,15 @@ ${summarySection}
 
   async getCompletionDescription(): Promise<string> {
     try {
+      // Get AI's declared status
+      const soStatus = this.getStructuredOutputStatus();
+      const aiStatusPart = soStatus.status
+        ? ` | AI declared: ${soStatus.status}`
+        : "";
+      const aiNextActionPart = soStatus.nextAction
+        ? ` (next: ${soStatus.nextAction})`
+        : "";
+
       // Check issue state
       const args = this.repository
         ? [
@@ -282,13 +358,14 @@ ${summarySection}
         : "";
       const isGitClean = gitOutput === "";
 
-      // Provide informative description
+      // Provide informative description including AI declaration
+      const aiInfo = aiStatusPart + aiNextActionPart;
       if (isIssueClosed && isGitClean) {
-        return `Issue #${this.issueNumber} is CLOSED and git is clean`;
+        return `Issue #${this.issueNumber} is CLOSED and git is clean${aiInfo}`;
       } else if (isIssueClosed && !isGitClean) {
-        return `Issue #${this.issueNumber} is CLOSED but git has uncommitted changes`;
+        return `Issue #${this.issueNumber} is CLOSED but git has uncommitted changes${aiInfo}`;
       } else {
-        return `Issue #${this.issueNumber} is still OPEN`;
+        return `Issue #${this.issueNumber} is still OPEN${aiInfo}`;
       }
     } catch {
       return `Issue #${this.issueNumber} status unknown`;

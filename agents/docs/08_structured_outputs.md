@@ -106,7 +106,10 @@ const response = await sdk.query({
 {
   "steps": {
     "initial.issue": {
-      "outputSchemaRef": "schemas/issue.schema.json"
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "initial.issue"
+      }
     }
   }
 }
@@ -114,6 +117,32 @@ const response = await sdk.query({
 
 この方式は外部コマンドによる完了条件検証とは独立しており、LLM
 出力のフォーマット保証に使用する。
+
+### SchemaResolver - $ref 解決
+
+Schema ファイルは `$ref` で他の schema を参照できるが、SDK に渡す前に
+すべての参照を解決する必要がある。`SchemaResolver` がこれを処理する。
+
+```typescript
+import { SchemaResolver } from "../common/schema-resolver.ts";
+
+const resolver = new SchemaResolver(schemasDir);
+const schema = await resolver.resolve("issue.schema.json", "complete.issue");
+// schema は $ref が解決済み、additionalProperties: false 付与済み
+```
+
+**機能**:
+
+| 機能                 | 説明                                              |
+| -------------------- | ------------------------------------------------- |
+| 外部 $ref 解決       | `common.schema.json#/$defs/stepResponse` を展開   |
+| 内部 $ref 解決       | `#/$defs/issueContext` を展開                     |
+| allOf マージ         | 継承構造を単一 schema に統合                      |
+| additionalProperties | すべての object に `false` を自動付与（SDK 要件） |
+| キャッシュ           | 同一ファイルの重複読み込みを防止                  |
+
+**SDK 要件**: `additionalProperties: false` がないと structured output
+は動作しない。 SchemaResolver はこれを自動的に追加する。
 
 ## 完了パターン
 
@@ -123,7 +152,7 @@ const response = await sdk.query({
 | ----------------- | ------------------ | ------------------------ |
 | `git-dirty`       | 未コミットの変更   | `git status --porcelain` |
 | `test-failed`     | テスト失敗         | `deno task test` 失敗    |
-| `type-error`      | 型エラー           | `deno task check` 失敗   |
+| `type-error`      | 型エラー           | `deno check` 失敗        |
 | `lint-error`      | リントエラー       | `deno task lint` 失敗    |
 | `format-error`    | フォーマットエラー | `deno fmt --check` 失敗  |
 | `file-not-exists` | ファイル不在       | ファイル存在チェック     |
@@ -412,12 +441,107 @@ export class RetryHandler {
 }
 ```
 
+## Structured Output の完了判定への統合
+
+### 概要
+
+SDK の `structured_output` を完了判定に活用する仕組み。AI
+の宣言と外部検証を組み合わせ ることで、より堅牢な完了判定を実現する。
+
+### データフロー
+
+```
+SDK Response
+    │
+    ├─ processMessage() → structuredOutput をキャプチャ
+    │
+    ├─ IterationSummary.structuredOutput に保存
+    │
+    ├─ setCurrentSummary() → CompletionHandler に渡す
+    │
+    └─ isComplete() で利用
+        ├─ AI の宣言 (status, next_action)
+        └─ 外部検証 (git status, GitHub API)
+```
+
+### formatIterationSummary の拡張
+
+次の iteration に渡す summary に structured output 情報を含める：
+
+```typescript
+// 出力例
+## Previous Iteration Summary (Iteration 3)
+
+### Previous Iteration Decision
+**Reported Status**: completed
+**Declared Next Action**: complete (All requirements satisfied)
+
+### What was done:
+...
+```
+
+これにより、AI は前回の宣言を認識し、整合性のある判断ができる。
+
+### CompletionHandler インターフェース
+
+```typescript
+interface CompletionHandler {
+  // ... existing methods
+
+  /**
+   * Set the current iteration summary before completion check.
+   * Called by runner before isComplete() to provide structured output context.
+   */
+  setCurrentSummary?(summary: IterationSummary): void;
+}
+```
+
+### IssueCompletionHandler の完了判定
+
+```typescript
+async isComplete(): Promise<boolean> {
+  // 1. AI の宣言をチェック
+  const soStatus = this.getStructuredOutputStatus();
+  const aiDeclaredComplete = soStatus.status === "completed" ||
+    soStatus.nextAction === "complete";
+
+  // 2. 外部条件をチェック
+  const isIssueClosed = await this.checkGitHubIssueState();
+  const isGitClean = await this.checkGitStatus();
+  const externalConditionsMet = isIssueClosed && isGitClean;
+
+  // 3. 統合判定
+  // AI が完了宣言したが条件未達 → 完了しない（リトライへ）
+  if (aiDeclaredComplete && !externalConditionsMet) {
+    return false;
+  }
+
+  return externalConditionsMet;
+}
+```
+
+### 無限ループ防止
+
+1. **AI の宣言が次 iteration に伝達される**
+   - `formatIterationSummary` で `status`, `next_action` を含める
+   - AI は自身の前回宣言を認識できる
+
+2. **宣言と実際の乖離が検出される**
+   - AI が `completed` と宣言したが条件未達 → 明示的なリトライ
+   - 次 iteration で AI はこの乖離を認識し、修正行動を取れる
+
+3. **アカウンタビリティの確立**
+   - `getCompletionDescription()` で AI 宣言を含めて報告
+   - ログで宣言と実際の状態を追跡可能
+
 ## まとめ
 
-| 観点       | 設計方針                                          |
-| ---------- | ------------------------------------------------- |
-| 完了判定   | LLM の宣言 + 条件検証                             |
-| パターン   | 具体的な失敗パターン（git-dirty, test-failed 等） |
-| リトライ   | 失敗パターンに対応する C3L プロンプト             |
-| C3L 連携   | edition = failed, adaptation = パターン名         |
-| パラメータ | validator が抽出、プロンプトに注入                |
+| 観点           | 設計方針                                           |
+| -------------- | -------------------------------------------------- |
+| 完了判定       | AI の宣言 + 外部条件検証の両方                     |
+| 無限ループ防止 | 宣言と実際の乖離を検出しリトライ                   |
+| 継続性         | formatIterationSummary で次 iteration に宣言を伝達 |
+| パターン       | 具体的な失敗パターン（git-dirty, test-failed 等）  |
+| リトライ       | 失敗パターンに対応する C3L プロンプト              |
+| C3L 連携       | edition = failed, adaptation = パターン名          |
+| パラメータ     | validator が抽出、プロンプトに注入                 |

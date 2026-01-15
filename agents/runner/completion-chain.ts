@@ -17,6 +17,10 @@ import type { CompletionValidator } from "../validators/completion/validator.ts"
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { isRecord } from "../src_common/type-guards.ts";
+import {
+  buildValidationPrompt,
+  checkValidationResults,
+} from "./validation-utils.ts";
 
 /**
  * Result of completion validation
@@ -131,12 +135,30 @@ export class CompletionChain {
 
   /**
    * Get completion step ID based on completion type.
+   *
+   * Maps completion type to the appropriate step ID in the registry.
+   * Uses dynamic lookup in stepsRegistry if available, otherwise defaults.
    */
   getCompletionStepId(completionType: string): string {
-    if (completionType === "issue") {
-      return "complete.issue";
+    // Check if registry has a completion step for this type
+    if (this.stepsRegistry?.completionSteps) {
+      const stepId = `complete.${completionType}`;
+      if (this.stepsRegistry.completionSteps[stepId]) {
+        return stepId;
+      }
     }
-    return "complete.issue";
+
+    // Type-specific defaults
+    switch (completionType) {
+      case "issue":
+      case "externalState":
+        return "complete.issue";
+      case "iterate":
+      case "iterationBudget":
+        return "complete.iterate";
+      default:
+        return `complete.${completionType}`;
+    }
   }
 
   /**
@@ -164,7 +186,7 @@ export class CompletionChain {
     );
 
     try {
-      const prompt = this.buildValidationPrompt();
+      const prompt = buildValidationPrompt();
       const queryOptions = {
         outputSchema: {
           type: "json_schema",
@@ -205,7 +227,7 @@ export class CompletionChain {
         };
       }
 
-      return this.checkValidationResults(structuredOutput);
+      return checkValidationResults(structuredOutput, this.logger);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       this.logger.error("[CompletionChain] Query failed", {
@@ -255,78 +277,6 @@ export class CompletionChain {
         result.error ?? result.pattern
       }`,
     };
-  }
-
-  /**
-   * Build the prompt for validation query.
-   */
-  private buildValidationPrompt(): string {
-    return `Run the following validation checks and report the results:
-
-1. **Git status**: Run \`git status --porcelain\` to check for uncommitted changes
-   - Set git_clean to true only if the output is empty
-   - Include the actual output in evidence.git_status_output
-
-2. **Type check**: Run \`deno task check\` or \`deno check\`
-   - Set type_check_passed to true only if exit code is 0
-   - Include the actual output in evidence.type_check_output
-
-Report results as structured JSON with:
-- validation.git_clean: boolean
-- validation.type_check_passed: boolean
-- evidence: actual command outputs`;
-  }
-
-  /**
-   * Check validation results from structured output.
-   */
-  private checkValidationResults(
-    output: Record<string, unknown>,
-  ): CompletionValidationResult {
-    if (!isRecord(output.validation)) {
-      return {
-        valid: false,
-        retryPrompt: "Missing validation field in response",
-      };
-    }
-
-    const validation = output.validation;
-    const errors: string[] = [];
-
-    if (validation.git_clean !== true) {
-      errors.push(
-        "git_clean is false - please commit or stash changes before closing",
-      );
-    }
-
-    if (validation.type_check_passed !== true) {
-      errors.push("type_check_passed is false - please fix type errors");
-    }
-
-    if (validation.tests_passed === false) {
-      errors.push("tests_passed is false - please fix failing tests");
-    }
-
-    if (validation.lint_passed === false) {
-      errors.push("lint_passed is false - please fix lint errors");
-    }
-
-    if (validation.format_check_passed === false) {
-      errors.push("format_check_passed is false - please run formatter");
-    }
-
-    if (errors.length > 0) {
-      this.logger.warn("[CompletionChain] Validation failed", { errors });
-      return {
-        valid: false,
-        retryPrompt: `Completion validation failed:\n${
-          errors.map((e) => `- ${e}`).join("\n")
-        }`,
-      };
-    }
-
-    this.logger.info("[CompletionChain] All validation checks passed");
-    return { valid: true };
   }
 
   /**

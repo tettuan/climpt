@@ -47,6 +47,11 @@ import {
 } from "./completion-chain.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { join } from "@std/path";
+import { SchemaResolver } from "../common/schema-resolver.ts";
+import {
+  buildValidationPrompt,
+  checkValidationResults,
+} from "./validation-utils.ts";
 import {
   isAssistantMessage,
   isErrorMessage,
@@ -353,24 +358,28 @@ export class AgentRunner {
           await this.eventEmitter.emit("actionExecuted", {
             results: summary.actionResults,
           });
+        }
 
-          // Completion validation: validate conditions after close action
-          if (this.hasCloseAction(summary.actionResults)) {
-            const stepId = this.getCompletionStepId();
-            // deno-lint-ignore no-await-in-loop
-            const validation = await this.validateCompletionConditions(
-              stepId,
-              summary,
-              ctx.logger,
+        // Completion validation: trigger when AI declares complete via structured output
+        // This removes dependency on issue-action and uses AI's explicit declaration
+        if (this.hasAICompletionDeclaration(summary)) {
+          const stepId = this.getCompletionStepId();
+          ctx.logger.info(
+            "AI declared completion, validating external conditions",
+          );
+          // deno-lint-ignore no-await-in-loop
+          const validation = await this.validateCompletionConditions(
+            stepId,
+            summary,
+            ctx.logger,
+          );
+
+          if (!validation.valid) {
+            // Store retry prompt for next iteration
+            this.pendingRetryPrompt = validation.retryPrompt ?? null;
+            ctx.logger.info(
+              "Completion conditions not met, will retry in next iteration",
             );
-
-            if (!validation.valid) {
-              // Store retry prompt for next iteration
-              this.pendingRetryPrompt = validation.retryPrompt ?? null;
-              ctx.logger.info(
-                "Completion conditions not met, will retry in next iteration",
-              );
-            }
           }
         }
 
@@ -381,6 +390,10 @@ export class AgentRunner {
           isComplete = false;
           ctx.logger.debug("Skipping completion check due to pending retry");
         } else {
+          // Pass current summary to handler for structured output context
+          if (ctx.completionHandler.setCurrentSummary) {
+            ctx.completionHandler.setCurrentSummary(summary);
+          }
           // deno-lint-ignore no-await-in-loop
           isComplete = await ctx.completionHandler.isComplete();
         }
@@ -922,7 +935,7 @@ export class AgentRunner {
       // Dynamic import of Claude Code SDK
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
-      const prompt = this.buildValidationPrompt();
+      const prompt = buildValidationPrompt();
 
       const queryOptions: Record<string, unknown> = {
         cwd: ctx.cwd,
@@ -971,7 +984,7 @@ export class AgentRunner {
       }
 
       // Check validation results from structured output
-      return this.checkValidationResults(structuredOutput, logger);
+      return checkValidationResults(structuredOutput, logger);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error("[StructuredOutput] Query failed", { error: errorMessage });
@@ -980,81 +993,6 @@ export class AgentRunner {
         retryPrompt: `Validation query failed: ${errorMessage}`,
       };
     }
-  }
-
-  /**
-   * Build the prompt for validation query
-   */
-  private buildValidationPrompt(): string {
-    return `Run the following validation checks and report the results:
-
-1. **Git status**: Run \`git status --porcelain\` to check for uncommitted changes
-   - Set git_clean to true only if the output is empty
-   - Include the actual output in evidence.git_status_output
-
-2. **Type check**: Run \`deno task check\` or \`deno check\`
-   - Set type_check_passed to true only if exit code is 0
-   - Include relevant output in evidence.type_check_output
-
-Report your findings in the required JSON format with:
-- validation.git_clean: boolean
-- validation.type_check_passed: boolean
-- evidence: actual command outputs`;
-  }
-
-  /**
-   * Check validation results from structured output
-   */
-  private checkValidationResults(
-    output: Record<string, unknown>,
-    logger: import("../src_common/logger.ts").Logger,
-  ): CompletionValidationResult {
-    if (!isRecord(output.validation)) {
-      return {
-        valid: false,
-        retryPrompt: "Missing validation field in response",
-      };
-    }
-
-    const validation = output.validation;
-    const errors: string[] = [];
-
-    // Check required fields
-    if (validation.git_clean !== true) {
-      errors.push(
-        "git_clean is false - please commit or stash changes before closing",
-      );
-    }
-
-    if (validation.type_check_passed !== true) {
-      errors.push("type_check_passed is false - please fix type errors");
-    }
-
-    // Check optional fields (only fail if explicitly false)
-    if (validation.tests_passed === false) {
-      errors.push("tests_passed is false - please fix failing tests");
-    }
-
-    if (validation.lint_passed === false) {
-      errors.push("lint_passed is false - please fix lint errors");
-    }
-
-    if (validation.format_check_passed === false) {
-      errors.push("format_check_passed is false - please run formatter");
-    }
-
-    if (errors.length > 0) {
-      logger.warn("[StructuredOutput] Validation failed", { errors });
-      return {
-        valid: false,
-        retryPrompt: `Completion validation failed:\n${
-          errors.map((e) => `- ${e}`).join("\n")
-        }`,
-      };
-    }
-
-    logger.info("[StructuredOutput] All validation checks passed");
-    return { valid: true };
   }
 
   /**
@@ -1092,19 +1030,35 @@ Please provide a response in the correct format.`;
   }
 
   /**
-   * Check if any action result indicates a close action.
-   * Delegates to CompletionChain when available.
+   * Check if AI declared completion via structured output.
+   *
+   * Checks for:
+   * - status === "completed"
+   * - next_action.action === "complete"
+   *
+   * This replaces the issue-action dependency for triggering completion validation.
    */
-  private hasCloseAction(results: ActionResult[]): boolean {
-    if (this.completionChain) {
-      return this.completionChain.hasCloseAction(results);
+  private hasAICompletionDeclaration(summary: IterationSummary): boolean {
+    if (!summary.structuredOutput) {
+      return false;
     }
-    // Fallback if CompletionChain not initialized
-    return results.some((r) => {
-      if (r.action?.type !== "issue-action") return false;
-      if (!isRecord(r.result)) return false;
-      return r.result.action === "close";
-    });
+
+    const so = summary.structuredOutput;
+
+    // Check status field
+    if (so.status === "completed") {
+      return true;
+    }
+
+    // Check next_action.action field
+    if (isRecord(so.next_action)) {
+      const nextAction = so.next_action as Record<string, unknown>;
+      if (nextAction.action === "complete") {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -1175,11 +1129,15 @@ Please provide a response in the correct format.`;
   }
 
   /**
-   * Load schema from outputSchemaRef.
+   * Load schema from outputSchemaRef with full $ref resolution.
+   *
+   * This method resolves all $ref pointers (both internal and external)
+   * and ensures additionalProperties: false is set on all object types,
+   * as required by Claude SDK's structured output feature.
    *
    * @param ref - Schema reference with file and schema name
    * @param logger - Logger instance
-   * @returns Loaded schema or undefined on error
+   * @returns Fully resolved schema or undefined on error
    */
   private async loadSchemaFromRef(
     ref: OutputSchemaRef,
@@ -1188,27 +1146,19 @@ Please provide a response in the correct format.`;
     const ctx = this.getContext();
     const schemasBase = this.stepsRegistry?.schemasBase ??
       `.agent/${this.definition.name}/schemas`;
-    const schemaPath = join(ctx.cwd, schemasBase, ref.file);
+    const schemasDir = join(ctx.cwd, schemasBase);
 
     try {
-      const content = await Deno.readTextFile(schemaPath);
-      const schemas = JSON.parse(content);
-      const schema = schemas[ref.schema];
+      const resolver = new SchemaResolver(schemasDir);
+      const schema = await resolver.resolve(ref.file, ref.schema);
 
-      if (!schema) {
-        logger.warn(
-          `Schema "${ref.schema}" not found in ${ref.file}`,
-        );
-        return undefined;
-      }
-
-      logger.debug(`Loaded schema: ${ref.file}#${ref.schema}`);
-      return schema as Record<string, unknown>;
+      logger.debug(`Loaded and resolved schema: ${ref.file}#${ref.schema}`);
+      return schema;
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        logger.debug(`Schema file not found: ${schemaPath}`);
+        logger.debug(`Schema file not found: ${join(schemasDir, ref.file)}`);
       } else {
-        logger.warn(`Failed to load schema from ${schemaPath}`, {
+        logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
           error: String(error),
         });
       }

@@ -538,6 +538,66 @@ Deno.test("Completion Validation - hasCloseAction returns false for empty result
   assertEquals(hasCloseAction([]), false);
 });
 
+// Helper to check if AI declared completion via structured output (matches runner.ts logic)
+function hasAICompletionDeclaration(summary: IterationSummary): boolean {
+  if (!summary.structuredOutput) {
+    return false;
+  }
+
+  const so = summary.structuredOutput;
+
+  // Check status field
+  if (so.status === "completed") {
+    return true;
+  }
+
+  // Check next_action.action field
+  if (
+    so.next_action &&
+    typeof so.next_action === "object" &&
+    (so.next_action as Record<string, unknown>).action === "complete"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+Deno.test("Completion Validation - hasAICompletionDeclaration detects status=completed", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "completed",
+      summary: "Task done",
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), true);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration detects next_action.action=complete", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "in_progress",
+      next_action: { action: "complete", reason: "All done" },
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), true);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration returns false for in_progress", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "in_progress",
+      next_action: { action: "continue", reason: "More work needed" },
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), false);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration returns false without structured output", () => {
+  const summary = createIterationSummary({});
+  assertEquals(hasAICompletionDeclaration(summary), false);
+});
+
 Deno.test("Completion Validation - FormatValidator validates action-block in summary", () => {
   const validator = new FormatValidator();
 
