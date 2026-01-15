@@ -1,547 +1,342 @@
-# 完了条件検証と部分リトライ
+# Closer - 完了判定サブシステム
 
-Step の完了を検証し、失敗時はパターンベースでリトライする。
+AI の structured output を中核とした完了判定機構。
 
 ## 概要
 
-### 二つの検証
+### 階層ループ構造
 
-| 検証                | 責務               | トリガー   |
-| ------------------- | ------------------ | ---------- |
-| FormatValidator     | LLM 出力の形式検証 | 出力受信時 |
-| CompletionValidator | 外部状態の検証     | 完了宣言後 |
-
-**FormatValidator** は「出力が期待形式か」を検証する。 **CompletionValidator**
-は「タスクが実際に完了したか」を検証する。
+Agent の完了処理は階層的なループ構造を持つ。
 
 ```
-LLM 応答
-  │
-  ├─ FormatValidator: 形式は正しいか？
-  │   └─ NG → 形式リトライ
-  │
-  └─ 完了宣言を検出
-       │
-       └─ CompletionValidator: 条件を満たしているか？
-            ├─ OK → 完了
-            └─ NG → 条件リトライ（パターンベース）
+┌─────────────────────────────────────────────────────────────┐
+│  メインループ（Agent）                                       │
+│  ────────────────────────────────────────────────────────── │
+│  while (!agentComplete) {                                   │
+│    prompt = resolvePrompt()                                 │
+│    response = queryLLM()                                    │
+│                                                             │
+│    ┌───────────────────────────────────────────────────┐   │
+│    │  サブループ（Closer）                             │   │
+│    │  ──────────────────────────────────────────────── │   │
+│    │  while (!stepComplete) {                          │   │
+│    │    checklist = generateChecklist(structuredOutput)│   │
+│    │    verification = verifyCompletion(checklist)     │   │
+│    │    stepComplete = verification.allComplete        │   │
+│    │  }                                                │   │
+│    └───────────────────────────────────────────────────┘   │
+│                                                             │
+│    agentComplete = closer.result.complete                   │
+│  }                                                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 契約
+**メインループ**: Agent 全体のタスク遂行 **サブループ（Closer）**:
+ステップごとの完了検証
 
-### 形式検証
-
-```
-FormatValidator.validate(summary, format) → FormatValidationResult
-
-入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
-出力:    { valid: boolean, error?: string, extracted?: unknown }
-副作用:  なし
-```
-
-### 完了検証
+### 設計原則
 
 ```
-CompletionValidator.validate(conditions) → CompletionValidationResult
-
-入力:    完了条件の配列
-出力:    { valid: boolean, pattern?: string, params?: Record }
-副作用:  コマンド実行（git status, deno task test 等）
+AI structured output → Closer prompt → AI checklist 生成 → 完了判定
 ```
 
-### リトライ
+**Closer が行うこと**:
+
+- AI の structured output を入力として受け取る
+- C3L プロンプトで完了チェックリスト生成を依頼
+- AI に structured output で検証を依頼
+- 完了状態を報告
+
+**Closer が行わないこと**:
+
+- テストランナー出力の直接パース
+- シェルコマンドの実行
+- 外部状態（git, GitHub 等）の直接チェック
+
+## AI Structured Output
+
+### 入力と出力
 
 ```
-RetryHandler.buildRetryPrompt(pattern, params) → string
-
-入力:    失敗パターン、抽出パラメータ
-出力:    C3L で解決されたリトライプロンプト
-副作用:  なし
+┌──────────────────────┐      ┌──────────────────────┐
+│  CloserInput         │      │  CloserResult        │
+│  ──────────────────  │      │  ──────────────────  │
+│  structuredOutput    │  →   │  complete: boolean   │
+│  stepId              │      │  output: {...}       │
+│  c3l: { c2, c3 }     │      │  promptUsed?: string │
+│  context?: {...}     │      │  error?: string      │
+└──────────────────────┘      └──────────────────────┘
 ```
 
-## 設計思想
+### Closer の出力スキーマ
 
-### 本当に必要なもの
-
-```
-LLM「完了」宣言 → 完了条件検証 → 失敗パターン特定 → 部分リトライ
-```
-
-**不要なもの**:
-
-- Action 検知（手段に過ぎない）
-- Tool Use への依存（API 機能に過ぎない）
-- 複雑なパース処理
-
-### 例
-
-```
-Issue 完了の検証:
-  - [x] コード実装済み
-  - [ ] テスト失敗 ← pattern: "test-failed"
-  - [x] コミット済み
-
-→ テスト修正のプロンプトだけ送信してリトライ
-```
-
-## SDK Structured Output
-
-Step に `outputSchemaRef` を指定すると、SDK の `outputFormat` パラメータに JSON
-Schema が渡される。LLM は Schema に従った JSON を生成し、SDK が
-`structured_output` フィールドで返す。
+AI は以下のスキーマに従った JSON を返す。
 
 ```typescript
-// Runner での利用
-const schema = loadSchemaForStep(stepId);
-const response = await sdk.query({
-  prompt,
-  outputFormat: { type: "json_schema", schema },
-});
-// response.structured_output に検証済み JSON が含まれる
-```
+interface CloserStructuredOutput {
+  /** 完了に必要なタスクのチェックリスト */
+  checklist: ChecklistItem[];
 
-### steps_registry.json での設定
+  /** すべてのタスクが完了したか */
+  allComplete: boolean;
 
-```json
-{
-  "steps": {
-    "initial.issue": {
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "initial.issue"
-      }
-    }
-  }
+  /** 完了状態の要約 */
+  summary: string;
+
+  /** 未完了時の残作業 */
+  pendingActions?: string[];
+
+  /** 確信度（0-1） */
+  confidence: number;
+}
+
+interface ChecklistItem {
+  /** タスク識別子 */
+  id: string;
+
+  /** タスクの説明 */
+  description: string;
+
+  /** 完了フラグ */
+  completed: boolean;
+
+  /** 根拠または理由 */
+  evidence?: string;
 }
 ```
 
-この方式は外部コマンドによる完了条件検証とは独立しており、LLM
-出力のフォーマット保証に使用する。
-
-### SchemaResolver - $ref 解決
-
-Schema ファイルは `$ref` で他の schema を参照できるが、SDK に渡す前に
-すべての参照を解決する必要がある。`SchemaResolver` がこれを処理する。
+### 完了判定ロジック
 
 ```typescript
-import { SchemaResolver } from "../common/schema-resolver.ts";
-
-const resolver = new SchemaResolver(schemasDir);
-const schema = await resolver.resolve("issue.schema.json", "complete.issue");
-// schema は $ref が解決済み、additionalProperties: false 付与済み
+const complete = output.allComplete && output.confidence >= 0.8;
 ```
 
-**機能**:
+両方の条件を満たす場合のみ完了とみなす:
 
-| 機能                 | 説明                                              |
-| -------------------- | ------------------------------------------------- |
-| 外部 $ref 解決       | `common.schema.json#/$defs/stepResponse` を展開   |
-| 内部 $ref 解決       | `#/$defs/issueContext` を展開                     |
-| allOf マージ         | 継承構造を単一 schema に統合                      |
-| additionalProperties | すべての object に `false` を自動付与（SDK 要件） |
-| キャッシュ           | 同一ファイルの重複読み込みを防止                  |
-
-**SDK 要件**: `additionalProperties: false` がないと structured output
-は動作しない。 SchemaResolver はこれを自動的に追加する。
-
-## 完了パターン
-
-### パターン一覧
-
-| パターン          | 説明               | 検出方法                 |
-| ----------------- | ------------------ | ------------------------ |
-| `git-dirty`       | 未コミットの変更   | `git status --porcelain` |
-| `test-failed`     | テスト失敗         | `deno task test` 失敗    |
-| `type-error`      | 型エラー           | `deno check` 失敗        |
-| `lint-error`      | リントエラー       | `deno task lint` 失敗    |
-| `format-error`    | フォーマットエラー | `deno fmt --check` 失敗  |
-| `file-not-exists` | ファイル不在       | ファイル存在チェック     |
-
-### パターン定義
-
-```json
-{
-  "completionPatterns": {
-    "git-dirty": {
-      "description": "未コミットの変更がある",
-      "edition": "failed",
-      "adaptation": "git-dirty",
-      "params": ["changedFiles", "untrackedFiles"]
-    },
-    "test-failed": {
-      "description": "テストが失敗",
-      "edition": "failed",
-      "adaptation": "test-failed",
-      "params": ["failedTests", "errorOutput"]
-    }
-  }
-}
-```
-
-## Validator
-
-### Validator と Pattern のマッピング
-
-```json
-{
-  "validators": {
-    "git-clean": {
-      "type": "command",
-      "command": "git status --porcelain",
-      "successWhen": "empty",
-      "failurePattern": "git-dirty",
-      "extractParams": {
-        "changedFiles": "parseChangedFiles",
-        "untrackedFiles": "parseUntrackedFiles"
-      }
-    },
-    "tests-pass": {
-      "type": "command",
-      "command": "deno task test",
-      "successWhen": "exitCode:0",
-      "failurePattern": "test-failed",
-      "extractParams": {
-        "failedTests": "parseTestOutput",
-        "errorOutput": "stderr"
-      }
-    }
-  }
-}
-```
-
-### 型定義
-
-```typescript
-interface ValidatorDefinition {
-  type: "command" | "file" | "custom";
-  command?: string;
-  successWhen: string;
-  failurePattern: string;
-  extractParams: Record<string, string>;
-}
-
-interface FormatValidationResult {
-  valid: boolean;
-  error?: string;
-  extracted?: unknown;
-}
-
-interface CompletionValidationResult {
-  valid: boolean;
-  pattern?: string;
-  params?: Record<string, unknown>;
-}
-```
+1. AI がすべてのチェック項目を完了と判定
+2. AI の確信度が 80% 以上
 
 ## C3L 連携
 
 ### パス構造
 
 ```
-{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
+.agent/{agentId}/prompts/steps/{c2}/{c3}/
 
-c1         = steps
-c2         = retry
-c3         = issue
-edition    = failed
-adaptation = git-dirty, test-failed, etc.
+c2 = "complete"  # 完了処理
+c3 = "issue"     # 対象タイプ（例: issue, pr, task）
 ```
 
-### ファイル構造
+### ファイル構造例
 
 ```
 .agent/iterator/prompts/
 └── steps/
-    └── retry/
+    └── complete/
         └── issue/
-            ├── f_failed.md                 # フォールバック
-            ├── f_failed_git-dirty.md       # git未コミット
-            ├── f_failed_test-failed.md     # テスト失敗
-            └── f_failed_type-error.md      # 型エラー
+            ├── f_default.md           # デフォルトプロンプト
+            └── f_default_retry.md     # リトライ用
 ```
 
 ### プロンプト例
 
-**`steps/retry/issue/f_failed_test-failed.md`**
+**`steps/complete/issue/f_default.md`**
 
 ```markdown
 ---
 params:
-  - failedTests
-  - errorOutput
+  - step_id
 ---
 
-## テストが失敗しています
+## 完了判定
 
-### 失敗したテスト
+以下の structured output を分析し、タスクの完了状態を検証してください。
 
-{{#each failedTests}}
+### 入力データ
 
-- `{{this.name}}`: {{this.error}} {{/each}}
+{{input}}
 
-### エラー出力
-```
+### チェック項目
 
-{{errorOutput}}
+1. コード実装が完了しているか
+2. テストが通過しているか
+3. 変更がコミットされているか
 
-```
-失敗したテストを修正してください。
-```
-
-## steps_registry.json 設定
-
-### 構造
-
-```json
-{
-  "agentId": "iterator",
-
-  "completionPatterns": {
-    "git-dirty": { ... },
-    "test-failed": { ... }
-  },
-
-  "validators": {
-    "git-clean": { ... },
-    "tests-pass": { ... }
-  },
-
-  "steps": {
-    "complete.issue": {
-      "stepId": "complete.issue",
-      "name": "Issue Complete Step",
-      "c2": "retry",
-      "c3": "issue",
-      "completionConditions": [
-        { "validator": "git-clean" },
-        { "validator": "tests-pass" }
-      ],
-      "onFailure": {
-        "action": "retry",
-        "maxAttempts": 3
-      }
-    }
-  }
-}
-```
-
-### フィールド説明
-
-| フィールド             | 説明                                          |
-| ---------------------- | --------------------------------------------- |
-| `completionPatterns`   | 失敗パターンの定義（edition/adaptation 含む） |
-| `validators`           | 検証ロジックの定義                            |
-| `completionConditions` | Step の完了条件                               |
-| `onFailure`            | 失敗時の動作                                  |
-
-## 型定義
-
-```typescript
-interface CompletionPattern {
-  description: string;
-  edition: string;
-  adaptation: string;
-  params: string[];
-}
-
-interface CompletionStepConfig {
-  stepId: string;
-  name: string;
-  c2: string;
-  c3: string;
-  completionConditions: CompletionCondition[];
-  onFailure: {
-    action: "retry" | "abort" | "skip";
-    maxAttempts?: number;
-  };
-}
-
-interface CompletionCondition {
-  validator: string;
-  params?: Record<string, unknown>;
-}
-
-interface StepsRegistry {
-  agentId: string;
-  completionPatterns: Record<string, CompletionPattern>;
-  validators: Record<string, ValidatorDefinition>;
-  steps: Record<string, CompletionStepConfig>;
-}
-```
-
-## フロー
-
-```
-Step 実行
-  │
-  ├─ LLM ループ
-  │
-  ├─ LLM「完了」宣言
-  │
-  ├─ 完了条件検証
-  │   ├─ git-clean: ✓
-  │   ├─ tests-pass: ✗ → pattern: "test-failed"
-  │   └─ 検証停止
-  │
-  ├─ C3L プロンプト解決
-  │   └─ steps/retry/issue/f_failed_test-failed.md
-  │
-  ├─ params 注入
-  │   └─ { failedTests: [...], errorOutput: "..." }
-  │
-  └─ LLM に送信 → リトライ
+各項目について completed: true/false と evidence を出力してください。
 ```
 
 ## 実装
 
-### CompletionValidator
+### Closer クラス
 
 ```typescript
-export class CompletionValidator {
-  async validate(
-    conditions: CompletionCondition[],
-  ): Promise<CompletionValidationResult> {
-    for (const condition of conditions) {
-      const def = this.registry.validators[condition.validator];
-      const result = await this.runValidator(def);
+import { Closer, createCloser } from "./closer.ts";
 
-      if (!result.valid) {
-        return {
-          valid: false,
-          pattern: def.failurePattern,
-          params: result.params,
-        };
-      }
-    }
-    return { valid: true };
-  }
+const closer = createCloser({
+  workingDir: Deno.cwd(),
+  agentId: "iterator",
+  logger: console,
+});
+
+const result = await closer.check(
+  {
+    structuredOutput: previousAIResponse,
+    stepId: "complete.issue",
+    c3l: { c2: "complete", c3: "issue" },
+    context: { issueNumber: 123 },
+  },
+  queryFn,
+);
+
+if (result.complete) {
+  // 完了処理
+} else {
+  // リトライまたは残作業処理
+  console.log(result.output.pendingActions);
 }
 ```
 
-### RetryHandler
+### QueryFn インターフェース
 
 ```typescript
-export class RetryHandler {
-  async buildRetryPrompt(
-    stepConfig: CompletionStepConfig,
-    validationResult: CompletionValidationResult,
-  ): Promise<string> {
-    const pattern = this.registry.completionPatterns[validationResult.pattern!];
-
-    const template = await this.c3lResolver.resolve({
-      c1: "steps",
-      c2: stepConfig.c2,
-      c3: stepConfig.c3,
-      edition: pattern.edition,
-      adaptation: pattern.adaptation,
-    });
-
-    return this.injectParams(template, validationResult.params!);
-  }
-}
+type CloserQueryFn = (
+  prompt: string,
+  options: { outputSchema: Record<string, unknown> },
+) => Promise<{
+  structuredOutput?: Record<string, unknown>;
+  error?: string;
+}>;
 ```
 
-## Structured Output の完了判定への統合
+Closer は AI への問い合わせを `queryFn` に委譲する。これにより:
 
-### 概要
+- SDK の詳細を Closer から分離
+- テスト時のモック注入が容易
+- 異なる LLM バックエンドへの対応が可能
 
-SDK の `structured_output` を完了判定に活用する仕組み。AI
-の宣言と外部検証を組み合わせ ることで、より堅牢な完了判定を実現する。
+## フロー
 
-### データフロー
+### 完了判定フロー
 
 ```
-SDK Response
-    │
-    ├─ processMessage() → structuredOutput をキャプチャ
-    │
-    ├─ IterationSummary.structuredOutput に保存
-    │
-    ├─ setCurrentSummary() → CompletionHandler に渡す
-    │
-    └─ isComplete() で利用
-        ├─ AI の宣言 (status, next_action)
-        └─ 外部検証 (git status, GitHub API)
+Step 実行
+  │
+  ├─ LLM ループ（タスク遂行）
+  │
+  ├─ structuredOutput 取得
+  │
+  └─ Closer.check()
+       │
+       ├─ C3L プロンプト解決
+       │   └─ steps/complete/{c3}/f_default.md
+       │
+       ├─ AI に検証依頼（structured output）
+       │   └─ outputSchema: CLOSER_OUTPUT_SCHEMA
+       │
+       ├─ 応答パース・検証
+       │
+       └─ 完了判定
+            ├─ allComplete && confidence >= 0.8 → 完了
+            └─ それ以外 → 未完了（pendingActions 参照）
 ```
 
-### formatIterationSummary の拡張
+### リトライフロー
 
-次の iteration に渡す summary に structured output 情報を含める：
+```
+未完了判定
+  │
+  ├─ pendingActions から残作業を抽出
+  │
+  ├─ 次の iteration へ渡す
+  │   └─ formatIterationSummary() で要約
+  │
+  └─ LLM に残作業を指示
+       │
+       └─ 再度 Closer.check()
+```
+
+## Runner との統合
+
+### CompletionHandler としての統合
 
 ```typescript
-// 出力例
-## Previous Iteration Summary (Iteration 3)
+class CloserCompletionHandler implements CompletionHandler {
+  private closer: Closer;
+  private lastResult?: CloserResult;
 
-### Previous Iteration Decision
-**Reported Status**: completed
-**Declared Next Action**: complete (All requirements satisfied)
-
-### What was done:
-...
-```
-
-これにより、AI は前回の宣言を認識し、整合性のある判断ができる。
-
-### CompletionHandler インターフェース
-
-```typescript
-interface CompletionHandler {
-  // ... existing methods
-
-  /**
-   * Set the current iteration summary before completion check.
-   * Called by runner before isComplete() to provide structured output context.
-   */
-  setCurrentSummary?(summary: IterationSummary): void;
-}
-```
-
-### IssueCompletionHandler の完了判定
-
-```typescript
-async isComplete(): Promise<boolean> {
-  // 1. AI の宣言をチェック
-  const soStatus = this.getStructuredOutputStatus();
-  const aiDeclaredComplete = soStatus.status === "completed" ||
-    soStatus.nextAction === "complete";
-
-  // 2. 外部条件をチェック
-  const isIssueClosed = await this.checkGitHubIssueState();
-  const isGitClean = await this.checkGitStatus();
-  const externalConditionsMet = isIssueClosed && isGitClean;
-
-  // 3. 統合判定
-  // AI が完了宣言したが条件未達 → 完了しない（リトライへ）
-  if (aiDeclaredComplete && !externalConditionsMet) {
-    return false;
+  async isComplete(): Promise<boolean> {
+    return this.lastResult?.complete ?? false;
   }
 
-  return externalConditionsMet;
+  async checkCompletion(
+    summary: IterationSummary,
+    queryFn: CloserQueryFn,
+  ): Promise<void> {
+    this.lastResult = await this.closer.check(
+      {
+        structuredOutput: summary.structuredOutput ?? {},
+        stepId: this.stepConfig.stepId,
+        c3l: {
+          c2: this.stepConfig.c2,
+          c3: this.stepConfig.c3,
+        },
+      },
+      queryFn,
+    );
+  }
+
+  getCompletionDescription(): string {
+    if (!this.lastResult) return "Not checked";
+    return this.lastResult.output.summary;
+  }
 }
 ```
 
 ### 無限ループ防止
 
-1. **AI の宣言が次 iteration に伝達される**
-   - `formatIterationSummary` で `status`, `next_action` を含める
-   - AI は自身の前回宣言を認識できる
+1. **確信度閾値**: `confidence >= 0.8` で低確信の完了宣言を防止
+2. **チェックリスト検証**: 個別項目の `completed` フラグで部分的進捗を追跡
+3. **pendingActions**: 未完了時の具体的な残作業を AI が明示
+4. **iteration 間の継承**: 前回の判定結果を次 iteration に伝達
 
-2. **宣言と実際の乖離が検出される**
-   - AI が `completed` と宣言したが条件未達 → 明示的なリトライ
-   - 次 iteration で AI はこの乖離を認識し、修正行動を取れる
+## 型定義
 
-3. **アカウンタビリティの確立**
-   - `getCompletionDescription()` で AI 宣言を含めて報告
-   - ログで宣言と実際の状態を追跡可能
+```typescript
+// 入力
+interface CloserInput {
+  structuredOutput: Record<string, unknown>;
+  stepId: string;
+  c3l: {
+    c2: string;
+    c3: string;
+  };
+  context?: Record<string, unknown>;
+}
+
+// 結果
+interface CloserResult {
+  complete: boolean;
+  output: CloserStructuredOutput;
+  promptUsed?: string;
+  error?: string;
+}
+
+// オプション
+interface CloserOptions {
+  workingDir: string;
+  agentId: string;
+  logger?: CloserLogger;
+}
+```
 
 ## まとめ
 
-| 観点           | 設計方針                                           |
-| -------------- | -------------------------------------------------- |
-| 完了判定       | AI の宣言 + 外部条件検証の両方                     |
-| 無限ループ防止 | 宣言と実際の乖離を検出しリトライ                   |
-| 継続性         | formatIterationSummary で次 iteration に宣言を伝達 |
-| パターン       | 具体的な失敗パターン（git-dirty, test-failed 等）  |
-| リトライ       | 失敗パターンに対応する C3L プロンプト              |
-| C3L 連携       | edition = failed, adaptation = パターン名          |
-| パラメータ     | validator が抽出、プロンプトに注入                 |
+| 観点       | 設計方針                                   |
+| ---------- | ------------------------------------------ |
+| 完了判定   | AI structured output による自己検証        |
+| 外部状態   | 直接チェックしない（AI の報告を信頼）      |
+| 階層ループ | メインループ内のサブループとして完了を検証 |
+| C3L 連携   | steps/{c2}/{c3}/ でプロンプト解決          |
+| 確信度     | 0.8 以上で完了（低確信は未完了扱い）       |
+| 残作業     | pendingActions で次 iteration に引き継ぎ   |
+| 拡張性     | queryFn 注入で SDK から分離                |

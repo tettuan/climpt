@@ -39,7 +39,7 @@
 | `05_prompt_system.md`      | C3L プロンプト解決               |
 | `06_action_system.md`      | アクション検出・実行（廃止予定） |
 | `07_config_system.md`      | 設定の階層とマージ               |
-| `08_structured_outputs.md` | 完了条件検証と部分リトライ       |
+| `08_structured_outputs.md` | Closer 完了判定サブシステム      |
 
 ## 拡張ドキュメント
 

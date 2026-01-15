@@ -67,7 +67,7 @@ prompts/           →      PromptSet
 - 各イテレーションは独立している
 - 引き継ぎは明示的に宣言する
 
-### 3. 判定フェーズ
+### 3. 判定フェーズ（Closer）
 
 **いつ**: 各イテレーション終了時 **何を**: 完了条件の評価、次ステップの決定
 
@@ -78,33 +78,55 @@ prompts/           →      PromptSet
 遷移判定: 次にどのステップへ進むか
 ```
 
-**Structured Output 統合**:
+**階層ループ構造**:
 
-判定フェーズは AI の宣言（structured output）と外部検証の両方を使用する。
+判定フェーズは **Closer** サブシステムが担う。Agent ループ内にサブループを持つ。
 
 ```
-判定フロー
-──────────
-① summary.structuredOutput から AI 宣言を取得
-   - status: "completed" / "in_progress" / etc.
-   - next_action: { action: "complete" / "continue", reason: "..." }
-
-② 外部条件を検証（git status, GitHub API 等）
-
-③ 統合判定
-   - AI 宣言と外部条件の両方が完了 → 完了
-   - AI が完了宣言だが外部条件未達 → リトライ（乖離を検出）
-   - 外部条件のみ達成 → 完了（structured output 未使用時）
+┌─────────────────────────────────────────────────────────────┐
+│  メインループ（Agent）                                       │
+│  ──────────────────────────────────────────────────────────  │
+│  while (!agentComplete) {                                   │
+│    prompt = resolvePrompt()                                 │
+│    response = queryLLM()                                    │
+│                                                             │
+│    ┌───────────────────────────────────────────────────┐   │
+│    │  サブループ（Closer）                             │   │
+│    │  ────────────────────────────────────────────────  │   │
+│    │  while (!stepComplete) {                          │   │
+│    │    checklist = generateChecklist(structuredOutput)│   │
+│    │    verification = verifyCompletion(checklist)     │   │
+│    │    stepComplete = verification.allComplete        │   │
+│    │  }                                                │   │
+│    └───────────────────────────────────────────────────┘   │
+│                                                             │
+│    agentComplete = closer.result.complete                   │
+│  }                                                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-この設計により無限ループを防止：AI の宣言が次 iteration に伝達され、
-乖離が発生した場合に AI 自身が認識・修正できる。
+**Closer の設計原則**:
+
+```
+AI structured output → Closer prompt → AI checklist 生成 → 完了判定
+```
+
+Closer は:
+
+- AI の structured output を入力として受け取る
+- C3L プロンプト（steps/{c2}/{c3}/）でチェックリスト生成を依頼
+- AI に structured output で検証を依頼
+- `allComplete && confidence >= 0.8` で完了を判定
+
+Closer は外部状態（git, GitHub 等）を直接チェックしない。 AI の報告を信頼し、AI
+自身に完了検証を委ねる。
 
 **契約**:
 
 - 判定は副作用を持たない
 - 結果は実行層に返す
 - 実行層が状態を更新する
+- Closer は queryFn 経由で AI に問い合わせる（SDK 非依存）
 
 ## 依存の方向
 
