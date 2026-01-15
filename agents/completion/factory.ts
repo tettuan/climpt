@@ -141,16 +141,46 @@ registerHandler("composite", (args, promptResolver, definition, agentDir) => {
 });
 
 // stepMachine (was: stepFlow) - Complete when step state machine reaches terminal
-registerHandler("stepMachine", (_args, promptResolver, definition) => {
-  // stepMachine uses the step flow infrastructure
-  // For now, default to iterate behavior until full step flow integration
-  // TODO: Implement StepMachineCompletionHandler when step flow is fully integrated
-  const iterateHandler = new IterateCompletionHandler(
-    definition.behavior.completionConfig.maxIterations ?? 100,
-  );
-  iterateHandler.setPromptResolver(promptResolver);
-  return iterateHandler;
-});
+registerHandler(
+  "stepMachine",
+  async (_args, promptResolver, definition, agentDir) => {
+    const { completionConfig } = definition.behavior;
+
+    // Load steps registry for step machine
+    const registryPath = completionConfig.registryPath ??
+      `${agentDir}/steps_registry.json`;
+
+    try {
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+
+      // Import dynamically to avoid circular dependency at module load time
+      const { StepMachineCompletionHandler } = await import(
+        "./step-machine.ts"
+      );
+
+      const stepMachineHandler = new StepMachineCompletionHandler(
+        registry,
+        completionConfig.entryStep,
+      );
+      stepMachineHandler.setPromptResolver(promptResolver);
+      return stepMachineHandler;
+    } catch (error) {
+      // Fallback to iterate if registry not found
+      if (error instanceof Deno.errors.NotFound) {
+        console.warn(
+          `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
+        );
+        const iterateHandler = new IterateCompletionHandler(
+          completionConfig.maxIterations ?? 100,
+        );
+        iterateHandler.setPromptResolver(promptResolver);
+        return iterateHandler;
+      }
+      throw error;
+    }
+  },
+);
 
 // custom - Fully custom handler implementation
 registerHandler(

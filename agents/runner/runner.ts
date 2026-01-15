@@ -61,6 +61,8 @@ import {
   AgentEventEmitter,
   type AgentEventHandler,
 } from "./events.ts";
+import { StepContextImpl } from "../loop/step-context.ts";
+import type { StepContext } from "../src_common/contracts.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -95,6 +97,10 @@ export class AgentRunner {
   // Rate limit handling
   private rateLimitRetryCount = 0;
   private static readonly MAX_RATE_LIMIT_RETRIES = 5;
+
+  // Step flow orchestration
+  private stepContext: StepContextImpl | null = null;
+  private currentStepId: string | null = null;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -249,6 +255,10 @@ export class AgentRunner {
     const { plugins = [] } = options;
     const ctx = this.getContext();
 
+    // Initialize step context for step flow orchestration
+    this.stepContext = new StepContextImpl();
+    this.currentStepId = this.getStepIdForIteration(1);
+
     // Emit initialized event
     await this.eventEmitter.emit("initialized", { cwd: ctx.cwd });
 
@@ -320,6 +330,9 @@ export class AgentRunner {
 
         summaries.push(summary);
         sessionId = summary.sessionId;
+
+        // Record step output for step flow orchestration
+        this.recordStepOutput(stepId, summary);
 
         // Handle rate limit retry: wait before next iteration
         if (summary.rateLimitRetry) {
@@ -415,6 +428,9 @@ export class AgentRunner {
           ctx.logger.info("Agent completed");
           break;
         }
+
+        // Step transition for step flow orchestration
+        this.handleStepTransition(stepId, summary, ctx);
 
         // Max iteration check
         const maxIterations = this.getMaxIterations();
@@ -1253,5 +1269,162 @@ Please provide a response in the correct format.`;
       }
       return undefined;
     }
+  }
+
+  // ============================================================================
+  // Step Flow Orchestration
+  // ============================================================================
+
+  /**
+   * Get the step context for data passing between steps.
+   *
+   * @returns StepContext or null if not initialized
+   */
+  getStepContext(): StepContext | null {
+    return this.stepContext;
+  }
+
+  /**
+   * Record step output to step context.
+   *
+   * Extracts relevant data from iteration summary and stores it
+   * for use by subsequent steps via StepContext.toUV().
+   *
+   * @param stepId - Step identifier
+   * @param summary - Iteration summary with structured output
+   */
+  private recordStepOutput(stepId: string, summary: IterationSummary): void {
+    if (!this.stepContext) return;
+
+    const output: Record<string, unknown> = {};
+
+    // Record structured output if available
+    if (summary.structuredOutput) {
+      Object.assign(output, summary.structuredOutput);
+    }
+
+    // Record iteration metadata
+    output.iteration = summary.iteration;
+    output.sessionId = summary.sessionId;
+
+    // Record action results summary
+    if (summary.actionResults && summary.actionResults.length > 0) {
+      output.actionCount = summary.actionResults.length;
+      output.actionSuccess = summary.actionResults.every((r) => r.success);
+    }
+
+    // Record errors if any
+    if (summary.errors.length > 0) {
+      output.hasErrors = true;
+      output.errorCount = summary.errors.length;
+    }
+
+    this.stepContext.set(stepId, output);
+    this.currentStepId = stepId;
+
+    this.getContext().logger.debug(
+      `[StepFlow] Recorded output for step: ${stepId}`,
+      { outputKeys: Object.keys(output) },
+    );
+  }
+
+  /**
+   * Handle step transition based on completion handler.
+   *
+   * If the completion handler supports step transitions (StepMachineCompletionHandler),
+   * this method determines the next step and updates the current step ID.
+   *
+   * @param stepId - Current step ID
+   * @param summary - Iteration summary
+   * @param ctx - Runtime context
+   */
+  private handleStepTransition(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): void {
+    // Check if completion handler supports step transitions
+    const handler = ctx.completionHandler;
+
+    // Type check for transition method (StepMachineCompletionHandler)
+    if (
+      !("transition" in handler) || typeof handler.transition !== "function"
+    ) {
+      return; // Not a step machine handler
+    }
+
+    // Determine if step passed based on structured output
+    const passed = this.determineStepPassed(summary);
+
+    // Create step result for transition
+    const stepResult = {
+      stepId,
+      passed,
+      reason: this.extractStepReason(summary),
+    };
+
+    // Call transition to get next step
+    const nextStep =
+      (handler as { transition: (r: typeof stepResult) => string | "complete" })
+        .transition(stepResult);
+
+    if (nextStep === "complete") {
+      ctx.logger.info(`[StepFlow] Step machine reached terminal state`);
+    } else if (nextStep !== stepId) {
+      ctx.logger.info(`[StepFlow] Transitioning from ${stepId} to ${nextStep}`);
+      this.currentStepId = nextStep;
+    } else {
+      ctx.logger.debug(`[StepFlow] Staying on step ${stepId} (retry)`);
+    }
+  }
+
+  /**
+   * Determine if step passed based on iteration summary.
+   */
+  private determineStepPassed(summary: IterationSummary): boolean {
+    // Check structured output for explicit status
+    if (summary.structuredOutput) {
+      const so = summary.structuredOutput;
+
+      // Check for status field
+      if (so.status === "completed" || so.status === "passed") {
+        return true;
+      }
+      if (so.status === "failed" || so.status === "error") {
+        return false;
+      }
+
+      // Check for result field
+      if (so.result === "ok" || so.result === "pass" || so.result === true) {
+        return true;
+      }
+      if (so.result === "ng" || so.result === "fail" || so.result === false) {
+        return false;
+      }
+    }
+
+    // Default: pass if no errors
+    return summary.errors.length === 0;
+  }
+
+  /**
+   * Extract reason from iteration summary for step transition.
+   */
+  private extractStepReason(summary: IterationSummary): string | undefined {
+    if (summary.structuredOutput) {
+      const so = summary.structuredOutput as Record<string, unknown>;
+      if (typeof so.reason === "string") {
+        return so.reason;
+      }
+      if (typeof so.message === "string") {
+        return so.message;
+      }
+    }
+
+    if (summary.errors.length > 0) {
+      return summary.errors[0];
+    }
+
+    return undefined;
   }
 }
