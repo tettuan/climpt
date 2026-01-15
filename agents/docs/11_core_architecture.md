@@ -67,7 +67,7 @@ prompts/           →      PromptSet
 - 各イテレーションは独立している
 - 引き継ぎは明示的に宣言する
 
-### 3. 判定フェーズ（Closer）
+### 3. 判定フェーズ（CompletionChain）
 
 **いつ**: 各イテレーション終了時 **何を**: 完了条件の評価、次ステップの決定
 
@@ -80,53 +80,41 @@ prompts/           →      PromptSet
 
 **階層ループ構造**:
 
-判定フェーズは **Closer** サブシステムが担う。Agent ループ内にサブループを持つ。
+判定フェーズは `Closer` サブシステムが担う。Agent
+ループ内で「完了検証用のマイクロループ」を形成する。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  メインループ（Agent）                                       │
-│  ──────────────────────────────────────────────────────────  │
+│  ────────────────────────────────────────────────────────── │
 │  while (!agentComplete) {                                   │
 │    prompt = resolvePrompt()                                 │
-│    response = queryLLM()                                    │
+│    result = queryLLM()                                      │
 │                                                             │
-│    ┌───────────────────────────────────────────────────┐   │
-│    │  サブループ（Closer）                             │   │
-│    │  ────────────────────────────────────────────────  │   │
-│    │  while (!stepComplete) {                          │   │
-│    │    checklist = generateChecklist(structuredOutput)│   │
-│    │    verification = verifyCompletion(checklist)     │   │
-│    │    stepComplete = verification.allComplete        │   │
-│    │  }                                                │   │
-│    └───────────────────────────────────────────────────┘   │
+│    if (status === "completed" || next_action=complete) {    │
+│      validation = Closer.check(stepContext)                 │
+│      if (!validation.complete) {                            │
+│        pendingRetryPrompt = buildCloserRetryPrompt(result)  │
+│        continue // 次 iteration で残作業を実行               │
+│      }                                                      │
+│    }                                                        │
 │                                                             │
-│    agentComplete = closer.result.complete                   │
+│    agentComplete = completionHandler.isComplete()           │
 │  }                                                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Closer の設計原則**:
+`Closer` は以下を実行する (runner.ts:940-991, closer.ts):
 
-```
-AI structured output → Closer prompt → AI checklist 生成 → 完了判定
-```
+1. C3L プロンプト (`steps/complete/issue/f_default.md`) をロード
+2. AI に完了チェックリストの検証・実行を依頼
+   - テスト実行、型チェック、lint、git status、Issue クローズ等
+3. `allComplete` と `checklist` を含む structured output を返す
+4. 未完了項目があれば `pendingActions` をもとにリトライプロンプトを生成
 
-Closer は:
-
-- AI の structured output を入力として受け取る
-- C3L プロンプト（steps/{c2}/{c3}/）でチェックリスト生成を依頼
-- AI に structured output で検証を依頼
-- `allComplete && confidence >= 0.8` で完了を判定
-
-Closer は外部状態（git, GitHub 等）を直接チェックしない。 AI の報告を信頼し、AI
-自身に完了検証を委ねる。
-
-**契約**:
-
-- 判定は副作用を持たない
-- 結果は実行層に返す
-- 実行層が状態を更新する
-- Closer は queryFn 経由で AI に問い合わせる（SDK 非依存）
+外部状態 (git, type check, lint など) は Closer プロンプトが AI
+に確認を指示する。 結果は副作用なしのデータとして返し、実行層が
+`pendingRetryPrompt` や `isComplete` を制御する。
 
 ## 依存の方向
 

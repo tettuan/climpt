@@ -17,10 +17,6 @@ import type { CompletionValidator } from "../validators/completion/validator.ts"
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { isRecord } from "../src_common/type-guards.ts";
-import {
-  buildValidationPrompt,
-  checkValidationResults,
-} from "./validation-utils.ts";
 
 /**
  * Result of completion validation
@@ -81,19 +77,18 @@ export class CompletionChain {
   /**
    * Validate completion conditions for a step.
    *
-   * Validates using:
-   * 1. Structured output query (if outputSchema is defined) - SDK-level validation
-   * 2. Command execution (if conditions are defined) - Run validation commands
+   * Note: Structured output validation is now handled by Closer at runner level.
+   * This method only handles command-based validation fallback.
    *
    * @param stepId - Step identifier
-   * @param _summary - Current iteration summary (unused for now)
-   * @param queryFn - Function to execute SDK queries
+   * @param _summary - Current iteration summary (unused)
+   * @param _queryFn - Query function (unused, kept for API compatibility)
    * @returns Validation result
    */
   async validate(
     stepId: string,
     _summary: IterationSummary,
-    queryFn: (
+    _queryFn: (
       prompt: string,
       options: { outputSchema?: unknown },
     ) => AsyncIterable<unknown>,
@@ -106,12 +101,16 @@ export class CompletionChain {
 
     this.logger.info(`Validating completion for step: ${stepId}`);
 
-    // Try structured output validation if schema is available
+    // Structured output validation is handled by Closer at runner level
+    // CompletionChain only handles command-based validation fallback
     if (stepConfig.outputSchema) {
-      return await this.validateWithStructuredOutput(stepConfig, queryFn);
+      this.logger.debug(
+        "[CompletionChain] outputSchema defined, validation handled by Closer",
+      );
+      return { valid: true };
     }
 
-    // Fallback to command-based validation
+    // Command-based validation
     if (
       !this.completionValidator ||
       !stepConfig.completionConditions?.length
@@ -172,76 +171,7 @@ export class CompletionChain {
   }
 
   /**
-   * Validate using structured output query.
-   */
-  private async validateWithStructuredOutput(
-    stepConfig: CompletionStepConfig,
-    queryFn: (
-      prompt: string,
-      options: { outputSchema?: unknown },
-    ) => AsyncIterable<unknown>,
-  ): Promise<CompletionValidationResult> {
-    this.logger.info(
-      "[CompletionChain] Using structured output for validation",
-    );
-
-    try {
-      const prompt = buildValidationPrompt();
-      const queryOptions = {
-        outputSchema: {
-          type: "json_schema",
-          schema: stepConfig.outputSchema,
-        },
-      };
-
-      let structuredOutput: Record<string, unknown> | undefined;
-      let queryError: string | undefined;
-
-      const queryIterator = queryFn(prompt, queryOptions);
-
-      for await (const message of queryIterator) {
-        if (!isRecord(message)) continue;
-
-        if (message.type === "result") {
-          if (
-            message.subtype === "success" &&
-            isRecord(message.structured_output)
-          ) {
-            structuredOutput = message.structured_output;
-            this.logger.info("[CompletionChain] Got validation result");
-          } else if (
-            message.subtype === "error_max_structured_output_retries"
-          ) {
-            queryError = "Could not produce valid validation output";
-            this.logger.error(
-              "[CompletionChain] Failed to produce valid output",
-            );
-          }
-        }
-      }
-
-      if (!structuredOutput) {
-        return {
-          valid: false,
-          retryPrompt: queryError ?? "Validation query failed",
-        };
-      }
-
-      return checkValidationResults(structuredOutput, this.logger);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      this.logger.error("[CompletionChain] Query failed", {
-        error: errorMessage,
-      });
-      return {
-        valid: false,
-        retryPrompt: `Validation query failed: ${errorMessage}`,
-      };
-    }
-  }
-
-  /**
-   * Validate using completion conditions (fallback).
+   * Validate using completion conditions.
    */
   private async validateWithConditions(
     stepConfig: CompletionStepConfig,

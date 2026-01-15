@@ -32,14 +32,14 @@
 
 設計を具体化したドキュメント。
 
-| ファイル                   | 内容                             |
-| -------------------------- | -------------------------------- |
-| `02_agent_definition.md`   | agent.json スキーマ              |
-| `03_runner.md`             | Runner の契約と構造              |
-| `05_prompt_system.md`      | C3L プロンプト解決               |
-| `06_action_system.md`      | アクション検出・実行（廃止予定） |
-| `07_config_system.md`      | 設定の階層とマージ               |
-| `08_structured_outputs.md` | Closer 完了判定サブシステム      |
+| ファイル                   | 内容                                 |
+| -------------------------- | ------------------------------------ |
+| `02_agent_definition.md`   | agent.json スキーマ                  |
+| `03_runner.md`             | Runner の契約と構造                  |
+| `05_prompt_system.md`      | C3L プロンプト解決                   |
+| `06_action_system.md`      | アクション検出・実行（廃止予定）     |
+| `07_config_system.md`      | 設定の階層とマージ                   |
+| `08_structured_outputs.md` | CompletionChain (旧 Closer) 完了判定 |
 
 ## 拡張ドキュメント
 

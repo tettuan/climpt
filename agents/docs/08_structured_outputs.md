@@ -1,342 +1,165 @@
 # Closer - 完了判定サブシステム
 
-AI の structured output を中核とした完了判定機構。
+> AI による完了判定を行うサブシステム。C3L プロンプトを使用してチェックリスト
+> 形式で完了状態を検証する。
 
 ## 概要
 
 ### 階層ループ構造
 
-Agent の完了処理は階層的なループ構造を持つ。
+Agent は 1 イテレーションごとに main loop を進める。Structured Output が
+`status: "completed"` もしくは `next_action.action: "complete"` を返した時だけ、
+完了サブループに移行する。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  メインループ（Agent）                                       │
 │  ────────────────────────────────────────────────────────── │
 │  while (!agentComplete) {                                   │
-│    prompt = resolvePrompt()                                 │
-│    response = queryLLM()                                    │
+│    prompt  = buildPrompt()                                  │
+│    result  = queryLLM()                                     │
 │                                                             │
-│    ┌───────────────────────────────────────────────────┐   │
-│    │  サブループ（Closer）                             │   │
-│    │  ──────────────────────────────────────────────── │   │
-│    │  while (!stepComplete) {                          │   │
-│    │    checklist = generateChecklist(structuredOutput)│   │
-│    │    verification = verifyCompletion(checklist)     │   │
-│    │    stepComplete = verification.allComplete        │   │
-│    │  }                                                │   │
-│    └───────────────────────────────────────────────────┘   │
+│    if (declaredComplete(result)) {                          │
+│      validation = Closer.check(stepContext)                 │
+│      if (!validation.complete) {                            │
+│        pendingRetryPrompt = buildCloserRetryPrompt(result)  │
+│        continue // 次の iteration で再実行                   │
+│      }                                                      │
+│    }                                                        │
 │                                                             │
-│    agentComplete = closer.result.complete                   │
+│    agentComplete = completionHandler.isComplete()           │
 │  }                                                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**メインループ**: Agent 全体のタスク遂行 **サブループ（Closer）**:
-ステップごとの完了検証
+「サブループ」は同期的な while ではなく、`Closer` が追加の SDK
+問い合わせを挟み、失敗時は `pendingRetryPrompt` を次の iteration
+の入力に使うことで 再試行サイクルを作っている (runner.ts:273-415)。
 
-### 設計原則
+### 役割分担
 
-```
-AI structured output → Closer prompt → AI checklist 生成 → 完了判定
-```
+- **AgentRunner**: Structured Output から完了宣言を検出し、`Closer` に移譲
+- **Closer** (`agents/closer/closer.ts`): C3L プロンプトを使用した AI ベースの
+  完了判定。チェックリスト形式で `allComplete` と `pendingActions` を返す
+- **CompletionChain** (`agents/runner/completion-chain.ts`): ステップ ID 解決と
+  コマンドベースの検証フォールバック
+- **CompletionValidator**: `steps_registry.json` の `completionConditions`
+  を順番に実行 (コマンド実行・ファイル存在チェック等) し、失敗パターンを抽出
+- **RetryHandler**: 検出した `pattern` を C3L (steps/retry/*) に流し、LLM
+  へ渡す再実行指示を生成
 
-**Closer が行うこと**:
+## データフロー
 
-- AI の structured output を入力として受け取る
-- C3L プロンプトで完了チェックリスト生成を依頼
-- AI に structured output で検証を依頼
-- 完了状態を報告
+### Steps Registry と completion step
 
-**Closer が行わないこと**:
+`.agent/{agentId}/steps_registry.json` に completion step が定義される。例
+(抜粋):
 
-- テストランナー出力の直接パース
-- シェルコマンドの実行
-- 外部状態（git, GitHub 等）の直接チェック
-
-## AI Structured Output
-
-### 入力と出力
-
-```
-┌──────────────────────┐      ┌──────────────────────┐
-│  CloserInput         │      │  CloserResult        │
-│  ──────────────────  │      │  ──────────────────  │
-│  structuredOutput    │  →   │  complete: boolean   │
-│  stepId              │      │  output: {...}       │
-│  c3l: { c2, c3 }     │      │  promptUsed?: string │
-│  context?: {...}     │      │  error?: string      │
-└──────────────────────┘      └──────────────────────┘
-```
-
-### Closer の出力スキーマ
-
-AI は以下のスキーマに従った JSON を返す。
-
-```typescript
-interface CloserStructuredOutput {
-  /** 完了に必要なタスクのチェックリスト */
-  checklist: ChecklistItem[];
-
-  /** すべてのタスクが完了したか */
-  allComplete: boolean;
-
-  /** 完了状態の要約 */
-  summary: string;
-
-  /** 未完了時の残作業 */
-  pendingActions?: string[];
-
-  /** 確信度（0-1） */
-  confidence: number;
-}
-
-interface ChecklistItem {
-  /** タスク識別子 */
-  id: string;
-
-  /** タスクの説明 */
-  description: string;
-
-  /** 完了フラグ */
-  completed: boolean;
-
-  /** 根拠または理由 */
-  evidence?: string;
-}
-```
-
-### 完了判定ロジック
-
-```typescript
-const complete = output.allComplete && output.confidence >= 0.8;
-```
-
-両方の条件を満たす場合のみ完了とみなす:
-
-1. AI がすべてのチェック項目を完了と判定
-2. AI の確信度が 80% 以上
-
-## C3L 連携
-
-### パス構造
-
-```
-.agent/{agentId}/prompts/steps/{c2}/{c3}/
-
-c2 = "complete"  # 完了処理
-c3 = "issue"     # 対象タイプ（例: issue, pr, task）
-```
-
-### ファイル構造例
-
-```
-.agent/iterator/prompts/
-└── steps/
-    └── complete/
-        └── issue/
-            ├── f_default.md           # デフォルトプロンプト
-            └── f_default_retry.md     # リトライ用
-```
-
-### プロンプト例
-
-**`steps/complete/issue/f_default.md`**
-
-```markdown
----
-params:
-  - step_id
----
-
-## 完了判定
-
-以下の structured output を分析し、タスクの完了状態を検証してください。
-
-### 入力データ
-
-{{input}}
-
-### チェック項目
-
-1. コード実装が完了しているか
-2. テストが通過しているか
-3. 変更がコミットされているか
-
-各項目について completed: true/false と evidence を出力してください。
-```
-
-## 実装
-
-### Closer クラス
-
-```typescript
-import { Closer, createCloser } from "./closer.ts";
-
-const closer = createCloser({
-  workingDir: Deno.cwd(),
-  agentId: "iterator",
-  logger: console,
-});
-
-const result = await closer.check(
-  {
-    structuredOutput: previousAIResponse,
-    stepId: "complete.issue",
-    c3l: { c2: "complete", c3: "issue" },
-    context: { issueNumber: 123 },
-  },
-  queryFn,
-);
-
-if (result.complete) {
-  // 完了処理
-} else {
-  // リトライまたは残作業処理
-  console.log(result.output.pendingActions);
-}
-```
-
-### QueryFn インターフェース
-
-```typescript
-type CloserQueryFn = (
-  prompt: string,
-  options: { outputSchema: Record<string, unknown> },
-) => Promise<{
-  structuredOutput?: Record<string, unknown>;
-  error?: string;
-}>;
-```
-
-Closer は AI への問い合わせを `queryFn` に委譲する。これにより:
-
-- SDK の詳細を Closer から分離
-- テスト時のモック注入が容易
-- 異なる LLM バックエンドへの対応が可能
-
-## フロー
-
-### 完了判定フロー
-
-```
-Step 実行
-  │
-  ├─ LLM ループ（タスク遂行）
-  │
-  ├─ structuredOutput 取得
-  │
-  └─ Closer.check()
-       │
-       ├─ C3L プロンプト解決
-       │   └─ steps/complete/{c3}/f_default.md
-       │
-       ├─ AI に検証依頼（structured output）
-       │   └─ outputSchema: CLOSER_OUTPUT_SCHEMA
-       │
-       ├─ 応答パース・検証
-       │
-       └─ 完了判定
-            ├─ allComplete && confidence >= 0.8 → 完了
-            └─ それ以外 → 未完了（pendingActions 参照）
-```
-
-### リトライフロー
-
-```
-未完了判定
-  │
-  ├─ pendingActions から残作業を抽出
-  │
-  ├─ 次の iteration へ渡す
-  │   └─ formatIterationSummary() で要約
-  │
-  └─ LLM に残作業を指示
-       │
-       └─ 再度 Closer.check()
-```
-
-## Runner との統合
-
-### CompletionHandler としての統合
-
-```typescript
-class CloserCompletionHandler implements CompletionHandler {
-  private closer: Closer;
-  private lastResult?: CloserResult;
-
-  async isComplete(): Promise<boolean> {
-    return this.lastResult?.complete ?? false;
-  }
-
-  async checkCompletion(
-    summary: IterationSummary,
-    queryFn: CloserQueryFn,
-  ): Promise<void> {
-    this.lastResult = await this.closer.check(
-      {
-        structuredOutput: summary.structuredOutput ?? {},
-        stepId: this.stepConfig.stepId,
-        c3l: {
-          c2: this.stepConfig.c2,
-          c3: this.stepConfig.c3,
-        },
-      },
-      queryFn,
-    );
-  }
-
-  getCompletionDescription(): string {
-    if (!this.lastResult) return "Not checked";
-    return this.lastResult.output.summary;
+```jsonc
+{
+  "completionSteps": {
+    "complete.issue": {
+      "c2": "retry",
+      "c3": "issue",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "complete.issue"
+      }
+    }
   }
 }
 ```
 
-### 無限ループ防止
+- `c2/c3` は RetryHandler が C3L パスを解決する際に使用 (`steps/retry/issue/…`).
+- `outputSchemaRef` があれば structured output 検証を優先し、なければ
+  `completionConditions` を実行する。
 
-1. **確信度閾値**: `confidence >= 0.8` で低確信の完了宣言を防止
-2. **チェックリスト検証**: 個別項目の `completed` フラグで部分的進捗を追跡
-3. **pendingActions**: 未完了時の具体的な残作業を AI が明示
-4. **iteration 間の継承**: 前回の判定結果を次 iteration に伝達
+### Structured Output スキーマ
 
-## 型定義
+`.agent/iterator/schemas/issue.schema.json#complete.issue`
+は完了レスポンスを定義する。
 
-```typescript
-// 入力
-interface CloserInput {
-  structuredOutput: Record<string, unknown>;
-  stepId: string;
-  c3l: {
-    c2: string;
-    c3: string;
-  };
-  context?: Record<string, unknown>;
-}
-
-// 結果
-interface CloserResult {
-  complete: boolean;
-  output: CloserStructuredOutput;
-  promptUsed?: string;
-  error?: string;
-}
-
-// オプション
-interface CloserOptions {
-  workingDir: string;
-  agentId: string;
-  logger?: CloserLogger;
+```jsonc
+{
+  "required": ["stepId", "status", "summary", "validation"],
+  "properties": {
+    "status": { "type": "string" },
+    "next_action": { "$ref": "common.schema.json#/$defs/nextAction" },
+    "validation": {
+      "type": "object",
+      "required": ["git_clean", "type_check_passed"],
+      "properties": {
+        "git_clean": { "type": "boolean" },
+        "type_check_passed": { "type": "boolean" },
+        "tests_passed": { "type": "boolean" },
+        "lint_passed": { "type": "boolean" },
+        "format_check_passed": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "properties": {
+        "git_status_output": { "type": "string" },
+        "type_check_output": { "type": "string" }
+      }
+    }
+  }
 }
 ```
+
+Checklist/pendingActions
+ではなく、実際のコマンド結果を構造化して返す設計になっている。
+
+## 検証シーケンス
+
+1. **完了宣言の検出**: `hasAICompletionDeclaration` が `status === "completed"`
+   もしくは `next_action.action === "complete"` を見る (runner.ts:1032-1061)。
+2. **Closer 呼び出し**: `Closer.check()` が C3L プロンプト
+   (`steps/complete/issue/f_default.md`) をロードし、SDK query を実行。
+   プロンプトは AI にテスト実行、型チェック、lint、git status、Issue クローズ
+   の各項目を確認・実行させる。
+3. **結果チェック**: Closer が `allComplete` と `checklist` を返す。
+   未完了項目があれば `pendingActions` にまとめられ、`buildCloserRetryPrompt()`
+   でリトライプロンプトを生成 (runner.ts:1053-1085)。
+4. **フォールバック**: スキーマが未指定の場合は `CompletionValidator.validate()`
+   が `completionConditions` の各 validator を
+   順番に実行し、失敗パターンと抽出パラメータを返す
+   (validators/completion/validator.ts:1-119)。
+5. **リトライプロンプト生成**: Closer の場合は `buildCloserRetryPrompt()` が
+   チェックリストの未完了項目から直接生成。フォールバック時は
+   `RetryHandler.buildRetryPrompt()` が pattern をもとに C3L を読む。
+
+## リトライ制御
+
+- `pendingRetryPrompt` に格納された再実行プロンプトは次の iteration
+  開始時にそのまま プロンプトとして使用される (runner.ts:273-290)。
+- 再検証が未完了の間は `completionHandler.isComplete()` を呼ばずにスキップし、
+  強制的にループを継続する (runner.ts:386-401)。
+- rate limit 再試行とは独立しており、completion retry
+  はエージェント内部の論理で完結。
+
+## 実装参照
+
+| 関心事                    | ファイル                                                     |
+| ------------------------- | ------------------------------------------------------------ |
+| 検出〜リトライ制御        | `agents/runner/runner.ts:273-415`                            |
+| Closer 呼び出し           | `agents/runner/runner.ts:940-991`                            |
+| Closer 本体               | `agents/closer/closer.ts`                                    |
+| Closer プロンプト         | `.agent/iterator/prompts/steps/complete/issue/f_default.md`  |
+| Closer リトライプロンプト | `agents/runner/runner.ts:1053-1085 (buildCloserRetryPrompt)` |
+| 条件バリデータ (fallback) | `agents/validators/completion/validator.ts`                  |
+| Retry 用 C3L (fallback)   | `agents/retry/retry-handler.ts`                              |
 
 ## まとめ
 
-| 観点       | 設計方針                                   |
-| ---------- | ------------------------------------------ |
-| 完了判定   | AI structured output による自己検証        |
-| 外部状態   | 直接チェックしない（AI の報告を信頼）      |
-| 階層ループ | メインループ内のサブループとして完了を検証 |
-| C3L 連携   | steps/{c2}/{c3}/ でプロンプト解決          |
-| 確信度     | 0.8 以上で完了（低確信は未完了扱い）       |
-| 残作業     | pendingActions で次 iteration に引き継ぎ   |
-| 拡張性     | queryFn 注入で SDK から分離                |
+| 観点             | 現行の動き                                                                      |
+| ---------------- | ------------------------------------------------------------------------------- |
+| トリガー         | Structured Output の完了宣言 (`status`/`next_action`)                           |
+| サブループ実体   | Closer が C3L プロンプトで AI に検証を依頼し、チェックリストを取得              |
+| 外部状態チェック | Closer プロンプトが AI に `git status`, `deno check` 等の実行を指示             |
+| 失敗時の伝播     | `retryPrompt` を `pendingRetryPrompt` に格納し、次 iteration のプロンプトへ注入 |
+| C3L の使い所     | Closer プロンプト (`steps/complete/*`) で完了条件を定義                         |
+| 将来拡張         | C3L プロンプトを編集して検証内容を強化可能                                      |
