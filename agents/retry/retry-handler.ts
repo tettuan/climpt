@@ -45,7 +45,7 @@ export class RetryHandler {
     this.ctx = ctx;
     this.promptLoader = new C3LPromptLoader({
       agentId: ctx.agentId,
-      configSuffix: "dev",
+      configSuffix: "steps",
       workingDir: ctx.workingDir,
     });
   }
