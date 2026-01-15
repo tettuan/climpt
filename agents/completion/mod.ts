@@ -87,6 +87,13 @@ export {
   type CompositeOperator,
 } from "./composite.ts";
 
+// stepMachine - Complete when step state machine reaches terminal (new)
+export {
+  StepMachineCompletionHandler,
+  type StepState,
+  type StepTransition,
+} from "./step-machine.ts";
+
 // Re-export type utilities from src_common/types.ts
 export {
   ALL_COMPLETION_TYPES,
