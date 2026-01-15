@@ -84,8 +84,8 @@ interface AgentResult {
 ```
 
 > **注**: FormatValidator は `steps_registry.json` で `responseFormat`
-> が定義されている ステップでのみ実行される。現在の iterator 設定では
-> `responseFormat` は未定義のため、 FormatValidator は実行されない。
+> が定義されている ステップでのみ実行される。`complete.issue` ステップには
+> `responseFormat` が設定されており、Issue 完了時に JSON 形式の検証が行われる。
 
 ## コンポーネント
 
@@ -143,8 +143,8 @@ validate(summary, format) → FormatValidationResult
 | `json`         | JSON スキーマ準拠           |
 | `text-pattern` | テキストパターンマッチ      |
 
-> **現状**: iterator の `steps_registry.json` では `responseFormat` は未設定。
-> そのため FormatValidator は現時点では実行されない。
+> **設定例**: `complete.issue` ステップでは `responseFormat` に `json` タイプが
+> 設定されており、`action` と `validation` フィールドの検証が行われる。
 
 ### PromptResolver
 

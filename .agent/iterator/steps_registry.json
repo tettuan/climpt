@@ -146,6 +146,38 @@
         "action": "retry",
         "maxAttempts": 3
       },
+      "check": {
+        "responseFormat": {
+          "type": "json",
+          "schema": {
+            "type": "object",
+            "required": ["action", "validation"],
+            "properties": {
+              "action": { "type": "string" },
+              "validation": {
+                "type": "object",
+                "required": ["git_clean", "type_check_passed"],
+                "properties": {
+                  "git_clean": { "type": "boolean" },
+                  "type_check_passed": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "onPass": {
+          "complete": true
+        },
+        "onFail": {
+          "retry": true,
+          "maxRetries": 3,
+          "retryPrompt": {
+            "c2": "retry",
+            "c3": "issue",
+            "edition": "format"
+          }
+        }
+      },
       "outputSchemaRef": {
         "file": "issue.schema.json",
         "schema": "complete.issue"
