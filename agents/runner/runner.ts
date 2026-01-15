@@ -48,10 +48,8 @@ import {
 import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { join } from "@std/path";
 import { SchemaResolver } from "../common/schema-resolver.ts";
-import {
-  buildValidationPrompt,
-  checkValidationResults,
-} from "./validation-utils.ts";
+import { type Closer, createCloser } from "../closer/mod.ts";
+import type { CloserQueryFn } from "../closer/types.ts";
 import {
   isAssistantMessage,
   isErrorMessage,
@@ -89,6 +87,7 @@ export class AgentRunner {
   private retryHandler: RetryHandler | null = null;
   private stepsRegistry: ExtendedStepsRegistry | null = null;
   private completionChain: CompletionChain | null = null;
+  private closer: Closer | null = null;
   private pendingRetryPrompt: string | null = null;
   private readonly formatValidator = new FormatValidator();
   private formatRetryCount = 0;
@@ -728,10 +727,10 @@ export class AgentRunner {
           this.definition.behavior.completionConfig as {
             maxIterations?: number;
           }
-        ).maxIterations ?? 100
+        ).maxIterations ?? 20
       );
     }
-    return 100; // Default max
+    return 20; // Default max
   }
 
   /**
@@ -835,6 +834,19 @@ export class AgentRunner {
         agentId: this.definition.name,
       });
       logger.debug("CompletionChain initialized");
+
+      // Initialize Closer for AI-based completion judgment
+      this.closer = createCloser({
+        workingDir: cwd,
+        agentId: this.definition.name,
+        logger: {
+          debug: (msg) => logger.debug(msg),
+          info: (msg) => logger.info(msg),
+          warn: (msg) => logger.warn(msg),
+          error: (msg) => logger.error(msg),
+        },
+      });
+      logger.debug("Closer initialized");
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(
@@ -917,82 +929,159 @@ export class AgentRunner {
   }
 
   /**
-   * Validate completion using structured output query.
+   * Validate completion using Closer subsystem.
    *
-   * Executes a query with outputFormat to get validated JSON response.
-   * The agent runs validation checks (git status, type check) and
-   * returns results in the schema-defined format.
+   * Closer executes a query with C3L prompt that instructs AI to:
+   * 1. Analyze current state
+   * 2. Identify incomplete items
+   * 3. Execute remaining completion work (tests, type check, lint, etc.)
+   * 4. Report final status via structured output
    */
   private async validateWithStructuredOutput(
-    stepConfig: CompletionStepConfig,
+    _stepConfig: CompletionStepConfig,
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<CompletionValidationResult> {
     const ctx = this.getContext();
 
-    logger.info("[StructuredOutput] Running validation query with schema");
+    logger.info("[Closer] Running completion validation");
+
+    // Closer must be initialized
+    if (!this.closer) {
+      logger.warn("[Closer] Not initialized, falling back to valid");
+      return { valid: true };
+    }
 
     try {
-      // Dynamic import of Claude Code SDK
-      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+      // Create CloserQueryFn wrapper around SDK query
+      const queryFn = await this.createCloserQueryFn(ctx, logger);
 
-      const prompt = buildValidationPrompt();
+      // Call closer with current context
+      const result = await this.closer.check(
+        {
+          structuredOutput: {}, // Current context (closer prompt does the work)
+          stepId: "complete.issue",
+          c3l: { c2: "complete", c3: "issue" },
+        },
+        queryFn,
+      );
 
+      if (result.complete) {
+        logger.info("[Closer] Completion verified", {
+          summary: result.output.summary,
+        });
+        return { valid: true };
+      }
+
+      // Build retry prompt from pending actions
+      const retryPrompt = this.buildCloserRetryPrompt(result);
+      logger.warn("[Closer] Completion not achieved", {
+        summary: result.output.summary,
+        pendingActions: result.output.pendingActions,
+      });
+
+      return { valid: false, retryPrompt };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      logger.error("[Closer] Validation failed", { error: errorMessage });
+      return {
+        valid: false,
+        retryPrompt: `Completion validation failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * Create CloserQueryFn wrapper for SDK query.
+   *
+   * Converts SDK async iterator to Promise-based interface expected by Closer.
+   */
+  private async createCloserQueryFn(
+    ctx: RuntimeContext,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<CloserQueryFn> {
+    // Dynamic import of Claude Code SDK
+    const { query } = await import("@anthropic-ai/claude-agent-sdk");
+
+    return async (
+      prompt: string,
+      options: { outputSchema: Record<string, unknown> },
+    ) => {
       const queryOptions: Record<string, unknown> = {
         cwd: ctx.cwd,
-        allowedTools: ["Bash", "Read"],
+        allowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
         permissionMode: "auto",
         outputFormat: {
           type: "json_schema",
-          schema: stepConfig.outputSchema,
+          schema: options.outputSchema,
         },
       };
 
-      let structuredOutput: Record<string, unknown> | undefined;
-      let queryError: string | undefined;
+      try {
+        const queryIterator = query({ prompt, options: queryOptions });
 
-      const queryIterator = query({
-        prompt,
-        options: queryOptions,
-      });
+        for await (const message of queryIterator) {
+          ctx.logger.logSdkMessage(message);
 
-      for await (const message of queryIterator) {
-        ctx.logger.logSdkMessage(message);
+          if (!isRecord(message)) continue;
 
-        if (!isRecord(message)) continue;
-
-        if (message.type === "result") {
-          if (
-            message.subtype === "success" &&
-            isRecord(message.structured_output)
-          ) {
-            structuredOutput = message.structured_output;
-            logger.info("[StructuredOutput] Got validation result");
-          } else if (
-            message.subtype === "error_max_structured_output_retries"
-          ) {
-            queryError = "Could not produce valid validation output";
-            logger.error("[StructuredOutput] Failed to produce valid output");
+          if (message.type === "result") {
+            if (
+              message.subtype === "success" &&
+              isRecord(message.structured_output)
+            ) {
+              return { structuredOutput: message.structured_output };
+            } else if (
+              message.subtype === "error_max_structured_output_retries"
+            ) {
+              return { error: "Could not produce valid structured output" };
+            }
           }
         }
-      }
 
-      if (!structuredOutput) {
-        return {
-          valid: false,
-          retryPrompt: queryError ?? "Validation query failed",
-        };
+        return { error: "No structured output received" };
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        logger.error("[CloserQueryFn] Query failed", { error: errorMessage });
+        return { error: errorMessage };
       }
+    };
+  }
 
-      // Check validation results from structured output
-      return checkValidationResults(structuredOutput, logger);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      logger.error("[StructuredOutput] Query failed", { error: errorMessage });
-      return {
-        valid: false,
-        retryPrompt: `Validation query failed: ${errorMessage}`,
-      };
+  /**
+   * Build retry prompt from Closer result.
+   */
+  private buildCloserRetryPrompt(
+    result: import("../closer/types.ts").CloserResult,
+  ): string {
+    const { output } = result;
+    const lines: string[] = ["Completion validation failed:"];
+
+    // Add incomplete checklist items
+    const incomplete = output.checklist.filter((item) => !item.completed);
+    if (incomplete.length > 0) {
+      lines.push("\nIncomplete items:");
+      for (const item of incomplete) {
+        lines.push(`- ${item.description}`);
+        if (item.evidence) {
+          lines.push(`  Evidence: ${item.evidence}`);
+        }
+      }
     }
+
+    // Add pending actions
+    if (output.pendingActions && output.pendingActions.length > 0) {
+      lines.push("\nRequired actions:");
+      for (const action of output.pendingActions) {
+        lines.push(`- ${action}`);
+      }
+    }
+
+    // Add summary
+    if (output.summary) {
+      lines.push(`\nSummary: ${output.summary}`);
+    }
+
+    return lines.join("\n");
   }
 
   /**

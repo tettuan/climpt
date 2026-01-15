@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(initial|continuation|section|retry)$"
+      pattern: "^(initial|continuation|section|retry|complete)$"
     layerType:
       pattern: "^(issue|project|iterate)$"
