@@ -3,16 +3,13 @@
  *
  * Usage Example:
  * ```typescript
- * import { loadConfiguration, AgentLifecycle } from "./agents/mod.ts";
+ * import { AgentRunner, loadAgentDefinition } from "./agents/mod.ts";
  *
- * const definition = await loadConfiguration("my-agent", ".");
- * const agent = new AgentLifecycle(definition);
- * await agent.initialize({ cwd: ".", args: {} });
- * const result = await agent.run();
+ * const definition = await loadAgentDefinition("my-agent", ".");
+ * const runner = new AgentRunner(definition);
+ * await runner.initialize({ cwd: ".", args: {} });
+ * const result = await runner.run();
  * ```
- *
- * Migration to v2 architecture is recommended.
- * See agents/runner/mod.ts for details.
  */
 
 // === V2 Architecture (Recommended) ===
@@ -120,10 +117,3 @@ export { initAgent, run } from "./src_mod.ts";
 // To run agents, use the unified runner:
 //   deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
 //   deno run -A agents/scripts/run-agent.ts --agent reviewer --project 5
-//
-// V2 Usage (recommended):
-//   import { loadConfiguration, AgentLifecycle } from "./agents/mod.ts";
-//   const definition = await loadConfiguration("my-agent", Deno.cwd());
-//   const lifecycle = new AgentLifecycle(definition);
-//   await lifecycle.initialize({ cwd: Deno.cwd(), args: { issue: 123 } });
-//   const result = await lifecycle.run();

@@ -16,37 +16,10 @@ export {
   validate,
 } from "../config/mod.ts";
 
-// Lifecycle Layer
-export {
-  AgentLifecycle,
-  AgentStateMachine,
-  InvalidTransitionError,
-} from "../lifecycle/mod.ts";
-export type {
-  AgentStatus,
-  LifecycleAction,
-  LifecycleContext,
-  LifecycleOptions,
-} from "../lifecycle/mod.ts";
-
 // Loop Layer (FormatValidator now integrated into AgentRunner)
 // Note: IterationExecutor was removed - iteration execution is handled in AgentRunner
 export { FormatValidator, StepContextImpl } from "../loop/mod.ts";
 export type { FormatValidationResult } from "../loop/mod.ts";
-
-// SDK Bridge Layer
-export {
-  ClaudeSdkBridge,
-  mergeSandboxConfig,
-  MessageProcessor,
-  toSdkSandboxConfig,
-} from "../bridge/mod.ts";
-export type {
-  ProcessedMessage,
-  QueryOptions,
-  SdkBridge,
-  SdkMessage,
-} from "../bridge/mod.ts";
 
 // Completion Layer
 export {
