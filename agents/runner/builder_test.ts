@@ -274,16 +274,17 @@ Deno.test("AgentRunnerBuilder - builder methods return this for chaining", () =>
 
   // Create mock factories
   const mockLoggerFactory: LoggerFactory = {
-    create: async (_options: LoggerFactoryOptions) => createMockLogger(),
+    create: (_options: LoggerFactoryOptions) =>
+      Promise.resolve(createMockLogger()),
   };
 
   const mockCompletionFactory: CompletionHandlerFactory = {
-    create: async () => createMockCompletionHandler(),
+    create: () => Promise.resolve(createMockCompletionHandler()),
   };
 
   const mockPromptFactory: PromptResolverFactory = {
-    create: async (_options: PromptResolverFactoryOptions) =>
-      createMockPromptResolver(),
+    create: (_options: PromptResolverFactoryOptions) =>
+      Promise.resolve(createMockPromptResolver()),
   };
 
   // All methods should return the builder for chaining
@@ -298,30 +299,20 @@ Deno.test("AgentRunnerBuilder - builder methods return this for chaining", () =>
 
 Deno.test("AgentRunnerBuilder - custom factories override defaults", async () => {
   const definition = createMinimalDefinition();
-  let customLoggerCalled = false;
-  let customCompletionCalled = false;
-  let customPromptCalled = false;
 
-  // Create tracking mock factories
+  // Create mock factories that return promises
   const mockLoggerFactory: LoggerFactory = {
-    create: async (_options: LoggerFactoryOptions) => {
-      customLoggerCalled = true;
-      return createMockLogger();
-    },
+    create: (_options: LoggerFactoryOptions) =>
+      Promise.resolve(createMockLogger()),
   };
 
   const mockCompletionFactory: CompletionHandlerFactory = {
-    create: async () => {
-      customCompletionCalled = true;
-      return createMockCompletionHandler();
-    },
+    create: () => Promise.resolve(createMockCompletionHandler()),
   };
 
   const mockPromptFactory: PromptResolverFactory = {
-    create: async (_options: PromptResolverFactoryOptions) => {
-      customPromptCalled = true;
-      return createMockPromptResolver();
-    },
+    create: (_options: PromptResolverFactoryOptions) =>
+      Promise.resolve(createMockPromptResolver()),
   };
 
   const builder = new AgentRunnerBuilder()

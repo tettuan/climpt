@@ -227,7 +227,7 @@ Deno.test("IssueCompletionHandler - buildContinuationPrompt", async () => {
   assertEquals(prompt.includes("3"), true);
 });
 
-Deno.test("IssueCompletionHandler - setCurrentSummary stores summary", async () => {
+Deno.test("IssueCompletionHandler - setCurrentSummary stores summary", () => {
   const handler = new IssueCompletionHandler(100);
 
   const summary = createMockIterationSummary({
@@ -426,9 +426,10 @@ Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () =>
     },
   });
 
+  const conditions = definition.behavior.completionConfig.conditions ?? [];
   const handler = new CompositeCompletionHandler(
     "and",
-    definition.behavior.completionConfig.conditions!,
+    conditions,
     {},
     "/test",
     definition,
@@ -454,7 +455,7 @@ Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
 
   const handler = new CompositeCompletionHandler(
     "or",
-    definition.behavior.completionConfig.conditions!,
+    definition.behavior.completionConfig.conditions ?? [],
     {},
     "/test",
     definition,
@@ -485,7 +486,7 @@ Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", a
 
   const handler = new CompositeCompletionHandler(
     "first",
-    definition.behavior.completionConfig.conditions!,
+    definition.behavior.completionConfig.conditions ?? [],
     {},
     "/test",
     definition,
@@ -519,7 +520,7 @@ Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handler
 
   const handler = new CompositeCompletionHandler(
     "and",
-    definition.behavior.completionConfig.conditions!,
+    definition.behavior.completionConfig.conditions ?? [],
     {},
     "/test",
     definition,
@@ -544,7 +545,7 @@ Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", 
 
   const handler = new CompositeCompletionHandler(
     "or",
-    definition.behavior.completionConfig.conditions!,
+    definition.behavior.completionConfig.conditions ?? [],
     {},
     "/test",
     definition,
@@ -560,6 +561,7 @@ Deno.test("CompositeCompletionHandler - throws on unsupported condition type", (
   try {
     new CompositeCompletionHandler(
       "and",
+      // deno-lint-ignore no-explicit-any
       [{ type: "custom" as any, config: {} }],
       {},
       "/test",

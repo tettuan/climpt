@@ -48,8 +48,9 @@ function createValidDefinition(): AgentDefinition {
 
 /**
  * Create an invalid definition (missing required fields)
+ * @internal Reserved for future test cases
  */
-function createInvalidDefinition(): Partial<AgentDefinition> {
+function _createInvalidDefinition(): Partial<AgentDefinition> {
   return {
     name: "test",
     // Missing required fields: version, displayName, description, behavior, prompts, logging

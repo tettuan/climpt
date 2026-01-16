@@ -168,6 +168,7 @@ registerHandler(
     } catch (error) {
       // Fallback to iterate if registry not found
       if (error instanceof Deno.errors.NotFound) {
+        // deno-lint-ignore no-console
         console.warn(
           `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
         );
