@@ -43,13 +43,14 @@ Flow ループは「前へ進むための重力」、Completion ループは「�
     docs/ に保存された意味付けに従う。
   - `handoff` は `stepId.key → uv-stepId_key` の名前空間で蓄積し、Runner が次
     ステップの prompt variables として注入する。
-  - ループは状態を巻き戻さない。Step は「完了」を宣言せず、完了判断は
-    Completion Loop へ委譲する。
+  - ループは状態を巻き戻さない。Step は「完了」を宣言せず、完了判断は Completion
+    Loop へ委譲する。
 
 ## Completion Loop
 
 - **What**: Flow ループから `completionSignal`（structured output 上の
-  `status: "completed"` や `next_action.action: "complete"`）を受け取ったときにだけ
+  `status: "completed"` や
+  `next_action.action: "complete"`）を受け取ったときにだけ
   起動し、完了判定・最終処理・未完了時の指示を担う。
 - **Why**: 収束を担保するための専用ループを用意し、完了判定を手続き的に
   積み重ねる。メインループに検証や後片付けを混ぜると、重力原理に反して責務が
@@ -59,8 +60,8 @@ Flow ループは「前へ進むための重力」、Completion ループは「�
     ユーザーは docs/ に沿って同一の体系で編集できる。
   - Structured Output（JSON Schema で定義）を読み取り、`completionConditions`
     の検証結果、`pendingActions`、`retryPrompt` を Flow ループへ返す。
-  - 失敗しても Flow ループは停止せず、Completion Loop が返した
-    `retryPrompt` を次イテレーションのプロンプトとして使うだけである。
+  - 失敗しても Flow ループは停止せず、Completion Loop が返した `retryPrompt`
+    を次イテレーションのプロンプトとして使うだけである。
 
 ## データ引き継ぎ（handoff）
 
@@ -73,13 +74,14 @@ Step B receives uv-s_a.finding
 
 - 各 Step は「次のステップが何を知るべきか」を明文化し、handoff に格納する。
 - Completion Loop も handoff を参照し、最終報告やエビデンスの提示に使う。
-- 暗黙参照は認めない。handoff に入っていない情報は次ステップに存在しないとみなす。
+- 暗黙参照は認めない。handoff
+  に入っていない情報は次ステップに存在しないとみなす。
 
 ## Prompt 制御の一元化
 
 - すべてのプロンプトは C3L/Climpt の参照規則で指定する。
-- Runner は docs/05_prompt_system.md に従い、`prompts/<c1>/<c2>/<c3>/f_<edition>.md`
-  から読み込むだけである。
+- Runner は docs/05_prompt_system.md
+  に従い、`prompts/<c1>/<c2>/<c3>/f_<edition>.md` から読み込むだけである。
 - これによりユーザーは docs/ のガイドラインだけ追えば Step/Completion 両方の
   プロンプトを差し替えられる。Agent はプロンプトファイルの所在に無知なまま動く。
 
@@ -90,10 +92,10 @@ Step B receives uv-s_a.finding
    を解析するが、実行時はただ次 Step を追うだけ。
 3. **ループ実行**: `prompt = resolve(step)` → `response = query()` → `handoff`
    更新を繰り返す。完了宣言が出ない限り、Flow ループ以外の処理をしない。
-4. **Completion 起動**: `completionSignal` が届いた iteration だけ Completion Loop
-   を呼び、`allComplete` or `retryPrompt` を受け取る。
-5. **終了/継続**: Completion Loop が完了を返せば実行終了。未完了なら
-   Flow ループは `retryPrompt` から次の Step 作業を開始する。
+4. **Completion 起動**: `completionSignal` が届いた iteration だけ Completion
+   Loop を呼び、`allComplete` or `retryPrompt` を受け取る。
+5. **終了/継続**: Completion Loop が完了を返せば実行終了。未完了なら Flow
+   ループは `retryPrompt` から次の Step 作業を開始する。
 
 ## 境界と 1:1 マッピング
 
@@ -102,17 +104,18 @@ Step B receives uv-s_a.finding
 ```
 
 - Flow ループは単一ワークツリー上の連続作業のみ扱う。
-- Completion Loop は「ブランチを clean に戻し、クローズ条件を満たしたか」を見る。
+- Completion Loop は「ブランチを clean
+  に戻し、クローズ条件を満たしたか」を見る。
 - 並列化や複数タスクの配分は外部オーケストレータの責務であり、Agent 内では
   一切扱わない。
 
 ## 実装メモ
 
-| 領域             | 状態 | Why                                                          |
-| ---------------- | ---- | ------------------------------------------------------------ |
-| Flow ループ      | 実装済 | 単方向遷移のみ。状態の巻き戻しを排除。                     |
-| Completion ループ | 実装済 | Structured Output + completionConditions で一貫性維持。     |
-| handoff          | 設計中 | Step Flow 拡張で導入。暗黙共有を排除するため優先度高。     |
+| 領域              | 状態   | Why                                                                             |
+| ----------------- | ------ | ------------------------------------------------------------------------------- |
+| Flow ループ       | 実装済 | 単方向遷移のみ。状態の巻き戻しを排除。                                          |
+| Completion ループ | 実装済 | Structured Output + completionConditions で一貫性維持。                         |
+| handoff           | 設計中 | Step Flow 拡張で導入。暗黙共有を排除するため優先度高。                          |
 | Worktree finalize | 未実装 | run-agent が Step4 (merge/push) を欠いているため、Flow 完了後の操作が残タスク。 |
 
 二重ループ以外の仕組みは、この構造を補助する「周辺惑星」にすぎない。まずコアを
