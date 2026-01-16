@@ -82,7 +82,7 @@ completionSignal(response) =
 
 ```
 if (!allComplete) {
-  pendingRetryPrompt = closer.buildRetryPrompt(pendingActions)
+  pendingRetryPrompt = completionLoop.buildRetryPrompt(pendingActions)
   FlowLoop.nextPrompt = pendingRetryPrompt
 }
 ```

@@ -24,9 +24,9 @@ Flow Loop
 
 ```
 Completion Loop
-  closerPrompt = resolve(c3l.complete, response, handoff)
-  closerResult = queryLLM(closerPrompt)
-  validation   = runCompletionConditions(closerResult)
+  completionPrompt = resolve(c3l.complete, response, handoff)
+  completionResult = queryLLM(completionPrompt)
+  validation       = runCompletionConditions(completionResult)
   if done: return success
   else:    return retryPrompt (used as next Flow prompt)
 ```
@@ -56,8 +56,8 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
     に従って プロンプトを管理できる。
   - Structured Output Schema (`outputSchemaRef`) があれば FormatValidator
     を使用し、 JSON 抽出後に CompletionValidator を走らせる。
-  - 失敗時は RetryHandler が返す C3L プロンプト or Closer の `pendingActions`
-    から 次の Flow ループに渡すテキストを構築する。
+  - 失敗時は Completion Loop が返す `pendingActions` を RetryHandler に渡し、
+    次の Flow ループへ渡す C3L 指示文を構築する。
 
 ## 実行シーケンス
 
