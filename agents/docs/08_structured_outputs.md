@@ -1,165 +1,101 @@
-# Closer - 完了判定サブシステム
+# Completion Loop と Structured Output
 
-> AI による完了判定を行うサブシステム。C3L プロンプトを使用してチェックリスト
-> 形式で完了状態を検証する。
+Flow ループから切り離された完了サブループは、Structured Output を軸に
+「仕事を終わらせたか」を判断する。ここでは **What/Why** を中心に設計を記述し、
+How は必要最小限だけ残す。
 
-## 概要
+## 目的
 
-### 階層ループ構造
+| What                                            | Why                                                             |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| 完了宣言の検証                                  | Flow ループから判断ロジックを排除し、複雑性の重力に従う        |
+| 残作業の明文化                                  | 削除できるタスクを浮かび上がらせ、再実行の指示を一本化する    |
+| Structured Output + 追加検証の連携              | LLM の揺らぎを受け止めつつ、git/test など客観的状態を照合する |
+| 完了プロンプトを C3L / docs ベースで管理させる | プロンプトの所在と意味をユーザーに開放し、変更のエネルギーを下げる |
 
-Agent は 1 イテレーションごとに main loop を進める。Structured Output が
-`status: "completed"` もしくは `next_action.action: "complete"` を返した時だけ、
-完了サブループに移行する。
+## 触媒: completionSignal
+
+Flow ループは Step が返す Structured Output から `completionSignal` を検出したときだけ
+Completion Loop を呼び出す。
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  メインループ（Agent）                                       │
-│  ────────────────────────────────────────────────────────── │
-│  while (!agentComplete) {                                   │
-│    prompt  = buildPrompt()                                  │
-│    result  = queryLLM()                                     │
-│                                                             │
-│    if (declaredComplete(result)) {                          │
-│      validation = Closer.check(stepContext)                 │
-│      if (!validation.complete) {                            │
-│        pendingRetryPrompt = buildCloserRetryPrompt(result)  │
-│        continue // 次の iteration で再実行                   │
-│      }                                                      │
-│    }                                                        │
-│                                                             │
-│    agentComplete = completionHandler.isComplete()           │
-│  }                                                          │
-└─────────────────────────────────────────────────────────────┘
+completionSignal(response) =
+  response.status == "completed" OR
+  response.next_action?.action == "complete"
 ```
 
-「サブループ」は同期的な while ではなく、`Closer` が追加の SDK
-問い合わせを挟み、失敗時は `pendingRetryPrompt` を次の iteration
-の入力に使うことで 再試行サイクルを作っている (runner.ts:273-415)。
+これ以外のケースでは Flow は継続し、Completion Loop は存在を主張しない。
 
-### 役割分担
+## Completion Loop の構成
 
-- **AgentRunner**: Structured Output から完了宣言を検出し、`Closer` に移譲
-- **Closer** (`agents/closer/closer.ts`): C3L プロンプトを使用した AI ベースの
-  完了判定。チェックリスト形式で `allComplete` と `pendingActions` を返す
-- **CompletionChain** (`agents/runner/completion-chain.ts`): ステップ ID 解決と
-  コマンドベースの検証フォールバック
-- **CompletionValidator**: `steps_registry.json` の `completionConditions`
-  を順番に実行 (コマンド実行・ファイル存在チェック等) し、失敗パターンを抽出
-- **RetryHandler**: 検出した `pattern` を C3L (steps/retry/*) に流し、LLM
-  へ渡す再実行指示を生成
+1. **Prompt Resolution**
+   - C3L (`steps/complete/<domain>/f_<edition>.md`) から完了指示用プロンプトを読み込む。
+   - docs/05_prompt_system.md 同様のルールで解決するため、ユーザーは Step プロンプトと同じリズムで管理できる。
 
-## データフロー
+2. **Structured Output 取込み**
+   - `.agent/<agent>/schemas/*.schema.json` の該当セクションで JSON Schema を定義。
+   - Runner は FormatValidator で schema 検証を行い、検証済み値だけを Completion Loop へ渡す。
 
-### Steps Registry と completion step
+3. **Completion Conditions**
+   - `steps_registry.json` の `completionSteps.<id>.completionConditions[]` で宣言。
+   - 各 validator (git clean, type check, tests, lint 等) は `Why: エビデンス` に対応づけられており、未達時は `pattern` と `params` を返す。
 
-`.agent/{agentId}/steps_registry.json` に completion step が定義される。例
-(抜粋):
+4. **Decision & Retry**
+   - `allComplete = true` の場合、Completion Loop は `success` を Flow へ返す。
+   - `false` の場合、`pendingActions` から RetryHandler が C3L (`steps/retry/*`) を解決し、 Flow の次 iteration で使う `retryPrompt` を生成する。
+
+## データモデル
 
 ```jsonc
 {
   "completionSteps": {
     "complete.issue": {
-      "c2": "retry",
-      "c3": "issue",
+      "prompt": { "c1": "steps", "c2": "complete", "c3": "issue" },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "complete.issue"
+      },
       "completionConditions": [
         { "validator": "git-clean" },
         { "validator": "type-check" }
       ],
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "complete.issue"
-      }
+      "onFail": { "retry": true, "maxAttempts": 2 }
     }
   }
 }
 ```
 
-- `c2/c3` は RetryHandler が C3L パスを解決する際に使用 (`steps/retry/issue/…`).
-- `outputSchemaRef` があれば structured output 検証を優先し、なければ
-  `completionConditions` を実行する。
+- **What**: completion step と schema を紐づけ、構造化レスポンスを期待する。
+- **Why**: docs に並ぶ完了チェックリストをそのままコードへ反映するため。
+- **How (最小限)**: Runner は `PromptResolver` と `CompletionChain` を通じて
+  プロンプト → Structured Output → validator 実行 → retryPrompt の順に進めるだけである。
 
-### Structured Output スキーマ
+## retryPrompt の扱い
 
-`.agent/iterator/schemas/issue.schema.json#complete.issue`
-は完了レスポンスを定義する。
-
-```jsonc
-{
-  "required": ["stepId", "status", "summary", "validation"],
-  "properties": {
-    "status": { "type": "string" },
-    "next_action": { "$ref": "common.schema.json#/$defs/nextAction" },
-    "validation": {
-      "type": "object",
-      "required": ["git_clean", "type_check_passed"],
-      "properties": {
-        "git_clean": { "type": "boolean" },
-        "type_check_passed": { "type": "boolean" },
-        "tests_passed": { "type": "boolean" },
-        "lint_passed": { "type": "boolean" },
-        "format_check_passed": { "type": "boolean" }
-      }
-    },
-    "evidence": {
-      "properties": {
-        "git_status_output": { "type": "string" },
-        "type_check_output": { "type": "string" }
-      }
-    }
-  }
+```
+if (!allComplete) {
+  pendingRetryPrompt = closer.buildRetryPrompt(pendingActions)
+  FlowLoop.nextPrompt = pendingRetryPrompt
 }
 ```
 
-Checklist/pendingActions
-ではなく、実際のコマンド結果を構造化して返す設計になっている。
+Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先で使用する。
+これにより「完了判定の再実行」が Flow を分断せずに済む。
 
-## 検証シーケンス
+## なぜ Structured Output なのか
 
-1. **完了宣言の検出**: `hasAICompletionDeclaration` が `status === "completed"`
-   もしくは `next_action.action === "complete"` を見る (runner.ts:1032-1061)。
-2. **Closer 呼び出し**: `Closer.check()` が C3L プロンプト
-   (`steps/complete/issue/f_default.md`) をロードし、SDK query を実行。
-   プロンプトは AI にテスト実行、型チェック、lint、git status、Issue クローズ
-   の各項目を確認・実行させる。
-3. **結果チェック**: Closer が `allComplete` と `checklist` を返す。
-   未完了項目があれば `pendingActions` にまとめられ、`buildCloserRetryPrompt()`
-   でリトライプロンプトを生成 (runner.ts:1053-1085)。
-4. **フォールバック**: スキーマが未指定の場合は `CompletionValidator.validate()`
-   が `completionConditions` の各 validator を
-   順番に実行し、失敗パターンと抽出パラメータを返す
-   (validators/completion/validator.ts:1-119)。
-5. **リトライプロンプト生成**: Closer の場合は `buildCloserRetryPrompt()` が
-   チェックリストの未完了項目から直接生成。フォールバック時は
-   `RetryHandler.buildRetryPrompt()` が pattern をもとに C3L を読む。
+- **重力**: 完了判定に必要な情報を 1 つのオブジェクトに凝集させる。
+- **収束**: 同じ Schema を繰り返し使うほど信頼度が上がる。
+- **エントロピー**: 判定材料がテキストに散らばらないため、時間と共に複雑性が上がらない。
 
-## リトライ制御
+## 実装ノート
 
-- `pendingRetryPrompt` に格納された再実行プロンプトは次の iteration
-  開始時にそのまま プロンプトとして使用される (runner.ts:273-290)。
-- 再検証が未完了の間は `completionHandler.isComplete()` を呼ばずにスキップし、
-  強制的にループを継続する (runner.ts:386-401)。
-- rate limit 再試行とは独立しており、completion retry
-  はエージェント内部の論理で完結。
+| 領域                    | 状況 | Why                                                         |
+| ----------------------- | ---- | ----------------------------------------------------------- |
+| Structured Output Schema | 運用中 | 完了宣言を明示的に検証する唯一のソース                     |
+| FormatValidator         | 拡張中 | 全 Step で schema を定義できていない。整備後に完全検証へ移行 |
+| CompletionConditions    | 安定 | git/type/lint/test 等はここで宣言し、Flow から切り離す      |
+| RetryPrompts            | 運用中 | `steps/retry/*` を C3L で管理し、手作業リトライを排除      |
 
-## 実装参照
-
-| 関心事                    | ファイル                                                     |
-| ------------------------- | ------------------------------------------------------------ |
-| 検出〜リトライ制御        | `agents/runner/runner.ts:273-415`                            |
-| Closer 呼び出し           | `agents/runner/runner.ts:940-991`                            |
-| Closer 本体               | `agents/closer/closer.ts`                                    |
-| Closer プロンプト         | `.agent/iterator/prompts/steps/complete/issue/f_default.md`  |
-| Closer リトライプロンプト | `agents/runner/runner.ts:1053-1085 (buildCloserRetryPrompt)` |
-| 条件バリデータ (fallback) | `agents/validators/completion/validator.ts`                  |
-| Retry 用 C3L (fallback)   | `agents/retry/retry-handler.ts`                              |
-
-## まとめ
-
-| 観点             | 現行の動き                                                                      |
-| ---------------- | ------------------------------------------------------------------------------- |
-| トリガー         | Structured Output の完了宣言 (`status`/`next_action`)                           |
-| サブループ実体   | Closer が C3L プロンプトで AI に検証を依頼し、チェックリストを取得              |
-| 外部状態チェック | Closer プロンプトが AI に `git status`, `deno check` 等の実行を指示             |
-| 失敗時の伝播     | `retryPrompt` を `pendingRetryPrompt` に格納し、次 iteration のプロンプトへ注入 |
-| C3L の使い所     | Closer プロンプト (`steps/complete/*`) で完了条件を定義                         |
-| 将来拡張         | C3L プロンプトを編集して検証内容を強化可能                                      |
+Completion Loop は「完璧な終了体験」を作るための最小構成であり、余計な判断を Flow
+に流さないことだけを約束する。Structured Output はその約束を支える骨格である。

@@ -35,11 +35,11 @@
 | ファイル                   | 内容                                 |
 | -------------------------- | ------------------------------------ |
 | `02_agent_definition.md`   | agent.json スキーマ                  |
-| `03_runner.md`             | Runner の契約と構造                  |
+| `03_runner.md`             | Flow/Completion 二重ループの契約     |
 | `05_prompt_system.md`      | C3L プロンプト解決                   |
 | `06_action_system.md`      | アクション検出・実行（廃止予定）     |
 | `07_config_system.md`      | 設定の階層とマージ                   |
-| `08_structured_outputs.md` | CompletionChain (旧 Closer) 完了判定 |
+| `08_structured_outputs.md` | Completion Loop と Structured Output |
 
 ## 拡張ドキュメント
 

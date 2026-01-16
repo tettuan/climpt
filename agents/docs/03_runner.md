@@ -1,291 +1,102 @@
 # Runner
 
-Agent 実行エンジン。定義を読み込み、ループを実行する。
+Agent 実行エンジン。定義を読み、Flow ループと Completion ループの二重構造を維持
+するだけに徹する。
 
-## 契約
+## 役割
 
-### 読み込み
+| What                               | Why                                                        |
+| ---------------------------------- | ---------------------------------------------------------- |
+| 定義の読み込みと検証               | 変動を実行開始前に封じ、エントロピーを増やさない          |
+| Flow ループの進行管理             | Steps を順序通りに進め、状態を巻き戻さない                |
+| Completion ループのトリガー制御   | 完了判定をメイン処理から切り離し、責務の重力に従う        |
+| handoff / structured output の保持 | 次ステップと完了処理へ情報を流し、暗黙の共有を排除        |
 
-```
-load(agentName, cwd) → AgentDefinition | Error
-
-入力:    Agent 名、作業ディレクトリ
-出力:    パース済み定義
-副作用:  なし
-エラー:  NotFound, ParseError, ValidationError
-```
-
-### 実行
+## ループ構造
 
 ```
-run(options) → AgentResult
-
-入力:    { cwd, args, plugins? }
-出力:    実行結果
-副作用:  LLM 呼び出し、ファイル操作
-前提:    定義が有効
+Flow Loop
+  prompt = resolve(step, handoff)
+  response = queryLLM(prompt)
+  handoff = merge(handoff, extract(response))
+  if completionSignal(response): trigger Completion Loop
 ```
 
-### 結果
+```
+Completion Loop
+  closerPrompt = resolve(c3l.complete, response, handoff)
+  closerResult = queryLLM(closerPrompt)
+  validation   = runCompletionConditions(closerResult)
+  if done: return success
+  else:    return retryPrompt (used as next Flow prompt)
+```
 
-```typescript
+Runner は2つの while を書かない。Flow ループは「継続」だけを担い、Completion
+ループは `completionSignal` を条件に起動される単発処理で、戻り値だけで同期する。
+
+### Flow ループ
+
+- **What**: `steps_registry.json` の Step を順番に実行し、`handoff` を更新する。
+- **Why**: AI が得意な「連続作業」を乱さず、収束判断を後工程に委譲するため。
+- **最小限の How**:
+  - プロンプト参照は C3L 形式 (`c1/c2/c3 + edition`) のみ。Runner は docs/05_prompt_system.md
+    に従ってファイルを読む。
+  - Step の出力から `completionSignal`（structured output の `status` または
+    `next_action`）を取り出す。
+  - `handoff` は Step ID 名前空間で累積し、次ステップの変数として注入する。
+
+### Completion ループ
+
+- **What**: 完了宣言を受け取った iteration だけで走り、完了条件の検証と後処理を行う。
+- **Why**: 完了チェックの複雑さを Flow に持ち込まず、失敗時に retryPrompt を返す
+  仕組みへ収束させるため。
+- **最小限の How**:
+  - `steps/complete/*` の C3L プロンプトで完了指示を生成。ユーザーは docs/ に従って
+    プロンプトを管理できる。
+  - Structured Output Schema (`outputSchemaRef`) があれば FormatValidator を使用し、
+    JSON 抽出後に CompletionValidator を走らせる。
+  - 失敗時は RetryHandler が返す C3L プロンプト or Closer の `pendingActions` から
+    次の Flow ループに渡すテキストを構築する。
+
+## 実行シーケンス
+
+1. **load()**: agent.json / steps_registry.json / schemas / prompts を検証済み構造体に変換。
+2. **init()**: PromptResolver, CompletionChain, FormatValidator, RetryHandler を生成。
+3. **runFlow()**:
+   - Step プロンプト解決 → LLM 呼び出し → structured output 抽出 → handoff 更新。
+   - `completionSignal` が無ければ次 Step へ遷移。
+4. **runCompletion()** (signal ありのときだけ):
+   - Completion プロンプトを C3L から解決。
+   - Structured Output + completionConditions で完了状態を判断。
+   - `retryPrompt` があれば Flow の次 iteration へ渡す。
+5. **result()**: `success`, `reason`, `iterations` を返す。Flow が止まらなければ完了しない。
+
+## 主なコンポーネント
+
+| コンポーネント        | What                                        | Why                                    |
+| --------------------- | ------------------------------------------- | -------------------------------------- |
+| `PromptResolver`      | C3L 参照をローカルパスに射影し、本文を返す | プロンプトの所在を Agent から隠す       |
+| `CompletionChain`     | completionSteps を解決し、検証を実行する   | Completion ループの一貫性を保つ        |
+| `CompletionValidator` | `completionConditions` を評価               | 外部状態（git, test 等）の差分検出     |
+| `FormatValidator`     | Structured Output を schema で検証          | LLM の出力揺らぎを Flow へ持ち込まない |
+| `RetryHandler`        | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映       |
+
+## リトライ設計
+
+- **形式リトライ**: `responseFormat` が設定された Step のみ。最大試行回数を超えると warning を添えて Flow 継続。
+- **完了リトライ**: Completion Loop が `pendingActions` を返した場合、RetryHandler が生成した
+  プロンプトを Flow ループに注入し、目的の Step を再実行させる。
+
+## 成果としての出力
+
+Runner の `AgentResult` は 3 つだけを報告する。
+
+```ts
 interface AgentResult {
-  success: boolean;
-  reason: string;
-  iterations: number;
+  success: boolean;   // Completion Loop が allComplete を返したか
+  reason: string;     // Flow/Completion どちらで止まったのか（人が読むメッセージ）
+  iterations: number; // Flow ループを何回まわしたか
 }
 ```
 
-## 実行フロー
-
-```
-1. 定義読み込み
-   load(name) → definition
-
-2. コンポーネント初期化
-   - CompletionValidator（完了条件検証）
-   - FormatValidator（出力形式検証、オプション）
-   - PromptResolver（プロンプト解決）
-   - RetryHandler（リトライプロンプト生成）
-
-3. ループ実行
-   while (!complete && iteration < maxIterations) {
-     prompt = 解決()
-     response = LLM 問い合わせ()
-     summary = サマリー生成(response)
-
-     // 完了宣言の検出
-     if (hasCompletionSignal(response)) {
-       // 形式検証（responseFormat が設定されている場合のみ）
-       if (step.check.responseFormat) {
-         formatResult = FormatValidator.validate(response)
-         if (!formatResult.valid && formatRetryCount < maxFormatRetries) {
-           formatRetryCount++
-           retryPrompt = 形式エラープロンプト生成()
-           continue
-         }
-       }
-
-       // Structured Output を CompletionHandler に渡す
-       completionHandler.setCurrentSummary(summary)
-
-       // 完了条件検証
-       validation = CompletionValidator.validate(conditions)
-       if (validation.valid) {
-         complete = true
-       } else {
-         retryPrompt = RetryHandler.buildRetryPrompt(validation.pattern)
-       }
-     }
-   }
-
-4. 結果返却
-   { success, reason, iterations }
-```
-
-> **注**: FormatValidator は `steps_registry.json` で `responseFormat`
-> が定義されている ステップでのみ実行される。`complete.issue` ステップには
-> `responseFormat` が設定されており、Issue 完了時に JSON 形式の検証が行われる。
-
-## コンポーネント
-
-### CompletionValidator
-
-完了条件を検証する。詳細は `08_structured_outputs.md` を参照。
-
-```
-validate(conditions) → ValidationResult
-
-入力:    完了条件の配列（steps_registry.json の completionConditions）
-出力:    検証結果（成功 or 失敗パターン + パラメータ）
-副作用:  コマンド実行（git status, deno task test 等）
-```
-
-### CompletionHandler と Structured Output 連携
-
-`CompletionHandler` は `setCurrentSummary()` メソッドで現在の iteration の
-structured output を受け取る。これにより：
-
-1. AI の宣言（`status`, `next_action`）を完了判定に活用
-2. AI 宣言と外部条件の乖離を検出
-3. 次 iteration への継続情報として伝達
-
-```
-setCurrentSummary(summary) → void
-
-入力:    IterationSummary（structuredOutput 含む）
-出力:    なし
-副作用:  内部状態の更新
-```
-
-詳細は `08_structured_outputs.md` の「Structured Output
-の完了判定への統合」を参照。
-
-### FormatValidator（オプション）
-
-LLM 出力の形式を検証する。`steps_registry.json` で `responseFormat`
-が定義されている ステップでのみ実行される。
-
-```
-validate(summary, format) → FormatValidationResult
-
-入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
-出力:    { valid: boolean, error?: string, extracted?: unknown }
-副作用:  なし
-前提:    step.check.responseFormat が定義されている
-```
-
-**検証タイプ**:
-
-| タイプ         | 説明                        |
-| -------------- | --------------------------- |
-| `action-block` | agent-action コードブロック |
-| `json`         | JSON スキーマ準拠           |
-| `text-pattern` | テキストパターンマッチ      |
-
-> **設定例**: `complete.issue` ステップでは `responseFormat` に `json` タイプが
-> 設定されており、`action` と `validation` フィールドの検証が行われる。
-
-### PromptResolver
-
-プロンプトを解決する。
-
-```
-resolve(stepId, variables) → string
-
-入力:    ステップ ID、変数
-出力:    解決済みプロンプト
-副作用:  ファイル読み込み
-```
-
-### RetryHandler
-
-失敗パターンに応じたリトライプロンプトを生成する。
-
-```
-buildRetryPrompt(pattern, params) → string
-
-入力:    失敗パターン名、抽出パラメータ
-出力:    C3L で解決されたリトライプロンプト
-副作用:  なし
-```
-
-## リトライ制御
-
-### 形式リトライ
-
-LLM 出力が期待形式に合致しない場合のリトライ。
-
-```
-設定:
-  step.check.onFail.maxRetries (デフォルト: 3)
-
-動作:
-  formatRetryCount < maxRetries → リトライプロンプトで続行
-  formatRetryCount >= maxRetries → 警告ログを出力し、エラーを記録して続行
-                                    （中断はしない）
-```
-
-### 完了条件リトライ
-
-外部検証（テスト、lint 等）が失敗した場合のリトライ。
-
-```
-設定:
-  step.onFailure.maxAttempts (デフォルト: 3)
-
-動作:
-  失敗パターンに応じた C3L プロンプトで修正を指示
-  maxAttempts 超過 → 中断
-```
-
-## Worktree 連携
-
-設計上、各 Agent インスタンスは独立した worktree で動作する。
-
-```
-1 Issue = 1 Branch = 1 Worktree = 1 Agent Instance
-
-動作:
-  Agent 定義で worktree.enabled = true の場合
-  → setupWorktree() で作業ディレクトリを自動作成
-  → --branch 未指定時はブランチ名を自動生成（例: feature/docs-20260105-143022）
-  → run({ cwd: worktreePath }) で worktree 内で実行
-  → 成功時は cleanupWorktree() で worktree をローカルマージ後削除
-
-オプション:
-  --branch <name>       使用するブランチ名（省略時は自動生成）
-  --base-branch <name>  派生元ブランチ（省略時は現在のブランチ）
-```
-
-> **制限**: 現在の実装はローカルのみ。リモート push や PR
-> 作成は手動で行う必要がある。 失敗時（`result.success = false`）は worktree
-> が残存するため、手動クリーンアップが必要。 詳細は `11_core_architecture.md`
-> の「ライフサイクル制限」を参照。
-
-## 依存性注入
-
-builder.ts で依存性を注入する。
-
-```typescript
-interface RunnerDependencies {
-  logger: Logger;
-  completionHandler: CompletionHandler;
-  promptResolver: PromptResolver;
-  actionFactory?: ActionSystemFactory;
-  completionValidator?: CompletionValidator;
-  retryHandler?: RetryHandler;
-}
-
-// カスタム依存性での実行
-const runner = new AgentRunner(definition, {
-  logger: customLogger,
-  completionValidator: mockValidator,
-});
-```
-
-## SDK 接続
-
-Claude Agent SDK を使用。
-
-```
-query(prompt, options) → response
-
-options:
-  - sessionId: セッション継続
-  - tools: 許可ツール
-  - permissionMode: 権限モード
-  - outputFormat: 構造化出力スキーマ
-```
-
-## エラー処理
-
-```
-回復可能:
-  - 接続タイムアウト → リトライ
-  - レート制限 → 待機してリトライ
-  - セッション期限切れ → 新規セッション
-  - 形式エラー → 形式リトライ
-  - 完了条件失敗 → 条件リトライ
-
-回復不能:
-  - 設定エラー → 即座に停止
-  - ハード上限超過 → 即座に停止
-  - リトライ上限超過 → 即座に停止
-```
-
-## 使用例
-
-```bash
-# 統一 Agent Runner
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
-
-# GitHub Project から Issue を処理
-deno run -A agents/scripts/run-agent.ts --agent iterator --project 5 --label docs
-
-# Worktree 指定（worktree.enabled = true の場合）
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --branch feature/issue-123
-
-# 利用可能な Agent 一覧
-deno run -A agents/scripts/run-agent.ts --list
-```
+この 3 つを正確に届けることが Runner の最終責務であり、余計な状態や副作用を持ち込まない。
