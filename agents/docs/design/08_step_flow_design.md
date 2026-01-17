@@ -59,8 +59,12 @@ flowchart LR
 
 - **What**: intent が `next`/`repeat`/`jump`/`complete` に正規化される。
 - **Why**: Flow Router が解釈する情報を最小化し、AI の回答ぶれを抑える。
-- **Rule**: 非終端 Step は `complete` を返さない。検証 Step のみ `complete`
-  を送る。
+- **Rule**: 非終端 Step は `complete` を返さない。検証 Step（complete.*）のみ
+  `complete` を送る。
+- **Loop safety**: 検証 Step の `transitions` は `complete` を Flow End
+  へ、`repeat` を明示的に別 Step（例: 直前の作業
+  Step）へ向ける。`complete → complete` には ならず、repeat
+  で自身を指した場合だけ再実行となる。
 
 ## 4. Structured Gate + Router
 
