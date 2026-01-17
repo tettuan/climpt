@@ -253,15 +253,82 @@ export function isCompletionStepConfig(
 
 /**
  * Check if the registry is an extended registry
+ *
+ * A registry is considered "extended" if it has any of:
+ * - completionPatterns (for CompletionChain validation)
+ * - validators (for CompletionChain validation)
+ * - steps with structuredGate (for Flow routing)
  */
 export function isExtendedRegistry(
   registry: unknown,
 ): registry is ExtendedStepsRegistry {
+  if (typeof registry !== "object" || registry === null) {
+    return false;
+  }
+
+  // Check for CompletionChain support
+  if ("completionPatterns" in registry || "validators" in registry) {
+    return true;
+  }
+
+  // Check for Flow routing support (structuredGate in any step)
+  if ("steps" in registry && typeof registry.steps === "object") {
+    const steps = registry.steps as Record<string, unknown>;
+    for (const step of Object.values(steps)) {
+      if (
+        typeof step === "object" &&
+        step !== null &&
+        "structuredGate" in step
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if the registry has CompletionChain support
+ * (completionPatterns or validators)
+ */
+export function hasCompletionChainSupport(
+  registry: unknown,
+): boolean {
   return (
     typeof registry === "object" &&
     registry !== null &&
     ("completionPatterns" in registry || "validators" in registry)
   );
+}
+
+/**
+ * Check if the registry has Flow routing support
+ * (at least one step with structuredGate)
+ */
+export function hasFlowRoutingSupport(
+  registry: unknown,
+): boolean {
+  if (typeof registry !== "object" || registry === null) {
+    return false;
+  }
+
+  if (!("steps" in registry) || typeof registry.steps !== "object") {
+    return false;
+  }
+
+  const steps = registry.steps as Record<string, unknown>;
+  for (const step of Object.values(steps)) {
+    if (
+      typeof step === "object" &&
+      step !== null &&
+      "structuredGate" in step
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**

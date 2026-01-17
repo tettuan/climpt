@@ -8,7 +8,6 @@
  * @example Run iterator agent
  * ```bash
  * deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
- * deno run -A agents/scripts/run-agent.ts --agent iterator --project 5
  * ```
  *
  * @example Run reviewer agent
@@ -49,12 +48,8 @@ Options:
 
 Iterator Options:
   --issue, -i <number>   GitHub Issue number to work on
-  --project, -p <number> GitHub Project number to work on
-  --project-owner <name> GitHub Project owner (user/org)
-  --label <name>         Filter project issues by label
   --iterate-max <n>      Maximum iterations (default: 100)
   --resume               Resume previous session
-  --include-completed    Include Done items from project board
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
 
@@ -75,9 +70,6 @@ Examples:
   # Work on a GitHub Issue
   run-agent.ts --agent iterator --issue 123
 
-  # Work on a GitHub Project
-  run-agent.ts --agent iterator --project 5 --label docs
-
   # Review an issue
   run-agent.ts --agent reviewer --issue 123
 `);
@@ -87,8 +79,6 @@ async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     string: [
       "agent",
-      "project-owner",
-      "label",
       "branch",
       "base-branch",
       "requirements-label",
@@ -101,7 +91,6 @@ async function main(): Promise<void> {
       "init",
       "list",
       "resume",
-      "include-completed",
       "no-merge",
       "push",
       "create-pr",
@@ -110,7 +99,6 @@ async function main(): Promise<void> {
       a: "agent",
       h: "help",
       i: "issue",
-      p: "project",
       m: "iterate-max",
     },
   });

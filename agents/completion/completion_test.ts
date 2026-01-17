@@ -966,6 +966,10 @@ Deno.test("MockStateChecker - retrieves state by issue number", async () => {
 
 /**
  * Create a mock steps registry for testing
+ *
+ * All Flow steps must have:
+ * - structuredGate: defines how to extract intent from AI response
+ * - transitions: maps intents to next steps
  */
 function createMockStepsRegistry(
   overrides: Partial<ExtendedStepsRegistry> = {},
@@ -974,6 +978,7 @@ function createMockStepsRegistry(
     agentId: "test-agent",
     version: "1.0.0",
     c1: "steps",
+    entryStep: "initial.test",
     steps: {
       "initial.test": {
         stepId: "initial.test",
@@ -984,6 +989,16 @@ function createMockStepsRegistry(
         fallbackKey: "initial_test",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "next",
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "initial.test" },
+          complete: { target: "complete" },
+        },
       },
       "continuation.test": {
         stepId: "continuation.test",
@@ -994,6 +1009,16 @@ function createMockStepsRegistry(
         fallbackKey: "continuation_test",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "next",
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "continuation.test" },
+          complete: { target: "complete" },
+        },
       },
     },
   };
@@ -1059,8 +1084,9 @@ Deno.test("StepMachineCompletionHandler - getNextStep initial to continuation", 
   assertEquals(transition.passed, true);
 });
 
-Deno.test("StepMachineCompletionHandler - getNextStep no continuation returns complete", () => {
+Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", () => {
   const registry = createMockStepsRegistry({
+    entryStep: "initial.single",
     steps: {
       "initial.single": {
         stepId: "initial.single",
@@ -1071,6 +1097,15 @@ Deno.test("StepMachineCompletionHandler - getNextStep no continuation returns co
         fallbackKey: "initial_single",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "complete",
+        },
+        transitions: {
+          next: { target: "complete" },
+          complete: { target: "complete" },
+        },
       },
     },
   });
@@ -1102,6 +1137,7 @@ Deno.test("StepMachineCompletionHandler - transition updates state", () => {
 
 Deno.test("StepMachineCompletionHandler - transition to complete", () => {
   const registry = createMockStepsRegistry({
+    entryStep: "initial.only",
     steps: {
       "initial.only": {
         stepId: "initial.only",
@@ -1112,6 +1148,15 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
         fallbackKey: "initial_only",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "complete",
+        },
+        transitions: {
+          next: { target: "complete" },
+          complete: { target: "complete" },
+        },
       },
     },
   });
@@ -1139,6 +1184,7 @@ Deno.test("StepMachineCompletionHandler - isComplete false initially", async () 
 
 Deno.test("StepMachineCompletionHandler - isComplete true after transition to complete", async () => {
   const registry = createMockStepsRegistry({
+    entryStep: "initial.final",
     steps: {
       "initial.final": {
         stepId: "initial.final",
@@ -1149,6 +1195,15 @@ Deno.test("StepMachineCompletionHandler - isComplete true after transition to co
         fallbackKey: "initial_final",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "complete",
+        },
+        transitions: {
+          next: { target: "complete" },
+          complete: { target: "complete" },
+        },
       },
     },
   });
@@ -1228,6 +1283,7 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription not complete"
 
 Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete", async () => {
   const registry = createMockStepsRegistry({
+    entryStep: "initial.end",
     steps: {
       "initial.end": {
         stepId: "initial.end",
@@ -1238,6 +1294,15 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
         fallbackKey: "initial_end",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "complete",
+        },
+        transitions: {
+          next: { target: "complete" },
+          complete: { target: "complete" },
+        },
       },
     },
   });
@@ -1247,11 +1312,11 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
 
   const desc = await handler.getCompletionDescription();
 
-  // Description should indicate no more steps or terminal state
+  // Description should indicate completion via transition
   assertEquals(
-    desc.includes("No more steps") ||
-      desc.includes("terminal") ||
-      desc.includes("complete"),
+    desc.includes("Transition") ||
+      desc.includes("complete") ||
+      desc.includes("intent"),
     true,
   );
 });

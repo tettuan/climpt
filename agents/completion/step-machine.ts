@@ -115,20 +115,22 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
   }
 
   /**
-   * Get default entry step from registry
+   * Get default entry step from registry.
+   *
+   * Entry step must be explicitly configured via entryStep or entryStepMapping.
+   * No implicit fallback is allowed.
    */
   private getDefaultEntryStep(): string {
-    // Try steps registry first
-    const stepIds = Object.keys(this.registry.steps);
-
-    // Look for "initial" prefixed steps
-    const initialSteps = stepIds.filter((id) => id.startsWith("initial."));
-    if (initialSteps.length > 0) {
-      return initialSteps[0];
+    // Try entryStep from registry
+    if (this.registry.entryStep) {
+      return this.registry.entryStep;
     }
 
-    // Fallback to first step
-    return stepIds[0] ?? "initial";
+    // No implicit fallback - entry step must be configured
+    throw new Error(
+      `[StepMachine] No entry step configured in registry. ` +
+        `Add "entryStep" or "entryStepMapping" to steps_registry.json.`,
+    );
   }
 
   /**
@@ -140,43 +142,50 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
 
   /**
    * Get next step based on current step result.
-   * Uses transitions from step definition if available, otherwise defaults to initial -> continuation flow.
+   *
+   * All Flow steps must define transitions in the step definition.
+   * No implicit fallback is allowed - missing transitions will throw an error.
    */
   getNextStep(result: StepResult): StepTransition {
     const { stepId, passed } = result;
     const stepDef = this.registry.steps[stepId];
 
-    // Use transitions from step definition if available
-    if (stepDef?.transitions) {
-      const intent = passed ? "next" : "repeat";
-      const rule = stepDef.transitions[intent];
-      if (rule && "target" in rule) {
-        return {
-          nextStep: rule.target === "complete" ? "complete" : rule.target,
-          passed,
-          reason: `Transition via ${intent} intent`,
-        };
-      }
+    if (!stepDef) {
+      throw new Error(
+        `[StepMachine] Step "${stepId}" not found in registry. ` +
+          `Check steps_registry.json for missing step definition.`,
+      );
     }
 
-    // Default transition: initial -> continuation
-    const parts = stepId.split(".");
-    if (parts[0] === "initial") {
-      const continuationStep = `continuation.${parts.slice(1).join(".")}`;
-      if (this.registry.steps[continuationStep]) {
-        return {
-          nextStep: continuationStep,
-          passed,
-          reason: "Initial step complete, moving to continuation",
-        };
-      }
+    if (!stepDef.transitions) {
+      throw new Error(
+        `[StepMachine] Step "${stepId}" has no transitions defined. ` +
+          `All Flow steps must define transitions. ` +
+          `Add a "transitions" object to the step definition in steps_registry.json.`,
+      );
     }
 
-    // No explicit transition - consider complete
+    const intent = passed ? "next" : "repeat";
+    const rule = stepDef.transitions[intent];
+
+    if (!rule) {
+      throw new Error(
+        `[StepMachine] Step "${stepId}" has no transition for intent "${intent}". ` +
+          `Add "${intent}" to the transitions object in steps_registry.json.`,
+      );
+    }
+
+    if (!("target" in rule)) {
+      throw new Error(
+        `[StepMachine] Step "${stepId}" transition for "${intent}" has no target. ` +
+          `Conditional transitions are not yet supported. Use { "target": "..." } format.`,
+      );
+    }
+
     return {
-      nextStep: "complete",
+      nextStep: rule.target === "complete" ? "complete" : rule.target,
       passed,
-      reason: "No more steps defined",
+      reason: `Transition via ${intent} intent`,
     };
   }
 

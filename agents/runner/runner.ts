@@ -33,7 +33,8 @@ import type { CompletionValidator } from "../validators/completion/validator.ts"
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
   type ExtendedStepsRegistry,
-  isExtendedRegistry,
+  hasCompletionChainSupport,
+  hasFlowRoutingSupport,
   type OutputSchemaRef,
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
@@ -584,6 +585,12 @@ export class AgentRunner {
 
   /**
    * Initialize Completion validation system
+   *
+   * Loads StepRegistry and initializes components based on registry capabilities:
+   * - CompletionChain support (completionPatterns/validators): Initialize CompletionValidator, RetryHandler, CompletionChain
+   * - Flow routing support (structuredGate in steps): Initialize StepGateInterpreter, WorkflowRouter
+   *
+   * A registry is always loaded if it exists and has either capability.
    */
   private async initializeCompletionValidation(
     agentDir: string,
@@ -596,65 +603,83 @@ export class AgentRunner {
       const content = await Deno.readTextFile(registryPath);
       const registry = JSON.parse(content);
 
-      if (!isExtendedRegistry(registry)) {
+      // Check for extended registry capabilities
+      const hasCompletionChain = hasCompletionChainSupport(registry);
+      const hasFlowRouting = hasFlowRoutingSupport(registry);
+
+      if (!hasCompletionChain && !hasFlowRouting) {
         logger.debug(
-          "Registry is not extended format, skipping completion validation setup",
+          "Registry has no extended capabilities (no completionPatterns, validators, or structuredGate), skipping setup",
         );
         return;
       }
 
-      this.stepsRegistry = registry;
+      // Store registry with proper typing (use local variable for type narrowing)
+      const stepsRegistry: ExtendedStepsRegistry = registry;
+      this.stepsRegistry = stepsRegistry;
+
+      const capabilities: string[] = [];
+      if (hasCompletionChain) capabilities.push("CompletionChain");
+      if (hasFlowRouting) capabilities.push("FlowRouting");
       logger.info(
-        "Loaded extended steps registry with completion validation support",
+        `Loaded steps registry with capabilities: ${capabilities.join(", ")}`,
       );
 
-      // Initialize CompletionValidator factory
-      const validatorFactory = this.dependencies.completionValidatorFactory;
-      if (validatorFactory) {
-        if (isInitializable(validatorFactory)) {
-          await validatorFactory.initialize();
+      // Initialize CompletionChain components if supported
+      if (hasCompletionChain) {
+        // Initialize CompletionValidator factory
+        const validatorFactory = this.dependencies.completionValidatorFactory;
+        if (validatorFactory) {
+          if (isInitializable(validatorFactory)) {
+            await validatorFactory.initialize();
+          }
+          this.completionValidator = validatorFactory.create({
+            registry: stepsRegistry,
+            workingDir: cwd,
+            logger,
+            agentId: this.definition.name,
+          });
+          logger.debug("CompletionValidator initialized");
         }
-        this.completionValidator = validatorFactory.create({
-          registry: this.stepsRegistry,
+
+        // Initialize RetryHandler factory
+        const retryFactory = this.dependencies.retryHandlerFactory;
+        if (retryFactory) {
+          if (isInitializable(retryFactory)) {
+            await retryFactory.initialize();
+          }
+          this.retryHandler = retryFactory.create({
+            registry: stepsRegistry,
+            workingDir: cwd,
+            logger,
+            agentId: this.definition.name,
+          });
+          logger.debug("RetryHandler initialized");
+        }
+
+        // Initialize CompletionChain
+        this.completionChain = new CompletionChain({
           workingDir: cwd,
           logger,
+          stepsRegistry: stepsRegistry,
+          completionValidator: this.completionValidator,
+          retryHandler: this.retryHandler,
           agentId: this.definition.name,
         });
-        logger.debug("CompletionValidator initialized");
+        logger.debug("CompletionChain initialized");
       }
 
-      // Initialize RetryHandler factory
-      const retryFactory = this.dependencies.retryHandlerFactory;
-      if (retryFactory) {
-        if (isInitializable(retryFactory)) {
-          await retryFactory.initialize();
-        }
-        this.retryHandler = retryFactory.create({
-          registry: this.stepsRegistry,
-          workingDir: cwd,
-          logger,
-          agentId: this.definition.name,
-        });
-        logger.debug("RetryHandler initialized");
+      // Initialize Flow routing components if supported
+      if (hasFlowRouting) {
+        // Validate that all Flow steps have structuredGate and transitions
+        this.validateFlowSteps(stepsRegistry, logger);
+
+        this.stepGateInterpreter = new StepGateInterpreter();
+        this.workflowRouter = new WorkflowRouter(
+          stepsRegistry as unknown as StepRegistry,
+        );
+        logger.debug("StepGateInterpreter and WorkflowRouter initialized");
       }
-
-      // Initialize CompletionChain
-      this.completionChain = new CompletionChain({
-        workingDir: cwd,
-        logger,
-        stepsRegistry: this.stepsRegistry,
-        completionValidator: this.completionValidator,
-        retryHandler: this.retryHandler,
-        agentId: this.definition.name,
-      });
-      logger.debug("CompletionChain initialized");
-
-      // Initialize StepGateInterpreter and WorkflowRouter for structured gate flow
-      this.stepGateInterpreter = new StepGateInterpreter();
-      this.workflowRouter = new WorkflowRouter(
-        this.stepsRegistry as unknown as StepRegistry,
-      );
-      logger.debug("StepGateInterpreter and WorkflowRouter initialized");
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(
@@ -664,6 +689,65 @@ export class AgentRunner {
         logger.warn(`Failed to load steps registry: ${error}`);
       }
     }
+  }
+
+  /**
+   * Validate that all Flow steps have structuredGate and transitions.
+   *
+   * Flow steps are all steps except those prefixed with "section." (template sections).
+   * Missing structuredGate or transitions will throw an error.
+   */
+  private validateFlowSteps(
+    stepsRegistry: ExtendedStepsRegistry,
+    logger: import("../src_common/logger.ts").Logger,
+  ): void {
+    const missingGate: string[] = [];
+    const missingTransitions: string[] = [];
+
+    for (const [stepId, stepDef] of Object.entries(stepsRegistry.steps)) {
+      // Skip template sections (section.* prefix)
+      if (stepId.startsWith("section.")) {
+        continue;
+      }
+
+      const step = stepDef as PromptStepDefinition;
+
+      if (!step.structuredGate) {
+        missingGate.push(stepId);
+      }
+
+      if (!step.transitions) {
+        missingTransitions.push(stepId);
+      }
+    }
+
+    if (missingGate.length > 0 || missingTransitions.length > 0) {
+      const errors: string[] = [];
+
+      if (missingGate.length > 0) {
+        errors.push(
+          `Steps missing structuredGate: ${missingGate.join(", ")}`,
+        );
+      }
+
+      if (missingTransitions.length > 0) {
+        errors.push(
+          `Steps missing transitions: ${missingTransitions.join(", ")}`,
+        );
+      }
+
+      throw new Error(
+        `[StepFlow] Flow validation failed. All Flow steps must define ` +
+          `structuredGate and transitions.\n${errors.join("\n")}\n` +
+          `See agents/docs/step_flow_design.md for requirements.`,
+      );
+    }
+
+    logger.debug(
+      `Flow validation passed: ${
+        Object.keys(stepsRegistry.steps).length
+      } steps validated`,
+    );
   }
 
   /**
@@ -772,8 +856,8 @@ export class AgentRunner {
   /**
    * Get step ID for a given iteration.
    *
-   * For iteration 1: Uses entryStepMapping from registry if available,
-   * otherwise constructs initial.{completionType}.
+   * For iteration 1: Uses entryStepMapping or entryStep from registry.
+   * Entry step must be explicitly configured - no implicit fallback is allowed.
    *
    * For iteration > 1: Requires currentStepId to be set by structured gate routing.
    * Errors if no routing has occurred, enforcing the documented contract that
@@ -792,7 +876,7 @@ export class AgentRunner {
       return this.currentStepId;
     }
 
-    // For iteration 1: Use registry-based lookup if available
+    // For iteration 1: Use registry-based lookup
     const completionType = this.definition.behavior.completionType;
 
     // Try entryStepMapping first
@@ -805,8 +889,11 @@ export class AgentRunner {
       return this.stepsRegistry.entryStep;
     }
 
-    // Default construction for iteration 1
-    return `initial.${completionType}`;
+    // No implicit fallback - entry step must be explicitly configured
+    throw new Error(
+      `[StepFlow] No entry step configured for completionType "${completionType}". ` +
+        `Define either "entryStepMapping.${completionType}" or "entryStep" in steps_registry.json.`,
+    );
   }
 
   /**

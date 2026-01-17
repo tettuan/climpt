@@ -93,10 +93,35 @@ initial.issue ──> continuation.issue
 ## 厳格な Step 定義要件
 
 **すべての Flow Step は `structuredGate` と `transitions`
-を定義しなければならない。**
+を定義しなければならない。** 暗黙のフォールバックは一切許可されない。
 
-- 初回 iteration: `entryStepMapping` または `initial.{completionType}` で Step
+### Entry Step の設定
+
+- 初回 iteration: `entryStepMapping[completionType]` または `entryStep` で Step
   を決定
+- **どちらも未定義の場合はエラー**（暗黙の `initial.{completionType}`
+  フォールバックは無効）
+
+```
+[StepFlow] No entry step configured for completionType "issue".
+Define either "entryStepMapping.issue" or "entryStep" in steps_registry.json.
+```
+
+### ロード時検証
+
+Runner は steps_registry.json をロードする際、すべての Flow Step（`section.*`
+を除く）に `structuredGate` と `transitions` が定義されていることを検証する。
+検証に失敗した場合はエラー:
+
+```
+[StepFlow] Flow validation failed. All Flow steps must define structuredGate and transitions.
+Steps missing structuredGate: initial.issue, continuation.issue
+Steps missing transitions: initial.issue
+See agents/docs/step_flow_design.md for requirements.
+```
+
+### 実行時検証
+
 - 2 回目以降: Structured Gate のルーティング結果 (`currentStepId`) を使用
 - ルーティングが発生しない場合（`structuredGate` 未定義など）、次 iteration
   でエラー
@@ -110,8 +135,8 @@ Check steps_registry.json for missing gate configuration.
 これにより、設定ミスが即座に検出され、暗黙のフォールバックによる不正動作を防ぐ。
 
 `section.*` プレフィックスの Step（例:
-`section.projectcontext`）はテンプレートセク ションであり、Flow Step
-ではないため `structuredGate` は不要。
+`section.projectcontext`）はテンプレートセクションであり、Flow Step ではないため
+`structuredGate` は不要。
 
 ## StructuredGate の仕組み
 
