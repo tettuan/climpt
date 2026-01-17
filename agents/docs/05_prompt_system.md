@@ -1,76 +1,54 @@
-# Prompt System Design
+# プロンプトシステム
 
-## Overview
+Climpt の C3L 構造でプロンプトを管理し、UV 変数で動的に展開する。
 
-The prompt system integrates with Climpt to resolve and render prompt templates.
-It uses the C3L (Category/Classification/Chapter) path structure and UV variable
-substitution provided by Climpt's breakdown engine.
-
-## Architecture
+## 契約
 
 ```
-+-------------------------------------------------------------------------+
-|                         Prompt Resolution Flow                           |
-+-------------------------------------------------------------------------+
+resolve(stepId, variables) → string | Error
 
-  +--------------+
-  | Step ID      |  e.g., "initial_issue"
-  | (Logical ID) |
-  +------+-------+
-         |
-         v
-  +--------------+
-  | Step Registry|  .agent/{name}/steps_registry.json
-  | (Step Mapping|  -> Maps to C3L coordinates
-  +------+-------+
-         |
-         v
-  +----------------------------------------------------------+
-  | C3L Path                                                   |
-  | .agent/{name}/prompts/{c1}/{c2}/{c3}/f_{edition}.md        |
-  | e.g., .agent/iterator/prompts/steps/initial/issue/f_default.md |
-  +------+-----------------------------------------------------+
-         |
-         v
-  +--------------+
-  | Climpt Engine|  Template rendering, UV substitution
-  | (via CLI)    |
-  +------+-------+
-         |
-         v
-  +--------------+
-  | Rendered     |  Final prompt with variables replaced
-  | Prompt       |
-  +--------------+
+入力:    ステップ ID、UV 変数
+出力:    解決済みプロンプト文字列
+副作用:  ファイル読み込み
+エラー:  NotFound（ファイル不存在）
+保証:    空文字は返さない
 ```
 
-## Directory Structure
+## C3L 構造
+
+Category / Classification / Chapter でプロンプトを整理。
+
+```
+prompts/{c1}/{c2}/{c3}/f_{edition}.md
+
+例:
+prompts/steps/initial/issue/f_default.md
+prompts/steps/continuation/manual/f_detailed.md
+```
+
+### ディレクトリ構造
 
 ```
 .agent/{agent-name}/
-+-- steps_registry.json          # Step -> C3L mapping
-+-- prompts/
-    +-- system.md                # System prompt
-    +-- steps/                   # C3L: c1 = "steps"
-        +-- initial/             # C3L: c2 = "initial"
-        |   +-- issue/           # C3L: c3 = "issue"
-        |   |   +-- f_default.md
-        |   +-- iterate/         # C3L: c3 = "iterate"
-        |   |   +-- f_default.md
-        |   +-- manual/          # C3L: c3 = "manual"
-        |       +-- f_default.md
-        +-- continuation/        # C3L: c2 = "continuation"
-            +-- issue/
-            |   +-- f_default.md
-            +-- iterate/
-            |   +-- f_default.md
-            +-- manual/
-                +-- f_default.md
+└── prompts/
+    ├── system.md
+    └── steps/                # c1 = "steps"
+        ├── initial/          # c2 = "initial"
+        │   ├── issue/        # c3 = "issue"
+        │   │   └── f_default.md
+        │   ├── iterate/
+        │   │   └── f_default.md
+        │   └── manual/
+        │       └── f_default.md
+        └── continuation/     # c2 = "continuation"
+            ├── issue/
+            │   └── f_default.md
+            └── ...
 ```
 
-## Steps Registry
+## steps_registry.json
 
-Maps logical step IDs to C3L paths and variables.
+ステップ ID と C3L パスのマッピング。
 
 ```json
 {
@@ -78,445 +56,88 @@ Maps logical step IDs to C3L paths and variables.
   "basePath": "prompts",
   "steps": {
     "system": {
-      "name": "System Prompt",
+      "name": "システムプロンプト",
       "path": "system.md",
       "variables": ["uv-agent_name", "uv-completion_criteria"]
     },
     "initial_issue": {
-      "name": "Issue Initial Prompt",
+      "name": "Issue 初期プロンプト",
       "c1": "steps",
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
       "variables": ["uv-issue_number"]
     },
-    "initial_iterate": {
-      "name": "Iterate Initial Prompt",
-      "c1": "steps",
-      "c2": "initial",
-      "c3": "iterate",
-      "edition": "default",
-      "variables": ["uv-max_iterations"]
-    },
-    "initial_manual": {
-      "name": "Manual Initial Prompt",
-      "c1": "steps",
-      "c2": "initial",
-      "c3": "manual",
-      "edition": "default",
-      "variables": ["uv-topic", "uv-completion_keyword"],
-      "useStdin": true
-    },
     "continuation_issue": {
-      "name": "Issue Continuation Prompt",
+      "name": "Issue 継続プロンプト",
       "c1": "steps",
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
       "variables": ["uv-iteration", "uv-issue_number"]
-    },
-    "continuation_iterate": {
-      "name": "Iterate Continuation Prompt",
-      "c1": "steps",
-      "c2": "continuation",
-      "c3": "iterate",
-      "edition": "default",
-      "variables": ["uv-iteration", "uv-max_iterations", "uv-remaining"]
-    },
-    "continuation_manual": {
-      "name": "Manual Continuation Prompt",
-      "c1": "steps",
-      "c2": "continuation",
-      "c3": "manual",
-      "edition": "default",
-      "variables": ["uv-iteration", "uv-completion_keyword"]
     }
-  },
-  "editions": {
-    "default": "Standard",
-    "detailed": "Detailed",
-    "brief": "Brief"
   }
 }
 ```
 
-## PromptResolver Implementation
+## UV 変数
 
-```typescript
-// agents/common/prompt-resolver.ts
+User Variable。プロンプト内で `{{uv-xxx}}` で参照。
 
-import { join } from "@std/path";
+| 変数                     | 説明             |
+| ------------------------ | ---------------- |
+| `uv-agent_name`          | Agent 識別子     |
+| `uv-completion_criteria` | 完了条件テキスト |
+| `uv-issue_number`        | Issue 番号       |
+| `uv-iteration`           | 現在の回数       |
+| `uv-max_iterations`      | 最大回数         |
+| `uv-completion_keyword`  | 完了キーワード   |
 
-export interface PromptResolverOptions {
-  agentName: string;
-  agentDir: string;
-  registryPath: string;
-}
+## プロンプトテンプレート
 
-export interface StepRegistry {
-  version: string;
-  basePath: string;
-  steps: Record<string, StepDefinition>;
-  editions?: Record<string, string>;
-}
-
-export interface StepDefinition {
-  name: string;
-  path?: string; // Direct path (for system prompt)
-  c1?: string; // C3L category
-  c2?: string; // C3L classification
-  c3?: string; // C3L chapter
-  edition?: string; // Edition (default: "default")
-  variables?: string[]; // Expected UV variables
-  useStdin?: boolean; // Pass input via stdin
-}
-
-export class PromptResolver {
-  private agentDir: string;
-  private registry: StepRegistry;
-
-  private constructor(agentDir: string, registry: StepRegistry) {
-    this.agentDir = agentDir;
-    this.registry = registry;
-  }
-
-  static async create(options: PromptResolverOptions): Promise<PromptResolver> {
-    const registryPath = join(options.agentDir, options.registryPath);
-    const content = await Deno.readTextFile(registryPath);
-    const registry = JSON.parse(content) as StepRegistry;
-
-    return new PromptResolver(options.agentDir, registry);
-  }
-
-  async resolve(
-    stepId: string,
-    variables: Record<string, string>,
-  ): Promise<string> {
-    const step = this.registry.steps[stepId];
-    if (!step) {
-      throw new Error(`Unknown step: ${stepId}`);
-    }
-
-    // Build path
-    const promptPath = step.path ?? this.buildC3LPath(step);
-    const fullPath = join(this.agentDir, this.registry.basePath, promptPath);
-
-    // Use Climpt for rendering
-    try {
-      return await this.renderWithClimpt(fullPath, variables, step.useStdin);
-    } catch (error) {
-      // Fallback to direct file read with simple substitution
-      return await this.renderFallback(fullPath, variables);
-    }
-  }
-
-  async resolveSystemPrompt(
-    variables: Record<string, string>,
-  ): Promise<string> {
-    return await this.resolve("system", variables);
-  }
-
-  private buildC3LPath(step: StepDefinition): string {
-    if (!step.c1 || !step.c2 || !step.c3) {
-      throw new Error(`Step requires c1, c2, c3 or path`);
-    }
-
-    const edition = step.edition ?? "default";
-    return join(step.c1, step.c2, step.c3, `f_${edition}.md`);
-  }
-
-  private async renderWithClimpt(
-    path: string,
-    variables: Record<string, string>,
-    useStdin?: boolean,
-  ): Promise<string> {
-    // Build Climpt CLI arguments
-    const args = ["--return", path];
-
-    for (const [key, value] of Object.entries(variables)) {
-      if (key.startsWith("uv-")) {
-        args.push(`--${key}`, value);
-      }
-    }
-
-    const command = new Deno.Command("climpt", {
-      args,
-      stdin: useStdin ? "piped" : "null",
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    const process = command.spawn();
-
-    if (useStdin && variables.input_text) {
-      const writer = process.stdin.getWriter();
-      await writer.write(new TextEncoder().encode(variables.input_text));
-      await writer.close();
-    }
-
-    const output = await process.output();
-
-    if (!output.success) {
-      const stderr = new TextDecoder().decode(output.stderr);
-      throw new Error(`Climpt rendering failed: ${stderr}`);
-    }
-
-    return new TextDecoder().decode(output.stdout);
-  }
-
-  private async renderFallback(
-    path: string,
-    variables: Record<string, string>,
-  ): Promise<string> {
-    const content = await Deno.readTextFile(path);
-
-    // Simple template substitution
-    return content.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-      const varKey = key.trim();
-      return variables[varKey] ?? variables[`uv-${varKey}`] ?? `{{${key}}}`;
-    });
-  }
-}
-```
-
-## Prompt Templates
-
-### System Prompt Template
+### system.md
 
 ```markdown
-<!-- .agent/{name}/prompts/system.md --> ---
-
-## schema: prompt version: 1.0.0
-
 # {{uv-agent_name}} Agent
 
-You are operating as the **{{uv-agent_name}}** agent.
-
-## Completion Criteria
+## 完了条件
 
 {{uv-completion_criteria}}
 
-## Guidelines
+## ガイドライン
 
-- Think step by step
-- Report progress regularly
-- Ask for clarification when needed
-- Follow the completion criteria closely
+- 段階的に思考する
+- 定期的に進捗を報告する
+- 完了条件に従う
 ```
 
-### Initial Prompt Template (Manual)
+### initial/issue/f_default.md
 
 ```markdown
-<!-- .agent/{name}/prompts/steps/initial/manual/f_default.md --> ---
+# Issue #{{uv-issue_number}} 対応開始
 
-## schema: prompt version: 1.0.0
-
-# Session Start
-
-## Topic
-
-{{uv-topic}}
-
-## Objective
-
-{{input_text}}
-
----
-
-Begin the session. When complete, output `{{uv-completion_keyword}}`.
+Issue の内容を確認し、作業を開始してください。 完了したら Issue
+をクローズしてください。
 ```
 
-### Continuation Prompt Template (Manual)
+## Edition
 
-```markdown
-<!-- .agent/{name}/prompts/steps/continuation/manual/f_default.md --> ---
+同一ステップの異なるバリエーション。
 
-## schema: prompt version: 1.0.0
-
-# Continuation (Iteration {{uv-iteration}})
-
-Continue working on the task.
-
-When complete, output `{{uv-completion_keyword}}`.
+```
+f_default.md   # 標準
+f_detailed.md  # 詳細
+f_brief.md     # 簡潔
 ```
 
-### Initial Prompt Template (Iterate)
+steps_registry.json で `edition` を指定。
 
-```markdown
-<!-- .agent/{name}/prompts/steps/initial/iterate/f_default.md --> ---
+## 解決フロー
 
-## schema: prompt version: 1.0.0
-
-# Task Start
-
-This task will run for up to **{{uv-max_iterations}}** iterations.
-
-## Objective
-
-{{input_text}}
-
----
-
-Begin iteration 1. Make progress and report what you accomplished.
 ```
-
-### Continuation Prompt Template (Iterate)
-
-```markdown
-<!-- .agent/{name}/prompts/steps/continuation/iterate/f_default.md --> ---
-
-## schema: prompt version: 1.0.0
-
-# Iteration {{uv-iteration}} of {{uv-max_iterations}}
-
-**Remaining iterations:** {{uv-remaining}}
-
-Continue making progress. Report what you accomplished this iteration.
-```
-
-## UV Variables
-
-UV (User Variable) variables are passed to Climpt for substitution:
-
-| Variable                 | Description              | Example            |
-| ------------------------ | ------------------------ | ------------------ |
-| `uv-agent_name`          | Agent identifier         | `iterator`         |
-| `uv-completion_criteria` | Completion criteria text | `Close Issue #123` |
-| `uv-topic`               | User-provided topic      | `Q1 Planning`      |
-| `uv-issue_number`        | GitHub Issue number      | `123`              |
-| `uv-iteration`           | Current iteration        | `3`                |
-| `uv-max_iterations`      | Maximum iterations       | `10`               |
-| `uv-remaining`           | Remaining iterations     | `7`                |
-| `uv-completion_keyword`  | Keyword for completion   | `TASK_COMPLETE`    |
-
-## Climpt Integration
-
-### Via CLI
-
-```bash
-# Render prompt with UV variables
-climpt --return .agent/iterator/prompts/steps/initial/manual/f_default.md \
-  --uv-topic "Q1 Planning" \
-  --uv-completion_keyword "SESSION_COMPLETE"
-
-# With stdin input
-echo "Facilitate the discussion" | climpt --return ... --uv-topic "Q1 Planning"
-```
-
-### Via Programmatic API (if available)
-
-```typescript
-import { renderPrompt } from "@aidevtool/climpt";
-
-const rendered = await renderPrompt({
-  path: ".agent/iterator/prompts/steps/initial/manual/f_default.md",
-  uvVariables: {
-    "uv-topic": "Q1 Planning",
-    "uv-completion_keyword": "SESSION_COMPLETE",
-  },
-  stdin: "Facilitate the discussion",
-});
-```
-
-## Fallback Provider
-
-When Climpt is unavailable, a fallback provider handles basic rendering:
-
-```typescript
-// agents/common/fallback-prompts.ts
-
-export interface FallbackPromptProvider {
-  get(stepId: string, variables: Record<string, string>): string;
-}
-
-export class DefaultFallbackProvider implements FallbackPromptProvider {
-  private templates: Record<string, string> = {
-    "initial_iterate": `
-# Task Start
-
-This task will run for up to {uv-max_iterations} iterations.
-
-Begin working on the task and report progress.
-    `,
-    "continuation_iterate": `
-# Iteration {uv-iteration}/{uv-max_iterations}
-
-Remaining: {uv-remaining} iterations.
-
-Continue making progress.
-    `,
-    "initial_manual": `
-# Session Start
-
-Topic: {uv-topic}
-
-Begin the session. When complete, output "{uv-completion_keyword}".
-    `,
-    "continuation_manual": `
-# Continuation (Iteration {uv-iteration})
-
-Continue the session. When complete, output "{uv-completion_keyword}".
-    `,
-  };
-
-  get(stepId: string, variables: Record<string, string>): string {
-    const template = this.templates[stepId];
-    if (!template) {
-      throw new Error(`No fallback template for step: ${stepId}`);
-    }
-
-    // Simple variable substitution
-    return template.replace(
-      /\{([^}]+)\}/g,
-      (_, key) => variables[key] ?? `{${key}}`,
-    );
-  }
-}
-```
-
-## Best Practices
-
-### Prompt Organization
-
-1. **System Prompt**: Keep it focused on agent identity and behavior
-2. **Initial Prompts**: Set up context and goals
-3. **Continuation Prompts**: Focus on progress and next steps
-4. **Use Editions**: Create variations (default, detailed, brief)
-
-### Variable Naming
-
-1. Use `uv-` prefix for all UV variables
-2. Use snake_case for variable names
-3. Document expected variables in steps_registry.json
-
-### Template Writing
-
-1. Use markdown for formatting
-2. Include frontmatter for metadata
-3. Keep prompts focused and clear
-4. Avoid hardcoding values - use variables
-
-## Testing Prompts
-
-```typescript
-// tests/prompts/resolver_test.ts
-
-import { assertEquals } from "@std/assert";
-import { PromptResolver } from "../../agents/common/prompt-resolver.ts";
-
-Deno.test("PromptResolver - resolves initial manual prompt", async () => {
-  const resolver = await PromptResolver.create({
-    agentName: "test-agent",
-    agentDir: "./fixtures/agent",
-    registryPath: "steps_registry.json",
-  });
-
-  const prompt = await resolver.resolve("initial_manual", {
-    "uv-topic": "Test Topic",
-    "uv-completion_keyword": "DONE",
-  });
-
-  assertStringIncludes(prompt, "Test Topic");
-  assertStringIncludes(prompt, "DONE");
-});
+1. ステップ ID で registry を検索
+2. C3L パスを構築（または直接パス）
+3. ファイルを読み込み
+4. UV 変数を展開
+5. 結果を返す
 ```

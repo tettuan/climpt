@@ -2,21 +2,24 @@
  * Common Agent Types
  *
  * Shared type definitions for all agent implementations.
+ *
+ * NOTE: Core types (PermissionMode, LoggingConfig) are defined in src_common/types.ts
+ * and re-exported here for backward compatibility.
  */
+
+// Import for internal use
+import type { PermissionMode as PermissionModeType } from "../src_common/types.ts";
+
+// Re-export core types from src_common for backward compatibility
+export type { LoggingConfig, PermissionMode } from "../src_common/types.ts";
+
+// Type alias for internal use within this file
+type PermissionMode = PermissionModeType;
 
 /**
  * Agent name type
  */
 export type AgentName = string;
-
-/**
- * Permission mode types (from Claude Agent SDK)
- */
-export type PermissionMode =
-  | "default"
-  | "plan"
-  | "acceptEdits"
-  | "bypassPermissions";
 
 /**
  * Log levels
@@ -125,14 +128,7 @@ export interface BaseAgentConfig {
   permissionMode: PermissionMode;
 }
 
-/**
- * Base logging configuration
- */
-export interface LoggingConfig {
-  directory: string;
-  maxFiles: number;
-  format: string;
-}
+// LoggingConfig is re-exported from src_common/types.ts at the top of this file
 
 /**
  * Base iteration summary
@@ -158,13 +154,17 @@ export interface BaseIterationSummary {
 }
 
 // ============================================================================
-// Worktree Configuration
+// Worktree Setup Configuration
 // ============================================================================
 
 /**
- * Worktree configuration
+ * Worktree setup configuration for runtime operations.
+ *
+ * NOTE: This is different from WorktreeConfig in src_common/types.ts.
+ * - WorktreeConfig (src_common): Agent definition config (enabled, root)
+ * - WorktreeSetupConfig (common): Runtime worktree setup behavior
  */
-export interface WorktreeConfig {
+export interface WorktreeSetupConfig {
   /**
    * Enable worktree mode
    * - true: --branch option is enabled, work in worktree
@@ -231,9 +231,9 @@ export interface MergeResult {
 }
 
 /**
- * Default worktree configuration
+ * Default worktree setup configuration
  */
-export const DEFAULT_WORKTREE_CONFIG: WorktreeConfig = {
+export const DEFAULT_WORKTREE_SETUP_CONFIG: WorktreeSetupConfig = {
   forceWorktree: false,
   worktreeRoot: "../worktree",
 };

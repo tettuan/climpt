@@ -10,7 +10,7 @@
  */
 
 import { join } from "@std/path";
-import type { StepDefinition, StepRegistry } from "./step-registry.ts";
+import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 
 /**
@@ -169,7 +169,7 @@ export class PromptResolver {
   /**
    * Build C3L path from step definition
    */
-  private buildC3LPath(step: StepDefinition): C3LPath {
+  private buildC3LPath(step: PromptStepDefinition): C3LPath {
     return {
       c1: this.registry.c1,
       c2: step.c2,
@@ -187,7 +187,7 @@ export class PromptResolver {
    * @returns Resolution result or null if breakdown fails or returns empty
    */
   private async tryBreakdown(
-    step: StepDefinition,
+    step: PromptStepDefinition,
     variables: PromptVariables,
   ): Promise<PromptResolutionResult | null> {
     const c3lPath = this.buildC3LPath(step);
@@ -222,7 +222,7 @@ export class PromptResolver {
    * @returns Resolution result
    */
   private useFallback(
-    step: StepDefinition,
+    step: PromptStepDefinition,
     variables: PromptVariables,
   ): PromptResolutionResult {
     const rawContent = this.fallbackProvider.getPrompt(step.fallbackKey);
@@ -252,7 +252,7 @@ export class PromptResolver {
    */
   private processContent(
     rawContent: string,
-    step: StepDefinition,
+    step: PromptStepDefinition,
     variables: PromptVariables,
   ): string {
     // Strip frontmatter if enabled
@@ -281,7 +281,7 @@ export class PromptResolver {
    */
   private substituteVariables(
     content: string,
-    step: StepDefinition,
+    step: PromptStepDefinition,
     variables: PromptVariables,
   ): string {
     // Validate required UV variables
@@ -358,7 +358,7 @@ export class PromptResolver {
   /**
    * Build prompt file path from step definition
    */
-  private buildPromptPath(step: StepDefinition): string {
+  private buildPromptPath(step: PromptStepDefinition): string {
     const edition = step.edition ?? "default";
     const filename = step.adaptation
       ? `f_${edition}_${step.adaptation}.md`

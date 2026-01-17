@@ -20,11 +20,10 @@ import {
   type IterationSummary,
 } from "./types.ts";
 import { IssueCompletionHandler } from "./issue.ts";
-import { ProjectCompletionHandler } from "./project.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
-import { CheckBudgetCompletionHandler } from "./check_budget.ts";
-import { StructuredSignalCompletionHandler } from "./structured_signal.ts";
+import { CheckBudgetCompletionHandler } from "./check-budget.ts";
+import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 import { resolveCompletionType } from "../src_common/types.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
@@ -66,16 +65,6 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
           handler = new IssueCompletionHandler(
             this.args.issue as number,
             this.args.repository as string | undefined,
-          );
-          break;
-        }
-
-        case "phaseCompletion": {
-          handler = new ProjectCompletionHandler(
-            this.args.project as number,
-            this.args.label as string | undefined,
-            this.args.projectOwner as string | undefined,
-            this.args.includeCompleted as boolean | undefined,
           );
           break;
         }

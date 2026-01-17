@@ -1,9 +1,18 @@
 /**
  * Prompt resolver with Climpt integration
+ *
+ * @refactored Using adapter pattern for prompt loading (v2)
  */
 
 import { join } from "@std/path";
 import { DefaultFallbackProvider } from "./fallback.ts";
+import type { Variables } from "../src_common/contracts.ts";
+import {
+  FilePromptAdapter,
+  PromptAdapter,
+  PromptNotFoundError,
+} from "./adapter.ts";
+import { substituteVariables } from "./variable-substitutor.ts";
 
 export interface PromptResolverOptions {
   agentName: string;
@@ -178,5 +187,115 @@ export class PromptResolver {
 
   listSteps(): string[] {
     return Object.keys(this.registry.steps);
+  }
+}
+
+// ============================================================================
+// V2 Types and Implementation
+// ============================================================================
+
+/**
+ * Options for PromptResolverV2.
+ */
+export interface ResolverOptions {
+  agentName: string;
+  agentDir: string;
+  registryPath?: string;
+  fallbackDir?: string;
+  adapter?: PromptAdapter;
+  fallbackAdapter?: PromptAdapter;
+}
+
+/**
+ * Prompt reference for V2 resolver.
+ * Supports both file paths and C3L references.
+ */
+export interface PromptReferenceV2 {
+  path?: string;
+  c1?: string;
+  c2?: string;
+  c3?: string;
+  edition?: string;
+}
+
+/**
+ * Prompt Resolver (v2)
+ *
+ * Resolves prompts from files or external sources using the adapter pattern.
+ * This version provides cleaner separation of concerns:
+ * - Adapter: handles file/CLI access
+ * - Substitutor: handles variable replacement
+ * - Resolver: orchestrates the process
+ */
+export class PromptResolverV2 {
+  private readonly adapter: PromptAdapter;
+  private readonly fallbackAdapter?: PromptAdapter;
+  private readonly agentDir: string;
+  private readonly systemPromptPath: string;
+
+  constructor(private readonly options: ResolverOptions) {
+    this.adapter = options.adapter ?? new FilePromptAdapter();
+    this.fallbackAdapter = options.fallbackAdapter;
+    this.agentDir = options.agentDir;
+    this.systemPromptPath = join(options.agentDir, "prompts", "system.md");
+  }
+
+  /**
+   * Resolve a prompt by reference.
+   *
+   * @param ref - Prompt reference (path or C3L)
+   * @param variables - Variables for substitution
+   * @returns Resolved prompt content
+   */
+  async resolve(
+    ref: PromptReferenceV2,
+    variables: Variables = {},
+  ): Promise<string> {
+    const path = this.buildPath(ref);
+
+    let content: string;
+    try {
+      content = await this.adapter.load(path);
+    } catch (error) {
+      if (error instanceof PromptNotFoundError && this.fallbackAdapter) {
+        content = await this.fallbackAdapter.load(path);
+      } else {
+        throw error;
+      }
+    }
+
+    return substituteVariables(content, variables);
+  }
+
+  /**
+   * Resolve the system prompt.
+   *
+   * @param variables - Variables for substitution
+   * @returns Resolved system prompt content
+   */
+  async resolveSystemPrompt(variables: Variables = {}): Promise<string> {
+    const content = await this.adapter.load(this.systemPromptPath);
+    return substituteVariables(content, variables);
+  }
+
+  /**
+   * Build file path from reference.
+   */
+  private buildPath(ref: PromptReferenceV2): string {
+    if (ref.path) {
+      // Relative paths are resolved from agent directory
+      if (!ref.path.startsWith("/")) {
+        return join(this.agentDir, ref.path);
+      }
+      return ref.path;
+    }
+
+    // C3L reference - return as is for Climpt adapter
+    if (ref.c1 && ref.c2 && ref.c3) {
+      const path = `${ref.c1}/${ref.c2}/${ref.c3}`;
+      return ref.edition ? `${path}:${ref.edition}` : path;
+    }
+
+    throw new Error("Invalid prompt reference: must have path or c1/c2/c3");
   }
 }

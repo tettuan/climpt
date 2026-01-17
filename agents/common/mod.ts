@@ -7,14 +7,28 @@
 export * from "./types.ts";
 export { createLogger, Logger, summarizeToolInput } from "./logger.ts";
 
+// Git utilities (shared)
+export {
+  checkoutBranch as gitCheckoutBranch,
+  commit as gitCommit,
+  getCurrentBranch,
+  getRepoRoot,
+  GitCommandError,
+  type GitCommandResult,
+  hasUncommittedChanges as gitHasUncommittedChanges,
+  isInsideWorktree as gitIsInsideWorktree,
+  pushBranch as gitPushBranch,
+  runGit,
+  runGitSafe,
+  stageAll,
+} from "./git-utils.ts";
+
 // Worktree utilities
 export {
   cleanupWorktree,
   createWorktree,
   generateBranchName,
-  getCurrentBranch,
   getMainWorktreePath,
-  getRepoRoot,
   isInsideWorktree,
   listWorktrees,
   removeWorktree,
@@ -37,9 +51,13 @@ export {
 
 // Step registry for prompt externalization
 export type {
+  GateIntent,
+  PromptStepDefinition,
   RegistryLoaderOptions,
-  StepDefinition,
   StepRegistry,
+  StructuredGate,
+  TransitionRule,
+  Transitions,
 } from "./step-registry.ts";
 export {
   addStepDefinition,
@@ -78,3 +96,6 @@ export {
   PromptLogger,
   timePromptResolution,
 } from "./prompt-logger.ts";
+
+// Schema resolver for structured output
+export { resolveSchema, SchemaResolver } from "./schema-resolver.ts";

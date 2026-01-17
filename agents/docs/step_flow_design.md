@@ -1,378 +1,208 @@
 # Step Flow Design
 
-## Overview
+Flow ループが扱う Step の鎖を「単純だが堅牢な状態遷移」に落とし込むための設計。
+What/Why を中心に記述し、How は設定例に留める。
 
-Step flow is an execution model that defines agent execution as a chain of named
-steps. Each step has an independent prompt, and completion checks and transition
-conditions control the transition to the next step.
+## Why: 単方向と引き継ぎ
 
-## Comparison with Traditional Model
+- Flow ループは「進む」以外をしない。Step Flow は遷移図を明文化し、戻る必要が
+  ある場合でも Step 自身が `transitions` を宣言する。
+- 各 Step は次の Step に渡す `handoffFields` を定義し、暗黙依存を排除する。
+- ループに分岐ロジックや検証ロジックを埋め込まないことで、AI の局所最適化
+  志向（哲学ドキュメント参照）による複雑化を防ぐ。
 
-### Traditional: Iteration-Based
+## What: Step の要素
+
+| 要素                           | 説明                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| `stepId`                       | `initial.<c3>` や `continuation.<c3>` 形式で識別                          |
+| `c2`, `c3`, `edition`          | C3L パス構成要素。Completion Handler が PromptResolver を介して解決に使う |
+| `fallbackKey`                  | 組み込みプロンプトへのフォールバックキー                                  |
+| `structuredGate`               | AI 応答から intent を抽出し、遷移を決定するための設定                     |
+| `transitions`                  | intent から次の Step を決定するマッピング                                 |
+| `structuredGate.handoffFields` | 次の Step に渡すデータのパス（JSON path 形式）                            |
+
+## Step Flow のレイアウト
 
 ```
-iteration 1 -> initial prompt
-iteration 2 -> continuation prompt (same)
-iteration 3 -> continuation prompt (same)
-...
+initial.issue ──> continuation.issue
+     │                   │
+     ▼                   ▼
+  complete.issue   (repeat or complete)
 ```
 
-- Simple, but difficult to handle different processing per phase
-- Only one completion condition for the entire execution
+- `handoffFields` で指定したデータは StepContext に蓄積される
+- completion 判定は `structuredGate.allowedIntents` に `complete` を含め、 AI が
+  `next_action.action: "complete"` を返すことで signal を送る
 
-### New Model: Step Flow
+## Schema 例
 
-```
-step "analyze"   -> analysis prompt -> check -> OK ->
-step "implement" -> implement prompt -> check -> NG -> fallback ->
-step "review"    -> review prompt -> check -> OK -> complete
-```
-
-- Dedicated prompt and check for each step
-- Conditional branching, fallback, and retry are possible
-- State machine-like control
-
----
-
-## Schema
-
-### steps_registry.json
-
-```json
+```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/tettuan/climpt/main/agents/schemas/steps_registry.schema.json",
-  "version": "2.0.0",
-  "basePath": "prompts",
-  "entryStep": "s_a8f3",
+  "$schema": "https://.../steps_registry.schema.json",
   "steps": {
-    "s_a8f3": {
-      "id": "s_a8f3",
-      "name": "Code Analysis",
-      "prompt": {
-        "c1": "steps",
-        "c2": "phase",
-        "c3": "analyze"
+    "initial.issue": {
+      "stepId": "initial.issue",
+      "name": "Issue Initial Prompt",
+      "c2": "initial",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "issue_initial_default",
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "initial.issue"
       },
-      "iterations": { "min": 1, "max": 1 },
-      "check": {
-        "prompt": {
-          "c1": "checks",
-          "c2": "step",
-          "c3": "analyze"
-        },
-        "responseFormat": {
-          "result": "ok|ng",
-          "message": "string"
-        },
-        "onPass": { "next": "s_b2c1" },
-        "onFail": { "retry": true, "maxRetries": 2 }
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "targetField": "next_action.details.target",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "analysis.understanding",
+          "analysis.approach",
+          "issue"
+        ]
+      },
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "initial.issue" },
+        "complete": { "target": "complete.issue" }
       }
     },
-    "s_b2c1": {
-      "id": "s_b2c1",
-      "name": "Implementation",
-      "prompt": {
-        "c1": "steps",
-        "c2": "phase",
-        "c3": "implement"
+    "continuation.issue": {
+      "stepId": "continuation.issue",
+      "name": "Issue Continuation Prompt",
+      "c2": "continuation",
+      "c3": "issue",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
       },
-      "iterations": { "min": 1, "max": 5 },
-      "check": {
-        "prompt": {
-          "c1": "checks",
-          "c2": "step",
-          "c3": "implement"
-        },
-        "responseFormat": {
-          "result": "ok|ng",
-          "message": "string"
-        },
-        "onPass": { "next": "s_c9d4" },
-        "onFail": { "fallback": "s_a8f3" }
-      }
-    },
-    "s_c9d4": {
-      "id": "s_c9d4",
-      "name": "Review",
-      "prompt": {
-        "c1": "steps",
-        "c2": "phase",
-        "c3": "review"
-      },
-      "iterations": { "min": 1, "max": 1 },
-      "check": {
-        "prompt": {
-          "c1": "checks",
-          "c2": "completion",
-          "c3": "final"
-        },
-        "responseFormat": {
-          "result": "ok|ng",
-          "message": "string"
-        },
-        "onPass": { "complete": true },
-        "onFail": { "fallback": "s_b2c1" }
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "continuation.issue" },
+        "complete": { "target": "complete.issue" }
       }
     }
   }
 }
 ```
 
----
+## 厳格な Step 定義要件
 
-## Components
+**すべての Flow Step は `structuredGate` と `transitions`
+を定義しなければならない。**
 
-### Step ID
-
-- Format: `s_` + 4-8 digit hexadecimal hash
-- Example: `s_a8f3`, `s_b2c1de`
-- Identifier resistant to insertion and reordering
-
-### PromptReference
-
-Two methods for referencing prompt files:
-
-**Path Specification:**
-
-```json
-{ "path": "system.md" }
-```
-
-**C3L Specification:**
-
-```json
-{
-  "c1": "steps",
-  "c2": "phase",
-  "c3": "analyze",
-  "edition": "default"
-}
-```
-
--> `prompts/steps/phase/analyze/f_default.md`
-
-### IterationConfig
-
-```json
-{
-  "min": 1, // Minimum execution count
-  "max": 5 // Maximum execution count
-}
-```
-
-- `min`: Minimum number of step executions (default: 1)
-- `max`: Maximum number of step executions (default: 1)
-
-### CheckDefinition
-
-Check configuration at step completion:
-
-```json
-{
-  "prompt": { "c1": "checks", "c2": "step", "c3": "analyze" },
-  "responseFormat": {
-    "result": "ok|ng",
-    "message": "string"
-  },
-  "onPass": { "next": "s_b2c1" },
-  "onFail": { "retry": true, "maxRetries": 2 }
-}
-```
-
-### TransitionDefinition
-
-Definition of transition destination:
-
-| Property     | Description                         |
-| ------------ | ----------------------------------- |
-| `next`       | Next step ID                        |
-| `fallback`   | Fallback step ID on failure         |
-| `retry`      | Re-execute same step                |
-| `maxRetries` | Maximum retry count (0 = unlimited) |
-| `complete`   | Agent completion                    |
-
----
-
-## Directory Structure
+- 初回 iteration: `entryStepMapping` または `initial.{completionType}` で Step
+  を決定
+- 2 回目以降: Structured Gate のルーティング結果 (`currentStepId`) を使用
+- ルーティングが発生しない場合（`structuredGate` 未定義など）、次 iteration
+  でエラー
 
 ```
-.agent/my-agent/
-+-- agent.json
-+-- steps_registry.json
-+-- prompts/
-    +-- system.md
-    +-- steps/
-    |   +-- phase/
-    |       +-- analyze/
-    |       |   +-- f_default.md
-    |       +-- implement/
-    |       |   +-- f_default.md
-    |       +-- review/
-    |           +-- f_default.md
-    +-- checks/
-        +-- step/
-        |   +-- analyze/
-        |   |   +-- f_default.md
-        |   +-- implement/
-        |       +-- f_default.md
-        +-- completion/
-            +-- final/
-                +-- f_default.md
+[StepFlow] No routed step ID for iteration N.
+All Flow steps must define structuredGate with transitions.
+Check steps_registry.json for missing gate configuration.
 ```
 
----
+これにより、設定ミスが即座に検出され、暗黙のフォールバックによる不正動作を防ぐ。
 
-## Execution Flow
+`section.*` プレフィックスの Step（例:
+`section.projectcontext`）はテンプレートセク ションであり、Flow Step
+ではないため `structuredGate` は不要。
 
-```
-+-----------------------------------------------------+
-|  [Start]                                             |
-|     |                                               |
-|     v                                               |
-|  +----------+                                       |
-|  | analyze  |<---------------------+               |
-|  | (s_a8f3) |                      |               |
-|  +----+-----+                      |               |
-|       | check                      |               |
-|       +-- OK --+                   |               |
-|       +-- NG --+ retry (max 2)     |               |
-|                |                   |               |
-|                v                   |               |
-|  +----------+                      |               |
-|  |implement |                      |               |
-|  | (s_b2c1) |                      |               |
-|  +----+-----+                      |               |
-|       | check                      |               |
-|       +-- OK --+                   |               |
-|       +-- NG --+-- fallback -------+               |
-|                |                                    |
-|                v                                    |
-|  +----------+                                       |
-|  |  review  |                                       |
-|  | (s_c9d4) |                                       |
-|  +----+-----+                                       |
-|       | check                                       |
-|       +-- OK -- [Complete]                          |
-|       +-- NG -- fallback to implement              |
-+-----------------------------------------------------+
-```
+## StructuredGate の仕組み
 
----
-
-## Writing Check Prompts
-
-### Example: checks/step/implement/f_default.md
-
-```markdown
-## Implementation Check
-
-Please verify the following conditions:
-
-1. All tests are passing
-2. No type errors
-3. No linter errors
-
-After verification, return results in the following format:
-
-\`\`\`json { "result": "ok", "message": "All tests pass, no errors" } \`\`\`
-
-Or
-
-\`\`\`json { "result": "ng", "message": "2 test failures in test/auth.test.ts" }
-\`\`\`
-```
-
-### Response Format
-
-- `result`: `"ok"` | `"ng"` | `"pass"` | `"fail"` | `true` | `false`
-- `message`: Arbitrary description string
-
----
-
-## agent.json Usage
-
-```json
-{
-  "name": "code-improver",
-  "displayName": "Code Improver",
-  "description": "Agent that analyzes and improves code",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "stepFlow",
-    "completionConfig": {},
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "acceptEdits"
-  },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/code-improver",
-    "format": "jsonl"
-  }
-}
-```
-
----
-
-## Programmatic API
+1. AI は structured output で `next_action.action` を返す
+2. `StepGateInterpreter` が `intentField` のパスから intent を抽出
+3. intent を `GateIntent` ("next" | "repeat" | "jump" | "complete" | "abort")
+   にマッピング
+4. `WorkflowRouter` が `transitions` から次の Step を決定
+5. `handoffFields` のデータを StepContext に蓄積
 
 ```typescript
-import { loadAgentDefinition, StepFlowRunner } from "climpt-agents";
+// StepGateInterpreter
+const interpretation = interpreter.interpret(structuredOutput, stepDef);
+// interpretation: { intent: "next", handoff: { understanding: "...", approach: "..." } }
 
-const definition = await loadAgentDefinition("code-improver");
-const runner = new StepFlowRunner(definition);
-
-const result = await runner.run({
-  args: {
-    topic: "Refactoring authentication module",
-  },
-  cwd: Deno.cwd(),
-});
-
-console.log(`Success: ${result.success}`);
-console.log(`Final Step: ${result.finalStepId}`);
-console.log(`Completion: ${result.completionReason}`);
-
-// Check history
-for (const entry of result.state.history) {
-  console.log(
-    `${entry.stepId}: ${entry.transition} (${
-      entry.checkResult?.message ?? ""
-    })`,
-  );
-}
+// WorkflowRouter
+const routing = router.route(stepId, interpretation);
+// routing: { nextStepId: "continuation.issue", signalCompletion: false }
 ```
 
----
+## Intent マッピング
 
-## Design Points
+AI 応答の `next_action.action` から GateIntent への変換:
 
-### Why Use Hash for Step ID
+| AI response | GateIntent |
+| ----------- | ---------- |
+| `continue`  | `next`     |
+| `complete`  | `complete` |
+| `retry`     | `repeat`   |
+| `escalate`  | `abort`    |
+| `wait`      | `repeat`   |
 
-1. **Resistant to insertion**: Sequential numbers cause shifts when inserting
-2. **Resistant to reordering**: ID is unchanged when flow order changes
-3. **Reference stability**: Fallback target IDs don't change
+## Prompt 呼び出しルール
 
-### Why Separate Checks
+- すべての Step は C3L 形式で参照する
+- Flow ループ自体はプロンプトを直接解決せず、Completion Handler
+  (`StepMachineCompletionHandler`) が Step ID に基づいて PromptResolver
+  を呼び出す
+- Completion Handler は docs/05_prompt_system.md に従い
+  `prompts/<c1>/<c2>/<c3>/f_<edition>.md` をロードし、Flow ループへ返す
+- ユーザーは docs/ 以下を編集するだけで Step の内容を差し替えられる
 
-1. **Separation of concerns**: Separate execution prompts from evaluation
-   prompts
-2. **Reusability**: Same check can be used by multiple steps
-3. **Testability**: Check logic can be tested independently
+## handoff の契約
 
-### Why Use C3L Structure
+| ルール                         | 理由                                   |
+| ------------------------------ | -------------------------------------- |
+| Step ごとに handoffFields 宣言 | 暗黙共有をやめ、再利用可能性を高める   |
+| StepContext に蓄積             | Key 衝突を防ぎ、参照元を即時に追跡可能 |
+| Completion でも読み取る        | 最終報告で必要な情報を欠かさないため   |
 
-1. **Climpt integration**: Variable substitution and conditional branching
-   available
-2. **Edition management**: Different variations of the same step
-3. **Structure**: Directory structure clarifies meaning
+## Flow ループでの使われ方
 
----
+```typescript
+// 1. Completion Handler が現在 Step ID をもとにプロンプトを構築
+const prompt = iteration === 1
+  ? await completionHandler.buildInitialPrompt()
+  : await completionHandler.buildContinuationPrompt(iteration - 1, lastSummary);
 
-## Limitations
+// 2. LLM 実行
+const response = sdk.complete(prompt);
 
-- Maximum total iterations: 100 (infinite loop prevention)
-- Check response parse failure: Treated as NG
-- Step definition not found: Error termination
+// 3. Structured Gate による遷移判定
+const stepDef = registry.steps[currentStepId];
+const interpretation = stepGateInterpreter.interpret(
+  response.structuredOutput,
+  stepDef,
+);
+const routing = workflowRouter.route(currentStepId, interpretation);
+
+// 4. Handoff データを蓄積
+if (interpretation.handoff) {
+  stepContext.set(currentStepId, interpretation.handoff);
+}
+
+// 5. 次の Step へ遷移または完了
+if (routing.signalCompletion) {
+  return complete();
+}
+currentStepId = routing.nextStepId;
+```
+
+Flow ループ自身は Step ID と handoff を管理するだけで、プロンプト解決は
+Completion Handler に委譲される。これにより Runner は Step が宣言した遷移と
+handoff にのみ 集中し、余計な複雑さを増やさない。
+
+## 完了との関係
+
+- Step Flow は Completion Loop
+  へ「完了シグナル」「handoff」「エビデンス」を渡す役目のみ
+- 完了処理が必要な場合でも Flow 側にロジックを書かず、Completion Loop に C3L
+  プロンプトと schema で任せる
+
+Step Flow Design は、二重ループの中の Flow 部分を視覚化した契約であり、機能美
+を壊さないための最小限の図面である。

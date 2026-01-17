@@ -6,22 +6,40 @@
  * - Customizable prompts via user files in .agent/{agent}/prompts/
  * - Fallback to built-in prompts when user files don't exist
  * - Variable substitution for dynamic content
+ * - Response format validation for structured outputs
  */
 
 import { join } from "@std/path";
+import type { InputSpec } from "../src_common/contracts.ts";
 
 /**
- * Step definition for external prompt resolution
+ * Step type for categorization
+ * - prompt: Regular prompt step
+ */
+export type StepType = "prompt";
+
+/**
+ * Step definition for external prompt resolution (C3L-based)
  *
  * Maps a logical step identifier to a prompt file and its requirements.
  * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
+ *
+ * NOTE: This is different from FlowStepDefinition in src_common/types.ts.
+ * - PromptStepDefinition (here): C3L-based prompt file resolution
+ * - FlowStepDefinition (src_common): Step flow execution control
  */
-export interface StepDefinition {
+export interface PromptStepDefinition {
   /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
   stepId: string;
 
   /** Human-readable name for logging/debugging */
   name: string;
+
+  /**
+   * Step type for categorization
+   * Default: "prompt"
+   */
+  type?: StepType;
 
   /**
    * C3L path component: c2 (e.g., "initial", "continuation", "section")
@@ -63,10 +81,72 @@ export interface StepDefinition {
   usesStdin: boolean;
 
   /**
+   * Reference to external JSON Schema for structured output.
+   * Alternative to inline schema definition.
+   */
+  outputSchemaRef?: {
+    /** Schema file name (relative to schemasBase) */
+    file: string;
+    /** Schema name within the file (top-level key) */
+    schema: string;
+  };
+
+  /**
+   * Input specification for handoff data.
+   * Defines which outputs from previous steps this step needs.
+   */
+  inputs?: InputSpec;
+
+  /**
+   * Structured gate configuration for intent/target routing.
+   */
+  structuredGate?: StructuredGate;
+
+  /**
+   * Intent to step transition mapping.
+   */
+  transitions?: Transitions;
+
+  /**
    * Optional description of what this step does
    */
   description?: string;
 }
+
+/**
+ * Allowed intents for structured gate.
+ */
+export type GateIntent = "next" | "repeat" | "jump" | "complete" | "abort";
+
+/**
+ * Structured gate configuration for intent/target routing.
+ */
+export interface StructuredGate {
+  /** List of intents this step can emit */
+  allowedIntents: GateIntent[];
+  /** JSON path to extract intent from structured output (e.g., 'next_action.action') */
+  intentField?: string;
+  /** JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target') */
+  targetField?: string;
+  /** JSON paths to extract for handoff data (e.g., ['analysis.understanding', 'issue']) */
+  handoffFields?: string[];
+  /** How target step IDs are determined */
+  targetMode?: "explicit" | "dynamic" | "conditional";
+  /** Default intent if response parsing fails */
+  fallbackIntent?: GateIntent;
+}
+
+/**
+ * Transition rule for a single intent.
+ */
+export type TransitionRule =
+  | { target: string; fallback?: string }
+  | { condition: string; targets: Record<string, string> };
+
+/**
+ * Map of intent to transition rule.
+ */
+export type Transitions = Record<string, TransitionRule>;
 
 /**
  * Step registry for an agent
@@ -99,13 +179,31 @@ export interface StepRegistry {
   pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
-  steps: Record<string, StepDefinition>;
+  steps: Record<string, PromptStepDefinition>;
 
   /**
    * Default base directory for user prompts
    * Default: ".agent/{agentId}/prompts"
    */
   userPromptsBase?: string;
+
+  /**
+   * Base directory for schema files
+   * Default: ".agent/{agentId}/schemas"
+   */
+  schemasBase?: string;
+
+  /**
+   * Entry step ID for starting execution
+   */
+  entryStep?: string;
+
+  /**
+   * Mode-based entry step mapping.
+   * Allows dynamic entry step selection based on execution mode.
+   * Example: { "issue": "initial.issue", "project": "initial.project" }
+   */
+  entryStepMapping?: Record<string, string>;
 }
 
 /**
@@ -179,7 +277,7 @@ export async function loadStepRegistry(
 export function getStepDefinition(
   registry: StepRegistry,
   stepId: string,
-): StepDefinition | undefined {
+): PromptStepDefinition | undefined {
   return registry.steps[stepId];
 }
 
@@ -235,7 +333,7 @@ export function createEmptyRegistry(
  */
 export function addStepDefinition(
   registry: StepRegistry,
-  step: StepDefinition,
+  step: PromptStepDefinition,
 ): void {
   if (registry.steps[step.stepId]) {
     throw new Error(`Step "${step.stepId}" already exists in registry`);

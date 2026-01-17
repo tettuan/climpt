@@ -5,6 +5,7 @@
  */
 
 import type { MergeResult, MergeStrategy } from "./types.ts";
+import { runGitSafe } from "./git-utils.ts";
 
 /**
  * Merge strategy order for Iterator agent
@@ -27,33 +28,13 @@ export const REVIEWER_MERGE_ORDER: MergeStrategy[] = [
 ];
 
 /**
- * Execute a git command and return the result
- */
-async function runGit(
-  args: string[],
-  cwd?: string,
-): Promise<{ success: boolean; output: string; error: string }> {
-  const command = new Deno.Command("git", {
-    args,
-    cwd,
-    stdout: "piped",
-    stderr: "piped",
-  });
-
-  const { code, stdout, stderr } = await command.output();
-
-  return {
-    success: code === 0,
-    output: new TextDecoder().decode(stdout).trim(),
-    error: new TextDecoder().decode(stderr).trim(),
-  };
-}
-
-/**
  * Get the list of conflicting files
  */
 async function getConflictFiles(cwd?: string): Promise<string[]> {
-  const result = await runGit(["diff", "--name-only", "--diff-filter=U"], cwd);
+  const result = await runGitSafe(
+    ["diff", "--name-only", "--diff-filter=U"],
+    cwd,
+  );
   if (!result.success || !result.output) {
     return [];
   }
@@ -64,7 +45,7 @@ async function getConflictFiles(cwd?: string): Promise<string[]> {
  * Abort an ongoing merge
  */
 export async function abortMerge(cwd?: string): Promise<void> {
-  await runGit(["merge", "--abort"], cwd);
+  await runGitSafe(["merge", "--abort"], cwd);
 }
 
 /**
@@ -74,7 +55,7 @@ export async function checkoutBranch(
   branchName: string,
   cwd?: string,
 ): Promise<boolean> {
-  const result = await runGit(["checkout", branchName], cwd);
+  const result = await runGitSafe(["checkout", branchName], cwd);
   return result.success;
 }
 
@@ -85,7 +66,7 @@ async function tryFastForward(
   sourceBranch: string,
   cwd?: string,
 ): Promise<MergeResult> {
-  const result = await runGit(["merge", "--ff-only", sourceBranch], cwd);
+  const result = await runGitSafe(["merge", "--ff-only", sourceBranch], cwd);
 
   if (result.success) {
     return { success: true, strategy: "fast-forward" };
@@ -106,7 +87,10 @@ async function trySquash(
   cwd?: string,
 ): Promise<MergeResult> {
   // Squash merge
-  const squashResult = await runGit(["merge", "--squash", sourceBranch], cwd);
+  const squashResult = await runGitSafe(
+    ["merge", "--squash", sourceBranch],
+    cwd,
+  );
 
   if (!squashResult.success) {
     // Check for conflicts
@@ -128,7 +112,7 @@ async function trySquash(
   }
 
   // Commit the squashed changes
-  const commitResult = await runGit(
+  const commitResult = await runGitSafe(
     ["commit", "-m", `Squash merge branch '${sourceBranch}'`],
     cwd,
   );
@@ -155,7 +139,7 @@ async function tryMergeCommit(
   sourceBranch: string,
   cwd?: string,
 ): Promise<MergeResult> {
-  const result = await runGit(
+  const result = await runGitSafe(
     ["merge", "--no-ff", "-m", `Merge branch '${sourceBranch}'`, sourceBranch],
     cwd,
   );
@@ -253,7 +237,7 @@ export async function mergeBranch(
  * Check if there are uncommitted changes
  */
 export async function hasUncommittedChanges(cwd?: string): Promise<boolean> {
-  const result = await runGit(["status", "--porcelain"], cwd);
+  const result = await runGitSafe(["status", "--porcelain"], cwd);
   return result.output.length > 0;
 }
 
@@ -271,13 +255,13 @@ export async function autoCommitChanges(
   cwd?: string,
 ): Promise<{ success: boolean; error?: string }> {
   // Stage all changes (including untracked)
-  const addResult = await runGit(["add", "-A"], cwd);
+  const addResult = await runGitSafe(["add", "-A"], cwd);
   if (!addResult.success) {
     return { success: false, error: addResult.error };
   }
 
   // Commit
-  const commitResult = await runGit(["commit", "-m", message], cwd);
+  const commitResult = await runGitSafe(["commit", "-m", message], cwd);
   if (!commitResult.success) {
     // "nothing to commit" is not an error
     if (commitResult.error.includes("nothing to commit")) {
@@ -293,7 +277,7 @@ export async function autoCommitChanges(
  * Get the current branch name
  */
 export async function getCurrentBranch(cwd?: string): Promise<string> {
-  const result = await runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
+  const result = await runGitSafe(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
   return result.output;
 }
 
@@ -304,7 +288,7 @@ export async function pushBranch(
   branchName: string,
   cwd?: string,
 ): Promise<boolean> {
-  const result = await runGit(["push", "-u", "origin", branchName], cwd);
+  const result = await runGitSafe(["push", "-u", "origin", branchName], cwd);
   return result.success;
 }
 

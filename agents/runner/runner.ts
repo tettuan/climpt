@@ -1,22 +1,64 @@
 /**
  * Agent Runner - main execution engine
+ *
+ * Dual-loop architecture:
+ * - Flow Loop: Step advancement and handoff management
+ * - Completion Loop: Validates completion conditions
+ *
+ * Supports dependency injection for testability.
+ * Use AgentRunnerBuilder for convenient construction with custom dependencies.
  */
 
 import type {
   AgentDefinition,
   AgentResult,
   IterationSummary,
+  RuntimeContext,
 } from "../src_common/types.ts";
-import { Logger } from "../src_common/logger.ts";
+import { isRecord, isString } from "../src_common/type-guards.ts";
 import {
-  type CompletionHandler,
-  createCompletionHandler,
-} from "../completion/mod.ts";
-import { PromptResolver } from "../prompts/resolver.ts";
-import { ActionDetector } from "../actions/detector.ts";
-import { ActionExecutor } from "../actions/executor.ts";
+  AgentMaxIterationsError,
+  AgentNotInitializedError,
+  AgentQueryError,
+  AgentRateLimitError,
+  isAgentError,
+  normalizeToAgentError,
+} from "./errors.ts";
+import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
 import { getAgentDir } from "./loader.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
+import type { AgentDependencies } from "./builder.ts";
+import { createDefaultDependencies, isInitializable } from "./builder.ts";
+import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { RetryHandler } from "../retry/retry-handler.ts";
+import {
+  type ExtendedStepsRegistry,
+  isExtendedRegistry,
+  type OutputSchemaRef,
+} from "../common/completion-types.ts";
+import type { PromptStepDefinition } from "../common/step-registry.ts";
+import {
+  CompletionChain,
+  type CompletionValidationResult,
+} from "./completion-chain.ts";
+import { join } from "@std/path";
+import { SchemaResolver } from "../common/schema-resolver.ts";
+import {
+  isAssistantMessage,
+  isErrorMessage,
+  isResultMessage,
+  isToolUseMessage,
+} from "./message-types.ts";
+import {
+  type AgentEvent,
+  AgentEventEmitter,
+  type AgentEventHandler,
+} from "./events.ts";
+import { StepContextImpl } from "../loop/step-context.ts";
+import type { StepContext } from "../src_common/contracts.ts";
+import { StepGateInterpreter } from "./step-gate-interpreter.ts";
+import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
+import type { StepRegistry } from "../common/step-registry.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -27,92 +69,175 @@ export interface RunnerOptions {
   plugins?: string[];
 }
 
-export class AgentRunner {
-  private definition: AgentDefinition;
-  private completionHandler!: CompletionHandler;
-  private promptResolver!: PromptResolver;
-  private actionDetector?: ActionDetector;
-  private actionExecutor?: ActionExecutor;
-  private logger!: Logger;
-  private cwd!: string;
+// CompletionValidationResult is now imported from completion-chain.ts
+// Re-export for backward compatibility
+export type { CompletionValidationResult } from "./completion-chain.ts";
 
-  constructor(definition: AgentDefinition) {
+export class AgentRunner {
+  private readonly definition: AgentDefinition;
+  private readonly dependencies: AgentDependencies;
+  private readonly eventEmitter: AgentEventEmitter;
+  private context: RuntimeContext | null = null;
+  private args: Record<string, unknown> = {};
+
+  // Completion validation
+  private completionValidator: CompletionValidator | null = null;
+  private retryHandler: RetryHandler | null = null;
+  private stepsRegistry: ExtendedStepsRegistry | null = null;
+  private completionChain: CompletionChain | null = null;
+  private pendingRetryPrompt: string | null = null;
+
+  // Rate limit handling
+  private rateLimitRetryCount = 0;
+  private static readonly MAX_RATE_LIMIT_RETRIES = 5;
+
+  // Step flow orchestration
+  private stepContext: StepContextImpl | null = null;
+  private currentStepId: string | null = null;
+  private stepGateInterpreter: StepGateInterpreter | null = null;
+  private workflowRouter: WorkflowRouter | null = null;
+
+  /**
+   * Create an AgentRunner with optional dependency injection.
+   */
+  constructor(definition: AgentDefinition, dependencies?: AgentDependencies) {
     this.definition = definition;
+    this.dependencies = dependencies ?? createDefaultDependencies();
+    this.eventEmitter = new AgentEventEmitter();
+  }
+
+  /**
+   * Subscribe to agent lifecycle events.
+   */
+  on<E extends AgentEvent>(
+    event: E,
+    handler: AgentEventHandler<E>,
+  ): () => void {
+    return this.eventEmitter.on(event, handler);
+  }
+
+  /**
+   * Get runtime context, throwing if not initialized.
+   */
+  private getContext(): RuntimeContext {
+    if (this.context === null) {
+      throw new AgentNotInitializedError();
+    }
+    return this.context;
   }
 
   async initialize(options: RunnerOptions): Promise<void> {
-    this.cwd = options.cwd ?? Deno.cwd();
-    const agentDir = getAgentDir(this.definition.name, this.cwd);
+    const cwd = options.cwd ?? Deno.cwd();
+    const agentDir = getAgentDir(this.definition.name, cwd);
 
-    // Initialize logger
-    this.logger = await Logger.create({
+    // Store args for later use
+    this.args = options.args;
+
+    // Initialize logger using injected factory
+    const logger = await this.dependencies.loggerFactory.create({
       agentName: this.definition.name,
       directory: this.definition.logging.directory,
       format: this.definition.logging.format,
     });
 
-    // Initialize completion handler
-    this.completionHandler = await createCompletionHandler(
-      this.definition,
-      options.args,
-      agentDir,
+    // Initialize completion handler using injected factory
+    const completionHandler = await this.dependencies.completionHandlerFactory
+      .create(
+        this.definition,
+        options.args,
+        agentDir,
+      );
+
+    // Set working directory for completion handler (required for worktree mode)
+    if ("setCwd" in completionHandler) {
+      (completionHandler as { setCwd: (cwd: string) => void }).setCwd(cwd);
+    }
+
+    // Initialize prompt resolver using injected factory
+    const promptResolver = await this.dependencies.promptResolverFactory.create(
+      {
+        agentName: this.definition.name,
+        agentDir,
+        registryPath: this.definition.prompts.registry,
+        fallbackDir: this.definition.prompts.fallbackDir,
+      },
     );
 
-    // Initialize prompt resolver
-    this.promptResolver = await PromptResolver.create({
-      agentName: this.definition.name,
-      agentDir,
-      registryPath: this.definition.prompts.registry,
-      fallbackDir: this.definition.prompts.fallbackDir,
-    });
+    // Initialize Completion validation if registry supports it
+    await this.initializeCompletionValidation(agentDir, cwd, logger);
 
-    // Initialize action system if enabled
-    if (this.definition.actions?.enabled) {
-      this.actionDetector = new ActionDetector(this.definition.actions);
-      this.actionExecutor = new ActionExecutor(this.definition.actions, {
-        agentName: this.definition.name,
-        logger: this.logger,
-        cwd: this.cwd,
-      });
-    }
+    // Assign all context at once (atomic initialization)
+    this.context = {
+      completionHandler,
+      promptResolver,
+      logger,
+      cwd,
+    };
   }
 
   async run(options: RunnerOptions): Promise<AgentResult> {
     await this.initialize(options);
 
-    const { args: _args, plugins = [] } = options;
+    const { plugins = [] } = options;
+    const ctx = this.getContext();
 
-    this.logger.info(`Starting agent: ${this.definition.displayName}`);
+    // Initialize step context for step flow orchestration
+    this.stepContext = new StepContextImpl();
+    this.currentStepId = this.getStepIdForIteration(1);
+
+    // Emit initialized event
+    await this.eventEmitter.emit("initialized", { cwd: ctx.cwd });
+
+    ctx.logger.info(`Starting agent: ${this.definition.displayName}`);
 
     let iteration = 0;
     let sessionId: string | undefined;
     const summaries: IterationSummary[] = [];
 
     try {
-      // Sequential execution required: each iteration depends on previous results
+      // Flow loop: Sequential execution
       while (true) {
         iteration++;
-        this.logger.info(`=== Iteration ${iteration} ===`);
+
+        // Emit iterationStart event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationStart", { iteration });
+
+        ctx.logger.info(`=== Iteration ${iteration} ===`);
 
         // Build prompt
         const lastSummary = summaries.length > 0
           ? summaries[summaries.length - 1]
           : undefined;
-        const prompt = iteration === 1
+        let prompt: string;
+        if (this.pendingRetryPrompt) {
+          prompt = this.pendingRetryPrompt;
+          this.pendingRetryPrompt = null;
+          ctx.logger.debug("Using retry prompt from completion validation");
+        } else if (iteration === 1) {
           // deno-lint-ignore no-await-in-loop
-          ? await this.completionHandler.buildInitialPrompt()
+          prompt = await ctx.completionHandler.buildInitialPrompt();
+        } else {
           // deno-lint-ignore no-await-in-loop
-          : await this.completionHandler.buildContinuationPrompt(
-            iteration - 1, // completedIterations
+          prompt = await ctx.completionHandler.buildContinuationPrompt(
+            iteration - 1,
             lastSummary,
           );
+        }
 
         // deno-lint-ignore no-await-in-loop
-        const systemPrompt = await this.promptResolver.resolveSystemPrompt({
+        const systemPrompt = await ctx.promptResolver.resolveSystemPrompt({
           "uv-agent_name": this.definition.name,
           "uv-completion_criteria":
-            this.completionHandler.buildCompletionCriteria().detailed,
+            ctx.completionHandler.buildCompletionCriteria().detailed,
         });
+
+        // Emit promptBuilt event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("promptBuilt", { prompt, systemPrompt });
+
+        // Determine step ID for this iteration
+        const stepId = this.getStepIdForIteration(iteration);
 
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
@@ -122,57 +247,160 @@ export class AgentRunner {
           plugins,
           sessionId,
           iteration,
+          stepId,
         });
+
+        // Emit queryExecuted event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("queryExecuted", { summary });
 
         summaries.push(summary);
         sessionId = summary.sessionId;
 
-        // Execute detected actions
-        if (this.actionExecutor && summary.detectedActions.length > 0) {
-          this.actionExecutor.setIteration(iteration);
-          // deno-lint-ignore no-await-in-loop
-          summary.actionResults = await this.actionExecutor.execute(
-            summary.detectedActions,
+        // Record step output for step flow orchestration
+        this.recordStepOutput(stepId, summary);
+
+        // Handle rate limit retry
+        if (summary.rateLimitRetry) {
+          const { waitMs, attempt } = summary.rateLimitRetry;
+          ctx.logger.info(
+            `Waiting ${waitMs}ms for rate limit retry (attempt ${attempt})`,
           );
+          // deno-lint-ignore no-await-in-loop
+          await this.delay(waitMs);
+          continue;
         }
 
-        // Check completion
+        // Completion validation: trigger when AI declares complete via structured output
+        if (this.hasAICompletionDeclaration(summary)) {
+          const completionStepId = this.getCompletionStepId();
+          ctx.logger.info(
+            "AI declared completion, validating external conditions",
+          );
+          // deno-lint-ignore no-await-in-loop
+          const validation = await this.validateCompletionConditions(
+            completionStepId,
+            summary,
+            ctx.logger,
+          );
+
+          if (!validation.valid) {
+            this.pendingRetryPrompt = validation.retryPrompt ?? null;
+            ctx.logger.info(
+              "Completion conditions not met, will retry in next iteration",
+            );
+          }
+        }
+
+        // Step transition for step flow orchestration (moved before completion check)
+        // Structured gate routing can signal completion via signalCompletion
+        const routingResult = this.handleStepTransition(stepId, summary, ctx);
+
+        // Check completion - prefer routing result, fall back to legacy handler
+        let isComplete: boolean;
+        let completionReason: string;
+
+        if (this.pendingRetryPrompt) {
+          isComplete = false;
+          // deno-lint-ignore no-await-in-loop
+          completionReason = await ctx.completionHandler
+            .getCompletionDescription();
+          ctx.logger.debug("Skipping completion check due to pending retry");
+        } else if (routingResult?.signalCompletion) {
+          // Structured gate routing signaled completion
+          isComplete = true;
+          completionReason = routingResult.reason;
+          ctx.logger.info(
+            `[StepFlow] Router signaled completion: ${completionReason}`,
+          );
+        } else {
+          // Fall back to legacy completionHandler
+          if (ctx.completionHandler.setCurrentSummary) {
+            ctx.completionHandler.setCurrentSummary(summary);
+          }
+          // deno-lint-ignore no-await-in-loop
+          isComplete = await ctx.completionHandler.isComplete();
+          // deno-lint-ignore no-await-in-loop
+          completionReason = await ctx.completionHandler
+            .getCompletionDescription();
+        }
+
+        // Emit completionChecked event
         // deno-lint-ignore no-await-in-loop
-        if (await this.completionHandler.isComplete()) {
-          this.logger.info("Agent completed");
+        await this.eventEmitter.emit("completionChecked", {
+          isComplete,
+          reason: completionReason,
+        });
+
+        // Emit iterationEnd event
+        // deno-lint-ignore no-await-in-loop
+        await this.eventEmitter.emit("iterationEnd", { iteration, summary });
+
+        if (isComplete) {
+          ctx.logger.info(
+            `Agent completed after ${iteration} iteration(s): ${completionReason}`,
+          );
           break;
         }
 
         // Max iteration check
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
-          this.logger.warn(`Max iterations (${maxIterations}) reached`);
+          const maxIterError = new AgentMaxIterationsError(
+            maxIterations,
+            iteration,
+          );
+          ctx.logger.warn(maxIterError.message);
+
+          // Emit error event for max iterations
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("error", {
+            error: maxIterError,
+            recoverable: maxIterError.recoverable,
+          });
+
           break;
         }
       }
 
-      return {
+      const completionDescription = await ctx.completionHandler
+        .getCompletionDescription();
+      const result: AgentResult = {
         success: true,
-        totalIterations: iteration,
+        iterations: iteration,
+        reason: completionDescription,
         summaries,
-        completionReason: await this.completionHandler
-          .getCompletionDescription(),
       };
-    } catch (error) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : String(error);
-      this.logger.error("Agent failed", { error: errorMessage });
 
+      // Emit completed event
+      await this.eventEmitter.emit("completed", { result });
+
+      return result;
+    } catch (error) {
+      // Normalize error to AgentError for structured handling
+      const agentError = normalizeToAgentError(error, { iteration });
+      ctx.logger.error("Agent failed", {
+        error: agentError.message,
+        code: agentError.code,
+        iteration: agentError.iteration,
+      });
+
+      // Emit error event with structured error
+      await this.eventEmitter.emit("error", {
+        error: agentError,
+        recoverable: isAgentError(error) ? error.recoverable : false,
+      });
+
+      const errorReason = agentError.message;
       return {
         success: false,
-        totalIterations: iteration,
+        iterations: iteration,
+        reason: errorReason,
         summaries,
-        completionReason: "Error occurred",
-        error: errorMessage,
+        error: errorReason,
       };
     } finally {
-      await this.logger.close();
+      await ctx.logger.close();
     }
   }
 
@@ -182,15 +410,17 @@ export class AgentRunner {
     plugins: string[];
     sessionId?: string;
     iteration: number;
+    stepId?: string;
   }): Promise<IterationSummary> {
-    const { prompt, systemPrompt, plugins, sessionId, iteration } = options;
+    const { prompt, systemPrompt, plugins, sessionId, iteration, stepId } =
+      options;
+    const ctx = this.getContext();
 
     const summary: IterationSummary = {
       iteration,
       sessionId: undefined,
       assistantResponses: [],
       toolsUsed: [],
-      detectedActions: [],
       errors: [],
     };
 
@@ -199,7 +429,7 @@ export class AgentRunner {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
       const queryOptions: Record<string, unknown> = {
-        cwd: this.cwd,
+        cwd: ctx.cwd,
         systemPrompt,
         allowedTools: this.definition.behavior.allowedTools,
         permissionMode: this.definition.behavior.permissionMode,
@@ -208,7 +438,7 @@ export class AgentRunner {
         resume: sessionId,
       };
 
-      // Configure sandbox (merge agent config with defaults, convert to SDK format)
+      // Configure sandbox
       const sandboxConfig = mergeSandboxConfig(
         this.definition.behavior.sandboxConfig,
       );
@@ -218,83 +448,121 @@ export class AgentRunner {
         queryOptions.sandbox = toSdkSandboxConfig(sandboxConfig);
       }
 
+      // Configure structured output if step has outputSchemaRef
+      if (stepId) {
+        const schema = await this.loadSchemaForStep(stepId, ctx.logger);
+        if (schema) {
+          queryOptions.outputFormat = {
+            type: "json_schema",
+            schema,
+          };
+          ctx.logger.info(
+            `[StructuredOutput] Using schema for step: ${stepId}`,
+          );
+        }
+      }
+
       const queryIterator = query({
         prompt,
         options: queryOptions,
       });
 
       for await (const message of queryIterator) {
-        this.logger.logSdkMessage(message);
+        ctx.logger.logSdkMessage(message);
         this.processMessage(message, summary);
       }
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
         : String(error);
-      summary.errors.push(errorMessage);
-      this.logger.error("Query execution failed", { error: errorMessage });
+
+      // Check for rate limit error
+      if (isRateLimitError(errorMessage)) {
+        this.rateLimitRetryCount++;
+
+        if (this.rateLimitRetryCount >= AgentRunner.MAX_RATE_LIMIT_RETRIES) {
+          const rateLimitError = new AgentRateLimitError(
+            `Rate limit exceeded after ${this.rateLimitRetryCount} retries`,
+            {
+              attempts: this.rateLimitRetryCount,
+              cause: error instanceof Error ? error : undefined,
+              iteration,
+            },
+          );
+          summary.errors.push(rateLimitError.message);
+          ctx.logger.error("Rate limit retries exhausted", {
+            error: rateLimitError.message,
+            attempts: this.rateLimitRetryCount,
+          });
+          throw rateLimitError;
+        }
+
+        const waitTime = calculateBackoff(this.rateLimitRetryCount - 1);
+        ctx.logger.warn(
+          `Rate limit hit, waiting ${waitTime}ms before retry ` +
+            `(attempt ${this.rateLimitRetryCount}/${AgentRunner.MAX_RATE_LIMIT_RETRIES})`,
+        );
+
+        summary.errors.push(`Rate limit hit, will retry after ${waitTime}ms`);
+        summary.rateLimitRetry = {
+          waitMs: waitTime,
+          attempt: this.rateLimitRetryCount,
+        };
+      } else {
+        // Non-rate-limit error: reset counter
+        this.rateLimitRetryCount = 0;
+
+        const queryError = new AgentQueryError(errorMessage, {
+          cause: error instanceof Error ? error : undefined,
+          iteration,
+        });
+        summary.errors.push(queryError.message);
+        ctx.logger.error("Query execution failed", {
+          error: queryError.message,
+          code: queryError.code,
+          iteration: queryError.iteration,
+        });
+      }
     }
 
     return summary;
   }
 
   private processMessage(message: unknown, summary: IterationSummary): void {
-    if (typeof message !== "object" || message === null) {
-      return;
-    }
+    const ctx = this.getContext();
 
-    const msg = message as Record<string, unknown>;
-    const type = msg.type as string;
-
-    switch (type) {
-      case "assistant": {
-        const content = this.extractContent(msg.message);
-        if (content) {
-          summary.assistantResponses.push(content);
-
-          // Detect actions
-          if (this.actionDetector) {
-            const actions = this.actionDetector.detect(content);
-            summary.detectedActions.push(...actions);
-          }
-        }
-        break;
+    if (isAssistantMessage(message)) {
+      const content = this.extractContent(message.message);
+      if (content) {
+        summary.assistantResponses.push(content);
       }
-
-      case "tool_use":
-        summary.toolsUsed.push(msg.tool_name as string);
-        break;
-
-      case "result":
-        summary.sessionId = msg.session_id as string;
-        break;
-
-      case "error": {
-        const errorObj = msg.error as Record<string, unknown>;
-        summary.errors.push(
-          (errorObj?.message as string) ?? "Unknown error",
-        );
-        break;
+    } else if (isToolUseMessage(message)) {
+      summary.toolsUsed.push(message.tool_name);
+    } else if (isResultMessage(message)) {
+      summary.sessionId = message.session_id;
+      if (message.structured_output) {
+        summary.structuredOutput = message.structured_output;
+        ctx.logger.info("[StructuredOutput] Got structured output from result");
       }
+    } else if (isErrorMessage(message)) {
+      summary.errors.push(message.error.message ?? "Unknown error");
     }
   }
 
   private extractContent(message: unknown): string {
-    if (typeof message === "string") {
+    if (isString(message)) {
       return message;
     }
-    if (typeof message === "object" && message !== null) {
-      const msg = message as Record<string, unknown>;
-      if (typeof msg.content === "string") {
-        return msg.content;
+    if (isRecord(message)) {
+      if (isString(message.content)) {
+        return message.content;
       }
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter((c) =>
-            typeof c === "object" && c !== null &&
-            (c as Record<string, unknown>).type === "text"
+      if (Array.isArray(message.content)) {
+        return message.content
+          .filter((c): c is Record<string, unknown> =>
+            isRecord(c) && c.type === "text"
           )
-          .map((c) => (c as Record<string, unknown>).text as string)
+          .map((c) => isString(c.text) ? c.text : "")
           .join("\n");
       }
     }
@@ -308,9 +576,410 @@ export class AgentRunner {
           this.definition.behavior.completionConfig as {
             maxIterations?: number;
           }
-        ).maxIterations ?? 100
+        ).maxIterations ?? 20
       );
     }
-    return 100; // Default max
+    return 20;
+  }
+
+  /**
+   * Initialize Completion validation system
+   */
+  private async initializeCompletionValidation(
+    agentDir: string,
+    cwd: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<void> {
+    const registryPath = join(agentDir, "steps_registry.json");
+
+    try {
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+
+      if (!isExtendedRegistry(registry)) {
+        logger.debug(
+          "Registry is not extended format, skipping completion validation setup",
+        );
+        return;
+      }
+
+      this.stepsRegistry = registry;
+      logger.info(
+        "Loaded extended steps registry with completion validation support",
+      );
+
+      // Initialize CompletionValidator factory
+      const validatorFactory = this.dependencies.completionValidatorFactory;
+      if (validatorFactory) {
+        if (isInitializable(validatorFactory)) {
+          await validatorFactory.initialize();
+        }
+        this.completionValidator = validatorFactory.create({
+          registry: this.stepsRegistry,
+          workingDir: cwd,
+          logger,
+          agentId: this.definition.name,
+        });
+        logger.debug("CompletionValidator initialized");
+      }
+
+      // Initialize RetryHandler factory
+      const retryFactory = this.dependencies.retryHandlerFactory;
+      if (retryFactory) {
+        if (isInitializable(retryFactory)) {
+          await retryFactory.initialize();
+        }
+        this.retryHandler = retryFactory.create({
+          registry: this.stepsRegistry,
+          workingDir: cwd,
+          logger,
+          agentId: this.definition.name,
+        });
+        logger.debug("RetryHandler initialized");
+      }
+
+      // Initialize CompletionChain
+      this.completionChain = new CompletionChain({
+        workingDir: cwd,
+        logger,
+        stepsRegistry: this.stepsRegistry,
+        completionValidator: this.completionValidator,
+        retryHandler: this.retryHandler,
+        agentId: this.definition.name,
+      });
+      logger.debug("CompletionChain initialized");
+
+      // Initialize StepGateInterpreter and WorkflowRouter for structured gate flow
+      this.stepGateInterpreter = new StepGateInterpreter();
+      this.workflowRouter = new WorkflowRouter(
+        this.stepsRegistry as unknown as StepRegistry,
+      );
+      logger.debug("StepGateInterpreter and WorkflowRouter initialized");
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        logger.debug(
+          `Steps registry not found at ${registryPath}, using default completion`,
+        );
+      } else {
+        logger.warn(`Failed to load steps registry: ${error}`);
+      }
+    }
+  }
+
+  /**
+   * Validate completion conditions for a step.
+   */
+  private async validateCompletionConditions(
+    stepId: string,
+    _summary: IterationSummary,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<CompletionValidationResult> {
+    if (!this.stepsRegistry) {
+      return { valid: true };
+    }
+
+    const stepConfig = this.stepsRegistry.completionSteps?.[stepId];
+    if (!stepConfig) {
+      return { valid: true };
+    }
+
+    // Use CompletionChain for validation (logs internally)
+    if (this.completionChain) {
+      return await this.completionChain.validate(stepId, _summary);
+    }
+
+    // Fallback path - log here since CompletionChain is not used
+    logger.info(`Validating completion for step: ${stepId}`);
+
+    // Fallback to command-based validation
+    if (
+      !this.completionValidator ||
+      !stepConfig.completionConditions?.length
+    ) {
+      return { valid: true };
+    }
+
+    const result = await this.completionValidator.validate(
+      stepConfig.completionConditions,
+    );
+
+    if (result.valid) {
+      logger.info("All completion conditions passed");
+      return { valid: true };
+    }
+
+    logger.warn(`Completion validation failed: pattern=${result.pattern}`);
+
+    if (this.retryHandler && result.pattern) {
+      const retryPrompt = await this.retryHandler.buildRetryPrompt(
+        stepConfig,
+        result,
+      );
+      return { valid: false, retryPrompt };
+    }
+
+    return {
+      valid: false,
+      retryPrompt: `Completion conditions not met: ${
+        result.error ?? result.pattern
+      }`,
+    };
+  }
+
+  /**
+   * Check if AI declared completion via structured output.
+   */
+  private hasAICompletionDeclaration(summary: IterationSummary): boolean {
+    if (!summary.structuredOutput) {
+      return false;
+    }
+
+    const so = summary.structuredOutput;
+
+    if (so.status === "completed") {
+      return true;
+    }
+
+    if (isRecord(so.next_action)) {
+      const nextAction = so.next_action as Record<string, unknown>;
+      if (nextAction.action === "complete") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get completion step ID based on completion type.
+   */
+  private getCompletionStepId(): string {
+    if (this.completionChain) {
+      return this.completionChain.getCompletionStepId(
+        this.definition.behavior.completionType,
+      );
+    }
+    return "complete.issue";
+  }
+
+  /**
+   * Delay execution for a specified duration.
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get step ID for a given iteration.
+   *
+   * For iteration 1: Uses entryStepMapping from registry if available,
+   * otherwise constructs initial.{completionType}.
+   *
+   * For iteration > 1: Requires currentStepId to be set by structured gate routing.
+   * Errors if no routing has occurred, enforcing the documented contract that
+   * all Flow steps must define transitions.
+   */
+  private getStepIdForIteration(iteration: number): string {
+    // For iteration > 1, require routed step ID
+    if (iteration > 1) {
+      if (!this.currentStepId) {
+        throw new Error(
+          `[StepFlow] No routed step ID for iteration ${iteration}. ` +
+            `All Flow steps must define structuredGate with transitions. ` +
+            `Check steps_registry.json for missing gate configuration.`,
+        );
+      }
+      return this.currentStepId;
+    }
+
+    // For iteration 1: Use registry-based lookup if available
+    const completionType = this.definition.behavior.completionType;
+
+    // Try entryStepMapping first
+    if (this.stepsRegistry?.entryStepMapping?.[completionType]) {
+      return this.stepsRegistry.entryStepMapping[completionType];
+    }
+
+    // Try generic entryStep
+    if (this.stepsRegistry?.entryStep) {
+      return this.stepsRegistry.entryStep;
+    }
+
+    // Default construction for iteration 1
+    return `initial.${completionType}`;
+  }
+
+  /**
+   * Load JSON Schema for a step from outputSchemaRef.
+   */
+  private async loadSchemaForStep(
+    stepId: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<Record<string, unknown> | undefined> {
+    if (!this.stepsRegistry) {
+      return undefined;
+    }
+
+    const stepDef = this.stepsRegistry.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef?.outputSchemaRef) {
+      logger.debug(`No outputSchemaRef for step: ${stepId}`);
+      return undefined;
+    }
+
+    return await this.loadSchemaFromRef(stepDef.outputSchemaRef, logger);
+  }
+
+  /**
+   * Load schema from outputSchemaRef with full $ref resolution.
+   */
+  private async loadSchemaFromRef(
+    ref: OutputSchemaRef,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<Record<string, unknown> | undefined> {
+    const ctx = this.getContext();
+    const schemasBase = this.stepsRegistry?.schemasBase ??
+      `.agent/${this.definition.name}/schemas`;
+    const schemasDir = join(ctx.cwd, schemasBase);
+
+    try {
+      const resolver = new SchemaResolver(schemasDir);
+      const schema = await resolver.resolve(ref.file, ref.schema);
+
+      logger.debug(`Loaded and resolved schema: ${ref.file}#${ref.schema}`);
+      return schema;
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        logger.debug(`Schema file not found: ${join(schemasDir, ref.file)}`);
+      } else {
+        logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
+          error: String(error),
+        });
+      }
+      return undefined;
+    }
+  }
+
+  // ============================================================================
+  // Step Flow Orchestration
+  // ============================================================================
+
+  /**
+   * Get the step context for data passing between steps.
+   */
+  getStepContext(): StepContext | null {
+    return this.stepContext;
+  }
+
+  /**
+   * Record step output to step context.
+   */
+  private recordStepOutput(stepId: string, summary: IterationSummary): void {
+    if (!this.stepContext) return;
+
+    const output: Record<string, unknown> = {};
+
+    if (summary.structuredOutput) {
+      Object.assign(output, summary.structuredOutput);
+    }
+
+    output.iteration = summary.iteration;
+    output.sessionId = summary.sessionId;
+
+    if (summary.errors.length > 0) {
+      output.hasErrors = true;
+      output.errorCount = summary.errors.length;
+    }
+
+    this.stepContext.set(stepId, output);
+    this.currentStepId = stepId;
+
+    this.getContext().logger.debug(
+      `[StepFlow] Recorded output for step: ${stepId}`,
+      { outputKeys: Object.keys(output) },
+    );
+  }
+
+  /**
+   * Handle step transition using structured gate routing.
+   *
+   * All Flow steps must define structuredGate with transitions.
+   * Returns null if prerequisites are not met (no registry, no structured output,
+   * or step not found), which will cause getStepIdForIteration() to error
+   * on the next iteration.
+   */
+  private handleStepTransition(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): RoutingResult | null {
+    return this.tryStructuredGateRouting(stepId, summary, ctx);
+  }
+
+  /**
+   * Try to route using structured gate if configured.
+   */
+  private tryStructuredGateRouting(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): RoutingResult | null {
+    // Check prerequisites
+    if (
+      !this.stepsRegistry || !this.stepGateInterpreter || !this.workflowRouter
+    ) {
+      return null;
+    }
+
+    if (!summary.structuredOutput) {
+      return null;
+    }
+
+    // Get step definition
+    const stepDef = this.stepsRegistry.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef?.structuredGate) {
+      return null;
+    }
+
+    // Interpret structured output through the gate
+    const interpretation = this.stepGateInterpreter.interpret(
+      summary.structuredOutput,
+      stepDef,
+    );
+
+    ctx.logger.info(`[StepFlow] Interpreted intent: ${interpretation.intent}`, {
+      target: interpretation.target,
+      usedFallback: interpretation.usedFallback,
+      reason: interpretation.reason,
+    });
+
+    // Merge handoff into step context
+    if (interpretation.handoff && this.stepContext) {
+      this.stepContext.set(stepId, interpretation.handoff);
+      ctx.logger.debug(`[StepFlow] Stored handoff data for step: ${stepId}`, {
+        handoffKeys: Object.keys(interpretation.handoff),
+      });
+    }
+
+    // Route to next step
+    const routing = this.workflowRouter.route(stepId, interpretation);
+
+    ctx.logger.info(
+      `[StepFlow] Routing decision: ${stepId} -> ${routing.nextStepId}`,
+      {
+        signalCompletion: routing.signalCompletion,
+        reason: routing.reason,
+      },
+    );
+
+    // Update current step ID
+    if (!routing.signalCompletion && routing.nextStepId !== stepId) {
+      this.currentStepId = routing.nextStepId;
+    }
+
+    return routing;
   }
 }

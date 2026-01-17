@@ -126,9 +126,14 @@ export class C3LPromptLoader {
         };
       }
 
+      const errorMsg = result.error
+        ? (typeof result.error === "string"
+          ? result.error
+          : JSON.stringify(result.error))
+        : "runBreakdown returned no data";
       return {
         ok: false,
-        error: result.error ?? "runBreakdown returned no data",
+        error: errorMsg,
       };
     } catch (error) {
       return {

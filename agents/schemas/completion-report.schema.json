@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "completion-report.schema.json",
+  "title": "Completion Report",
+  "description": "Structured output for issue completion with validation results",
+  "type": "object",
+  "required": ["action", "issue", "validation"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "close",
+      "description": "Action type (must be 'close' for completion report)"
+    },
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number being closed"
+    },
+    "body": {
+      "type": "string",
+      "description": "Optional comment to add when closing the issue"
+    },
+    "validation": {
+      "type": "object",
+      "description": "Self-reported validation results",
+      "required": ["git_clean", "type_check_passed"],
+      "properties": {
+        "git_clean": {
+          "type": "boolean",
+          "description": "Whether git working directory is clean (no uncommitted changes)"
+        },
+        "type_check_passed": {
+          "type": "boolean",
+          "description": "Whether type checking passed (deno check / tsc)"
+        },
+        "tests_passed": {
+          "type": "boolean",
+          "description": "Whether all tests passed"
+        },
+        "lint_passed": {
+          "type": "boolean",
+          "description": "Whether linting passed"
+        },
+        "format_check_passed": {
+          "type": "boolean",
+          "description": "Whether format check passed"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Command outputs as evidence for validation claims",
+      "properties": {
+        "git_status_output": {
+          "type": "string",
+          "description": "Output of 'git status --porcelain' (empty if clean)"
+        },
+        "type_check_output": {
+          "type": "string",
+          "description": "Output of type check command"
+        },
+        "test_summary": {
+          "type": "string",
+          "description": "Summary of test results (e.g., '298 passed, 0 failed')"
+        },
+        "lint_output": {
+          "type": "string",
+          "description": "Output of lint command"
+        },
+        "format_output": {
+          "type": "string",
+          "description": "Output of format check command"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

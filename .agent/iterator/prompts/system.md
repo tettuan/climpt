@@ -36,9 +36,33 @@ Use structured outputs for GitHub operations:
 ```
 
 ### Complete Issue
+
+Before closing, you MUST verify:
+1. Run `git status --porcelain` - must be empty (no uncommitted changes)
+2. Run `deno check` or type check - must pass
+3. Run tests if applicable
+
+Include validation results and evidence:
+
 ```issue-action
-{"action":"close","issue":NUMBER,"body":"## Resolution\n- What was implemented"}
+{
+  "action": "close",
+  "issue": NUMBER,
+  "body": "## Resolution\n- What was implemented",
+  "validation": {
+    "git_clean": true,
+    "type_check_passed": true,
+    "tests_passed": true
+  },
+  "evidence": {
+    "git_status_output": "",
+    "type_check_output": "Check successful",
+    "test_summary": "N passed, 0 failed"
+  }
+}
 ```
+
+**IMPORTANT**: Do NOT close without validation. If validation fails, fix the issues first.
 
 ### Ask Question
 ```issue-action

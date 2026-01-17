@@ -1,61 +1,101 @@
 /**
- * Agents Module
+ * Agents Module - Top-level Entry Point
  *
- * Autonomous agents for development tasks using Claude Agent SDK.
+ * Usage Example:
+ * ```typescript
+ * import { AgentRunner, loadAgentDefinition } from "./agents/mod.ts";
+ *
+ * const definition = await loadAgentDefinition("my-agent", ".");
+ * const runner = new AgentRunner(definition);
+ * await runner.initialize({ cwd: ".", args: {} });
+ * const result = await runner.run();
+ * ```
  */
 
-// Common types and utilities (existing)
+// === V2 Architecture (Recommended) ===
+// Main v2 exports from runner/mod.ts
+export * from "./runner/mod.ts";
+
+// Common types
 export * from "./common/mod.ts";
 
-// New agent framework exports (excluding conflicting names)
-// Use src_mod.ts for direct imports of the new framework
+// Types from src_common
+export type {
+  AgentBehavior,
+  AgentDefinition,
+  AgentResult,
+  AgentResultDetail,
+  AgentState,
+  CheckBudgetCompletionConfig,
+  CheckDefinition,
+  CheckResponse,
+  CompletionConfigUnion,
+  CompletionType,
+  CompositeCompletionConfig,
+  CustomCompletionConfig,
+  CustomVariableDefinition,
+  ExternalStateCompletionConfig,
+  FinalizeConfig,
+  FlowStepDefinition,
+  GitHubConfig,
+  IterationBudgetCompletionConfig,
+  IterationConfig,
+  IterationSummary,
+  KeywordSignalCompletionConfig,
+  LoggingConfig,
+  ParameterDefinition,
+  ParameterValidation,
+  PermissionMode,
+  PhaseCompletionConfig,
+  PromptC3LReference,
+  PromptConfig,
+  PromptPathReference,
+  PromptReference,
+  ResponseFormat,
+  RuntimeContext,
+  SandboxConfig,
+  SandboxFilesystemConfig,
+  SandboxNetworkConfig,
+  StepDefinition, // @deprecated: use FlowStepDefinition
+  StepFlowResult,
+  StepFlowState,
+  StepHistoryEntry,
+  StepMachineCompletionConfig,
+  StepsRegistry,
+  StructuredSignalCompletionConfig,
+  TransitionDefinition,
+  ValidationResult,
+  WorktreeConfig,
+} from "./src_common/types.ts";
+
+// Type utilities from src_common
 export {
-  // Actions
-  type ActionContext,
-  ActionDetector,
-  ActionExecutor,
-  type ActionHandler,
-  agentExists,
-  // Runner
-  AgentRunner,
-  BaseActionHandler,
+  ALL_COMPLETION_TYPES,
+  COMPLETION_TYPE_ALIASES,
+  INITIAL_AGENT_STATE,
+  isLegacyCompletionType,
+  resolveCompletionType,
+  RuntimeContextNotInitializedError,
+} from "./src_common/types.ts";
+
+// === Completion (V1 - backward compatibility) ===
+export {
   BaseCompletionHandler,
-  // Completion
   type CompletionCriteria,
   type CompletionHandler,
   type CompletionHandlerOptions,
   createCompletionHandler,
   createCompletionHandlerFromOptions,
-  type ExecutorOptions,
-  FileActionHandler,
-  generateAgentHelp,
-  getAgentDir,
   getRegisteredHandler,
-  GitHubCommentHandler,
-  type GitHubContext,
-  GitHubIssueHandler,
-  // Init and CLI
-  initAgent,
   IssueCompletionHandler,
   IterateCompletionHandler,
-  listAgents,
-  loadAgentDefinition,
-  LogActionHandler,
   ManualCompletionHandler,
-  parseCliArgs,
-  type ParsedCliArgs,
-  ProjectCompletionHandler,
   registerCompletionHandler,
-  run,
-  type RunnerOptions,
-  validateAgentDefinition,
 } from "./src_mod.ts";
+
+// === Init and Runtime ===
+export { initAgent, run } from "./src_mod.ts";
 
 // To run agents, use the unified runner:
 //   deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
 //   deno run -A agents/scripts/run-agent.ts --agent reviewer --project 5
-//
-// Or programmatically:
-//   const definition = await loadAgentDefinition("iterator", Deno.cwd());
-//   const runner = new AgentRunner(definition);
-//   await runner.run({ args: { issue: 123 }, plugins: [] });

@@ -6,8 +6,10 @@
   "description": "Autonomous facilitator agent that monitors project status and ensures smooth progress through field management rather than direct control",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "project",
+    "completionType": "structuredSignal",
     "completionConfig": {
+      "signalType": "facilitator_decision",
+      "requiredFields": ["recommendations", "reasoning"],
       "maxIterations": 50
     },
     "allowedTools": [
@@ -19,7 +21,11 @@
       "Task",
       "WebFetch"
     ],
-    "permissionMode": "bypassPermissions"
+    "permissionMode": "bypassPermissions",
+    "preCloseValidation": {
+      "enabled": false,
+      "validators": []
+    }
   },
   "parameters": {
     "issue": {
@@ -79,8 +85,12 @@
   },
   "actions": {
     "enabled": true,
-    "types": ["facilitate-action", "status-report"],
-    "outputFormat": "json"
+    "types": ["facilitate-action", "status-report", "project-plan", "review-result"],
+    "outputFormat": "json",
+    "handlers": {
+      "project-plan": "builtin:completion-signal",
+      "review-result": "builtin:completion-signal"
+    }
   },
   "github": {
     "enabled": true,
