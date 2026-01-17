@@ -161,8 +161,8 @@
     "complete.externalState": {
       "stepId": "complete.externalState",
       "name": "External State Completion Validation",
-      "c2": "complete",
-      "c3": "externalState",
+      "c2": "retry",
+      "c3": "issue",
       "completionConditions": [
         { "validator": "git-clean" },
         { "validator": "type-check" }
