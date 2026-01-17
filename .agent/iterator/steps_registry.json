@@ -157,6 +157,25 @@
         "schema": "complete.issue"
       },
       "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+    },
+    "complete.externalState": {
+      "stepId": "complete.externalState",
+      "name": "External State Completion Validation",
+      "c2": "complete",
+      "c3": "externalState",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "complete.externalState"
+      },
+      "description": "Validate external state completion with git-clean and type-check."
     }
   },
 
