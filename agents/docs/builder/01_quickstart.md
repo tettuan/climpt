@@ -61,7 +61,7 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
         ├── continuation/   # 継続フェーズ
         │   └── {c3}/
         │       └── f_default.md
-        └── complete/       # 完了フェーズ
+        └── closure/        # 完了フェーズ
             └── {c3}/
                 └── f_default.md
 ```
@@ -70,7 +70,7 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
 
 ```bash
 AGENT_NAME=my-agent
-mkdir -p .agent/${AGENT_NAME}/prompts/steps/{initial,continuation,complete}/default
+mkdir -p .agent/${AGENT_NAME}/prompts/steps/{initial,continuation,closure}/default
 mkdir -p .agent/${AGENT_NAME}/schemas
 ```
 
@@ -206,7 +206,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis", "plan"]
@@ -214,7 +214,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "complete": { "target": "complete.default" }
+        "closing": { "target": "closure.default" }
       }
     },
     "continuation.default": {
@@ -228,7 +228,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress"]
@@ -236,27 +236,27 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "continuation.default" },
-        "complete": { "target": "complete.default" }
+        "closing": { "target": "closure.default" }
       }
     },
-    "complete.default": {
-      "stepId": "complete.default",
-      "name": "Completion Step",
-      "c2": "complete",
+    "closure.default": {
+      "stepId": "closure.default",
+      "name": "Closure Step",
+      "c2": "closure",
       "c3": "default",
       "edition": "default",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
-        "schema": "#/definitions/complete.default"
+        "schema": "#/definitions/closure.default"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["final_summary"]
       },
       "transitions": {
-        "complete": { "target": null }
+        "closing": { "target": null }
       }
     }
   }
@@ -290,7 +290,7 @@ Step ごとのスキーマを配置し、Flow から参照される。
         "next_action": {
           "type": "object",
           "properties": {
-            "action": { "enum": ["next", "repeat", "complete"] },
+            "action": { "enum": ["next", "repeat", "closing"] },
             "reason": { "type": "string" }
           },
           "required": ["action", "reason"],
@@ -333,7 +333,7 @@ failed」で即停止する。
           "type": "object",
           "required": ["action"],
           "properties": {
-            "action": { "enum": ["next", "repeat", "complete"] }
+            "action": { "enum": ["next", "repeat", "closing"] }
           },
           "additionalProperties": false
         }
@@ -353,7 +353,7 @@ failed」で即停止する。
 - Flow が終了する条件は **Structured Output で `next_action.action` を
   `complete` に設定すること**。`isTerminal` のような暗黙フラグは Runner
   では参照されないため、Step 定義とプロンプト内で JSON を返すよう必ず指示 する。
-- `transitions.complete.target` に `null` を明示すると、WorkflowRouter が
+- `transitions.closing.target` に `null` を明示すると、WorkflowRouter が
   completion と判定し Completion Loop へ制御を渡す。
 
 ### 重要な設定
@@ -395,7 +395,7 @@ failed」で即停止する。
   "analysis": "分析内容",
   "plan": ["ステップ1", "ステップ2"],
   "next_action": {
-    "action": "continue | complete | retry",
+    "action": "continue | closing | retry",
     "reason": "理由"
   }
 }
@@ -454,7 +454,7 @@ name: Continuation Prompt
 
 1. 残りの作業を確認
 2. 次のステップを実行
-3. 完了したら `complete` を出力
+3. 完了したら `closing` を出力
 
 ## 出力
 
@@ -502,12 +502,12 @@ Agent ロジックが注入する変数:
 
 AI の `next_action.action` から遷移を決定:
 
-| AI 応答    | Intent     | 動作               |
-| ---------- | ---------- | ------------------ |
-| `continue` | `next`     | 次の Step へ       |
-| `complete` | `complete` | 完了               |
-| `retry`    | `repeat`   | 同じ Step を再実行 |
-| `escalate` | `abort`    | 中断               |
+| AI 応答    | Intent    | 動作               |
+| ---------- | --------- | ------------------ |
+| `continue` | `next`    | 次の Step へ       |
+| `closing`  | `closing` | 完了               |
+| `retry`    | `repeat`  | 同じ Step を再実行 |
+| `escalate` | `abort`   | 中断               |
 
 詳細: `design/08_step_flow_design.md`
 
