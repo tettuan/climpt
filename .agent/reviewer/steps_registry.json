@@ -7,6 +7,12 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
+  "entryStepMapping": {
+    "issue": "initial.issue",
+    "externalState": "initial.issue",
+    "iterate": "initial.default"
+  },
+
   "completionPatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",
@@ -93,7 +99,40 @@
       "usesStdin": false,
       "description": "Initial prompt for reviewing a specific GitHub Issue",
       "condition": "args.issue !== undefined",
-      "priority": 10
+      "priority": 10,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["review.findings", "review.recommendations"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "initial.issue" },
+        "complete": { "target": "complete.review" }
+      }
+    },
+    "continuation.issue": {
+      "stepId": "continuation.issue",
+      "name": "Issue Review Continuation",
+      "c2": "continuation",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "continuation_issue",
+      "uvVariables": ["issue", "completed_iterations"],
+      "usesStdin": false,
+      "description": "Continuation prompt for issue review iterations",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["review.findings", "review.recommendations"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "continuation.issue" },
+        "complete": { "target": "complete.review" }
+      }
     },
     "initial.default": {
       "stepId": "initial.default",
@@ -106,7 +145,18 @@
       "usesStdin": false,
       "description": "Initial prompt for review task with project context",
       "condition": "args.project !== undefined",
-      "priority": 5
+      "priority": 5,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["review.summary", "review.issues_found"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.default" },
+        "repeat": { "target": "initial.default" },
+        "complete": { "target": "complete.review" }
+      }
     },
     "continuation.default": {
       "stepId": "continuation.default",
@@ -117,7 +167,18 @@
       "fallbackKey": "continuation_default",
       "uvVariables": ["iteration"],
       "usesStdin": false,
-      "description": "Continuation prompt for subsequent review iterations"
+      "description": "Continuation prompt for subsequent review iterations",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["review.progress", "review.remaining_items"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.default" },
+        "repeat": { "target": "continuation.default" },
+        "complete": { "target": "complete.review" }
+      }
     }
   }
 }

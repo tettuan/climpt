@@ -10,8 +10,7 @@
   "entryStepMapping": {
     "issue": "initial.issue",
     "externalState": "initial.externalState",
-    "iterate": "initial.iterate",
-    "project": "initial.project.preparation"
+    "iterate": "initial.iterate"
   },
 
   "completionPatterns": {

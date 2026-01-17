@@ -7,6 +7,13 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
+  "entryStepMapping": {
+    "issue": "initial.statuscheck",
+    "externalState": "initial.statuscheck",
+    "iterate": "initial.discover",
+    "composite": "initial.discover"
+  },
+
   "completionPatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",
@@ -91,7 +98,18 @@
       "fallbackKey": "discover_initial_default",
       "uvVariables": [],
       "usesStdin": false,
-      "description": "Discover available agents and build registry (責務0: 発見)"
+      "description": "Discover available agents and build registry (責務0: 発見)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["discovery.agents_found", "discovery.registry"]
+      },
+      "transitions": {
+        "next": { "target": "initial.statuscheck" },
+        "repeat": { "target": "initial.discover" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.statuscheck": {
       "stepId": "initial.statuscheck",
@@ -102,7 +120,18 @@
       "fallbackKey": "statuscheck_initial_default",
       "uvVariables": ["project_number", "project_title", "label_info", "previous_observation"],
       "usesStdin": false,
-      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)"
+      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["status.metrics", "status.delta"]
+      },
+      "transitions": {
+        "next": { "target": "initial.blockercheck" },
+        "repeat": { "target": "initial.statuscheck" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.statuscheck.empty": {
       "stepId": "initial.statuscheck.empty",
@@ -114,7 +143,17 @@
       "fallbackKey": "statuscheck_initial_empty",
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
-      "description": "Status check when no issues found in project"
+      "description": "Status check when no issues found in project",
+      "structuredGate": {
+        "allowedIntents": ["next", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": ["status.summary"]
+      },
+      "transitions": {
+        "next": { "target": "initial.report" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.blockercheck": {
       "stepId": "initial.blockercheck",
@@ -125,7 +164,18 @@
       "fallbackKey": "blockercheck_initial_default",
       "uvVariables": ["project_number", "blocked_issues"],
       "usesStdin": false,
-      "description": "Identify blockers and dependencies (責務1: 把握)"
+      "description": "Identify blockers and dependencies (責務1: 把握)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["blockers.issues", "blockers.dependencies"]
+      },
+      "transitions": {
+        "next": { "target": "initial.stalecheck" },
+        "repeat": { "target": "initial.blockercheck" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.stalecheck": {
       "stepId": "initial.stalecheck",
@@ -136,7 +186,18 @@
       "fallbackKey": "stalecheck_initial_default",
       "uvVariables": ["project_number", "stale_threshold_days"],
       "usesStdin": false,
-      "description": "Check for stale issues with no recent activity (責務1: 把握)"
+      "description": "Check for stale issues with no recent activity (責務1: 把握)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["stale.issues", "stale.recommendations"]
+      },
+      "transitions": {
+        "next": { "target": "initial.judge" },
+        "repeat": { "target": "initial.stalecheck" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.judge": {
       "stepId": "initial.judge",
@@ -147,7 +208,18 @@
       "fallbackKey": "judge_initial_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
-      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)"
+      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["judgment.decisions", "judgment.priorities"]
+      },
+      "transitions": {
+        "next": { "target": "initial.facilitate" },
+        "repeat": { "target": "initial.judge" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.facilitate": {
       "stepId": "initial.facilitate",
@@ -158,7 +230,18 @@
       "fallbackKey": "facilitate_initial_default",
       "uvVariables": ["project_number", "issue_number", "action_type"],
       "usesStdin": false,
-      "description": "Maintain actionable state with comments and labels (責務3: 整備)"
+      "description": "Maintain actionable state with comments and labels (責務3: 整備)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["facilitation.actions_taken", "facilitation.issues_updated"]
+      },
+      "transitions": {
+        "next": { "target": "initial.report" },
+        "repeat": { "target": "initial.facilitate" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "initial.report": {
       "stepId": "initial.report",
@@ -169,7 +252,18 @@
       "fallbackKey": "report_initial_default",
       "uvVariables": ["project_number", "project_title", "report_type"],
       "usesStdin": false,
-      "description": "Recommend next agent with scored suggestions (責務4: 推奨)"
+      "description": "Recommend next agent with scored suggestions (責務4: 推奨)",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": ["report.recommendations", "report.next_agent"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.statuscheck" },
+        "repeat": { "target": "initial.report" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "continuation.statuscheck": {
       "stepId": "continuation.statuscheck",
@@ -180,7 +274,18 @@
       "fallbackKey": "statuscheck_continuation_default",
       "uvVariables": ["completed_iterations", "previous_status"],
       "usesStdin": false,
-      "description": "Continuation prompt for ongoing status monitoring"
+      "description": "Continuation prompt for ongoing status monitoring",
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["status.progress", "status.changes"]
+      },
+      "transitions": {
+        "next": { "target": "initial.blockercheck" },
+        "repeat": { "target": "continuation.statuscheck" },
+        "complete": { "target": "continuation.complete" }
+      }
     },
     "continuation.complete": {
       "stepId": "continuation.complete",
@@ -191,7 +296,16 @@
       "fallbackKey": "complete_continuation_default",
       "uvVariables": ["project_number", "actions_taken"],
       "usesStdin": false,
-      "description": "Completion message after facilitation cycle"
+      "description": "Completion message after facilitation cycle",
+      "structuredGate": {
+        "allowedIntents": ["complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": []
+      },
+      "transitions": {
+        "complete": { "target": "continuation.complete" }
+      }
     }
   }
 }
