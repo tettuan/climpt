@@ -214,9 +214,9 @@ export interface ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    * @param result - Step execution result
-   * @returns Next step ID or "complete" to finish
+   * @returns Next step ID or "closure" to finish
    */
-  transition(result: StepResult): string | "complete";
+  transition(result: StepResult): string | "closure";
 
   /**
    * Build prompt for the given phase.

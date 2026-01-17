@@ -57,7 +57,7 @@ Deno.test("SchemaResolver - resolve schema with external refs", async () => {
 
 Deno.test("SchemaResolver - adds additionalProperties: false", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
-  const schema = await resolver.resolve("issue.schema.json", "complete.issue");
+  const schema = await resolver.resolve("issue.schema.json", "closure.issue");
 
   // Root object should have additionalProperties: false
   assertEquals(schema.additionalProperties, false);
@@ -136,7 +136,7 @@ Deno.test("resolveSchema - convenience function works", async () => {
   const schema = await resolveSchema(
     TEST_SCHEMAS_DIR,
     "issue.schema.json",
-    "complete.issue",
+    "closure.issue",
   );
 
   assertEquals(schema.type, "object");
@@ -145,7 +145,7 @@ Deno.test("resolveSchema - convenience function works", async () => {
 
 Deno.test("SchemaResolver - handles allOf merge correctly", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
-  const schema = await resolver.resolve("issue.schema.json", "complete.issue");
+  const schema = await resolver.resolve("issue.schema.json", "closure.issue");
 
   // allOf should merge stepResponse properties
   const required = schema.required as string[];

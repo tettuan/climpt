@@ -455,8 +455,8 @@ export class IssueContractHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  transition(_result: StepResult): "complete" {
-    return "complete";
+  transition(_result: StepResult): "closure" {
+    return "closure";
   }
 
   /**

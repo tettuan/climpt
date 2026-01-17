@@ -99,9 +99,9 @@
     }
   },
 
-  "initial.project.complete": {
+  "initial.project.closure": {
     "type": "object",
-    "description": "Project complete message",
+    "description": "Project closure message",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary"],
     "properties": {
@@ -170,9 +170,9 @@
     }
   },
 
-  "continuation.project.complete": {
+  "continuation.project.closure": {
     "type": "object",
-    "description": "Project complete continuation",
+    "description": "Project closure continuation",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary"],
     "properties": {

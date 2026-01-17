@@ -40,8 +40,8 @@ export interface StepState {
  * Step transition result
  */
 export interface StepTransition {
-  /** Next step ID or "complete" */
-  nextStep: string | "complete";
+  /** Next step ID or "closure" */
+  nextStep: string | "closure";
   /** Whether current step passed */
   passed: boolean;
   /** Reason for transition */
@@ -182,10 +182,18 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
       );
     }
 
-    // target: null or target: "complete" both signal completion
-    const nextStep = rule.target === null || rule.target === "complete"
-      ? "complete"
-      : rule.target;
+    // target: null, "complete", or "closure" all signal completion
+    // "closure" is the canonical name; "complete" kept for backward compatibility
+    let nextStep: string;
+    if (
+      rule.target === null ||
+      rule.target === "complete" ||
+      rule.target === "closure"
+    ) {
+      nextStep = "closure";
+    } else {
+      nextStep = rule.target;
+    }
 
     return {
       nextStep,
@@ -197,14 +205,14 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
   /**
    * Transition to next step
    */
-  transition(result: StepResult): string | "complete" {
+  transition(result: StepResult): string | "closure" {
     const nextStep = this.getNextStep(result);
 
-    if (nextStep.nextStep === "complete") {
+    if (nextStep.nextStep === "closure") {
       this.state.isComplete = true;
       this.state.completionReason = nextStep.reason ??
         "Step machine reached terminal state";
-      return "complete";
+      return "closure";
     }
 
     // Update state for transition
