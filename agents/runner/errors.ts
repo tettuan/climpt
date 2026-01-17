@@ -286,6 +286,46 @@ export class AgentRateLimitError extends AgentError {
 }
 
 /**
+ * Schema resolution failed
+ *
+ * This error indicates that a JSON Pointer in outputSchemaRef could not be
+ * resolved. The Flow loop should halt immediately - schema failures are fatal
+ * because StepGate cannot interpret intents without structured output.
+ */
+export class AgentSchemaResolutionError extends AgentError {
+  readonly code = "FAILED_SCHEMA_RESOLUTION";
+  readonly recoverable = false;
+  readonly stepId: string;
+  readonly schemaRef: string;
+  readonly consecutiveFailures: number;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      schemaRef: string;
+      consecutiveFailures: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+    this.schemaRef = options.schemaRef;
+    this.consecutiveFailures = options.consecutiveFailures;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+      schemaRef: this.schemaRef,
+      consecutiveFailures: this.consecutiveFailures,
+    };
+  }
+}
+
+/**
  * Retryable query error with additional context
  *
  * This error indicates a query failure that may be recovered

@@ -21,6 +21,7 @@ import {
   AgentNotInitializedError,
   AgentQueryError,
   AgentRateLimitError,
+  AgentSchemaResolutionError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
@@ -43,7 +44,10 @@ import {
   type CompletionValidationResult,
 } from "./completion-chain.ts";
 import { join } from "@std/path";
-import { SchemaResolver } from "../common/schema-resolver.ts";
+import {
+  SchemaPointerError,
+  SchemaResolver,
+} from "../common/schema-resolver.ts";
 import {
   isAssistantMessage,
   isErrorMessage,
@@ -97,6 +101,14 @@ export class AgentRunner {
   private currentStepId: string | null = null;
   private stepGateInterpreter: StepGateInterpreter | null = null;
   private workflowRouter: WorkflowRouter | null = null;
+
+  // Schema resolution failure tracking (fail-fast)
+  // Maps stepId -> consecutive failure count
+  private schemaFailureCount: Map<string, number> = new Map();
+  // Flag to skip StepGate when schema resolution failed
+  private schemaResolutionFailed = false;
+  // Maximum consecutive schema failures before aborting
+  private static readonly MAX_SCHEMA_FAILURES = 2;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -451,7 +463,11 @@ export class AgentRunner {
 
       // Configure structured output if step has outputSchemaRef
       if (stepId) {
-        const schema = await this.loadSchemaForStep(stepId, ctx.logger);
+        const schema = await this.loadSchemaForStep(
+          stepId,
+          iteration,
+          ctx.logger,
+        );
         if (schema) {
           queryOptions.outputFormat = {
             type: "json_schema",
@@ -919,11 +935,20 @@ export class AgentRunner {
 
   /**
    * Load JSON Schema for a step from outputSchemaRef.
+   *
+   * Implements fail-fast behavior: tracks consecutive schema resolution failures
+   * per step and throws AgentSchemaResolutionError after 2 consecutive failures.
+   *
+   * @throws AgentSchemaResolutionError after 2 consecutive failures on the same step
    */
   private async loadSchemaForStep(
     stepId: string,
+    iteration: number,
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<Record<string, unknown> | undefined> {
+    // Reset schema failure flag at the start of each load attempt
+    this.schemaResolutionFailed = false;
+
     if (!this.stepsRegistry) {
       return undefined;
     }
@@ -936,11 +961,67 @@ export class AgentRunner {
       return undefined;
     }
 
-    return await this.loadSchemaFromRef(stepDef.outputSchemaRef, logger);
+    try {
+      const schema = await this.loadSchemaFromRef(
+        stepDef.outputSchemaRef,
+        logger,
+      );
+      // Success - reset failure counter for this step
+      this.schemaFailureCount.set(stepId, 0);
+      return schema;
+    } catch (error) {
+      if (error instanceof SchemaPointerError) {
+        // Increment failure counter for this step
+        const currentCount = this.schemaFailureCount.get(stepId) ?? 0;
+        const newCount = currentCount + 1;
+        this.schemaFailureCount.set(stepId, newCount);
+
+        const schemaRef =
+          `${stepDef.outputSchemaRef.file}#${stepDef.outputSchemaRef.schema}`;
+
+        logger.error(
+          `[SchemaResolution] Failed to resolve schema pointer ` +
+            `(failure ${newCount}/${AgentRunner.MAX_SCHEMA_FAILURES})`,
+          {
+            stepId,
+            schemaRef,
+            pointer: error.pointer,
+            file: error.file,
+          },
+        );
+
+        // Check if we've hit the consecutive failure limit
+        if (newCount >= AgentRunner.MAX_SCHEMA_FAILURES) {
+          throw new AgentSchemaResolutionError(
+            `Schema resolution failed ${newCount} consecutive times for step "${stepId}". ` +
+              `Cannot resolve pointer "${error.pointer}" in ${error.file}. ` +
+              `Flow halted to prevent infinite loop.`,
+            {
+              stepId,
+              schemaRef,
+              consecutiveFailures: newCount,
+              cause: error,
+              iteration,
+            },
+          );
+        }
+
+        // Set flag to skip StepGate for this iteration (StructuredOutputUnavailable)
+        this.schemaResolutionFailed = true;
+        logger.warn(
+          `[SchemaResolution] Marking iteration as StructuredOutputUnavailable. ` +
+            `StepGate will be skipped. Fix schema reference before next iteration.`,
+        );
+        return undefined;
+      }
+      throw error;
+    }
   }
 
   /**
    * Load schema from outputSchemaRef with full $ref resolution.
+   *
+   * @throws SchemaPointerError if the schema pointer cannot be resolved
    */
   private async loadSchemaFromRef(
     ref: OutputSchemaRef,
@@ -960,11 +1041,15 @@ export class AgentRunner {
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(`Schema file not found: ${join(schemasDir, ref.file)}`);
-      } else {
-        logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
-          error: String(error),
-        });
+        return undefined;
       }
+      // Re-throw SchemaPointerError to trigger fail-fast behavior
+      if (error instanceof SchemaPointerError) {
+        throw error;
+      }
+      logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
+        error: String(error),
+      });
       return undefined;
     }
   }
@@ -1016,12 +1101,24 @@ export class AgentRunner {
    * Returns null if prerequisites are not met (no registry, no structured output,
    * or step not found), which will cause getStepIdForIteration() to error
    * on the next iteration.
+   *
+   * When schemaResolutionFailed is true, StepGate routing is skipped because
+   * structured output is unavailable. The step will be retried on the next
+   * iteration with the same stepId.
    */
   private handleStepTransition(
     stepId: string,
     summary: IterationSummary,
     ctx: RuntimeContext,
   ): RoutingResult | null {
+    // Skip StepGate when schema resolution failed (StructuredOutputUnavailable)
+    if (this.schemaResolutionFailed) {
+      ctx.logger.info(
+        `[StepFlow] Skipping StepGate routing: StructuredOutputUnavailable for step "${stepId}"`,
+      );
+      // Keep currentStepId unchanged to retry the same step
+      return null;
+    }
     return this.tryStructuredGateRouting(stepId, summary, ctx);
   }
 

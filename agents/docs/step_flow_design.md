@@ -50,7 +50,7 @@ initial.issue ──> continuation.issue
       "fallbackKey": "issue_initial_default",
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "initial.issue"
+        "schema": "#/definitions/initial.issue"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
@@ -74,6 +74,10 @@ initial.issue ──> continuation.issue
       "name": "Issue Continuation Prompt",
       "c2": "continuation",
       "c3": "issue",
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "#/definitions/continuation.issue"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -137,6 +141,17 @@ Check steps_registry.json for missing gate configuration.
 `section.*` プレフィックスの Step（例:
 `section.projectcontext`）はテンプレートセクションであり、Flow Step ではないため
 `structuredGate` は不要。
+
+### Schema Fail-Fast ルール
+
+- すべての Flow Step は `outputSchemaRef` を持ち、`schema` には JSON Pointer
+  (`#/definitions/<stepId>`) を指定する。Pointer とファイル上の `definitions`
+  が一致しない場合、Iteration は開始されず即座にエラーになる。
+- SchemaResolver が Pointer を解決できない場合、Step は
+  `StructuredOutputUnavailable` として扱われ、同じ Step で 2
+  回連続して失敗すると Flow 全体を `FAILED_SCHEMA_RESOLUTION` で停止する。
+- この挙動により、構造化出力が無いままのループは発生せず、設定ミスは
+  初期段階で顕在化する。
 
 ## StructuredGate の仕組み
 

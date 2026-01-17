@@ -1,6 +1,30 @@
 Agent のテストを開始を開始する。
 設定とプロンプトで作成可能なので、以下の手順でテストする。
 
+## スキーマ解決失敗時の停止ルール（Fail-Fast）
+
+**重要**: スキーマ解決に失敗した場合、ランナーは以下のルールで動作します：
+
+1. **1回目の失敗**: 警告ログを出力し、`StructuredOutputUnavailable` として StepGate をスキップ。同じステップで次のイテレーションを試行。
+2. **2回連続の失敗**: `FAILED_SCHEMA_RESOLUTION` エラーで即座に停止。無限ループを防止。
+
+### ログメッセージ
+- `[SchemaResolution] Failed to resolve schema pointer (failure N/2)` - スキーマポインタ解決失敗
+- `[SchemaResolution] Marking iteration as StructuredOutputUnavailable` - StepGate スキップ
+- `FAILED_SCHEMA_RESOLUTION` - 2回連続失敗で停止
+
+### よくある原因と対処
+| 原因 | 対処法 |
+|------|--------|
+| `outputSchemaRef.schema` が bare name (`"initial.default"`) | JSON Pointer 形式に変更: `"#/definitions/initial"` |
+| `schemas/step_outputs.schema.json` が存在しない | スキーマファイルを作成 |
+| ポインタ先の `definitions` が存在しない | スキーマファイルに定義を追加 |
+
+### 参照
+- `agents/docs/01_quickstart.md` - スキーマ設定の正しい形式
+- `agents/docs/step_flow_design.md` - Flow ステップの要件
+
+---
 
 テスト方法：ランダムテスト
 テスト概要：エージェント名を、以下の「ジャンル」からランダムに選び、選んだジャンルの中から、さらに特定の作業プロセス名称をランダムに決める。これを「エージェント名」とする。

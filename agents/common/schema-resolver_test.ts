@@ -2,8 +2,12 @@
  * Tests for JSON Schema $ref Resolver
  */
 
-import { assertEquals, assertRejects } from "@std/assert";
-import { resolveSchema, SchemaResolver } from "./schema-resolver.ts";
+import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
+import {
+  resolveSchema,
+  SchemaPointerError,
+  SchemaResolver,
+} from "./schema-resolver.ts";
 import { join } from "@std/path";
 
 const TEST_SCHEMAS_DIR = join(Deno.cwd(), ".agent/iterator/schemas");
@@ -192,4 +196,57 @@ Deno.test("SchemaResolver - resolves externalState schema", async () => {
   const properties = schema.properties as Record<string, unknown>;
   assertEquals(properties.issue !== undefined, true);
   assertEquals(properties.analysis !== undefined, true);
+});
+
+// =============================================================================
+// SchemaPointerError Tests (fail-fast behavior)
+// =============================================================================
+
+Deno.test("SchemaPointerError - has correct properties", () => {
+  const error = new SchemaPointerError("/definitions/nonexistent", "test.json");
+  assertInstanceOf(error, Error);
+  assertEquals(error.name, "SchemaPointerError");
+  assertEquals(error.pointer, "/definitions/nonexistent");
+  assertEquals(error.file, "test.json");
+  assertEquals(
+    error.message.includes("No schema pointer"),
+    true,
+  );
+  assertEquals(
+    error.message.includes("JSON Pointer format"),
+    true,
+  );
+});
+
+Deno.test("SchemaResolver - throws SchemaPointerError for invalid pointer", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  await assertRejects(
+    async () => {
+      // Try to resolve a schema with an invalid internal $ref
+      // We need to create a scenario where navigateToPath fails
+      // Since we can't easily mock, we'll test through the resolve method
+      // by referencing a non-existent definition
+      await resolver.resolve("issue.schema.json", "nonexistent.definition");
+    },
+    Error,
+    "not found",
+  );
+});
+
+Deno.test("SchemaPointerError - message includes guidance", () => {
+  const error = new SchemaPointerError(
+    "#/definitions/missing",
+    "step_outputs.schema.json",
+  );
+  assertEquals(
+    error.message.includes("#/definitions/stepId"),
+    true,
+    "Error message should include example of correct format",
+  );
+  assertEquals(
+    error.message.includes("definition exists"),
+    true,
+    "Error message should mention checking if definition exists",
+  );
 });

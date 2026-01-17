@@ -191,7 +191,8 @@ export class WorkflowRouter {
         rule.condition,
         interpretation.handoff ?? {},
       );
-      const target = rule.targets[conditionValue] ?? null;
+      const target = rule.targets[conditionValue] ??
+        rule.targets["default"] ?? null;
       // target: null in conditional also means terminal
       if (target === null) {
         return { nextStepId: null, isTerminal: true };

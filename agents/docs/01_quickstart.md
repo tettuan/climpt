@@ -86,11 +86,19 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 - Flow Step に `structuredGate`/`transitions` が無い場合は
   `Flow validation failed. All Flow steps must define structuredGate and transitions.`
   が表示される。
-- `outputSchemaRef` を省くと Schema が解決できず Structured Output
-  が得られないため、Stage 2 以降で Runner がエラー扱いする予定。Schema
-  を置いておけば自動的に `outputFormat` が有効化される。
+- `outputSchemaRef` が無い、または `schema` の JSON Pointer が解決できない場合は
+  初回 iteration の直前に Runner が停止し、次のようなメッセージを出す:
 
-この順番で埋めていけば、ドキュメントを読み返さなくてもエラーメッセージが設計と一致する。
+  ```
+  [StepFlow] Schema resolution failed for step "initial.default".
+  Check step_outputs.schema.json#/definitions/initial.default
+  ```
+
+- 同じ Step で Schema 解決が 2 回連続で失敗すると、Flow を即終了し
+  `FAILED_SCHEMA_RESOLUTION` ステータスで落ちる（無限ループは発生しない）。
+
+この順番で埋めておけば、必須条件を満たしていない場合は Runner がエラーで止まり、
+ドキュメントを読み返さなくても原因が明示される。
 
 ### completionType の選択
 
@@ -111,7 +119,8 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 1. `entryStepMapping` で `completionType` ごとの開始 Step を明示する
 2. すべての Flow/Completion Step に `structuredGate` と `transitions` を持たせる
-3. 同じ Step に `outputSchemaRef` を付け、後述の Schema ファイルへ誘導する
+3. 同じ Step に `outputSchemaRef` を付け、`schema` には JSON Pointer
+   (`#/definitions/<stepId>`) を記載して後述の Schema ファイルへ誘導する
 
 どれか 1 つでも欠けると Runner
 のロード段階で即エラーになるため、上から順に埋めれば迷わない。
@@ -148,7 +157,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "fallbackKey": "default_initial",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
-        "schema": "initial.default"
+        "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
@@ -170,7 +179,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "edition": "default",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
-        "schema": "continuation.default"
+        "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
@@ -192,7 +201,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "edition": "default",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
-        "schema": "complete.default"
+        "schema": "#/definitions/complete.default"
       },
       "structuredGate": {
         "allowedIntents": ["complete"],
@@ -212,12 +221,55 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 Flow ループは Structured Output を前提に `next_action.action` から intent を
 読み取る。したがって **すべての Flow/Completion Step が `outputSchemaRef`
-を宣言し、JSON Schema を `.agent/{agent}/schemas/` に置く**。
+を宣言し、`schema` には JSON Pointer (`#/definitions/<stepId>`) を設定し、 JSON
+Schema を `.agent/{agent}/schemas/` に置く**。
 
 ```
 .agent/{agent}/schemas/
 └── step_outputs.schema.json
 ```
+
+`step_outputs.schema.json` は次のように `definitions`（または `$defs`）配下へ
+Step ごとのスキーマを配置し、Flow から参照される。
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./step_outputs.schema.json",
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "properties": {
+        "analysis": { "type": "object" },
+        "next_action": {
+          "type": "object",
+          "properties": {
+            "action": { "enum": ["next", "repeat", "complete"] },
+            "reason": { "type": "string" }
+          },
+          "required": ["action", "reason"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["analysis", "next_action"],
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+Pointer 形式 (`#/definitions/initial.default`)
+とファイル上の定義が一致しない場合、 Runner は「Schema resolution
+failed」で即停止する。
+
+### Fail-Fast 動作
+
+- Schema 参照が見つからない／ファイルが欠落している場合、該当 Step の iteration
+  は 実行されず `StructuredOutputUnavailable` として扱われる。
+- 同じ Step で 2 回連続して Schema 解決に失敗すると、Flow 全体を停止し
+  `FAILED_SCHEMA_RESOLUTION` を返す。これにより無限ループを防ぐ。
+- 完了に必要な node (`structuredGate.intentField` など) が Schema
+  に含まれていない 場合も同様に停止させるのが推奨。
 
 `step_outputs.schema.json` の例:
 
