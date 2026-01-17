@@ -21,8 +21,8 @@ Agent のテストを開始を開始する。
 | ポインタ先の `definitions` が存在しない | スキーマファイルに定義を追加 |
 
 ### 参照
-- `agents/docs/01_quickstart.md` - スキーマ設定の正しい形式
-- `agents/docs/step_flow_design.md` - Flow ステップの要件
+- `agents/docs/builder/01_quickstart.md` - スキーマ設定の正しい形式
+- `agents/docs/design/step_flow_design.md` - Flow ステップの要件
 
 ---
 
@@ -53,7 +53,7 @@ Agent のテストを開始を開始する。
 ## 手順
 
 1. quickガイドをもとにエージェントを構築する（既存実装を参照しない）
-  `agents/docs/01_quickstart.md` と `agents/docs/step_flow_design.md`
+  `agents/docs/builder/01_quickstart.md` と `agents/docs/design/step_flow_design.md`
   - `entryStepMapping.stepMachine` または `entryStep` を**必ず**定義する
   - `.agent/{agent}/schemas/*.schema.json` を作成し、すべての Flow/Completion Step に `outputSchemaRef` を設定する
   - プロンプトには Structured Output (JSON) を**強制**する記述を追加し、`next_action.action` を明示させる（`isTerminal` には頼らない）
