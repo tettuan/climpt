@@ -6,7 +6,7 @@
 
 - Agent = 設定 (JSON) + プロンプト (Markdown)
 - コードを書かずに Agent を定義できる
-- 詳細: `10_philosophy.md`, `11_core_architecture.md`
+- 詳細: `design/10_philosophy.md`, `design/11_core_architecture.md`
 
 ## 必要なファイル
 
@@ -319,7 +319,7 @@ failed」で即停止する。
 | `transitions`      | intent → 次の Step      |
 | `handoffFields`    | 次 Step へ渡すデータ    |
 
-詳細: `step_flow_design.md`
+詳細: `design/step_flow_design.md`
 
 ## Step 4: システムプロンプト作成
 
@@ -463,7 +463,7 @@ AI の `next_action.action` から遷移を決定:
 | `retry`    | `repeat`   | 同じ Step を再実行 |
 | `escalate` | `abort`    | 中断               |
 
-詳細: `step_flow_design.md`
+詳細: `design/step_flow_design.md`
 
 ## 既存 Agent の参考
 
@@ -510,6 +510,6 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 ## 次のステップ
 
 - `02_agent_definition.md` - agent.json の詳細
-- `05_prompt_system.md` - C3L プロンプト解決
-- `step_flow_design.md` - Step フロー設計
+- `design/05_prompt_system.md` - C3L プロンプト解決
+- `design/step_flow_design.md` - Step フロー設計
 - `08_structured_outputs.md` - Structured Output

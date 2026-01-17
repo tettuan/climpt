@@ -31,7 +31,7 @@ completionSignal(response) =
 1. **Prompt Resolution**
    - C3L (`steps/complete/<domain>/f_<edition>.md`)
      から完了指示用プロンプトを読み込む。
-   - docs/05_prompt_system.md 同様のルールで解決するため、ユーザーは Step
+   - design/05_prompt_system.md 同様のルールで解決するため、ユーザーは Step
      プロンプトと同じリズムで管理できる。
 
 2. **Structured Output 取込み**

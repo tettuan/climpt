@@ -82,7 +82,7 @@ Guide for migrating existing agents to the climpt-agents framework.
 +-- steps_registry.json
 ```
 
-See [step_flow_design.md](./step_flow_design.md) for details.
+See [step_flow_design.md](../design/step_flow_design.md) for details.
 
 ---
 

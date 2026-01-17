@@ -127,7 +127,7 @@ Runner は steps_registry.json をロードする際、すべての Flow Step（
 [StepFlow] Flow validation failed. All Flow steps must define structuredGate and transitions.
 Steps missing structuredGate: initial.issue, continuation.issue
 Steps missing transitions: initial.issue
-See agents/docs/step_flow_design.md for requirements.
+See agents/docs/design/step_flow_design.md for requirements.
 ```
 
 ### 実行時検証
