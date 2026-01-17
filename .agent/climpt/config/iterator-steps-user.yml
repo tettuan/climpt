@@ -4,4 +4,4 @@ params:
     directiveType:
       pattern: "^(initial|continuation|section|retry|complete)$"
     layerType:
-      pattern: "^(issue|project|iterate)$"
+      pattern: "^(issue|project|iterate|externalState)$"

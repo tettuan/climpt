@@ -584,7 +584,7 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "initial.externalState" },
-        "complete": { "target": "initial.externalState" }
+        "complete": { "target": "complete.externalState" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
@@ -611,9 +611,34 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "continuation.externalState" },
-        "complete": { "target": "continuation.externalState" }
+        "complete": { "target": "complete.externalState" }
       },
       "description": "Continuation prompt for external state completion"
+    },
+    "complete.externalState": {
+      "stepId": "complete.externalState",
+      "name": "External State Complete Prompt",
+      "type": "prompt",
+      "c2": "complete",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_complete_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "complete.externalState"
+      },
+      "structuredGate": {
+        "allowedIntents": ["complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": []
+      },
+      "transitions": {
+        "complete": { "target": "complete.externalState" }
+      },
+      "description": "Completion prompt for external state (terminal step)"
     }
   }
 }

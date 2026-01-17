@@ -22,6 +22,7 @@ import {
   AgentQueryError,
   AgentRateLimitError,
   AgentSchemaResolutionError,
+  AgentStepIdMismatchError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
@@ -269,6 +270,9 @@ export class AgentRunner {
 
         summaries.push(summary);
         sessionId = summary.sessionId;
+
+        // Validate stepId in structured output (fail-fast guard)
+        this.validateStructuredOutputStepId(stepId, summary, iteration, ctx);
 
         // Record step output for step flow orchestration
         this.recordStepOutput(stepId, summary);
@@ -1063,6 +1067,63 @@ export class AgentRunner {
    */
   getStepContext(): StepContext | null {
     return this.stepContext;
+  }
+
+  /**
+   * Validate that structuredOutput.stepId matches the expected stepId.
+   *
+   * This is a fail-fast guard to catch schema configuration errors or LLM
+   * returning incorrect step names. The schema should define a "const" for
+   * stepId to enforce this at the schema level.
+   *
+   * @throws AgentStepIdMismatchError if stepId doesn't match
+   */
+  private validateStructuredOutputStepId(
+    expectedStepId: string,
+    summary: IterationSummary,
+    iteration: number,
+    ctx: RuntimeContext,
+  ): void {
+    // Skip validation if no structured output
+    if (!summary.structuredOutput) {
+      return;
+    }
+
+    const structuredOutput = summary.structuredOutput;
+
+    // Check if stepId exists in structured output
+    if (!isRecord(structuredOutput) || !isString(structuredOutput.stepId)) {
+      ctx.logger.debug(
+        `[StepFlow] No stepId in structured output, skipping validation`,
+      );
+      return;
+    }
+
+    const actualStepId = structuredOutput.stepId;
+
+    // Validate stepId matches
+    if (actualStepId !== expectedStepId) {
+      const errorMessage =
+        `[StepFlow] stepId mismatch: expected "${expectedStepId}", got "${actualStepId}". ` +
+        `Check that the schema defines "const": "${expectedStepId}" for stepId, ` +
+        `or verify the LLM is using the correct step identifier.`;
+
+      ctx.logger.error(errorMessage, {
+        expectedStepId,
+        actualStepId,
+        iteration,
+      });
+
+      throw new AgentStepIdMismatchError(errorMessage, {
+        expectedStepId,
+        actualStepId,
+        iteration,
+      });
+    }
+
+    ctx.logger.debug(
+      `[StepFlow] stepId validation passed: ${actualStepId}`,
+    );
   }
 
   /**

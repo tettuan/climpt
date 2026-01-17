@@ -25,15 +25,21 @@ What/Why を中心に記述し、How は設定例に留める。
 ## Step Flow のレイアウト
 
 ```
-initial.issue ──> continuation.issue
-     │                   │
-     ▼                   ▼
-  complete.issue   (repeat or complete)
+initial.<domain> ──> continuation.<domain>
+       │                      │
+       ▼                      ▼
+   complete.<domain>    (repeat or complete)
 ```
 
-- `handoffFields` で指定したデータは StepContext に蓄積される
+- `<domain>` は `issue` や `externalState` など、Completion Type に対応する c3
+  で 置き換える。Flow は常に **3 段 (initial / continuation / complete)**
+  を揃えて 宣言することで、構造を単純に保つ。
+- `handoffFields` で指定したデータは StepContext に蓄積され、Completion ループ
+  へ橋渡しされる。
 - completion 判定は `structuredGate.allowedIntents` に `complete` を含め、 AI が
-  `next_action.action: "complete"` を返すことで signal を送る
+  `next_action.action: "complete"` を返すことで signal を送る。**complete intent
+  は必ず `complete.<domain>` に遷移し、Flow 側で “完了なのに同じ Step を回す”
+  状態 を作らない。**
 
 ## Schema 例
 
@@ -142,11 +148,28 @@ Check steps_registry.json for missing gate configuration.
 `section.projectcontext`）はテンプレートセクションであり、Flow Step ではないため
 `structuredGate` は不要。
 
+### Prompt / C3L の契約
+
+- **すべての Flow Step は C3L プロンプトを持つ。** ディレクトリ構造は
+  `.agent/<agent>/prompts/steps/{c2}/{c3}/f_{edition}[ _{adaptation} ].md`
+  を必須とし、 `initial.externalState` なら
+  `steps/initial/externalState/f_default.md` が存在する。
+- `iterator-steps` など breakdown 設定の `layerType` には新しい `<c3>` 名称を
+  必ず追加する。ここに列挙されない Step は `runBreakdown` が “no data” を返し、
+  Flow 全体が fallback テンプレートへ戻ってしまう。設定ミスを設計で許容しない。
+- Fallback プロンプトは開発初期の安全装置に過ぎず、Step Flow として完成した
+  ルートでは **fallback 禁止** が原則。C3L 側で解決できなければ、その Step は
+  存在しないものとして扱う。
+
 ### Schema Fail-Fast ルール
 
 - すべての Flow Step は `outputSchemaRef` を持ち、`schema` には JSON Pointer
   (`#/definitions/<stepId>`) を指定する。Pointer とファイル上の `definitions`
   が一致しない場合、Iteration は開始されず即座にエラーになる。
+- `stepId` プロパティには `const` もしくは `enum` 制約を付け、LLM が別 Step 名を
+  返した瞬間に SchemaValidation が失敗するようにする。Flow が
+  `initial.externalState` を実行しているのに `initial.issue`
+  を返す、といった状態を仕様上許可しない。
 - SchemaResolver が Pointer を解決できない場合、Step は
   `StructuredOutputUnavailable` として扱われ、同じ Step で 2
   回連続して失敗すると Flow 全体を `FAILED_SCHEMA_RESOLUTION` で停止する。
@@ -186,13 +209,18 @@ AI 応答の `next_action.action` から GateIntent への変換:
 
 ## Prompt 呼び出しルール
 
-- すべての Step は C3L 形式で参照する
-- Flow ループ自体はプロンプトを直接解決せず、Completion Handler
-  (`StepMachineCompletionHandler`) が Step ID に基づいて PromptResolver
-  を呼び出す
-- Completion Handler は docs/05_prompt_system.md に従い
-  `prompts/<c1>/<c2>/<c3>/f_<edition>.md` をロードし、Flow ループへ返す
-- ユーザーは docs/ 以下を編集するだけで Step の内容を差し替えられる
+- すべての Step は C3L 形式で参照する。Flow ループはプロンプトを直接解決せず、
+  Completion Handler (`StepMachineCompletionHandler`) が Step ID に基づいて
+  PromptResolver を呼び出す。
+- PromptResolver は `.agent/<agent>/prompts/steps/{c2}/{c3}/...`
+  を探索し、見つから なければエラーとする。Fallback
+  は開発時の安全策に限定し、運用時には無効化 して構造の一貫性を担保する。
+- C3L 設定 (`.agent/climpt/config/<agent>-steps*.yml`) で `layerType` と
+  `directiveType` を正しく設定することで、breakdown が Step Flow
+  の構造をそのまま反映する。
+- ユーザーは docs/ 以下を編集するだけで Step の内容を差し替えられる一方、
+  ルートとなる C3L ファイルが無い Step は Flow に追加しない（設計の簡潔さを
+  守るため）。
 
 ## handoff の契約
 

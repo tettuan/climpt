@@ -76,19 +76,39 @@ export class RetryHandler {
     }
 
     // C3L path resolution
-    const loadResult = await this.promptLoader.load(
+    const c3lPath = {
+      c1: "steps",
+      c2: stepConfig.c2, // e.g. "retry"
+      c3: stepConfig.c3, // e.g. "issue"
+      edition: pattern.edition, // e.g. "failed"
+      adaptation: pattern.adaptation, // e.g. "git-dirty"
+    };
+
+    this.ctx.logger.debug(
+      `[RetryHandler] Loading retry prompt for pattern: ${patternName}`,
       {
-        c1: "steps",
-        c2: stepConfig.c2, // e.g. "retry"
-        c3: stepConfig.c3, // e.g. "issue"
-        edition: pattern.edition, // e.g. "failed"
-        adaptation: pattern.adaptation, // e.g. "git-dirty"
+        path: c3lPath,
+        stepId: stepConfig.stepId,
+        workingDir: this.ctx.workingDir,
       },
     );
 
+    const loadResult = await this.promptLoader.load(c3lPath);
+
     if (!loadResult.ok || !loadResult.content) {
+      // Detailed error logging with path information for debugging
+      const expectedPath = this.buildExpectedPath(c3lPath);
       this.ctx.logger.warn(
-        `Failed to load retry prompt: ${loadResult.error}, using fallback`,
+        `[RetryHandler] Failed to load retry prompt: ${loadResult.error}`,
+        {
+          pattern: patternName,
+          stepId: stepConfig.stepId,
+          c3lPath,
+          expectedPath,
+          workingDir: this.ctx.workingDir,
+          agentId: this.ctx.agentId,
+          error: loadResult.error,
+        },
       );
       return this.buildFallbackPrompt(stepConfig, validationResult);
     }
@@ -105,6 +125,22 @@ export class RetryHandler {
   }
 
   /**
+   * Build expected file path for debugging
+   */
+  private buildExpectedPath(c3lPath: {
+    c1: string;
+    c2: string;
+    c3: string;
+    edition: string;
+    adaptation?: string;
+  }): string {
+    const filename = c3lPath.adaptation
+      ? `f_${c3lPath.edition}_${c3lPath.adaptation}.md`
+      : `f_${c3lPath.edition}.md`;
+    return `.agent/${this.ctx.agentId}/prompts/${c3lPath.c1}/${c3lPath.c2}/${c3lPath.c3}/${filename}`;
+  }
+
+  /**
    * Build fallback prompt
    *
    * Used when pattern-specific prompt is not found.
@@ -114,19 +150,42 @@ export class RetryHandler {
     validationResult: ValidatorResult,
   ): Promise<string> {
     // Fallback: try f_failed.md
-    const loadResult = await this.promptLoader.load(
+    const c3lPath = {
+      c1: "steps",
+      c2: stepConfig.c2,
+      c3: stepConfig.c3,
+      edition: "failed",
+    };
+
+    this.ctx.logger.debug(
+      `[RetryHandler] Attempting fallback prompt load`,
       {
-        c1: "steps",
-        c2: stepConfig.c2,
-        c3: stepConfig.c3,
-        edition: "failed",
+        path: c3lPath,
+        stepId: stepConfig.stepId,
       },
     );
 
+    const loadResult = await this.promptLoader.load(c3lPath);
+
     if (loadResult.ok && loadResult.content) {
+      this.ctx.logger.debug(
+        `[RetryHandler] Loaded fallback prompt successfully`,
+        { path: c3lPath },
+      );
       const params = validationResult.params ?? {};
       return injectParams(loadResult.content, params);
     }
+
+    // Log fallback failure with detailed path info
+    const expectedPath = this.buildExpectedPath(c3lPath);
+    this.ctx.logger.warn(
+      `[RetryHandler] Fallback prompt not found, using generic message`,
+      {
+        stepId: stepConfig.stepId,
+        expectedPath,
+        error: loadResult.error,
+      },
+    );
 
     // Final fallback: generic message
     return this.buildGenericRetryPrompt(validationResult);

@@ -326,6 +326,43 @@ export class AgentSchemaResolutionError extends AgentError {
 }
 
 /**
+ * Step ID mismatch error
+ *
+ * This error indicates that the structuredOutput.stepId returned by the LLM
+ * does not match the expected currentStepId. This is a configuration error
+ * that should be fixed immediately - the schema may be missing a "const"
+ * constraint or the LLM is returning the wrong step name.
+ */
+export class AgentStepIdMismatchError extends AgentError {
+  readonly code = "AGENT_STEP_ID_MISMATCH";
+  readonly recoverable = false;
+  readonly expectedStepId: string;
+  readonly actualStepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      expectedStepId: string;
+      actualStepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.expectedStepId = options.expectedStepId;
+    this.actualStepId = options.actualStepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      expectedStepId: this.expectedStepId,
+      actualStepId: this.actualStepId,
+    };
+  }
+}
+
+/**
  * Retryable query error with additional context
  *
  * This error indicates a query failure that may be recovered
