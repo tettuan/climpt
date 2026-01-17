@@ -90,6 +90,29 @@ initial.issue ──> continuation.issue
 }
 ```
 
+## 厳格な Step 定義要件
+
+**すべての Flow Step は `structuredGate` と `transitions`
+を定義しなければならない。**
+
+- 初回 iteration: `entryStepMapping` または `initial.{completionType}` で Step
+  を決定
+- 2 回目以降: Structured Gate のルーティング結果 (`currentStepId`) を使用
+- ルーティングが発生しない場合（`structuredGate` 未定義など）、次 iteration
+  でエラー
+
+```
+[StepFlow] No routed step ID for iteration N.
+All Flow steps must define structuredGate with transitions.
+Check steps_registry.json for missing gate configuration.
+```
+
+これにより、設定ミスが即座に検出され、暗黙のフォールバックによる不正動作を防ぐ。
+
+`section.*` プレフィックスの Step（例:
+`section.projectcontext`）はテンプレートセク ションであり、Flow Step
+ではないため `structuredGate` は不要。
+
 ## StructuredGate の仕組み
 
 1. AI は structured output で `next_action.action` を返す

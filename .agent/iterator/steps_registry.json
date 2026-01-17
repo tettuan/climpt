@@ -7,6 +7,13 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
+  "entryStepMapping": {
+    "issue": "initial.issue",
+    "externalState": "initial.externalState",
+    "iterate": "initial.iterate",
+    "project": "initial.project.preparation"
+  },
+
   "completionPatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",

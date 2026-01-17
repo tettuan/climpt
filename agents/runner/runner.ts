@@ -772,19 +772,41 @@ export class AgentRunner {
   /**
    * Get step ID for a given iteration.
    *
-   * If a step transition has set currentStepId (via structured gate routing),
-   * use that. Otherwise, fall back to default calculation.
+   * For iteration 1: Uses entryStepMapping from registry if available,
+   * otherwise constructs initial.{completionType}.
+   *
+   * For iteration > 1: Requires currentStepId to be set by structured gate routing.
+   * Errors if no routing has occurred, enforcing the documented contract that
+   * all Flow steps must define transitions.
    */
   private getStepIdForIteration(iteration: number): string {
-    // Use routed step ID if available (set by handleStepTransition)
-    if (this.currentStepId && iteration > 1) {
+    // For iteration > 1, require routed step ID
+    if (iteration > 1) {
+      if (!this.currentStepId) {
+        throw new Error(
+          `[StepFlow] No routed step ID for iteration ${iteration}. ` +
+            `All Flow steps must define structuredGate with transitions. ` +
+            `Check steps_registry.json for missing gate configuration.`,
+        );
+      }
       return this.currentStepId;
     }
 
-    // Default calculation
+    // For iteration 1: Use registry-based lookup if available
     const completionType = this.definition.behavior.completionType;
-    const prefix = iteration === 1 ? "initial" : "continuation";
-    return `${prefix}.${completionType}`;
+
+    // Try entryStepMapping first
+    if (this.stepsRegistry?.entryStepMapping?.[completionType]) {
+      return this.stepsRegistry.entryStepMapping[completionType];
+    }
+
+    // Try generic entryStep
+    if (this.stepsRegistry?.entryStep) {
+      return this.stepsRegistry.entryStep;
+    }
+
+    // Default construction for iteration 1
+    return `initial.${completionType}`;
   }
 
   /**
@@ -880,25 +902,19 @@ export class AgentRunner {
   }
 
   /**
-   * Handle step transition based on structured gate or completion handler.
+   * Handle step transition using structured gate routing.
    *
-   * Priority:
-   * 1. If step has structuredGate, use StepGateInterpreter + WorkflowRouter
-   * 2. Otherwise, fall back to completionHandler.transition()
+   * All Flow steps must define structuredGate with transitions.
+   * Returns null if prerequisites are not met (no registry, no structured output,
+   * or step not found), which will cause getStepIdForIteration() to error
+   * on the next iteration.
    */
   private handleStepTransition(
     stepId: string,
     summary: IterationSummary,
     ctx: RuntimeContext,
   ): RoutingResult | null {
-    // Try structured gate routing first
-    const routingResult = this.tryStructuredGateRouting(stepId, summary, ctx);
-    if (routingResult) {
-      return routingResult;
-    }
-
-    // Fall back to legacy completionHandler.transition()
-    return this.legacyTransition(stepId, summary, ctx);
+    return this.tryStructuredGateRouting(stepId, summary, ctx);
   }
 
   /**
@@ -965,112 +981,5 @@ export class AgentRunner {
     }
 
     return routing;
-  }
-
-  /**
-   * Legacy transition using completionHandler.transition().
-   *
-   * @deprecated Use structuredGate + WorkflowRouter instead.
-   * This method is retained for backward compatibility with steps
-   * that don't have structuredGate configured. Will be removed
-   * once all steps are migrated to structured gate flow.
-   */
-  private legacyTransition(
-    stepId: string,
-    summary: IterationSummary,
-    ctx: RuntimeContext,
-  ): RoutingResult | null {
-    const handler = ctx.completionHandler;
-
-    if (
-      !("transition" in handler) || typeof handler.transition !== "function"
-    ) {
-      return null;
-    }
-
-    const passed = this.determineStepPassed(summary);
-
-    const stepResult = {
-      stepId,
-      passed,
-      reason: this.extractStepReason(summary),
-    };
-
-    const nextStep =
-      (handler as { transition: (r: typeof stepResult) => string | "complete" })
-        .transition(stepResult);
-
-    if (nextStep === "complete") {
-      ctx.logger.info(`[StepFlow] Step machine reached terminal state`);
-      return {
-        nextStepId: stepId,
-        signalCompletion: true,
-        reason: "Step machine reached terminal state",
-      };
-    } else if (nextStep !== stepId) {
-      ctx.logger.info(`[StepFlow] Transitioning from ${stepId} to ${nextStep}`);
-      this.currentStepId = nextStep;
-      return {
-        nextStepId: nextStep,
-        signalCompletion: false,
-        reason: `Legacy transition: ${stepId} -> ${nextStep}`,
-      };
-    } else {
-      ctx.logger.debug(`[StepFlow] Staying on step ${stepId} (retry)`);
-      return {
-        nextStepId: stepId,
-        signalCompletion: false,
-        reason: "Retry on same step",
-      };
-    }
-  }
-
-  /**
-   * Determine if step passed based on iteration summary.
-   *
-   * @deprecated Used by legacyTransition(). Prefer StepGateInterpreter
-   * for intent extraction from structured output.
-   */
-  private determineStepPassed(summary: IterationSummary): boolean {
-    if (summary.structuredOutput) {
-      const so = summary.structuredOutput;
-
-      if (so.status === "completed" || so.status === "passed") {
-        return true;
-      }
-      if (so.status === "failed" || so.status === "error") {
-        return false;
-      }
-
-      if (so.result === "ok" || so.result === "pass" || so.result === true) {
-        return true;
-      }
-      if (so.result === "ng" || so.result === "fail" || so.result === false) {
-        return false;
-      }
-    }
-
-    return summary.errors.length === 0;
-  }
-
-  /**
-   * Extract reason from iteration summary for step transition.
-   */
-  private extractStepReason(summary: IterationSummary): string | undefined {
-    if (summary.structuredOutput) {
-      const so = summary.structuredOutput as Record<string, unknown>;
-      if (typeof so.reason === "string") {
-        return so.reason;
-      }
-      if (typeof so.message === "string") {
-        return so.message;
-      }
-    }
-
-    if (summary.errors.length > 0) {
-      return summary.errors[0];
-    }
-
-    return undefined;
   }
 }
