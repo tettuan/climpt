@@ -134,6 +134,15 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 - 同じ Step で Schema 解決が 2 回連続で失敗すると、Flow を即終了し
   `FAILED_SCHEMA_RESOLUTION` ステータスで落ちる（無限ループは発生しない）。
 
+- Iteration > 1 で intent が生成されない場合（structured output がない、または
+  `next_action.action` が解析できない場合）、Flow は即座に中断する:
+
+  ```
+  [StepFlow] No intent produced for iteration 3 on step "continuation.default".
+  Flow steps must produce structured output with a valid intent.
+  Check that the step's schema includes next_action.action and the LLM returns valid JSON.
+  ```
+
 この順番で埋めておけば、必須条件を満たしていない場合は Runner がエラーで止まり、
 ドキュメントを読み返さなくても原因が明示される。
 

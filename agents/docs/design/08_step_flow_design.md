@@ -144,6 +144,25 @@ Check steps_registry.json for missing gate configuration.
 
 これにより、設定ミスが即座に検出され、暗黙のフォールバックによる不正動作を防ぐ。
 
+### No Intent ⇒ Abort ルール (R4)
+
+Iteration > 1 で intent が生成されない場合（structured output がない、または
+`next_action.action` が解析できない場合）、Flow は即座に中断する。これにより、
+entry step を無限にリトライする状態を防ぐ。
+
+```
+[StepFlow] No intent produced for iteration 3 on step "continuation.issue".
+Flow steps must produce structured output with a valid intent.
+Check that the step's schema includes next_action.action and the LLM returns valid JSON.
+```
+
+**注意**: Schema 解決失敗（`schemaResolutionFailed`）の場合はこのチェックが免除
+される。Schema 失敗は別途 2-strike ルールで処理される。
+
+このルールは Fail-Fast Before Retry の原則に基づく。Retry は Schema が正しく
+解決され、LLM が有効な JSON を返した上で行われるべきであり、無効な状態での retry
+は設定ミスを隠蔽するだけである。
+
 `section.*` プレフィックスの Step（例:
 `section.projectcontext`）はテンプレートセクションであり、Flow Step ではないため
 `structuredGate` は不要。

@@ -91,8 +91,7 @@ Deno.test("SchemaResolver - throws on missing schema", async () => {
     async () => {
       await resolver.resolve("issue.schema.json", "nonexistent.schema");
     },
-    Error,
-    "not found",
+    SchemaPointerError,
   );
 });
 
@@ -229,8 +228,7 @@ Deno.test("SchemaResolver - throws SchemaPointerError for invalid pointer", asyn
       // by referencing a non-existent definition
       await resolver.resolve("issue.schema.json", "nonexistent.definition");
     },
-    Error,
-    "not found",
+    SchemaPointerError,
   );
 });
 
@@ -248,5 +246,101 @@ Deno.test("SchemaPointerError - message includes guidance", () => {
     error.message.includes("definition exists"),
     true,
     "Error message should mention checking if definition exists",
+  );
+});
+
+// =============================================================================
+// Schema Identifier Normalization Tests (R1 - pointer format support)
+// =============================================================================
+
+Deno.test("SchemaResolver - resolves JSON Pointer format #/$defs/stepId", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  // common.schema.json has $defs with stepResponse
+  const schema = await resolver.resolve(
+    "common.schema.json",
+    "#/$defs/stepResponse",
+  );
+
+  assertEquals(schema.type, "object");
+  assertEquals((schema.required as string[]).includes("stepId"), true);
+});
+
+Deno.test("SchemaResolver - normalizes double hash ##/$defs/stepId", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  // Double hash should be normalized and still resolve
+  const schema = await resolver.resolve(
+    "common.schema.json",
+    "##/$defs/stepResponse",
+  );
+
+  assertEquals(schema.type, "object");
+  assertEquals((schema.required as string[]).includes("stepId"), true);
+});
+
+Deno.test("SchemaResolver - resolves #/$defs/stepId format", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  // common.schema.json uses $defs
+  const schema = await resolver.resolve(
+    "common.schema.json",
+    "#/$defs/stepResponse",
+  );
+
+  assertEquals(schema.type, "object");
+  assertEquals((schema.required as string[]).includes("stepId"), true);
+});
+
+Deno.test("SchemaResolver - resolves bare name from definitions", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  // Bare name should look in definitions first
+  const schema = await resolver.resolve(
+    "issue.schema.json",
+    "initial.issue",
+  );
+
+  assertEquals(schema.type, "object");
+});
+
+Deno.test("SchemaResolver - resolves bare name from $defs", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  // Bare name should fall back to $defs if not in definitions
+  const schema = await resolver.resolve(
+    "common.schema.json",
+    "stepResponse",
+  );
+
+  assertEquals(schema.type, "object");
+  assertEquals((schema.required as string[]).includes("stepId"), true);
+});
+
+Deno.test("SchemaResolver - throws SchemaPointerError for missing definition", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  await assertRejects(
+    async () => {
+      await resolver.resolve(
+        "issue.schema.json",
+        "#/definitions/nonexistent.step",
+      );
+    },
+    SchemaPointerError,
+  );
+});
+
+Deno.test("SchemaResolver - throws SchemaPointerError for missing bare name", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  await assertRejects(
+    async () => {
+      await resolver.resolve(
+        "issue.schema.json",
+        "totally.nonexistent",
+      );
+    },
+    SchemaPointerError,
   );
 });

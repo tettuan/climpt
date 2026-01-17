@@ -313,6 +313,22 @@ export class AgentRunner {
         // Structured gate routing can signal completion via signalCompletion
         const routingResult = this.handleStepTransition(stepId, summary, ctx);
 
+        // R4: Fail-fast if iteration > 1 and no intent produced (no routing)
+        // This prevents silent rerun of entry step when StepGate can't parse intent
+        if (
+          iteration > 1 &&
+          routingResult === null &&
+          !summary.schemaResolutionFailed &&
+          this.hasFlowRoutingEnabled()
+        ) {
+          const errorMsg =
+            `[StepFlow] No intent produced for iteration ${iteration} on step "${stepId}". ` +
+            `Flow steps must produce structured output with a valid intent. ` +
+            `Check that the step's schema includes next_action.action and the LLM returns valid JSON.`;
+          ctx.logger.error(errorMsg);
+          throw new Error(errorMsg);
+        }
+
         // Check completion - prefer routing result, fall back to legacy handler
         let isComplete: boolean;
         let completionReason: string;
@@ -472,6 +488,20 @@ export class AgentRunner {
           iteration,
           ctx.logger,
         );
+
+        // R2: If schema resolution failed, abort iteration immediately
+        // Don't let LLM produce freeform text when schemas are unavailable
+        if (this.schemaResolutionFailed) {
+          ctx.logger.warn(
+            `[StructuredOutput] Aborting iteration: schema resolution failed for step "${stepId}"`,
+          );
+          summary.errors.push(
+            `Schema resolution failed for step "${stepId}". Iteration aborted.`,
+          );
+          summary.schemaResolutionFailed = true;
+          return summary;
+        }
+
         if (schema) {
           queryOptions.outputFormat = {
             type: "json_schema",
@@ -1247,5 +1277,13 @@ export class AgentRunner {
     }
 
     return routing;
+  }
+
+  /**
+   * Check if flow routing is enabled (StepGateInterpreter and WorkflowRouter initialized).
+   * This is used for R4 fail-fast check to only enforce intent requirement when flow routing is active.
+   */
+  private hasFlowRoutingEnabled(): boolean {
+    return this.stepGateInterpreter !== null && this.workflowRouter !== null;
   }
 }

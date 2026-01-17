@@ -342,6 +342,8 @@ export interface IterationSummary {
     waitMs: number;
     attempt: number;
   };
+  /** Flag indicating schema resolution failed for this iteration (R2 fail-fast) */
+  schemaResolutionFailed?: boolean;
 }
 
 // ============================================================================

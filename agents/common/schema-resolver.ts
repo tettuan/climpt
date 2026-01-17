@@ -57,9 +57,16 @@ export class SchemaResolver {
   /**
    * Resolve all $ref pointers in a schema and prepare it for SDK use.
    *
-   * @param schemaFile - Schema file name (e.g., "issue.schema.json")
-   * @param schemaName - Top-level schema key (e.g., "initial.issue")
+   * Supports multiple schemaName formats:
+   * - JSON Pointer: "#/definitions/stepId" or "#/$defs/stepId"
+   * - Bare name: "stepId" (looks up in definitions or $defs, then top-level)
+   *
+   * Normalizes malformed pointers (e.g., "##/definitions/..." -> "#/definitions/...")
+   *
+   * @param schemaFile - Schema file name (e.g., "step_outputs.schema.json")
+   * @param schemaName - Schema identifier (JSON Pointer or bare name)
    * @returns Fully resolved schema with additionalProperties: false
+   * @throws SchemaPointerError if the schema reference cannot be resolved
    */
   async resolve(
     schemaFile: string,
@@ -67,11 +74,16 @@ export class SchemaResolver {
   ): Promise<Record<string, unknown>> {
     const filePath = join(this.baseDir, schemaFile);
     const schemas = await this.loadFile(filePath);
-    const schema = schemas[schemaName];
 
-    if (!schema || typeof schema !== "object") {
-      throw new Error(`Schema "${schemaName}" not found in ${schemaFile}`);
-    }
+    // Normalize the schema identifier
+    const normalizedName = this.normalizeSchemaIdentifier(schemaName);
+
+    // Resolve the schema using pointer or key lookup
+    const schema = this.resolveSchemaByIdentifier(
+      schemas,
+      normalizedName,
+      schemaFile,
+    );
 
     // Deep clone to avoid mutating cached data
     const cloned = structuredClone(schema) as Record<string, unknown>;
@@ -80,6 +92,74 @@ export class SchemaResolver {
     const resolved = await this.resolveRefs(cloned, filePath, new Set(), 0);
 
     return resolved;
+  }
+
+  /**
+   * Normalize schema identifier to standard format.
+   *
+   * Handles:
+   * - Double hash: "##/definitions/foo" -> "/definitions/foo"
+   * - Single hash pointer: "#/definitions/foo" -> "/definitions/foo"
+   * - Bare name: "foo" -> "foo" (unchanged)
+   */
+  private normalizeSchemaIdentifier(identifier: string): string {
+    // Strip leading # characters (handles ## or #)
+    let normalized = identifier;
+    while (normalized.startsWith("#")) {
+      normalized = normalized.slice(1);
+    }
+    return normalized;
+  }
+
+  /**
+   * Resolve schema by normalized identifier.
+   *
+   * If identifier starts with "/", treats it as a JSON Pointer path.
+   * Otherwise, tries lookup in:
+   * 1. definitions[identifier]
+   * 2. $defs[identifier]
+   * 3. Top-level schemas[identifier]
+   *
+   * @throws SchemaPointerError if the schema cannot be found
+   */
+  private resolveSchemaByIdentifier(
+    schemas: Record<string, unknown>,
+    identifier: string,
+    schemaFile: string,
+  ): Record<string, unknown> {
+    // JSON Pointer path (starts with /)
+    if (identifier.startsWith("/")) {
+      const result = this.navigateToPath(schemas, identifier, schemaFile);
+      if (!result || typeof result !== "object") {
+        throw new SchemaPointerError(identifier, schemaFile);
+      }
+      return result as Record<string, unknown>;
+    }
+
+    // Bare name - try multiple locations
+    // 1. definitions[identifier]
+    const definitions = schemas.definitions as
+      | Record<string, unknown>
+      | undefined;
+    if (definitions && typeof definitions[identifier] === "object") {
+      return definitions[identifier] as Record<string, unknown>;
+    }
+
+    // 2. $defs[identifier]
+    const defs = schemas.$defs as Record<string, unknown> | undefined;
+    if (defs && typeof defs[identifier] === "object") {
+      return defs[identifier] as Record<string, unknown>;
+    }
+
+    // 3. Top-level key
+    if (
+      typeof schemas[identifier] === "object" && schemas[identifier] !== null
+    ) {
+      return schemas[identifier] as Record<string, unknown>;
+    }
+
+    // Not found anywhere
+    throw new SchemaPointerError(identifier, schemaFile);
   }
 
   /**

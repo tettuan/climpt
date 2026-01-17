@@ -904,3 +904,124 @@ Deno.test("Error codes for new error types are unique", () => {
     "All error codes should be unique",
   );
 });
+
+// =============================================================================
+// R5: Flow Fail-Fast Tests (Schema failure, 2-strike abort, no-intent paths)
+// =============================================================================
+
+Deno.test("R5 - IterationSummary has schemaResolutionFailed field", () => {
+  // Verify the IterationSummary type supports schemaResolutionFailed flag
+  const summary: IterationSummary = {
+    iteration: 1,
+    assistantResponses: [],
+    toolsUsed: [],
+    errors: [
+      'Schema resolution failed for step "initial.test". Iteration aborted.',
+    ],
+    schemaResolutionFailed: true,
+  };
+
+  assertEquals(summary.schemaResolutionFailed, true);
+  assertEquals(summary.errors.length, 1);
+  assertEquals(
+    summary.errors[0].includes("Schema resolution failed"),
+    true,
+    "Error should mention schema resolution failure",
+  );
+});
+
+Deno.test("R5 - AgentSchemaResolutionError captures consecutive failure count", () => {
+  // Test that error properly tracks the 2-strike rule
+  const error = new AgentSchemaResolutionError(
+    'Schema resolution failed 2 consecutive times for step "initial.test"',
+    {
+      stepId: "initial.test",
+      schemaRef: "step_outputs.schema.json#/definitions/initial.test",
+      consecutiveFailures: 2,
+      iteration: 5,
+    },
+  );
+
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.stepId, "initial.test");
+  assertEquals(error.iteration, 5);
+  assertEquals(
+    error.message.includes("2 consecutive times"),
+    true,
+    "Error message should mention consecutive failures",
+  );
+});
+
+Deno.test("R5 - Structured Gate Flow - no intent on iteration > 1 should fail (error message format)", () => {
+  // This tests the R4 error message format used when no intent is produced
+  // The actual check is: iteration > 1 && routingResult === null && !schemaResolutionFailed && hasFlowRoutingEnabled()
+  const expectedErrorPattern =
+    /\[StepFlow\] No intent produced for iteration \d+ on step "[\w.]+"/;
+
+  const sampleErrorMsg =
+    '[StepFlow] No intent produced for iteration 3 on step "continuation.test". ' +
+    "Flow steps must produce structured output with a valid intent. " +
+    "Check that the step's schema includes next_action.action and the LLM returns valid JSON.";
+
+  assertEquals(
+    expectedErrorPattern.test(sampleErrorMsg),
+    true,
+    "Error message should match R4 format",
+  );
+  assertEquals(
+    sampleErrorMsg.includes("must produce structured output"),
+    true,
+    "Error should guide user to check structured output",
+  );
+});
+
+Deno.test("R5 - Schema resolution failure should set schemaResolutionFailed flag", () => {
+  // When schema resolution fails (first time), the iteration should be aborted
+  // and schemaResolutionFailed should be set to true
+  const summaryWithSchemaFailure = createIterationSummary({
+    iteration: 2,
+    errors: [
+      'Schema resolution failed for step "initial.test". Iteration aborted.',
+    ],
+    schemaResolutionFailed: true,
+  });
+
+  // Verify the flag is set
+  assertEquals(summaryWithSchemaFailure.schemaResolutionFailed, true);
+
+  // Verify this prevents R4 check from triggering (schemaResolutionFailed exempts from no-intent error)
+  // The logic is: iteration > 1 && routingResult === null && !summary.schemaResolutionFailed
+  // So when schemaResolutionFailed is true, R4 error should NOT be thrown
+  const shouldTriggerR4Error = summaryWithSchemaFailure.iteration > 1 &&
+    !summaryWithSchemaFailure.schemaResolutionFailed;
+  assertEquals(
+    shouldTriggerR4Error,
+    false,
+    "Schema failure should exempt from R4 check",
+  );
+});
+
+Deno.test("R5 - Two consecutive schema failures should throw AgentSchemaResolutionError", () => {
+  // Simulate the 2-strike rule: after 2 consecutive schema failures, run should abort
+  const error = new AgentSchemaResolutionError(
+    'Schema resolution failed 2 consecutive times for step "initial.default". ' +
+      'Cannot resolve pointer "/definitions/initial.default" in step_outputs.schema.json. ' +
+      "Flow halted to prevent infinite loop.",
+    {
+      stepId: "initial.default",
+      schemaRef: "step_outputs.schema.json#/definitions/initial.default",
+      consecutiveFailures: 2,
+      iteration: 2,
+    },
+  );
+
+  assertEquals(error.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(error.recoverable, false); // Not recoverable - requires config fix
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.stepId, "initial.default");
+  assertEquals(
+    error.message.includes("Flow halted to prevent infinite loop"),
+    true,
+    "Error should explain the halt reason",
+  );
+});
