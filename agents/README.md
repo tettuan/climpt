@@ -292,18 +292,40 @@ tmp/logs/agents/my-agent/
 
 ## Documentation
 
-Detailed documentation is available in the `docs/` directory:
+Core design docs live under `agents/docs/design/`, while builder/guide docs live
+under `agents/docs/builder/`:
 
-- [01_architecture.md](./docs/01_architecture.md) - Architecture overview
-- [02_agent_definition.md](./docs/02_agent_definition.md) - Agent definition
-  schema
-- [03_runner.md](./docs/03_runner.md) - Agent runner design
-- [04_completion_handlers.md](./docs/04_completion_handlers.md) - Completion
-  handlers
-- [05_prompt_system.md](./docs/05_prompt_system.md) - Prompt system
-- [07_config_system.md](./docs/07_config_system.md) - Configuration system
-- [08_implementation_guide.md](./docs/08_implementation_guide.md) -
-  Implementation guide
+Design:
+
+- [design/01_runner.md](./docs/design/01_runner.md) - Agent runner design
+- [design/02_prompt_system.md](./docs/design/02_prompt_system.md) - Prompt
+  system
+- [design/03_structured_outputs.md](./docs/design/03_structured_outputs.md) -
+  Structured output handling
+- [design/04_philosophy.md](./docs/design/04_philosophy.md) - Design philosophy
+- [design/05_core_architecture.md](./docs/design/05_core_architecture.md) -
+  Flow/Completion architecture
+- [design/06_contracts.md](./docs/design/06_contracts.md) - Contracts & I/O
+- [design/07_extension_points.md](./docs/design/07_extension_points.md) -
+  Extension points
+- [design/08_step_flow_design.md](./docs/design/08_step_flow_design.md) - Flow
+  step requirements
+
+Builder/Guides:
+
+- [builder/01_quickstart.md](./docs/builder/01_quickstart.md) - Quickstart
+- [builder/02_agent_definition.md](./docs/builder/02_agent_definition.md) -
+  Agent definition schema
+- [builder/03_builder_guide.md](./docs/builder/03_builder_guide.md) - End-to-end
+  builder guide
+- [builder/04_config_system.md](./docs/builder/04_config_system.md) - Config
+  layering
+- [builder/migration_guide.md](./docs/builder/migration_guide.md) - Migration
+  guide
+- [builder/migration_incompatibilities.md](./docs/builder/migration_incompatibilities.md)
+  - Incompatibilities list
+- [builder/migration_template.md](./docs/builder/migration_template.md) -
+  Migration template
 
 ## Troubleshooting
 

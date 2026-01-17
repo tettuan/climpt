@@ -18,6 +18,26 @@
 import { dirname, join } from "@std/path";
 
 /**
+ * Error thrown when a JSON Pointer path cannot be resolved in a schema.
+ * This is a fatal error that should halt the Flow loop.
+ */
+export class SchemaPointerError extends Error {
+  readonly pointer: string;
+  readonly file: string;
+
+  constructor(pointer: string, file: string) {
+    super(
+      `No schema pointer "${pointer}" found in ${file}. ` +
+        `Ensure the pointer uses JSON Pointer format (e.g., "#/definitions/stepId") ` +
+        `and that the referenced definition exists in the schema file.`,
+    );
+    this.name = "SchemaPointerError";
+    this.pointer = pointer;
+    this.file = file;
+  }
+}
+
+/**
  * Schema resolver with file caching
  */
 export class SchemaResolver {
@@ -174,12 +194,8 @@ export class SchemaResolver {
     // Load the target file
     const schemas = await this.loadFile(targetFile);
 
-    // Navigate to the referenced definition
-    const resolved = this.navigateToPath(schemas, targetPath);
-
-    if (resolved === undefined) {
-      throw new Error(`Cannot resolve $ref: ${ref} from ${currentFile}`);
-    }
+    // Navigate to the referenced definition (throws SchemaPointerError on failure)
+    const resolved = this.navigateToPath(schemas, targetPath, targetFile);
 
     // Recursively resolve any nested $refs
     const cloned = structuredClone(resolved) as Record<string, unknown>;
@@ -188,29 +204,51 @@ export class SchemaResolver {
 
   /**
    * Navigate to a JSON pointer path (e.g., "/$defs/stepResponse")
+   *
+   * @throws SchemaPointerError if the path cannot be resolved
    */
   private navigateToPath(
     obj: Record<string, unknown>,
     path: string,
+    filePath: string,
   ): unknown {
     if (!path || path === "/") {
       return obj;
     }
 
+    // Normalize pointer: ensure proper format for #/definitions/... style
+    const normalizedPath = this.normalizePointer(path);
+
     // Remove leading slash and split
-    const parts = path.startsWith("/")
-      ? path.slice(1).split("/")
-      : path.split("/");
+    const parts = normalizedPath.startsWith("/")
+      ? normalizedPath.slice(1).split("/")
+      : normalizedPath.split("/");
 
     let current: unknown = obj;
     for (const part of parts) {
       if (current === null || typeof current !== "object") {
-        return undefined;
+        throw new SchemaPointerError(path, filePath);
       }
-      current = (current as Record<string, unknown>)[part];
+      const next = (current as Record<string, unknown>)[part];
+      if (next === undefined) {
+        throw new SchemaPointerError(path, filePath);
+      }
+      current = next;
     }
 
     return current;
+  }
+
+  /**
+   * Normalize JSON Pointer to standard format.
+   * Handles both "#/definitions/foo" and "/definitions/foo" formats.
+   */
+  private normalizePointer(pointer: string): string {
+    // Remove leading # if present (fragment identifier)
+    if (pointer.startsWith("#")) {
+      return pointer.slice(1);
+    }
+    return pointer;
   }
 
   /**

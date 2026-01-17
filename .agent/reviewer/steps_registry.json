@@ -83,6 +83,10 @@
         "action": "retry",
         "maxAttempts": 3
       },
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "complete.review"
+      },
       "description": "Validate review completion with git-clean, branch-pushed, branch-merged"
     }
   },
@@ -100,6 +104,10 @@
       "description": "Initial prompt for reviewing a specific GitHub Issue",
       "condition": "args.issue !== undefined",
       "priority": 10,
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "initial.issue"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -122,6 +130,10 @@
       "uvVariables": ["issue", "completed_iterations"],
       "usesStdin": false,
       "description": "Continuation prompt for issue review iterations",
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "continuation.issue"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -146,6 +158,10 @@
       "description": "Initial prompt for review task with project context",
       "condition": "args.project !== undefined",
       "priority": 5,
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "initial.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -168,6 +184,10 @@
       "uvVariables": ["iteration"],
       "usesStdin": false,
       "description": "Continuation prompt for subsequent review iterations",
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "continuation.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",

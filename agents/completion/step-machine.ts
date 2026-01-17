@@ -4,7 +4,7 @@
  * Completes when the step state machine reaches a terminal state.
  * Uses step registry to determine step order and transitions.
  *
- * Based on: agents/docs/03_runner.md and Issue #258
+ * Based on: agents/docs/design/01_runner.md and Issue #258
  */
 
 import type { PromptResolver } from "../prompts/resolver.ts";
@@ -182,8 +182,13 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
       );
     }
 
+    // target: null or target: "complete" both signal completion
+    const nextStep = rule.target === null || rule.target === "complete"
+      ? "complete"
+      : rule.target;
+
     return {
-      nextStep: rule.target === "complete" ? "complete" : rule.target,
+      nextStep,
       passed,
       reason: `Transition via ${intent} intent`,
     };

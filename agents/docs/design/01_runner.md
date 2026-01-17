@@ -40,7 +40,7 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 - **Why**: AI が得意な「連続作業」を乱さず、収束判断を後工程に委譲するため。
 - **最小限の How**:
   - プロンプト参照は C3L 形式 (`c1/c2/c3 + edition`) のみ。Runner は
-    docs/05_prompt_system.md に従ってファイルを読む。
+    design/02_prompt_system.md に従ってファイルを読む。
   - Step の出力から `completionSignal`（structured output の `status` または
     `next_action`）を取り出す。
   - `handoff` は Step ID 名前空間で累積し、次ステップの変数として注入する。

@@ -2,11 +2,48 @@
 
 設定とプロンプトだけで Agent を作成する手順。
 
+## 作成方法の選択
+
+### 方法 1: Scaffolder Skill（推奨）
+
+Claude Code で以下のいずれかを実行:
+
+```
+/agent-scaffolder
+```
+
+または自然言語で:
+
+- 「agent を作りたい」
+- 「新しい agent を作成」
+- 「create agent」
+
+Skill が agent 名や completionType を質問し、必要なファイルを自動生成します。
+
+#### CLI から直接実行
+
+```bash
+deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
+  --name my-agent \
+  --description "My agent description" \
+  --completion-type externalState
+
+# オプション
+#   --dry-run              生成内容をプレビュー
+#   --display-name "Name"  表示名を指定
+```
+
+### 方法 2: 手動作成
+
+以下の Step 1〜6 に従って手動でファイルを作成します。
+
+---
+
 ## 前提知識
 
 - Agent = 設定 (JSON) + プロンプト (Markdown)
 - コードを書かずに Agent を定義できる
-- 詳細: `10_philosophy.md`, `11_core_architecture.md`
+- 詳細: `design/04_philosophy.md`, `design/05_core_architecture.md`
 
 ## 必要なファイル
 
@@ -79,6 +116,27 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 }
 ```
 
+#### Runner の検証
+
+- `entryStepMapping` または `entryStep` が未設定だと
+  `No entry step configured for completionType "stepMachine"` で即中断する。
+- Flow Step に `structuredGate`/`transitions` が無い場合は
+  `Flow validation failed. All Flow steps must define structuredGate and transitions.`
+  が表示される。
+- `outputSchemaRef` が無い、または `schema` の JSON Pointer が解決できない場合は
+  初回 iteration の直前に Runner が停止し、次のようなメッセージを出す:
+
+  ```
+  [StepFlow] Schema resolution failed for step "initial.default".
+  Check step_outputs.schema.json#/definitions/initial.default
+  ```
+
+- 同じ Step で Schema 解決が 2 回連続で失敗すると、Flow を即終了し
+  `FAILED_SCHEMA_RESOLUTION` ステータスで落ちる（無限ループは発生しない）。
+
+この順番で埋めておけば、必須条件を満たしていない場合は Runner がエラーで止まり、
+ドキュメントを読み返さなくても原因が明示される。
+
 ### completionType の選択
 
 | タイプ            | 用途                | 設定                  |
@@ -92,7 +150,22 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 ## Step 3: steps_registry.json 作成
 
-`.agent/{agent-name}/steps_registry.json`:
+`.agent/{agent-name}/steps_registry.json`
+を作るときは、**以下の3点を満たしていれば Runner
+がそのまま受け入れてくれる**という順番で作業する。
+
+1. `entryStepMapping` で `completionType` ごとの開始 Step を明示する
+2. すべての Flow/Completion Step に `structuredGate` と `transitions` を持たせる
+3. 同じ Step に `outputSchemaRef` を付け、`schema` には JSON Pointer
+   (`#/definitions/<stepId>`) を記載して後述の Schema ファイルへ誘導する
+
+どれか 1 つでも欠けると Runner
+のロード段階で即エラーになるため、上から順に埋めれば迷わない。
+
+完成形は次のとおり:
+
+````json
+{
 
 ```json
 {
@@ -107,7 +180,8 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
   "entryStepMapping": {
     "issue": "initial.default",
-    "default": "initial.default"
+    "default": "initial.default",
+    "stepMachine": "initial.default"
   },
 
   "steps": {
@@ -118,6 +192,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "c3": "default",
       "edition": "default",
       "fallbackKey": "default_initial",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "#/definitions/initial.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -136,6 +214,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "c2": "continuation",
       "c3": "default",
       "edition": "default",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "#/definitions/continuation.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -153,11 +235,117 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "name": "Completion Step",
       "c2": "complete",
       "c3": "default",
-      "edition": "default"
+      "edition": "default",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "#/definitions/complete.default"
+      },
+      "structuredGate": {
+        "allowedIntents": ["complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": ["final_summary"]
+      },
+      "transitions": {
+        "complete": { "target": null }
+      }
+    }
+  }
+}
+````
+
+### Structured Output Schema の用意
+
+Flow ループは Structured Output を前提に `next_action.action` から intent を
+読み取る。したがって **すべての Flow/Completion Step が `outputSchemaRef`
+を宣言し、`schema` には JSON Pointer (`#/definitions/<stepId>`) を設定し、 JSON
+Schema を `.agent/{agent}/schemas/` に置く**。
+
+```
+.agent/{agent}/schemas/
+└── step_outputs.schema.json
+```
+
+`step_outputs.schema.json` は次のように `definitions`（または `$defs`）配下へ
+Step ごとのスキーマを配置し、Flow から参照される。
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./step_outputs.schema.json",
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "properties": {
+        "analysis": { "type": "object" },
+        "next_action": {
+          "type": "object",
+          "properties": {
+            "action": { "enum": ["next", "repeat", "complete"] },
+            "reason": { "type": "string" }
+          },
+          "required": ["action", "reason"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["analysis", "next_action"],
+      "additionalProperties": false
     }
   }
 }
 ```
+
+Pointer 形式 (`#/definitions/initial.default`)
+とファイル上の定義が一致しない場合、 Runner は「Schema resolution
+failed」で即停止する。
+
+### Fail-Fast 動作
+
+- Schema 参照が見つからない／ファイルが欠落している場合、該当 Step の iteration
+  は 実行されず `StructuredOutputUnavailable` として扱われる。
+- 同じ Step で 2 回連続して Schema 解決に失敗すると、Flow 全体を停止し
+  `FAILED_SCHEMA_RESOLUTION` を返す。これにより無限ループを防ぐ。
+- 完了に必要な node (`structuredGate.intentField` など) が Schema
+  に含まれていない 場合も同様に停止させるのが推奨。
+
+`step_outputs.schema.json` の例:
+
+```jsonc
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./step_outputs.schema.json",
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "required": ["next_action"],
+      "properties": {
+        "analysis": { "type": "object" },
+        "next_action": {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "action": { "enum": ["next", "repeat", "complete"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+`structuredGate.intentField` は Schema に沿って JSON を強制できることを前提に
+している。Schema がない Step はロード時エラーになるよう runner 側でも検証
+する想定である。
+
+### Completion の考え方
+
+- Flow が終了する条件は **Structured Output で `next_action.action` を
+  `complete` に設定すること**。`isTerminal` のような暗黙フラグは Runner
+  では参照されないため、Step 定義とプロンプト内で JSON を返すよう必ず指示 する。
+- `transitions.complete.target` に `null` を明示すると、WorkflowRouter が
+  completion と判定し Completion Loop へ制御を渡す。
 
 ### 重要な設定
 
@@ -168,7 +356,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 | `transitions`      | intent → 次の Step      |
 | `handoffFields`    | 次 Step へ渡すデータ    |
 
-詳細: `step_flow_design.md`
+詳細: `design/08_step_flow_design.md`
 
 ## Step 4: システムプロンプト作成
 
@@ -312,7 +500,7 @@ AI の `next_action.action` から遷移を決定:
 | `retry`    | `repeat`   | 同じ Step を再実行 |
 | `escalate` | `abort`    | 中断               |
 
-詳細: `step_flow_design.md`
+詳細: `design/08_step_flow_design.md`
 
 ## 既存 Agent の参考
 
@@ -359,6 +547,6 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 ## 次のステップ
 
 - `02_agent_definition.md` - agent.json の詳細
-- `05_prompt_system.md` - C3L プロンプト解決
-- `step_flow_design.md` - Step フロー設計
-- `08_structured_outputs.md` - Structured Output
+- `design/02_prompt_system.md` - C3L プロンプト解決
+- `design/08_step_flow_design.md` - Step フロー設計
+- `design/03_structured_outputs.md` - Structured Output

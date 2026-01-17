@@ -56,6 +56,11 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "issue", "analysis"],
     "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "initial.externalState",
+        "description": "実行されたstep識別子"
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "analysis": {
         "type": "object",
@@ -91,6 +96,11 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "issue", "iteration"],
     "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "continuation.externalState",
+        "description": "実行されたstep識別子"
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "iteration": {
         "type": "object",
@@ -108,6 +118,39 @@
           "remaining_work": {
             "type": "string",
             "description": "残りの作業（あれば）"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "complete.externalState": {
+    "type": "object",
+    "description": "External State完了時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "complete.externalState",
+        "description": "実行されたstep識別子"
+      },
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "completion": {
+        "type": "object",
+        "properties": {
+          "issue_closed": {
+            "type": "boolean",
+            "description": "GitHub Issueがクローズされたか"
+          },
+          "git_clean": {
+            "type": "boolean",
+            "description": "Git作業ディレクトリがクリーンか"
+          },
+          "final_summary": {
+            "type": "string",
+            "description": "完了時の最終サマリー"
           }
         }
       },

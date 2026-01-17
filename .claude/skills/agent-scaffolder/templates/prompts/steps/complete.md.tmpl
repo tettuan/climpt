@@ -1,0 +1,32 @@
+---
+stepId: complete.default
+name: Completion Step
+---
+
+# Task Completion
+
+Finalize and summarize the completed work.
+
+## Instructions
+
+1. Summarize all completed work
+2. List any remaining items or recommendations
+3. Output completion status
+
+## Output
+
+Respond with the following JSON structure:
+
+```json
+{
+  "final_summary": {
+    "completed_items": ["Item 1", "Item 2"],
+    "results": "Summary of results",
+    "recommendations": ["Recommendation 1"]
+  },
+  "next_action": {
+    "action": "complete",
+    "reason": "All tasks have been completed"
+  }
+}
+```

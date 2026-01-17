@@ -12,6 +12,7 @@ import {
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
+  AgentSchemaResolutionError,
   AgentTimeoutError,
   isAgentError,
   normalizeToAgentError,
@@ -812,4 +813,94 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
   assertEquals(routing.signalCompletion, true);
   // Reason comes from structured output's next_action.reason
   assertEquals(routing.reason, "All tasks finished");
+});
+
+// =============================================================================
+// Schema Resolution Error Tests (fail-fast behavior)
+// =============================================================================
+
+Deno.test("AgentSchemaResolutionError - has correct code and is not recoverable", () => {
+  const error = new AgentSchemaResolutionError(
+    "Schema resolution failed 2 consecutive times",
+    {
+      stepId: "initial.test",
+      schemaRef: "step_outputs.schema.json#/definitions/initial",
+      consecutiveFailures: 2,
+      iteration: 3,
+    },
+  );
+  assertEquals(error.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(error.recoverable, false);
+  assertEquals(error.name, "AgentSchemaResolutionError");
+  assertEquals(error.stepId, "initial.test");
+  assertEquals(
+    error.schemaRef,
+    "step_outputs.schema.json#/definitions/initial",
+  );
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.iteration, 3);
+});
+
+Deno.test("AgentSchemaResolutionError - toJSON includes all fields", () => {
+  const cause = new Error("Original error");
+  const error = new AgentSchemaResolutionError(
+    "Schema resolution failed",
+    {
+      stepId: "continuation.test",
+      schemaRef: "test.schema.json#/definitions/foo",
+      consecutiveFailures: 2,
+      cause,
+      iteration: 5,
+    },
+  );
+  const json = error.toJSON();
+
+  assertEquals(json.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(json.stepId, "continuation.test");
+  assertEquals(json.schemaRef, "test.schema.json#/definitions/foo");
+  assertEquals(json.consecutiveFailures, 2);
+  assertEquals(json.iteration, 5);
+  assertEquals(json.cause, "Original error");
+});
+
+Deno.test("AgentSchemaResolutionError - is AgentError", () => {
+  const error = new AgentSchemaResolutionError("Test", {
+    stepId: "test",
+    schemaRef: "test#ref",
+    consecutiveFailures: 2,
+  });
+  assertInstanceOf(error, AgentError);
+  assertEquals(isAgentError(error), true);
+});
+
+Deno.test("AgentSchemaResolutionError - is included in isAgentError", () => {
+  const error = new AgentSchemaResolutionError("test", {
+    stepId: "s",
+    schemaRef: "r",
+    consecutiveFailures: 2,
+  });
+  assertEquals(isAgentError(error), true);
+  assertInstanceOf(error, AgentError);
+});
+
+Deno.test("Error codes for new error types are unique", () => {
+  const allCodes = [
+    new AgentNotInitializedError().code,
+    new AgentQueryError("test").code,
+    new AgentCompletionError("test").code,
+    new AgentTimeoutError("test", 1000).code,
+    new AgentMaxIterationsError(10).code,
+    new AgentSchemaResolutionError("t", {
+      stepId: "s",
+      schemaRef: "r",
+      consecutiveFailures: 2,
+    }).code,
+  ];
+
+  const uniqueCodes = new Set(allCodes);
+  assertEquals(
+    uniqueCodes.size,
+    allCodes.length,
+    "All error codes should be unique",
+  );
 });

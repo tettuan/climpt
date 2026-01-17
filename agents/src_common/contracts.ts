@@ -1,7 +1,7 @@
 /**
  * Design Contracts for Agent System (v2)
  *
- * Based on: agents/docs/12_contracts.md
+ * Based on: agents/docs/design/06_contracts.md
  *
  * These interfaces define the boundaries and guarantees between components.
  * Following these contracts ensures internal implementations can change freely.
@@ -321,7 +321,7 @@ export interface StepContext {
 // ============================================================================
 
 /**
- * Error classification from design contract (agents/docs/12_contracts.md).
+ * Error classification from design contract (agents/docs/design/06_contracts.md).
  *
  * These types define the error categories for the contract layer.
  * For runtime error classes, see agents/runner/errors.ts.

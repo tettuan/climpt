@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./step_outputs.schema.json",
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "required": ["analysis", "next_action"],
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "description": "Analysis of the current task"
+        },
+        "plan": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Planned steps"
+        },
+        "next_action": {
+          "type": "object",
+          "required": ["action", "reason"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["next", "repeat", "complete"]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for the chosen action"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "continuation.default": {
+      "type": "object",
+      "required": ["progress", "next_action"],
+      "properties": {
+        "progress": {
+          "type": "object",
+          "description": "Current progress status"
+        },
+        "next_action": {
+          "type": "object",
+          "required": ["action", "reason"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["next", "repeat", "complete"]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for the chosen action"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "complete.default": {
+      "type": "object",
+      "required": ["final_summary", "next_action"],
+      "properties": {
+        "final_summary": {
+          "type": "object",
+          "description": "Final summary of completed work"
+        },
+        "next_action": {
+          "type": "object",
+          "required": ["action", "reason"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["complete"]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Completion reason"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

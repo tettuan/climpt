@@ -274,7 +274,7 @@ Issue #N
 - 同一ブランチで複数 Agent ⇒ 起動エラー
 ```
 
-worktree 機能は CLI と統合済み。詳細は `11_core_architecture.md` を参照。
+worktree 機能は CLI と統合済み。詳細は `05_core_architecture.md` を参照。
 
 ## 互換性の契約
 

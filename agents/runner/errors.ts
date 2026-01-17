@@ -286,6 +286,83 @@ export class AgentRateLimitError extends AgentError {
 }
 
 /**
+ * Schema resolution failed
+ *
+ * This error indicates that a JSON Pointer in outputSchemaRef could not be
+ * resolved. The Flow loop should halt immediately - schema failures are fatal
+ * because StepGate cannot interpret intents without structured output.
+ */
+export class AgentSchemaResolutionError extends AgentError {
+  readonly code = "FAILED_SCHEMA_RESOLUTION";
+  readonly recoverable = false;
+  readonly stepId: string;
+  readonly schemaRef: string;
+  readonly consecutiveFailures: number;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      schemaRef: string;
+      consecutiveFailures: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+    this.schemaRef = options.schemaRef;
+    this.consecutiveFailures = options.consecutiveFailures;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+      schemaRef: this.schemaRef,
+      consecutiveFailures: this.consecutiveFailures,
+    };
+  }
+}
+
+/**
+ * Step ID mismatch error
+ *
+ * This error indicates that the structuredOutput.stepId returned by the LLM
+ * does not match the expected currentStepId. This is a configuration error
+ * that should be fixed immediately - the schema may be missing a "const"
+ * constraint or the LLM is returning the wrong step name.
+ */
+export class AgentStepIdMismatchError extends AgentError {
+  readonly code = "AGENT_STEP_ID_MISMATCH";
+  readonly recoverable = false;
+  readonly expectedStepId: string;
+  readonly actualStepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      expectedStepId: string;
+      actualStepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.expectedStepId = options.expectedStepId;
+    this.actualStepId = options.actualStepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      expectedStepId: this.expectedStepId,
+      actualStepId: this.actualStepId,
+    };
+  }
+}
+
+/**
  * Retryable query error with additional context
  *
  * This error indicates a query failure that may be recovered

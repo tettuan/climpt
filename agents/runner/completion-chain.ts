@@ -133,12 +133,12 @@ export class CompletionChain {
     // Type-specific defaults
     switch (completionType) {
       case "issue":
-      case "externalState":
         return "complete.issue";
       case "iterate":
       case "iterationBudget":
         return "complete.iterate";
       default:
+        // externalState and others use complete.${completionType}
         return `complete.${completionType}`;
     }
   }

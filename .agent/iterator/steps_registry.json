@@ -157,6 +157,25 @@
         "schema": "complete.issue"
       },
       "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+    },
+    "complete.externalState": {
+      "stepId": "complete.externalState",
+      "name": "External State Completion Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "complete.externalState"
+      },
+      "description": "Validate external state completion with git-clean and type-check."
     }
   },
 
@@ -235,6 +254,10 @@
       "fallbackKey": "project_preparation_default",
       "uvVariables": ["project_number", "project_title", "label_info", "total_issues"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.preparation"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -258,6 +281,10 @@
       "fallbackKey": "project_preparation_no_issues_default",
       "uvVariables": ["project_number", "project_title", "label_info", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.preparationempty"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "complete", "abort"],
         "intentField": "next_action.action",
@@ -281,6 +308,10 @@
       "fallbackKey": "project_processing_empty_default",
       "uvVariables": ["project_number", "label_info", "project_title", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.processingempty"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "complete"],
         "intentField": "next_action.action",
@@ -302,6 +333,10 @@
       "fallbackKey": "project_review_default",
       "uvVariables": ["project_number", "project_title", "label_info", "issues_completed", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.review"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -324,6 +359,10 @@
       "fallbackKey": "project_again_default",
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.again"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -346,6 +385,10 @@
       "fallbackKey": "project_complete_default",
       "uvVariables": ["project_number", "label_info", "issues_completed"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.complete"
+      },
       "structuredGate": {
         "allowedIntents": ["complete"],
         "intentField": "next_action.action",
@@ -366,6 +409,10 @@
       "fallbackKey": "project_continuation_preparation_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.preparation"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -389,6 +436,10 @@
       "fallbackKey": "project_continuation_processing_done_default",
       "uvVariables": ["project_number", "completed_iterations", "issues_completed"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.processingdone"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "complete"],
         "intentField": "next_action.action",
@@ -410,6 +461,10 @@
       "fallbackKey": "project_continuation_review_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.review"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -432,6 +487,10 @@
       "fallbackKey": "project_continuation_again_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.again"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -454,6 +513,10 @@
       "fallbackKey": "project_continuation_complete_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.complete"
+      },
       "structuredGate": {
         "allowedIntents": ["complete"],
         "intentField": "next_action.action",
@@ -540,7 +603,7 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "initial.externalState" },
-        "complete": { "target": "initial.externalState" }
+        "complete": { "target": "complete.externalState" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
@@ -567,9 +630,34 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "continuation.externalState" },
-        "complete": { "target": "continuation.externalState" }
+        "complete": { "target": "complete.externalState" }
       },
       "description": "Continuation prompt for external state completion"
+    },
+    "complete.externalState": {
+      "stepId": "complete.externalState",
+      "name": "External State Complete Prompt",
+      "type": "prompt",
+      "c2": "complete",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_complete_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "complete.externalState"
+      },
+      "structuredGate": {
+        "allowedIntents": ["complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": []
+      },
+      "transitions": {
+        "complete": { "target": "complete.externalState" }
+      },
+      "description": "Completion prompt for external state (terminal step)"
     }
   }
 }
