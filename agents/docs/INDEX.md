@@ -12,14 +12,14 @@ Flow/Completion の哲学、境界、C3L、Structured Output など、すべて�
 
 | ファイル                          | 内容                                                        |
 | --------------------------------- | ----------------------------------------------------------- |
-| `design/10_philosophy.md`         | AI 複雑性と戦う設計哲学。「Agent = 設定 + ループ + 判定」。 |
-| `design/11_core_architecture.md`  | Flow/Completion 二重ループと境界の整理。                    |
-| `design/12_contracts.md`          | StepContext や CompletionChain の契約、I/O、失敗条件。      |
-| `design/13_extension_points.md`   | 差し替え可能な拡張ポイントと制約。                          |
-| `design/03_runner.md`             | AgentRunner の責務、ワークツリー処理、権限制御。            |
-| `design/05_prompt_system.md`      | C3L/Climpt プロンプト解決と `pathTemplate`。                |
-| `design/08_structured_outputs.md` | Structured Output/FormatValidator/リトライ設計。            |
-| `design/step_flow_design.md`      | Flow Step の strict gate 仕様と handoff 設計。              |
+| `design/01_runner.md`             | AgentRunner の責務、ワークツリー処理、権限制御。            |
+| `design/02_prompt_system.md`      | C3L/Climpt プロンプト解決と `pathTemplate`。                |
+| `design/03_structured_outputs.md` | Structured Output/FormatValidator/リトライ設計。            |
+| `design/04_philosophy.md`         | AI 複雑性と戦う設計哲学。「Agent = 設定 + ループ + 判定」。 |
+| `design/05_core_architecture.md`  | Flow/Completion 二重ループと境界の整理。                    |
+| `design/06_contracts.md`          | StepContext や CompletionChain の契約、I/O、失敗条件。      |
+| `design/07_extension_points.md`   | 差し替え可能な拡張ポイントと制約。                          |
+| `design/08_step_flow_design.md`   | Flow Step の strict gate 仕様と handoff 設計。              |
 
 ## 汎用 Agentを利用したエージェント追加方法
 
@@ -28,10 +28,10 @@ Flow/Completion の哲学、境界、C3L、Structured Output など、すべて�
 
 | ファイル                                 | 内容                                                   |
 | ---------------------------------------- | ------------------------------------------------------ |
-| `builder/04_builder_guide.md`            | 設定→実行→プロンプト連鎖を What/Why で俯瞰するガイド。 |
 | `builder/01_quickstart.md`               | 具体的なディレクトリ構成と必須パラメータの手順。       |
 | `builder/02_agent_definition.md`         | `agent.json` のスキーマ詳細。                          |
-| `builder/07_config_system.md`            | デフォルト/ユーザー/CLI のマージ規則。                 |
+| `builder/03_builder_guide.md`            | 設定→実行→プロンプト連鎖を What/Why で俯瞰するガイド。 |
+| `builder/04_config_system.md`            | デフォルト/ユーザー/CLI のマージ規則。                 |
 | `builder/migration_guide.md`             | 既存 Agent を v2 設計へ移行するための手順。            |
 | `builder/migration_incompatibilities.md` | 非互換点と回避策の一覧。                               |
 | `builder/migration_template.md`          | 移行作業を記録するテンプレート。                       |

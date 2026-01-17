@@ -6,11 +6,11 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 ## 1. 全体連鎖の俯瞰
 
-| レイヤー       | What（何を定義するか）                                                | Why（なぜ必要か）                                                        | 主な参照                                                                               |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| 設定           | `agent.json`, `steps_registry.json`, schema, prompts                  | Flow/Completion ループが迷わないよう、開始点と遷移・検証条件を明文化する | `01_quickstart.md`, `02_agent_definition.md`, `design/05_prompt_system.md`             |
-| 実行           | `AgentRunner` → Flow ループ → Completion ループ                       | 設定を元に状態遷移し、structured output を検証して完了可否を決める       | `design/03_runner.md`, `design/step_flow_design.md`, `design/08_structured_outputs.md` |
-| プロンプト配置 | `.agent/<name>/prompts/system.md` と `steps/{c2}/{c3}/f_<edition>.md` | C3L/Climpt のルールでプロンプトを参照し、Fallback を排除する             | `design/05_prompt_system.md`, `design/step_flow_design.md`                             |
+| レイヤー       | What（何を定義するか）                                                | Why（なぜ必要か）                                                        | 主な参照                                                                                  |
+| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 設定           | `agent.json`, `steps_registry.json`, schema, prompts                  | Flow/Completion ループが迷わないよう、開始点と遷移・検証条件を明文化する | `01_quickstart.md`, `02_agent_definition.md`, `design/02_prompt_system.md`                |
+| 実行           | `AgentRunner` → Flow ループ → Completion ループ                       | 設定を元に状態遷移し、structured output を検証して完了可否を決める       | `design/01_runner.md`, `design/08_step_flow_design.md`, `design/03_structured_outputs.md` |
+| プロンプト配置 | `.agent/<name>/prompts/system.md` と `steps/{c2}/{c3}/f_<edition>.md` | C3L/Climpt のルールでプロンプトを参照し、Fallback を排除する             | `design/02_prompt_system.md`, `design/08_step_flow_design.md`                             |
 
 この 3 レイヤーは **設定 → 実行 → プロンプト** の一方向連鎖になっており、
 どこかが欠落すると Runner が即停止する。暗黙のフォールバックを許さないことで
@@ -61,12 +61,12 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 - Flow Step は `c2` (=initial/continuation/complete) と `c3` (=completionType
   など) の組み合わせで固有ディレクトリを持つ。
-- Runner は `design/step_flow_design.md` で規定された
+- Runner は `design/08_step_flow_design.md` で規定された
   `pathTemplate`（デフォルト: `{c1}/{c2}/{c3}/f_{edition}.md`）で Markdown
   を解決する。
 - `systemPromptPath` は共通の安全装置であり、Flow/Completion の文脈と一体で
   使う。個別 Step で追加の system prompt を書かない。
-- Prompt から Structured Output を得る際は `design/08_structured_outputs.md` の
+- Prompt から Structured Output を得る際は `design/03_structured_outputs.md` の
   フォーマットを遵守し、スキーマと intent 名を揃える。
 
 > プロンプトは **設定された C3L 参照の結果としてのみ** 呼び出される。 Runner
@@ -76,11 +76,11 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 | 設定項目 / 概念               | 実装コンポーネント                                      | Why                                  | 参照                              |
 | ----------------------------- | ------------------------------------------------------- | ------------------------------------ | --------------------------------- |
-| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)               | ループ全体の許可・制限を司る         | `design/03_runner.md`             |
-| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`                 | intent 解析と遷移の一元化            | `design/step_flow_design.md`      |
-| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`)   | structured output の契約チェック     | `design/08_structured_outputs.md` |
-| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)         | 設定→実行→Markdown への橋渡し        | `design/05_prompt_system.md`      |
-| Completion Type               | `CompletionChain` (`agents/runner/completion-chain.ts`) | Flow からの handoff を完了判定へ接続 | `11_core_architecture.md`         |
+| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)               | ループ全体の許可・制限を司る         | `design/01_runner.md`             |
+| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`                 | intent 解析と遷移の一元化            | `design/08_step_flow_design.md`   |
+| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`)   | structured output の契約チェック     | `design/03_structured_outputs.md` |
+| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)         | 設定→実行→Markdown への橋渡し        | `design/02_prompt_system.md`      |
+| Completion Type               | `CompletionChain` (`agents/runner/completion-chain.ts`) | Flow からの handoff を完了判定へ接続 | `design/05_core_architecture.md`  |
 
 ## 6. Agent 構築チェックリスト（What/Why ベース）
 

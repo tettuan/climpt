@@ -780,7 +780,7 @@ export class AgentRunner {
           `structuredGate, transitions, and outputSchemaRef.\n${
             errors.join("\n")
           }\n` +
-          `See agents/docs/step_flow_design.md for requirements.`,
+          `See agents/docs/design/08_step_flow_design.md for requirements.`,
       );
     }
 

@@ -80,7 +80,7 @@ Step B receives uv-s_a.finding
 ## Prompt 制御の一元化
 
 - すべてのプロンプトは C3L/Climpt の参照規則で指定する。
-- Runner は design/05_prompt_system.md
+- Runner は design/02_prompt_system.md
   に従い、`prompts/<c1>/<c2>/<c3>/f_<edition>.md` から読み込むだけである。
 - これによりユーザーは docs/ のガイドラインだけ追えば Step/Completion 両方の
   プロンプトを差し替えられる。Agent はプロンプトファイルの所在に無知なまま動く。

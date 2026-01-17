@@ -187,7 +187,7 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
 /**
  * Contract-compliant Completion Handler Interface
  *
- * Based on: agents/docs/12_contracts.md CompletionContract
+ * Based on: agents/docs/design/06_contracts.md CompletionContract
  *
  * Contract guarantees:
  * - check() is a Query method (no side effects)

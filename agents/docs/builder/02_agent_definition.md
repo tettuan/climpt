@@ -53,8 +53,8 @@ Agent の振る舞い。
 
 ### completionConditions
 
-steps_registry.json で完了条件を定義する。詳細は `08_structured_outputs.md`
-を参照。
+steps_registry.json で完了条件を定義する。詳細は
+`design/03_structured_outputs.md` を参照。
 
 ```json
 {
