@@ -26,7 +26,7 @@ flowchart TD
   Start([start]) --> Step1[step1]
   Step1 --> Step2[step2]
   Step2 --> StepN[step n]
-  StepN --> Review["全体の完了判定<br/>(complete.* step)"]
+  StepN --> Review["Closure Step<br/>(closure.*)"]
   Review --> End([end])
 ```
 
@@ -34,37 +34,65 @@ flowchart TD
 - **Why**: 汎用のランタイムを保ったままユニークな Agent を構築できる。
 - **Constraint**: Entry Step は `entryStepMapping` または `entryStep`
   を必須定義。
-- **Link**: `Review` ノードが `complete.<domain>` ステップと 1:1
-  に対応し、サブループ図の「検証 Step」と同じ要素となる。
+- **Link**: `Review` ノードが `closure.<domain>`（Closure Step）と 1:1
+  に対応し、サブループ図の Closure Step と同じ要素となる。
 
 ## 3. Step 内部のサブループ
 
 ```mermaid
 flowchart LR
-  subgraph StepAuto[step_k 内部]
+  subgraph WorkStep["work step (initial/continuation)"]
     direction LR
     Begin([開始]) --> Work[作業]
     Work --> Check[成果物検証]
-    Check -->|structured output| Decide{intent}
-    Decide -->|next| NextStep[別 Step]
-    Decide -->|repeat| Begin
-    Decide -->|jump| JumpStep[任意 Step]
-    Decide -->|complete| CompleteStep[complete.*]
+    Check -->|structured output| DecideWork{intent}
+    DecideWork -->|next| NextStep[別 Step]
+    DecideWork -->|repeat| Begin
+    DecideWork -->|jump| JumpStep[任意 Step]
   end
 
-  CompleteStep --> Verify["検証 Step (complete.*)"]
-  Verify -->|repeat| PrevStep[直前 Step]
-  Verify -->|complete| Done([signalCompletion])
+  subgraph ClosureStep["closure step (closure.*)"]
+    direction LR
+    CBegin([開始]) --> CWork[整合確認]
+    CWork --> CCheck[証跡検証]
+    CCheck -->|structured output| DecideClose{intent}
+    DecideClose -->|closing| ClosingSignal[(closing intent)]
+    DecideClose -->|repeat| ReturnWork[再実行 Step]
+  end
+
+  ClosingSignal --> FlowHandoff[Flow handoff]
+  FlowHandoff --> CompletionLoop[Completion Loop]
 ```
 
-- **What**: intent が `next`/`repeat`/`jump`/`complete` に正規化される。
-- **Why**: Flow Router が解釈する情報を最小化し、AI の回答ぶれを抑える。
-- **Rule**: 非終端 Step は `complete` を返さない。検証 Step（complete.*）のみ
-  `complete` を送る。
-- **Loop safety**: 検証 Step の `transitions` は `complete` を Flow End
-  へ、`repeat` を明示的に別 Step（例: 直前の作業
-  Step）へ向ける。`complete → complete` には ならず、repeat
-  で自身を指した場合だけ再実行となる。
+- **What**: work step は `next`/`repeat`/`jump` を、closure step は
+  `closing`/`repeat` を structured output で返す。
+- **Why**: Flow Router が解釈する intent を最小集合に保ち、AI
+  の回答ぶれを抑える。
+- **Rule**: work step は `closing` を返さない。Closure Step（`closure.*`) のみ
+  `closing` を宣言して Flow を閉じる。
+- **Loop safety**: Closure Step の `transitions` は `closing` を Flow End
+  へ、`repeat` を明示的に作業 Step へ向ける。`closing → closing`
+  にはならず、repeat で再検証させる場合のみ戻る。
+
+#### formatted schema との連携
+
+```mermaid
+sequenceDiagram
+  participant Runner
+  participant Schema as Step schema
+  participant SDK as Claude SDK
+  participant LLM
+
+  Runner->>Schema: resolve(outputSchemaRef)
+  Schema-->>Runner: JSON schema (allowed intents)
+  Runner->>SDK: formatted { type: "json", schema }
+  SDK->>LLM: enforce schema
+  LLM-->>Runner: structured output (intent + handoff)
+```
+
+- Runner は Step schema を SDK の `formatted` オプションで渡し、intent
+  選択肢（`next`/`repeat`/`jump`/`closing`）を schema の enum で固定する。
+- プロンプトは意味付けだけに集中し、構造的制約は schema が担う。
 
 ## 4. Structured Gate + Router
 
@@ -79,7 +107,7 @@ flowchart LR
   Router -->|next| StepNext
   Router -->|repeat| StepSame
   Router -->|jump| StepNamed
-  Router -->|complete| Verify
+  Router -->|closing| Closure["Closure Step (closure.*)"]
   Router -->|abort| Terminate[[FAILED]]
 ```
 
@@ -105,8 +133,8 @@ flowchart LR
   Router -->|next| NextStep[別 Step]
   Router -->|repeat| Begin
   Router -->|jump| JumpStep[任意 Step]
-  Router -->|complete| CompleteStep[complete.*]
-  CompleteStep --> Completion[Completion Loop]
+  Router -->|closing| ClosureStep[closure step]
+  ClosureStep --> Completion[Completion Loop]
 ```
 
 Step サブループで生成された structured output が Gate へ渡り、Router が Flow
@@ -167,9 +195,9 @@ sequenceDiagram
 ```mermaid
 flowchart LR
   Decide{intent} -->|valid| Gate[Gate + Router]
-  Gate --> NextStep
-  Gate --> RepeatStep
-  Gate --> CompleteStep
+  Gate -->|next| NextStep
+  Gate -->|repeat| RepeatStep
+  Gate -->|closing| ClosureStep
   Gate --> Abort[[Flow End]]
 
   Decide -->|no intent| Abort
@@ -187,18 +215,18 @@ flowchart LR
 
 - **What**: StepContext に蓄積した handoff を Completion Loop がまとめて処理。
 - **Why**: Flow と Completion の責務境界が守られ、どちらも単純化される。
-- **Link**: Flow 骨格図の `Review (complete.*)` ノードと 1:1 に対応し、各 Step
-  から集まった handoff が StepContext 経由で Completion Loop
+- **Link**: Flow 骨格図の `Review (Closure Step / closure.*)` ノードと 1:1
+  に対応し、各 Step から集まった handoff が StepContext 経由で Completion Loop
   へ渡って最終判定を行う。
 
 ## 8. 設定の型と要件（要約）
 
-| 要素                            | What                                                          | Why                               |
-| ------------------------------- | ------------------------------------------------------------- | --------------------------------- |
-| `outputSchemaRef`               | JSON Pointer (`#/definitions/<stepId>`) を必須                | schema 失敗を即時検知             |
-| `structuredGate.allowedIntents` | `next/repeat/jump/complete/abort` を列挙                      | Router が明示的に判断             |
-| `transitions[target]`           | intent → Step を列挙し `complete` は `complete.<domain>` 固定 | 完了=検証ステップという秩序を維持 |
-| `handoffFields`                 | StepContext に積むキーを配列で宣言                            | 暗黙共有を防止                    |
+| 要素                            | What                                                        | Why                                |
+| ------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| `outputSchemaRef`               | JSON Pointer (`#/definitions/<stepId>`) を必須              | schema 失敗を即時検知              |
+| `structuredGate.allowedIntents` | `next/repeat/jump/closing/abort` を列挙                     | Router が明示的に判断              |
+| `transitions[target]`           | intent → Step を列挙し `closing` は `closure.<domain>` 固定 | 完了=Closure Step という秩序を維持 |
+| `handoffFields`                 | StepContext に積むキーを配列で宣言                          | 暗黙共有を防止                     |
 
 図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
 と完全に一致させる。
