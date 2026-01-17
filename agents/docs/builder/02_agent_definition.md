@@ -59,7 +59,7 @@ steps_registry.json で完了条件を定義する。詳細は
 ```json
 {
   "steps": {
-    "complete.issue": {
+    "closure.issue": {
       "completionConditions": [
         { "validator": "git-clean" },
         { "validator": "tests-pass" }

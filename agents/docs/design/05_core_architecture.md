@@ -50,13 +50,13 @@ Flow ループは「前へ進むための重力」、Completion ループは「�
 
 - **What**: Flow ループから `completionSignal`（structured output 上の
   `status: "completed"` や
-  `next_action.action: "complete"`）を受け取ったときにだけ
+  `next_action.action: "closing"`）を受け取ったときにだけ
   起動し、完了判定・最終処理・未完了時の指示を担う。
 - **Why**: 収束を担保するための専用ループを用意し、完了判定を手続き的に
   積み重ねる。メインループに検証や後片付けを混ぜると、重力原理に反して責務が
   分散する。
 - **How (最小限)**:
-  - Completion Loop も C3L の `steps/complete/*` プロンプトで制御する。
+  - Completion Loop も C3L の `steps/closure/*` プロンプトで制御する。
     ユーザーは docs/ に沿って同一の体系で編集できる。
   - Structured Output（JSON Schema で定義）を読み取り、`completionConditions`
     の検証結果、`pendingActions`、`retryPrompt` を Flow ループへ返す。

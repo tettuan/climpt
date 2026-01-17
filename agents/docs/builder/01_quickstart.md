@@ -350,8 +350,8 @@ failed」で即停止する。
 
 ### Completion の考え方
 
-- Flow が終了する条件は **Structured Output で `next_action.action` を
-  `complete` に設定すること**。`isTerminal` のような暗黙フラグは Runner
+- Flow が終了する条件は **Structured Output で `next_action.action` を `closing`
+  に設定すること**。`isTerminal` のような暗黙フラグは Runner
   では参照されないため、Step 定義とプロンプト内で JSON を返すよう必ず指示 する。
 - `transitions.closing.target` に `null` を明示すると、WorkflowRouter が
   completion と判定し Completion Loop へ制御を渡す。

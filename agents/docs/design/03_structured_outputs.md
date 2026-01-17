@@ -21,7 +21,7 @@ Flow ループは Step が返す Structured Output から `completionSignal`
 ```
 completionSignal(response) =
   response.status == "completed" OR
-  response.next_action?.action == "complete"
+  response.next_action?.action == "closing"
 ```
 
 これ以外のケースでは Flow は継続し、Completion Loop は存在を主張しない。
@@ -29,7 +29,7 @@ completionSignal(response) =
 ## Completion Loop の構成
 
 1. **Prompt Resolution**
-   - C3L (`steps/complete/<domain>/f_<edition>.md`)
+   - C3L (`steps/closure/<domain>/f_<edition>.md`)
      から完了指示用プロンプトを読み込む。
    - design/02_prompt_system.md 同様のルールで解決するため、ユーザーは Step
      プロンプトと同じリズムで管理できる。
@@ -56,11 +56,11 @@ completionSignal(response) =
 ```jsonc
 {
   "completionSteps": {
-    "complete.issue": {
-      "prompt": { "c1": "steps", "c2": "complete", "c3": "issue" },
+    "closure.issue": {
+      "prompt": { "c1": "steps", "c2": "closure", "c3": "issue" },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "complete.issue"
+        "schema": "closure.issue"
       },
       "completionConditions": [
         { "validator": "git-clean" },

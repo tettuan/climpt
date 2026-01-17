@@ -97,7 +97,7 @@ isComplete() → Promise<boolean>
 
 ① getStructuredOutputStatus() で AI 宣言を取得
    - status === "completed"
-   - next_action.action === "complete"
+   - next_action.action === "closing"
 
 ② 外部条件をチェック
    - GitHub Issue が CLOSED か

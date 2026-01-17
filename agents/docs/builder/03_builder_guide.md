@@ -48,7 +48,7 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
    - Why: Step 定義を唯一の真実として扱い、AI 応答の揺らぎを遷移ロジックに
      伝播させないため。
 3. **Completion ループ**
-   - What: Flow が `complete.<domain>` に遷移したとき、Completion Chain が
+   - What: Flow が `closure.<domain>` に遷移したとき、Completion Chain が
      structured output を検証し、Issue の状態や外部信号と照合。
    - Why: 「やりきったか？」を別ループに分離し、Flow を単純化するため。
 4. **Fail-fast**
@@ -59,7 +59,7 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 ## 4. プロンプト配置と Resolver
 
-- Flow Step は `c2` (=initial/continuation/complete) と `c3` (=completionType
+- Flow Step は `c2` (=initial/continuation/closure) と `c3` (=completionType
   など) の組み合わせで固有ディレクトリを持つ。
 - Runner は `design/08_step_flow_design.md` で規定された
   `pathTemplate`（デフォルト: `{c1}/{c2}/{c3}/f_{edition}.md`）で Markdown
