@@ -1,0 +1,35 @@
+---
+stepId: continuation.default
+name: Continuation Prompt
+---
+
+# Continue Work
+
+Continue from the previous state.
+
+## Previous State
+
+{previous_summary}
+
+## Instructions
+
+1. Review remaining work
+2. Execute the next step
+3. Output `complete` when finished
+
+## Output
+
+Respond with the following JSON structure:
+
+```json
+{
+  "progress": {
+    "completed": ["Completed item 1", "Completed item 2"],
+    "remaining": ["Remaining item 1"]
+  },
+  "next_action": {
+    "action": "next | complete",
+    "reason": "Reason for the action"
+  }
+}
+```
