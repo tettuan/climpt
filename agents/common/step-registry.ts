@@ -6,9 +6,12 @@
  * - Customizable prompts via user files in .agent/{agent}/prompts/
  * - Fallback to built-in prompts when user files don't exist
  * - Variable substitution for dynamic content
+ * - Response format validation for structured outputs
  */
 
 import { join } from "@std/path";
+import type { InputSpec } from "../src_common/contracts.ts";
+import type { ResponseFormat } from "./completion-types.ts";
 
 /**
  * Step type for categorization
@@ -90,6 +93,18 @@ export interface PromptStepDefinition {
   };
 
   /**
+   * Expected response format for validation.
+   * When specified, FormatValidator will validate the response.
+   */
+  responseFormat?: ResponseFormat;
+
+  /**
+   * Input specification for handoff data.
+   * Defines which outputs from previous steps this step needs.
+   */
+  inputs?: InputSpec;
+
+  /**
    * Optional description of what this step does
    */
   description?: string;
@@ -144,6 +159,18 @@ export interface StepRegistry {
    * Default: ".agent/{agentId}/schemas"
    */
   schemasBase?: string;
+
+  /**
+   * Entry step ID for starting execution
+   */
+  entryStep?: string;
+
+  /**
+   * Mode-based entry step mapping.
+   * Allows dynamic entry step selection based on execution mode.
+   * Example: { "issue": "initial.issue", "project": "initial.project" }
+   */
+  entryStepMapping?: Record<string, string>;
 }
 
 /**

@@ -268,3 +268,262 @@ export async function getMainWorktreePath(cwd?: string): Promise<string> {
   // The first worktree in the list is always the main one
   return worktrees[0] ?? "";
 }
+
+// ============================================================================
+// Finalize Worktree Branch
+// ============================================================================
+
+/**
+ * Options for finalizing worktree branch
+ */
+export interface FinalizeOptions {
+  /** Whether to automatically merge worktree branch to base (default: true) */
+  autoMerge?: boolean;
+  /** Whether to push after merge (default: false) */
+  push?: boolean;
+  /** Remote to push to (default: origin) */
+  remote?: string;
+  /** Whether to create a PR instead of direct merge (default: false) */
+  createPr?: boolean;
+  /** Target branch for PR (default: base branch) */
+  prTarget?: string;
+  /** Logger for observability */
+  logger?: FinalizeLogger;
+}
+
+/**
+ * Logger interface for finalize operations
+ */
+export interface FinalizeLogger {
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>): void;
+  error(message: string, meta?: Record<string, unknown>): void;
+}
+
+/**
+ * Result of finalizing worktree branch
+ */
+export interface FinalizationOutcome {
+  /** Overall status */
+  status: "success" | "partial" | "failed";
+  /** Merge result */
+  merge?: {
+    success: boolean;
+    commitsMerged: number;
+    error?: string;
+  };
+  /** Push result */
+  push?: {
+    success: boolean;
+    remote?: string;
+    error?: string;
+  };
+  /** PR creation result */
+  pr?: {
+    success: boolean;
+    url?: string;
+    error?: string;
+  };
+  /** Whether worktree was cleaned up */
+  cleanedUp: boolean;
+  /** Pending actions for retry (on partial failure) */
+  pendingActions?: string[];
+  /** Overall reason/description */
+  reason: string;
+}
+
+/**
+ * Finalize worktree branch - the complete sequence for Flow success
+ *
+ * Sequence: merge -> push -> optional PR -> cleanup
+ *
+ * On success, cleans up worktree.
+ * On failure, preserves worktree for recovery.
+ *
+ * @param worktreeResult - Setup result from setupWorktree
+ * @param options - Finalize options
+ * @param parentCwd - Working directory of main repository
+ * @returns Finalization outcome
+ */
+export async function finalizeWorktreeBranch(
+  worktreeResult: WorktreeSetupResult,
+  options: FinalizeOptions,
+  parentCwd: string,
+): Promise<FinalizationOutcome> {
+  const {
+    autoMerge = true,
+    push = false,
+    remote = "origin",
+    createPr = false,
+    logger,
+  } = options;
+
+  const log = logger ?? {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  };
+
+  const outcome: FinalizationOutcome = {
+    status: "success",
+    cleanedUp: false,
+    reason: "",
+  };
+
+  const pendingActions: string[] = [];
+
+  // Step 1: Merge worktree branch into base
+  if (autoMerge) {
+    log.info("[finalize.merge] Merging worktree branch", {
+      branch: worktreeResult.branchName,
+      base: worktreeResult.baseBranch,
+    });
+
+    try {
+      const mergeResult = await mergeWorktreeBranch(
+        worktreeResult.branchName,
+        worktreeResult.baseBranch,
+        parentCwd,
+      );
+
+      outcome.merge = {
+        success: mergeResult.merged,
+        commitsMerged: mergeResult.commitsMerged,
+        error: mergeResult.merged ? undefined : mergeResult.reason,
+      };
+
+      if (mergeResult.merged) {
+        log.info("[finalize.merge] Merge successful", {
+          commits: mergeResult.commitsMerged,
+        });
+      } else if (mergeResult.commitsMerged === 0) {
+        log.info("[finalize.merge] No commits to merge", {
+          reason: mergeResult.reason,
+        });
+        outcome.merge.success = true; // No-op is still success
+      } else {
+        log.error("[finalize.merge] Merge failed", {
+          reason: mergeResult.reason,
+        });
+        pendingActions.push("Resolve merge conflict and retry");
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      outcome.merge = {
+        success: false,
+        commitsMerged: 0,
+        error: errorMsg,
+      };
+      log.error("[finalize.merge] Merge exception", { error: errorMsg });
+      pendingActions.push(`Fix merge error: ${errorMsg}`);
+    }
+  }
+
+  // Step 2: Push to remote
+  if (push && (!autoMerge || outcome.merge?.success)) {
+    log.info("[finalize.push] Pushing to remote", {
+      remote,
+      branch: worktreeResult.baseBranch,
+    });
+
+    try {
+      await runGit(["push", remote, worktreeResult.baseBranch], parentCwd);
+      outcome.push = { success: true, remote };
+      log.info("[finalize.push] Push successful", { remote });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      outcome.push = { success: false, remote, error: errorMsg };
+      log.error("[finalize.push] Push failed", { error: errorMsg });
+      pendingActions.push(`Push failed: ${errorMsg}`);
+    }
+  }
+
+  // Step 3: Create PR (if requested and merge failed or skipped)
+  if (createPr && !autoMerge) {
+    const prTarget = options.prTarget ?? worktreeResult.baseBranch;
+    log.info("[finalize.pr] Creating PR", {
+      head: worktreeResult.branchName,
+      base: prTarget,
+    });
+
+    try {
+      // First push the branch
+      await runGit(
+        ["push", "-u", remote, worktreeResult.branchName],
+        parentCwd,
+      );
+
+      // Create PR using gh CLI
+      const prOutput = await new Deno.Command("gh", {
+        args: [
+          "pr",
+          "create",
+          "--head",
+          worktreeResult.branchName,
+          "--base",
+          prTarget,
+          "--fill",
+        ],
+        cwd: parentCwd,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+
+      if (prOutput.success) {
+        const prUrl = new TextDecoder().decode(prOutput.stdout).trim();
+        outcome.pr = { success: true, url: prUrl };
+        log.info("[finalize.pr] PR created", { url: prUrl });
+      } else {
+        const stderr = new TextDecoder().decode(prOutput.stderr);
+        throw new Error(stderr);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      outcome.pr = { success: false, error: errorMsg };
+      log.error("[finalize.pr] PR creation failed", { error: errorMsg });
+      pendingActions.push(`Create PR manually: ${errorMsg}`);
+    }
+  }
+
+  // Determine overall status
+  const mergeOk = !autoMerge || outcome.merge?.success;
+  const pushOk = !push || outcome.push?.success;
+  const prOk = !createPr || outcome.pr?.success;
+
+  if (mergeOk && pushOk && prOk) {
+    outcome.status = "success";
+    outcome.reason = "Finalization completed successfully";
+  } else if (outcome.merge?.success || outcome.push?.success) {
+    outcome.status = "partial";
+    outcome.reason = "Finalization partially completed";
+    outcome.pendingActions = pendingActions;
+  } else {
+    outcome.status = "failed";
+    outcome.reason = "Finalization failed";
+    outcome.pendingActions = pendingActions;
+  }
+
+  // Step 4: Cleanup worktree only on full success
+  if (outcome.status === "success") {
+    log.info("[finalize.cleanup] Cleaning up worktree", {
+      path: worktreeResult.worktreePath,
+    });
+
+    try {
+      await cleanupWorktree(worktreeResult.worktreePath, parentCwd);
+      outcome.cleanedUp = true;
+      log.info("[finalize.cleanup] Worktree removed");
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      log.warn("[finalize.cleanup] Cleanup failed", { error: errorMsg });
+      outcome.cleanedUp = false;
+    }
+  } else {
+    log.warn("[finalize.cleanup] Skipping cleanup due to finalization status", {
+      status: outcome.status,
+    });
+    outcome.cleanedUp = false;
+  }
+
+  return outcome;
+}

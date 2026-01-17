@@ -8,9 +8,6 @@
 import type { Logger } from "../src_common/logger.ts";
 import type { BaseValidationResult } from "../src_common/types.ts";
 
-// Re-export PreCloseValidationConfig from src_common for consistency
-export type { PreCloseValidationConfig } from "../src_common/types.ts";
-
 /**
  * Context passed to validators during execution
  */

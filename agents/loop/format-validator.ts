@@ -32,8 +32,7 @@ export interface FormatValidationResult extends BaseValidationResult {
 /**
  * Validates agent responses against expected format specifications.
  *
- * Supports three format types:
- * - action-block: Validates code block with specific type (e.g., ```issue-action)
+ * Supports two format types:
  * - json: Validates against JSON Schema
  * - text-pattern: Validates against regex pattern
  */
@@ -50,8 +49,6 @@ export class FormatValidator {
     format: ResponseFormat,
   ): FormatValidationResult {
     switch (format.type) {
-      case "action-block":
-        return this.validateActionBlock(summary, format);
       case "json":
         return this.validateJson(summary, format);
       case "text-pattern":
@@ -62,118 +59,6 @@ export class FormatValidator {
           error: `Unknown format type: ${(format as ResponseFormat).type}`,
         };
     }
-  }
-
-  /**
-   * Validate action block format.
-   *
-   * Checks if the summary contains a detected action matching the expected
-   * block type, and validates required fields if specified.
-   */
-  private validateActionBlock(
-    summary: IterationSummary,
-    format: ResponseFormat,
-  ): FormatValidationResult {
-    if (!format.blockType) {
-      return {
-        valid: false,
-        error: "blockType is required for action-block format",
-      };
-    }
-
-    // Find matching action in detectedActions
-    const action = summary.detectedActions.find(
-      (a) => a.type === format.blockType,
-    );
-
-    if (!action) {
-      return {
-        valid: false,
-        error: `Action block "${format.blockType}" not found in response`,
-      };
-    }
-
-    // Parse and validate required fields
-    if (format.requiredFields) {
-      try {
-        // Try to parse the content or raw field
-        let data: Record<string, unknown>;
-        try {
-          data = JSON.parse(action.content);
-        } catch {
-          // If content parse fails, try raw
-          try {
-            data = JSON.parse(action.raw);
-          } catch {
-            return {
-              valid: false,
-              error: `Cannot parse action block content as JSON`,
-            };
-          }
-        }
-
-        for (const [field, expected] of Object.entries(format.requiredFields)) {
-          // Check if field exists
-          if (!(field in data)) {
-            return {
-              valid: false,
-              error: `Required field "${field}" is missing`,
-            };
-          }
-
-          // Check type or literal value
-          const actual = data[field];
-          if (typeof expected === "string") {
-            // Check if it's a type specification or literal value
-            if (
-              expected === "string" ||
-              expected === "number" ||
-              expected === "boolean"
-            ) {
-              if (!this.checkType(actual, expected)) {
-                return {
-                  valid: false,
-                  error:
-                    `Field "${field}" should be ${expected}, got ${typeof actual}`,
-                };
-              }
-            } else {
-              // Literal string value comparison
-              if (actual !== expected) {
-                return {
-                  valid: false,
-                  error:
-                    `Field "${field}" should be "${expected}", got "${actual}"`,
-                };
-              }
-            }
-          } else {
-            // Literal value comparison (number or boolean)
-            if (actual !== expected) {
-              return {
-                valid: false,
-                error: `Field "${field}" should be ${
-                  JSON.stringify(expected)
-                }, got ${JSON.stringify(actual)}`,
-              };
-            }
-          }
-        }
-
-        return { valid: true, extracted: data };
-      } catch (e) {
-        return {
-          valid: false,
-          error: `Invalid JSON in action block: ${(e as Error).message}`,
-        };
-      }
-    }
-
-    // No required fields - just check action exists
-    return {
-      valid: true,
-      extracted: action,
-    };
   }
 
   /**

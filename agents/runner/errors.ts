@@ -6,7 +6,6 @@
  *   - AgentNotInitializedError (runner not initialized)
  *   - AgentQueryError (SDK query failed)
  *   - AgentCompletionError (completion check failed)
- *   - AgentActionError (action execution failed)
  *   - AgentTimeoutError (operation timeout)
  *   - AgentMaxIterationsError (max iterations exceeded)
  */
@@ -96,34 +95,6 @@ export class AgentCompletionError extends AgentError {
     options?: { cause?: Error; iteration?: number },
   ) {
     super(message, options);
-  }
-}
-
-/**
- * Action execution failed
- */
-export class AgentActionError extends AgentError {
-  readonly code = "AGENT_ACTION_ERROR";
-  readonly recoverable = true;
-
-  /**
-   * The action that failed
-   */
-  readonly actionType?: string;
-
-  constructor(
-    message: string,
-    options?: { cause?: Error; iteration?: number; actionType?: string },
-  ) {
-    super(message, options);
-    this.actionType = options?.actionType;
-  }
-
-  override toJSON(): Record<string, unknown> {
-    return {
-      ...super.toJSON(),
-      actionType: this.actionType,
-    };
   }
 }
 

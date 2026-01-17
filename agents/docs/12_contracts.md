@@ -67,7 +67,7 @@ CompletionValidator.validate(conditions) → CompletionValidationResult
 ```
 FormatValidator.validate(summary, format) → FormatValidationResult
 
-入力:    IterationSummary（検出アクション・応答含む）、ResponseFormat（形式指定）
+入力:    IterationSummary（assistantResponses・structuredOutput 含む）、ResponseFormat（形式指定）
 出力:    { valid: boolean, error?: string, extracted?: unknown }
 副作用:  なし
 ```
@@ -175,37 +175,46 @@ interface FormatValidationResult {
 }
 ```
 
-## 将来の契約（未実装）
+## StepContext / InputSpec（データ契約）
 
-> 以下の契約は設計段階です。Step Flow 機能で実装予定です。
+Flow ループが渡すハンドオフを単なる Map ではなく契約として固定する。実装は
+`agents/loop/step-context.ts` の `StepContextImpl` で提供され、AI 複雑性の増大を
+防ぐために「宣言されたものだけが次工程へ進む」という秩序を保証する。
 
 ### StepContext
 
 ```typescript
 interface StepContext {
-  outputs: Record<stepId, Record<key, value>>;
+  outputs: Map<string, Record<string, unknown>>;
+  set(stepId: string, data: Record<string, unknown>): void;
+  get(stepId: string, key: string): unknown | undefined;
+  toUV(inputs: InputSpec): Record<string, string>;
 }
-
-// 操作:
-// set(stepId, data)  - ステップ出力を登録（上書き）
-// get(stepId, key)   - 出力を取得（なければ undefined）
-// toUV(inputs)       - UV 変数形式に変換
 ```
+
+- **What**: Step ごとの出力を `uv-<stepId>_<key>`
+  にマッピングする単一の共有倉庫。
+- **Why**: 暗黙共有を禁止し、Completion Loop
+  や監査ログが「どこで生まれた値か」を
+  即座にトレースできるようにする（`ai-complexity` のエントロピー対策）。
 
 ### InputSpec
 
 ```typescript
 interface InputSpec {
-  [stepId.key]: {
-    required?: boolean; // デフォルト: true
-    default?: value; // required=false の場合
+  [variable: string]: {
+    from?: string; // "stepId.key"
+    required?: boolean; // デフォルト true
+    default?: unknown; // required=false の場合のみ
   };
 }
-
-// 解決規則:
-// required=true  かつ欠損 ⇒ Error
-// required=false かつ欠損 ⇒ default を使用
 ```
+
+- **Resolution rules**:
+  - required=true かつ値なし ⇒ Error（Flow が stop し原因を report）
+  - required=false かつ値なし ⇒ default を使用
+- **Why**: 参照元を `stepId.key` 形式で明示することで、Step Flow 設計図と実装を
+  1:1 に保ち、手当たり次第の変数参照による複雑化を避ける。
 
 ## エラーの契約
 

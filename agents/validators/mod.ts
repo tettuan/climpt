@@ -8,7 +8,6 @@
 // Type exports
 export type {
   AggregateValidationResult,
-  PreCloseValidationConfig,
   Validator,
   ValidatorContext,
   ValidatorResult,

@@ -7,10 +7,8 @@
  */
 
 import type {
-  ActionResult,
   AgentResult,
   AgentState,
-  DetectedAction,
   IterationSummary,
 } from "../src_common/types.ts";
 
@@ -23,8 +21,6 @@ export type AgentEvent =
   | "iterationEnd"
   | "promptBuilt"
   | "queryExecuted"
-  | "actionDetected"
-  | "actionExecuted"
   | "completionChecked"
   | "stateChange"
   | "error"
@@ -39,8 +35,6 @@ export interface AgentEventPayloads {
   iterationEnd: { iteration: number; summary: IterationSummary };
   promptBuilt: { prompt: string; systemPrompt: string };
   queryExecuted: { summary: IterationSummary };
-  actionDetected: { actions: readonly DetectedAction[] };
-  actionExecuted: { results: readonly ActionResult[] };
   completionChecked: { isComplete: boolean; reason?: string };
   stateChange: { previous: AgentState; current: AgentState };
   error: { error: Error; recoverable: boolean };

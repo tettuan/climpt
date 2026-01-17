@@ -11,7 +11,6 @@ import {
   AgentRunnerBuilder,
   type CompletionHandlerFactory,
   createDefaultDependencies,
-  DefaultActionSystemFactory,
   DefaultCompletionHandlerFactory,
   DefaultCompletionValidatorFactory,
   DefaultLoggerFactory,
@@ -151,7 +150,6 @@ Deno.test("createDefaultDependencies - returns all required factories", () => {
 Deno.test("createDefaultDependencies - includes optional factories", () => {
   const deps = createDefaultDependencies();
 
-  assertEquals(deps.actionSystemFactory !== undefined, true);
   assertEquals(deps.completionValidatorFactory !== undefined, true);
   assertEquals(deps.retryHandlerFactory !== undefined, true);
 });
@@ -165,7 +163,6 @@ Deno.test("createDefaultDependencies - factories are correct types", () => {
     DefaultCompletionHandlerFactory,
   );
   assertInstanceOf(deps.promptResolverFactory, DefaultPromptResolverFactory);
-  assertInstanceOf(deps.actionSystemFactory, DefaultActionSystemFactory);
   assertInstanceOf(
     deps.completionValidatorFactory,
     DefaultCompletionValidatorFactory,
@@ -176,23 +173,6 @@ Deno.test("createDefaultDependencies - factories are correct types", () => {
 // =============================================================================
 // Default Factory Implementation Tests
 // =============================================================================
-
-Deno.test("DefaultActionSystemFactory - is initializable", () => {
-  const factory = new DefaultActionSystemFactory();
-  assertEquals(isInitializable(factory), true);
-});
-
-Deno.test("DefaultActionSystemFactory - throws before initialization", () => {
-  const factory = new DefaultActionSystemFactory();
-
-  try {
-    factory.createDetector({ enabled: true, types: [], outputFormat: "json" });
-    throw new Error("Expected error to be thrown");
-  } catch (e) {
-    assertInstanceOf(e, Error);
-    assertEquals((e as Error).message.includes("not imported"), true);
-  }
-});
 
 Deno.test("DefaultCompletionValidatorFactory - is initializable", () => {
   const factory = new DefaultCompletionValidatorFactory();
@@ -360,7 +340,6 @@ Deno.test("AgentDependencies - optional properties can be undefined", () => {
   };
 
   // Optional factories can be undefined
-  assertEquals(minimalDeps.actionSystemFactory, undefined);
   assertEquals(minimalDeps.completionValidatorFactory, undefined);
   assertEquals(minimalDeps.retryHandlerFactory, undefined);
 });

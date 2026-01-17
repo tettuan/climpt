@@ -32,11 +32,6 @@ const DEFAULTS = {
     directory: "logs",
     format: "jsonl" as const,
   },
-  actions: {
-    enabled: false,
-    types: [] as string[],
-    outputFormat: "action",
-  },
   github: {
     enabled: false,
   },
@@ -96,7 +91,6 @@ export function applyDefaults(raw: unknown): AgentDefinition {
       fallbackDir: (rawPrompts.fallbackDir as string) ??
         DEFAULTS.prompts.fallbackDir,
     },
-    actions: (def.actions as AgentDefinition["actions"]) ?? DEFAULTS.actions,
     github: (def.github as AgentDefinition["github"]) ?? DEFAULTS.github,
     worktree: (def.worktree as AgentDefinition["worktree"]) ??
       DEFAULTS.worktree,

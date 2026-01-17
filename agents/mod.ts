@@ -21,8 +21,6 @@ export * from "./common/mod.ts";
 
 // Types from src_common
 export type {
-  ActionConfig,
-  ActionResult,
   AgentBehavior,
   AgentDefinition,
   AgentResult,
@@ -32,13 +30,12 @@ export type {
   CheckDefinition,
   CheckResponse,
   CompletionConfigUnion,
-  CompletionSignal,
   CompletionType,
   CompositeCompletionConfig,
   CustomCompletionConfig,
   CustomVariableDefinition,
-  DetectedAction,
   ExternalStateCompletionConfig,
+  FinalizeConfig,
   FlowStepDefinition,
   GitHubConfig,
   IterationBudgetCompletionConfig,
@@ -80,21 +77,6 @@ export {
   resolveCompletionType,
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
-
-// === Actions ===
-export {
-  type ActionContext,
-  ActionDetector,
-  ActionExecutor,
-  type ActionHandler,
-  BaseActionHandler,
-  type ExecutorOptions,
-  FileActionHandler,
-  GitHubCommentHandler,
-  type GitHubContext,
-  GitHubIssueHandler,
-  LogActionHandler,
-} from "./src_mod.ts";
 
 // === Completion (V1 - backward compatibility) ===
 export {

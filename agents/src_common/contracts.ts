@@ -8,7 +8,6 @@
  */
 
 import type {
-  ActionResult,
   AgentDefinition,
   PromptReference,
   QueryResult,
@@ -143,8 +142,8 @@ export interface CheckContext {
   iteration: number;
   /** LLM response from current iteration */
   response?: QueryResult;
-  /** Action execution results */
-  actionResults?: ActionResult[];
+  /** Structured output from LLM */
+  structuredOutput?: Record<string, unknown>;
   /** Step context for step-based execution */
   stepContext?: StepContext;
 }

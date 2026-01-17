@@ -7,7 +7,6 @@
 
 import { assertEquals, assertInstanceOf } from "@std/assert";
 import {
-  AgentActionError,
   AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
@@ -62,29 +61,6 @@ Deno.test("AgentCompletionError - has correct code and is recoverable", () => {
   assertEquals(error.code, "AGENT_COMPLETION_ERROR");
   assertEquals(error.recoverable, true);
   assertEquals(error.name, "AgentCompletionError");
-});
-
-Deno.test("AgentActionError - has correct code and is recoverable", () => {
-  const error = new AgentActionError("Action failed");
-  assertEquals(error.code, "AGENT_ACTION_ERROR");
-  assertEquals(error.recoverable, true);
-  assertEquals(error.name, "AgentActionError");
-});
-
-Deno.test("AgentActionError - stores actionType", () => {
-  const error = new AgentActionError("Action failed", { actionType: "commit" });
-  assertEquals(error.actionType, "commit");
-});
-
-Deno.test("AgentActionError - toJSON includes actionType", () => {
-  const error = new AgentActionError("Action failed", {
-    actionType: "commit",
-    iteration: 3,
-  });
-  const json = error.toJSON();
-  assertEquals(json.actionType, "commit");
-  assertEquals(json.iteration, 3);
-  assertEquals(json.code, "AGENT_ACTION_ERROR");
 });
 
 Deno.test("AgentTimeoutError - has correct code and is recoverable", () => {
@@ -160,7 +136,6 @@ Deno.test("isAgentError - returns true for AgentError instances", () => {
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
     new AgentCompletionError("test"),
-    new AgentActionError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -184,7 +159,7 @@ Deno.test("isAgentError - returns false for non-AgentError", () => {
 // =============================================================================
 
 Deno.test("normalizeToAgentError - returns AgentError as-is", () => {
-  const original = new AgentActionError("Original");
+  const original = new AgentCompletionError("Original");
   const normalized = normalizeToAgentError(original);
   assertEquals(normalized, original);
 });
@@ -404,7 +379,6 @@ Deno.test("All error classes extend AgentError", () => {
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
     new AgentCompletionError("test"),
-    new AgentActionError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -420,7 +394,6 @@ Deno.test("Error codes are unique", () => {
     new AgentNotInitializedError().code,
     new AgentQueryError("test").code,
     new AgentCompletionError("test").code,
-    new AgentActionError("test").code,
     new AgentTimeoutError("test", 1000).code,
     new AgentMaxIterationsError(10).code,
   ];
@@ -439,11 +412,7 @@ Deno.test("Error codes are unique", () => {
 
 import { FormatValidator } from "../loop/format-validator.ts";
 import type { ResponseFormat } from "../common/completion-types.ts";
-import type {
-  ActionResult,
-  DetectedAction,
-  IterationSummary,
-} from "../src_common/types.ts";
+import type { IterationSummary } from "../src_common/types.ts";
 
 // Helper to create a minimal iteration summary
 function createIterationSummary(
@@ -453,90 +422,10 @@ function createIterationSummary(
     iteration: 1,
     assistantResponses: [],
     toolsUsed: [],
-    detectedActions: [],
     errors: [],
-    actionResults: [],
     ...options,
   };
 }
-
-// Helper to create a detected action
-function createDetectedAction(
-  type: string,
-  content: string,
-  raw?: string,
-): DetectedAction {
-  return {
-    type,
-    content,
-    raw: raw ?? content,
-    metadata: {},
-  };
-}
-
-// Helper to check if action results indicate a close action (matches runner.ts logic)
-function hasCloseAction(results: ActionResult[]): boolean {
-  return results.some((r) => {
-    if (r.action?.type !== "issue-action") return false;
-    const result = r.result as { action?: string } | undefined;
-    return result?.action === "close";
-  });
-}
-
-Deno.test("Completion Validation - hasCloseAction detects close action", () => {
-  const actionResults: ActionResult[] = [
-    {
-      action: {
-        type: "issue-action",
-        content: '{"action":"close","issue":123}',
-        raw: '{"action":"close","issue":123}',
-        metadata: {},
-      },
-      success: true,
-      result: { action: "close", issue: 123, closed: true },
-    },
-  ];
-
-  assertEquals(hasCloseAction(actionResults), true);
-});
-
-Deno.test("Completion Validation - hasCloseAction returns false for non-close action", () => {
-  const actionResults: ActionResult[] = [
-    {
-      action: {
-        type: "issue-action",
-        content: '{"action":"progress","issue":123}',
-        raw: '{"action":"progress","issue":123}',
-        metadata: {},
-      },
-      success: true,
-      result: { action: "progress", issue: 123 },
-    },
-  ];
-
-  assertEquals(hasCloseAction(actionResults), false);
-});
-
-Deno.test("Completion Validation - hasCloseAction returns false for non-issue action", () => {
-  const actionResults: ActionResult[] = [
-    {
-      action: {
-        type: "other-action",
-        content: '{"action":"close"}',
-        raw: '{"action":"close"}',
-        metadata: {},
-      },
-      success: true,
-      result: { action: "close" },
-    },
-  ];
-
-  assertEquals(hasCloseAction(actionResults), false);
-});
-
-Deno.test("Completion Validation - hasCloseAction returns false for empty results", () => {
-  assertEquals(hasCloseAction([]), false);
-});
 
 // Helper to check if AI declared completion via structured output (matches runner.ts logic)
 function hasAICompletionDeclaration(summary: IterationSummary): boolean {
@@ -598,49 +487,6 @@ Deno.test("Completion Validation - hasAICompletionDeclaration returns false with
   assertEquals(hasAICompletionDeclaration(summary), false);
 });
 
-Deno.test("Completion Validation - FormatValidator validates action-block in summary", () => {
-  const validator = new FormatValidator();
-
-  const summary = createIterationSummary({
-    detectedActions: [
-      createDetectedAction("issue-action", '{"action":"close","issue":123}'),
-    ],
-  });
-
-  const format: ResponseFormat = {
-    type: "action-block",
-    blockType: "issue-action",
-    requiredFields: {
-      action: "close",
-      issue: "number",
-    },
-  };
-
-  const result = validator.validate(summary, format);
-
-  assertEquals(result.valid, true);
-  assertEquals((result.extracted as Record<string, unknown>).action, "close");
-  assertEquals((result.extracted as Record<string, unknown>).issue, 123);
-});
-
-Deno.test("Completion Validation - FormatValidator returns error for missing action-block", () => {
-  const validator = new FormatValidator();
-
-  const summary = createIterationSummary({
-    detectedActions: [],
-  });
-
-  const format: ResponseFormat = {
-    type: "action-block",
-    blockType: "issue-action",
-  };
-
-  const result = validator.validate(summary, format);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.error?.includes("not found"), true);
-});
-
 Deno.test("Completion Validation - FormatValidator validates JSON in assistant response", () => {
   const validator = new FormatValidator();
 
@@ -682,46 +528,4 @@ Deno.test("Completion Validation - FormatValidator validates text pattern", () =
 
   assertEquals(result.valid, true);
   assertEquals(result.extracted, "COMPLETE-42");
-});
-
-Deno.test("Completion Validation - close action triggers completion validation path", () => {
-  // This test verifies the flow: close action detection -> validation trigger
-  const actionResults: ActionResult[] = [
-    {
-      action: {
-        type: "issue-action",
-        content: '{"action":"close","issue":123}',
-        raw: '{"action":"close","issue":123}',
-        metadata: {},
-      },
-      success: true,
-      result: { action: "close", issue: 123, closed: true },
-    },
-  ];
-
-  // Verify close action is detected
-  const isCloseAction = hasCloseAction(actionResults);
-  assertEquals(isCloseAction, true);
-
-  // Create summary with the action
-  const summary = createIterationSummary({
-    actionResults,
-    detectedActions: [
-      createDetectedAction("issue-action", '{"action":"close","issue":123}'),
-    ],
-  });
-
-  // Verify format validation would pass
-  const validator = new FormatValidator();
-  const format: ResponseFormat = {
-    type: "action-block",
-    blockType: "issue-action",
-    requiredFields: {
-      action: "close",
-      issue: "number",
-    },
-  };
-
-  const result = validator.validate(summary, format);
-  assertEquals(result.valid, true);
 });

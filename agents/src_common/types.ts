@@ -17,9 +17,10 @@ export interface AgentDefinition {
   behavior: AgentBehavior;
   parameters: Record<string, ParameterDefinition>;
   prompts: PromptConfig;
-  actions?: ActionConfig;
   github?: GitHubConfig;
   worktree?: WorktreeConfig;
+  /** Finalize configuration for worktree mode */
+  finalize?: FinalizeConfig;
   logging: LoggingConfig;
 }
 
@@ -31,20 +32,23 @@ export interface AgentBehavior {
   permissionMode: PermissionMode;
   /** Fine-grained sandbox configuration (uses defaults if not specified) */
   sandboxConfig?: SandboxConfig;
-  /** Pre-close validation configuration for issue-action close */
-  preCloseValidation?: PreCloseValidationConfig;
 }
 
 /**
- * Pre-close validation configuration
+ * Finalize configuration for worktree mode.
+ * Controls what happens after Flow loop completes successfully.
  */
-export interface PreCloseValidationConfig {
-  /** Whether pre-close validation is enabled */
-  enabled: boolean;
-  /** List of validator IDs to run before close */
-  validators: string[];
-  /** Action on validation failure: 'block' prevents close, 'warn' only logs */
-  onFailure?: "block" | "warn";
+export interface FinalizeConfig {
+  /** Whether to automatically merge worktree branch to base (default: true) */
+  autoMerge?: boolean;
+  /** Whether to push after merge (default: false) */
+  push?: boolean;
+  /** Remote to push to (default: origin) */
+  remote?: string;
+  /** Whether to create a PR instead of direct merge (default: false) */
+  createPr?: boolean;
+  /** Target branch for PR (default: base branch) */
+  prTarget?: string;
 }
 
 /**
@@ -270,13 +274,6 @@ export interface PromptConfig {
   fallbackDir: string;
 }
 
-export interface ActionConfig {
-  enabled: boolean;
-  types: string[];
-  outputFormat: string;
-  handlers?: Record<string, string>;
-}
-
 export interface GitHubConfig {
   enabled: boolean;
   labels?: Record<string, string>;
@@ -337,8 +334,6 @@ export interface IterationSummary {
   sessionId?: string;
   assistantResponses: string[];
   toolsUsed: string[];
-  detectedActions: DetectedAction[];
-  actionResults?: ActionResult[];
   errors: string[];
   /** Structured output from SDK result (when outputFormat is configured) */
   structuredOutput?: Record<string, unknown>;
@@ -347,26 +342,6 @@ export interface IterationSummary {
     waitMs: number;
     attempt: number;
   };
-}
-
-export interface DetectedAction {
-  type: string;
-  content: string;
-  metadata: Record<string, unknown>;
-  raw: string;
-}
-
-export interface CompletionSignal {
-  type: "phase-advance" | "complete";
-  data?: unknown;
-}
-
-export interface ActionResult {
-  action: DetectedAction;
-  success: boolean;
-  result?: unknown;
-  error?: string;
-  completionSignal?: CompletionSignal;
 }
 
 // ============================================================================
@@ -654,8 +629,6 @@ export const INITIAL_AGENT_STATE: AgentState = {
 // These are imported from other modules, but we need the interface here
 import type { CompletionHandler } from "../completion/mod.ts";
 import type { PromptResolver } from "../prompts/resolver.ts";
-import type { ActionDetector } from "../actions/detector.ts";
-import type { ActionExecutor } from "../actions/executor.ts";
 import type { Logger } from "./logger.ts";
 
 /**
@@ -666,8 +639,6 @@ import type { Logger } from "./logger.ts";
 export interface RuntimeContext {
   readonly completionHandler: CompletionHandler;
   readonly promptResolver: PromptResolver;
-  readonly actionDetector?: ActionDetector;
-  readonly actionExecutor?: ActionExecutor;
   readonly logger: Logger;
   readonly cwd: string;
 }

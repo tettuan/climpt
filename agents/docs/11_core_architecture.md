@@ -111,12 +111,12 @@ Step B receives uv-s_a.finding
 
 ## 実装メモ
 
-| 領域              | 状態   | Why                                                                             |
-| ----------------- | ------ | ------------------------------------------------------------------------------- |
-| Flow ループ       | 実装済 | 単方向遷移のみ。状態の巻き戻しを排除。                                          |
-| Completion ループ | 実装済 | Structured Output + completionConditions で一貫性維持。                         |
-| handoff           | 設計中 | Step Flow 拡張で導入。暗黙共有を排除するため優先度高。                          |
-| Worktree finalize | 未実装 | run-agent が Step4 (merge/push) を欠いているため、Flow 完了後の操作が残タスク。 |
+| 領域              | 状態   | Why                                                            |
+| ----------------- | ------ | -------------------------------------------------------------- |
+| Flow ループ       | 実装済 | FlowController で単方向遷移を管理。                            |
+| Completion ループ | 実装済 | CompletionChain で Structured Output + 検証条件を統合。        |
+| handoff           | 実装済 | StepContext で Step 間データ引き継ぎを実現。                   |
+| Worktree finalize | 実装済 | finalizeWorktreeBranch で merge → push → PR → cleanup を一貫。 |
 
 二重ループ以外の仕組みは、この構造を補助する「周辺惑星」にすぎない。まずコアを
 磨き、余計な層を積み上げないこと。それが機能美につながる。

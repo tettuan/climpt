@@ -6,7 +6,7 @@
 
 import { assertEquals, assertExists } from "@std/assert";
 import { FormatValidator, type ResponseFormat } from "./format-validator.ts";
-import type { DetectedAction, IterationSummary } from "../src_common/types.ts";
+import type { IterationSummary } from "../src_common/types.ts";
 
 // Helper to create a minimal iteration summary
 function createSummary(
@@ -16,187 +16,13 @@ function createSummary(
     iteration: 1,
     assistantResponses: [],
     toolsUsed: [],
-    detectedActions: [],
     errors: [],
     ...options,
   };
 }
 
-// Helper to create a detected action
-function createAction(
-  type: string,
-  content: string,
-  raw?: string,
-): DetectedAction {
-  return {
-    type,
-    content,
-    raw: raw ?? content,
-    metadata: {},
-  };
-}
-
 Deno.test("FormatValidator", async (t) => {
   const validator = new FormatValidator();
-
-  await t.step("action-block validation", async (st) => {
-    await st.step("should validate valid action block", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction("issue-action", '{"action":"close","issue":123}'),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-        requiredFields: {
-          action: "close",
-          issue: "number",
-        },
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, true);
-      assertExists(result.extracted);
-      assertEquals(
-        (result.extracted as Record<string, unknown>).action,
-        "close",
-      );
-      assertEquals((result.extracted as Record<string, unknown>).issue, 123);
-    });
-
-    await st.step("should fail when action block not found", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction("other-action", '{"action":"something"}'),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertExists(result.error);
-      assertEquals(
-        result.error?.includes("not found"),
-        true,
-      );
-    });
-
-    await st.step("should fail when required field is missing", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction("issue-action", '{"action":"close"}'),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-        requiredFields: {
-          action: "close",
-          issue: "number",
-        },
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("issue"), true);
-      assertEquals(result.error?.includes("missing"), true);
-    });
-
-    await st.step("should fail when field type is wrong", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction(
-            "issue-action",
-            '{"action":"close","issue":"not-a-number"}',
-          ),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-        requiredFields: {
-          action: "close",
-          issue: "number",
-        },
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("number"), true);
-    });
-
-    await st.step("should fail when literal value does not match", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction("issue-action", '{"action":"progress","issue":123}'),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-        requiredFields: {
-          action: "close", // Expecting literal "close"
-          issue: "number",
-        },
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("close"), true);
-    });
-
-    await st.step("should fail when blockType is not specified", () => {
-      const summary = createSummary();
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        // blockType not specified
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("blockType"), true);
-    });
-
-    await st.step("should handle invalid JSON in action", () => {
-      const summary = createSummary({
-        detectedActions: [
-          createAction("issue-action", "not valid json"),
-        ],
-      });
-
-      const format: ResponseFormat = {
-        type: "action-block",
-        blockType: "issue-action",
-        requiredFields: {
-          action: "close",
-        },
-      };
-
-      const result = validator.validate(summary, format);
-
-      assertEquals(result.valid, false);
-      assertEquals(
-        result.error?.includes("JSON") || result.error?.includes("parse"),
-        true,
-      );
-    });
-  });
 
   await t.step("json validation", async (st) => {
     await st.step("should validate valid JSON block", () => {

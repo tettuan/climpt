@@ -8,7 +8,7 @@
  */
 
 import type { Logger } from "../src_common/logger.ts";
-import type { ActionResult, IterationSummary } from "../src_common/types.ts";
+import type { IterationSummary } from "../src_common/types.ts";
 import type {
   CompletionStepConfig,
   ExtendedStepsRegistry,
@@ -16,7 +16,6 @@ import type {
 import type { CompletionValidator } from "../validators/completion/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
-import { isRecord } from "../src_common/type-guards.ts";
 
 /**
  * Result of completion validation
@@ -77,21 +76,16 @@ export class CompletionChain {
   /**
    * Validate completion conditions for a step.
    *
-   * Note: Structured output validation is now handled by Closer at runner level.
+   * Note: Structured output validation is handled at runner level.
    * This method only handles command-based validation fallback.
    *
    * @param stepId - Step identifier
    * @param _summary - Current iteration summary (unused)
-   * @param _queryFn - Query function (unused, kept for API compatibility)
    * @returns Validation result
    */
   async validate(
     stepId: string,
     _summary: IterationSummary,
-    _queryFn: (
-      prompt: string,
-      options: { outputSchema?: unknown },
-    ) => AsyncIterable<unknown>,
   ): Promise<CompletionValidationResult> {
     const stepConfig = this.getStepConfig(stepId);
 
@@ -101,11 +95,11 @@ export class CompletionChain {
 
     this.logger.info(`Validating completion for step: ${stepId}`);
 
-    // Structured output validation is handled by Closer at runner level
+    // Structured output validation is handled at runner level
     // CompletionChain only handles command-based validation fallback
     if (stepConfig.outputSchema) {
       this.logger.debug(
-        "[CompletionChain] outputSchema defined, validation handled by Closer",
+        "[CompletionChain] outputSchema defined, validation handled at runner level",
       );
       return { valid: true };
     }
@@ -119,17 +113,6 @@ export class CompletionChain {
     }
 
     return await this.validateWithConditions(stepConfig);
-  }
-
-  /**
-   * Check if any action result indicates a close action.
-   */
-  hasCloseAction(results: ActionResult[]): boolean {
-    return results.some((r) => {
-      if (r.action?.type !== "issue-action") return false;
-      if (!isRecord(r.result)) return false;
-      return r.result.action === "close";
-    });
   }
 
   /**

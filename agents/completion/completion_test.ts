@@ -26,27 +26,12 @@ import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 import { MockStateChecker } from "./external-state-checker.ts";
 import { StepMachineCompletionHandler } from "./step-machine.ts";
 import type { IterationSummary } from "./types.ts";
-import type { AgentDefinition, DetectedAction } from "../src_common/types.ts";
+import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 
 // =============================================================================
 // Test Utilities
 // =============================================================================
-
-/**
- * Create a mock detected action for testing
- */
-function createMockDetectedAction(
-  type: string,
-  content: string,
-): DetectedAction {
-  return {
-    type,
-    content,
-    metadata: {},
-    raw: `\`\`\`${type}\n${content}\n\`\`\``,
-  };
-}
 
 /**
  * Create a mock iteration summary for testing
@@ -58,7 +43,6 @@ function createMockIterationSummary(
     iteration: options.iteration ?? 1,
     assistantResponses: options.assistantResponses ?? [],
     toolsUsed: options.toolsUsed ?? [],
-    detectedActions: options.detectedActions ?? [],
     errors: options.errors ?? [],
     structuredOutput: options.structuredOutput,
   };
@@ -807,15 +791,13 @@ Deno.test("StructuredSignalCompletionHandler - isComplete without summary", asyn
   assertEquals(complete, false);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete with matching signal", async () => {
+Deno.test("StructuredSignalCompletionHandler - isComplete with matching signal type", async () => {
   const handler = new StructuredSignalCompletionHandler("task-complete");
 
   await handler.buildContinuationPrompt(
     1,
     createMockIterationSummary({
-      detectedActions: [
-        createMockDetectedAction("task-complete", '{"result": "done"}'),
-      ],
+      structuredOutput: { signal: "task-complete", result: "done" },
     }),
   );
 
@@ -829,14 +811,26 @@ Deno.test("StructuredSignalCompletionHandler - isComplete without matching signa
   await handler.buildContinuationPrompt(
     1,
     createMockIterationSummary({
-      detectedActions: [
-        createMockDetectedAction("other-signal", '{"data": "value"}'),
-      ],
+      structuredOutput: { signal: "other-signal", data: "value" },
     }),
   );
 
   const complete = await handler.isComplete();
   assertEquals(complete, false);
+});
+
+Deno.test("StructuredSignalCompletionHandler - isComplete with status=completed", async () => {
+  const handler = new StructuredSignalCompletionHandler("complete");
+
+  await handler.buildContinuationPrompt(
+    1,
+    createMockIterationSummary({
+      structuredOutput: { status: "completed", summary: "Task done" },
+    }),
+  );
+
+  const complete = await handler.isComplete();
+  assertEquals(complete, true);
 });
 
 Deno.test("StructuredSignalCompletionHandler - isComplete with required fields match", async () => {
@@ -848,12 +842,7 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with required fields m
   await handler.buildContinuationPrompt(
     1,
     createMockIterationSummary({
-      detectedActions: [
-        createMockDetectedAction(
-          "complete",
-          '{"status": "success", "code": 0}',
-        ),
-      ],
+      structuredOutput: { signal: "complete", status: "success", code: 0 },
     }),
   );
 
@@ -869,9 +858,7 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with required fields m
   await handler.buildContinuationPrompt(
     1,
     createMockIterationSummary({
-      detectedActions: [
-        createMockDetectedAction("complete", '{"status": "failure"}'),
-      ],
+      structuredOutput: { signal: "complete", status: "failure" },
     }),
   );
 
@@ -904,7 +891,7 @@ Deno.test("StructuredSignalCompletionHandler - getCompletionDescription", async 
   await handler.buildContinuationPrompt(
     1,
     createMockIterationSummary({
-      detectedActions: [createMockDetectedAction("test-signal", "{}")],
+      structuredOutput: { signal: "test-signal" },
     }),
   );
 

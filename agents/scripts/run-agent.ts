@@ -21,14 +21,15 @@ import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
 import {
-  cleanupWorktree,
-  mergeWorktreeBranch,
+  type FinalizeOptions,
+  finalizeWorktreeBranch,
   setupWorktree,
 } from "../common/worktree.ts";
 import type {
   WorktreeSetupConfig,
   WorktreeSetupResult,
 } from "../common/types.ts";
+import type { FinalizeConfig } from "../src_common/types.ts";
 
 function printHelp(): void {
   // deno-lint-ignore no-console
@@ -63,6 +64,13 @@ Reviewer Options:
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
 
+Finalize Options:
+  --no-merge             Skip merging worktree branch to base
+  --push                 Push after merge
+  --push-remote <name>   Remote to push to (default: origin)
+  --create-pr            Create PR instead of direct merge
+  --pr-target <branch>   Target branch for PR (default: base branch)
+
 Examples:
   # Work on a GitHub Issue
   run-agent.ts --agent iterator --issue 123
@@ -85,8 +93,19 @@ async function main(): Promise<void> {
       "base-branch",
       "requirements-label",
       "review-label",
+      "push-remote",
+      "pr-target",
     ],
-    boolean: ["help", "init", "list", "resume", "include-completed"],
+    boolean: [
+      "help",
+      "init",
+      "list",
+      "resume",
+      "include-completed",
+      "no-merge",
+      "push",
+      "create-pr",
+    ],
     alias: {
       a: "agent",
       h: "help",
@@ -212,53 +231,102 @@ async function main(): Promise<void> {
       console.error(`Error: ${result.error}`);
     }
 
-    // Merge and cleanup worktree on success
+    // Finalize worktree on success
     if (result.success && worktreeResult) {
       const parentCwd = Deno.cwd();
 
-      // Step 1: Merge worktree branch into parent branch
+      // Build finalize options from CLI args and agent definition
+      const finalizeConfig: FinalizeConfig = definition.finalize ?? {};
+      const finalizeOptions: FinalizeOptions = {
+        autoMerge: !args["no-merge"] && (finalizeConfig.autoMerge ?? true),
+        push: args.push || (finalizeConfig.push ?? false),
+        remote: (args["push-remote"] as string) ||
+          finalizeConfig.remote ||
+          "origin",
+        createPr: args["create-pr"] || (finalizeConfig.createPr ?? false),
+        prTarget: (args["pr-target"] as string) || finalizeConfig.prTarget,
+        logger: {
+          info: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.log(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+          warn: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.warn(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+          error: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.error(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+        },
+      };
+
       // deno-lint-ignore no-console
-      console.log(`\nMerging worktree branch...`);
-      try {
-        const mergeResult = await mergeWorktreeBranch(
-          worktreeResult.branchName,
-          worktreeResult.baseBranch,
-          parentCwd,
+      console.log(`\nFinalizing worktree...`);
+      const finalizationOutcome = await finalizeWorktreeBranch(
+        worktreeResult,
+        finalizeOptions,
+        parentCwd,
+      );
+
+      // Report finalization result
+      // deno-lint-ignore no-console
+      console.log(
+        `\nFinalization: ${finalizationOutcome.status.toUpperCase()}`,
+      );
+      // deno-lint-ignore no-console
+      console.log(`  Reason: ${finalizationOutcome.reason}`);
+
+      if (finalizationOutcome.merge) {
+        // deno-lint-ignore no-console
+        console.log(
+          `  Merge: ${
+            finalizationOutcome.merge.success ? "OK" : "FAILED"
+          } (${finalizationOutcome.merge.commitsMerged} commits)`,
         );
+      }
+
+      if (finalizationOutcome.push) {
         // deno-lint-ignore no-console
-        console.log(`  ${mergeResult.reason}`);
-        if (mergeResult.branchDeleted) {
-          // deno-lint-ignore no-console
-          console.log(`  Branch deleted: ${worktreeResult.branchName}`);
-        }
-      } catch (mergeError) {
+        console.log(
+          `  Push: ${
+            finalizationOutcome.push.success ? "OK" : "FAILED"
+          } to ${finalizationOutcome.push.remote}`,
+        );
+      }
+
+      if (finalizationOutcome.pr) {
         // deno-lint-ignore no-console
-        console.warn(
-          `  Warning: Failed to merge worktree branch: ${
-            mergeError instanceof Error
-              ? mergeError.message
-              : String(mergeError)
+        console.log(
+          `  PR: ${
+            finalizationOutcome.pr.success
+              ? finalizationOutcome.pr.url
+              : "FAILED"
           }`,
         );
       }
 
-      // Step 2: Cleanup worktree directory
       // deno-lint-ignore no-console
-      console.log(`\nCleaning up worktree...`);
-      try {
-        await cleanupWorktree(worktreeResult.worktreePath, parentCwd);
+      console.log(
+        `  Cleanup: ${finalizationOutcome.cleanedUp ? "Done" : "Skipped"}`,
+      );
+
+      if (finalizationOutcome.pendingActions?.length) {
         // deno-lint-ignore no-console
-        console.log(`  Removed: ${worktreeResult.worktreePath}`);
-      } catch (cleanupError) {
-        // deno-lint-ignore no-console
-        console.warn(
-          `  Warning: Failed to cleanup worktree: ${
-            cleanupError instanceof Error
-              ? cleanupError.message
-              : String(cleanupError)
-          }`,
-        );
+        console.log(`  Pending actions:`);
+        for (const action of finalizationOutcome.pendingActions) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${action}`);
+        }
       }
+    } else if (!result.success && worktreeResult) {
+      // Agent failed - preserve worktree for recovery
+      // deno-lint-ignore no-console
+      console.log(`\nWorktree preserved for recovery:`);
+      // deno-lint-ignore no-console
+      console.log(`  Path: ${worktreeResult.worktreePath}`);
+      // deno-lint-ignore no-console
+      console.log(`  Branch: ${worktreeResult.branchName}`);
     }
 
     // deno-lint-ignore no-console

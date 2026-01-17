@@ -66,7 +66,6 @@ export type {
 
 // Errors (still relevant for v2)
 export {
-  AgentActionError,
   AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
@@ -89,12 +88,10 @@ export {
 
 /** @deprecated Use AgentRunnerBuilder with v2 components */
 export {
-  type ActionSystemFactory,
   type AgentDependencies,
   AgentRunnerBuilder,
   type CompletionHandlerFactory,
   createDefaultDependencies,
-  DefaultActionSystemFactory,
   DefaultCompletionHandlerFactory,
   DefaultLoggerFactory,
   DefaultPromptResolverFactory,

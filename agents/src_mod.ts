@@ -17,8 +17,6 @@ export {
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
 export type {
-  ActionConfig,
-  ActionResult,
   AgentBehavior,
   AgentDefinition,
   AgentResult,
@@ -28,13 +26,12 @@ export type {
   CheckDefinition,
   CheckResponse,
   CompletionConfigUnion,
-  CompletionSignal,
   CompletionType,
   CompositeCompletionConfig,
   CustomCompletionConfig,
   CustomVariableDefinition,
-  DetectedAction,
   ExternalStateCompletionConfig,
+  FinalizeConfig,
   GitHubConfig,
   IssueCompletionConfig,
   IterateCompletionConfig,
@@ -151,7 +148,6 @@ export type {
 
 // Errors
 export {
-  AgentActionError,
   AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
@@ -165,12 +161,10 @@ export {
 // Legacy runner exports
 export { AgentRunner, type RunnerOptions } from "./runner/runner.ts";
 export {
-  type ActionSystemFactory,
   type AgentDependencies,
   AgentRunnerBuilder,
   type CompletionHandlerFactory,
   createDefaultDependencies,
-  DefaultActionSystemFactory,
   DefaultCompletionHandlerFactory,
   DefaultLoggerFactory,
   DefaultPromptResolverFactory,
@@ -236,9 +230,6 @@ export {
   type StepRegistry,
   toClimptPath,
 } from "./prompts/mod.ts";
-
-// Actions
-export * from "./actions/mod.ts";
 
 // Init
 export { initAgent } from "./init.ts";

@@ -128,17 +128,7 @@ export interface OnFailureConfig {
  */
 export interface ResponseFormat {
   /** Type of format to validate */
-  type: "action-block" | "json" | "text-pattern";
-
-  /** For action-block type: the block type name (e.g., "issue-action") */
-  blockType?: string;
-
-  /**
-   * Required fields and their expected types or literal values.
-   * For types: "string", "number", "boolean"
-   * For literal values: the exact value expected (e.g., "close")
-   */
-  requiredFields?: Record<string, string | number | boolean>;
+  type: "json" | "text-pattern";
 
   /** For json type: JSON Schema for validation */
   schema?: Record<string, unknown>;
