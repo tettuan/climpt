@@ -18,7 +18,7 @@ import type { GateInterpretation } from "./step-gate-interpreter.ts";
 export interface RoutingResult {
   /** Next step ID to execute */
   nextStepId: string;
-  /** Whether to signal completion (intent was "complete") */
+  /** Whether to signal completion (intent was "closing") */
   signalCompletion: boolean;
   /** Reason for routing decision */
   reason: string;
@@ -69,11 +69,11 @@ export class WorkflowRouter {
     const { intent, target } = interpretation;
 
     // Handle terminal intents
-    if (intent === "complete") {
+    if (intent === "closing") {
       return {
         nextStepId: currentStepId,
         signalCompletion: true,
-        reason: interpretation.reason ?? "Intent: complete",
+        reason: interpretation.reason ?? "Intent: closing",
       };
     }
 

@@ -142,7 +142,7 @@
     }
   },
 
-  "complete.review": {
+  "closure.review": {
     "type": "object",
     "description": "Review completion response",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],

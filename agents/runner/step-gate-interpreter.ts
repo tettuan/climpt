@@ -57,17 +57,19 @@ const ACTION_TO_INTENT: Record<string, GateIntent> = {
   next: "next",
   repeat: "repeat",
   jump: "jump",
-  complete: "complete",
+  closing: "closing",
   abort: "abort",
   // Common aliases from AI responses
   continue: "next",
   retry: "repeat",
   escalate: "abort",
   wait: "repeat",
-  done: "complete",
-  finished: "complete",
+  done: "closing",
+  finished: "closing",
   pass: "next",
   fail: "repeat",
+  // Legacy alias (maps to closing for backward compatibility during migration)
+  complete: "closing",
 };
 
 /**
@@ -77,7 +79,7 @@ const VALID_INTENTS: Set<GateIntent> = new Set([
   "next",
   "repeat",
   "jump",
-  "complete",
+  "closing",
   "abort",
 ]);
 

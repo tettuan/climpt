@@ -139,8 +139,8 @@
   },
 
   "completionSteps": {
-    "complete.issue": {
-      "stepId": "complete.issue",
+    "closure.issue": {
+      "stepId": "closure.issue",
       "name": "Issue Completion Validation",
       "c2": "retry",
       "c3": "issue",
@@ -154,12 +154,12 @@
       },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "complete.issue"
+        "schema": "closure.issue"
       },
       "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
     },
-    "complete.externalState": {
-      "stepId": "complete.externalState",
+    "closure.externalState": {
+      "stepId": "closure.externalState",
       "name": "External State Completion Validation",
       "c2": "retry",
       "c3": "issue",
@@ -173,7 +173,7 @@
       },
       "outputSchemaRef": {
         "file": "externalState.schema.json",
-        "schema": "complete.externalState"
+        "schema": "closure.externalState"
       },
       "description": "Validate external state completion with git-clean and type-check."
     }
@@ -195,7 +195,7 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "targetField": "next_action.details.target",
         "fallbackIntent": "next",
@@ -204,7 +204,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "initial.issue" },
-        "complete": { "target": "complete.issue" }
+        "closing": { "target": "closure.issue" }
       },
       "description": "Initial prompt when working on a single GitHub issue"
     },
@@ -222,7 +222,7 @@
         "schema": "continuation.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
@@ -230,7 +230,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "continuation.issue" },
-        "complete": { "target": "complete.issue" }
+        "closing": { "target": "closure.issue" }
       },
       "description": "Continuation prompt for issue iterations"
     },
@@ -259,7 +259,7 @@
         "schema": "initial.project.preparation"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -267,7 +267,7 @@
       "transitions": {
         "next": { "target": "continuation.project.preparation" },
         "repeat": { "target": "initial.project.preparation" },
-        "complete": { "target": "initial.project.review" }
+        "closing": { "target": "initial.project.review" }
       },
       "description": "Preparation phase prompt for project mode"
     },
@@ -286,15 +286,15 @@
         "schema": "initial.project.preparationempty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "complete", "abort"],
+        "allowedIntents": ["next", "closing", "abort"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.preparation" },
-        "complete": { "target": "initial.project.complete" },
-        "abort": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" },
+        "abort": { "target": "initial.project.closure" }
       },
       "description": "Preparation phase prompt when no issues found"
     },
@@ -313,14 +313,14 @@
         "schema": "initial.project.processingempty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "complete"],
+        "allowedIntents": ["next", "closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.review" },
-        "complete": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" }
       },
       "description": "Processing phase prompt when no current issue"
     },
@@ -338,7 +338,7 @@
         "schema": "initial.project.review"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -346,7 +346,7 @@
       "transitions": {
         "next": { "target": "continuation.project.review" },
         "repeat": { "target": "initial.project.again" },
-        "complete": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" }
       },
       "description": "Review phase prompt for project mode"
     },
@@ -364,7 +364,7 @@
         "schema": "initial.project.again"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -372,31 +372,31 @@
       "transitions": {
         "next": { "target": "continuation.project.again" },
         "repeat": { "target": "initial.project.again" },
-        "complete": { "target": "initial.project.review" }
+        "closing": { "target": "initial.project.review" }
       },
       "description": "Re-execution phase prompt after failed review"
     },
-    "initial.project.complete": {
-      "stepId": "initial.project.complete",
+    "initial.project.closure": {
+      "stepId": "initial.project.closure",
       "name": "Project Complete Message",
       "c2": "initial",
       "c3": "project",
-      "edition": "complete",
-      "fallbackKey": "project_complete_default",
+      "edition": "closure",
+      "fallbackKey": "project_closure_default",
       "uvVariables": ["project_number", "label_info", "issues_completed"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "project.schema.json",
-        "schema": "initial.project.complete"
+        "schema": "initial.project.closure"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "complete": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" }
       },
       "description": "Completion message for project mode"
     },
@@ -414,7 +414,7 @@
         "schema": "continuation.project.preparation"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -422,7 +422,7 @@
       "transitions": {
         "next": { "target": "continuation.project.preparation" },
         "repeat": { "target": "continuation.project.preparation" },
-        "complete": { "target": "initial.project.review" }
+        "closing": { "target": "initial.project.review" }
       },
       "description": "Continuation prompt for preparation phase"
     },
@@ -441,14 +441,14 @@
         "schema": "continuation.project.processingdone"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "complete"],
+        "allowedIntents": ["next", "closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.review" },
-        "complete": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" }
       },
       "description": "Message when all issues are processed"
     },
@@ -466,7 +466,7 @@
         "schema": "continuation.project.review"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -474,7 +474,7 @@
       "transitions": {
         "next": { "target": "continuation.project.review" },
         "repeat": { "target": "initial.project.again" },
-        "complete": { "target": "initial.project.complete" }
+        "closing": { "target": "initial.project.closure" }
       },
       "description": "Continuation prompt for review phase"
     },
@@ -492,7 +492,7 @@
         "schema": "continuation.project.again"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -500,33 +500,33 @@
       "transitions": {
         "next": { "target": "continuation.project.again" },
         "repeat": { "target": "continuation.project.again" },
-        "complete": { "target": "initial.project.review" }
+        "closing": { "target": "initial.project.review" }
       },
       "description": "Continuation prompt for again phase"
     },
-    "continuation.project.complete": {
-      "stepId": "continuation.project.complete",
+    "continuation.project.closure": {
+      "stepId": "continuation.project.closure",
       "name": "Project Complete Continuation",
       "c2": "continuation",
       "c3": "project",
-      "edition": "complete",
-      "fallbackKey": "project_continuation_complete_default",
+      "edition": "closure",
+      "fallbackKey": "project_continuation_closure_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "project.schema.json",
-        "schema": "continuation.project.complete"
+        "schema": "continuation.project.closure"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "complete": { "target": "continuation.project.complete" }
+        "closing": { "target": "continuation.project.closure" }
       },
-      "description": "Continuation message for complete phase"
+      "description": "Continuation message for closure phase"
     },
     "initial.iterate": {
       "stepId": "initial.iterate",
@@ -542,7 +542,7 @@
         "schema": "initial.iterate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations"]
@@ -550,7 +550,7 @@
       "transitions": {
         "next": { "target": "continuation.iterate" },
         "repeat": { "target": "initial.iterate" },
-        "complete": { "target": "initial.iterate" }
+        "closing": { "target": "initial.iterate" }
       },
       "description": "Initial prompt for iteration-based execution"
     },
@@ -568,7 +568,7 @@
         "schema": "continuation.iterate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations", "cumulative_progress"]
@@ -576,7 +576,7 @@
       "transitions": {
         "next": { "target": "continuation.iterate" },
         "repeat": { "target": "continuation.iterate" },
-        "complete": { "target": "continuation.iterate" }
+        "closing": { "target": "continuation.iterate" }
       },
       "description": "Continuation prompt for iteration-based execution"
     },
@@ -595,7 +595,7 @@
         "schema": "initial.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
@@ -603,7 +603,7 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "initial.externalState" },
-        "complete": { "target": "complete.externalState" }
+        "closing": { "target": "closure.externalState" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
@@ -622,7 +622,7 @@
         "schema": "continuation.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["iteration.work_done", "progress"]
@@ -630,32 +630,32 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "continuation.externalState" },
-        "complete": { "target": "complete.externalState" }
+        "closing": { "target": "closure.externalState" }
       },
       "description": "Continuation prompt for external state completion"
     },
-    "complete.externalState": {
-      "stepId": "complete.externalState",
-      "name": "External State Complete Prompt",
+    "closure.externalState": {
+      "stepId": "closure.externalState",
+      "name": "External State Closure Prompt",
       "type": "prompt",
-      "c2": "complete",
+      "c2": "closure",
       "c3": "externalState",
       "edition": "default",
-      "fallbackKey": "externalState_complete_default",
+      "fallbackKey": "externalState_closure_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "externalState.schema.json",
-        "schema": "complete.externalState"
+        "schema": "closure.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "complete": { "target": "complete.externalState" }
+        "closing": { "target": "closure.externalState" }
       },
       "description": "Completion prompt for external state (terminal step)"
     }

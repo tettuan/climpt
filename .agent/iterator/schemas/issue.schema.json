@@ -115,7 +115,7 @@
     }
   },
 
-  "complete.issue": {
+  "closure.issue": {
     "type": "object",
     "description": "Issue完了検証のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],

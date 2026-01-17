@@ -4,9 +4,9 @@ params:
 input_text: true
 ---
 
-# Completion Handler
+# Closure Handler
 
-You are the closer. Your job is to verify completion status and execute any remaining completion work.
+You are the closer. Your job is to verify closure status and execute any remaining closure work.
 
 ## Previous Step Output
 

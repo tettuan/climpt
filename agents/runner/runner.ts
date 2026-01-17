@@ -914,7 +914,7 @@ export class AgentRunner {
         this.definition.behavior.completionType,
       );
     }
-    return "complete.issue";
+    return "closure.issue";
   }
 
   /**

@@ -125,7 +125,7 @@
     }
   },
 
-  "complete.externalState": {
+  "closure.externalState": {
     "type": "object",
     "description": "External State完了時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -133,7 +133,7 @@
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "complete.externalState",
+        "const": "closure.externalState",
         "description": "実行されたstep識別子"
       },
       "issue": { "$ref": "#/$defs/issueContext" },

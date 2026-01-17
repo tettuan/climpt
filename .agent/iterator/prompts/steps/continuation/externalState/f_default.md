@@ -30,7 +30,7 @@ Iterations completed: {uv-completed_iterations}
 ### External State Check
 After completing work:
 1. **Check Issue State**: Is GitHub Issue #{uv-issue_number} closed?
-2. If **closed**: Report `next_action.action = "complete"`
+2. If **closed**: Report `next_action.action = "closing"`
 3. If **open**: Continue working or close when ready
 
 ## Issue Actions

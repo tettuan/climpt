@@ -65,14 +65,14 @@ Deno.test("StepGateInterpreter - extracts intent from simple path", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "complete"],
+      allowedIntents: ["next", "closing"],
       intentField: "status",
     },
   });
 
-  const result = interpreter.interpret({ status: "complete" }, stepDef);
+  const result = interpreter.interpret({ status: "closing" }, stepDef);
 
-  assertEquals(result.intent, "complete");
+  assertEquals(result.intent, "closing");
   assertEquals(result.usedFallback, false);
 });
 
@@ -80,7 +80,7 @@ Deno.test("StepGateInterpreter - extracts intent from nested path", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "repeat", "complete"],
+      allowedIntents: ["next", "repeat", "closing"],
       intentField: "next_action.action",
     },
   });
@@ -102,7 +102,7 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "repeat", "complete", "abort"],
+      allowedIntents: ["next", "repeat", "closing", "abort"],
       intentField: "action",
     },
   });
@@ -119,10 +119,10 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
     "repeat",
   );
 
-  // Test done -> complete
+  // Test done -> closing
   assertEquals(
     interpreter.interpret({ action: "done" }, stepDef).intent,
-    "complete",
+    "closing",
   );
 
   // Test escalate -> abort
@@ -136,24 +136,24 @@ Deno.test("StepGateInterpreter - validates against allowedIntents", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "repeat"], // "complete" not allowed
+      allowedIntents: ["next", "repeat"], // "closing" not allowed
       intentField: "action",
       fallbackIntent: "next",
     },
   });
 
-  const result = interpreter.interpret({ action: "complete" }, stepDef);
+  const result = interpreter.interpret({ action: "closing" }, stepDef);
 
   assertEquals(result.intent, "next"); // Falls back
   assertEquals(result.usedFallback, true);
-  assertEquals(result.reason, "Intent 'complete' not in allowedIntents");
+  assertEquals(result.reason, "Intent 'closing' not in allowedIntents");
 });
 
 Deno.test("StepGateInterpreter - uses fallbackIntent when extraction fails", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "repeat", "complete"],
+      allowedIntents: ["next", "repeat", "closing"],
       intentField: "missing.path",
       fallbackIntent: "repeat",
     },
@@ -169,7 +169,7 @@ Deno.test("StepGateInterpreter - extracts target for jump intent", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "jump", "complete"],
+      allowedIntents: ["next", "jump", "closing"],
       intentField: "action",
       targetField: "details.target",
     },
@@ -191,7 +191,7 @@ Deno.test("StepGateInterpreter - extracts handoff fields", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "complete"],
+      allowedIntents: ["next", "closing"],
       intentField: "status",
       handoffFields: ["analysis.understanding", "issue.number"],
     },
@@ -216,21 +216,21 @@ Deno.test("StepGateInterpreter - extracts reason from output", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "complete"],
+      allowedIntents: ["next", "closing"],
       intentField: "next_action.action",
     },
   });
 
   const output = {
     next_action: {
-      action: "complete",
+      action: "closing",
       reason: "All tests passed",
     },
   };
 
   const result = interpreter.interpret(output, stepDef);
 
-  assertEquals(result.intent, "complete");
+  assertEquals(result.intent, "closing");
   assertEquals(result.reason, "All tests passed");
 });
 
@@ -238,19 +238,19 @@ Deno.test("StepGateInterpreter - infers intentField from common patterns", () =>
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "complete"],
+      allowedIntents: ["next", "closing"],
       // No intentField specified
     },
   });
 
   // Should find next_action.action
   const output = {
-    next_action: { action: "complete" },
+    next_action: { action: "closing" },
   };
 
   const result = interpreter.interpret(output, stepDef);
 
-  assertEquals(result.intent, "complete");
+  assertEquals(result.intent, "closing");
   assertEquals(result.usedFallback, false);
 });
 
@@ -274,14 +274,14 @@ Deno.test("StepGateInterpreter - case insensitive intent matching", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
-      allowedIntents: ["next", "complete"],
+      allowedIntents: ["next", "closing"],
       intentField: "status",
     },
   });
 
   assertEquals(
     interpreter.interpret({ status: "COMPLETE" }, stepDef).intent,
-    "complete",
+    "closing",
   );
 
   assertEquals(

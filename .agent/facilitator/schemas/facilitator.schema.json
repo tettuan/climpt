@@ -277,7 +277,7 @@
     }
   },
 
-  "continuation.complete": {
+  "continuation.closure": {
     "type": "object",
     "description": "Facilitation complete response",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -291,7 +291,7 @@
     }
   },
 
-  "complete.facilitation": {
+  "closure.facilitation": {
     "type": "object",
     "description": "Facilitation completion validation response",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],

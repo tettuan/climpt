@@ -124,7 +124,7 @@ export class CompletionChain {
   getCompletionStepId(completionType: string): string {
     // Check if registry has a completion step for this type
     if (this.stepsRegistry?.completionSteps) {
-      const stepId = `complete.${completionType}`;
+      const stepId = `closure.${completionType}`;
       if (this.stepsRegistry.completionSteps[stepId]) {
         return stepId;
       }
@@ -133,13 +133,13 @@ export class CompletionChain {
     // Type-specific defaults
     switch (completionType) {
       case "issue":
-        return "complete.issue";
+        return "closure.issue";
       case "iterate":
       case "iterationBudget":
-        return "complete.iterate";
+        return "closure.iterate";
       default:
-        // externalState and others use complete.${completionType}
-        return `complete.${completionType}`;
+        // externalState and others use closure.${completionType}
+        return `closure.${completionType}`;
     }
   }
 

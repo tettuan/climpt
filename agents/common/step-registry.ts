@@ -116,7 +116,7 @@ export interface PromptStepDefinition {
 /**
  * Allowed intents for structured gate.
  */
-export type GateIntent = "next" | "repeat" | "jump" | "complete" | "abort";
+export type GateIntent = "next" | "repeat" | "jump" | "closing" | "abort";
 
 /**
  * Structured gate configuration for intent/target routing.

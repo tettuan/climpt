@@ -46,7 +46,7 @@ function createInterpretation(
   };
 }
 
-Deno.test("WorkflowRouter - complete intent signals completion", () => {
+Deno.test("WorkflowRouter - closing intent signals completion", () => {
   const registry = createRegistry({
     "initial.issue": {},
   });
@@ -54,7 +54,7 @@ Deno.test("WorkflowRouter - complete intent signals completion", () => {
 
   const result = router.route(
     "initial.issue",
-    createInterpretation({ intent: "complete", reason: "Task done" }),
+    createInterpretation({ intent: "closing", reason: "Task done" }),
   );
 
   assertEquals(result.signalCompletion, true);

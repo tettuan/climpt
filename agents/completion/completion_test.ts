@@ -374,11 +374,11 @@ Deno.test("IssueContractHandler - transition always returns complete", () => {
   // StepResult requires stepId and passed
   assertEquals(
     handler.transition({ stepId: "test", passed: true }),
-    "complete",
+    "closure",
   );
   assertEquals(
     handler.transition({ stepId: "test", passed: false }),
-    "complete",
+    "closure",
   );
 });
 
@@ -990,14 +990,14 @@ function createMockStepsRegistry(
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "repeat", "complete"],
+          allowedIntents: ["next", "repeat", "closing"],
           intentField: "next_action.action",
           fallbackIntent: "next",
         },
         transitions: {
           next: { target: "continuation.test" },
           repeat: { target: "initial.test" },
-          complete: { target: "complete" },
+          closing: { target: "closure" },
         },
       },
       "continuation.test": {
@@ -1010,14 +1010,14 @@ function createMockStepsRegistry(
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "repeat", "complete"],
+          allowedIntents: ["next", "repeat", "closing"],
           intentField: "next_action.action",
           fallbackIntent: "next",
         },
         transitions: {
           next: { target: "continuation.test" },
           repeat: { target: "continuation.test" },
-          complete: { target: "complete" },
+          closing: { target: "closure" },
         },
       },
     },
@@ -1098,13 +1098,13 @@ Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", 
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "complete"],
+          allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
-          fallbackIntent: "complete",
+          fallbackIntent: "closing",
         },
         transitions: {
-          next: { target: "complete" },
-          complete: { target: "complete" },
+          next: { target: "closure" },
+          closing: { target: "closure" },
         },
       },
     },
@@ -1116,7 +1116,7 @@ Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", 
     passed: true,
   });
 
-  assertEquals(transition.nextStep, "complete");
+  assertEquals(transition.nextStep, "closure");
 });
 
 Deno.test("StepMachineCompletionHandler - transition updates state", () => {
@@ -1149,13 +1149,13 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "complete"],
+          allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
-          fallbackIntent: "complete",
+          fallbackIntent: "closing",
         },
         transitions: {
-          next: { target: "complete" },
-          complete: { target: "complete" },
+          next: { target: "closure" },
+          closing: { target: "closure" },
         },
       },
     },
@@ -1167,7 +1167,7 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
     passed: true,
   });
 
-  assertEquals(nextStep, "complete");
+  assertEquals(nextStep, "closure");
 
   const state = handler.getState();
   assertEquals(state.isComplete, true);
@@ -1196,13 +1196,13 @@ Deno.test("StepMachineCompletionHandler - isComplete true after transition to co
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "complete"],
+          allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
-          fallbackIntent: "complete",
+          fallbackIntent: "closing",
         },
         transitions: {
-          next: { target: "complete" },
-          complete: { target: "complete" },
+          next: { target: "closure" },
+          closing: { target: "closure" },
         },
       },
     },
@@ -1295,13 +1295,13 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "complete"],
+          allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
-          fallbackIntent: "complete",
+          fallbackIntent: "closing",
         },
         transitions: {
-          next: { target: "complete" },
-          complete: { target: "complete" },
+          next: { target: "closure" },
+          closing: { target: "closure" },
         },
       },
     },

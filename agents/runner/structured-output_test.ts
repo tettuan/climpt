@@ -189,9 +189,9 @@ Deno.test("StructuredOutput - continuation.issue has outputSchemaRef", async () 
 });
 
 /**
- * Test that complete.issue in completionSteps has outputSchemaRef
+ * Test that closure.issue in completionSteps has outputSchemaRef
  */
-Deno.test("StructuredOutput - complete.issue completionStep has outputSchemaRef", async () => {
+Deno.test("StructuredOutput - closure.issue completionStep has outputSchemaRef", async () => {
   const registryPath = ".agent/iterator/steps_registry.json";
 
   const content = await Deno.readTextFile(registryPath);
@@ -202,14 +202,14 @@ Deno.test("StructuredOutput - complete.issue completionStep has outputSchemaRef"
     "completionSteps should exist",
   );
 
-  const step = registry.completionSteps["complete.issue"];
-  assertExists(step, "complete.issue completion step should exist");
+  const step = registry.completionSteps["closure.issue"];
+  assertExists(step, "closure.issue completion step should exist");
   assertExists(
     step.outputSchemaRef,
-    "complete.issue should have outputSchemaRef",
+    "closure.issue should have outputSchemaRef",
   );
   assertEquals(step.outputSchemaRef.file, "issue.schema.json");
-  assertEquals(step.outputSchemaRef.schema, "complete.issue");
+  assertEquals(step.outputSchemaRef.schema, "closure.issue");
 });
 
 // =============================================================================
@@ -399,15 +399,15 @@ Deno.test("StructuredOutput - initial.issue schema is valid JSON Schema", async 
 });
 
 /**
- * Verify complete.issue schema structure for validation response
+ * Verify closure.issue schema structure for validation response
  */
-Deno.test("StructuredOutput - complete.issue schema has validation fields", async () => {
+Deno.test("StructuredOutput - closure.issue schema has validation fields", async () => {
   const schemaPath = ".agent/iterator/schemas/issue.schema.json";
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
 
-  const schema = schemas["complete.issue"];
-  assertExists(schema, "complete.issue schema should exist");
+  const schema = schemas["closure.issue"];
+  assertExists(schema, "closure.issue schema should exist");
 
   // Verify validation-specific fields
   assertExists(schema.properties.validation, "Should have validation property");

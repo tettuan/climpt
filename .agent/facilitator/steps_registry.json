@@ -70,8 +70,8 @@
   },
 
   "completionSteps": {
-    "complete.facilitation": {
-      "stepId": "complete.facilitation",
+    "closure.facilitation": {
+      "stepId": "closure.facilitation",
       "name": "Facilitation Completion Validation",
       "c2": "retry",
       "c3": "facilitation",
@@ -86,7 +86,7 @@
       },
       "outputSchemaRef": {
         "file": "facilitator.schema.json",
-        "schema": "complete.facilitation"
+        "schema": "closure.facilitation"
       },
       "description": "Validate facilitation completion with git-clean, branch-pushed, branch-merged"
     }
@@ -108,7 +108,7 @@
         "schema": "initial.discover"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["discovery.agents_found", "discovery.registry"]
@@ -116,7 +116,7 @@
       "transitions": {
         "next": { "target": "initial.statuscheck" },
         "repeat": { "target": "initial.discover" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.statuscheck": {
@@ -134,7 +134,7 @@
         "schema": "initial.statuscheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["status.metrics", "status.delta"]
@@ -142,7 +142,7 @@
       "transitions": {
         "next": { "target": "initial.blockercheck" },
         "repeat": { "target": "initial.statuscheck" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.statuscheck.empty": {
@@ -161,14 +161,14 @@
         "schema": "initial.statuscheck.empty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "complete"],
+        "allowedIntents": ["next", "closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["status.summary"]
       },
       "transitions": {
         "next": { "target": "initial.report" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.blockercheck": {
@@ -186,7 +186,7 @@
         "schema": "initial.blockercheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["blockers.issues", "blockers.dependencies"]
@@ -194,7 +194,7 @@
       "transitions": {
         "next": { "target": "initial.stalecheck" },
         "repeat": { "target": "initial.blockercheck" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.stalecheck": {
@@ -212,7 +212,7 @@
         "schema": "initial.stalecheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["stale.issues", "stale.recommendations"]
@@ -220,7 +220,7 @@
       "transitions": {
         "next": { "target": "initial.judge" },
         "repeat": { "target": "initial.stalecheck" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.judge": {
@@ -238,7 +238,7 @@
         "schema": "initial.judge"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["judgment.decisions", "judgment.priorities"]
@@ -246,7 +246,7 @@
       "transitions": {
         "next": { "target": "initial.facilitate" },
         "repeat": { "target": "initial.judge" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.facilitate": {
@@ -264,7 +264,7 @@
         "schema": "initial.facilitate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["facilitation.actions_taken", "facilitation.issues_updated"]
@@ -272,7 +272,7 @@
       "transitions": {
         "next": { "target": "initial.report" },
         "repeat": { "target": "initial.facilitate" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "initial.report": {
@@ -290,15 +290,15 @@
         "schema": "initial.report"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["report.recommendations", "report.next_agent"]
       },
       "transitions": {
         "next": { "target": "continuation.statuscheck" },
         "repeat": { "target": "initial.report" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
     "continuation.statuscheck": {
@@ -316,7 +316,7 @@
         "schema": "continuation.statuscheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["status.progress", "status.changes"]
@@ -324,31 +324,31 @@
       "transitions": {
         "next": { "target": "initial.blockercheck" },
         "repeat": { "target": "continuation.statuscheck" },
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     },
-    "continuation.complete": {
-      "stepId": "continuation.complete",
+    "continuation.closure": {
+      "stepId": "continuation.closure",
       "name": "Facilitation Complete",
       "c2": "continuation",
-      "c3": "complete",
+      "c3": "closure",
       "edition": "default",
-      "fallbackKey": "complete_continuation_default",
+      "fallbackKey": "closure_continuation_default",
       "uvVariables": ["project_number", "actions_taken"],
       "usesStdin": false,
       "description": "Completion message after facilitation cycle",
       "outputSchemaRef": {
         "file": "facilitator.schema.json",
-        "schema": "continuation.complete"
+        "schema": "continuation.closure"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "complete": { "target": "continuation.complete" }
+        "closing": { "target": "continuation.closure" }
       }
     }
   }

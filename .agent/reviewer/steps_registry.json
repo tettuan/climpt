@@ -69,8 +69,8 @@
   },
 
   "completionSteps": {
-    "complete.review": {
-      "stepId": "complete.review",
+    "closure.review": {
+      "stepId": "closure.review",
       "name": "Review Completion Validation",
       "c2": "retry",
       "c3": "review",
@@ -85,7 +85,7 @@
       },
       "outputSchemaRef": {
         "file": "reviewer.schema.json",
-        "schema": "complete.review"
+        "schema": "closure.review"
       },
       "description": "Validate review completion with git-clean, branch-pushed, branch-merged"
     }
@@ -109,7 +109,7 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.findings", "review.recommendations"]
@@ -117,7 +117,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "initial.issue" },
-        "complete": { "target": "complete.review" }
+        "closing": { "target": "closure.review" }
       }
     },
     "continuation.issue": {
@@ -135,7 +135,7 @@
         "schema": "continuation.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.findings", "review.recommendations"]
@@ -143,7 +143,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "continuation.issue" },
-        "complete": { "target": "complete.review" }
+        "closing": { "target": "closure.review" }
       }
     },
     "initial.default": {
@@ -163,7 +163,7 @@
         "schema": "initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.summary", "review.issues_found"]
@@ -171,7 +171,7 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "complete": { "target": "complete.review" }
+        "closing": { "target": "closure.review" }
       }
     },
     "continuation.default": {
@@ -189,7 +189,7 @@
         "schema": "continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.progress", "review.remaining_items"]
@@ -197,7 +197,7 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "continuation.default" },
-        "complete": { "target": "complete.review" }
+        "closing": { "target": "closure.review" }
       }
     }
   }
