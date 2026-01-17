@@ -1256,52 +1256,6 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
   );
 });
 
-Deno.test("StepMachineCompletionHandler - retry increments retryCount", () => {
-  const registry = createMockStepsRegistry({
-    completionSteps: {
-      "initial.retry": {
-        stepId: "initial.retry",
-        name: "Retry Step",
-        c2: "retry",
-        c3: "test",
-        completionConditions: [],
-        onFailure: { action: "retry", maxAttempts: 3 },
-        check: {
-          responseFormat: { type: "json" },
-          onPass: { complete: true },
-          onFail: { retry: true, maxRetries: 3 },
-        },
-      },
-    },
-    steps: {
-      "initial.retry": {
-        stepId: "initial.retry",
-        name: "Retry Step",
-        c2: "initial",
-        c3: "retry",
-        edition: "default",
-        fallbackKey: "initial_retry",
-        uvVariables: [],
-        usesStdin: false,
-      },
-    },
-  });
-  const handler = new StepMachineCompletionHandler(registry, "initial.retry");
-
-  // First failed attempt
-  handler.transition({ stepId: "initial.retry", passed: false });
-
-  let state = handler.getState();
-  assertEquals(state.retryCount, 1);
-  assertEquals(state.currentStepId, "initial.retry");
-
-  // Second failed attempt
-  handler.transition({ stepId: "initial.retry", passed: false });
-
-  state = handler.getState();
-  assertEquals(state.retryCount, 2);
-});
-
 Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", () => {
   const registry = createMockStepsRegistry();
   const handler = new StepMachineCompletionHandler(registry);

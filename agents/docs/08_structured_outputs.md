@@ -37,8 +37,8 @@ completionSignal(response) =
 2. **Structured Output 取込み**
    - `.agent/<agent>/schemas/*.schema.json` の該当セクションで JSON Schema
      を定義。
-   - Runner は FormatValidator で schema 検証を行い、検証済み値だけを Completion
-     Loop へ渡す。
+   - SDK の `outputFormat` 機能が schema 検証を担う（SDK 委譲）。 検証済み値が
+     Completion Loop へ渡される。
 
 3. **Completion Conditions**
    - `steps_registry.json` の `completionSteps.<id>.completionConditions[]`
@@ -99,12 +99,12 @@ Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先
 
 ## 実装ノート
 
-| 領域                     | 状況   | Why                                                          |
-| ------------------------ | ------ | ------------------------------------------------------------ |
-| Structured Output Schema | 運用中 | 完了宣言を明示的に検証する唯一のソース                       |
-| FormatValidator          | 拡張中 | 全 Step で schema を定義できていない。整備後に完全検証へ移行 |
-| CompletionConditions     | 安定   | git/type/lint/test 等はここで宣言し、Flow から切り離す       |
-| RetryPrompts             | 運用中 | `steps/retry/*` を C3L で管理し、手作業リトライを排除        |
+| 領域                     | 状況     | Why                                                       |
+| ------------------------ | -------- | --------------------------------------------------------- |
+| Structured Output Schema | 運用中   | 完了宣言を明示的に検証する唯一のソース                    |
+| FormatValidator          | SDK 委譲 | SDK の outputFormat 機能に委譲。Runner 側での再検証は不要 |
+| CompletionConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す    |
+| RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除     |
 
 Completion Loop は「完璧な終了体験」を作るための最小構成であり、余計な判断を
 Flow に流さないことだけを約束する。Structured Output

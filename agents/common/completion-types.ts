@@ -137,34 +137,6 @@ export interface ResponseFormat {
   pattern?: string;
 }
 
-/**
- * Step check configuration for format validation with retry
- */
-export interface StepCheckConfig {
-  /** Expected response format */
-  responseFormat: ResponseFormat;
-  /** Action when check passes */
-  onPass: {
-    /** Mark as complete */
-    complete?: boolean;
-    /** Next step ID */
-    next?: string;
-  };
-  /** Action when check fails */
-  onFail: {
-    /** Retry the step */
-    retry?: boolean;
-    /** Maximum retry attempts */
-    maxRetries?: number;
-    /** Prompt configuration for retry request */
-    retryPrompt?: {
-      c2: string;
-      c3: string;
-      edition: string;
-    };
-  };
-}
-
 // ============================================================================
 // OutputSchemaRef - Reference to external schema file
 // ============================================================================
@@ -201,8 +173,6 @@ export interface CompletionStepConfig {
   completionConditions: CompletionCondition[];
   /** Behavior on failure */
   onFailure: OnFailureConfig;
-  /** Response format check with retry support */
-  check?: StepCheckConfig;
   /**
    * JSON Schema for structured output (inline definition).
    * When specified, the query uses SDK's outputFormat parameter

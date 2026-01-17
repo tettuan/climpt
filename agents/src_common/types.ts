@@ -448,7 +448,6 @@ export interface FlowStepDefinition {
   description?: string;
   prompt: PromptReference;
   iterations?: IterationConfig;
-  check?: CheckDefinition;
   /** User variables (uv-xxx) used in the prompt */
   variables?: string[];
   /**
@@ -515,6 +514,9 @@ export interface IterationConfig {
 
 /**
  * Check definition for step completion
+ *
+ * @deprecated Use structuredGate/transitions in PromptStepDefinition instead.
+ * See agents/common/step-registry.ts for the new approach.
  */
 export interface CheckDefinition {
   prompt: PromptReference;
@@ -525,6 +527,9 @@ export interface CheckDefinition {
 
 /**
  * Expected response format from check prompt
+ *
+ * @deprecated Use ResponseFormat from agents/common/completion-types.ts instead.
+ * This legacy format is not used in the current step flow implementation.
  */
 export interface ResponseFormat {
   result: "ok|ng" | "pass|fail" | "boolean";
@@ -534,6 +539,10 @@ export interface ResponseFormat {
 
 /**
  * Transition definition after check
+ *
+ * @deprecated Use TransitionRule from agents/common/step-registry.ts instead.
+ * The new approach uses structuredGate.intentField to extract intent and
+ * transitions config to map intent to next step.
  */
 export interface TransitionDefinition {
   next?: string;
@@ -545,6 +554,9 @@ export interface TransitionDefinition {
 
 /**
  * Check response from LLM
+ *
+ * @deprecated Use GateInterpretation from step-gate-interpreter.ts instead.
+ * The new approach extracts intent from structured output via StepGateInterpreter.
  */
 export interface CheckResponse {
   result: "ok" | "ng" | "pass" | "fail" | boolean;

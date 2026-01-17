@@ -529,3 +529,287 @@ Deno.test("Completion Validation - FormatValidator validates text pattern", () =
   assertEquals(result.valid, true);
   assertEquals(result.extracted, "COMPLETE-42");
 });
+
+// =============================================================================
+// Structured Gate Flow Integration Tests
+// =============================================================================
+
+import { StepGateInterpreter } from "./step-gate-interpreter.ts";
+import { WorkflowRouter } from "./workflow-router.ts";
+import type {
+  PromptStepDefinition,
+  StepRegistry,
+} from "../common/step-registry.ts";
+
+/**
+ * Creates a minimal step registry for testing structured gate flow.
+ */
+function createTestStepRegistry(): StepRegistry {
+  return {
+    agentId: "test",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.test": {
+        stepId: "initial.test",
+        name: "Initial Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_initial_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "complete"],
+          intentField: "next_action.action",
+          targetField: "next_action.details.target",
+          fallbackIntent: "next",
+          handoffFields: ["result.data"],
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "initial.test" },
+          complete: { target: "complete.test" },
+        },
+      },
+      "continuation.test": {
+        stepId: "continuation.test",
+        name: "Continuation Test Step",
+        c2: "continuation",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_continuation_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "complete"],
+          intentField: "next_action.action",
+          fallbackIntent: "next",
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "continuation.test" },
+          complete: { target: "complete.test" },
+        },
+      },
+      "complete.test": {
+        stepId: "complete.test",
+        name: "Complete Test Step",
+        c2: "complete",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_complete_default",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+}
+
+Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from structured output", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "in_progress",
+    next_action: {
+      action: "continue",
+      reason: "More work needed",
+    },
+    result: {
+      data: "test data",
+    },
+  };
+
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next"); // "continue" maps to "next"
+  assertEquals(interpretation.usedFallback, false);
+  assertEquals(interpretation.handoff?.data, "test data");
+});
+
+Deno.test("Structured Gate Flow - interpreter extracts intent 'complete' from structured output", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "completed",
+    next_action: {
+      action: "complete",
+      reason: "Task finished",
+    },
+  };
+
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "complete");
+  assertEquals(interpretation.usedFallback, false);
+});
+
+Deno.test("Structured Gate Flow - interpreter uses fallback intent when action is missing", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "unknown",
+    // no next_action field
+  };
+
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next"); // fallbackIntent
+  assertEquals(interpretation.usedFallback, true);
+});
+
+Deno.test("Structured Gate Flow - router routes 'next' intent to continuation step", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "next" as const,
+    usedFallback: false,
+  };
+
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.test");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "repeat" as const,
+    usedFallback: false,
+  };
+
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "initial.test");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - router signals completion for 'complete' intent", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "complete" as const,
+    usedFallback: false,
+  };
+
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.signalCompletion, true);
+});
+
+Deno.test("Structured Gate Flow - router uses default transition for steps without explicit transitions", () => {
+  const registry: StepRegistry = {
+    agentId: "test",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.foo": {
+        stepId: "initial.foo",
+        name: "Initial Foo",
+        c2: "initial",
+        c3: "foo",
+        edition: "default",
+        fallbackKey: "foo_initial_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next"],
+        },
+        // No explicit transitions - should use default (initial -> continuation)
+      },
+      "continuation.foo": {
+        stepId: "continuation.foo",
+        name: "Continuation Foo",
+        c2: "continuation",
+        c3: "foo",
+        edition: "default",
+        fallbackKey: "foo_continuation_default",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  const router = new WorkflowRouter(registry);
+  const interpretation = { intent: "next" as const, usedFallback: false };
+  const routing = router.route("initial.foo", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.foo");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Simulate AI response with structured output
+  const structuredOutput = {
+    status: "in_progress",
+    next_action: {
+      action: "continue",
+      reason: "Processing files",
+      details: {
+        processed: 5,
+        remaining: 3,
+      },
+    },
+    result: {
+      data: "partial result",
+    },
+  };
+
+  // Step 1: Interpreter extracts intent
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next");
+  assertEquals(interpretation.handoff?.data, "partial result");
+
+  // Step 2: Router determines next step
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.test");
+  assertEquals(routing.signalCompletion, false);
+  // Reason comes from structured output's next_action.reason
+  assertEquals(routing.reason, "Processing files");
+});
+
+Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Simulate AI declaring completion
+  const structuredOutput = {
+    status: "completed",
+    next_action: {
+      action: "complete",
+      reason: "All tasks finished",
+    },
+  };
+
+  // Interpreter extracts intent
+  const stepDef = registry.steps["continuation.test"] as PromptStepDefinition;
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "complete");
+
+  // Router signals completion
+  const routing = router.route("continuation.test", interpretation);
+
+  assertEquals(routing.signalCompletion, true);
+  // Reason comes from structured output's next_action.reason
+  assertEquals(routing.reason, "All tasks finished");
+});

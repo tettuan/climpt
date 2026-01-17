@@ -35,15 +35,12 @@ import {
   type ExtendedStepsRegistry,
   isExtendedRegistry,
   type OutputSchemaRef,
-  type StepCheckConfig,
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
-import { FormatValidator } from "../loop/format-validator.ts";
 import {
   CompletionChain,
   type CompletionValidationResult,
 } from "./completion-chain.ts";
-import type { FormatValidationResult } from "../loop/format-validator.ts";
 import { join } from "@std/path";
 import { SchemaResolver } from "../common/schema-resolver.ts";
 import {
@@ -59,6 +56,9 @@ import {
 } from "./events.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
+import { StepGateInterpreter } from "./step-gate-interpreter.ts";
+import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
+import type { StepRegistry } from "../common/step-registry.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -86,8 +86,6 @@ export class AgentRunner {
   private stepsRegistry: ExtendedStepsRegistry | null = null;
   private completionChain: CompletionChain | null = null;
   private pendingRetryPrompt: string | null = null;
-  private readonly formatValidator = new FormatValidator();
-  private formatRetryCount = 0;
 
   // Rate limit handling
   private rateLimitRetryCount = 0;
@@ -96,6 +94,8 @@ export class AgentRunner {
   // Step flow orchestration
   private stepContext: StepContextImpl | null = null;
   private currentStepId: string | null = null;
+  private stepGateInterpreter: StepGateInterpreter | null = null;
+  private workflowRouter: WorkflowRouter | null = null;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -292,22 +292,38 @@ export class AgentRunner {
           }
         }
 
-        // Check completion
+        // Step transition for step flow orchestration (moved before completion check)
+        // Structured gate routing can signal completion via signalCompletion
+        const routingResult = this.handleStepTransition(stepId, summary, ctx);
+
+        // Check completion - prefer routing result, fall back to legacy handler
         let isComplete: boolean;
+        let completionReason: string;
+
         if (this.pendingRetryPrompt) {
           isComplete = false;
+          // deno-lint-ignore no-await-in-loop
+          completionReason = await ctx.completionHandler
+            .getCompletionDescription();
           ctx.logger.debug("Skipping completion check due to pending retry");
+        } else if (routingResult?.signalCompletion) {
+          // Structured gate routing signaled completion
+          isComplete = true;
+          completionReason = routingResult.reason;
+          ctx.logger.info(
+            `[StepFlow] Router signaled completion: ${completionReason}`,
+          );
         } else {
-          // Pass current summary to handler for structured output context
+          // Fall back to legacy completionHandler
           if (ctx.completionHandler.setCurrentSummary) {
             ctx.completionHandler.setCurrentSummary(summary);
           }
           // deno-lint-ignore no-await-in-loop
           isComplete = await ctx.completionHandler.isComplete();
+          // deno-lint-ignore no-await-in-loop
+          completionReason = await ctx.completionHandler
+            .getCompletionDescription();
         }
-        // deno-lint-ignore no-await-in-loop
-        const completionReason = await ctx.completionHandler
-          .getCompletionDescription();
 
         // Emit completionChecked event
         // deno-lint-ignore no-await-in-loop
@@ -326,9 +342,6 @@ export class AgentRunner {
           );
           break;
         }
-
-        // Step transition for step flow orchestration
-        this.handleStepTransition(stepId, summary, ctx);
 
         // Max iteration check
         const maxIterations = this.getMaxIterations();
@@ -512,71 +525,7 @@ export class AgentRunner {
       }
     }
 
-    // Format validation
-    if (stepId) {
-      const formatResult = await this.validateResponseFormat(stepId, summary);
-      if (formatResult && !formatResult.valid) {
-        summary.errors.push(formatResult.error ?? "Format validation failed");
-        ctx.logger.debug("[FormatValidator] Format validation failed", {
-          stepId,
-          error: formatResult.error,
-        });
-      }
-    }
-
     return summary;
-  }
-
-  /**
-   * Validate response format for a step.
-   */
-  private async validateResponseFormat(
-    stepId: string,
-    summary: IterationSummary,
-  ): Promise<FormatValidationResult | undefined> {
-    const checkConfig = this.getStepCheckConfig(stepId);
-    if (!checkConfig?.responseFormat) {
-      return undefined;
-    }
-
-    const result = this.formatValidator.validate(
-      summary,
-      checkConfig.responseFormat,
-    );
-
-    if (!result.valid) {
-      const maxRetries = checkConfig.onFail?.maxRetries ?? 3;
-      if (this.formatRetryCount < maxRetries) {
-        this.formatRetryCount++;
-        this.pendingRetryPrompt = this.buildFormatRetryPrompt(
-          checkConfig,
-          result.error ?? "Format validation failed",
-        );
-        this.getContext().logger.info(
-          `[FormatValidator] Will retry (attempt ${this.formatRetryCount}/${maxRetries})`,
-        );
-      } else {
-        this.getContext().logger.warn(
-          `[FormatValidator] Max retries reached (${maxRetries})`,
-        );
-      }
-    } else {
-      this.formatRetryCount = 0;
-    }
-
-    await Promise.resolve();
-    return result;
-  }
-
-  /**
-   * Get step check configuration from registry.
-   */
-  private getStepCheckConfig(stepId: string): StepCheckConfig | undefined {
-    if (!this.stepsRegistry?.completionSteps) {
-      return undefined;
-    }
-    const stepConfig = this.stepsRegistry.completionSteps[stepId];
-    return stepConfig?.check;
   }
 
   private processMessage(message: unknown, summary: IterationSummary): void {
@@ -699,6 +648,13 @@ export class AgentRunner {
         agentId: this.definition.name,
       });
       logger.debug("CompletionChain initialized");
+
+      // Initialize StepGateInterpreter and WorkflowRouter for structured gate flow
+      this.stepGateInterpreter = new StepGateInterpreter();
+      this.workflowRouter = new WorkflowRouter(
+        this.stepsRegistry as unknown as StepRegistry,
+      );
+      logger.debug("StepGateInterpreter and WorkflowRouter initialized");
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(
@@ -771,29 +727,6 @@ export class AgentRunner {
   }
 
   /**
-   * Build retry prompt for format validation failure
-   */
-  private buildFormatRetryPrompt(
-    check: StepCheckConfig,
-    error: string,
-  ): string {
-    const format = check.responseFormat;
-    let formatDescription = "";
-
-    if (format.type === "json") {
-      formatDescription = "Expected format: JSON block";
-    } else if (format.type === "text-pattern" && format.pattern) {
-      formatDescription = `Expected pattern: ${format.pattern}`;
-    }
-
-    return `The response format was invalid: ${error}
-
-${formatDescription}
-
-Please provide a response in the correct format.`;
-  }
-
-  /**
    * Check if AI declared completion via structured output.
    */
   private hasAICompletionDeclaration(summary: IterationSummary): boolean {
@@ -838,8 +771,17 @@ Please provide a response in the correct format.`;
 
   /**
    * Get step ID for a given iteration.
+   *
+   * If a step transition has set currentStepId (via structured gate routing),
+   * use that. Otherwise, fall back to default calculation.
    */
   private getStepIdForIteration(iteration: number): string {
+    // Use routed step ID if available (set by handleStepTransition)
+    if (this.currentStepId && iteration > 1) {
+      return this.currentStepId;
+    }
+
+    // Default calculation
     const completionType = this.definition.behavior.completionType;
     const prefix = iteration === 1 ? "initial" : "continuation";
     return `${prefix}.${completionType}`;
@@ -938,19 +880,112 @@ Please provide a response in the correct format.`;
   }
 
   /**
-   * Handle step transition based on completion handler.
+   * Handle step transition based on structured gate or completion handler.
+   *
+   * Priority:
+   * 1. If step has structuredGate, use StepGateInterpreter + WorkflowRouter
+   * 2. Otherwise, fall back to completionHandler.transition()
    */
   private handleStepTransition(
     stepId: string,
     summary: IterationSummary,
     ctx: RuntimeContext,
-  ): void {
+  ): RoutingResult | null {
+    // Try structured gate routing first
+    const routingResult = this.tryStructuredGateRouting(stepId, summary, ctx);
+    if (routingResult) {
+      return routingResult;
+    }
+
+    // Fall back to legacy completionHandler.transition()
+    return this.legacyTransition(stepId, summary, ctx);
+  }
+
+  /**
+   * Try to route using structured gate if configured.
+   */
+  private tryStructuredGateRouting(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): RoutingResult | null {
+    // Check prerequisites
+    if (
+      !this.stepsRegistry || !this.stepGateInterpreter || !this.workflowRouter
+    ) {
+      return null;
+    }
+
+    if (!summary.structuredOutput) {
+      return null;
+    }
+
+    // Get step definition
+    const stepDef = this.stepsRegistry.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef?.structuredGate) {
+      return null;
+    }
+
+    // Interpret structured output through the gate
+    const interpretation = this.stepGateInterpreter.interpret(
+      summary.structuredOutput,
+      stepDef,
+    );
+
+    ctx.logger.info(`[StepFlow] Interpreted intent: ${interpretation.intent}`, {
+      target: interpretation.target,
+      usedFallback: interpretation.usedFallback,
+      reason: interpretation.reason,
+    });
+
+    // Merge handoff into step context
+    if (interpretation.handoff && this.stepContext) {
+      this.stepContext.set(stepId, interpretation.handoff);
+      ctx.logger.debug(`[StepFlow] Stored handoff data for step: ${stepId}`, {
+        handoffKeys: Object.keys(interpretation.handoff),
+      });
+    }
+
+    // Route to next step
+    const routing = this.workflowRouter.route(stepId, interpretation);
+
+    ctx.logger.info(
+      `[StepFlow] Routing decision: ${stepId} -> ${routing.nextStepId}`,
+      {
+        signalCompletion: routing.signalCompletion,
+        reason: routing.reason,
+      },
+    );
+
+    // Update current step ID
+    if (!routing.signalCompletion && routing.nextStepId !== stepId) {
+      this.currentStepId = routing.nextStepId;
+    }
+
+    return routing;
+  }
+
+  /**
+   * Legacy transition using completionHandler.transition().
+   *
+   * @deprecated Use structuredGate + WorkflowRouter instead.
+   * This method is retained for backward compatibility with steps
+   * that don't have structuredGate configured. Will be removed
+   * once all steps are migrated to structured gate flow.
+   */
+  private legacyTransition(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): RoutingResult | null {
     const handler = ctx.completionHandler;
 
     if (
       !("transition" in handler) || typeof handler.transition !== "function"
     ) {
-      return;
+      return null;
     }
 
     const passed = this.determineStepPassed(summary);
@@ -967,16 +1002,34 @@ Please provide a response in the correct format.`;
 
     if (nextStep === "complete") {
       ctx.logger.info(`[StepFlow] Step machine reached terminal state`);
+      return {
+        nextStepId: stepId,
+        signalCompletion: true,
+        reason: "Step machine reached terminal state",
+      };
     } else if (nextStep !== stepId) {
       ctx.logger.info(`[StepFlow] Transitioning from ${stepId} to ${nextStep}`);
       this.currentStepId = nextStep;
+      return {
+        nextStepId: nextStep,
+        signalCompletion: false,
+        reason: `Legacy transition: ${stepId} -> ${nextStep}`,
+      };
     } else {
       ctx.logger.debug(`[StepFlow] Staying on step ${stepId} (retry)`);
+      return {
+        nextStepId: stepId,
+        signalCompletion: false,
+        reason: "Retry on same step",
+      };
     }
   }
 
   /**
    * Determine if step passed based on iteration summary.
+   *
+   * @deprecated Used by legacyTransition(). Prefer StepGateInterpreter
+   * for intent extraction from structured output.
    */
   private determineStepPassed(summary: IterationSummary): boolean {
     if (summary.structuredOutput) {

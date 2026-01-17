@@ -11,7 +11,6 @@
 
 import { join } from "@std/path";
 import type { InputSpec } from "../src_common/contracts.ts";
-import type { ResponseFormat } from "./completion-types.ts";
 
 /**
  * Step type for categorization
@@ -93,16 +92,20 @@ export interface PromptStepDefinition {
   };
 
   /**
-   * Expected response format for validation.
-   * When specified, FormatValidator will validate the response.
-   */
-  responseFormat?: ResponseFormat;
-
-  /**
    * Input specification for handoff data.
    * Defines which outputs from previous steps this step needs.
    */
   inputs?: InputSpec;
+
+  /**
+   * Structured gate configuration for intent/target routing.
+   */
+  structuredGate?: StructuredGate;
+
+  /**
+   * Intent to step transition mapping.
+   */
+  transitions?: Transitions;
 
   /**
    * Optional description of what this step does
@@ -111,9 +114,39 @@ export interface PromptStepDefinition {
 }
 
 /**
- * @deprecated Use PromptStepDefinition instead. Kept for backward compatibility.
+ * Allowed intents for structured gate.
  */
-export type StepDefinition = PromptStepDefinition;
+export type GateIntent = "next" | "repeat" | "jump" | "complete" | "abort";
+
+/**
+ * Structured gate configuration for intent/target routing.
+ */
+export interface StructuredGate {
+  /** List of intents this step can emit */
+  allowedIntents: GateIntent[];
+  /** JSON path to extract intent from structured output (e.g., 'next_action.action') */
+  intentField?: string;
+  /** JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target') */
+  targetField?: string;
+  /** JSON paths to extract for handoff data (e.g., ['analysis.understanding', 'issue']) */
+  handoffFields?: string[];
+  /** How target step IDs are determined */
+  targetMode?: "explicit" | "dynamic" | "conditional";
+  /** Default intent if response parsing fails */
+  fallbackIntent?: GateIntent;
+}
+
+/**
+ * Transition rule for a single intent.
+ */
+export type TransitionRule =
+  | { target: string; fallback?: string }
+  | { condition: string; targets: Record<string, string> };
+
+/**
+ * Map of intent to transition rule.
+ */
+export type Transitions = Record<string, TransitionRule>;
 
 /**
  * Step registry for an agent

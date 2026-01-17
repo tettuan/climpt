@@ -139,46 +139,27 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
   }
 
   /**
-   * Get next step based on current step result
+   * Get next step based on current step result.
+   * Uses transitions from step definition if available, otherwise defaults to initial -> continuation flow.
    */
   getNextStep(result: StepResult): StepTransition {
     const { stepId, passed } = result;
+    const stepDef = this.registry.steps[stepId];
 
-    // Check completion steps for transition rules
-    const completionStep = this.registry.completionSteps?.[stepId];
-    if (completionStep?.check) {
-      if (passed) {
-        // On pass: check for next step or complete
-        if (completionStep.check.onPass.complete) {
-          return {
-            nextStep: "complete",
-            passed: true,
-            reason: "Step passed and marked complete",
-          };
-        }
-        if (completionStep.check.onPass.next) {
-          return {
-            nextStep: completionStep.check.onPass.next,
-            passed: true,
-            reason: "Transitioning to next step",
-          };
-        }
-      } else {
-        // On fail: check for retry or next
-        if (completionStep.check.onFail.retry) {
-          const maxRetries = completionStep.check.onFail.maxRetries ?? 3;
-          if (this.state.retryCount < maxRetries) {
-            return {
-              nextStep: stepId, // Stay on same step
-              passed: false,
-              reason: `Retry (${this.state.retryCount + 1}/${maxRetries})`,
-            };
-          }
-        }
+    // Use transitions from step definition if available
+    if (stepDef?.transitions) {
+      const intent = passed ? "next" : "repeat";
+      const rule = stepDef.transitions[intent];
+      if (rule && "target" in rule) {
+        return {
+          nextStep: rule.target === "complete" ? "complete" : rule.target,
+          passed,
+          reason: `Transition via ${intent} intent`,
+        };
       }
     }
 
-    // Default transition: look for continuation step
+    // Default transition: initial -> continuation
     const parts = stepId.split(".");
     if (parts[0] === "initial") {
       const continuationStep = `continuation.${parts.slice(1).join(".")}`;

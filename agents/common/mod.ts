@@ -51,10 +51,13 @@ export {
 
 // Step registry for prompt externalization
 export type {
+  GateIntent,
   PromptStepDefinition,
   RegistryLoaderOptions,
-  StepDefinition, // @deprecated: use PromptStepDefinition
   StepRegistry,
+  StructuredGate,
+  TransitionRule,
+  Transitions,
 } from "./step-registry.ts";
 export {
   addStepDefinition,

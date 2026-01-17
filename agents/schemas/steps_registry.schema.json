@@ -1,27 +1,75 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/tettuan/climpt/main/agents/schemas/steps_registry.schema.json",
-  "title": "Climpt Steps Registry",
-  "description": "Schema for step flow definitions with state machine-like transitions",
+  "title": "Climpt Steps Registry v2",
+  "description": "Schema for step flow definitions with structured gate routing (v2)",
   "type": "object",
-  "required": ["version", "basePath", "entryStep", "steps"],
+  "required": ["agentId", "version", "c1", "steps"],
   "properties": {
     "$schema": {
       "type": "string",
       "description": "JSON Schema URL for validation"
+    },
+    "agentId": {
+      "type": "string",
+      "description": "Agent identifier (e.g., 'iterator', 'reviewer')"
     },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Schema version (semver format)"
     },
-    "basePath": {
+    "c1": {
       "type": "string",
-      "description": "Base path for prompt files (relative to agent directory)"
+      "description": "C3L path component: c1 (e.g., 'steps')"
+    },
+    "userPromptsBase": {
+      "type": "string",
+      "description": "Base directory for user prompts (default: '.agent/{agentId}/prompts')"
+    },
+    "schemasBase": {
+      "type": "string",
+      "description": "Base directory for schema files (default: '.agent/{agentId}/schemas')"
+    },
+    "pathTemplate": {
+      "type": "string",
+      "description": "Path template with adaptation: '{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md'"
+    },
+    "pathTemplateNoAdaptation": {
+      "type": "string",
+      "description": "Path template without adaptation: '{c1}/{c2}/{c3}/f_{edition}.md'"
     },
     "entryStep": {
       "type": "string",
-      "description": "ID of the first step to execute"
+      "description": "Default entry step ID for starting execution"
+    },
+    "entryStepMapping": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Mode-based entry step mapping (e.g., { 'issue': 'initial.issue' })"
+    },
+    "completionPatterns": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/CompletionPattern"
+      },
+      "description": "Named patterns for failure scenarios"
+    },
+    "validators": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Validator"
+      },
+      "description": "Named validators for completion checks"
+    },
+    "completionSteps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/CompletionStep"
+      },
+      "description": "Step definitions for completion validation"
     },
     "steps": {
       "type": "object",
@@ -29,234 +77,281 @@
         "$ref": "#/definitions/StepDefinition"
       },
       "description": "Map of step ID to step definition"
-    },
-    "editions": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "Edition name mappings for C3L paths"
-    },
-    "entryStepMapping": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "Mode-based entry step mapping. Keys are mode names, values are step IDs. Example: { \"issue\": \"s_init_issue\", \"project\": \"s_init_project\" }"
     }
   },
   "definitions": {
     "StepDefinition": {
       "type": "object",
-      "required": ["id", "name", "prompt"],
+      "required": ["stepId", "name", "c2", "c3", "fallbackKey"],
       "properties": {
-        "id": {
+        "stepId": {
           "type": "string",
-          "pattern": "^s_[a-f0-9]{4,8}$",
-          "description": "Unique step identifier (hash format: s_xxxx)"
+          "description": "Unique step identifier (e.g., 'initial.issue')"
         },
         "name": {
           "type": "string",
           "description": "Human-readable step name"
         },
-        "description": {
+        "type": {
           "type": "string",
-          "description": "Step description"
+          "enum": ["prompt"],
+          "default": "prompt",
+          "description": "Step type for categorization"
         },
-        "prompt": {
-          "$ref": "#/definitions/PromptReference",
-          "description": "Prompt to execute for this step"
+        "c2": {
+          "type": "string",
+          "description": "C3L Category (e.g., 'initial', 'continuation')"
         },
-        "iterations": {
-          "$ref": "#/definitions/IterationConfig",
-          "description": "Iteration configuration for this step"
+        "c3": {
+          "type": "string",
+          "description": "C3L Classification (e.g., 'issue', 'project')"
         },
-        "check": {
-          "$ref": "#/definitions/CheckDefinition",
-          "description": "Completion check configuration"
+        "edition": {
+          "type": "string",
+          "default": "default",
+          "description": "Edition variant (f_{edition}.md)"
         },
-        "variables": {
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        },
+        "fallbackKey": {
+          "type": "string",
+          "description": "Key for fallback prompt in embedded prompts"
+        },
+        "uvVariables": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "User variables (uv-xxx) used in this step's prompt"
-        },
-        "customVariables": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/CustomVariableDefinition"
-          },
-          "description": "Custom variables injected at runtime from external sources"
+          "items": { "type": "string" },
+          "description": "User variable names required by this prompt"
         },
         "usesStdin": {
           "type": "boolean",
           "default": false,
           "description": "Whether this step accepts stdin input"
-        }
-      }
-    },
-    "CustomVariableDefinition": {
-      "type": "object",
-      "required": ["name", "source"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Variable name (without braces)"
         },
-        "source": {
-          "type": "string",
-          "enum": ["stdin", "github", "computed", "parameter", "context"],
-          "description": "Source of the variable value"
+        "outputSchemaRef": {
+          "$ref": "#/definitions/OutputSchemaRef",
+          "description": "Reference to external JSON Schema for structured output"
+        },
+        "structuredGate": {
+          "$ref": "#/definitions/StructuredGate",
+          "description": "Structured gate configuration for intent/target routing"
+        },
+        "transitions": {
+          "$ref": "#/definitions/Transitions",
+          "description": "Intent to step transition mapping"
         },
         "description": {
           "type": "string",
-          "description": "Human-readable description"
-        },
-        "required": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether the variable is required"
+          "description": "Optional description of what this step does"
         }
       }
     },
-    "PromptReference": {
+    "CompletionStep": {
       "type": "object",
-      "description": "Reference to a prompt file (either path or C3L)",
+      "required": ["stepId", "name", "c2", "c3"],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "description": "Completion step identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "c2": {
+          "type": "string",
+          "description": "C3L Category"
+        },
+        "c3": {
+          "type": "string",
+          "description": "C3L Classification"
+        },
+        "completionConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompletionCondition"
+          },
+          "description": "Conditions that must pass for completion"
+        },
+        "onFailure": {
+          "$ref": "#/definitions/FailureAction",
+          "description": "Action when completion fails"
+        },
+        "outputSchemaRef": {
+          "$ref": "#/definitions/OutputSchemaRef",
+          "description": "Reference to output schema"
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        }
+      }
+    },
+    "OutputSchemaRef": {
+      "type": "object",
+      "required": ["file", "schema"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Schema file name (relative to schemasBase)"
+        },
+        "schema": {
+          "type": "string",
+          "description": "Schema name within the file"
+        }
+      }
+    },
+    "StructuredGate": {
+      "type": "object",
+      "required": ["allowedIntents"],
+      "properties": {
+        "allowedIntents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["next", "repeat", "jump", "complete", "abort"]
+          },
+          "description": "List of intents this step can emit"
+        },
+        "intentField": {
+          "type": "string",
+          "description": "JSON path to extract intent from structured output (e.g., 'next_action.action')"
+        },
+        "targetField": {
+          "type": "string",
+          "description": "JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target')"
+        },
+        "handoffFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "JSON paths to extract for handoff data (e.g., ['analysis.understanding', 'issue'])"
+        },
+        "targetMode": {
+          "type": "string",
+          "enum": ["explicit", "dynamic", "conditional"],
+          "default": "explicit",
+          "description": "How target step IDs are determined"
+        },
+        "fallbackIntent": {
+          "type": "string",
+          "description": "Default intent if response parsing fails"
+        }
+      }
+    },
+    "Transitions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/TransitionRule"
+      },
+      "description": "Map of intent to transition rule"
+    },
+    "TransitionRule": {
+      "type": "object",
       "oneOf": [
         {
-          "required": ["path"],
+          "required": ["target"],
           "properties": {
-            "path": {
+            "target": {
               "type": "string",
-              "description": "Direct path to prompt file (relative to basePath)"
+              "description": "Target step ID"
             },
             "fallback": {
               "type": "string",
-              "description": "Fallback path if primary prompt not found"
+              "description": "Fallback step if target fails"
             }
-          },
-          "additionalProperties": false
+          }
         },
         {
-          "required": ["c1", "c2", "c3"],
+          "required": ["condition", "targets"],
           "properties": {
-            "c1": {
+            "condition": {
               "type": "string",
-              "description": "C3L Category (first level directory)"
+              "description": "Condition expression or variable name"
             },
-            "c2": {
-              "type": "string",
-              "description": "C3L Classification (second level directory)"
-            },
-            "c3": {
-              "type": "string",
-              "description": "C3L Chapter (third level directory)"
-            },
-            "edition": {
-              "type": "string",
-              "default": "default",
-              "description": "Edition name for f_{edition}.md filename"
-            },
-            "adaptation": {
-              "type": "string",
-              "description": "Adaptation variant within an edition. Path pattern: f_{edition}_{adaptation}.md"
-            },
-            "fallback": {
-              "type": "string",
-              "description": "Fallback C3L reference or path if primary prompt not found"
+            "targets": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Map of condition values to target step IDs"
             }
-          },
-          "additionalProperties": false
+          }
         }
       ]
     },
-    "IterationConfig": {
+    "CompletionPattern": {
       "type": "object",
+      "required": ["description", "edition"],
       "properties": {
-        "min": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable pattern description"
+        },
+        "edition": {
+          "type": "string",
+          "description": "Edition for failure prompt"
+        },
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation for failure prompt"
+        },
+        "params": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Parameters extracted on match"
+        }
+      }
+    },
+    "Validator": {
+      "type": "object",
+      "required": ["type", "command", "successWhen", "failurePattern"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["command"],
+          "description": "Validator type"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute"
+        },
+        "successWhen": {
+          "type": "string",
+          "description": "Success condition (e.g., 'empty', 'exitCode:0')"
+        },
+        "failurePattern": {
+          "type": "string",
+          "description": "Reference to completion pattern on failure"
+        },
+        "extractParams": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Parameter extraction rules"
+        }
+      }
+    },
+    "CompletionCondition": {
+      "type": "object",
+      "required": ["validator"],
+      "properties": {
+        "validator": {
+          "type": "string",
+          "description": "Reference to named validator"
+        }
+      }
+    },
+    "FailureAction": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["retry", "abort", "skip"],
+          "description": "Action to take on failure"
+        },
+        "maxAttempts": {
           "type": "integer",
           "minimum": 1,
-          "default": 1,
-          "description": "Minimum iterations for this step"
-        },
-        "max": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 1,
-          "description": "Maximum iterations for this step"
-        }
-      }
-    },
-    "CheckDefinition": {
-      "type": "object",
-      "required": ["prompt", "responseFormat", "onPass", "onFail"],
-      "properties": {
-        "prompt": {
-          "$ref": "#/definitions/PromptReference",
-          "description": "Prompt for checking step completion"
-        },
-        "responseFormat": {
-          "$ref": "#/definitions/ResponseFormat",
-          "description": "Expected response format from check"
-        },
-        "onPass": {
-          "$ref": "#/definitions/TransitionDefinition",
-          "description": "Action when check passes"
-        },
-        "onFail": {
-          "$ref": "#/definitions/TransitionDefinition",
-          "description": "Action when check fails"
-        }
-      }
-    },
-    "ResponseFormat": {
-      "type": "object",
-      "required": ["result"],
-      "properties": {
-        "result": {
-          "type": "string",
-          "enum": ["ok|ng", "pass|fail", "boolean"],
-          "description": "Result field format"
-        },
-        "message": {
-          "type": "string",
-          "enum": ["string", "optional"],
-          "description": "Message field format"
-        }
-      },
-      "additionalProperties": {
-        "type": "string",
-        "description": "Additional response fields"
-      }
-    },
-    "TransitionDefinition": {
-      "type": "object",
-      "description": "Defines what happens after check result",
-      "properties": {
-        "next": {
-          "type": "string",
-          "description": "Step ID to transition to"
-        },
-        "fallback": {
-          "type": "string",
-          "description": "Step ID to fall back to on failure"
-        },
-        "retry": {
-          "type": "boolean",
-          "default": false,
-          "description": "Retry current step"
-        },
-        "maxRetries": {
-          "type": "integer",
-          "minimum": 0,
-          "default": 0,
-          "description": "Maximum retry attempts (0 = no limit when retry is true)"
-        },
-        "complete": {
-          "type": "boolean",
-          "default": false,
-          "description": "Mark agent as complete"
+          "description": "Maximum retry attempts"
         }
       }
     }
