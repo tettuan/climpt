@@ -37,16 +37,19 @@ flowchart LR
     subgraph Work["作業ブランチ"]
         feature[feature/*]
         fix[fix/*]
+        refactor[refactor/*]
         docs[docs/*]
     end
 
     develop -->|派生| release
     release -->|派生| feature
     release -->|派生| fix
+    release -->|派生| refactor
     release -->|派生| docs
 
     feature -->|PR| release
     fix -->|PR| release
+    refactor -->|PR| release
     docs -->|PR| release
 
     release -->|PR| develop
@@ -104,7 +107,7 @@ git checkout -b feature/my-feature release/x.y.z
 
 | 現在のブランチ | PR先 | コマンド例 |
 |---------------|------|-----------|
-| feature/*, fix/*, docs/* | release/* | `gh pr create --base release/x.y.z` |
+| feature/*, fix/*, refactor/*, docs/* | release/* | `gh pr create --base release/x.y.z` |
 | release/* | develop | `gh pr create --base develop` |
 | develop | main | `gh pr create --base main` |
 
@@ -211,14 +214,21 @@ sequenceDiagram
 | `git push origin main` | main への直接 push は禁止です。develop からの PR を作成してください。 |
 | `git push origin develop` | develop への直接 push は禁止です。release/* からの PR を作成してください。 |
 | `git checkout -b feature/* develop` | 作業ブランチは release/* から派生してください。 |
+| `git checkout -b refactor/* develop` | 作業ブランチは release/* から派生してください。 |
 | `git merge main` | main からのマージは想定外です。派生元を確認してください。 |
 
 ## クイックリファレンス
 
 ```
+作業ブランチの種類:
+  feature/*  - 新機能
+  fix/*      - バグ修正
+  refactor/* - リファクタリング
+  docs/*     - ドキュメント
+
 作業開始:
   git checkout release/x.y.z
-  git checkout -b feature/my-work
+  git checkout -b feature/my-work   # または refactor/*, fix/*, docs/*
 
 作業完了（PR作成）:
   gh pr create --base release/x.y.z
@@ -232,8 +242,9 @@ PRマージ:
   git checkout <マージ先ブランチ>
   git pull origin <マージ先ブランチ>
 
-リリースフロー:
-  1. release/* → develop (PR作成 → マージ)
-  2. develop → main (PR作成 → マージ)
-  3. main に vタグ付与: git tag vx.y.z && git push origin vx.y.z
+完全リリースフロー:
+  1. 作業ブランチ → release/* (PR作成 → マージ)
+  2. release/* → develop (PR作成 → マージ)
+  3. develop → main (PR作成 → マージ)
+  4. main に vタグ付与: git tag vx.y.z && git push origin vx.y.z
 ```
