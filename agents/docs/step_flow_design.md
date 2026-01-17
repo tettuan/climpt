@@ -13,14 +13,14 @@ What/Why を中心に記述し、How は設定例に留める。
 
 ## What: Step の要素
 
-| 要素                           | 説明                                                          |
-| ------------------------------ | ------------------------------------------------------------- |
-| `stepId`                       | `initial.<c3>` や `continuation.<c3>` 形式で識別              |
-| `c2`, `c3`, `edition`          | C3L パス構成要素。PromptResolver が prompt ファイルを解決する |
-| `fallbackKey`                  | 組み込みプロンプトへのフォールバックキー                      |
-| `structuredGate`               | AI 応答から intent を抽出し、遷移を決定するための設定         |
-| `transitions`                  | intent から次の Step を決定するマッピング                     |
-| `structuredGate.handoffFields` | 次の Step に渡すデータのパス（JSON path 形式）                |
+| 要素                           | 説明                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| `stepId`                       | `initial.<c3>` や `continuation.<c3>` 形式で識別                          |
+| `c2`, `c3`, `edition`          | C3L パス構成要素。Completion Handler が PromptResolver を介して解決に使う |
+| `fallbackKey`                  | 組み込みプロンプトへのフォールバックキー                                  |
+| `structuredGate`               | AI 応答から intent を抽出し、遷移を決定するための設定                     |
+| `transitions`                  | intent から次の Step を決定するマッピング                                 |
+| `structuredGate.handoffFields` | 次の Step に渡すデータのパス（JSON path 形式）                            |
 
 ## Step Flow のレイアウト
 
@@ -124,8 +124,11 @@ AI 応答の `next_action.action` から GateIntent への変換:
 ## Prompt 呼び出しルール
 
 - すべての Step は C3L 形式で参照する
-- Runner は docs/05_prompt_system.md
-  の規則に従い、`prompts/<c1>/<c2>/<c3>/f_<edition>.md` を読み込むのみ
+- Flow ループ自体はプロンプトを直接解決せず、Completion Handler
+  (`StepMachineCompletionHandler`) が Step ID に基づいて PromptResolver
+  を呼び出す
+- Completion Handler は docs/05_prompt_system.md に従い
+  `prompts/<c1>/<c2>/<c3>/f_<edition>.md` をロードし、Flow ループへ返す
 - ユーザーは docs/ 以下を編集するだけで Step の内容を差し替えられる
 
 ## handoff の契約
@@ -139,14 +142,16 @@ AI 応答の `next_action.action` から GateIntent への変換:
 ## Flow ループでの使われ方
 
 ```typescript
-// 1. 現在の Step 定義を取得
-const stepDef = registry.steps[currentStepId];
+// 1. Completion Handler が現在 Step ID をもとにプロンプトを構築
+const prompt = iteration === 1
+  ? await completionHandler.buildInitialPrompt()
+  : await completionHandler.buildContinuationPrompt(iteration - 1, lastSummary);
 
-// 2. プロンプト解決と AI 呼び出し
-const prompt = resolver.resolve(stepDef, handoff);
+// 2. LLM 実行
 const response = sdk.complete(prompt);
 
 // 3. Structured Gate による遷移判定
+const stepDef = registry.steps[currentStepId];
 const interpretation = stepGateInterpreter.interpret(
   response.structuredOutput,
   stepDef,
@@ -165,8 +170,9 @@ if (routing.signalCompletion) {
 currentStepId = routing.nextStepId;
 ```
 
-Runner は Step が宣言したルール以外は知らず、Flow
-ループが複雑になる余地を残さない。
+Flow ループ自身は Step ID と handoff を管理するだけで、プロンプト解決は
+Completion Handler に委譲される。これにより Runner は Step が宣言した遷移と
+handoff にのみ 集中し、余計な複雑さを増やさない。
 
 ## 完了との関係
 
