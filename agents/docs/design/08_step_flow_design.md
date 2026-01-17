@@ -1,295 +1,200 @@
 # Step Flow Design
 
-Flow ループが扱う Step の鎖を「単純だが堅牢な状態遷移」に落とし込むための設計。
-What/Why を中心に記述し、How は設定例に留める。
+Flow ループが扱う Step を「単純な図面」で表し、設計と実装を同じ姿に保つ。
+ここでは **Mermaid 図** を中心に、What / Why を記述する。
 
-## Why: 単方向と引き継ぎ
+## 1. 目的と原則
 
-- Flow ループは「進む」以外をしない。Step Flow は遷移図を明文化し、戻る必要が
-  ある場合でも Step 自身が `transitions` を宣言する。
-- 各 Step は次の Step に渡す `handoffFields` を定義し、暗黙依存を排除する。
-- ループに分岐ロジックや検証ロジックを埋め込まないことで、AI の局所最適化
-  志向（哲学ドキュメント参照）による複雑化を防ぐ。
+- **What**: Start→複数 Step→完了判定という一本の鎖で Agent を進める。
+- **Why**: 単方向で連鎖させることで、暗黙ロジックや AI の過剰推論を排除する。
+- **Rule**: 各 Step は structured output を返し、次に進む意図を宣言する。
 
-## What: Step の要素
-
-| 要素                           | 説明                                                                      |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `stepId`                       | `initial.<c3>` や `continuation.<c3>` 形式で識別                          |
-| `c2`, `c3`, `edition`          | C3L パス構成要素。Completion Handler が PromptResolver を介して解決に使う |
-| `fallbackKey`                  | 組み込みプロンプトへのフォールバックキー                                  |
-| `structuredGate`               | AI 応答から intent を抽出し、遷移を決定するための設定                     |
-| `transitions`                  | intent から次の Step を決定するマッピング                                 |
-| `structuredGate.handoffFields` | 次の Step に渡すデータのパス（JSON path 形式）                            |
-
-## Step Flow のレイアウト
-
-```
-initial.<domain> ──> continuation.<domain>
-       │                      │
-       ▼                      ▼
-   complete.<domain>    (repeat or complete)
+```mermaid
+flowchart LR
+  Issue["issue 指定"] --> FlowLoop
+  FlowLoop(((Flow Loop))) --> Completion{{Completion Loop}}
+  Completion -->|retry| FlowLoop
+  Completion -->|handoff| End([end])
 ```
 
-- `<domain>` は `issue` や `externalState` など、Completion Type に対応する c3
-  で 置き換える。Flow は常に **3 段 (initial / continuation / complete)**
-  を揃えて 宣言することで、構造を単純に保つ。
-- `handoffFields` で指定したデータは StepContext に蓄積され、Completion ループ
-  へ橋渡しされる。
-- completion 判定は `structuredGate.allowedIntents` に `complete` を含め、 AI が
-  `next_action.action: "complete"` を返すことで signal を送る。**complete intent
-  は必ず `complete.<domain>` に遷移し、Flow 側で “完了なのに同じ Step を回す”
-  状態 を作らない。**
+Flow Loop は Step の実行だけを担当し、検証/締め処理は Completion Loop が担う。
 
-## Schema 例
+## 2. Flow の骨格
 
-```jsonc
-{
-  "$schema": "https://.../steps_registry.schema.json",
-  "steps": {
-    "initial.issue": {
-      "stepId": "initial.issue",
-      "name": "Issue Initial Prompt",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
-      "fallbackKey": "issue_initial_default",
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "#/definitions/initial.issue"
-      },
-      "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
-        "intentField": "next_action.action",
-        "targetField": "next_action.details.target",
-        "fallbackIntent": "next",
-        "handoffFields": [
-          "analysis.understanding",
-          "analysis.approach",
-          "issue"
-        ]
-      },
-      "transitions": {
-        "next": { "target": "continuation.issue" },
-        "repeat": { "target": "initial.issue" },
-        "complete": { "target": "complete.issue" }
-      }
-    },
-    "continuation.issue": {
-      "stepId": "continuation.issue",
-      "name": "Issue Continuation Prompt",
-      "c2": "continuation",
-      "c3": "issue",
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "#/definitions/continuation.issue"
-      },
-      "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
-        "intentField": "next_action.action",
-        "fallbackIntent": "next",
-        "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
-      },
-      "transitions": {
-        "next": { "target": "continuation.issue" },
-        "repeat": { "target": "continuation.issue" },
-        "complete": { "target": "complete.issue" }
-      }
-    }
-  }
-}
+```mermaid
+flowchart TD
+  Start([start]) --> Step1[step1]
+  Step1 --> Step2[step2]
+  Step2 --> StepN[step n]
+  StepN --> Review["全体の完了判定<br/>(complete.* step)"]
+  Review --> End([end])
 ```
 
-## 厳格な Step 定義要件
+- **What**: 全ての Agent はこの骨格を基礎に Step を差し替える。
+- **Why**: 汎用のランタイムを保ったままユニークな Agent を構築できる。
+- **Constraint**: Entry Step は `entryStepMapping` または `entryStep`
+  を必須定義。
+- **Link**: `Review` ノードが `complete.<domain>` ステップと 1:1
+  に対応し、サブループ図の「検証 Step」と同じ要素となる。
 
-**すべての Flow Step は `structuredGate` と `transitions`
-を定義しなければならない。** 暗黙のフォールバックは一切許可されない。
+## 3. Step 内部のサブループ
 
-### Entry Step の設定
+```mermaid
+flowchart LR
+  subgraph StepAuto[step_k 内部]
+    direction LR
+    Begin([開始]) --> Work[作業]
+    Work --> Check[成果物検証]
+    Check -->|structured output| Decide{intent}
+    Decide -->|next| NextStep[別 Step]
+    Decide -->|repeat| Begin
+    Decide -->|jump| JumpStep[任意 Step]
+    Decide -->|complete| CompleteStep[complete.*]
+  end
 
-- 初回 iteration: `entryStepMapping[completionType]` または `entryStep` で Step
-  を決定
-- **どちらも未定義の場合はエラー**（暗黙の `initial.{completionType}`
-  フォールバックは無効）
-
-```
-[StepFlow] No entry step configured for completionType "issue".
-Define either "entryStepMapping.issue" or "entryStep" in steps_registry.json.
-```
-
-### ロード時検証
-
-Runner は steps_registry.json をロードする際、すべての Flow Step（`section.*`
-を除く）に `structuredGate` と `transitions` が定義されていることを検証する。
-検証に失敗した場合はエラー:
-
-```
-[StepFlow] Flow validation failed. All Flow steps must define structuredGate and transitions.
-Steps missing structuredGate: initial.issue, continuation.issue
-Steps missing transitions: initial.issue
-See agents/docs/design/08_step_flow_design.md for requirements.
+  CompleteStep --> Verify["検証 Step (complete.*)"]
+  Verify -->|repeat| PrevStep[直前 Step]
+  Verify -->|complete| Done([signalCompletion])
 ```
 
-### 実行時検証
+- **What**: intent が `next`/`repeat`/`jump`/`complete` に正規化される。
+- **Why**: Flow Router が解釈する情報を最小化し、AI の回答ぶれを抑える。
+- **Rule**: 非終端 Step は `complete` を返さない。検証 Step のみ `complete`
+  を送る。
 
-- 2 回目以降: Structured Gate のルーティング結果 (`currentStepId`) を使用
-- ルーティングが発生しない場合（`structuredGate` 未定義など）、次 iteration
-  でエラー
+## 4. Structured Gate + Router
 
-```
-[StepFlow] No routed step ID for iteration N.
-All Flow steps must define structuredGate with transitions.
-Check steps_registry.json for missing gate configuration.
-```
+```mermaid
+flowchart LR
+  subgraph Gate[StepGateInterpreter]
+    SO[structured output] --> Intent[intent抽出]
+    Intent --> Handoff[handoff抽出]
+  end
 
-これにより、設定ミスが即座に検出され、暗黙のフォールバックによる不正動作を防ぐ。
-
-### No Intent ⇒ Abort ルール (R4)
-
-Iteration > 1 で intent が生成されない場合（structured output がない、または
-`next_action.action` が解析できない場合）、Flow は即座に中断する。これにより、
-entry step を無限にリトライする状態を防ぐ。
-
-```
-[StepFlow] No intent produced for iteration 3 on step "continuation.issue".
-Flow steps must produce structured output with a valid intent.
-Check that the step's schema includes next_action.action and the LLM returns valid JSON.
+  Gate --> Router((Workflow Router))
+  Router -->|next| StepNext
+  Router -->|repeat| StepSame
+  Router -->|jump| StepNamed
+  Router -->|complete| Verify
+  Router -->|abort| Terminate[[FAILED]]
 ```
 
-**注意**: Schema 解決失敗（`schemaResolutionFailed`）の場合はこのチェックが免除
-される。Schema 失敗は別途 2-strike ルールで処理される。
+- **What**: `structuredGate` が Intent / handoff の抽出方法を宣言する。
+- **Why**: Flow は Router の結果だけで次の Step
+  を決めればよくなり、責務を細分化。
+- **必須**: すべての Flow Step に `structuredGate` と `transitions`
+  を定義しないとロードで失敗する。
 
-このルールは Fail-Fast Before Retry の原則に基づく。Retry は Schema が正しく
-解決され、LLM が有効な JSON を返した上で行われるべきであり、無効な状態での retry
-は設定ミスを隠蔽するだけである。
+### Step サブループとの結びつき
 
-`section.*` プレフィックスの Step（例:
-`section.projectcontext`）はテンプレートセクションであり、Flow Step ではないため
-`structuredGate` は不要。
+```mermaid
+flowchart LR
+  subgraph StepLoop[step_k 内部]
+    direction LR
+    Begin([開始]) --> Work[作業]
+    Work --> Check[成果物検証]
+    Check -->|構造化JSON| Decide{intent + handoff}
+  end
 
-### Prompt / C3L の契約
-
-- **すべての Flow Step は C3L プロンプトを持つ。** ディレクトリ構造は
-  `.agent/<agent>/prompts/steps/{c2}/{c3}/f_{edition}[ _{adaptation} ].md`
-  を必須とし、 `initial.externalState` なら
-  `steps/initial/externalState/f_default.md` が存在する。
-- `iterator-steps` など breakdown 設定の `layerType` には新しい `<c3>` 名称を
-  必ず追加する。ここに列挙されない Step は `runBreakdown` が “no data” を返し、
-  Flow 全体が fallback テンプレートへ戻ってしまう。設定ミスを設計で許容しない。
-- Fallback プロンプトは開発初期の安全装置に過ぎず、Step Flow として完成した
-  ルートでは **fallback 禁止** が原則。C3L 側で解決できなければ、その Step は
-  存在しないものとして扱う。
-
-### Schema Fail-Fast ルール
-
-- すべての Flow Step は `outputSchemaRef` を持ち、`schema` には JSON Pointer
-  (`#/definitions/<stepId>`) を指定する。Pointer とファイル上の `definitions`
-  が一致しない場合、Iteration は開始されず即座にエラーになる。
-- `stepId` プロパティには `const` もしくは `enum` 制約を付け、LLM が別 Step 名を
-  返した瞬間に SchemaValidation が失敗するようにする。Flow が
-  `initial.externalState` を実行しているのに `initial.issue`
-  を返す、といった状態を仕様上許可しない。
-- SchemaResolver が Pointer を解決できない場合、Step は
-  `StructuredOutputUnavailable` として扱われ、同じ Step で 2
-  回連続して失敗すると Flow 全体を `FAILED_SCHEMA_RESOLUTION` で停止する。
-- この挙動により、構造化出力が無いままのループは発生せず、設定ミスは
-  初期段階で顕在化する。
-
-## StructuredGate の仕組み
-
-1. AI は structured output で `next_action.action` を返す
-2. `StepGateInterpreter` が `intentField` のパスから intent を抽出
-3. intent を `GateIntent` ("next" | "repeat" | "jump" | "complete" | "abort")
-   にマッピング
-4. `WorkflowRouter` が `transitions` から次の Step を決定
-5. `handoffFields` のデータを StepContext に蓄積
-
-```typescript
-// StepGateInterpreter
-const interpretation = interpreter.interpret(structuredOutput, stepDef);
-// interpretation: { intent: "next", handoff: { understanding: "...", approach: "..." } }
-
-// WorkflowRouter
-const routing = router.route(stepId, interpretation);
-// routing: { nextStepId: "continuation.issue", signalCompletion: false }
+  Decide --> Gate
+  Gate[StepGateInterpreter] --> Router((Workflow Router))
+  Router -->|next| NextStep[別 Step]
+  Router -->|repeat| Begin
+  Router -->|jump| JumpStep[任意 Step]
+  Router -->|complete| CompleteStep[complete.*]
+  CompleteStep --> Completion[Completion Loop]
 ```
 
-## Intent マッピング
+Step サブループで生成された structured output が Gate へ渡り、Router が Flow
+全体の 遷移を決める。**各セクションは「Step 内部 → Gate → Router → Flow」へと
+接続する一連の鎖を表している。**
 
-AI 応答の `next_action.action` から GateIntent への変換:
+## 5. Schema Fail-Fast
 
-| AI response | GateIntent |
-| ----------- | ---------- |
-| `continue`  | `next`     |
-| `complete`  | `complete` |
-| `retry`     | `repeat`   |
-| `escalate`  | `abort`    |
-| `wait`      | `repeat`   |
+```mermaid
+sequenceDiagram
+  participant Flow
+  participant Schema as SchemaResolver
+  participant LLM
 
-## Prompt 呼び出しルール
-
-- すべての Step は C3L 形式で参照する。Flow ループはプロンプトを直接解決せず、
-  Completion Handler (`StepMachineCompletionHandler`) が Step ID に基づいて
-  PromptResolver を呼び出す。
-- PromptResolver は `.agent/<agent>/prompts/steps/{c2}/{c3}/...`
-  を探索し、見つから なければエラーとする。Fallback
-  は開発時の安全策に限定し、運用時には無効化 して構造の一貫性を担保する。
-- C3L 設定 (`.agent/climpt/config/<agent>-steps*.yml`) で `layerType` と
-  `directiveType` を正しく設定することで、breakdown が Step Flow
-  の構造をそのまま反映する。
-- ユーザーは docs/ 以下を編集するだけで Step の内容を差し替えられる一方、
-  ルートとなる C3L ファイルが無い Step は Flow に追加しない（設計の簡潔さを
-  守るため）。
-
-## handoff の契約
-
-| ルール                         | 理由                                   |
-| ------------------------------ | -------------------------------------- |
-| Step ごとに handoffFields 宣言 | 暗黙共有をやめ、再利用可能性を高める   |
-| StepContext に蓄積             | Key 衝突を防ぎ、参照元を即時に追跡可能 |
-| Completion でも読み取る        | 最終報告で必要な情報を欠かさないため   |
-
-## Flow ループでの使われ方
-
-```typescript
-// 1. Completion Handler が現在 Step ID をもとにプロンプトを構築
-const prompt = iteration === 1
-  ? await completionHandler.buildInitialPrompt()
-  : await completionHandler.buildContinuationPrompt(iteration - 1, lastSummary);
-
-// 2. LLM 実行
-const response = sdk.complete(prompt);
-
-// 3. Structured Gate による遷移判定
-const stepDef = registry.steps[currentStepId];
-const interpretation = stepGateInterpreter.interpret(
-  response.structuredOutput,
-  stepDef,
-);
-const routing = workflowRouter.route(currentStepId, interpretation);
-
-// 4. Handoff データを蓄積
-if (interpretation.handoff) {
-  stepContext.set(currentStepId, interpretation.handoff);
-}
-
-// 5. 次の Step へ遷移または完了
-if (routing.signalCompletion) {
-  return complete();
-}
-currentStepId = routing.nextStepId;
+  Flow->>Schema: load(outputSchemaRef)
+  Schema-->>Flow: success / failure
+  Flow->>LLM: run prompt (on success)
+  Flow-->>Flow: abort iteration (on failure)
+  Note over Flow: 2 回連続で schema failure → FAILED_SCHEMA_RESOLUTION
 ```
 
-Flow ループ自身は Step ID と handoff を管理するだけで、プロンプト解決は
-Completion Handler に委譲される。これにより Runner は Step が宣言した遷移と
-handoff にのみ 集中し、余計な複雑さを増やさない。
+- **What**: JSON Pointer がずれた瞬間に Step を停止し、2 回連続で run も停止。
+- **Why**: Structured Output が得られない状態でループすると、Step Flow
+  全体が崩壊するため。
+- **Link**: 下図のように、Schema Fail-Fast が Step
+  サブループの「開始」前に挿入され、構造化 JSON が揃わない限り作業へ進ませない。
 
-## 完了との関係
+```mermaid
+flowchart LR
+  SchemaCheck{schema resolve?}
+  SchemaCheck -->|yes| Begin([Step begin])
+  SchemaCheck -->|no| Abort[[Iteration abort]]
 
-- Step Flow は Completion Loop
-  へ「完了シグナル」「handoff」「エビデンス」を渡す役目のみ
-- 完了処理が必要な場合でも Flow 側にロジックを書かず、Completion Loop に C3L
-  プロンプトと schema で任せる
+  Begin --> Work[作業]
+  Work --> Check[成果物検証]
+  Check --> Decide{intent}
+```
 
-Step Flow Design は、二重ループの中の Flow 部分を視覚化した契約であり、機能美
-を壊さないための最小限の図面である。
+## 6. Intent 欠落時の Fail-Fast
+
+```mermaid
+sequenceDiagram
+  participant Flow
+  participant Gate
+  participant Abort as FAILED_STEP_ROUTING
+
+  Flow->>Gate: interpret(response)
+  Gate-->>Flow: no-intent
+  Flow-->>Flow: abort iteration (iteration>1)
+  Flow-->>Abort: terminate run
+```
+
+- **What**: intent が得られなければ即座に停止し、暗黙フォールバックを禁止。
+- **Why**: ループし続けるよりも、設定ミスを露見させるほうが健全。
+- **Link**: Step サブループ内の `Decide{intent}` から Gate
+  に渡った結果が空のとき、即座に Flow を止める。
+
+```mermaid
+flowchart LR
+  Decide{intent} -->|valid| Gate[Gate + Router]
+  Gate --> NextStep
+  Gate --> RepeatStep
+  Gate --> CompleteStep
+  Gate --> Abort[[Flow End]]
+
+  Decide -->|no intent| Abort
+```
+
+## 7. Hand-off と Completion
+
+```mermaid
+flowchart LR
+  FlowStep -->|handoffFields| StepContext
+  StepContext --> Completion
+  Completion -->|retry| FlowStep
+  Completion -->|done| Close([issue close])
+```
+
+- **What**: StepContext に蓄積した handoff を Completion Loop がまとめて処理。
+- **Why**: Flow と Completion の責務境界が守られ、どちらも単純化される。
+- **Link**: Flow 骨格図の `Review (complete.*)` ノードと 1:1 に対応し、各 Step
+  から集まった handoff が StepContext 経由で Completion Loop
+  へ渡って最終判定を行う。
+
+## 8. 設定の型と要件（要約）
+
+| 要素                            | What                                                          | Why                               |
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------- |
+| `outputSchemaRef`               | JSON Pointer (`#/definitions/<stepId>`) を必須                | schema 失敗を即時検知             |
+| `structuredGate.allowedIntents` | `next/repeat/jump/complete/abort` を列挙                      | Router が明示的に判断             |
+| `transitions[target]`           | intent → Step を列挙し `complete` は `complete.<domain>` 固定 | 完了=検証ステップという秩序を維持 |
+| `handoffFields`                 | StepContext に積むキーを配列で宣言                            | 暗黙共有を防止                    |
+
+図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
+と完全に一致させる。
