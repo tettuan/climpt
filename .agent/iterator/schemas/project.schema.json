@@ -1,0 +1,182 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project.schema.json",
+  "description": "Project mode step schemas for iterator agent",
+
+  "$defs": {
+    "projectContext": {
+      "type": "object",
+      "properties": {
+        "project_number": {
+          "type": "integer",
+          "description": "GitHub Project number"
+        },
+        "project_title": {
+          "type": "string"
+        },
+        "label_info": {
+          "type": "string"
+        }
+      }
+    }
+  },
+
+  "section.projectcontext": {
+    "type": "object",
+    "description": "Project context section (not a Flow step)",
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "current_index": { "type": "integer" },
+      "total_issues": { "type": "integer" }
+    }
+  },
+
+  "initial.project.preparation": {
+    "type": "object",
+    "description": "Project preparation phase response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "preparation": {
+        "type": "object",
+        "properties": {
+          "total_issues": { "type": "integer" },
+          "plan": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "initial.project.preparationempty": {
+    "type": "object",
+    "description": "Project preparation when no issues found",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "message": { "type": "string" }
+    }
+  },
+
+  "initial.project.processingempty": {
+    "type": "object",
+    "description": "Project processing when no current issue",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "message": { "type": "string" }
+    }
+  },
+
+  "initial.project.review": {
+    "type": "object",
+    "description": "Project review phase response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "review": {
+        "type": "object",
+        "properties": {
+          "issues_completed": { "type": "integer" },
+          "issues_remaining": { "type": "integer" },
+          "assessment": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "initial.project.again": {
+    "type": "object",
+    "description": "Project re-execution phase response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "retry_reason": { "type": "string" }
+    }
+  },
+
+  "initial.project.complete": {
+    "type": "object",
+    "description": "Project complete message",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "issues_completed": { "type": "integer" },
+      "final_summary": { "type": "string" }
+    }
+  },
+
+  "continuation.project.preparation": {
+    "type": "object",
+    "description": "Project preparation continuation",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "continuation.project.processingdone": {
+    "type": "object",
+    "description": "Project processing done message",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "issues_completed": { "type": "integer" }
+    }
+  },
+
+  "continuation.project.review": {
+    "type": "object",
+    "description": "Project review continuation",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "continuation.project.again": {
+    "type": "object",
+    "description": "Project again continuation",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "continuation.project.complete": {
+    "type": "object",
+    "description": "Project complete continuation",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" }
+    }
+  }
+}

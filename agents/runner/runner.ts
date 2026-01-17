@@ -692,10 +692,14 @@ export class AgentRunner {
   }
 
   /**
-   * Validate that all Flow steps have structuredGate and transitions.
+   * Validate that all Flow steps have structuredGate, transitions, and outputSchemaRef.
    *
    * Flow steps are all steps except those prefixed with "section." (template sections).
-   * Missing structuredGate or transitions will throw an error.
+   * Missing structuredGate, transitions, or outputSchemaRef will throw an error.
+   *
+   * The outputSchemaRef requirement ensures that Structured Output can be obtained,
+   * which is necessary for StepGate to interpret intents. Without a schema, the
+   * Flow loop cannot advance properly.
    */
   private validateFlowSteps(
     stepsRegistry: ExtendedStepsRegistry,
@@ -703,6 +707,7 @@ export class AgentRunner {
   ): void {
     const missingGate: string[] = [];
     const missingTransitions: string[] = [];
+    const missingOutputSchema: string[] = [];
 
     for (const [stepId, stepDef] of Object.entries(stepsRegistry.steps)) {
       // Skip template sections (section.* prefix)
@@ -719,9 +724,17 @@ export class AgentRunner {
       if (!step.transitions) {
         missingTransitions.push(stepId);
       }
+
+      if (!step.outputSchemaRef) {
+        missingOutputSchema.push(stepId);
+      }
     }
 
-    if (missingGate.length > 0 || missingTransitions.length > 0) {
+    if (
+      missingGate.length > 0 ||
+      missingTransitions.length > 0 ||
+      missingOutputSchema.length > 0
+    ) {
       const errors: string[] = [];
 
       if (missingGate.length > 0) {
@@ -736,9 +749,17 @@ export class AgentRunner {
         );
       }
 
+      if (missingOutputSchema.length > 0) {
+        errors.push(
+          `Steps missing outputSchemaRef: ${missingOutputSchema.join(", ")}`,
+        );
+      }
+
       throw new Error(
         `[StepFlow] Flow validation failed. All Flow steps must define ` +
-          `structuredGate and transitions.\n${errors.join("\n")}\n` +
+          `structuredGate, transitions, and outputSchemaRef.\n${
+            errors.join("\n")
+          }\n` +
           `See agents/docs/step_flow_design.md for requirements.`,
       );
     }

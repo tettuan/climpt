@@ -79,6 +79,19 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 }
 ```
 
+#### Runner の検証
+
+- `entryStepMapping` または `entryStep` が未設定だと
+  `No entry step configured for completionType "stepMachine"` で即中断する。
+- Flow Step に `structuredGate`/`transitions` が無い場合は
+  `Flow validation failed. All Flow steps must define structuredGate and transitions.`
+  が表示される。
+- `outputSchemaRef` を省くと Schema が解決できず Structured Output
+  が得られないため、Stage 2 以降で Runner がエラー扱いする予定。Schema
+  を置いておけば自動的に `outputFormat` が有効化される。
+
+この順番で埋めていけば、ドキュメントを読み返さなくてもエラーメッセージが設計と一致する。
+
 ### completionType の選択
 
 | タイプ            | 用途                | 設定                  |
@@ -92,7 +105,21 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 ## Step 3: steps_registry.json 作成
 
-`.agent/{agent-name}/steps_registry.json`:
+`.agent/{agent-name}/steps_registry.json`
+を作るときは、**以下の3点を満たしていれば Runner
+がそのまま受け入れてくれる**という順番で作業する。
+
+1. `entryStepMapping` で `completionType` ごとの開始 Step を明示する
+2. すべての Flow/Completion Step に `structuredGate` と `transitions` を持たせる
+3. 同じ Step に `outputSchemaRef` を付け、後述の Schema ファイルへ誘導する
+
+どれか 1 つでも欠けると Runner
+のロード段階で即エラーになるため、上から順に埋めれば迷わない。
+
+完成形は次のとおり:
+
+````json
+{
 
 ```json
 {
@@ -107,7 +134,8 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
   "entryStepMapping": {
     "issue": "initial.default",
-    "default": "initial.default"
+    "default": "initial.default",
+    "stepMachine": "initial.default"
   },
 
   "steps": {
@@ -118,6 +146,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "c3": "default",
       "edition": "default",
       "fallbackKey": "default_initial",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "initial.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -136,6 +168,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "c2": "continuation",
       "c3": "default",
       "edition": "default",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "continuation.default"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -153,11 +189,74 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "name": "Completion Step",
       "c2": "complete",
       "c3": "default",
-      "edition": "default"
+      "edition": "default",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "complete.default"
+      },
+      "structuredGate": {
+        "allowedIntents": ["complete"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "complete",
+        "handoffFields": ["final_summary"]
+      },
+      "transitions": {
+        "complete": { "target": null }
+      }
+    }
+  }
+}
+````
+
+### Structured Output Schema の用意
+
+Flow ループは Structured Output を前提に `next_action.action` から intent を
+読み取る。したがって **すべての Flow/Completion Step が `outputSchemaRef`
+を宣言し、JSON Schema を `.agent/{agent}/schemas/` に置く**。
+
+```
+.agent/{agent}/schemas/
+└── step_outputs.schema.json
+```
+
+`step_outputs.schema.json` の例:
+
+```jsonc
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./step_outputs.schema.json",
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "required": ["next_action"],
+      "properties": {
+        "analysis": { "type": "object" },
+        "next_action": {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "action": { "enum": ["next", "repeat", "complete"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   }
 }
 ```
+
+`structuredGate.intentField` は Schema に沿って JSON を強制できることを前提に
+している。Schema がない Step はロード時エラーになるよう runner 側でも検証
+する想定である。
+
+### Completion の考え方
+
+- Flow が終了する条件は **Structured Output で `next_action.action` を
+  `complete` に設定すること**。`isTerminal` のような暗黙フラグは Runner
+  では参照されないため、Step 定義とプロンプト内で JSON を返すよう必ず指示 する。
+- `transitions.complete.target` に `null` を明示すると、WorkflowRouter が
+  completion と判定し Completion Loop へ制御を渡す。
 
 ### 重要な設定
 

@@ -138,10 +138,14 @@ export interface StructuredGate {
 
 /**
  * Transition rule for a single intent.
+ *
+ * - `target: string` - Transition to the specified step
+ * - `target: null` - Signal completion (terminal step)
+ * - `condition` variant - Conditional transition based on handoff data
  */
 export type TransitionRule =
-  | { target: string; fallback?: string }
-  | { condition: string; targets: Record<string, string> };
+  | { target: string | null; fallback?: string }
+  | { condition: string; targets: Record<string, string | null> };
 
 /**
  * Map of intent to transition rule.

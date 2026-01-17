@@ -84,6 +84,10 @@
         "action": "retry",
         "maxAttempts": 3
       },
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "complete.facilitation"
+      },
       "description": "Validate facilitation completion with git-clean, branch-pushed, branch-merged"
     }
   },
@@ -99,6 +103,10 @@
       "uvVariables": [],
       "usesStdin": false,
       "description": "Discover available agents and build registry (責務0: 発見)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.discover"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -121,6 +129,10 @@
       "uvVariables": ["project_number", "project_title", "label_info", "previous_observation"],
       "usesStdin": false,
       "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.statuscheck"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -144,6 +156,10 @@
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
       "description": "Status check when no issues found in project",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.statuscheck.empty"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "complete"],
         "intentField": "next_action.action",
@@ -165,6 +181,10 @@
       "uvVariables": ["project_number", "blocked_issues"],
       "usesStdin": false,
       "description": "Identify blockers and dependencies (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.blockercheck"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -187,6 +207,10 @@
       "uvVariables": ["project_number", "stale_threshold_days"],
       "usesStdin": false,
       "description": "Check for stale issues with no recent activity (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.stalecheck"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -209,6 +233,10 @@
       "uvVariables": ["project_number"],
       "usesStdin": false,
       "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.judge"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -231,6 +259,10 @@
       "uvVariables": ["project_number", "issue_number", "action_type"],
       "usesStdin": false,
       "description": "Maintain actionable state with comments and labels (責務3: 整備)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.facilitate"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -253,6 +285,10 @@
       "uvVariables": ["project_number", "project_title", "report_type"],
       "usesStdin": false,
       "description": "Recommend next agent with scored suggestions (責務4: 推奨)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.report"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -275,6 +311,10 @@
       "uvVariables": ["completed_iterations", "previous_status"],
       "usesStdin": false,
       "description": "Continuation prompt for ongoing status monitoring",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "continuation.statuscheck"
+      },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "complete"],
         "intentField": "next_action.action",
@@ -297,6 +337,10 @@
       "uvVariables": ["project_number", "actions_taken"],
       "usesStdin": false,
       "description": "Completion message after facilitation cycle",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "continuation.complete"
+      },
       "structuredGate": {
         "allowedIntents": ["complete"],
         "intentField": "next_action.action",

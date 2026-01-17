@@ -116,6 +116,9 @@ export class WorkflowRouter {
 
   /**
    * Resolve next step from transitions configuration.
+   *
+   * When a transition rule specifies `target: null`, it signals completion.
+   * This allows steps to be marked as terminal without relying on implicit behavior.
    */
   private resolveFromTransitions(
     currentStepId: string,
@@ -128,23 +131,35 @@ export class WorkflowRouter {
     if (stepDef?.transitions) {
       const transitionRule = stepDef.transitions[intent];
       if (transitionRule) {
-        const nextStepId = this.resolveTransitionRule(
+        const resolved = this.resolveTransitionRule(
           transitionRule,
           interpretation,
         );
-        if (nextStepId) {
-          if (!this.validateStepExists(nextStepId)) {
+
+        // Handle terminal transition (target: null)
+        if (resolved.isTerminal) {
+          return {
+            nextStepId: currentStepId,
+            signalCompletion: true,
+            reason: interpretation.reason ??
+              `Terminal transition: ${intent} -> completion`,
+          };
+        }
+
+        // Handle normal transition
+        if (resolved.nextStepId) {
+          if (!this.validateStepExists(resolved.nextStepId)) {
             throw new RoutingError(
-              `Transition target '${nextStepId}' does not exist in registry`,
+              `Transition target '${resolved.nextStepId}' does not exist in registry`,
               currentStepId,
               intent,
             );
           }
           return {
-            nextStepId,
+            nextStepId: resolved.nextStepId,
             signalCompletion: false,
             reason: interpretation.reason ??
-              `Transition: ${intent} -> ${nextStepId}`,
+              `Transition: ${intent} -> ${resolved.nextStepId}`,
           };
         }
       }
@@ -155,15 +170,19 @@ export class WorkflowRouter {
   }
 
   /**
-   * Resolve a transition rule to a step ID.
+   * Result of resolving a transition rule.
    */
   private resolveTransitionRule(
     rule: TransitionRule,
     interpretation: GateInterpretation,
-  ): string | null {
+  ): { nextStepId: string | null; isTerminal: boolean } {
     // Simple target rule
     if ("target" in rule) {
-      return rule.target;
+      // target: null means terminal step (signal completion)
+      if (rule.target === null) {
+        return { nextStepId: null, isTerminal: true };
+      }
+      return { nextStepId: rule.target, isTerminal: false };
     }
 
     // Conditional rule - evaluate condition against handoff
@@ -172,10 +191,15 @@ export class WorkflowRouter {
         rule.condition,
         interpretation.handoff ?? {},
       );
-      return rule.targets[conditionValue] ?? null;
+      const target = rule.targets[conditionValue] ?? null;
+      // target: null in conditional also means terminal
+      if (target === null) {
+        return { nextStepId: null, isTerminal: true };
+      }
+      return { nextStepId: target, isTerminal: false };
     }
 
-    return null;
+    return { nextStepId: null, isTerminal: false };
   }
 
   /**

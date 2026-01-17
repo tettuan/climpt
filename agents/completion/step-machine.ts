@@ -182,8 +182,13 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
       );
     }
 
+    // target: null or target: "complete" both signal completion
+    const nextStep = rule.target === null || rule.target === "complete"
+      ? "complete"
+      : rule.target;
+
     return {
-      nextStep: rule.target === "complete" ? "complete" : rule.target,
+      nextStep,
       passed,
       reason: `Transition via ${intent} intent`,
     };

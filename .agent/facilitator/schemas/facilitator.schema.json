@@ -1,0 +1,314 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "facilitator.schema.json",
+  "description": "Facilitator agent step schemas",
+
+  "$defs": {
+    "projectContext": {
+      "type": "object",
+      "properties": {
+        "project_number": {
+          "type": "integer",
+          "description": "GitHub Project number"
+        },
+        "project_title": {
+          "type": "string"
+        }
+      }
+    },
+    "issueInfo": {
+      "type": "object",
+      "properties": {
+        "issue_number": { "type": "integer" },
+        "title": { "type": "string" },
+        "state": { "type": "string" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "initial.discover": {
+    "type": "object",
+    "description": "Agent discovery response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "discovery"],
+    "properties": {
+      "discovery": {
+        "type": "object",
+        "properties": {
+          "agents_found": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "registry": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+
+  "initial.statuscheck": {
+    "type": "object",
+    "description": "Status check initial response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "status_report"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "status_report": {
+        "type": "object",
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "properties": {
+              "total_issues": { "type": "integer" },
+              "open_issues": { "type": "integer" },
+              "closed_issues": { "type": "integer" },
+              "in_progress": { "type": "integer" }
+            }
+          },
+          "delta": {
+            "type": "object",
+            "properties": {
+              "new_issues": { "type": "integer" },
+              "closed_since_last": { "type": "integer" }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.statuscheck.empty": {
+    "type": "object",
+    "description": "Status check when no issues found",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "status": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "initial.blockercheck": {
+    "type": "object",
+    "description": "Blocker check response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "blockers"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "blockers": {
+        "type": "object",
+        "properties": {
+          "issues": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/issueInfo" }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blocked": { "type": "integer" },
+                "blocked_by": { "type": "integer" },
+                "reason": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.stalecheck": {
+    "type": "object",
+    "description": "Stale item check response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "stale"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "stale": {
+        "type": "object",
+        "properties": {
+          "issues": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/issueInfo" }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.judge": {
+    "type": "object",
+    "description": "Issue state judgment response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "judgment"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "judgment": {
+        "type": "object",
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": { "type": "integer" },
+                "decision": { "type": "string" },
+                "reason": { "type": "string" }
+              }
+            }
+          },
+          "priorities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": { "type": "integer" },
+                "priority": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.facilitate": {
+    "type": "object",
+    "description": "Facilitation maintenance action response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "facilitation"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "facilitation": {
+        "type": "object",
+        "properties": {
+          "actions_taken": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action": { "type": "string" },
+                "issue_number": { "type": "integer" },
+                "details": { "type": "string" }
+              }
+            }
+          },
+          "issues_updated": {
+            "type": "array",
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.report": {
+    "type": "object",
+    "description": "Recommendation report response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "report"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "report": {
+        "type": "object",
+        "properties": {
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": { "type": "integer" },
+                "recommendation": { "type": "string" },
+                "score": { "type": "number" }
+              }
+            }
+          },
+          "next_agent": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "continuation.statuscheck": {
+    "type": "object",
+    "description": "Status check continuation response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      },
+      "status": {
+        "type": "object",
+        "properties": {
+          "progress": { "type": "string" },
+          "changes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "continuation.complete": {
+    "type": "object",
+    "description": "Facilitation complete response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "project": { "$ref": "#/$defs/projectContext" },
+      "actions_taken": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    }
+  },
+
+  "complete.facilitation": {
+    "type": "object",
+    "description": "Facilitation completion validation response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "validation"],
+    "properties": {
+      "validation": {
+        "type": "object",
+        "required": ["git_clean"],
+        "properties": {
+          "git_clean": { "type": "boolean" },
+          "branch_pushed": { "type": "boolean" },
+          "branch_merged": { "type": "boolean" }
+        }
+      },
+      "final_summary": {
+        "type": "string"
+      }
+    }
+  }
+}
