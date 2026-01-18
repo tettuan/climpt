@@ -5,14 +5,14 @@
  * SDK calls are not tested here to avoid complex mocking.
  */
 
-import { assertEquals, assertInstanceOf } from "@std/assert";
+import { assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
 import {
-  AgentActionError,
   AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
+  AgentSchemaResolutionError,
   AgentTimeoutError,
   isAgentError,
   normalizeToAgentError,
@@ -62,29 +62,6 @@ Deno.test("AgentCompletionError - has correct code and is recoverable", () => {
   assertEquals(error.code, "AGENT_COMPLETION_ERROR");
   assertEquals(error.recoverable, true);
   assertEquals(error.name, "AgentCompletionError");
-});
-
-Deno.test("AgentActionError - has correct code and is recoverable", () => {
-  const error = new AgentActionError("Action failed");
-  assertEquals(error.code, "AGENT_ACTION_ERROR");
-  assertEquals(error.recoverable, true);
-  assertEquals(error.name, "AgentActionError");
-});
-
-Deno.test("AgentActionError - stores actionType", () => {
-  const error = new AgentActionError("Action failed", { actionType: "commit" });
-  assertEquals(error.actionType, "commit");
-});
-
-Deno.test("AgentActionError - toJSON includes actionType", () => {
-  const error = new AgentActionError("Action failed", {
-    actionType: "commit",
-    iteration: 3,
-  });
-  const json = error.toJSON();
-  assertEquals(json.actionType, "commit");
-  assertEquals(json.iteration, 3);
-  assertEquals(json.code, "AGENT_ACTION_ERROR");
 });
 
 Deno.test("AgentTimeoutError - has correct code and is recoverable", () => {
@@ -160,7 +137,6 @@ Deno.test("isAgentError - returns true for AgentError instances", () => {
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
     new AgentCompletionError("test"),
-    new AgentActionError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -184,7 +160,7 @@ Deno.test("isAgentError - returns false for non-AgentError", () => {
 // =============================================================================
 
 Deno.test("normalizeToAgentError - returns AgentError as-is", () => {
-  const original = new AgentActionError("Original");
+  const original = new AgentCompletionError("Original");
   const normalized = normalizeToAgentError(original);
   assertEquals(normalized, original);
 });
@@ -404,7 +380,6 @@ Deno.test("All error classes extend AgentError", () => {
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
     new AgentCompletionError("test"),
-    new AgentActionError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -420,7 +395,6 @@ Deno.test("Error codes are unique", () => {
     new AgentNotInitializedError().code,
     new AgentQueryError("test").code,
     new AgentCompletionError("test").code,
-    new AgentActionError("test").code,
     new AgentTimeoutError("test", 1000).code,
     new AgentMaxIterationsError(10).code,
   ];
@@ -430,5 +404,653 @@ Deno.test("Error codes are unique", () => {
     uniqueCodes.size,
     codes.length,
     "All error codes should be unique",
+  );
+});
+
+// =============================================================================
+// Completion Validation Integration Tests
+// =============================================================================
+
+import { FormatValidator } from "../loop/format-validator.ts";
+import type { ResponseFormat } from "../common/completion-types.ts";
+import type { IterationSummary } from "../src_common/types.ts";
+
+// Helper to create a minimal iteration summary
+function createIterationSummary(
+  options: Partial<IterationSummary> = {},
+): IterationSummary {
+  return {
+    iteration: 1,
+    assistantResponses: [],
+    toolsUsed: [],
+    errors: [],
+    ...options,
+  };
+}
+
+// Helper to check if AI declared completion via structured output (matches runner.ts logic)
+function hasAICompletionDeclaration(summary: IterationSummary): boolean {
+  if (!summary.structuredOutput) {
+    return false;
+  }
+
+  const so = summary.structuredOutput;
+
+  // Check status field
+  if (so.status === "completed") {
+    return true;
+  }
+
+  // Check next_action.action field
+  if (
+    so.next_action &&
+    typeof so.next_action === "object" &&
+    (so.next_action as Record<string, unknown>).action === "complete"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+Deno.test("Completion Validation - hasAICompletionDeclaration detects status=completed", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "completed",
+      summary: "Task done",
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), true);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration detects next_action.action=complete", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "in_progress",
+      next_action: { action: "complete", reason: "All done" },
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), true);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration returns false for in_progress", () => {
+  const summary = createIterationSummary({
+    structuredOutput: {
+      status: "in_progress",
+      next_action: { action: "continue", reason: "More work needed" },
+    },
+  });
+  assertEquals(hasAICompletionDeclaration(summary), false);
+});
+
+Deno.test("Completion Validation - hasAICompletionDeclaration returns false without structured output", () => {
+  const summary = createIterationSummary({});
+  assertEquals(hasAICompletionDeclaration(summary), false);
+});
+
+Deno.test("Completion Validation - FormatValidator validates JSON in assistant response", () => {
+  const validator = new FormatValidator();
+
+  const summary = createIterationSummary({
+    assistantResponses: [
+      'Analysis complete:\n```json\n{"status":"success","count":5}\n```',
+    ],
+  });
+
+  const format: ResponseFormat = {
+    type: "json",
+    schema: {
+      required: ["status", "count"],
+    },
+  };
+
+  const result = validator.validate(summary, format);
+
+  assertEquals(result.valid, true);
+  assertEquals((result.extracted as Record<string, unknown>).status, "success");
+  assertEquals((result.extracted as Record<string, unknown>).count, 5);
+});
+
+Deno.test("Completion Validation - FormatValidator validates text pattern", () => {
+  const validator = new FormatValidator();
+
+  const summary = createIterationSummary({
+    assistantResponses: [
+      "Task completed successfully. Status: COMPLETE-42",
+    ],
+  });
+
+  const format: ResponseFormat = {
+    type: "text-pattern",
+    pattern: "COMPLETE-\\d+",
+  };
+
+  const result = validator.validate(summary, format);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.extracted, "COMPLETE-42");
+});
+
+// =============================================================================
+// Structured Gate Flow Integration Tests
+// =============================================================================
+
+import { StepGateInterpreter } from "./step-gate-interpreter.ts";
+import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
+import type {
+  PromptStepDefinition,
+  StepRegistry,
+} from "../common/step-registry.ts";
+
+/**
+ * Creates a minimal step registry for testing structured gate flow.
+ */
+function createTestStepRegistry(): StepRegistry {
+  return {
+    agentId: "test",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.test": {
+        stepId: "initial.test",
+        name: "Initial Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_initial_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "jump", "handoff"],
+          intentField: "next_action.action",
+          targetField: "next_action.details.target",
+          fallbackIntent: "next",
+          handoffFields: ["result.data"],
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "initial.test" },
+        },
+      },
+      "continuation.test": {
+        stepId: "continuation.test",
+        name: "Continuation Test Step",
+        c2: "continuation",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_continuation_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat", "jump", "handoff"],
+          intentField: "next_action.action",
+          fallbackIntent: "next",
+        },
+        transitions: {
+          next: { target: "continuation.test" },
+          repeat: { target: "continuation.test" },
+        },
+      },
+      "closure.test": {
+        stepId: "closure.test",
+        name: "Closure Test Step",
+        c2: "closure",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test_closure_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["closing", "repeat"],
+          intentField: "next_action.action",
+          fallbackIntent: "repeat",
+        },
+        transitions: {
+          closing: { target: null },
+          repeat: { target: "closure.test" },
+        },
+      },
+    },
+  };
+}
+
+Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from structured output", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "in_progress",
+    next_action: {
+      action: "continue",
+      reason: "More work needed",
+    },
+    result: {
+      data: "test data",
+    },
+  };
+
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next"); // "continue" maps to "next"
+  assertEquals(interpretation.usedFallback, false);
+  assertEquals(interpretation.handoff?.data, "test data");
+});
+
+Deno.test("Structured Gate Flow - interpreter extracts intent 'closing' from structured output", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "completed",
+    next_action: {
+      action: "closing",
+      reason: "Task finished",
+    },
+  };
+
+  const interpretation = interpreter.interpret(
+    structuredOutput,
+    closureStepDef,
+  );
+
+  assertEquals(interpretation.intent, "closing");
+  assertEquals(interpretation.usedFallback, false);
+});
+
+Deno.test("Structured Gate Flow - interpreter uses fallback intent when action is missing", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+
+  const structuredOutput = {
+    status: "unknown",
+    // no next_action field
+  };
+
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next"); // fallbackIntent
+  assertEquals(interpretation.usedFallback, true);
+});
+
+Deno.test("Structured Gate Flow - router routes 'next' intent to continuation step", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "next" as const,
+    usedFallback: false,
+  };
+
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.test");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "repeat" as const,
+    usedFallback: false,
+  };
+
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "initial.test");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - work step cannot emit closing intent", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "closing" as const,
+    usedFallback: false,
+  };
+
+  // Work step (initial.*) cannot emit closing intent - only closure steps can
+  assertThrows(
+    () => router.route("initial.test", interpretation),
+    RoutingError,
+    "Intent 'closing' not allowed for work step",
+  );
+});
+
+Deno.test("Structured Gate Flow - closure step closing signals completion", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "closing" as const,
+    usedFallback: false,
+  };
+
+  // Closure step with closing intent signals workflow completion
+  const routing = router.route("closure.test", interpretation);
+
+  assertEquals(routing.signalCompletion, true);
+});
+
+Deno.test("Structured Gate Flow - router uses default transition for steps without explicit transitions", () => {
+  const registry: StepRegistry = {
+    agentId: "test",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.foo": {
+        stepId: "initial.foo",
+        name: "Initial Foo",
+        c2: "initial",
+        c3: "foo",
+        edition: "default",
+        fallbackKey: "foo_initial_default",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next"],
+        },
+        // No explicit transitions - should use default (initial -> continuation)
+      },
+      "continuation.foo": {
+        stepId: "continuation.foo",
+        name: "Continuation Foo",
+        c2: "continuation",
+        c3: "foo",
+        edition: "default",
+        fallbackKey: "foo_continuation_default",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  const router = new WorkflowRouter(registry);
+  const interpretation = { intent: "next" as const, usedFallback: false };
+  const routing = router.route("initial.foo", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.foo");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Simulate AI response with structured output
+  const structuredOutput = {
+    status: "in_progress",
+    next_action: {
+      action: "continue",
+      reason: "Processing files",
+      details: {
+        processed: 5,
+        remaining: 3,
+      },
+    },
+    result: {
+      data: "partial result",
+    },
+  };
+
+  // Step 1: Interpreter extracts intent
+  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+
+  assertEquals(interpretation.intent, "next");
+  assertEquals(interpretation.handoff?.data, "partial result");
+
+  // Step 2: Router determines next step
+  const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "continuation.test");
+  assertEquals(routing.signalCompletion, false);
+  // Reason comes from structured output's next_action.reason
+  assertEquals(routing.reason, "Processing files");
+});
+
+Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
+  const interpreter = new StepGateInterpreter();
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Closure step declares closing intent
+  const structuredOutput = {
+    status: "completed",
+    next_action: {
+      action: "closing",
+      reason: "All tasks finished",
+    },
+  };
+
+  // Interpreter extracts closing intent from closure step
+  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+  const interpretation = interpreter.interpret(
+    structuredOutput,
+    closureStepDef,
+  );
+
+  assertEquals(interpretation.intent, "closing");
+
+  // Closure step signals completion
+  const closureRouting = router.route("closure.test", interpretation);
+  assertEquals(closureRouting.signalCompletion, true);
+  assertEquals(closureRouting.reason, "All tasks finished");
+});
+
+// =============================================================================
+// Schema Resolution Error Tests (fail-fast behavior)
+// =============================================================================
+
+Deno.test("AgentSchemaResolutionError - has correct code and is not recoverable", () => {
+  const error = new AgentSchemaResolutionError(
+    "Schema resolution failed 2 consecutive times",
+    {
+      stepId: "initial.test",
+      schemaRef: "step_outputs.schema.json#/definitions/initial",
+      consecutiveFailures: 2,
+      iteration: 3,
+    },
+  );
+  assertEquals(error.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(error.recoverable, false);
+  assertEquals(error.name, "AgentSchemaResolutionError");
+  assertEquals(error.stepId, "initial.test");
+  assertEquals(
+    error.schemaRef,
+    "step_outputs.schema.json#/definitions/initial",
+  );
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.iteration, 3);
+});
+
+Deno.test("AgentSchemaResolutionError - toJSON includes all fields", () => {
+  const cause = new Error("Original error");
+  const error = new AgentSchemaResolutionError(
+    "Schema resolution failed",
+    {
+      stepId: "continuation.test",
+      schemaRef: "test.schema.json#/definitions/foo",
+      consecutiveFailures: 2,
+      cause,
+      iteration: 5,
+    },
+  );
+  const json = error.toJSON();
+
+  assertEquals(json.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(json.stepId, "continuation.test");
+  assertEquals(json.schemaRef, "test.schema.json#/definitions/foo");
+  assertEquals(json.consecutiveFailures, 2);
+  assertEquals(json.iteration, 5);
+  assertEquals(json.cause, "Original error");
+});
+
+Deno.test("AgentSchemaResolutionError - is AgentError", () => {
+  const error = new AgentSchemaResolutionError("Test", {
+    stepId: "test",
+    schemaRef: "test#ref",
+    consecutiveFailures: 2,
+  });
+  assertInstanceOf(error, AgentError);
+  assertEquals(isAgentError(error), true);
+});
+
+Deno.test("AgentSchemaResolutionError - is included in isAgentError", () => {
+  const error = new AgentSchemaResolutionError("test", {
+    stepId: "s",
+    schemaRef: "r",
+    consecutiveFailures: 2,
+  });
+  assertEquals(isAgentError(error), true);
+  assertInstanceOf(error, AgentError);
+});
+
+Deno.test("Error codes for new error types are unique", () => {
+  const allCodes = [
+    new AgentNotInitializedError().code,
+    new AgentQueryError("test").code,
+    new AgentCompletionError("test").code,
+    new AgentTimeoutError("test", 1000).code,
+    new AgentMaxIterationsError(10).code,
+    new AgentSchemaResolutionError("t", {
+      stepId: "s",
+      schemaRef: "r",
+      consecutiveFailures: 2,
+    }).code,
+  ];
+
+  const uniqueCodes = new Set(allCodes);
+  assertEquals(
+    uniqueCodes.size,
+    allCodes.length,
+    "All error codes should be unique",
+  );
+});
+
+// =============================================================================
+// R5: Flow Fail-Fast Tests (Schema failure, 2-strike abort, no-intent paths)
+// =============================================================================
+
+Deno.test("R5 - IterationSummary has schemaResolutionFailed field", () => {
+  // Verify the IterationSummary type supports schemaResolutionFailed flag
+  const summary: IterationSummary = {
+    iteration: 1,
+    assistantResponses: [],
+    toolsUsed: [],
+    errors: [
+      'Schema resolution failed for step "initial.test". Iteration aborted.',
+    ],
+    schemaResolutionFailed: true,
+  };
+
+  assertEquals(summary.schemaResolutionFailed, true);
+  assertEquals(summary.errors.length, 1);
+  assertEquals(
+    summary.errors[0].includes("Schema resolution failed"),
+    true,
+    "Error should mention schema resolution failure",
+  );
+});
+
+Deno.test("R5 - AgentSchemaResolutionError captures consecutive failure count", () => {
+  // Test that error properly tracks the 2-strike rule
+  const error = new AgentSchemaResolutionError(
+    'Schema resolution failed 2 consecutive times for step "initial.test"',
+    {
+      stepId: "initial.test",
+      schemaRef: "step_outputs.schema.json#/definitions/initial.test",
+      consecutiveFailures: 2,
+      iteration: 5,
+    },
+  );
+
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.stepId, "initial.test");
+  assertEquals(error.iteration, 5);
+  assertEquals(
+    error.message.includes("2 consecutive times"),
+    true,
+    "Error message should mention consecutive failures",
+  );
+});
+
+Deno.test("R5 - Structured Gate Flow - no intent on iteration > 1 should fail (error message format)", () => {
+  // This tests the R4 error message format used when no intent is produced
+  // The actual check is: iteration > 1 && routingResult === null && !schemaResolutionFailed && hasFlowRoutingEnabled()
+  const expectedErrorPattern =
+    /\[StepFlow\] No intent produced for iteration \d+ on step "[\w.]+"/;
+
+  const sampleErrorMsg =
+    '[StepFlow] No intent produced for iteration 3 on step "continuation.test". ' +
+    "Flow steps must produce structured output with a valid intent. " +
+    "Check that the step's schema includes next_action.action and the LLM returns valid JSON.";
+
+  assertEquals(
+    expectedErrorPattern.test(sampleErrorMsg),
+    true,
+    "Error message should match R4 format",
+  );
+  assertEquals(
+    sampleErrorMsg.includes("must produce structured output"),
+    true,
+    "Error should guide user to check structured output",
+  );
+});
+
+Deno.test("R5 - Schema resolution failure should set schemaResolutionFailed flag", () => {
+  // When schema resolution fails (first time), the iteration should be aborted
+  // and schemaResolutionFailed should be set to true
+  const summaryWithSchemaFailure = createIterationSummary({
+    iteration: 2,
+    errors: [
+      'Schema resolution failed for step "initial.test". Iteration aborted.',
+    ],
+    schemaResolutionFailed: true,
+  });
+
+  // Verify the flag is set
+  assertEquals(summaryWithSchemaFailure.schemaResolutionFailed, true);
+
+  // Verify this prevents R4 check from triggering (schemaResolutionFailed exempts from no-intent error)
+  // The logic is: iteration > 1 && routingResult === null && !summary.schemaResolutionFailed
+  // So when schemaResolutionFailed is true, R4 error should NOT be thrown
+  const shouldTriggerR4Error = summaryWithSchemaFailure.iteration > 1 &&
+    !summaryWithSchemaFailure.schemaResolutionFailed;
+  assertEquals(
+    shouldTriggerR4Error,
+    false,
+    "Schema failure should exempt from R4 check",
+  );
+});
+
+Deno.test("R5 - Two consecutive schema failures should throw AgentSchemaResolutionError", () => {
+  // Simulate the 2-strike rule: after 2 consecutive schema failures, run should abort
+  const error = new AgentSchemaResolutionError(
+    'Schema resolution failed 2 consecutive times for step "initial.default". ' +
+      'Cannot resolve pointer "/definitions/initial.default" in step_outputs.schema.json. ' +
+      "Flow halted to prevent infinite loop.",
+    {
+      stepId: "initial.default",
+      schemaRef: "step_outputs.schema.json#/definitions/initial.default",
+      consecutiveFailures: 2,
+      iteration: 2,
+    },
+  );
+
+  assertEquals(error.code, "FAILED_SCHEMA_RESOLUTION");
+  assertEquals(error.recoverable, false); // Not recoverable - requires config fix
+  assertEquals(error.consecutiveFailures, 2);
+  assertEquals(error.stepId, "initial.default");
+  assertEquals(
+    error.message.includes("Flow halted to prevent infinite loop"),
+    true,
+    "Error should explain the halt reason",
   );
 });

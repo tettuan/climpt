@@ -5,24 +5,39 @@
  * enabling easier testing through mock factories.
  */
 
-import type {
-  ActionConfig,
-  AgentDefinition,
-  LoggingConfig,
-} from "../src_common/types.ts";
+import type { AgentDefinition, LoggingConfig } from "../src_common/types.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { PromptResolver } from "../prompts/resolver.ts";
-import type { ActionDetector } from "../actions/detector.ts";
-import type { ActionExecutor, ExecutorOptions } from "../actions/executor.ts";
+import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { RetryHandler } from "../retry/retry-handler.ts";
+import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 
 // ============================================================================
 // Factory Interfaces
 // ============================================================================
 
 /**
+ * Interface for factories that require async initialization.
+ */
+export interface Initializable {
+  initialize(): Promise<void>;
+}
+
+/**
+ * Type guard to check if a factory is initializable.
+ */
+export function isInitializable(obj: unknown): obj is Initializable {
+  return (
+    typeof obj === "object" &&
+    obj !== null &&
+    "initialize" in obj &&
+    typeof (obj as Initializable).initialize === "function"
+  );
+}
+
+/**
  * Factory interface for Logger creation.
- * Allows injection of mock loggers for testing.
  */
 export interface LoggerFactory {
   create(options: LoggerFactoryOptions): Promise<Logger>;
@@ -30,7 +45,6 @@ export interface LoggerFactory {
 
 /**
  * Options for Logger creation via factory.
- * Named differently from src_common/logger.ts LoggerOptions to avoid export conflicts.
  */
 export interface LoggerFactoryOptions {
   agentName: string;
@@ -40,7 +54,6 @@ export interface LoggerFactoryOptions {
 
 /**
  * Factory interface for CompletionHandler creation.
- * Allows injection of mock completion handlers for testing.
  */
 export interface CompletionHandlerFactory {
   create(
@@ -52,7 +65,6 @@ export interface CompletionHandlerFactory {
 
 /**
  * Factory interface for PromptResolver creation.
- * Allows injection of mock prompt resolvers for testing.
  */
 export interface PromptResolverFactory {
   create(options: PromptResolverFactoryOptions): Promise<PromptResolver>;
@@ -60,7 +72,6 @@ export interface PromptResolverFactory {
 
 /**
  * Options for PromptResolver creation via factory.
- * Named differently from prompts/resolver.ts PromptResolverOptions to avoid export conflicts.
  */
 export interface PromptResolverFactoryOptions {
   agentName: string;
@@ -70,15 +81,37 @@ export interface PromptResolverFactoryOptions {
 }
 
 /**
- * Factory interface for Action system components.
- * Allows injection of mock detectors and executors for testing.
+ * Options for CompletionValidator creation via factory.
  */
-export interface ActionSystemFactory {
-  createDetector(config: ActionConfig): ActionDetector;
-  createExecutor(
-    config: ActionConfig,
-    options: ExecutorOptions,
-  ): ActionExecutor;
+export interface CompletionValidatorFactoryOptions {
+  registry: ExtendedStepsRegistry;
+  workingDir: string;
+  logger: Logger;
+  agentId: string;
+}
+
+/**
+ * Factory interface for CompletionValidator creation.
+ */
+export interface CompletionValidatorFactory {
+  create(options: CompletionValidatorFactoryOptions): CompletionValidator;
+}
+
+/**
+ * Options for RetryHandler creation via factory.
+ */
+export interface RetryHandlerFactoryOptions {
+  registry: ExtendedStepsRegistry;
+  workingDir: string;
+  logger: Logger;
+  agentId: string;
+}
+
+/**
+ * Factory interface for RetryHandler creation.
+ */
+export interface RetryHandlerFactory {
+  create(options: RetryHandlerFactoryOptions): RetryHandler;
 }
 
 // ============================================================================
@@ -87,24 +120,24 @@ export interface ActionSystemFactory {
 
 /**
  * All injectable dependencies for AgentRunner.
- * Using readonly to ensure immutability after creation.
  */
 export interface AgentDependencies {
   readonly loggerFactory: LoggerFactory;
   readonly completionHandlerFactory: CompletionHandlerFactory;
   readonly promptResolverFactory: PromptResolverFactory;
-  readonly actionSystemFactory?: ActionSystemFactory;
+  readonly completionValidatorFactory?: CompletionValidatorFactory;
+  readonly retryHandlerFactory?: RetryHandlerFactory;
 }
 
 /**
  * Mutable version of AgentDependencies for internal builder use.
- * This allows the builder to collect factories before creating the final immutable object.
  */
 interface MutableAgentDependencies {
   loggerFactory?: LoggerFactory;
   completionHandlerFactory?: CompletionHandlerFactory;
   promptResolverFactory?: PromptResolverFactory;
-  actionSystemFactory?: ActionSystemFactory;
+  completionValidatorFactory?: CompletionValidatorFactory;
+  retryHandlerFactory?: RetryHandlerFactory;
 }
 
 // ============================================================================
@@ -113,11 +146,9 @@ interface MutableAgentDependencies {
 
 /**
  * Default factory implementation for Logger.
- * Wraps the static Logger.create() method.
  */
 export class DefaultLoggerFactory implements LoggerFactory {
   async create(options: LoggerFactoryOptions): Promise<Logger> {
-    // Dynamic import to avoid circular dependencies
     const { Logger } = await import("../src_common/logger.ts");
     return Logger.create(options);
   }
@@ -125,7 +156,6 @@ export class DefaultLoggerFactory implements LoggerFactory {
 
 /**
  * Default factory implementation for CompletionHandler.
- * Wraps the createCompletionHandler factory function.
  */
 export class DefaultCompletionHandlerFactory
   implements CompletionHandlerFactory {
@@ -134,7 +164,6 @@ export class DefaultCompletionHandlerFactory
     args: Record<string, unknown>,
     agentDir: string,
   ): Promise<CompletionHandler> {
-    // Dynamic import to avoid circular dependencies
     const { createCompletionHandler } = await import("../completion/mod.ts");
     return createCompletionHandler(definition, args, agentDir);
   }
@@ -142,64 +171,80 @@ export class DefaultCompletionHandlerFactory
 
 /**
  * Default factory implementation for PromptResolver.
- * Wraps the static PromptResolver.create() method.
  */
 export class DefaultPromptResolverFactory implements PromptResolverFactory {
   async create(options: PromptResolverFactoryOptions): Promise<PromptResolver> {
-    // Dynamic import to avoid circular dependencies
     const { PromptResolver } = await import("../prompts/resolver.ts");
     return PromptResolver.create(options);
   }
 }
 
 /**
- * Default factory implementation for Action system components.
- * Wraps the ActionDetector and ActionExecutor constructors.
+ * Default factory implementation for CompletionValidator.
  */
-export class DefaultActionSystemFactory implements ActionSystemFactory {
-  private ActionDetectorClass: typeof ActionDetector | null = null;
-  private ActionExecutorClass: typeof ActionExecutor | null = null;
+export class DefaultCompletionValidatorFactory
+  implements CompletionValidatorFactory, Initializable {
+  private createFn:
+    | ((
+      registry: import("../validators/completion/types.ts").ValidatorRegistry,
+      ctx:
+        import("../validators/completion/types.ts").CompletionValidatorContext,
+    ) => CompletionValidator)
+    | null = null;
 
-  private async ensureImported(): Promise<void> {
-    if (!this.ActionDetectorClass || !this.ActionExecutorClass) {
-      // Dynamic import to avoid circular dependencies
-      const detectorModule = await import("../actions/detector.ts");
-      const executorModule = await import("../actions/executor.ts");
-      this.ActionDetectorClass = detectorModule.ActionDetector;
-      this.ActionExecutorClass = executorModule.ActionExecutor;
-    }
-  }
-
-  createDetector(config: ActionConfig): ActionDetector {
-    // Note: For synchronous creation, we need pre-imported classes
-    // This will throw if ensureImported() wasn't called
-    if (!this.ActionDetectorClass) {
-      throw new Error(
-        "ActionDetectorClass not imported. Call ensureImported() first.",
-      );
-    }
-    return new this.ActionDetectorClass(config);
-  }
-
-  createExecutor(
-    config: ActionConfig,
-    options: ExecutorOptions,
-  ): ActionExecutor {
-    // Note: For synchronous creation, we need pre-imported classes
-    if (!this.ActionExecutorClass) {
-      throw new Error(
-        "ActionExecutorClass not imported. Call ensureImported() first.",
-      );
-    }
-    return new this.ActionExecutorClass(config, options);
-  }
-
-  /**
-   * Async initialization to import classes.
-   * Must be called before createDetector/createExecutor.
-   */
   async initialize(): Promise<void> {
-    await this.ensureImported();
+    const mod = await import("../validators/completion/validator.ts");
+    this.createFn = mod.createCompletionValidator;
+  }
+
+  create(options: CompletionValidatorFactoryOptions): CompletionValidator {
+    if (!this.createFn) {
+      throw new Error(
+        "DefaultCompletionValidatorFactory not initialized. Call initialize() first.",
+      );
+    }
+    return this.createFn(
+      {
+        validators: options.registry.validators ?? {},
+        completionPatterns: options.registry.completionPatterns,
+      },
+      {
+        workingDir: options.workingDir,
+        logger: options.logger,
+        agentId: options.agentId,
+      },
+    );
+  }
+}
+
+/**
+ * Default factory implementation for RetryHandler.
+ */
+export class DefaultRetryHandlerFactory
+  implements RetryHandlerFactory, Initializable {
+  private createFn:
+    | ((
+      registry: ExtendedStepsRegistry,
+      ctx: { workingDir: string; logger: Logger; agentId: string },
+    ) => RetryHandler)
+    | null = null;
+
+  async initialize(): Promise<void> {
+    const mod = await import("../retry/retry-handler.ts");
+    this.createFn = mod.createRetryHandler;
+  }
+
+  create(options: RetryHandlerFactoryOptions): RetryHandler {
+    if (!this.createFn) {
+      throw new Error(
+        "DefaultRetryHandlerFactory not initialized. Call initialize() first.",
+      );
+    }
+    return this.createFn(options.registry, {
+      workingDir: options.workingDir,
+      logger: options.logger,
+      agentId: options.agentId,
+    });
   }
 }
 
@@ -209,14 +254,14 @@ export class DefaultActionSystemFactory implements ActionSystemFactory {
 
 /**
  * Create default dependencies for AgentRunner.
- * Used when no custom dependencies are provided.
  */
 export function createDefaultDependencies(): AgentDependencies {
   return {
     loggerFactory: new DefaultLoggerFactory(),
     completionHandlerFactory: new DefaultCompletionHandlerFactory(),
     promptResolverFactory: new DefaultPromptResolverFactory(),
-    actionSystemFactory: new DefaultActionSystemFactory(),
+    completionValidatorFactory: new DefaultCompletionValidatorFactory(),
+    retryHandlerFactory: new DefaultRetryHandlerFactory(),
   };
 }
 
@@ -224,25 +269,10 @@ export function createDefaultDependencies(): AgentDependencies {
 // Builder Class
 // ============================================================================
 
-// Forward declaration - AgentRunner is imported dynamically to avoid circular deps
 type AgentRunnerType = import("./runner.ts").AgentRunner;
 
 /**
  * Builder for creating AgentRunner instances with dependency injection.
- *
- * @example
- * // Create with defaults
- * const runner = await new AgentRunnerBuilder()
- *   .withDefinition(definition)
- *   .build();
- *
- * @example
- * // Create with custom factories for testing
- * const runner = await new AgentRunnerBuilder()
- *   .withDefinition(definition)
- *   .withLoggerFactory(mockLoggerFactory)
- *   .withCompletionHandlerFactory(mockCompletionFactory)
- *   .build();
  */
 export class AgentRunnerBuilder {
   private definition?: AgentDefinition;
@@ -281,16 +311,23 @@ export class AgentRunnerBuilder {
   }
 
   /**
-   * Set a custom action system factory.
+   * Set a custom completion validator factory.
    */
-  withActionSystemFactory(factory: ActionSystemFactory): this {
-    this.dependencies.actionSystemFactory = factory;
+  withCompletionValidatorFactory(factory: CompletionValidatorFactory): this {
+    this.dependencies.completionValidatorFactory = factory;
+    return this;
+  }
+
+  /**
+   * Set a custom retry handler factory.
+   */
+  withRetryHandlerFactory(factory: RetryHandlerFactory): this {
+    this.dependencies.retryHandlerFactory = factory;
     return this;
   }
 
   /**
    * Build the AgentRunner with configured dependencies.
-   * @throws Error if AgentDefinition is not set
    */
   async build(): Promise<AgentRunnerType> {
     if (!this.definition) {
@@ -300,11 +337,6 @@ export class AgentRunnerBuilder {
     }
 
     const deps = this.buildDependencies();
-
-    // Initialize action system factory if it's the default one
-    if (deps.actionSystemFactory instanceof DefaultActionSystemFactory) {
-      await deps.actionSystemFactory.initialize();
-    }
 
     // Dynamic import to avoid circular dependencies
     const { AgentRunner } = await import("./runner.ts");
@@ -322,8 +354,11 @@ export class AgentRunnerBuilder {
         defaults.completionHandlerFactory,
       promptResolverFactory: this.dependencies.promptResolverFactory ??
         defaults.promptResolverFactory,
-      actionSystemFactory: this.dependencies.actionSystemFactory ??
-        defaults.actionSystemFactory,
+      completionValidatorFactory:
+        this.dependencies.completionValidatorFactory ??
+          defaults.completionValidatorFactory,
+      retryHandlerFactory: this.dependencies.retryHandlerFactory ??
+        defaults.retryHandlerFactory,
     };
   }
 }

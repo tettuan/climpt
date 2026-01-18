@@ -6,13 +6,11 @@ Get validated JSON results from agent workflows
 
 Get structured, validated JSON from agent workflows. The Agent SDK supports structured outputs through JSON Schemas, ensuring your agents return data in exactly the format you need.
 
-<Note>
-**When to use structured outputs**
-
-Use structured outputs when you need validated JSON after an agent completes a multi-turn workflow with tools (file searches, command execution, web research, etc.).
-
-For single API calls without tool use, see [API Structured Outputs](/docs/en/build-with-claude/structured-outputs).
-</Note>
+> **Note: When to use structured outputs**
+>
+> Use structured outputs when you need validated JSON after an agent completes a multi-turn workflow with tools (file searches, command execution, web research, etc.).
+>
+> For single API calls without tool use, see [API Structured Outputs](/docs/en/build-with-claude/structured-outputs).
 
 ## Why use structured outputs
 
@@ -24,10 +22,9 @@ Structured outputs provide reliable, type-safe integration with your application
 - **Clean separation**: Define output requirements separately from task instructions
 - **Tool autonomy**: Agent chooses which tools to use while guaranteeing output format
 
-<Tabs>
-<Tab title="TypeScript">
-
 ## Quick start
+
+### TypeScript
 
 ```typescript
 import { query } from '@anthropic-ai/claude-agent-sdk'
@@ -58,7 +55,36 @@ for await (const message of query({
 }
 ```
 
-## Defining schemas with Zod
+### Python
+
+```python
+from claude_agent_sdk import query
+
+schema = {
+    "type": "object",
+    "properties": {
+        "company_name": {"type": "string"},
+        "founded_year": {"type": "number"},
+        "headquarters": {"type": "string"}
+    },
+    "required": ["company_name"]
+}
+
+async for message in query(
+    prompt="Research Anthropic and provide key company information",
+    options={
+        "output_format": {
+            "type": "json_schema",
+            "schema": schema
+        }
+    }
+):
+    if hasattr(message, 'structured_output'):
+        print(message.structured_output)
+        # {'company_name': 'Anthropic', 'founded_year': 2021, 'headquarters': 'San Francisco, CA'}
+```
+
+## Defining schemas with Zod (TypeScript)
 
 For TypeScript projects, use Zod for type-safe schema definition and validation:
 
@@ -113,39 +139,7 @@ for await (const message of query({
 - Better error messages
 - Composable schemas
 
-</Tab>
-<Tab title="Python">
-
-## Quick start
-
-```python
-from claude_agent_sdk import query
-
-schema = {
-    "type": "object",
-    "properties": {
-        "company_name": {"type": "string"},
-        "founded_year": {"type": "number"},
-        "headquarters": {"type": "string"}
-    },
-    "required": ["company_name"]
-}
-
-async for message in query(
-    prompt="Research Anthropic and provide key company information",
-    options={
-        "output_format": {
-            "type": "json_schema",
-            "schema": schema
-        }
-    }
-):
-    if hasattr(message, 'structured_output'):
-        print(message.structured_output)
-        # {'company_name': 'Anthropic', 'founded_year': 2021, 'headquarters': 'San Francisco, CA'}
-```
-
-## Defining schemas with Pydantic
+## Defining schemas with Pydantic (Python)
 
 For Python projects, use Pydantic for type-safe schema definition and validation:
 
@@ -188,25 +182,15 @@ async for message in query(
 - Better error messages
 - Data class functionality
 
-</Tab>
-</Tabs>
-
 ## How structured outputs work
 
-<Steps>
-  <Step title="Define your JSON schema">
-    Create a JSON Schema that describes the structure you want the agent to return. The schema uses standard JSON Schema format.
-  </Step>
-  <Step title="Add the outputFormat parameter">
-    Include the `outputFormat` parameter in your query options with `type: "json_schema"` and your schema definition.
-  </Step>
-  <Step title="Run your query">
-    The agent uses any tools it needs to complete the task (file operations, commands, web search, etc.).
-  </Step>
-  <Step title="Access validated output">
-    The agent's final result will be valid JSON matching your schema, available in `message.structured_output`.
-  </Step>
-</Steps>
+1. **Define your JSON schema**: Create a JSON Schema that describes the structure you want the agent to return. The schema uses standard JSON Schema format.
+
+2. **Add the outputFormat parameter**: Include the `outputFormat` parameter in your query options with `type: "json_schema"` and your schema definition.
+
+3. **Run your query**: The agent uses any tools it needs to complete the task (file operations, commands, web search, etc.).
+
+4. **Access validated output**: The agent's final result will be valid JSON matching your schema, available in `message.structured_output`.
 
 ## Supported JSON Schema features
 
@@ -224,9 +208,9 @@ For complete details on supported features, limitations, and regex pattern suppo
 
 Here's a complete example showing an agent that searches code for TODOs and extracts git blame information:
 
-<CodeGroup>
+### TypeScript
 
-```typescript TypeScript
+```typescript
 import { query } from '@anthropic-ai/claude-agent-sdk'
 
 // Define structure for TODO extraction
@@ -275,7 +259,9 @@ for await (const message of query({
 }
 ```
 
-```python Python
+### Python
+
+```python
 from claude_agent_sdk import query
 
 # Define structure for TODO extraction
@@ -319,8 +305,6 @@ async for message in query(
             if 'author' in todo:
                 print(f"  Added by {todo['author']} on {todo['date']}")
 ```
-
-</CodeGroup>
 
 The agent autonomously uses the right tools (Grep, Bash) to gather information and returns validated data.
 

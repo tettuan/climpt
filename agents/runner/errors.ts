@@ -6,7 +6,6 @@
  *   - AgentNotInitializedError (runner not initialized)
  *   - AgentQueryError (SDK query failed)
  *   - AgentCompletionError (completion check failed)
- *   - AgentActionError (action execution failed)
  *   - AgentTimeoutError (operation timeout)
  *   - AgentMaxIterationsError (max iterations exceeded)
  */
@@ -96,34 +95,6 @@ export class AgentCompletionError extends AgentError {
     options?: { cause?: Error; iteration?: number },
   ) {
     super(message, options);
-  }
-}
-
-/**
- * Action execution failed
- */
-export class AgentActionError extends AgentError {
-  readonly code = "AGENT_ACTION_ERROR";
-  readonly recoverable = true;
-
-  /**
-   * The action that failed
-   */
-  readonly actionType?: string;
-
-  constructor(
-    message: string,
-    options?: { cause?: Error; iteration?: number; actionType?: string },
-  ) {
-    super(message, options);
-    this.actionType = options?.actionType;
-  }
-
-  override toJSON(): Record<string, unknown> {
-    return {
-      ...super.toJSON(),
-      actionType: this.actionType,
-    };
   }
 }
 
@@ -275,6 +246,152 @@ export class AgentEnvironmentError extends AgentError {
       category: this.category,
       guidance: this.guidance,
       environment: this.environment,
+    };
+  }
+}
+
+/**
+ * Rate limit error
+ *
+ * This error indicates the API rate limit has been reached.
+ * The agent should wait before retrying.
+ */
+export class AgentRateLimitError extends AgentError {
+  readonly code = "AGENT_RATE_LIMIT";
+  readonly recoverable = true;
+  readonly retryAfterMs: number;
+  readonly attempts: number;
+
+  constructor(
+    message: string,
+    options: {
+      retryAfterMs?: number;
+      attempts?: number;
+      cause?: Error;
+      iteration?: number;
+    } = {},
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.retryAfterMs = options.retryAfterMs ?? 0;
+    this.attempts = options.attempts ?? 0;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      retryAfterMs: this.retryAfterMs,
+      attempts: this.attempts,
+    };
+  }
+}
+
+/**
+ * Schema resolution failed
+ *
+ * This error indicates that a JSON Pointer in outputSchemaRef could not be
+ * resolved. The Flow loop should halt immediately - schema failures are fatal
+ * because StepGate cannot interpret intents without structured output.
+ */
+export class AgentSchemaResolutionError extends AgentError {
+  readonly code = "FAILED_SCHEMA_RESOLUTION";
+  readonly recoverable = false;
+  readonly stepId: string;
+  readonly schemaRef: string;
+  readonly consecutiveFailures: number;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      schemaRef: string;
+      consecutiveFailures: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+    this.schemaRef = options.schemaRef;
+    this.consecutiveFailures = options.consecutiveFailures;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+      schemaRef: this.schemaRef,
+      consecutiveFailures: this.consecutiveFailures,
+    };
+  }
+}
+
+/**
+ * Step ID mismatch error
+ *
+ * This error indicates that the structuredOutput.stepId returned by the LLM
+ * does not match the expected currentStepId. This is a configuration error
+ * that should be fixed immediately - the schema may be missing a "const"
+ * constraint or the LLM is returning the wrong step name.
+ */
+export class AgentStepIdMismatchError extends AgentError {
+  readonly code = "AGENT_STEP_ID_MISMATCH";
+  readonly recoverable = false;
+  readonly expectedStepId: string;
+  readonly actualStepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      expectedStepId: string;
+      actualStepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.expectedStepId = options.expectedStepId;
+    this.actualStepId = options.actualStepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      expectedStepId: this.expectedStepId,
+      actualStepId: this.actualStepId,
+    };
+  }
+}
+
+/**
+ * Step routing failed
+ *
+ * This error indicates that StepGate could not determine an intent from the
+ * structured output. This is a fatal error - all Flow steps must produce
+ * structured output with a valid intent for routing to occur.
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 6
+ */
+export class AgentStepRoutingError extends AgentError {
+  readonly code = "FAILED_STEP_ROUTING";
+  readonly recoverable = false;
+  readonly stepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
     };
   }
 }

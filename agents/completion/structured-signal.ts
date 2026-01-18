@@ -135,33 +135,50 @@ Work on the task. When complete, output the structured signal:
   isComplete(): Promise<boolean> {
     if (!this.lastSummary) return Promise.resolve(false);
 
-    // Check if any detected actions match the signal type
-    for (const action of this.lastSummary.detectedActions) {
-      if (action.type === this.signalType) {
+    // Check if structured output matches the signal
+    const so = this.lastSummary.structuredOutput;
+    if (!so || typeof so !== "object") {
+      return Promise.resolve(false);
+    }
+
+    // Check if structured output has the expected signal type
+    const output = so as Record<string, unknown>;
+    if (output.signal !== this.signalType && output.type !== this.signalType) {
+      // Also check for status-based completion
+      if (output.status === "completed" || output.result === "complete") {
         // Check required fields if specified
         if (this.requiredFields) {
-          try {
-            const content = JSON.parse(action.content);
-            const matches = Object.entries(this.requiredFields).every(
-              ([key, value]) => {
-                if (typeof value === "object" && value !== null) {
-                  return JSON.stringify(content[key]) === JSON.stringify(value);
-                }
-                return content[key] === value;
-              },
-            );
-            if (matches) return Promise.resolve(true);
-          } catch {
-            // JSON parse failed, check raw content
-            continue;
-          }
+          const matches = Object.entries(this.requiredFields).every(
+            ([key, value]) => {
+              if (typeof value === "object" && value !== null) {
+                return JSON.stringify(output[key]) === JSON.stringify(value);
+              }
+              return output[key] === value;
+            },
+          );
+          if (matches) return Promise.resolve(true);
         } else {
           return Promise.resolve(true);
         }
       }
+      return Promise.resolve(false);
     }
 
-    return Promise.resolve(false);
+    // Check required fields if specified
+    if (this.requiredFields) {
+      const matches = Object.entries(this.requiredFields).every(
+        ([key, value]) => {
+          if (typeof value === "object" && value !== null) {
+            return JSON.stringify(output[key]) === JSON.stringify(value);
+          }
+          return output[key] === value;
+        },
+      );
+      if (matches) return Promise.resolve(true);
+      return Promise.resolve(false);
+    }
+
+    return Promise.resolve(true);
   }
 
   async getCompletionDescription(): Promise<string> {

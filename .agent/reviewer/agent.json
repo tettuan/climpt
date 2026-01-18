@@ -3,43 +3,34 @@
   "version": "1.10.0",
   "name": "reviewer",
   "displayName": "Reviewer Agent",
-  "description": "Autonomous review agent that verifies implementation against requirements in GitHub Projects",
+  "description": "Autonomous review agent that verifies implementation against requirements for a GitHub Issue",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "custom",
+    "completionType": "externalState",
     "completionConfig": {
-      "handlerPath": "completion/review.ts",
-      "maxIterations": 50
+      "type": "issueClose",
+      "issueParam": "issue",
+      "maxIterations": 300
     },
     "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-    "permissionMode": "plan"
+    "permissionMode": "acceptEdits",
+    "preCloseValidation": {
+      "enabled": false,
+      "validators": []
+    }
   },
   "parameters": {
-    "project": {
+    "issue": {
       "type": "number",
-      "description": "GitHub Project number to review",
+      "description": "GitHub Issue number to review",
       "required": true,
-      "cli": "--project"
-    },
-    "requirementsLabel": {
-      "type": "string",
-      "description": "Label for requirement/specification issues",
-      "required": false,
-      "default": "docs",
-      "cli": "--requirements-label"
-    },
-    "reviewLabel": {
-      "type": "string",
-      "description": "Label for issues to review",
-      "required": false,
-      "default": "review",
-      "cli": "--review-label"
+      "cli": "--issue"
     },
     "iterateMax": {
       "type": "number",
-      "description": "Maximum number of iterations",
+      "description": "Maximum number of iterations (fallback)",
       "required": false,
-      "default": 50,
+      "default": 300,
       "cli": "--iterate-max"
     },
     "branch": {

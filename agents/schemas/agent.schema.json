@@ -84,18 +84,16 @@
             "checkBudget",
             "keywordSignal",
             "structuredSignal",
-            "phaseCompletion",
             "stepMachine",
             "composite",
             "custom",
             "issue",
             "iterate",
             "manual",
-            "project",
             "stepFlow",
             "facilitator"
           ],
-          "description": "How the agent determines completion. New behavior-based names: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), phaseCompletion (terminal phase), stepMachine (step state machine), composite (combined conditions), custom (external handler). Legacy aliases: issue->externalState, iterate->iterationBudget, manual->keywordSignal, project->phaseCompletion, stepFlow->stepMachine, facilitator->composite."
+          "description": "How the agent determines completion. New behavior-based names: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler). Legacy aliases: issue->externalState, iterate->iterationBudget, manual->keywordSignal, stepFlow->stepMachine, facilitator->composite."
         },
         "completionConfig": {
           "type": "object",
@@ -157,11 +155,6 @@
             "requiredFields": {
               "type": "object",
               "description": "Required field values to match (for structuredSignal type)"
-            },
-            "terminalPhases": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Terminal phases that indicate completion (for phaseCompletion type)"
             },
             "registryPath": {
               "type": "string",

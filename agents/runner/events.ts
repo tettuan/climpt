@@ -7,10 +7,8 @@
  */
 
 import type {
-  ActionResult,
   AgentResult,
   AgentState,
-  DetectedAction,
   IterationSummary,
 } from "../src_common/types.ts";
 
@@ -23,12 +21,20 @@ export type AgentEvent =
   | "iterationEnd"
   | "promptBuilt"
   | "queryExecuted"
-  | "actionDetected"
-  | "actionExecuted"
   | "completionChecked"
   | "stateChange"
+  | "boundaryHook"
   | "error"
   | "completed";
+
+/**
+ * Boundary hook payload for closure step completion
+ */
+export interface BoundaryHookPayload {
+  stepId: string;
+  stepKind: "closure";
+  structuredOutput?: Record<string, unknown>;
+}
 
 /**
  * Payload types for each event
@@ -39,10 +45,9 @@ export interface AgentEventPayloads {
   iterationEnd: { iteration: number; summary: IterationSummary };
   promptBuilt: { prompt: string; systemPrompt: string };
   queryExecuted: { summary: IterationSummary };
-  actionDetected: { actions: readonly DetectedAction[] };
-  actionExecuted: { results: readonly ActionResult[] };
   completionChecked: { isComplete: boolean; reason?: string };
   stateChange: { previous: AgentState; current: AgentState };
+  boundaryHook: BoundaryHookPayload;
   error: { error: Error; recoverable: boolean };
   completed: { result: AgentResult };
 }

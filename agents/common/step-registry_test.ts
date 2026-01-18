@@ -10,9 +10,9 @@ import {
   getStepIds,
   hasStep,
   loadStepRegistry,
+  type PromptStepDefinition,
   saveStepRegistry,
   serializeRegistry,
-  type StepDefinition,
   type StepRegistry,
   validateStepRegistry,
 } from "./step-registry.ts";
@@ -36,7 +36,7 @@ Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {
 
 Deno.test("addStepDefinition - adds step to registry", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: StepDefinition = {
+  const step: PromptStepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -54,7 +54,7 @@ Deno.test("addStepDefinition - adds step to registry", () => {
 
 Deno.test("addStepDefinition - throws on duplicate step", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: StepDefinition = {
+  const step: PromptStepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -76,7 +76,7 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
 
 Deno.test("getStepDefinition - returns step by ID", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: StepDefinition = {
+  const step: PromptStepDefinition = {
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -253,6 +253,7 @@ Deno.test("loadStepRegistry - loads from file", async () => {
     agentId: "temp-agent",
     version: "1.0.0",
     c1: "steps",
+    entryStep: "test.step", // Required by validateEntryStepMapping
     steps: {
       "test.step": {
         stepId: "test.step",
@@ -339,4 +340,24 @@ Deno.test("saveStepRegistry - saves to file", async () => {
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
+});
+
+// =============================================================================
+// Step Type Tests
+// =============================================================================
+
+Deno.test("StepDefinition - supports type field", () => {
+  const step: PromptStepDefinition = {
+    stepId: "test",
+    name: "Test Step",
+    type: "prompt",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
+    fallbackKey: "test",
+    uvVariables: [],
+    usesStdin: false,
+  };
+
+  assertEquals(step.type, "prompt");
 });

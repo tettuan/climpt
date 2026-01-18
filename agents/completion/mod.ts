@@ -2,24 +2,39 @@
  * Completion handlers module exports
  *
  * This module provides completion handlers for different completion strategies.
- * Handlers use behavior-based naming (new) with aliases for legacy names (deprecated).
+ * Handlers use behavior-based naming with aliases for legacy names.
  *
- * New behavior-based names:
- * - externalState: Complete when external resource reaches target state (was: issue)
- * - iterationBudget: Complete after N iterations (was: iterate)
- * - checkBudget: Complete after N status checks (new)
- * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
- * - structuredSignal: Complete when LLM outputs specific JSON signal (new)
- * - phaseCompletion: Complete when workflow reaches terminal phase (was: project)
- * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
- * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
+ * Completion types:
+ * - externalState: Complete when external resource reaches target state
+ * - iterationBudget: Complete after N iterations
+ * - checkBudget: Complete after N status checks
+ * - keywordSignal: Complete when LLM outputs specific keyword
+ * - structuredSignal: Complete when LLM outputs specific JSON signal
+ * - stepMachine: Complete when step state machine reaches terminal
+ * - composite: Combines multiple conditions with AND/OR logic
  * - custom: Fully custom handler implementation
+ *
+ * Contract-compliant Interfaces:
+ * - ContractCompletionHandler: Interface with no side effects in check()
+ * - IssueContractHandler: Issue handler using external state checker
+ * - ExternalStateChecker: Interface for external state retrieval
  */
 
+// Types
 export type { CompletionCriteria, CompletionHandler } from "./types.ts";
 export { BaseCompletionHandler, formatIterationSummary } from "./types.ts";
 export type { CompletionType, IterationSummary } from "./types.ts";
 
+// Contract-compliant types
+export type {
+  CheckContext,
+  CompletionHandlerV2,
+  CompletionResult,
+  ContractCompletionHandler,
+  StepResult,
+} from "./types.ts";
+
+// Factory functions
 export {
   type CompletionHandlerOptions,
   createCompletionHandler,
@@ -28,17 +43,30 @@ export {
   registerCompletionHandler,
 } from "./factory.ts";
 
-// externalState (was: issue) - Complete when external resource reaches target state
+// Contract-compliant factory
+export {
+  type CompletionHandlerV2Options,
+  createCompletionHandlerV2,
+} from "./factory.ts";
+
+// External State Checker
+export {
+  type ExternalStateChecker,
+  GitHubStateChecker,
+  type IssueState,
+  MockStateChecker,
+} from "./external-state-checker.ts";
+
+// Issue completion handlers
 export { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
 
-// phaseCompletion (was: project) - Complete when workflow reaches terminal phase
+// Contract-compliant issue handler
 export {
-  ProjectCompletionHandler,
-  type ProjectIssueInfo,
-  type ProjectPhase,
-  type ProjectPlan,
-  type ReviewResult,
-} from "./project.ts";
+  type IssueCompletionConfigV2,
+  IssueCompletionHandlerV2,
+  type IssueContractConfig,
+  IssueContractHandler,
+} from "./issue.ts";
 
 // iterationBudget (was: iterate) - Complete after N iterations
 export { IterateCompletionHandler } from "./iterate.ts";
@@ -46,17 +74,7 @@ export { IterateCompletionHandler } from "./iterate.ts";
 // keywordSignal (was: manual) - Complete when LLM outputs specific keyword
 export { ManualCompletionHandler } from "./manual.ts";
 
-// composite (was: facilitator) - Combines multiple conditions with AND/OR logic
-// Note: FacilitatorCompletionHandler is kept for backward compatibility
-export {
-  type BlockerInfo,
-  FacilitatorCompletionHandler,
-  type FacilitatorPhase,
-  type FacilitatorReport,
-  type ProjectStatus,
-} from "./facilitator.ts";
-
-// checkBudget - Complete after N status checks (new)
+// checkBudget - Complete after N status checks
 export { CheckBudgetCompletionHandler } from "./check-budget.ts";
 
 // structuredSignal - Complete when LLM outputs specific JSON signal (new)
@@ -68,6 +86,13 @@ export {
   type CompositeCondition,
   type CompositeOperator,
 } from "./composite.ts";
+
+// stepMachine - Complete when step state machine reaches terminal (new)
+export {
+  StepMachineCompletionHandler,
+  type StepState,
+  type StepTransition,
+} from "./step-machine.ts";
 
 // Re-export type utilities from src_common/types.ts
 export {

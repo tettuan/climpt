@@ -44,9 +44,9 @@ export async function run(): Promise<void> {
     // deno-lint-ignore no-console
     console.log("\n=== Agent Complete ===");
     // deno-lint-ignore no-console
-    console.log(`Total iterations: ${result.totalIterations}`);
+    console.log(`Total iterations: ${result.iterations}`);
     // deno-lint-ignore no-console
-    console.log(`Reason: ${result.completionReason}`);
+    console.log(`Reason: ${result.reason}`);
 
     if (!result.success) {
       // deno-lint-ignore no-console

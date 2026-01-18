@@ -3,6 +3,10 @@
  *
  * These type guards provide runtime type checking for messages received
  * from the Claude SDK, replacing unsafe `as` casts with proper validation.
+ *
+ * @deprecated Use `agents/bridge/sdk-bridge.ts` instead.
+ * This file will be removed in a future version.
+ * Migration: Import from `../bridge/mod.ts` or `../bridge/sdk-bridge.ts`
  */
 
 // ============================================================================
@@ -27,11 +31,13 @@ export interface ToolUseMessage {
 }
 
 /**
- * Result message containing session information
+ * Result message containing session information and optional structured output
  */
 export interface ResultMessage {
   readonly type: "result";
   readonly session_id: string;
+  readonly subtype?: string;
+  readonly structured_output?: Record<string, unknown>;
 }
 
 /**

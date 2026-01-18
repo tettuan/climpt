@@ -11,10 +11,11 @@ import {
   getCurrentBranch,
   getRepoRoot,
   listWorktrees,
+  mergeWorktreeBranch,
   setupWorktree,
   worktreeExists,
 } from "./worktree.ts";
-import type { WorktreeCLIOptions, WorktreeConfig } from "./types.ts";
+import type { WorktreeCLIOptions, WorktreeSetupConfig } from "./types.ts";
 
 // ============================================================================
 // Test Helpers
@@ -44,13 +45,15 @@ async function runGit(args: string[], cwd: string): Promise<string> {
 }
 
 /**
- * Create a temporary Git repository for testing
+ * Create a temporary Git repository for testing with isolated worktree directory
  */
 async function createTempGitRepo(): Promise<{
   path: string;
+  worktreeRoot: string;
   cleanup: () => Promise<void>;
 }> {
   const tempDir = await Deno.makeTempDir({ prefix: "worktree-test-" });
+  const worktreeDir = await Deno.makeTempDir({ prefix: "worktree-root-" });
 
   await runGit(["init"], tempDir);
   await runGit(["config", "user.email", "test@example.com"], tempDir);
@@ -63,9 +66,15 @@ async function createTempGitRepo(): Promise<{
 
   return {
     path: tempDir,
+    worktreeRoot: worktreeDir,
     cleanup: async () => {
       try {
         await Deno.remove(tempDir, { recursive: true });
+      } catch {
+        // Ignore errors during cleanup
+      }
+      try {
+        await Deno.remove(worktreeDir, { recursive: true });
       } catch {
         // Ignore errors during cleanup
       }
@@ -157,9 +166,9 @@ Deno.test("setupWorktree - uses exact branch name when --branch specified", asyn
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -187,9 +196,9 @@ Deno.test("setupWorktree - generates timestamped name when --branch not specifie
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -226,9 +235,9 @@ Deno.test("setupWorktree - uses specified base branch when --base-branch specifi
       "Develop commit",
     );
 
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -256,9 +265,9 @@ Deno.test("setupWorktree - uses current branch as base when --base-branch not sp
     // Get current branch (should be master or main)
     const currentBranch = await getCurrentBranch(repo.path);
 
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -286,9 +295,9 @@ Deno.test("setupWorktree - sanitizes branch name for filesystem (/ to -)", async
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -319,9 +328,9 @@ Deno.test("worktree lifecycle - create, verify, list, cleanup", async () => {
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -355,9 +364,9 @@ Deno.test("setupWorktree - reuses existing worktree if already exists", async ()
   const repo = await createTempGitRepo();
 
   try {
-    const config: WorktreeConfig = {
+    const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -441,6 +450,134 @@ Deno.test("cleanupWorktree - handles non-existent worktree gracefully", async ()
   try {
     // This should not throw
     await cleanupWorktree("/non/existent/worktree/path", repo.path);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+// ============================================================================
+// Integration Tests: mergeWorktreeBranch
+// ============================================================================
+
+Deno.test("mergeWorktreeBranch - merges branch with commits successfully", async () => {
+  const repo = await createTempGitRepo();
+
+  try {
+    const baseBranch = await getCurrentBranch(repo.path);
+
+    // Create a feature branch with a commit
+    await runGit(["checkout", "-b", "feature-to-merge"], repo.path);
+    await addCommit(
+      repo.path,
+      "feature.txt",
+      "feature content",
+      "Add feature file",
+    );
+
+    // Go back to base branch
+    await runGit(["checkout", baseBranch], repo.path);
+
+    // Merge the feature branch
+    const result = await mergeWorktreeBranch(
+      "feature-to-merge",
+      baseBranch,
+      repo.path,
+    );
+
+    assertEquals(result.merged, true);
+    assertEquals(result.commitsMerged, 1);
+    assertEquals(result.branchDeleted, true);
+    assertStringIncludes(result.reason, "Successfully merged 1 commit(s)");
+
+    // Verify the merge was done - feature.txt should exist on base branch
+    const fileExists = await Deno.stat(`${repo.path}/feature.txt`)
+      .then(() => true)
+      .catch(() => false);
+    assertEquals(fileExists, true);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+Deno.test("mergeWorktreeBranch - handles branch with no commits to merge", async () => {
+  const repo = await createTempGitRepo();
+
+  try {
+    const baseBranch = await getCurrentBranch(repo.path);
+
+    // Create a branch at the same point (no new commits)
+    await runGit(["checkout", "-b", "empty-branch"], repo.path);
+    await runGit(["checkout", baseBranch], repo.path);
+
+    // Try to merge - should return no commits to merge
+    const result = await mergeWorktreeBranch(
+      "empty-branch",
+      baseBranch,
+      repo.path,
+    );
+
+    assertEquals(result.merged, false);
+    assertEquals(result.commitsMerged, 0);
+    assertEquals(result.branchDeleted, true); // Branch should still be deleted
+    assertStringIncludes(result.reason, "No commits to merge");
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+Deno.test("mergeWorktreeBranch - handles multiple commits", async () => {
+  const repo = await createTempGitRepo();
+
+  try {
+    const baseBranch = await getCurrentBranch(repo.path);
+
+    // Create a feature branch with multiple commits
+    await runGit(["checkout", "-b", "multi-commit-branch"], repo.path);
+    await addCommit(repo.path, "file1.txt", "content1", "First commit");
+    await addCommit(repo.path, "file2.txt", "content2", "Second commit");
+    await addCommit(repo.path, "file3.txt", "content3", "Third commit");
+
+    // Go back to base branch
+    await runGit(["checkout", baseBranch], repo.path);
+
+    // Merge the feature branch
+    const result = await mergeWorktreeBranch(
+      "multi-commit-branch",
+      baseBranch,
+      repo.path,
+    );
+
+    assertEquals(result.merged, true);
+    assertEquals(result.commitsMerged, 3);
+    assertEquals(result.branchDeleted, true);
+    assertStringIncludes(result.reason, "Successfully merged 3 commit(s)");
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+Deno.test("mergeWorktreeBranch - fails gracefully when source branch does not exist", async () => {
+  const repo = await createTempGitRepo();
+
+  try {
+    const baseBranch = await getCurrentBranch(repo.path);
+
+    // Try to merge a non-existent branch
+    // hasCommitsToMerge will return -1 (error), treated as no commits
+    // Then deleteBranch will fail, but gracefully
+    const result = await mergeWorktreeBranch(
+      "non-existent-source-branch",
+      baseBranch,
+      repo.path,
+    );
+
+    // When source branch doesn't exist:
+    // - hasCommitsToMerge returns -1 (error) which is <= 0
+    // - Function treats it as "no commits to merge"
+    // - deleteBranch fails but returns false
+    assertEquals(result.merged, false);
+    assertEquals(result.commitsMerged, 0);
+    assertEquals(result.branchDeleted, false);
   } finally {
     await repo.cleanup();
   }

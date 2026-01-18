@@ -1,0 +1,177 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "issue.schema.json",
+  "description": "Issue関連stepのスキーマ定義",
+
+  "$defs": {
+    "issueContext": {
+      "type": "object",
+      "required": ["issue_number"],
+      "properties": {
+        "issue_number": {
+          "type": "integer",
+          "description": "GitHub Issue番号"
+        },
+        "issue_title": {
+          "type": "string",
+          "description": "Issue タイトル"
+        },
+        "issue_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Issue URL"
+        }
+      }
+    },
+
+    "workProgress": {
+      "type": "object",
+      "properties": {
+        "files_modified": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/fileChange" },
+          "description": "変更したファイル一覧"
+        },
+        "commits": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/commitInfo" },
+          "description": "作成したコミット一覧"
+        },
+        "tests_added": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "追加したテスト数"
+        },
+        "tests_passed": {
+          "type": "boolean",
+          "description": "テストが全てパスしたか"
+        }
+      }
+    }
+  },
+
+  "initial.issue": {
+    "type": "object",
+    "description": "Issue作業開始時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue", "analysis"],
+    "properties": {
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "analysis": {
+        "type": "object",
+        "required": ["understanding", "approach"],
+        "properties": {
+          "understanding": {
+            "type": "string",
+            "description": "Issueの理解内容"
+          },
+          "approach": {
+            "type": "string",
+            "description": "実装アプローチ"
+          },
+          "affected_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "影響を受けるファイル一覧"
+          },
+          "estimated_changes": {
+            "type": "string",
+            "enum": ["minor", "moderate", "significant"],
+            "description": "変更規模の見積もり"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "continuation.issue": {
+    "type": "object",
+    "description": "Issue継続作業時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue", "iteration"],
+    "properties": {
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "iteration": {
+        "type": "object",
+        "required": ["current", "work_done"],
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "現在のイテレーション番号"
+          },
+          "work_done": {
+            "type": "string",
+            "description": "このイテレーションで行った作業"
+          },
+          "remaining_work": {
+            "type": "string",
+            "description": "残りの作業（あれば）"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "closure.issue": {
+    "type": "object",
+    "description": "Issue完了検証のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue", "action", "validation"],
+    "additionalProperties": false,
+    "properties": {
+      "stepId": { "type": "string" },
+      "status": { "type": "string" },
+      "summary": { "type": "string" },
+      "tools_used": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
+      },
+      "next_action": { "$ref": "common.schema.json#/$defs/nextAction" },
+      "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
+      "issue": {
+        "type": "integer",
+        "description": "GitHub Issue番号"
+      },
+      "action": {
+        "type": "string",
+        "const": "close",
+        "description": "実行アクション"
+      },
+      "body": {
+        "type": "string",
+        "description": "Issueクローズ時のコメント本文"
+      },
+      "validation": {
+        "type": "object",
+        "required": ["git_clean", "type_check_passed"],
+        "additionalProperties": false,
+        "properties": {
+          "git_clean": { "type": "boolean" },
+          "type_check_passed": { "type": "boolean" },
+          "tests_passed": { "type": "boolean" },
+          "lint_passed": { "type": "boolean" },
+          "format_check_passed": { "type": "boolean" }
+        }
+      },
+      "evidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "git_status_output": { "type": "string" },
+          "type_check_output": { "type": "string" },
+          "test_summary": { "type": "string" },
+          "lint_output": { "type": "string" },
+          "format_output": { "type": "string" }
+        }
+      },
+      "final_commits": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/commitInfo" },
+        "description": "Issue解決に含まれる全コミット"
+      }
+    }
+  }
+}

@@ -47,11 +47,6 @@ export function mergeConfigurations<T extends Record<string, unknown>>(
  */
 export function getDefaults(): Partial<AgentDefinition> {
   return {
-    actions: {
-      enabled: false,
-      types: [],
-      outputFormat: "action",
-    },
     github: {
       enabled: false,
     },
@@ -68,7 +63,6 @@ export function applyDefaults(definition: AgentDefinition): AgentDefinition {
   const defaults = getDefaults();
   return {
     ...definition,
-    actions: definition.actions ?? defaults.actions,
     github: definition.github ?? defaults.github,
     worktree: definition.worktree ?? defaults.worktree,
   };

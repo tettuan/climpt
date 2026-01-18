@@ -1,0 +1,165 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "reviewer.schema.json",
+  "description": "Reviewer agent step schemas",
+
+  "$defs": {
+    "reviewFindings": {
+      "type": "object",
+      "properties": {
+        "issues_found": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": ["critical", "major", "minor", "info"]
+              },
+              "category": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  },
+
+  "initial.issue": {
+    "type": "object",
+    "description": "Issue review initial response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "review"],
+    "properties": {
+      "issue": {
+        "type": "integer",
+        "description": "GitHub Issue number"
+      },
+      "review": {
+        "type": "object",
+        "required": ["findings"],
+        "properties": {
+          "findings": { "$ref": "#/$defs/reviewFindings" },
+          "recommendations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "continuation.issue": {
+    "type": "object",
+    "description": "Issue review continuation response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "review"],
+    "properties": {
+      "issue": {
+        "type": "integer"
+      },
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      },
+      "review": {
+        "type": "object",
+        "properties": {
+          "findings": { "$ref": "#/$defs/reviewFindings" },
+          "recommendations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "initial.default": {
+    "type": "object",
+    "description": "Default review initial response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "review"],
+    "properties": {
+      "project": {
+        "type": "integer",
+        "description": "GitHub Project number"
+      },
+      "review": {
+        "type": "object",
+        "required": ["summary"],
+        "properties": {
+          "summary": { "type": "string" },
+          "issues_found": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "continuation.default": {
+    "type": "object",
+    "description": "Default review continuation response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "review"],
+    "properties": {
+      "iteration": {
+        "type": "object",
+        "properties": {
+          "current": { "type": "integer" },
+          "work_done": { "type": "string" }
+        }
+      },
+      "review": {
+        "type": "object",
+        "properties": {
+          "progress": { "type": "string" },
+          "remaining_items": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+
+  "closure.review": {
+    "type": "object",
+    "description": "Review completion response",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "validation"],
+    "properties": {
+      "validation": {
+        "type": "object",
+        "required": ["git_clean"],
+        "properties": {
+          "git_clean": { "type": "boolean" },
+          "branch_pushed": { "type": "boolean" },
+          "branch_merged": { "type": "boolean" }
+        }
+      },
+      "final_summary": {
+        "type": "string"
+      }
+    }
+  }
+}

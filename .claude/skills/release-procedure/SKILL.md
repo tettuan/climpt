@@ -249,7 +249,7 @@ git push origin vx.y.z
 
 | ブランチ | 削除タイミング | 削除可否 |
 |---------|---------------|---------|
-| `feature/*` | release/* へマージ後 | ✓ 削除する |
+| `feature/*`, `fix/*`, `refactor/*`, `docs/*` | release/* へマージ後 | ✓ 削除する |
 | `release/*` | develop へマージ後（かつ vtag 作成後） | ✓ 削除する |
 | `develop` | - | ✗ 削除禁止（長期ブランチ） |
 | `main` | - | ✗ 削除禁止（長期ブランチ） |
@@ -293,7 +293,7 @@ git push origin --delete feature/xxx
 ```bash
 # マージ済みなのに残っているブランチを検出
 git fetch --prune origin
-git branch -r | grep -E "feature/|release/" | while read branch; do
+git branch -r | grep -E "feature/|fix/|refactor/|docs/|release/" | while read branch; do
   branch_name=${branch#origin/}
   if git merge-base --is-ancestor "$branch" origin/develop 2>/dev/null; then
     echo "削除可能: $branch_name (develop にマージ済み)"
@@ -364,10 +364,10 @@ git push origin release/1.9.15
   5. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
   6. gh pr merge <PR番号> --merge (JSR publish 自動)
   7. vtag作成: git tag vx.y.z origin/main && git push origin vx.y.z
-  8. クリーンアップ: release/*, feature/* ブランチ削除（ローカル+リモート）
+  8. クリーンアップ: release/*, 作業ブランチ削除（ローカル+リモート）
 
 ブランチ削除判断:
-  - feature/*  → release/* マージ後に削除
+  - feature/*, fix/*, refactor/*, docs/*  → release/* マージ後に削除
   - release/*  → develop マージ後（vtag作成後）に削除
   - develop/main → 削除禁止（長期ブランチ）
   - 確認: git merge-base --is-ancestor origin/<branch> origin/develop

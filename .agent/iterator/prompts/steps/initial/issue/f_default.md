@@ -14,6 +14,13 @@ customVariables:
 
 {issue_content}
 {cross_repo_note}
+## Context Reference Rule
+
+**IMPORTANT**: If the issue body contains a "詳細コンテキスト" (Detailed Context) section:
+1. **Read all referenced files FIRST** before starting any work
+2. These files contain critical background information for this task
+3. Understanding this context is MANDATORY before proceeding
+
 ## Working Style: Task-Driven & Progressive
 
 **IMPORTANT**: Work in small, trackable steps with frequent progress updates.
@@ -61,11 +68,21 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 
 ### Complete Issue (REQUIRED when done)
 
-**IMPORTANT: Before closing, ensure all changes are committed.**
-Run `git add` and `git commit` for your implementation. Never close an issue with uncommitted changes.
+> **⚠️ MANDATORY PRE-CLOSE CHECKLIST ⚠️**
+>
+> **You MUST complete ALL of these steps before using `issue-action close`:**
+>
+> 1. **Run `git status`** - Check for uncommitted changes
+> 2. **If changes exist**: Run `git add .` then `git commit -m "..."`
+> 3. **Verify clean state**: Run `git status` again to confirm "nothing to commit"
+> 4. **Only then**: Use the close action below
+>
+> **NEVER close an issue with uncommitted changes. This is a hard requirement.**
+>
+> **Note**: In worktree mode, branch merge to parent is handled automatically by the runner after completion. You do NOT need to push or merge.
 
 ```issue-action
-{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Tasks completed: N"}
+{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N"}
 ```
 
 ### Ask a Question (if blocked)

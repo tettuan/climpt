@@ -2,6 +2,10 @@
  * Default sandbox configuration for all agents
  *
  * Agents can override these defaults via sandboxConfig in agent.json
+ *
+ * @deprecated Use `agents/bridge/sandbox-config.ts` instead.
+ * This file will be removed in a future version.
+ * Migration: Import from `../bridge/mod.ts` or `../bridge/sandbox-config.ts`
  */
 
 import type { SandboxConfig } from "../src_common/types.ts";
