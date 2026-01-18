@@ -196,7 +196,7 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
         "targetField": "next_action.details.target",
         "fallbackIntent": "next",
@@ -204,8 +204,7 @@
       },
       "transitions": {
         "next": { "target": "continuation.issue" },
-        "repeat": { "target": "initial.issue" },
-        "handoff": { "target": "closure.issue" }
+        "repeat": { "target": "initial.issue" }
       },
       "description": "Initial prompt when working on a single GitHub issue"
     },
@@ -584,15 +583,14 @@
         "schema": "initial.iterate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations"]
       },
       "transitions": {
         "next": { "target": "continuation.iterate" },
-        "repeat": { "target": "initial.iterate" },
-        "handoff": { "target": "closure.iterate" }
+        "repeat": { "target": "initial.iterate" }
       },
       "description": "Initial prompt for iteration-based execution"
     },
@@ -639,15 +637,14 @@
         "schema": "initial.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
       },
       "transitions": {
         "next": { "target": "continuation.externalState" },
-        "repeat": { "target": "initial.externalState" },
-        "handoff": { "target": "closure.externalState" }
+        "repeat": { "target": "initial.externalState" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },

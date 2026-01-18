@@ -1335,6 +1335,11 @@ export class AgentRunner {
     // Route to next step
     const routing = this.workflowRouter.route(stepId, interpretation);
 
+    // Log warning if present (e.g., handoff from initial step)
+    if (routing.warning) {
+      ctx.logger.warn(`[StepFlow] ${routing.warning}`);
+    }
+
     ctx.logger.info(
       `[StepFlow] Routing decision: ${stepId} -> ${routing.nextStepId}`,
       {

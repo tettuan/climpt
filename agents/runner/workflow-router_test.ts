@@ -2,7 +2,7 @@
  * Tests for WorkflowRouter
  */
 
-import { assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
@@ -464,24 +464,31 @@ Deno.test("WorkflowRouter - handoff intent signals completion from continuation"
   assertEquals(result.reason, "Delegating to reviewer");
 });
 
-Deno.test("WorkflowRouter - handoff from initial step is blocked", () => {
-  // Handoff from initial steps is NOT allowed - must use next to proceed first
+Deno.test("WorkflowRouter - handoff from initial step emits warning", () => {
+  // Handoff from initial steps is allowed but emits a warning
+  // per design/08_step_flow_design.md Section 7.3
   const registry = createRegistry({
     "initial.issue": {
       c2: "initial",
+      transitions: {
+        handoff: { target: "closure.issue" },
+      },
+    },
+    "closure.issue": {
+      c2: "closure",
     },
   });
   const router = new WorkflowRouter(registry);
 
-  assertThrows(
-    () =>
-      router.route(
-        "initial.issue",
-        createInterpretation({ intent: "handoff" }),
-      ),
-    RoutingError,
-    "Handoff from initial step",
+  const result = router.route(
+    "initial.issue",
+    createInterpretation({ intent: "handoff" }),
   );
+
+  assertEquals(result.nextStepId, "closure.issue");
+  assertEquals(result.signalCompletion, false);
+  assert(result.warning?.includes("Handoff from initial step"));
+  assert(result.warning?.includes("initial.issue"));
 });
 
 Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {

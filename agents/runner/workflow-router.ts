@@ -32,6 +32,8 @@ export interface RoutingResult {
   signalCompletion: boolean;
   /** Reason for routing decision */
   reason: string;
+  /** Optional warning message (e.g., handoff from initial step) */
+  warning?: string;
 }
 
 /**
@@ -341,9 +343,10 @@ export class WorkflowRouter {
    * Handle handoff intent for work steps.
    *
    * Handoff transitions to a closure step using the transitions config.
-   * Initial steps (initial.*) CANNOT emit handoff - they must use next/repeat.
+   * Initial steps (initial.*) SHOULD use next/repeat first, but handoff is
+   * allowed with a warning per design/08_step_flow_design.md Section 7.3.
    *
-   * @throws RoutingError if handoff from initial step or if target doesn't exist
+   * @throws RoutingError if target doesn't exist
    */
   private resolveHandoff(
     currentStepId: string,
@@ -351,15 +354,13 @@ export class WorkflowRouter {
   ): RoutingResult {
     const stepDef = this.getStepDefinition(currentStepId);
 
-    // Block handoff from initial steps - they must complete the work cycle first
+    // Warn (but allow) handoff from initial steps per 08_step_flow_design.md Section 7.3:
+    // "Runtime logs will warn when handoff is emitted from initial.* step"
+    let initialStepWarning: string | undefined;
     if (stepDef?.c2 === "initial") {
-      throw new RoutingError(
-        `Handoff from initial step '${currentStepId}' is not allowed. ` +
-          `Initial steps must use 'next' to proceed to continuation steps before handoff. ` +
-          `See design/08_step_flow_design.md Section 7.3.`,
-        currentStepId,
-        "handoff",
-      );
+      initialStepWarning = `Handoff from initial step '${currentStepId}'. ` +
+        `Consider using 'next' to proceed to continuation steps first. ` +
+        `See design/08_step_flow_design.md Section 7.3.`;
     }
 
     // Check if handoff transition is defined
@@ -379,6 +380,7 @@ export class WorkflowRouter {
             signalCompletion: false,
             reason: interpretation.reason ??
               `Handoff to closure: ${transitionRule.target}`,
+            warning: initialStepWarning,
           };
         }
         // target: null means signal completion
@@ -387,6 +389,7 @@ export class WorkflowRouter {
             nextStepId: currentStepId,
             signalCompletion: true,
             reason: interpretation.reason ?? "Handoff: terminal transition",
+            warning: initialStepWarning,
           };
         }
       }
@@ -397,6 +400,7 @@ export class WorkflowRouter {
       nextStepId: currentStepId,
       signalCompletion: true,
       reason: interpretation.reason ?? "Intent: handoff (no transition)",
+      warning: initialStepWarning,
     };
   }
 

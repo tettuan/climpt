@@ -81,9 +81,9 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 | `handoff` | **Only when ALL work is complete**           |
 | `closing` | Only from closure steps to signal completion |
 
-> **Warning**: Do NOT expose `handoff` on `initial.*` steps. Initial steps must
-> proceed to continuation steps via `next`. Handoff from initial steps is
-> blocked at runtime with a `RoutingError`.
+> **Warning**: Do NOT expose `handoff` on `initial.*` steps. Initial steps
+> should proceed to continuation steps via `next`. Handoff from initial steps is
+> allowed but emits a runtime warning. See `08_step_flow_design.md` Section 7.3.
 
 ### Step プロンプト作成時の注意点
 
