@@ -677,7 +677,7 @@ export class AgentRunner {
   }
 
   private getMaxIterations(): number {
-    if (this.definition.behavior.completionType === "iterate") {
+    if (this.definition.behavior.completionType === "iterationBudget") {
       return (
         (
           this.definition.behavior.completionConfig as {

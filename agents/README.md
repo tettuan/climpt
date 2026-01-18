@@ -185,39 +185,39 @@ agent.
 }
 ```
 
-### 2. iterate - Fixed Iteration
+### 2. iterationBudget - Fixed Iteration
 
 Completes after specified number of iterations.
 
 ```json
 {
-  "completionType": "iterate",
+  "completionType": "iterationBudget",
   "completionConfig": {
     "maxIterations": 5
   }
 }
 ```
 
-### 3. manual - Keyword Completion
+### 3. keywordSignal - Keyword Completion
 
 Completes when agent outputs a specific keyword.
 
 ```json
 {
-  "completionType": "manual",
+  "completionType": "keywordSignal",
   "completionConfig": {
     "completionKeyword": "TASK_COMPLETE"
   }
 }
 ```
 
-### 4. stepFlow - Step-Based Completion
+### 4. stepMachine - Step-Based Completion
 
 Completes through state machine-like step transitions.
 
 ```json
 {
-  "completionType": "stepFlow",
+  "completionType": "stepMachine",
   "completionConfig": {}
 }
 ```

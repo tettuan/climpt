@@ -86,14 +86,9 @@
             "structuredSignal",
             "stepMachine",
             "composite",
-            "custom",
-            "issue",
-            "iterate",
-            "manual",
-            "stepFlow",
-            "facilitator"
+            "custom"
           ],
-          "description": "How the agent determines completion. New behavior-based names: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler). Legacy aliases: issue->externalState, iterate->iterationBudget, manual->keywordSignal, stepFlow->stepMachine, facilitator->composite."
+          "description": "How the agent determines completion. Types: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler)."
         },
         "completionConfig": {
           "type": "object",

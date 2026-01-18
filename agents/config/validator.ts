@@ -12,11 +12,7 @@ import type {
   CompletionType,
   ValidationResult,
 } from "../src_common/types.ts";
-import {
-  ALL_COMPLETION_TYPES,
-  isLegacyCompletionType,
-  resolveCompletionType,
-} from "../src_common/types.ts";
+import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
 
 /**
  * Type guard to check if a string is a valid CompletionType
@@ -105,13 +101,6 @@ export function validate(definition: unknown): ValidationResult {
           `Invalid completion type: ${behavior.completionType}. Must be one of: ${
             ALL_COMPLETION_TYPES.join(", ")
           }`,
-        );
-      } else if (isLegacyCompletionType(completionTypeStr as CompletionType)) {
-        const newType = resolveCompletionType(
-          completionTypeStr as CompletionType,
-        );
-        warnings.push(
-          `behavior.completionType "${behavior.completionType}" is deprecated, use "${newType}" instead`,
         );
       }
     }
@@ -208,18 +197,15 @@ function validateCompletionConfig(
   config: Record<string, unknown>,
   errors: string[],
 ): void {
-  // Resolve legacy type names to new names for validation
-  // Only resolve if it's a valid completion type
   if (!isValidCompletionType(completionType)) {
     return; // Invalid type is already handled by the main validate function
   }
-  const resolvedType = resolveCompletionType(completionType);
 
-  switch (resolvedType) {
+  switch (completionType as CompletionType) {
     case "iterationBudget":
       if (!config.maxIterations) {
         errors.push(
-          "behavior.completionConfig.maxIterations is required for iterationBudget/iterate completion type",
+          "behavior.completionConfig.maxIterations is required for iterationBudget completion type",
         );
       } else if (
         typeof config.maxIterations !== "number" ||
@@ -234,7 +220,7 @@ function validateCompletionConfig(
     case "keywordSignal":
       if (!config.completionKeyword) {
         errors.push(
-          "behavior.completionConfig.completionKeyword is required for keywordSignal/manual completion type",
+          "behavior.completionConfig.completionKeyword is required for keywordSignal completion type",
         );
       }
       break;

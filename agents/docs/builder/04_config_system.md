@@ -27,11 +27,11 @@ Agent の振る舞いを定義。変更頻度: 低。
 ```json
 {
   "version": "1.0.0",
-  "name": "facilitator",
-  "displayName": "Facilitator Agent",
+  "name": "session-agent",
+  "displayName": "Session Agent",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "manual",
+    "completionType": "keywordSignal",
     "completionConfig": { "completionKeyword": "SESSION_COMPLETE" },
     "allowedTools": ["Read", "Write", "Edit", "Bash"],
     "permissionMode": "acceptEdits"
@@ -89,3 +89,24 @@ load → parse → merge → validate → 起動 or エラー
 - 型の整合性
 - completionConfig と completionType の対応
 ```
+
+---
+
+## 注意点
+
+| 項目                | 注意                                        |
+| ------------------- | ------------------------------------------- |
+| `config.local.json` | 必ず `.gitignore` に追加                    |
+| CLI 引数            | 常に最優先、他の設定を上書き                |
+| 配列のマージ        | 上位で完全に置換される（マージではない）    |
+| `overrides`         | agent.json の `behavior` 配下のみ上書き可能 |
+
+---
+
+## 関連ドキュメント
+
+| ドキュメント                                       | 内容              |
+| -------------------------------------------------- | ----------------- |
+| [01_quickstart.md](./01_quickstart.md)             | ファイル作成手順  |
+| [02_agent_definition.md](./02_agent_definition.md) | agent.json の詳細 |
+| [03_builder_guide.md](./03_builder_guide.md)       | 設計思想と連鎖    |

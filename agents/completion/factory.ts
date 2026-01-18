@@ -6,10 +6,6 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
-import {
-  isLegacyCompletionType,
-  resolveCompletionType,
-} from "../src_common/types.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
 import type { CompletionHandler, ContractCompletionHandler } from "./types.ts";
 import {
@@ -220,9 +216,6 @@ export interface CompletionHandlerOptions {
 /**
  * Create a completion handler based on agent definition.
  *
- * Supports both new behavior-based type names and legacy aliases.
- * The factory resolves legacy names to their new equivalents automatically.
- *
  * @deprecated For new code, prefer createCompletionHandlerV2 which provides
  * contract-compliant handlers with separated external state management.
  */
@@ -232,19 +225,6 @@ export async function createCompletionHandler(
   agentDir: string,
 ): Promise<CompletionHandler> {
   const { completionType } = definition.behavior;
-
-  // Resolve legacy type names to new names
-  const resolvedType = resolveCompletionType(completionType);
-
-  // Warn about deprecated completion type names at runtime
-  if (isLegacyCompletionType(completionType)) {
-    // deno-lint-ignore no-console
-    console.warn(
-      `[Deprecated] CompletionType "${completionType}" is deprecated. ` +
-        `Use "${resolvedType}" instead. ` +
-        `This will be removed in a future version.`,
-    );
-  }
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
@@ -265,7 +245,7 @@ export async function createCompletionHandler(
   }
 
   // Get factory from registry
-  const factory = HANDLER_REGISTRY.get(resolvedType);
+  const factory = HANDLER_REGISTRY.get(completionType);
   if (!factory) {
     throw new Error(`Unknown completion type: ${completionType}`);
   }

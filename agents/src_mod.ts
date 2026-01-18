@@ -10,10 +10,7 @@
 // Common types - explicit exports to avoid conflicts
 export {
   ALL_COMPLETION_TYPES,
-  COMPLETION_TYPE_ALIASES,
   INITIAL_AGENT_STATE,
-  isLegacyCompletionType,
-  resolveCompletionType,
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
 export type {
@@ -33,19 +30,15 @@ export type {
   ExternalStateCompletionConfig,
   FinalizeConfig,
   GitHubConfig,
-  IssueCompletionConfig,
-  IterateCompletionConfig,
   IterationBudgetCompletionConfig,
   IterationConfig,
   IterationSummary,
   KeywordSignalCompletionConfig,
   LoggingConfig,
-  ManualCompletionConfig,
   ParameterDefinition,
   ParameterValidation,
   PermissionMode,
   PhaseCompletionConfig,
-  ProjectCompletionConfig,
   PromptC3LReference,
   PromptConfig,
   PromptPathReference,

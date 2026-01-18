@@ -79,18 +79,17 @@ export interface SandboxFilesystemConfig {
  * Completion types based on HOW completion is determined,
  * not WHO uses the completion handler.
  *
- * New behavior-based naming convention:
- * - externalState: Complete when external resource reaches target state (was: issue)
- * - iterationBudget: Complete after N iterations (was: iterate)
+ * Behavior-based naming convention:
+ * - externalState: Complete when external resource reaches target state
+ * - iterationBudget: Complete after N iterations
  * - checkBudget: Complete after N status checks (monitoring scenarios)
- * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
+ * - keywordSignal: Complete when LLM outputs specific keyword
  * - structuredSignal: Complete when LLM outputs specific JSON signal
- * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
- * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
+ * - stepMachine: Complete when step state machine reaches terminal
+ * - composite: Combines multiple conditions with AND/OR logic
  * - custom: Fully custom handler implementation
  */
 export type CompletionType =
-  // New behavior-based names
   | "externalState"
   | "iterationBudget"
   | "checkBudget"
@@ -98,45 +97,12 @@ export type CompletionType =
   | "structuredSignal"
   | "stepMachine"
   | "composite"
-  | "custom"
-  // Legacy aliases (deprecated, use behavior-based names instead)
-  | "issue" // -> externalState
-  | "iterate" // -> iterationBudget
-  | "manual" // -> keywordSignal
-  | "stepFlow" // -> stepMachine
-  | "facilitator"; // -> composite
+  | "custom";
 
 /**
- * Type alias mapping from old names to new names
- */
-export const COMPLETION_TYPE_ALIASES: Record<string, CompletionType> = {
-  // Old -> New mapping
-  issue: "externalState",
-  iterate: "iterationBudget",
-  manual: "keywordSignal",
-  stepFlow: "stepMachine",
-  facilitator: "composite",
-};
-
-/**
- * Resolve a completion type to its canonical (new) name
- */
-export function resolveCompletionType(type: CompletionType): CompletionType {
-  return COMPLETION_TYPE_ALIASES[type] ?? type;
-}
-
-/**
- * Check if a completion type is a legacy/deprecated name
- */
-export function isLegacyCompletionType(type: CompletionType): boolean {
-  return type in COMPLETION_TYPE_ALIASES;
-}
-
-/**
- * All valid completion types (both new and legacy)
+ * All valid completion types
  */
 export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
-  // New behavior-based names
   "externalState",
   "iterationBudget",
   "checkBudget",
@@ -145,12 +111,6 @@ export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
   "stepMachine",
   "composite",
   "custom",
-  // Legacy aliases
-  "issue",
-  "iterate",
-  "manual",
-  "stepFlow",
-  "facilitator",
 ] as const;
 
 /**
@@ -182,24 +142,7 @@ export interface CompletionConfigUnion {
   entryStep?: string;
 }
 
-// Type aliases for documentation purposes (updated with new names)
-/** @deprecated Use ExternalStateCompletionConfig instead */
-export type IssueCompletionConfig = CompletionConfigUnion;
-/** @deprecated Use PhaseCompletionConfig instead */
-export type ProjectCompletionConfig = CompletionConfigUnion;
-/** @deprecated Use IterationBudgetCompletionConfig instead */
-export type IterateCompletionConfig = CompletionConfigUnion & {
-  maxIterations: number;
-};
-/** @deprecated Use KeywordSignalCompletionConfig instead */
-export type ManualCompletionConfig = CompletionConfigUnion & {
-  completionKeyword: string;
-};
-export type CustomCompletionConfig = CompletionConfigUnion & {
-  handlerPath: string;
-};
-
-// New behavior-based config types
+// Completion config types
 export type ExternalStateCompletionConfig = CompletionConfigUnion & {
   resourceType: "github-issue" | "github-project" | "file" | "api";
   targetState: string | Record<string, unknown>;
@@ -230,6 +173,9 @@ export type CompositeCompletionConfig = CompletionConfigUnion & {
     type: CompletionType;
     config: CompletionConfigUnion;
   }>;
+};
+export type CustomCompletionConfig = CompletionConfigUnion & {
+  handlerPath: string;
 };
 
 /**

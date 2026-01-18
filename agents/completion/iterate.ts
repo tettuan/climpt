@@ -10,7 +10,7 @@ import {
 } from "./types.ts";
 
 export class IterateCompletionHandler extends BaseCompletionHandler {
-  readonly type = "iterate" as const;
+  readonly type = "iterationBudget" as const;
   private currentIteration = 0;
   private promptResolver?: PromptResolver;
 

@@ -133,7 +133,24 @@ Work step のプロンプトには以下を明示する:
 
 ---
 
-このガイドは、設計哲学 (`docs/internal/ai-complexity-philosophy.md`) を
-設定アーティファクトへ落とし込む際の索引である。詳細なサンプルやコマンドは
-Quickstart を、Flow の細部は Step Flow Design を参照しつつ、ここで示した
-連鎖を崩さないことが Agent 構築成功の近道となる。
+## 注意点
+
+| 項目                   | 注意                                                            |
+| ---------------------- | --------------------------------------------------------------- |
+| Flow → Completion 連鎖 | Flow が `closure` に到達しないと Completion は実行されない      |
+| Intent 解釈            | `structuredGate.intentField` のパスが Schema と一致していること |
+| Handoff のタイミング   | Work Step からの `handoff` は初期ステップでは警告が出る         |
+| Schema 必須            | すべての Flow Step に `outputSchemaRef` が必要                  |
+
+---
+
+## 関連ドキュメント
+
+| ドキュメント                                                                                 | 内容               |
+| -------------------------------------------------------------------------------------------- | ------------------ |
+| [01_quickstart.md](./01_quickstart.md)                                                       | ファイル作成手順   |
+| [02_agent_definition.md](./02_agent_definition.md)                                           | agent.json の詳細  |
+| [04_config_system.md](./04_config_system.md)                                                 | 設定の優先順位     |
+| [design/08_step_flow_design.md](../design/08_step_flow_design.md)                            | Step Flow 設計詳細 |
+| [design/03_structured_outputs.md](../design/03_structured_outputs.md)                        | Structured Output  |
+| [docs/internal/ai-complexity-philosophy.md](../../docs/internal/ai-complexity-philosophy.md) | 設計哲学           |

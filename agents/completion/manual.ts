@@ -10,7 +10,7 @@ import {
 } from "./types.ts";
 
 export class ManualCompletionHandler extends BaseCompletionHandler {
-  readonly type = "manual" as const;
+  readonly type = "keywordSignal" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
 
