@@ -651,10 +651,15 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 
 → Step に `structuredGate` と `transitions` を定義
 
-## 次のステップ
+---
 
-- `02_agent_definition.md` - agent.json の詳細
-- `design/02_prompt_system.md` - C3L プロンプト解決
-- `design/08_step_flow_design.md` - Step フロー設計
-- `design/03_structured_outputs.md` - Structured Output
-````
+## 関連ドキュメント
+
+| ドキュメント | 内容 |
+|-------------|------|
+| [02_agent_definition.md](./02_agent_definition.md) | agent.json の詳細 |
+| [03_builder_guide.md](./03_builder_guide.md) | 設計思想と連鎖 |
+| [04_config_system.md](./04_config_system.md) | 設定の優先順位 |
+| [design/02_prompt_system.md](../design/02_prompt_system.md) | C3L プロンプト解決 |
+| [design/03_structured_outputs.md](../design/03_structured_outputs.md) | Structured Output |
+| [design/08_step_flow_design.md](../design/08_step_flow_design.md) | Step Flow 設計 |
