@@ -84,76 +84,6 @@ export interface RunnerOptions {
   plugins?: string[];
 }
 
-/**
- * SDK hook input type for PreToolUse
- */
-interface PreToolUseHookInput {
-  hook_event_name: string;
-  tool_name: string;
-  tool_input: Record<string, unknown>;
-}
-
-/**
- * SDK hook output type
- */
-interface HookOutput {
-  hookSpecificOutput?: {
-    hookEventName: string;
-    permissionDecision: "allow" | "deny";
-    permissionDecisionReason?: string;
-  };
-}
-
-/**
- * Create PreToolUse hooks for boundary bash command blocking.
- *
- * Returns hooks configuration that blocks boundary bash commands
- * in work/verification steps.
- *
- * @param stepKind - Current step kind
- * @returns Hooks configuration or undefined if no blocking needed
- */
-function createBoundaryBashHooks(
-  stepKind: StepKind,
-): Record<string, unknown> | undefined {
-  // Closure steps allow all commands
-  if (stepKind === "closure") {
-    return undefined;
-  }
-
-  // Create hook callback that blocks boundary commands
-  const blockBoundaryBash = (
-    input: PreToolUseHookInput,
-  ): HookOutput => {
-    const command = input.tool_input?.command;
-    if (typeof command !== "string") {
-      return {};
-    }
-
-    const result = isBashCommandAllowed(command, stepKind);
-    if (!result.allowed) {
-      return {
-        hookSpecificOutput: {
-          hookEventName: input.hook_event_name,
-          permissionDecision: "deny",
-          permissionDecisionReason: result.reason,
-        },
-      };
-    }
-
-    return {};
-  };
-
-  return {
-    PreToolUse: [
-      {
-        matcher: "Bash",
-        hooks: [blockBoundaryBash],
-      },
-    ],
-  };
-}
-
 // CompletionValidationResult is now imported from completion-chain.ts
 // Re-export for backward compatibility
 export type { CompletionValidationResult } from "./completion-chain.ts";
@@ -578,17 +508,6 @@ export class AgentRunner {
         resume: sessionId,
       };
 
-      // Add PreToolUse hooks to block boundary bash commands in work/verification steps
-      if (currentStepKind) {
-        const hooks = createBoundaryBashHooks(currentStepKind);
-        if (hooks) {
-          queryOptions.hooks = hooks;
-          ctx.logger.info(
-            `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking`,
-          );
-        }
-      }
-
       // Configure sandbox
       const sandboxConfig = mergeSandboxConfig(
         this.definition.behavior.sandboxConfig,
@@ -629,6 +548,26 @@ export class AgentRunner {
             `[StructuredOutput] Using schema for step: ${stepId}`,
           );
         }
+      }
+
+      // Configure PreToolUse hooks for boundary bash blocking
+      // Only enable for work/verification steps to block boundary commands
+      if (currentStepKind && currentStepKind !== "closure") {
+        const boundaryBashBlockingHook = this.createBoundaryBashBlockingHook(
+          currentStepKind,
+          ctx,
+        );
+        queryOptions.hooks = {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              hooks: [boundaryBashBlockingHook],
+            },
+          ],
+        };
+        ctx.logger.info(
+          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (stepKind: ${currentStepKind})`,
+        );
       }
 
       const queryIterator = query({
@@ -1470,5 +1409,66 @@ export class AgentRunner {
         structuredOutput: summary.structuredOutput,
       });
     }
+  }
+
+  // ============================================================================
+  // PreToolUse Hook Factory
+  // ============================================================================
+
+  /**
+   * Create a PreToolUse hook callback that blocks boundary bash commands.
+   *
+   * This hook is used to enforce the policy that Work/Verification steps
+   * cannot execute boundary actions like `gh issue close`, `gh pr merge`, etc.
+   *
+   * @param stepKind - Current step kind (work, verification, or closure)
+   * @param ctx - Runtime context for logging
+   * @returns Hook callback function for SDK PreToolUse event
+   *
+   * @see agents/docs/design/08_step_flow_design.md Section 2.1
+   * @see agents/common/tool-policy.ts
+   */
+  private createBoundaryBashBlockingHook(
+    stepKind: StepKind,
+    ctx: RuntimeContext,
+  ): (
+    input: { tool_name: string; tool_input: Record<string, unknown> },
+    toolUseId: string | undefined,
+    options: { signal: AbortSignal },
+  ) => Promise<Record<string, unknown>> {
+    return (input, _toolUseId, _options) => {
+      // Only check Bash commands
+      if (input.tool_name !== "Bash") {
+        return Promise.resolve({});
+      }
+
+      const command = input.tool_input.command as string | undefined;
+      if (!command) {
+        return Promise.resolve({});
+      }
+
+      // Check if command is allowed for this step kind
+      const result = isBashCommandAllowed(command, stepKind);
+
+      if (!result.allowed) {
+        ctx.logger.warn(
+          `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
+          {
+            command: command.substring(0, 100),
+            reason: result.reason,
+          },
+        );
+
+        return Promise.resolve({
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "deny",
+            permissionDecisionReason: result.reason,
+          },
+        });
+      }
+
+      return Promise.resolve({});
+    };
   }
 }
