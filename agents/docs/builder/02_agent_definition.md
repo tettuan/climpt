@@ -48,9 +48,6 @@ Agent の振る舞い。
 | `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `completionConditions`, `mode`             |
 | `custom`           | 外部 CompletionHandler で任意判定         | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `completionHandler` 設定 |
 
-レガシー名 (`issue`, `iterate`, `manual`, `stepFlow`, `facilitator`) は
-`agents/src_common/types.ts` の alias で自動的に最新型へ解決される。
-
 ### completionConditions
 
 steps_registry.json で完了条件を定義する。詳細は
@@ -197,3 +194,25 @@ load(path) → parse → validate → 起動 or エラー
 - 参照ファイルの存在
 - completionConditions の validator 参照の妥当性
 ```
+
+---
+
+## 注意点
+
+| 項目               | 注意                                           |
+| ------------------ | ---------------------------------------------- |
+| `completionType`   | 8 種類のみ有効。レガシー名は廃止済み           |
+| `systemPromptPath` | agent.json からの相対パス                      |
+| `allowedTools`     | 許可されていないツールは実行時エラー           |
+| `permissionMode`   | `bypassPermissions` は信頼できる環境でのみ使用 |
+
+---
+
+## 関連ドキュメント
+
+| ドキュメント                                                          | 内容                        |
+| --------------------------------------------------------------------- | --------------------------- |
+| [01_quickstart.md](./01_quickstart.md)                                | ファイル作成手順            |
+| [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖              |
+| [04_config_system.md](./04_config_system.md)                          | 設定の優先順位              |
+| [design/03_structured_outputs.md](../design/03_structured_outputs.md) | completionConditions の詳細 |

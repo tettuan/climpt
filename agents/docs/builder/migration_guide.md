@@ -30,17 +30,17 @@ Guide for migrating existing agents to the climpt-agents framework.
 
 ### Completion Condition Migration
 
-| Current Implementation                       | completionType | completionConfig                    |
-| -------------------------------------------- | -------------- | ----------------------------------- |
-| Complete when output contains "DONE"         | `manual`       | `{ "completionKeyword": "DONE" }`   |
-| Complete after 3 executions                  | `iterate`      | `{ "maxIterations": 3 }`            |
-| Complete when Issue #42 is resolved          | `issue`        | `{}` + `--issue 42` parameter       |
-| Custom logic                                 | `custom`       | `{ "handlerPath": "./handler.ts" }` |
-| Multiple phases (analyze->implement->review) | `stepFlow`     | `{}` + `steps_registry.json`        |
+| Current Implementation                       | completionType    | completionConfig                    |
+| -------------------------------------------- | ----------------- | ----------------------------------- |
+| Complete when output contains "DONE"         | `keywordSignal`   | `{ "completionKeyword": "DONE" }`   |
+| Complete after 3 executions                  | `iterationBudget` | `{ "maxIterations": 3 }`            |
+| Complete when Issue #42 is resolved          | `externalState`   | `{}` + `--issue 42` parameter       |
+| Custom logic                                 | `custom`          | `{ "handlerPath": "./handler.ts" }` |
+| Multiple phases (analyze->implement->review) | `stepMachine`     | `{}` + `steps_registry.json`        |
 
 ### Prompt Structure Migration
 
-**Traditional Model (iterate/manual):**
+**Traditional Model (iterationBudget/keywordSignal):**
 
 ```
 .agent/{agent-name}/
@@ -56,7 +56,7 @@ Guide for migrating existing agents to the climpt-agents framework.
 +-- steps_registry.json
 ```
 
-**Step Flow Model (stepFlow):**
+**Step Flow Model (stepMachine):**
 
 ```
 .agent/{agent-name}/
@@ -113,7 +113,7 @@ const result = await query({
   "displayName": "Code Reviewer",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "manual",
+    "completionType": "keywordSignal",
     "completionConfig": { "completionKeyword": "REVIEW_COMPLETE" },
     "allowedTools": ["Read", "Glob", "Grep"],
     "permissionMode": "plan"
@@ -154,7 +154,7 @@ gh issue view 42 --json body | claude --system-prompt "..."
 {
   "name": "issue-resolver",
   "behavior": {
-    "completionType": "issue",
+    "completionType": "externalState",
     "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     "permissionMode": "acceptEdits"
   },
@@ -198,7 +198,7 @@ done
 {
   "name": "iterative-task",
   "behavior": {
-    "completionType": "iterate",
+    "completionType": "iterationBudget",
     "completionConfig": { "maxIterations": 5 }
   }
 }
@@ -235,7 +235,7 @@ claude --prompt "Review fixes"
   "displayName": "Code Improver",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "stepFlow",
+    "completionType": "stepMachine",
     "completionConfig": {},
     "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     "permissionMode": "acceptEdits"
@@ -384,3 +384,14 @@ ls -la .agent/{agent-name}/agent.json
 # Clear cache and re-execute
 deno cache --reload mod.ts
 ```
+
+---
+
+## 関連ドキュメント
+
+| ドキュメント                                                       | 内容                 |
+| ------------------------------------------------------------------ | -------------------- |
+| [01_quickstart.md](./01_quickstart.md)                             | 新規 Agent 作成手順  |
+| [02_agent_definition.md](./02_agent_definition.md)                 | agent.json の詳細    |
+| [migration_incompatibilities.md](./migration_incompatibilities.md) | 破壊的変更一覧       |
+| [migration_template.md](./migration_template.md)                   | 移行作業テンプレート |

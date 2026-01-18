@@ -29,7 +29,7 @@ function createValidDefinition(): AgentDefinition {
     version: "1.0.0",
     behavior: {
       systemPromptPath: "./prompts/system.md",
-      completionType: "iterate",
+      completionType: "iterationBudget",
       completionConfig: { maxIterations: 10 },
       allowedTools: ["Read", "Write"],
       permissionMode: "plan",
@@ -283,9 +283,9 @@ Deno.test("validateAgentDefinition - invalid permissionMode fails", () => {
 // validateAgentDefinition Tests - Completion Type Specific
 // =============================================================================
 
-Deno.test("validateAgentDefinition - iterate type requires maxIterations", () => {
+Deno.test("validateAgentDefinition - iterationBudget type requires maxIterations", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "iterate";
+  def.behavior.completionType = "iterationBudget";
   def.behavior.completionConfig = {}; // Missing maxIterations
 
   const result = validateAgentDefinition(def);
@@ -294,9 +294,9 @@ Deno.test("validateAgentDefinition - iterate type requires maxIterations", () =>
   assertEquals(result.errors.some((e) => e.includes("maxIterations")), true);
 });
 
-Deno.test("validateAgentDefinition - iterate with negative maxIterations fails", () => {
+Deno.test("validateAgentDefinition - iterationBudget with negative maxIterations fails", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "iterate";
+  def.behavior.completionType = "iterationBudget";
   def.behavior.completionConfig = { maxIterations: -1 };
 
   const result = validateAgentDefinition(def);
@@ -305,9 +305,9 @@ Deno.test("validateAgentDefinition - iterate with negative maxIterations fails",
   assertEquals(result.errors.some((e) => e.includes("maxIterations")), true);
 });
 
-Deno.test("validateAgentDefinition - manual type requires completionKeyword", () => {
+Deno.test("validateAgentDefinition - keywordSignal type requires completionKeyword", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "manual";
+  def.behavior.completionType = "keywordSignal";
   def.behavior.completionConfig = {}; // Missing completionKeyword
 
   const result = validateAgentDefinition(def);
@@ -330,36 +330,17 @@ Deno.test("validateAgentDefinition - custom type requires handlerPath", () => {
   assertEquals(result.errors.some((e) => e.includes("handlerPath")), true);
 });
 
-// =============================================================================
-// validateAgentDefinition Tests - Legacy Type Names (Deprecated)
-// =============================================================================
-
-Deno.test("validateAgentDefinition - legacy 'issue' type generates warning", () => {
+Deno.test("validateAgentDefinition - composite type requires conditions", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "issue";
-  def.behavior.completionConfig = {};
-
-  const result = validateAgentDefinition(def);
-
-  // Should be valid but with deprecation warning
-  assertEquals(result.valid, true);
-  assertEquals(result.warnings.some((w) => w.includes("deprecated")), true);
-  assertEquals(result.warnings.some((w) => w.includes("externalState")), true);
-});
-
-Deno.test("validateAgentDefinition - legacy 'facilitator' type generates warning", () => {
-  const def = createValidDefinition();
-  def.behavior.completionType = "facilitator";
+  def.behavior.completionType = "composite";
   def.behavior.completionConfig = {
     operator: "and",
-    conditions: [{ type: "iterate", config: { maxIterations: 5 } }],
+    conditions: [{ type: "iterationBudget", config: { maxIterations: 5 } }],
   };
 
   const result = validateAgentDefinition(def);
 
   assertEquals(result.valid, true);
-  assertEquals(result.warnings.some((w) => w.includes("deprecated")), true);
-  assertEquals(result.warnings.some((w) => w.includes("composite")), true);
 });
 
 // =============================================================================

@@ -39,7 +39,7 @@ export interface ProjectContext {
 }
 
 export class IssueCompletionHandler extends BaseCompletionHandler {
-  readonly type = "issue" as const;
+  readonly type = "externalState" as const;
   private promptResolver?: PromptResolver;
   private projectContext?: ProjectContext;
   private repository?: string;
@@ -472,7 +472,7 @@ export type IssueCompletionConfigV2 = IssueContractConfig;
  * ```
  */
 export class IssueContractHandler implements ContractCompletionHandler {
-  readonly type: CompletionType = "issue";
+  readonly type: CompletionType = "externalState";
 
   private cachedState?: IssueState;
   private lastCheckTime = 0;

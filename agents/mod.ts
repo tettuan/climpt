@@ -71,10 +71,7 @@ export type {
 // Type utilities from src_common
 export {
   ALL_COMPLETION_TYPES,
-  COMPLETION_TYPE_ALIASES,
   INITIAL_AGENT_STATE,
-  isLegacyCompletionType,
-  resolveCompletionType,
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
 

@@ -332,7 +332,7 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
     version: "1.0.0",
     behavior: {
       systemPromptPath: "./prompts/system.md",
-      completionType: "issue",
+      completionType: "externalState",
       completionConfig: { maxIterations: 10 },
       allowedTools: [],
       permissionMode: "plan",
@@ -353,10 +353,10 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
   const completionType = definition.behavior.completionType;
 
   // iteration 1 -> initial.{completionType}
-  assertEquals(`initial.${completionType}`, "initial.issue");
+  assertEquals(`initial.${completionType}`, "initial.externalState");
 
   // iteration 2+ -> continuation.{completionType}
-  assertEquals(`continuation.${completionType}`, "continuation.issue");
+  assertEquals(`continuation.${completionType}`, "continuation.externalState");
 });
 
 /**
@@ -364,13 +364,13 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
  */
 Deno.test("StructuredOutput - log message format is correct", () => {
   // Expected log format from runner.ts line 504
-  const stepId = "initial.issue";
+  const stepId = "initial.externalState";
   const expectedLogMessage =
     `[StructuredOutput] Using schema for step: ${stepId}`;
 
   assertEquals(
     expectedLogMessage,
-    "[StructuredOutput] Using schema for step: initial.issue",
+    "[StructuredOutput] Using schema for step: initial.externalState",
   );
 });
 

@@ -95,9 +95,4 @@ export {
 } from "./step-machine.ts";
 
 // Re-export type utilities from src_common/types.ts
-export {
-  ALL_COMPLETION_TYPES,
-  COMPLETION_TYPE_ALIASES,
-  isLegacyCompletionType,
-  resolveCompletionType,
-} from "../src_common/types.ts";
+export { ALL_COMPLETION_TYPES } from "../src_common/types.ts";

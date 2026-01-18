@@ -24,7 +24,6 @@ import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
 import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
-import { resolveCompletionType } from "../src_common/types.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
 
@@ -55,12 +54,11 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
    */
   private initializeHandlers(): void {
     for (const condition of this.conditions) {
-      const resolvedType = resolveCompletionType(condition.type);
       const config = condition.config;
 
       let handler: CompletionHandler;
 
-      switch (resolvedType) {
+      switch (condition.type) {
         case "externalState": {
           handler = new IssueCompletionHandler(
             this.args.issue as number,
