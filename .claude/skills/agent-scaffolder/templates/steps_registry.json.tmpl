@@ -27,7 +27,7 @@
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis", "plan"]
@@ -35,7 +35,7 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "complete": { "target": "complete.default" }
+        "closing": { "target": "closure.default" }
       }
     },
     "continuation.default": {
@@ -49,7 +49,7 @@
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "complete"],
+        "allowedIntents": ["next", "repeat", "closing"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress"]
@@ -57,27 +57,27 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "continuation.default" },
-        "complete": { "target": "complete.default" }
+        "closing": { "target": "closure.default" }
       }
     },
-    "complete.default": {
-      "stepId": "complete.default",
-      "name": "Completion Step",
-      "c2": "complete",
+    "closure.default": {
+      "stepId": "closure.default",
+      "name": "Closure Step",
+      "c2": "closure",
       "c3": "default",
       "edition": "default",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
-        "schema": "#/definitions/complete.default"
+        "schema": "#/definitions/closure.default"
       },
       "structuredGate": {
-        "allowedIntents": ["complete"],
+        "allowedIntents": ["closing"],
         "intentField": "next_action.action",
-        "fallbackIntent": "complete",
+        "fallbackIntent": "closing",
         "handoffFields": ["final_summary"]
       },
       "transitions": {
-        "complete": { "target": null }
+        "closing": { "target": null }
       }
     }
   }

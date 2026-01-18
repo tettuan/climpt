@@ -20,12 +20,12 @@ Climpt Agent の雛形を生成する Skill。
 
 ### completionType 選択肢
 
-| タイプ | 用途 | 設定 |
-|--------|------|------|
-| `externalState` | Issue/PR の状態監視 | `maxIterations` |
-| `iterationBudget` | 固定回数で終了 | `maxIterations` |
-| `keywordSignal` | キーワードで終了 | `completionKeyword` |
-| `stepMachine` | Step グラフで判定 | `steps_registry.json` |
+| タイプ            | 用途                | 設定                  |
+| ----------------- | ------------------- | --------------------- |
+| `externalState`   | Issue/PR の状態監視 | `maxIterations`       |
+| `iterationBudget` | 固定回数で終了      | `maxIterations`       |
+| `keywordSignal`   | キーワードで終了    | `completionKeyword`   |
+| `stepMachine`     | Step グラフで判定   | `steps_registry.json` |
 
 ### 2. Scaffolding 実行
 
@@ -49,7 +49,7 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
     └── steps/
         ├── initial/default/f_default.md
         ├── continuation/default/f_default.md
-        └── complete/default/f_default.md
+        └── closure/default/f_default.md
 ```
 
 ### 4. 次のステップ案内

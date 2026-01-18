@@ -21,7 +21,7 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["next", "repeat", "complete"]
+              "enum": ["next", "repeat", "closing"]
             },
             "reason": {
               "type": "string",
@@ -47,7 +47,7 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["next", "repeat", "complete"]
+              "enum": ["next", "repeat", "closing"]
             },
             "reason": {
               "type": "string",
@@ -59,7 +59,7 @@
       },
       "additionalProperties": false
     },
-    "complete.default": {
+    "closure.default": {
       "type": "object",
       "required": ["final_summary", "next_action"],
       "properties": {
@@ -73,7 +73,7 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["complete"]
+              "enum": ["closing"]
             },
             "reason": {
               "type": "string",

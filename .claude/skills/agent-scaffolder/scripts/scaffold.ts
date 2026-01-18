@@ -14,7 +14,11 @@
 
 import { parse } from "https://deno.land/std@0.224.0/flags/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
-import { join, dirname, fromFileUrl } from "https://deno.land/std@0.224.0/path/mod.ts";
+import {
+  dirname,
+  fromFileUrl,
+  join,
+} from "https://deno.land/std@0.224.0/path/mod.ts";
 
 interface ScaffoldOptions {
   name: string;
@@ -40,7 +44,7 @@ function toDisplayName(kebabName: string): string {
 
 function replaceTemplateVars(
   content: string,
-  vars: Record<string, string>
+  vars: Record<string, string>,
 ): string {
   let result = content;
   for (const [key, value] of Object.entries(vars)) {
@@ -58,12 +62,14 @@ async function readTemplate(templatePath: string): Promise<string> {
 async function writeFile(
   path: string,
   content: string,
-  dryRun: boolean
+  dryRun: boolean,
 ): Promise<void> {
   if (dryRun) {
     console.log(`[DRY-RUN] Would create: ${path}`);
     console.log("---");
-    console.log(content.substring(0, 500) + (content.length > 500 ? "..." : ""));
+    console.log(
+      content.substring(0, 500) + (content.length > 500 ? "..." : ""),
+    );
     console.log("---\n");
     return;
   }
@@ -84,13 +90,23 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
 
   // Validate agent name
   if (!/^[a-z][a-z0-9-]*$/.test(name)) {
-    console.error("Error: Agent name must be lowercase kebab-case (e.g., my-agent)");
+    console.error(
+      "Error: Agent name must be lowercase kebab-case (e.g., my-agent)",
+    );
     Deno.exit(1);
   }
 
   // Validate completion type
-  if (!COMPLETION_TYPES.includes(completionType as typeof COMPLETION_TYPES[number])) {
-    console.error(`Error: Invalid completion type. Must be one of: ${COMPLETION_TYPES.join(", ")}`);
+  if (
+    !COMPLETION_TYPES.includes(
+      completionType as typeof COMPLETION_TYPES[number],
+    )
+  ) {
+    console.error(
+      `Error: Invalid completion type. Must be one of: ${
+        COMPLETION_TYPES.join(", ")
+      }`,
+    );
     Deno.exit(1);
   }
 
@@ -118,7 +134,7 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
     `${baseDir}/schemas`,
     `${baseDir}/prompts/steps/initial/default`,
     `${baseDir}/prompts/steps/continuation/default`,
-    `${baseDir}/prompts/steps/complete/default`,
+    `${baseDir}/prompts/steps/closure/default`,
   ];
 
   if (!dryRun) {
@@ -130,12 +146,30 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
   // Generate files from templates
   const files: Array<{ template: string; output: string }> = [
     { template: "agent.json.tmpl", output: `${baseDir}/agent.json` },
-    { template: "steps_registry.json.tmpl", output: `${baseDir}/steps_registry.json` },
-    { template: "step_outputs.schema.json.tmpl", output: `${baseDir}/schemas/step_outputs.schema.json` },
-    { template: "prompts/system.md.tmpl", output: `${baseDir}/prompts/system.md` },
-    { template: "prompts/steps/initial.md.tmpl", output: `${baseDir}/prompts/steps/initial/default/f_default.md` },
-    { template: "prompts/steps/continuation.md.tmpl", output: `${baseDir}/prompts/steps/continuation/default/f_default.md` },
-    { template: "prompts/steps/complete.md.tmpl", output: `${baseDir}/prompts/steps/complete/default/f_default.md` },
+    {
+      template: "steps_registry.json.tmpl",
+      output: `${baseDir}/steps_registry.json`,
+    },
+    {
+      template: "step_outputs.schema.json.tmpl",
+      output: `${baseDir}/schemas/step_outputs.schema.json`,
+    },
+    {
+      template: "prompts/system.md.tmpl",
+      output: `${baseDir}/prompts/system.md`,
+    },
+    {
+      template: "prompts/steps/initial.md.tmpl",
+      output: `${baseDir}/prompts/steps/initial/default/f_default.md`,
+    },
+    {
+      template: "prompts/steps/continuation.md.tmpl",
+      output: `${baseDir}/prompts/steps/continuation/default/f_default.md`,
+    },
+    {
+      template: "prompts/steps/closure.md.tmpl",
+      output: `${baseDir}/prompts/steps/closure/default/f_default.md`,
+    },
   ];
 
   for (const { template, output } of files) {
@@ -146,10 +180,14 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
 
   console.log("\nScaffolding complete!");
   console.log("\nNext steps:");
-  console.log(`  1. Edit ${baseDir}/prompts/system.md to define the agent's role`);
+  console.log(
+    `  1. Edit ${baseDir}/prompts/system.md to define the agent's role`,
+  );
   console.log(`  2. Customize prompts in ${baseDir}/prompts/steps/`);
   console.log(`  3. Add parameters to ${baseDir}/agent.json if needed`);
-  console.log(`  4. Verify with: deno run -A agents/scripts/run-agent.ts --agent ${name} --dry-run`);
+  console.log(
+    `  4. Verify with: deno run -A agents/scripts/run-agent.ts --agent ${name} --dry-run`,
+  );
 }
 
 // Main
