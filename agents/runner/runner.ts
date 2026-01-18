@@ -42,6 +42,7 @@ import {
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
+import { filterAllowedTools } from "../common/tool-policy.ts";
 import {
   CompletionChain,
   type CompletionValidationResult,
@@ -472,10 +473,27 @@ export class AgentRunner {
       // Dynamic import of Claude Code SDK
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
+      // Apply stepKind-based tool gating if we have step info
+      let allowedTools = this.definition.behavior.allowedTools;
+      if (stepId && this.stepsRegistry) {
+        const stepDef = this.stepsRegistry.steps[stepId] as
+          | PromptStepDefinition
+          | undefined;
+        if (stepDef) {
+          const stepKind = inferStepKind(stepDef);
+          if (stepKind) {
+            allowedTools = filterAllowedTools(allowedTools, stepKind);
+            ctx.logger.info(
+              `[ToolPolicy] Step "${stepId}" (${stepKind}): tools filtered to ${allowedTools.length} allowed`,
+            );
+          }
+        }
+      }
+
       const queryOptions: Record<string, unknown> = {
         cwd: ctx.cwd,
         systemPrompt,
-        allowedTools: this.definition.behavior.allowedTools,
+        allowedTools,
         permissionMode: this.definition.behavior.permissionMode,
         settingSources: ["user", "project"],
         plugins,

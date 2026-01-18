@@ -184,6 +184,7 @@
       "stepId": "initial.issue",
       "name": "Issue Initial Prompt",
       "type": "prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
@@ -211,6 +212,7 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Continuation Prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
@@ -248,6 +250,7 @@
     "initial.project.preparation": {
       "stepId": "initial.project.preparation",
       "name": "Project Preparation Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "preparation",
@@ -274,6 +277,7 @@
     "initial.project.preparationempty": {
       "stepId": "initial.project.preparationempty",
       "name": "Project Preparation (No Issues)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "preparation",
@@ -301,6 +305,7 @@
     "initial.project.processingempty": {
       "stepId": "initial.project.processingempty",
       "name": "Project Processing (No Current Issue)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "processing",
@@ -327,6 +332,7 @@
     "initial.project.review": {
       "stepId": "initial.project.review",
       "name": "Project Review Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "review",
@@ -353,6 +359,7 @@
     "initial.project.again": {
       "stepId": "initial.project.again",
       "name": "Project Again Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "again",
@@ -379,6 +386,7 @@
     "initial.project.closure": {
       "stepId": "initial.project.closure",
       "name": "Project Complete Message",
+      "stepKind": "closure",
       "c2": "initial",
       "c3": "project",
       "edition": "closure",
@@ -403,6 +411,7 @@
     "continuation.project.preparation": {
       "stepId": "continuation.project.preparation",
       "name": "Project Preparation Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "preparation",
@@ -429,6 +438,7 @@
     "continuation.project.processingdone": {
       "stepId": "continuation.project.processingdone",
       "name": "Project Processing Done",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "processing",
@@ -455,6 +465,7 @@
     "continuation.project.review": {
       "stepId": "continuation.project.review",
       "name": "Project Review Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "review",
@@ -481,6 +492,7 @@
     "continuation.project.again": {
       "stepId": "continuation.project.again",
       "name": "Project Again Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "again",
@@ -507,6 +519,7 @@
     "continuation.project.closure": {
       "stepId": "continuation.project.closure",
       "name": "Project Complete Continuation",
+      "stepKind": "closure",
       "c2": "continuation",
       "c3": "project",
       "edition": "closure",
@@ -531,6 +544,7 @@
     "initial.iterate": {
       "stepId": "initial.iterate",
       "name": "Iterate Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "iterate",
       "edition": "default",
@@ -557,6 +571,7 @@
     "continuation.iterate": {
       "stepId": "continuation.iterate",
       "name": "Iterate Continuation Prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "iterate",
       "edition": "default",
@@ -584,6 +599,7 @@
       "stepId": "initial.externalState",
       "name": "External State Initial Prompt",
       "type": "prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "externalState",
       "edition": "default",
@@ -611,6 +627,7 @@
       "stepId": "continuation.externalState",
       "name": "External State Continuation Prompt",
       "type": "prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "externalState",
       "edition": "default",
@@ -638,6 +655,7 @@
       "stepId": "closure.externalState",
       "name": "External State Closure Prompt",
       "type": "prompt",
+      "stepKind": "closure",
       "c2": "closure",
       "c3": "externalState",
       "edition": "default",

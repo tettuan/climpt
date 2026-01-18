@@ -95,6 +95,7 @@
     "initial.issue": {
       "stepId": "initial.issue",
       "name": "Issue Review Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
@@ -123,6 +124,7 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Review Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
@@ -149,6 +151,7 @@
     "initial.default": {
       "stepId": "initial.default",
       "name": "Initial Review Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "default",
       "edition": "default",
@@ -177,6 +180,7 @@
     "continuation.default": {
       "stepId": "continuation.default",
       "name": "Continuation Review Prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "default",
       "edition": "default",

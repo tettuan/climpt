@@ -452,6 +452,15 @@ export function validateStepRegistry(registry: StepRegistry): void {
       errors.push(`Step "${stepId}": usesStdin must be a boolean`);
     }
 
+    // Flow steps (with structuredGate) require explicit stepKind for tool permission enforcement
+    // This is a mandatory requirement per 08_step_flow_design.md
+    if (step.structuredGate && !step.stepKind) {
+      errors.push(
+        `Step "${stepId}": Flow step (has structuredGate) must have explicit stepKind. ` +
+          `Tool permissions depend on stepKind. Set stepKind to "work", "verification", or "closure".`,
+      );
+    }
+
     // Validate stepKind and intent constraints
     const kind = inferStepKind(step);
     if (kind && step.structuredGate) {

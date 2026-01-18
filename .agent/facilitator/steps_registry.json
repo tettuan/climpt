@@ -96,6 +96,7 @@
     "initial.discover": {
       "stepId": "initial.discover",
       "name": "Agent Discovery",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "discover",
       "edition": "default",
@@ -122,6 +123,7 @@
     "initial.statuscheck": {
       "stepId": "initial.statuscheck",
       "name": "Status Check Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "statuscheck",
       "edition": "default",
@@ -148,6 +150,7 @@
     "initial.statuscheck.empty": {
       "stepId": "initial.statuscheck.empty",
       "name": "Status Check (No Issues)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "statuscheck",
       "edition": "default",
@@ -174,6 +177,7 @@
     "initial.blockercheck": {
       "stepId": "initial.blockercheck",
       "name": "Blocker Check Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "blockercheck",
       "edition": "default",
@@ -200,6 +204,7 @@
     "initial.stalecheck": {
       "stepId": "initial.stalecheck",
       "name": "Stale Item Check Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "stalecheck",
       "edition": "default",
@@ -226,6 +231,7 @@
     "initial.judge": {
       "stepId": "initial.judge",
       "name": "Issue State Judgment",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "judge",
       "edition": "default",
@@ -252,6 +258,7 @@
     "initial.facilitate": {
       "stepId": "initial.facilitate",
       "name": "Facilitation Maintenance Action",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "facilitate",
       "edition": "default",
@@ -278,6 +285,7 @@
     "initial.report": {
       "stepId": "initial.report",
       "name": "Generate Recommendation Report",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "report",
       "edition": "default",
@@ -304,6 +312,7 @@
     "continuation.statuscheck": {
       "stepId": "continuation.statuscheck",
       "name": "Status Check Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "statuscheck",
       "edition": "default",
@@ -330,6 +339,7 @@
     "continuation.closure": {
       "stepId": "continuation.closure",
       "name": "Facilitation Complete",
+      "stepKind": "closure",
       "c2": "continuation",
       "c3": "closure",
       "edition": "default",
