@@ -315,6 +315,9 @@ export async function loadStepRegistry(
     // Always validate stepKind/allowedIntents consistency (fail fast)
     validateStepKindIntents(registry);
 
+    // Validate entryStepMapping references (fail fast)
+    validateEntryStepMapping(registry);
+
     // Optionally validate full schema
     if (options.validateSchema) {
       validateStepRegistry(registry);
@@ -449,6 +452,53 @@ export function validateStepKindIntents(registry: StepRegistry): void {
         errors.join("\n- ")
       }`,
     );
+  }
+}
+
+/**
+ * Validate entryStepMapping configuration.
+ *
+ * This is called by loadStepRegistry to fail fast when:
+ * - Neither entryStep nor entryStepMapping is defined
+ * - entryStepMapping references non-existent steps
+ *
+ * @param registry - Registry to validate
+ * @throws Error if entry configuration is invalid
+ */
+export function validateEntryStepMapping(registry: StepRegistry): void {
+  // Require either entryStep or entryStepMapping
+  if (!registry.entryStepMapping && !registry.entryStep) {
+    throw new Error(
+      `Step registry for "${registry.agentId}" missing entry configuration. ` +
+        `Define either "entryStep" or "entryStepMapping".`,
+    );
+  }
+
+  // Validate entryStep exists if defined
+  if (registry.entryStep && !registry.steps[registry.entryStep]) {
+    throw new Error(
+      `Step registry for "${registry.agentId}": entryStep "${registry.entryStep}" ` +
+        `does not exist in steps.`,
+    );
+  }
+
+  // Validate all entryStepMapping targets exist
+  if (registry.entryStepMapping) {
+    const errors: string[] = [];
+    for (const [type, stepId] of Object.entries(registry.entryStepMapping)) {
+      if (!registry.steps[stepId]) {
+        errors.push(
+          `entryStepMapping["${type}"] references non-existent step "${stepId}"`,
+        );
+      }
+    }
+    if (errors.length > 0) {
+      throw new Error(
+        `Step registry for "${registry.agentId}" has invalid entryStepMapping:\n- ${
+          errors.join("\n- ")
+        }`,
+      );
+    }
   }
 }
 

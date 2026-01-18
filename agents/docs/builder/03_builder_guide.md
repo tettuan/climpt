@@ -72,6 +72,40 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 > プロンプトは **設定された C3L 参照の結果としてのみ** 呼び出される。 Runner
 > 内で文字列を直接埋め込むことはしない。
 
+## 4.5 Intent Best Practices
+
+| Intent    | When to Use                                  |
+| --------- | -------------------------------------------- |
+| `next`    | After completing part of the work            |
+| `repeat`  | When current step needs retry                |
+| `handoff` | **Only when ALL work is complete**           |
+| `closing` | Only from closure steps to signal completion |
+
+> **Warning**: Do NOT expose `handoff` on `initial.*` steps. Initial steps must
+> proceed to continuation steps via `next`. Handoff from initial steps is
+> blocked at runtime with a `RoutingError`.
+
+### Step プロンプト作成時の注意点
+
+Work step のプロンプトには以下を明示する:
+
+- このステップは **特定のタスクのみ** を扱う（Issue
+  を閉じたり別ステップの成果物をまとめない）
+- 完了したら `next` で次のステップへ進む
+- 全ての作業が終わった **continuation** ステップでのみ `handoff` を使用する
+
+例:
+
+```markdown
+## このステップの責務
+
+このステップでは **分析タスクのみ** を実行します。
+
+- Issue を閉じません
+- 別ステップの成果物をまとめません
+- 分析が完了したら `next` で次のステップへ進みます
+```
+
 ## 5. 実装との対応表
 
 | 設定項目 / 概念               | 実装コンポーネント                                      | Why                                  | 参照                              |

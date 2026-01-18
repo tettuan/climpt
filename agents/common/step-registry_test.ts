@@ -253,6 +253,7 @@ Deno.test("loadStepRegistry - loads from file", async () => {
     agentId: "temp-agent",
     version: "1.0.0",
     c1: "steps",
+    entryStep: "test.step", // Required by validateEntryStepMapping
     steps: {
       "test.step": {
         stepId: "test.step",

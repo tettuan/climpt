@@ -542,6 +542,28 @@ Agent ロジックが注入する変数:
 - `{issue_content}` - Issue 本文
 - `{project_context_section}` - プロジェクト情報
 
+## entryStepMapping Requirements
+
+`completionType` に応じて、`entryStepMapping` に必要なキーを定義する。
+不足しているとロード時にエラーになる。
+
+| completionType    | Required entryStepMapping key |
+| ----------------- | ----------------------------- |
+| `externalState`   | `externalState`               |
+| `issue`           | `issue`                       |
+| `iterate`         | `iterate`                     |
+| `stepMachine`     | `stepMachine`                 |
+| `default`         | `default`                     |
+
+例: `completionType: "externalState"` の場合:
+
+```json
+"entryStepMapping": {
+  "externalState": "initial.default",
+  "default": "initial.default"
+}
+```
+
 ## Intent マッピング
 
 AI の `next_action.action` から遷移を決定。Step 種別ごとに許可される intent が異なる:

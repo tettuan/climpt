@@ -443,16 +443,17 @@ Deno.test("WorkflowRouter - work step cannot emit escalate intent", () => {
   );
 });
 
-Deno.test("WorkflowRouter - handoff intent signals completion", () => {
+Deno.test("WorkflowRouter - handoff intent signals completion from continuation", () => {
+  // Handoff is allowed from continuation steps (not initial steps)
   const registry = createRegistry({
-    "initial.issue": {
-      c2: "initial",
+    "continuation.issue": {
+      c2: "continuation",
     },
   });
   const router = new WorkflowRouter(registry);
 
   const result = router.route(
-    "initial.issue",
+    "continuation.issue",
     createInterpretation({
       intent: "handoff",
       reason: "Delegating to reviewer",
@@ -461,6 +462,26 @@ Deno.test("WorkflowRouter - handoff intent signals completion", () => {
 
   assertEquals(result.signalCompletion, true);
   assertEquals(result.reason, "Delegating to reviewer");
+});
+
+Deno.test("WorkflowRouter - handoff from initial step is blocked", () => {
+  // Handoff from initial steps is NOT allowed - must use next to proceed first
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "handoff" }),
+      ),
+    RoutingError,
+    "Handoff from initial step",
+  );
 });
 
 Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {

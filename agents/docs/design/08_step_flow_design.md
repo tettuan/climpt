@@ -308,6 +308,29 @@ flowchart LR
   を 定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
   エラーにするため、ワークフロー全体で一貫した境界管理が維持される。
 
+### 7.3 Sequential Step Enforcement
+
+**Rule**: Work steps MUST NOT emit `handoff` unless they have completed
+meaningful work.
+
+| Step type        | handoff availability                         |
+| ---------------- | -------------------------------------------- |
+| `initial.*`      | **Not available** - must use `next`/`repeat` |
+| `continuation.*` | Available after work cycle                   |
+| `closure.*`      | N/A - uses `closing` instead                 |
+
+- **What**: Default scaffolder templates do NOT expose `handoff` on initial
+  steps. Builders must explicitly add `handoff` to
+  `structuredGate.allowedIntents` and `transitions` after confirming that the
+  step represents final work.
+- **Why**: Premature handoff bypasses the work cycle and defeats multi-step
+  execution. The sports-condition-manager and trip-planner regressions both
+  stemmed from initial steps emitting `handoff` before any continuation work
+  occurred.
+- **Implication**: If a builder adds `handoff` to an initial step, they accept
+  responsibility for ensuring the step genuinely completes the workflow. Runtime
+  logs will warn when `handoff` is emitted from an `initial.*` step.
+
 ## 8. 設定の型と要件（要約）
 
 | 要素                             | What                                                                 | Why                                |

@@ -8,6 +8,13 @@
       "properties": {
         "analysis": {
           "type": "object",
+          "required": ["summary"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "Summary of the analysis"
+            }
+          },
           "description": "Analysis of the current task"
         },
         "plan": {
@@ -21,7 +28,7 @@
           "properties": {
             "action": {
               "type": "string",
-              "enum": ["next", "repeat", "handoff"]
+              "enum": ["next", "repeat"]
             },
             "reason": {
               "type": "string",
@@ -39,6 +46,18 @@
       "properties": {
         "progress": {
           "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "description": "Current status description"
+            },
+            "completed_items": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of completed items"
+            }
+          },
           "description": "Current progress status"
         },
         "next_action": {
@@ -65,6 +84,18 @@
       "properties": {
         "final_summary": {
           "type": "object",
+          "required": ["summary"],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "Final summary text"
+            },
+            "deliverables": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of deliverables"
+            }
+          },
           "description": "Final summary of completed work"
         },
         "next_action": {

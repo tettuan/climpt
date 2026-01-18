@@ -341,15 +341,26 @@ export class WorkflowRouter {
    * Handle handoff intent for work steps.
    *
    * Handoff transitions to a closure step using the transitions config.
-   * If no transition is defined, signals completion for backward compatibility.
+   * Initial steps (initial.*) CANNOT emit handoff - they must use next/repeat.
    *
-   * @throws RoutingError if transition target doesn't exist
+   * @throws RoutingError if handoff from initial step or if target doesn't exist
    */
   private resolveHandoff(
     currentStepId: string,
     interpretation: GateInterpretation,
   ): RoutingResult {
     const stepDef = this.getStepDefinition(currentStepId);
+
+    // Block handoff from initial steps - they must complete the work cycle first
+    if (stepDef?.c2 === "initial") {
+      throw new RoutingError(
+        `Handoff from initial step '${currentStepId}' is not allowed. ` +
+          `Initial steps must use 'next' to proceed to continuation steps before handoff. ` +
+          `See design/08_step_flow_design.md Section 7.3.`,
+        currentStepId,
+        "handoff",
+      );
+    }
 
     // Check if handoff transition is defined
     if (stepDef?.transitions?.handoff) {
