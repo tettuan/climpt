@@ -37,6 +37,17 @@ flowchart TD
 - **Link**: `Review` ノードが `closure.<domain>`（Closure Step）と 1:1
   に対応し、サブループ図の Closure Step と同じ要素となる。
 
+### 2.1 Step taxonomy (What / Why)
+
+| 種別 | What | Why |
+| --- | --- | --- |
+| Work Step (`initial.*` / `continuation.*`) | 成果物を生成し、`next` / `repeat` / `jump` / `handoff` intent を返す | 生成責務を一箇所に閉じ込め、Issue 操作などの境界行為を排除する |
+| Verification Step (`verification.*`) | 直前の Work Step 成果を自己検証し、`next` / `repeat` / `jump` / `escalate` intent を返す | Step ごとの完了基準を明確にし、Work Step での自己評価抜けを防ぐ |
+| Closure Step (`closure.*`) | Workflow 全体と外部 state を突き合わせ、`closing` / `repeat` を返す | 完了可否を一箇所で判断し、Issue close 等の副作用をここに限定する |
+| Boundary Hook (非 Step) | Closure Step が `closing` を宣言した瞬間だけ Issue / PR 操作を実行 | 連鎖の境界をプログラムで保証し、Work/Verification からの逸脱を防ぐ |
+
+> **Rule**: Work / Verification Step では `closing` intent を返さない。Boundary Hook は Closure Step を通過した run に対してのみ起動する。
+
 ## 3. Step 内部のサブループ
 
 ```mermaid
@@ -51,6 +62,16 @@ flowchart LR
     DecideWork -->|jump| JumpStep[任意 Step]
   end
 
+  subgraph VerifyStep["verification step (verification.*)"]
+    direction LR
+    VBegin([開始]) --> VRead[成果物読み取り]
+    VRead --> VCheck[自己検証]
+    VCheck -->|structured output| DecideVerify{intent}
+    DecideVerify -->|next| NextStep
+    DecideVerify -->|repeat| ReturnWork[再実行 Step]
+    DecideVerify -->|jump| JumpVerify[任意 Step]
+  end
+
   subgraph ClosureStep["closure step (closure.*)"]
     direction LR
     CBegin([開始]) --> CWork[整合確認]
@@ -60,16 +81,16 @@ flowchart LR
     DecideClose -->|repeat| ReturnWork[再実行 Step]
   end
 
-  ClosingSignal --> FlowHandoff[Flow handoff]
+  ClosingSignal --> Boundary[Boundary hook]
+  Boundary --> FlowHandoff[Flow handoff]
   FlowHandoff --> CompletionLoop[Completion Loop]
 ```
 
-- **What**: work step は `next`/`repeat`/`jump` を、closure step は
+- **What**: Work Step は `next`/`repeat`/`jump`、Verification Step は `next`/`repeat`/`jump`/`escalate`、Closure Step は
   `closing`/`repeat` を structured output で返す。
 - **Why**: Flow Router が解釈する intent を最小集合に保ち、AI
   の回答ぶれを抑える。
-- **Rule**: work step は `closing` を返さない。Closure Step（`closure.*`) のみ
-  `closing` を宣言して Flow を閉じる。
+- **Rule**: Work / Verification Step は `closing` を返さず、`escalate` intent は Flow が静的に定義したサポート Step のみに遷移させる。
 - **Loop safety**: Closure Step の `transitions` は `closing` を Flow End
   へ、`repeat` を明示的に作業 Step へ向ける。`closing → closing`
   にはならず、repeat で再検証させる場合のみ戻る。
@@ -91,7 +112,7 @@ sequenceDiagram
 ```
 
 - Runner は Step schema を SDK の `formatted` オプションで渡し、intent
-  選択肢（`next`/`repeat`/`jump`/`closing`）を schema の enum で固定する。
+  選択肢（Work: `next`/`repeat`/`jump`、Verification: `next`/`repeat`/`jump`/`escalate`、Closure: `closing`/`repeat`）を schema の enum で固定する。
 - プロンプトは意味付けだけに集中し、構造的制約は schema が担う。
 
 ## 4. Structured Gate + Router
@@ -114,8 +135,10 @@ flowchart LR
 - **What**: `structuredGate` が Intent / handoff の抽出方法を宣言する。
 - **Why**: Flow は Router の結果だけで次の Step
   を決めればよくなり、責務を細分化。
-- **必須**: すべての Flow Step に `structuredGate` と `transitions`
+- **必須**: すべての Flow Step に `structuredGate.intentSchemaRef` と `transitions`
   を定義しないとロードで失敗する。
+- **Fail-fast**: Gate が intent を解釈できなかった場合は Runner が `FAILED_STEP_ROUTING`
+  で停止する。Documentation で意図的に「フォールバック無し」と明記し、実装も即座に終端させる。
 
 ### Step サブループとの結びつき
 
@@ -135,6 +158,7 @@ flowchart LR
   Router -->|jump| JumpStep[任意 Step]
   Router -->|closing| ClosureStep[closure step]
   ClosureStep --> Completion[Completion Loop]
+  Router -->|escalate| Escalation[verification support]
 ```
 
 Step サブループで生成された structured output が Gate へ渡り、Router が Flow
@@ -219,12 +243,18 @@ flowchart LR
   に対応し、各 Step から集まった handoff が StepContext 経由で Completion Loop
   へ渡って最終判定を行う。
 
+### 7.1 Boundary hook
+
+- **What**: Closure Step が `closing` intent を返した瞬間にだけ起動し、Issue close や Release 作成などの副作用を実行するシンプルな関数。
+- **Why**: Work / Verification Step が誤って Issue 操作を行うことを物理的に防ぎ、Flow の鎖を壊さない。
+- **Implication**: Schema / Gate が `closing` intent を禁止している限り、Boundary Hook は決して呼び出されないため、設定ミスが外部副作用へ波及しない。
+
 ## 8. 設定の型と要件（要約）
 
 | 要素                            | What                                                        | Why                                |
 | ------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
 | `outputSchemaRef`               | JSON Pointer (`#/definitions/<stepId>`) を必須              | schema 失敗を即時検知              |
-| `structuredGate.allowedIntents` | `next/repeat/jump/closing/abort` を列挙                     | Router が明示的に判断              |
+| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指し、許可 intent を schema で宣言 | Router が明示的に判断              |
 | `transitions[target]`           | intent → Step を列挙し `closing` は `closure.<domain>` 固定 | 完了=Closure Step という秩序を維持 |
 | `handoffFields`                 | StepContext に積むキーを配列で宣言                          | 暗黙共有を防止                     |
 
