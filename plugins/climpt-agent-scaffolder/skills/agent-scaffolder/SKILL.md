@@ -30,7 +30,7 @@ Climpt Agent の雛形を生成する Skill。
 ### 2. Scaffolding 実行
 
 ```bash
-deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
+deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
   --name <agent-name> \
   --description "<説明>" \
   --completion-type <type>
