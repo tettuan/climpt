@@ -41,9 +41,10 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 - **最小限の How**:
   - プロンプト参照は C3L 形式 (`c1/c2/c3 + edition`) のみ。Runner は
     design/02_prompt_system.md に従ってファイルを読む。
-  - Step 開始前に `outputSchemaRef` を読み込み、SDK の `formatted: { type: "json_schema", schema }`
-    へ渡す。Pointer 解決に失敗したらその場で iteration を中止し、2 連続失敗で run
-    全体を `FAILED_SCHEMA_RESOLUTION` として停止する。
+  - Step 開始前に `outputSchemaRef` を読み込み、SDK の
+    `formatted: { type: "json_schema", schema }` へ渡す。Pointer
+    解決に失敗したらその場で iteration を中止し、2 連続失敗で run 全体を
+    `FAILED_SCHEMA_RESOLUTION` として停止する。
   - Step の出力から `completionSignal`（structured output の `status` または
     `next_action`）を取り出す。
   - `handoff` は Step ID 名前空間で累積し、次ステップの変数として注入する。

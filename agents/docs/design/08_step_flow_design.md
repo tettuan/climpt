@@ -275,8 +275,8 @@ flowchart LR
 - **Why**: 「手順中に Issue を閉じないで」とプロンプトで言う代わりに、物理的に
   呼び出せない状態にすることで AI 複雑性を排除する。Flow の実装は stepKind を
   見るだけで十分で、追加の条件分岐を必要としない。
-- **Implication**: ユーザーが `.agent/<agent>/steps_registry.json` で stepKind を
-  定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
+- **Implication**: ユーザーが `.agent/<agent>/steps_registry.json` で stepKind
+  を 定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
   エラーにするため、ワークフロー全体で一貫した境界管理が維持される。
 
 ## 8. 設定の型と要件（要約）

@@ -39,8 +39,8 @@ completionSignal(response) =
      を定義。
    - Runner が schema を解決できなければその iteration を即 abort し、同じ Step
      で 2 連続失敗すると run を `FAILED_SCHEMA_RESOLUTION` で終了。成功時のみ
-     SDK の `formatted: { type: "json_schema", schema }`
-     が起動し、intent セットも schema 側で確定させる。
+     SDK の `formatted: { type: "json_schema", schema }` が起動し、intent
+     セットも schema 側で確定させる。
 
 3. **Completion Conditions**
    - `steps_registry.json` の `completionSteps.<id>.completionConditions[]`
@@ -101,12 +101,12 @@ Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先
 
 ## 実装ノート
 
-| 領域                     | 状況     | Why                                                       |
-| ------------------------ | -------- | --------------------------------------------------------- |
-| Structured Output Schema | 運用中   | 完了宣言を明示的に検証する唯一のソース                    |
+| 領域                     | 状況     | Why                                                        |
+| ------------------------ | -------- | ---------------------------------------------------------- |
+| Structured Output Schema | 運用中   | 完了宣言を明示的に検証する唯一のソース                     |
 | FormatValidator          | SDK 委譲 | Runner が schema を渡すだけで SDK が intent と JSON を強制 |
-| CompletionConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す    |
-| RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除     |
+| CompletionConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す     |
+| RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除      |
 
 Completion Loop は「完璧な終了体験」を作るための最小構成であり、余計な判断を
 Flow に流さないことだけを約束する。Structured Output
