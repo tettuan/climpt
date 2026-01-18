@@ -41,9 +41,22 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 - **最小限の How**:
   - プロンプト参照は C3L 形式 (`c1/c2/c3 + edition`) のみ。Runner は
     design/02_prompt_system.md に従ってファイルを読む。
+  - Step 開始前に `outputSchemaRef` を読み込み、SDK の `formatted: { type: "json_schema", schema }`
+    へ渡す。Pointer 解決に失敗したらその場で iteration を中止し、2 連続失敗で run
+    全体を `FAILED_SCHEMA_RESOLUTION` として停止する。
   - Step の出力から `completionSignal`（structured output の `status` または
     `next_action`）を取り出す。
   - `handoff` は Step ID 名前空間で累積し、次ステップの変数として注入する。
+
+#### Step kind と許可制御
+
+- **What**: Runner は `stepKind` に応じて `allowedTools` / `permissionMode`
+  を再構成し、Work/Verification では副作用ツールを自動的に除去、Closure のみ
+  再付与する。
+- **Why**: 「Issue を閉じないで」と指示する代わりに、物理的な権限で境界を保証。
+  Flow は intent と handoff だけを見ればよい。
+- **Implication**: `steps_registry.json` に stepKind を定義すれば即機能する。
+  定義が欠ければ loader がエラーにするため、設定漏れでも複雑性は増えない。
 
 ### Completion ループ
 

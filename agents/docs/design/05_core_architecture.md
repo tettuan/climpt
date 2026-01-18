@@ -41,10 +41,15 @@ Flow ループは「前へ進むための重力」、Completion ループは「�
 - **How (最小限)**:
   - 各 Step のプロンプト参照は C3L/Climpt 形式 (`c1/c2/c3 + edition`) に限定し、
     docs/ に保存された意味付けに従う。
+  - Step 開始時に JSON Schema を解決し、`formatted: { type: "json_schema" }`
+    で Claude SDK に渡す。Schema が無ければ iteration を止め、2 連続失敗で run
+    全体を終了する。
   - `handoff` は `stepId.key → uv-stepId_key` の名前空間で蓄積し、Runner が次
     ステップの prompt variables として注入する。
   - ループは状態を巻き戻さない。Step は「完了」を宣言せず、完了判断は Completion
     Loop へ委譲する。
+  - `stepKind`（work / verification / closure）に応じて許可するツールを切り替え、
+    Closure 以外の Step から Issue/PR 操作が到達しないようにする。
 
 ## Completion Loop
 
@@ -62,6 +67,8 @@ Flow ループは「前へ進むための重力」、Completion ループは「�
     の検証結果、`pendingActions`、`retryPrompt` を Flow ループへ返す。
   - 失敗しても Flow ループは停止せず、Completion Loop が返した `retryPrompt`
     を次イテレーションのプロンプトとして使うだけである。
+  - Closure Step から `closing` intent を受け取ったときだけ boundary hook を
+    呼び出し、Issue close / release publish 等の副作用はここに限定する。
 
 ## データ引き継ぎ（handoff）
 

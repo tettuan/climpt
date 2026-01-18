@@ -259,6 +259,26 @@ flowchart LR
   を禁止している限り、Boundary Hook
   は決して呼び出されないため、設定ミスが外部副作用へ波及しない。
 
+### 7.2 Step kind とツール許可
+
+```mermaid
+flowchart LR
+  Work[work step] -->|allowedTools: shell,edit| SDK
+  Verify[verification step] -->|allowedTools: shell,edit| SDK
+  Closure[closure step] -->|allowedTools: shell,edit,github-actions| SDK
+  SDK --> Boundary[[Boundary Hook]]
+```
+
+- **What**: Runner は `stepKind` ごとに許可ツールを再構成し、Work / Verification
+  では GitHub などの副作用ツールを自動的に無効化する。Closure Step に遷移した
+  時だけ Issue close 等の権限が注入され、boundary hook が単一の出口となる。
+- **Why**: 「手順中に Issue を閉じないで」とプロンプトで言う代わりに、物理的に
+  呼び出せない状態にすることで AI 複雑性を排除する。Flow の実装は stepKind を
+  見るだけで十分で、追加の条件分岐を必要としない。
+- **Implication**: ユーザーが `.agent/<agent>/steps_registry.json` で stepKind を
+  定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
+  エラーにするため、ワークフロー全体で一貫した境界管理が維持される。
+
 ## 8. 設定の型と要件（要約）
 
 | 要素                             | What                                                                 | Why                                |

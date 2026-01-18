@@ -37,8 +37,10 @@ completionSignal(response) =
 2. **Structured Output 取込み**
    - `.agent/<agent>/schemas/*.schema.json` の該当セクションで JSON Schema
      を定義。
-   - SDK の `outputFormat` 機能が schema 検証を担う（SDK 委譲）。 検証済み値が
-     Completion Loop へ渡される。
+   - Runner が schema を解決できなければその iteration を即 abort し、同じ Step
+     で 2 連続失敗すると run を `FAILED_SCHEMA_RESOLUTION` で終了。成功時のみ
+     SDK の `formatted: { type: "json_schema", schema }`
+     が起動し、intent セットも schema 側で確定させる。
 
 3. **Completion Conditions**
    - `steps_registry.json` の `completionSteps.<id>.completionConditions[]`
@@ -102,7 +104,7 @@ Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先
 | 領域                     | 状況     | Why                                                       |
 | ------------------------ | -------- | --------------------------------------------------------- |
 | Structured Output Schema | 運用中   | 完了宣言を明示的に検証する唯一のソース                    |
-| FormatValidator          | SDK 委譲 | SDK の outputFormat 機能に委譲。Runner 側での再検証は不要 |
+| FormatValidator          | SDK 委譲 | Runner が schema を渡すだけで SDK が intent と JSON を強制 |
 | CompletionConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す    |
 | RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除     |
 
