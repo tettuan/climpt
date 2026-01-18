@@ -51,7 +51,7 @@ export async function initAgent(
     description: `${formatDisplayName(agentName)} agent`,
     behavior: {
       systemPromptPath: "prompts/system.md",
-      completionType: "manual",
+      completionType: "keywordSignal",
       completionConfig: {
         completionKeyword: "TASK_COMPLETE",
       },

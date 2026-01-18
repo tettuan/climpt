@@ -27,11 +27,11 @@ Agent の振る舞いを定義。変更頻度: 低。
 ```json
 {
   "version": "1.0.0",
-  "name": "facilitator",
-  "displayName": "Facilitator Agent",
+  "name": "session-agent",
+  "displayName": "Session Agent",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "manual",
+    "completionType": "keywordSignal",
     "completionConfig": { "completionKeyword": "SESSION_COMPLETE" },
     "allowedTools": ["Read", "Write", "Edit", "Bash"],
     "permissionMode": "acceptEdits"

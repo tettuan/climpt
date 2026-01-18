@@ -48,9 +48,6 @@ Agent の振る舞い。
 | `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `completionConditions`, `mode`             |
 | `custom`           | 外部 CompletionHandler で任意判定         | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `completionHandler` 設定 |
 
-レガシー名 (`issue`, `iterate`, `manual`, `stepFlow`, `facilitator`) は
-`agents/src_common/types.ts` の alias で自動的に最新型へ解決される。
-
 ### completionConditions
 
 steps_registry.json で完了条件を定義する。詳細は

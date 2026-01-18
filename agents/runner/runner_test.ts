@@ -319,7 +319,7 @@ function createMinimalDefinition(): AgentDefinition {
     version: "1.0.0",
     behavior: {
       systemPromptPath: "./prompts/system.md",
-      completionType: "iterate",
+      completionType: "iterationBudget",
       completionConfig: { maxIterations: 10 },
       allowedTools: [],
       permissionMode: "plan",

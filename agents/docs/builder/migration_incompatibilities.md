@@ -84,11 +84,10 @@ export interface StepsRegistry {
 
 ```json
 {
-  "entryStep": "s_init_issue",
+  "entryStep": "s_init_externalState",
   "entryStepMapping": {
-    "issue": "s_init_issue",
-    "iterate": "s_init_iterate",
-    "project": "s_init_project_prep"
+    "externalState": "s_init_externalState",
+    "iterationBudget": "s_init_iterationBudget"
   }
 }
 ```

@@ -93,7 +93,7 @@ Deno.test("createCompletionHandlerFromOptions - creates IssueCompletionHandler",
   });
 
   assertExists(handler);
-  assertEquals(handler.type, "issue");
+  assertEquals(handler.type, "externalState");
   assertEquals((handler as IssueCompletionHandler).getIssueNumber(), 123);
 });
 
@@ -103,7 +103,7 @@ Deno.test("createCompletionHandlerFromOptions - creates IterateCompletionHandler
   });
 
   assertExists(handler);
-  assertEquals(handler.type, "iterate");
+  assertEquals(handler.type, "iterationBudget");
 });
 
 Deno.test("createCompletionHandlerFromOptions - creates ManualCompletionHandler", () => {
@@ -112,14 +112,14 @@ Deno.test("createCompletionHandlerFromOptions - creates ManualCompletionHandler"
   });
 
   assertExists(handler);
-  assertEquals(handler.type, "manual");
+  assertEquals(handler.type, "keywordSignal");
 });
 
 Deno.test("createCompletionHandlerFromOptions - defaults to IterateCompletionHandler", () => {
   const handler = createCompletionHandlerFromOptions({});
 
   assertExists(handler);
-  assertEquals(handler.type, "iterate");
+  assertEquals(handler.type, "iterationBudget");
 });
 
 Deno.test("createCompletionHandlerFromOptions - issue takes priority over maxIterations", () => {
@@ -129,7 +129,7 @@ Deno.test("createCompletionHandlerFromOptions - issue takes priority over maxIte
   });
 
   assertExists(handler);
-  assertEquals(handler.type, "issue");
+  assertEquals(handler.type, "externalState");
 });
 
 // =============================================================================
@@ -142,7 +142,7 @@ Deno.test("createCompletionHandlerV2 - creates IssueContractHandler", () => {
   });
 
   assertExists(handler);
-  assertEquals(handler.type, "issue");
+  assertEquals(handler.type, "externalState");
   assertEquals((handler as IssueContractHandler).getIssueNumber(), 789);
 });
 
@@ -177,7 +177,7 @@ Deno.test("createCompletionHandlerV2 - throws without valid type", () => {
 Deno.test("IssueCompletionHandler - initialization", () => {
   const handler = new IssueCompletionHandler(42);
 
-  assertEquals(handler.type, "issue");
+  assertEquals(handler.type, "externalState");
   assertEquals(handler.getIssueNumber(), 42);
 });
 
@@ -564,7 +564,7 @@ Deno.test("CompositeCompletionHandler - throws on unsupported condition type", (
 Deno.test("IterateCompletionHandler - initialization", () => {
   const handler = new IterateCompletionHandler(100);
 
-  assertEquals(handler.type, "iterate");
+  assertEquals(handler.type, "iterationBudget");
 });
 
 Deno.test("IterateCompletionHandler - isComplete before max", async () => {
@@ -632,7 +632,7 @@ Deno.test("IterateCompletionHandler - buildContinuationPrompt updates iteration"
 Deno.test("ManualCompletionHandler - initialization", () => {
   const handler = new ManualCompletionHandler("TASK_COMPLETE");
 
-  assertEquals(handler.type, "manual");
+  assertEquals(handler.type, "keywordSignal");
 });
 
 Deno.test("ManualCompletionHandler - isComplete without summary", async () => {
