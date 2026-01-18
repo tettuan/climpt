@@ -45,13 +45,15 @@ async function runGit(args: string[], cwd: string): Promise<string> {
 }
 
 /**
- * Create a temporary Git repository for testing
+ * Create a temporary Git repository for testing with isolated worktree directory
  */
 async function createTempGitRepo(): Promise<{
   path: string;
+  worktreeRoot: string;
   cleanup: () => Promise<void>;
 }> {
   const tempDir = await Deno.makeTempDir({ prefix: "worktree-test-" });
+  const worktreeDir = await Deno.makeTempDir({ prefix: "worktree-root-" });
 
   await runGit(["init"], tempDir);
   await runGit(["config", "user.email", "test@example.com"], tempDir);
@@ -64,9 +66,15 @@ async function createTempGitRepo(): Promise<{
 
   return {
     path: tempDir,
+    worktreeRoot: worktreeDir,
     cleanup: async () => {
       try {
         await Deno.remove(tempDir, { recursive: true });
+      } catch {
+        // Ignore errors during cleanup
+      }
+      try {
+        await Deno.remove(worktreeDir, { recursive: true });
       } catch {
         // Ignore errors during cleanup
       }
@@ -160,7 +168,7 @@ Deno.test("setupWorktree - uses exact branch name when --branch specified", asyn
   try {
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -190,7 +198,7 @@ Deno.test("setupWorktree - generates timestamped name when --branch not specifie
   try {
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -229,7 +237,7 @@ Deno.test("setupWorktree - uses specified base branch when --base-branch specifi
 
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -259,7 +267,7 @@ Deno.test("setupWorktree - uses current branch as base when --base-branch not sp
 
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -289,7 +297,7 @@ Deno.test("setupWorktree - sanitizes branch name for filesystem (/ to -)", async
   try {
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -322,7 +330,7 @@ Deno.test("worktree lifecycle - create, verify, list, cleanup", async () => {
   try {
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
@@ -358,7 +366,7 @@ Deno.test("setupWorktree - reuses existing worktree if already exists", async ()
   try {
     const config: WorktreeSetupConfig = {
       forceWorktree: true,
-      worktreeRoot: "../worktree",
+      worktreeRoot: repo.worktreeRoot,
     };
 
     const options: WorktreeCLIOptions = {
