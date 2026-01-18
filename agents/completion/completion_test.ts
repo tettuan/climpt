@@ -12,7 +12,7 @@
  * - MockStateChecker
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import {
   createCompletionHandlerFromOptions,
   createCompletionHandlerV2,
