@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "iterate.schema.json",
+  "description": "Iterate関連stepのスキーマ定義",
+
+  "$defs": {
+    "iterationContext": {
+      "type": "object",
+      "required": ["target_iterations"],
+      "properties": {
+        "target_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "目標イテレーション数"
+        },
+        "completed_iterations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "完了イテレーション数"
+        },
+        "remaining": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "残りイテレーション数"
+        }
+      }
+    },
+
+    "iterationWork": {
+      "type": "object",
+      "required": ["work_done"],
+      "properties": {
+        "work_done": {
+          "type": "string",
+          "description": "このイテレーションで実施した作業"
+        },
+        "files_modified": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/fileChange" }
+        },
+        "commits": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/commitInfo" }
+        },
+        "tests_run": {
+          "type": "boolean",
+          "description": "テストを実行したか"
+        },
+        "tests_passed": {
+          "type": "boolean",
+          "description": "テストがパスしたか"
+        }
+      }
+    }
+  },
+
+  "initial.iterate": {
+    "type": "object",
+    "description": "イテレーション開始時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "iteration", "work"],
+    "properties": {
+      "iteration": { "$ref": "#/$defs/iterationContext" },
+      "work": { "$ref": "#/$defs/iterationWork" },
+      "task_understanding": {
+        "type": "string",
+        "description": "タスクの理解内容"
+      }
+    }
+  },
+
+  "continuation.iterate": {
+    "type": "object",
+    "description": "イテレーション継続時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "iteration", "work"],
+    "properties": {
+      "iteration": { "$ref": "#/$defs/iterationContext" },
+      "work": { "$ref": "#/$defs/iterationWork" },
+      "cumulative_progress": {
+        "type": "object",
+        "properties": {
+          "total_files_modified": { "type": "integer" },
+          "total_commits": { "type": "integer" },
+          "overall_status": {
+            "type": "string",
+            "enum": ["on_track", "ahead", "behind", "blocked"]
+          }
+        }
+      }
+    }
+  },
+
+  "closure.iterate": {
+    "type": "object",
+    "description": "イテレーション完了時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "closure.iterate",
+        "description": "実行されたstep識別子"
+      },
+      "iteration": { "$ref": "#/$defs/iterationContext" },
+      "completion": {
+        "type": "object",
+        "properties": {
+          "total_iterations_completed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "完了した総イテレーション数"
+          },
+          "final_summary": {
+            "type": "string",
+            "description": "完了時の最終サマリー"
+          }
+        }
+      }
+    }
+  }
+}

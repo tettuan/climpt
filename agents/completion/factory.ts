@@ -1,15 +1,205 @@
 /**
  * Completion handler factory
+ *
+ * Supports both new behavior-based type names and legacy aliases.
+ * Legacy types are automatically resolved to their new equivalents.
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
+import {
+  isLegacyCompletionType,
+  resolveCompletionType,
+} from "../src_common/types.ts";
 import { PromptResolver } from "../prompts/resolver.ts";
-import type { CompletionHandler } from "./types.ts";
-import { IssueCompletionHandler } from "./issue.ts";
-import { ProjectCompletionHandler } from "./project.ts";
+import type { CompletionHandler, ContractCompletionHandler } from "./types.ts";
+import {
+  IssueCompletionHandler,
+  type IssueContractConfig,
+  IssueContractHandler,
+} from "./issue.ts";
+import {
+  type ExternalStateChecker,
+  GitHubStateChecker,
+} from "./external-state-checker.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
-import { FacilitatorCompletionHandler } from "./facilitator.ts";
+import { CheckBudgetCompletionHandler } from "./check-budget.ts";
+import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
+import { CompositeCompletionHandler } from "./composite.ts";
+
+/**
+ * Type guard helpers for args validation
+ */
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && !Number.isNaN(value);
+}
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === "string";
+}
+
+/**
+ * Validate and extract issue number from args
+ */
+function getIssueNumber(args: Record<string, unknown>): number {
+  if (!isNumber(args.issue)) {
+    throw new Error(`Invalid issue number: ${args.issue}`);
+  }
+  return args.issue;
+}
+
+/**
+ * Factory function type for creating completion handlers
+ */
+type HandlerFactory = (
+  args: Record<string, unknown>,
+  promptResolver: PromptResolver,
+  definition: AgentDefinition,
+  agentDir: string,
+) => CompletionHandler | Promise<CompletionHandler>;
+
+/**
+ * Registry of completion handler factories by type
+ */
+const HANDLER_REGISTRY = new Map<string, HandlerFactory>();
+
+/**
+ * Register a handler factory for a completion type
+ */
+function registerHandler(type: string, factory: HandlerFactory): void {
+  HANDLER_REGISTRY.set(type, factory);
+}
+
+// Register standard handlers
+
+// externalState (was: issue) - Complete when external resource reaches target state
+registerHandler("externalState", () => {
+  throw new Error(
+    "externalState/issue completion type requires --issue parameter",
+  );
+});
+
+// iterationBudget (was: iterate) - Complete after N iterations
+registerHandler("iterationBudget", (_args, promptResolver, definition) => {
+  const iterateHandler = new IterateCompletionHandler(
+    definition.behavior.completionConfig.maxIterations ?? 100,
+  );
+  iterateHandler.setPromptResolver(promptResolver);
+  return iterateHandler;
+});
+
+// keywordSignal (was: manual) - Complete when LLM outputs specific keyword
+registerHandler("keywordSignal", (_args, promptResolver, definition) => {
+  const manualHandler = new ManualCompletionHandler(
+    definition.behavior.completionConfig.completionKeyword ?? "TASK_COMPLETE",
+  );
+  manualHandler.setPromptResolver(promptResolver);
+  return manualHandler;
+});
+
+// checkBudget - Complete after N status checks
+registerHandler("checkBudget", (_args, promptResolver, definition) => {
+  const checkHandler = new CheckBudgetCompletionHandler(
+    definition.behavior.completionConfig.maxChecks ?? 10,
+  );
+  checkHandler.setPromptResolver(promptResolver);
+  return checkHandler;
+});
+
+// structuredSignal - Complete when LLM outputs specific JSON signal
+registerHandler("structuredSignal", (_args, promptResolver, definition) => {
+  if (!definition.behavior.completionConfig.signalType) {
+    throw new Error(
+      "structuredSignal completion type requires signalType in completionConfig",
+    );
+  }
+  const signalHandler = new StructuredSignalCompletionHandler(
+    definition.behavior.completionConfig.signalType,
+    definition.behavior.completionConfig.requiredFields,
+  );
+  signalHandler.setPromptResolver(promptResolver);
+  return signalHandler;
+});
+
+// composite - Combines multiple conditions
+registerHandler("composite", (args, promptResolver, definition, agentDir) => {
+  const { completionConfig } = definition.behavior;
+  if (!completionConfig.conditions || !completionConfig.operator) {
+    throw new Error(
+      "composite completion type requires conditions and operator in completionConfig",
+    );
+  }
+  const compositeHandler = new CompositeCompletionHandler(
+    completionConfig.operator,
+    completionConfig.conditions,
+    args,
+    agentDir,
+    definition,
+  );
+  compositeHandler.setPromptResolver(promptResolver);
+  return compositeHandler;
+});
+
+// stepMachine (was: stepFlow) - Complete when step state machine reaches terminal
+registerHandler(
+  "stepMachine",
+  async (_args, promptResolver, definition, agentDir) => {
+    const { completionConfig } = definition.behavior;
+
+    // Load steps registry for step machine
+    const registryPath = completionConfig.registryPath ??
+      `${agentDir}/steps_registry.json`;
+
+    try {
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+
+      // Import dynamically to avoid circular dependency at module load time
+      const { StepMachineCompletionHandler } = await import(
+        "./step-machine.ts"
+      );
+
+      const stepMachineHandler = new StepMachineCompletionHandler(
+        registry,
+        completionConfig.entryStep,
+      );
+      stepMachineHandler.setPromptResolver(promptResolver);
+      return stepMachineHandler;
+    } catch (error) {
+      // Fallback to iterate if registry not found
+      if (error instanceof Deno.errors.NotFound) {
+        // deno-lint-ignore no-console
+        console.warn(
+          `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
+        );
+        const iterateHandler = new IterateCompletionHandler(
+          completionConfig.maxIterations ?? 100,
+        );
+        iterateHandler.setPromptResolver(promptResolver);
+        return iterateHandler;
+      }
+      throw error;
+    }
+  },
+);
+
+// custom - Fully custom handler implementation
+registerHandler(
+  "custom",
+  async (_args, _promptResolver, definition, agentDir) => {
+    if (!definition.behavior.completionConfig.handlerPath) {
+      throw new Error(
+        "Custom completion type requires handlerPath in completionConfig",
+      );
+    }
+    return await loadCustomHandler(
+      definition,
+      definition.behavior.completionConfig.handlerPath,
+      _args,
+      agentDir,
+    );
+  },
+);
 
 /**
  * Options for creating a completion handler
@@ -19,14 +209,6 @@ export interface CompletionHandlerOptions {
   issue?: number;
   /** Repository for cross-repo issues */
   repository?: string;
-  /** Project number (for project completion) */
-  project?: number;
-  /** Project owner (for project completion) */
-  projectOwner?: string;
-  /** Label filter (for project completion) */
-  labelFilter?: string;
-  /** Include completed items (for project completion) */
-  includeCompleted?: boolean;
   /** Max iterations (for iterate completion) */
   maxIterations?: number;
   /** Completion keyword (for manual completion) */
@@ -36,14 +218,33 @@ export interface CompletionHandlerOptions {
 }
 
 /**
- * Create a completion handler based on agent definition
+ * Create a completion handler based on agent definition.
+ *
+ * Supports both new behavior-based type names and legacy aliases.
+ * The factory resolves legacy names to their new equivalents automatically.
+ *
+ * @deprecated For new code, prefer createCompletionHandlerV2 which provides
+ * contract-compliant handlers with separated external state management.
  */
 export async function createCompletionHandler(
   definition: AgentDefinition,
   args: Record<string, unknown>,
   agentDir: string,
 ): Promise<CompletionHandler> {
-  const { completionType, completionConfig } = definition.behavior;
+  const { completionType } = definition.behavior;
+
+  // Resolve legacy type names to new names
+  const resolvedType = resolveCompletionType(completionType);
+
+  // Warn about deprecated completion type names at runtime
+  if (isLegacyCompletionType(completionType)) {
+    // deno-lint-ignore no-console
+    console.warn(
+      `[Deprecated] CompletionType "${completionType}" is deprecated. ` +
+        `Use "${resolvedType}" instead. ` +
+        `This will be removed in a future version.`,
+    );
+  }
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
@@ -53,88 +254,23 @@ export async function createCompletionHandler(
     fallbackDir: definition.prompts.fallbackDir,
   });
 
-  let handler: CompletionHandler;
-
   // If --issue is provided, always use IssueCompletionHandler regardless of completionType
   if (args.issue !== undefined) {
     const issueHandler = new IssueCompletionHandler(
-      args.issue as number,
-      args.repository as string | undefined,
+      getIssueNumber(args),
+      isOptionalString(args.repository) ? args.repository : undefined,
     );
     issueHandler.setPromptResolver(promptResolver);
     return issueHandler;
   }
 
-  switch (completionType) {
-    case "issue": {
-      // This case is only reached when args.issue is undefined
-      // (when args.issue is provided, we return early above)
-      throw new Error(
-        "Issue completion type requires --issue parameter",
-      );
-    }
-
-    case "project": {
-      const projectHandler = new ProjectCompletionHandler(
-        args.project as number,
-        args.label as string | undefined,
-        args.projectOwner as string | undefined,
-        args.includeCompleted as boolean | undefined,
-      );
-      projectHandler.setPromptResolver(promptResolver);
-      handler = projectHandler;
-      break;
-    }
-
-    case "iterate": {
-      const iterateHandler = new IterateCompletionHandler(
-        completionConfig.maxIterations ?? 100,
-      );
-      iterateHandler.setPromptResolver(promptResolver);
-      handler = iterateHandler;
-      break;
-    }
-
-    case "manual": {
-      const manualHandler = new ManualCompletionHandler(
-        completionConfig.completionKeyword ?? "TASK_COMPLETE",
-      );
-      manualHandler.setPromptResolver(promptResolver);
-      handler = manualHandler;
-      break;
-    }
-
-    case "custom": {
-      if (!completionConfig.handlerPath) {
-        throw new Error(
-          `Custom completion type requires handlerPath in completionConfig`,
-        );
-      }
-      const customHandler = await loadCustomHandler(
-        definition,
-        completionConfig.handlerPath,
-        args,
-        agentDir,
-      );
-      handler = customHandler;
-      break;
-    }
-
-    case "facilitator": {
-      const facilitatorHandler = new FacilitatorCompletionHandler(
-        args.project as number,
-        args.projectOwner as string | undefined,
-      );
-      facilitatorHandler.setPromptResolver(promptResolver);
-      handler = facilitatorHandler;
-      break;
-    }
-
-    default:
-      throw new Error(`Unknown completion type: ${completionType}`);
+  // Get factory from registry
+  const factory = HANDLER_REGISTRY.get(resolvedType);
+  if (!factory) {
+    throw new Error(`Unknown completion type: ${completionType}`);
   }
 
-  return handler;
+  return await factory(args, promptResolver, definition, agentDir);
 }
 
 /**
@@ -154,17 +290,6 @@ export function createCompletionHandlerFromOptions(
       issueHandler.setPromptResolver(options.promptResolver);
     }
     handler = issueHandler;
-  } else if (options.project !== undefined) {
-    const projectHandler = new ProjectCompletionHandler(
-      options.project,
-      options.labelFilter,
-      options.projectOwner,
-      options.includeCompleted,
-    );
-    if (options.promptResolver) {
-      projectHandler.setPromptResolver(options.promptResolver);
-    }
-    handler = projectHandler;
   } else if (options.maxIterations !== undefined) {
     const iterateHandler = new IterateCompletionHandler(options.maxIterations);
     if (options.promptResolver) {
@@ -218,6 +343,61 @@ async function loadCustomHandler(
       }`,
     );
   }
+}
+
+// ============================================================================
+// V2 Factory (Contract-compliant)
+// ============================================================================
+
+/**
+ * Options for creating a contract-compliant completion handler.
+ */
+export interface CompletionHandlerV2Options {
+  /** Issue configuration (for issue completion) */
+  issue?: IssueContractConfig;
+  /** External state checker (optional, defaults to GitHubStateChecker) */
+  stateChecker?: ExternalStateChecker;
+  /** Default repository for GitHub operations */
+  defaultRepo?: string;
+}
+
+/**
+ * Create a contract-compliant completion handler.
+ *
+ * Unlike createCompletionHandler, this factory:
+ * - Returns handlers that have no side effects in check()
+ * - Requires explicit external state management via refreshState()
+ * - Uses dependency injection for external state checkers
+ *
+ * Currently supports:
+ * - Issue completion (IssueContractHandler)
+ *
+ * @example
+ * ```typescript
+ * // Create issue completion handler
+ * const handler = createCompletionHandlerV2({
+ *   issue: { issueNumber: 123, repo: "owner/repo" },
+ * });
+ *
+ * // In the loop layer
+ * await handler.refreshState?.();
+ * const result = handler.check({ iteration: 1 });
+ * ```
+ */
+export function createCompletionHandlerV2(
+  options: CompletionHandlerV2Options,
+): ContractCompletionHandler {
+  if (options.issue) {
+    const stateChecker = options.stateChecker ??
+      new GitHubStateChecker(options.defaultRepo);
+
+    return new IssueContractHandler(options.issue, stateChecker);
+  }
+
+  throw new Error(
+    "createCompletionHandlerV2: No valid completion type specified. " +
+      "Currently supported: issue",
+  );
 }
 
 /**

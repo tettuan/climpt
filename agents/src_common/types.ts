@@ -17,9 +17,10 @@ export interface AgentDefinition {
   behavior: AgentBehavior;
   parameters: Record<string, ParameterDefinition>;
   prompts: PromptConfig;
-  actions?: ActionConfig;
   github?: GitHubConfig;
   worktree?: WorktreeConfig;
+  /** Finalize configuration for worktree mode */
+  finalize?: FinalizeConfig;
   logging: LoggingConfig;
 }
 
@@ -31,6 +32,23 @@ export interface AgentBehavior {
   permissionMode: PermissionMode;
   /** Fine-grained sandbox configuration (uses defaults if not specified) */
   sandboxConfig?: SandboxConfig;
+}
+
+/**
+ * Finalize configuration for worktree mode.
+ * Controls what happens after Flow loop completes successfully.
+ */
+export interface FinalizeConfig {
+  /** Whether to automatically merge worktree branch to base (default: true) */
+  autoMerge?: boolean;
+  /** Whether to push after merge (default: false) */
+  push?: boolean;
+  /** Remote to push to (default: origin) */
+  remote?: string;
+  /** Whether to create a PR instead of direct merge (default: false) */
+  createPr?: boolean;
+  /** Target branch for PR (default: base branch) */
+  prTarget?: string;
 }
 
 /**
@@ -57,33 +75,123 @@ export interface SandboxFilesystemConfig {
   allowedPaths?: string[];
 }
 
+/**
+ * Completion types based on HOW completion is determined,
+ * not WHO uses the completion handler.
+ *
+ * New behavior-based naming convention:
+ * - externalState: Complete when external resource reaches target state (was: issue)
+ * - iterationBudget: Complete after N iterations (was: iterate)
+ * - checkBudget: Complete after N status checks (monitoring scenarios)
+ * - keywordSignal: Complete when LLM outputs specific keyword (was: manual)
+ * - structuredSignal: Complete when LLM outputs specific JSON signal
+ * - stepMachine: Complete when step state machine reaches terminal (was: stepFlow)
+ * - composite: Combines multiple conditions with AND/OR logic (was: facilitator)
+ * - custom: Fully custom handler implementation
+ */
 export type CompletionType =
-  | "issue"
-  | "project"
-  | "iterate"
-  | "manual"
+  // New behavior-based names
+  | "externalState"
+  | "iterationBudget"
+  | "checkBudget"
+  | "keywordSignal"
+  | "structuredSignal"
+  | "stepMachine"
+  | "composite"
   | "custom"
-  | "stepFlow"
-  | "facilitator";
+  // Legacy aliases (deprecated, use behavior-based names instead)
+  | "issue" // -> externalState
+  | "iterate" // -> iterationBudget
+  | "manual" // -> keywordSignal
+  | "stepFlow" // -> stepMachine
+  | "facilitator"; // -> composite
+
+/**
+ * Type alias mapping from old names to new names
+ */
+export const COMPLETION_TYPE_ALIASES: Record<string, CompletionType> = {
+  // Old -> New mapping
+  issue: "externalState",
+  iterate: "iterationBudget",
+  manual: "keywordSignal",
+  stepFlow: "stepMachine",
+  facilitator: "composite",
+};
+
+/**
+ * Resolve a completion type to its canonical (new) name
+ */
+export function resolveCompletionType(type: CompletionType): CompletionType {
+  return COMPLETION_TYPE_ALIASES[type] ?? type;
+}
+
+/**
+ * Check if a completion type is a legacy/deprecated name
+ */
+export function isLegacyCompletionType(type: CompletionType): boolean {
+  return type in COMPLETION_TYPE_ALIASES;
+}
+
+/**
+ * All valid completion types (both new and legacy)
+ */
+export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
+  // New behavior-based names
+  "externalState",
+  "iterationBudget",
+  "checkBudget",
+  "keywordSignal",
+  "structuredSignal",
+  "stepMachine",
+  "composite",
+  "custom",
+  // Legacy aliases
+  "issue",
+  "iterate",
+  "manual",
+  "stepFlow",
+  "facilitator",
+] as const;
 
 /**
  * Completion configuration - uses optional properties for flexibility
  */
 export interface CompletionConfigUnion {
-  /** For iterate completion type */
+  /** For iterationBudget/iterate completion type */
   maxIterations?: number;
-  /** For manual completion type */
+  /** For keywordSignal/manual completion type */
   completionKeyword?: string;
   /** For custom completion type */
   handlerPath?: string;
+  /** For checkBudget completion type */
+  maxChecks?: number;
+  /** For externalState completion type */
+  resourceType?: "github-issue" | "github-project" | "file" | "api";
+  targetState?: string | Record<string, unknown>;
+  /** For composite completion type */
+  operator?: "and" | "or" | "first";
+  conditions?: Array<{
+    type: CompletionType;
+    config: CompletionConfigUnion;
+  }>;
+  /** For structuredSignal completion type */
+  signalType?: string;
+  requiredFields?: Record<string, unknown>;
+  /** For stepMachine completion type */
+  registryPath?: string;
+  entryStep?: string;
 }
 
-// Type aliases for documentation purposes
+// Type aliases for documentation purposes (updated with new names)
+/** @deprecated Use ExternalStateCompletionConfig instead */
 export type IssueCompletionConfig = CompletionConfigUnion;
+/** @deprecated Use PhaseCompletionConfig instead */
 export type ProjectCompletionConfig = CompletionConfigUnion;
+/** @deprecated Use IterationBudgetCompletionConfig instead */
 export type IterateCompletionConfig = CompletionConfigUnion & {
   maxIterations: number;
 };
+/** @deprecated Use KeywordSignalCompletionConfig instead */
 export type ManualCompletionConfig = CompletionConfigUnion & {
   completionKeyword: string;
 };
@@ -91,7 +199,51 @@ export type CustomCompletionConfig = CompletionConfigUnion & {
   handlerPath: string;
 };
 
-export type PermissionMode = "plan" | "acceptEdits" | "bypassPermissions";
+// New behavior-based config types
+export type ExternalStateCompletionConfig = CompletionConfigUnion & {
+  resourceType: "github-issue" | "github-project" | "file" | "api";
+  targetState: string | Record<string, unknown>;
+};
+export type IterationBudgetCompletionConfig = CompletionConfigUnion & {
+  maxIterations: number;
+};
+export type CheckBudgetCompletionConfig = CompletionConfigUnion & {
+  maxChecks: number;
+};
+export type KeywordSignalCompletionConfig = CompletionConfigUnion & {
+  completionKeyword: string;
+};
+export type StructuredSignalCompletionConfig = CompletionConfigUnion & {
+  signalType: string;
+  requiredFields?: Record<string, unknown>;
+};
+export type PhaseCompletionConfig = CompletionConfigUnion & {
+  terminalPhases: string[];
+};
+export type StepMachineCompletionConfig = CompletionConfigUnion & {
+  registryPath: string;
+  entryStep?: string;
+};
+export type CompositeCompletionConfig = CompletionConfigUnion & {
+  operator: "and" | "or" | "first";
+  conditions: Array<{
+    type: CompletionType;
+    config: CompletionConfigUnion;
+  }>;
+};
+
+/**
+ * Permission mode types (from Claude Agent SDK)
+ * - "default": Normal mode with default permissions
+ * - "plan": Plan mode (read-only exploration)
+ * - "acceptEdits": Auto-accept file edits
+ * - "bypassPermissions": Bypass all permission checks
+ */
+export type PermissionMode =
+  | "default"
+  | "plan"
+  | "acceptEdits"
+  | "bypassPermissions";
 
 // ============================================================================
 // Parameter Types
@@ -122,13 +274,6 @@ export interface PromptConfig {
   fallbackDir: string;
 }
 
-export interface ActionConfig {
-  enabled: boolean;
-  types: string[];
-  outputFormat: string;
-  handlers?: Record<string, string>;
-}
-
 export interface GitHubConfig {
   enabled: boolean;
   labels?: Record<string, string>;
@@ -149,12 +294,39 @@ export interface LoggingConfig {
 // Runtime Types
 // ============================================================================
 
+/**
+ * Result of agent execution.
+ *
+ * Invariants:
+ * - success=true  => reason is completion reason
+ * - success=false => reason is error content
+ */
 export interface AgentResult {
+  /** Whether agent completed successfully */
   success: boolean;
-  totalIterations: number;
+
+  /** Total number of iterations executed */
+  iterations: number;
+
+  /** Completion reason (success) or error content (failure) */
+  reason: string;
+
+  /** Detailed iteration summaries */
   summaries: IterationSummary[];
-  completionReason: string;
+
+  /** Error message if failed */
   error?: string;
+}
+
+/**
+ * Detailed result information separated from core result.
+ * Use this when you need full execution details beyond the core AgentResult.
+ */
+export interface AgentResultDetail extends AgentResult {
+  /** Session ID if available */
+  sessionId?: string;
+  /** Stack trace or additional error info */
+  errorDetails?: string;
 }
 
 export interface IterationSummary {
@@ -162,32 +334,84 @@ export interface IterationSummary {
   sessionId?: string;
   assistantResponses: string[];
   toolsUsed: string[];
-  detectedActions: DetectedAction[];
-  actionResults?: ActionResult[];
   errors: string[];
+  /** Structured output from SDK result (when outputFormat is configured) */
+  structuredOutput?: Record<string, unknown>;
+  /** Rate limit retry info (when rate limit is hit) */
+  rateLimitRetry?: {
+    waitMs: number;
+    attempt: number;
+  };
+  /** Flag indicating schema resolution failed for this iteration (R2 fail-fast) */
+  schemaResolutionFailed?: boolean;
 }
 
-export interface DetectedAction {
-  type: string;
+// ============================================================================
+// LLM Query Types (v2)
+// ============================================================================
+
+/**
+ * Result from LLM query.
+ * Represents the outcome of a single LLM interaction.
+ */
+export interface QueryResult {
+  /** Session ID (for continuing conversation) */
+  sessionId: string;
+  /** Response text content */
   content: string;
-  metadata: Record<string, unknown>;
-  raw: string;
+  /** Tools that were used */
+  toolsUsed: string[];
+  /** Whether query completed successfully */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
 }
 
-export interface ActionResult {
-  action: DetectedAction;
-  success: boolean;
-  result?: unknown;
-  error?: string;
+/**
+ * SDK message from streaming query.
+ * Represents individual messages from the Claude SDK stream.
+ */
+export interface SdkMessage {
+  /** Message type */
+  type: string;
+  /** Message content */
+  content?: unknown;
+  /** Tool use information */
+  toolUse?: {
+    name: string;
+    input: unknown;
+    result?: unknown;
+  };
 }
 
 // ============================================================================
 // Validation Types
 // ============================================================================
 
-export interface ValidationResult {
+/**
+ * Base interface for all validation results.
+ *
+ * Specialized validation results should extend this interface:
+ * - FormatValidationResult: Response format validation (loop/format-validator.ts)
+ * - ValidatorResult: Pre-close validator checks (validators/types.ts)
+ * - CompletionValidationResult: Completion condition validation (runner/runner.ts)
+ */
+export interface BaseValidationResult {
+  /** Whether the validation passed */
   valid: boolean;
+  /** Error message if validation failed (single error) */
+  error?: string;
+}
+
+/**
+ * Validation result with multiple errors and warnings.
+ *
+ * Used for schema validation, config validation, etc.
+ */
+export interface ValidationResult extends BaseValidationResult {
+  /** Array of error messages */
   errors: string[];
+  /** Array of warning messages */
   warnings: string[];
 }
 
@@ -203,7 +427,7 @@ export interface StepsRegistry {
   version: string;
   basePath: string;
   entryStep: string;
-  steps: Record<string, StepDefinition>;
+  steps: Record<string, FlowStepDefinition>;
   editions?: Record<string, string>;
   /**
    * Mode-based entry step mapping.
@@ -214,15 +438,18 @@ export interface StepsRegistry {
 }
 
 /**
- * Individual step definition
+ * Step definition for step flow execution control.
+ *
+ * NOTE: This is different from PromptStepDefinition in common/step-registry.ts.
+ * - FlowStepDefinition (here): Step flow execution and state machine control
+ * - PromptStepDefinition (common): C3L-based prompt file resolution
  */
-export interface StepDefinition {
+export interface FlowStepDefinition {
   id: string;
   name: string;
   description?: string;
   prompt: PromptReference;
   iterations?: IterationConfig;
-  check?: CheckDefinition;
   /** User variables (uv-xxx) used in the prompt */
   variables?: string[];
   /**
@@ -233,6 +460,11 @@ export interface StepDefinition {
   /** Whether this step accepts stdin input */
   usesStdin?: boolean;
 }
+
+/**
+ * @deprecated Use FlowStepDefinition instead. Kept for backward compatibility.
+ */
+export type StepDefinition = FlowStepDefinition;
 
 /**
  * Definition for a custom variable injected at runtime
@@ -284,6 +516,9 @@ export interface IterationConfig {
 
 /**
  * Check definition for step completion
+ *
+ * @deprecated Use structuredGate/transitions in PromptStepDefinition instead.
+ * See agents/common/step-registry.ts for the new approach.
  */
 export interface CheckDefinition {
   prompt: PromptReference;
@@ -294,6 +529,9 @@ export interface CheckDefinition {
 
 /**
  * Expected response format from check prompt
+ *
+ * @deprecated Use ResponseFormat from agents/common/completion-types.ts instead.
+ * This legacy format is not used in the current step flow implementation.
  */
 export interface ResponseFormat {
   result: "ok|ng" | "pass|fail" | "boolean";
@@ -303,6 +541,10 @@ export interface ResponseFormat {
 
 /**
  * Transition definition after check
+ *
+ * @deprecated Use TransitionRule from agents/common/step-registry.ts instead.
+ * The new approach uses structuredGate.intentField to extract intent and
+ * transitions config to map intent to next step.
  */
 export interface TransitionDefinition {
   next?: string;
@@ -314,6 +556,9 @@ export interface TransitionDefinition {
 
 /**
  * Check response from LLM
+ *
+ * @deprecated Use GateInterpretation from step-gate-interpreter.ts instead.
+ * The new approach extracts intent from structured output via StepGateInterpreter.
  */
 export interface CheckResponse {
   result: "ok" | "ng" | "pass" | "fail" | boolean;
@@ -356,4 +601,73 @@ export interface StepFlowResult {
   state: StepFlowState;
   completionReason: string;
   error?: string;
+}
+
+// ============================================================================
+// Agent Runner State Types
+// ============================================================================
+
+/**
+ * Agent execution state - tracks the lifecycle of an agent run.
+ * Replaces non-null assertion pattern with explicit state tracking.
+ */
+export interface AgentState {
+  readonly status:
+    | "created"
+    | "initializing"
+    | "running"
+    | "completed"
+    | "failed";
+  readonly iteration: number;
+  readonly sessionId: string | null;
+  readonly summaries: readonly IterationSummary[];
+  readonly cwd: string;
+  readonly startedAt: Date | null;
+  readonly completedAt: Date | null;
+}
+
+/**
+ * Initial state for a newly created agent
+ */
+export const INITIAL_AGENT_STATE: AgentState = {
+  status: "created",
+  iteration: 0,
+  sessionId: null,
+  summaries: [],
+  cwd: "",
+  startedAt: null,
+  completedAt: null,
+};
+
+// Forward declarations for RuntimeContext dependencies
+// These are imported from other modules, but we need the interface here
+import type { CompletionHandler } from "../completion/mod.ts";
+import type { PromptResolver } from "../prompts/resolver.ts";
+import type { Logger } from "./logger.ts";
+
+/**
+ * Runtime context containing initialized dependencies.
+ * This pattern replaces non-null assertions by ensuring all dependencies
+ * are available only after successful initialization.
+ */
+export interface RuntimeContext {
+  readonly completionHandler: CompletionHandler;
+  readonly promptResolver: PromptResolver;
+  readonly logger: Logger;
+  readonly cwd: string;
+}
+
+/**
+ * Error thrown when attempting to access runtime context before initialization
+ *
+ * @deprecated Use AgentNotInitializedError from agents/runner/errors.ts instead.
+ * This class is kept for backward compatibility but will be removed in a future version.
+ */
+export class RuntimeContextNotInitializedError extends Error {
+  constructor() {
+    super(
+      "Agent runtime context is not initialized. Call initialize() before accessing runtime dependencies.",
+    );
+    this.name = "RuntimeContextNotInitializedError";
+  }
 }

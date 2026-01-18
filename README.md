@@ -111,24 +111,114 @@ Features:
 
 **Prerequisites**: Agents require GitHub CLI (`gh`) installed and authenticated, plus a Git repository pushed to GitHub.
 
-### Iterator Agent
+### Agent Structure
 
-Autonomous development system using Claude Agent SDK:
+Each agent is defined in `.agent/{agent-name}/` with:
+
+```
+.agent/{agent-name}/
+├── agent.json          # Agent configuration
+├── steps_registry.json # Step definitions for prompts
+└── prompts/            # Prompt templates
+    └── system.md       # System prompt
+```
+
+**agent.json** key properties:
+- `name`, `displayName`, `version` - Agent identification
+- `behavior.completionType` - Execution mode (see below)
+- `behavior.allowedTools` - Available tools for the agent
+- `prompts.registry` - Path to steps registry
+- `logging.directory` - Log output location
+
+**steps_registry.json** defines prompt selection logic for each execution step.
+
+### Creating a New Agent
 
 ```bash
-# Initialize first (required)
-deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+deno task agent --init --agent {agent-name}
+```
 
-# Then run with an issue
+This generates the directory structure with template files.
+
+### Running Agents
+
+```bash
+# List available agents
+deno task agent --list
+
+# Run with GitHub Issue
+deno task agent --agent {name} --issue {number}
+
+# Run with GitHub Project
+deno task agent --agent {name} --project {number}
+
+# Run in iterate mode
+deno task agent --agent {name} --iterate-max 10
+```
+
+### Completion Types
+
+| Type | Description |
+|------|-------------|
+| `issue` | Completes when GitHub Issue is closed |
+| `project` | Processes multiple Issues from GitHub Project |
+| `iterate` | Runs for specified iterations (`maxIterations`) |
+| `manual` | Exits when agent outputs `completionKeyword` |
+| `custom` | Uses custom handler (`handlerPath`) |
+| `facilitator` | Monitors project status periodically |
+| `stepFlow` | Follows step-based execution flow |
+
+### Built-in Agents
+
+**Iterator Agent** - Autonomous development:
+```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
-### Reviewer Agent
-
-Autonomous code review agent:
-
+**Reviewer Agent** - Code review:
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/reviewer --pr 456
+deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 1
+```
+
+**Facilitator Agent** - Project monitoring:
+```bash
+deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
+```
+
+### Configuration Example
+
+Minimal `agent.json`:
+
+```json
+{
+  "name": "my-agent",
+  "displayName": "My Agent",
+  "version": "1.0.0",
+  "description": "Custom agent description",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "issue",
+    "completionConfig": {},
+    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+    "permissionMode": "plan"
+  },
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number",
+      "required": true,
+      "cli": "--issue"
+    }
+  },
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/my-agent",
+    "format": "jsonl"
+  }
+}
 ```
 
 📖 [Agent Documentation](https://tettuan.github.io/climpt/)

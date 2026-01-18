@@ -79,14 +79,21 @@
         "completionType": {
           "type": "string",
           "enum": [
+            "externalState",
+            "iterationBudget",
+            "checkBudget",
+            "keywordSignal",
+            "structuredSignal",
+            "stepMachine",
+            "composite",
+            "custom",
             "issue",
-            "project",
             "iterate",
             "manual",
-            "custom",
-            "stepFlow"
+            "stepFlow",
+            "facilitator"
           ],
-          "description": "How the agent determines completion. Use 'stepFlow' for step-based execution with state machine transitions."
+          "description": "How the agent determines completion. New behavior-based names: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler). Legacy aliases: issue->externalState, iterate->iterationBudget, manual->keywordSignal, stepFlow->stepMachine, facilitator->composite."
         },
         "completionConfig": {
           "type": "object",
@@ -95,15 +102,67 @@
             "maxIterations": {
               "type": "number",
               "minimum": 1,
-              "description": "Maximum iterations (for iterate type)"
+              "description": "Maximum iterations (for iterationBudget/iterate type)"
             },
             "completionKeyword": {
               "type": "string",
-              "description": "Keyword to signal completion (for manual type)"
+              "description": "Keyword to signal completion (for keywordSignal/manual type)"
             },
             "handlerPath": {
               "type": "string",
               "description": "Path to custom handler (for custom type)"
+            },
+            "maxChecks": {
+              "type": "number",
+              "minimum": 1,
+              "description": "Maximum status checks (for checkBudget type)"
+            },
+            "resourceType": {
+              "type": "string",
+              "enum": ["github-issue", "github-project", "file", "api"],
+              "description": "Resource type being monitored (for externalState type)"
+            },
+            "targetState": {
+              "description": "Target state to match (for externalState type)"
+            },
+            "operator": {
+              "type": "string",
+              "enum": ["and", "or", "first"],
+              "description": "Logical operator for combining conditions (for composite type)"
+            },
+            "conditions": {
+              "type": "array",
+              "description": "Array of completion conditions (for composite type)",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "description": "Completion type for this condition"
+                  },
+                  "config": {
+                    "type": "object",
+                    "description": "Configuration for this condition"
+                  }
+                },
+                "required": ["type", "config"]
+              }
+            },
+            "signalType": {
+              "type": "string",
+              "description": "Action block type to detect (for structuredSignal type)"
+            },
+            "requiredFields": {
+              "type": "object",
+              "description": "Required field values to match (for structuredSignal type)"
+            },
+            "registryPath": {
+              "type": "string",
+              "description": "Path to steps registry (for stepMachine type)"
+            },
+            "entryStep": {
+              "type": "string",
+              "description": "Entry step ID (for stepMachine type)"
             }
           }
         },

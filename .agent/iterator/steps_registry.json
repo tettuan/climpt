@@ -1,32 +1,266 @@
 {
   "agentId": "iterator",
-  "version": "1.2.0",
+  "version": "3.0.0",
   "userPromptsBase": ".agent/iterator/prompts",
+  "schemasBase": ".agent/iterator/schemas",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+
+  "entryStepMapping": {
+    "issue": "initial.issue",
+    "externalState": "initial.externalState",
+    "iterate": "initial.iterate"
+  },
+
+  "completionPatterns": {
+    "git-dirty": {
+      "description": "未コミットの変更がある",
+      "edition": "failed",
+      "adaptation": "git-dirty",
+      "params": ["changedFiles", "untrackedFiles"]
+    },
+    "test-failed": {
+      "description": "テストが失敗",
+      "edition": "failed",
+      "adaptation": "test-failed",
+      "params": ["failedTests", "errorOutput"]
+    },
+    "type-error": {
+      "description": "型エラー",
+      "edition": "failed",
+      "adaptation": "type-error",
+      "params": ["errors", "files"]
+    },
+    "lint-error": {
+      "description": "リントエラー",
+      "edition": "failed",
+      "adaptation": "lint-error",
+      "params": ["errors", "files"]
+    },
+    "format-error": {
+      "description": "フォーマットエラー",
+      "edition": "failed",
+      "adaptation": "format-error",
+      "params": ["files", "diff"]
+    },
+    "file-not-exists": {
+      "description": "必要なファイルが存在しない",
+      "edition": "failed",
+      "adaptation": "file-not-exists",
+      "params": ["missingFiles", "expectedPath"]
+    },
+    "branch-not-pushed": {
+      "description": "ブランチがリモートにプッシュされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-pushed",
+      "params": ["branchName", "remoteStatus"]
+    },
+    "branch-not-merged": {
+      "description": "ブランチがマージされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-merged",
+      "params": ["branchName", "baseBranch", "mergeStatus"]
+    }
+  },
+
+  "validators": {
+    "git-clean": {
+      "type": "command",
+      "command": "git status --porcelain",
+      "successWhen": "empty",
+      "failurePattern": "git-dirty",
+      "extractParams": {
+        "changedFiles": "parseChangedFiles",
+        "untrackedFiles": "parseUntrackedFiles"
+      }
+    },
+    "tests-pass": {
+      "type": "command",
+      "command": "deno task test",
+      "successWhen": "exitCode:0",
+      "failurePattern": "test-failed",
+      "extractParams": {
+        "failedTests": "parseTestOutput",
+        "errorOutput": "stderr"
+      }
+    },
+    "type-check": {
+      "type": "command",
+      "command": "deno check src/**/*.ts agents/**/*.ts *.ts",
+      "successWhen": "exitCode:0",
+      "failurePattern": "type-error",
+      "extractParams": {
+        "errors": "parseTypeErrors",
+        "files": "extractFiles"
+      }
+    },
+    "lint-check": {
+      "type": "command",
+      "command": "deno task lint",
+      "successWhen": "exitCode:0",
+      "failurePattern": "lint-error",
+      "extractParams": {
+        "errors": "parseLintErrors",
+        "files": "extractFiles"
+      }
+    },
+    "format-check": {
+      "type": "command",
+      "command": "deno fmt --check",
+      "successWhen": "exitCode:0",
+      "failurePattern": "format-error",
+      "extractParams": {
+        "files": "parseFormatOutput",
+        "diff": "generateDiff"
+      }
+    },
+    "branch-pushed": {
+      "type": "command",
+      "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "successWhen": "exitCode:0",
+      "failurePattern": "branch-not-pushed",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "remoteStatus": "parseRemoteStatus"
+      }
+    },
+    "branch-merged": {
+      "type": "command",
+      "command": "git log origin/develop..HEAD --oneline",
+      "successWhen": "empty",
+      "failurePattern": "branch-not-merged",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "baseBranch": "stdout",
+        "mergeStatus": "parseMergeStatus"
+      }
+    }
+  },
+
+  "completionSteps": {
+    "closure.issue": {
+      "stepId": "closure.issue",
+      "name": "Issue Completion Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+    },
+    "closure.externalState": {
+      "stepId": "closure.externalState",
+      "name": "External State Completion Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "type-check" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "closure.externalState"
+      },
+      "description": "Validate external state completion with git-clean and type-check."
+    }
+  },
+
   "steps": {
     "initial.issue": {
       "stepId": "initial.issue",
       "name": "Issue Initial Prompt",
+      "type": "prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "issue_initial_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "initial.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentField": "next_action.action",
+        "targetField": "next_action.details.target",
+        "fallbackIntent": "next",
+        "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "initial.issue" }
+      },
       "description": "Initial prompt when working on a single GitHub issue"
     },
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Continuation Prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "issue_continuation_default",
       "uvVariables": ["issue_number", "completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "continuation.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.issue" },
+        "repeat": { "target": "continuation.issue" },
+        "handoff": { "target": "closure.issue" }
+      },
       "description": "Continuation prompt for issue iterations"
+    },
+    "closure.issue": {
+      "stepId": "closure.issue",
+      "name": "Issue Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "issue_closure_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.issue" }
+      },
+      "description": "Completion prompt for issue (terminal step)"
     },
     "section.projectcontext": {
       "stepId": "section.projectcontext",
@@ -37,22 +271,39 @@
       "fallbackKey": "section_project_context_default",
       "uvVariables": ["project_number", "project_title", "label_info", "current_index", "total_issues"],
       "usesStdin": false,
-      "description": "Project context section inserted into issue prompts when part of a project"
+      "description": "Project context section inserted into issue prompts when part of a project. Not a Flow step - no structuredGate or transitions needed."
     },
     "initial.project.preparation": {
       "stepId": "initial.project.preparation",
       "name": "Project Preparation Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "preparation",
       "fallbackKey": "project_preparation_default",
       "uvVariables": ["project_number", "project_title", "label_info", "total_issues"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.preparation"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.preparation" },
+        "repeat": { "target": "initial.project.preparation" },
+        "handoff": { "target": "initial.project.review" }
+      },
       "description": "Preparation phase prompt for project mode"
     },
     "initial.project.preparationempty": {
       "stepId": "initial.project.preparationempty",
       "name": "Project Preparation (No Issues)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "preparation",
@@ -60,11 +311,26 @@
       "fallbackKey": "project_preparation_no_issues_default",
       "uvVariables": ["project_number", "project_title", "label_info", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.preparationempty"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "handoff",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "initial.project.preparation" },
+        "handoff": { "target": "initial.project.closure" }
+      },
       "description": "Preparation phase prompt when no issues found"
     },
     "initial.project.processingempty": {
       "stepId": "initial.project.processingempty",
       "name": "Project Processing (No Current Issue)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "processing",
@@ -72,55 +338,133 @@
       "fallbackKey": "project_processing_empty_default",
       "uvVariables": ["project_number", "label_info", "project_title", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.processingempty"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "handoff",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "initial.project.review" },
+        "handoff": { "target": "initial.project.closure" }
+      },
       "description": "Processing phase prompt when no current issue"
     },
     "initial.project.review": {
       "stepId": "initial.project.review",
       "name": "Project Review Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "review",
       "fallbackKey": "project_review_default",
       "uvVariables": ["project_number", "project_title", "label_info", "issues_completed", "label_filter"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.review"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.review" },
+        "repeat": { "target": "initial.project.again" },
+        "handoff": { "target": "initial.project.closure" }
+      },
       "description": "Review phase prompt for project mode"
     },
     "initial.project.again": {
       "stepId": "initial.project.again",
       "name": "Project Again Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "project",
       "edition": "again",
       "fallbackKey": "project_again_default",
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.again"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.again" },
+        "repeat": { "target": "initial.project.again" },
+        "handoff": { "target": "initial.project.review" }
+      },
       "description": "Re-execution phase prompt after failed review"
     },
-    "initial.project.complete": {
-      "stepId": "initial.project.complete",
+    "initial.project.closure": {
+      "stepId": "initial.project.closure",
       "name": "Project Complete Message",
+      "stepKind": "closure",
       "c2": "initial",
       "c3": "project",
-      "edition": "complete",
-      "fallbackKey": "project_complete_default",
+      "edition": "closure",
+      "fallbackKey": "project_closure_default",
       "uvVariables": ["project_number", "label_info", "issues_completed"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "initial.project.closure"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "initial.project.closure" }
+      },
       "description": "Completion message for project mode"
     },
     "continuation.project.preparation": {
       "stepId": "continuation.project.preparation",
       "name": "Project Preparation Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "preparation",
       "fallbackKey": "project_continuation_preparation_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.preparation"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.preparation" },
+        "repeat": { "target": "continuation.project.preparation" },
+        "handoff": { "target": "initial.project.review" }
+      },
       "description": "Continuation prompt for preparation phase"
     },
     "continuation.project.processingdone": {
       "stepId": "continuation.project.processingdone",
       "name": "Project Processing Done",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "processing",
@@ -128,62 +472,263 @@
       "fallbackKey": "project_continuation_processing_done_default",
       "uvVariables": ["project_number", "completed_iterations", "issues_completed"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.processingdone"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "handoff",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "initial.project.review" },
+        "handoff": { "target": "initial.project.closure" }
+      },
       "description": "Message when all issues are processed"
     },
     "continuation.project.review": {
       "stepId": "continuation.project.review",
       "name": "Project Review Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "review",
       "fallbackKey": "project_continuation_review_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.review"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.review" },
+        "repeat": { "target": "initial.project.again" },
+        "handoff": { "target": "initial.project.closure" }
+      },
       "description": "Continuation prompt for review phase"
     },
     "continuation.project.again": {
       "stepId": "continuation.project.again",
       "name": "Project Again Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "project",
       "edition": "again",
       "fallbackKey": "project_continuation_again_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.again"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.project.again" },
+        "repeat": { "target": "continuation.project.again" },
+        "handoff": { "target": "initial.project.review" }
+      },
       "description": "Continuation prompt for again phase"
     },
-    "continuation.project.complete": {
-      "stepId": "continuation.project.complete",
+    "continuation.project.closure": {
+      "stepId": "continuation.project.closure",
       "name": "Project Complete Continuation",
+      "stepKind": "closure",
       "c2": "continuation",
       "c3": "project",
-      "edition": "complete",
-      "fallbackKey": "project_continuation_complete_default",
+      "edition": "closure",
+      "fallbackKey": "project_continuation_closure_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
-      "description": "Continuation message for complete phase"
+      "outputSchemaRef": {
+        "file": "project.schema.json",
+        "schema": "continuation.project.closure"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "continuation.project.closure" }
+      },
+      "description": "Continuation message for closure phase"
     },
     "initial.iterate": {
       "stepId": "initial.iterate",
       "name": "Iterate Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "iterate",
       "edition": "default",
       "fallbackKey": "iterate_initial_default",
       "uvVariables": ["iterations"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "initial.iterate"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["work.work_done", "iteration.completed_iterations"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.iterate" },
+        "repeat": { "target": "initial.iterate" }
+      },
       "description": "Initial prompt for iteration-based execution"
     },
     "continuation.iterate": {
       "stepId": "continuation.iterate",
       "name": "Iterate Continuation Prompt",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "iterate",
       "edition": "default",
       "fallbackKey": "iterate_continuation_default",
       "uvVariables": ["completed_iterations", "remaining"],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "continuation.iterate"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["work.work_done", "iteration.completed_iterations", "cumulative_progress"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.iterate" },
+        "repeat": { "target": "continuation.iterate" },
+        "handoff": { "target": "closure.iterate" }
+      },
       "description": "Continuation prompt for iteration-based execution"
+    },
+    "initial.externalState": {
+      "stepId": "initial.externalState",
+      "name": "External State Initial Prompt",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "initial",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_initial_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "initial.externalState"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.externalState" },
+        "repeat": { "target": "initial.externalState" }
+      },
+      "description": "Initial prompt for external state completion (GitHub Issue state)"
+    },
+    "continuation.externalState": {
+      "stepId": "continuation.externalState",
+      "name": "External State Continuation Prompt",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "continuation",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_continuation_default",
+      "uvVariables": ["issue_number", "completed_iterations"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "continuation.externalState"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["iteration.work_done", "progress"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.externalState" },
+        "repeat": { "target": "continuation.externalState" },
+        "handoff": { "target": "closure.externalState" }
+      },
+      "description": "Continuation prompt for external state completion"
+    },
+    "closure.externalState": {
+      "stepId": "closure.externalState",
+      "name": "External State Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "externalState",
+      "edition": "default",
+      "fallbackKey": "externalState_closure_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "externalState.schema.json",
+        "schema": "closure.externalState"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.externalState" }
+      },
+      "description": "Completion prompt for external state (terminal step)"
+    },
+    "closure.iterate": {
+      "stepId": "closure.iterate",
+      "name": "Iterate Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "iterate",
+      "edition": "default",
+      "fallbackKey": "iterate_closure_default",
+      "uvVariables": ["completed_iterations"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "closure.iterate"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.iterate" }
+      },
+      "description": "Completion prompt for iteration-based execution (terminal step)"
     }
   }
 }

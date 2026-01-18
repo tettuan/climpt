@@ -69,9 +69,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd $CLAUDE_PROJECT_DIR && (deno fmt --check && deno lint && deno test --allow-read --allow-write --allow-env && echo '{}') || echo '{\"decision\": \"block\", \"reason\": \"CI error\"}'",
+            "command": "deno run --allow-read --allow-run --allow-env --allow-net jsr:@aidevtool/ci --allow-dirty >&2 && echo '{}' || echo '{\"decision\": \"block\", \"reason\": \"CI failed\"}'",
             "timeout": 120,
-            "statusMessage": "Running CI..."
+            "statusMessage": "CI"
           }
         ]
       }
@@ -79,7 +79,14 @@
   },
   "sandbox": {
     "network": {
-      "allowedDomains": ["jsr.io", "*.jsr.io", "deno.land", "*.deno.land"]
+      "allowedHosts": [
+        "jsr.io",
+        "*.jsr.io",
+        "deno.land",
+        "*.deno.land",
+        "github.com",
+        "api.github.com"
+      ]
     }
   },
   "enabledPlugins": {

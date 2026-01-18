@@ -6,22 +6,66 @@
  * - Customizable prompts via user files in .agent/{agent}/prompts/
  * - Fallback to built-in prompts when user files don't exist
  * - Variable substitution for dynamic content
+ * - Response format validation for structured outputs
  */
 
 import { join } from "@std/path";
+import type { InputSpec } from "../src_common/contracts.ts";
 
 /**
- * Step definition for external prompt resolution
+ * Step type for categorization
+ * - prompt: Regular prompt step
+ */
+export type StepType = "prompt";
+
+/**
+ * Step kind for flow taxonomy.
+ *
+ * - work: Generates artifacts, emits next/repeat/jump/handoff
+ * - verification: Validates work, emits next/repeat/jump/escalate
+ * - closure: Final validation, emits closing/repeat
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 2.1
+ */
+export type StepKind = "work" | "verification" | "closure";
+
+/**
+ * Step definition for external prompt resolution (C3L-based)
  *
  * Maps a logical step identifier to a prompt file and its requirements.
  * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
+ *
+ * NOTE: This is different from FlowStepDefinition in src_common/types.ts.
+ * - PromptStepDefinition (here): C3L-based prompt file resolution
+ * - FlowStepDefinition (src_common): Step flow execution control
  */
-export interface StepDefinition {
+export interface PromptStepDefinition {
   /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
   stepId: string;
 
   /** Human-readable name for logging/debugging */
   name: string;
+
+  /**
+   * Step type for categorization
+   * Default: "prompt"
+   */
+  type?: StepType;
+
+  /**
+   * Step kind for flow taxonomy.
+   *
+   * Determines allowed intents and validation rules:
+   * - work: next/repeat/jump/handoff (generates artifacts)
+   * - verification: next/repeat/jump/escalate (validates work)
+   * - closure: closing/repeat (final validation)
+   *
+   * If not specified, inferred from c2:
+   * - "initial", "continuation" -> "work"
+   * - "verification" -> "verification"
+   * - "closure" -> "closure"
+   */
+  stepKind?: StepKind;
 
   /**
    * C3L path component: c2 (e.g., "initial", "continuation", "section")
@@ -63,10 +107,105 @@ export interface StepDefinition {
   usesStdin: boolean;
 
   /**
+   * Reference to external JSON Schema for structured output.
+   * Alternative to inline schema definition.
+   */
+  outputSchemaRef?: {
+    /** Schema file name (relative to schemasBase) */
+    file: string;
+    /** Schema name within the file (top-level key) */
+    schema: string;
+  };
+
+  /**
+   * Input specification for handoff data.
+   * Defines which outputs from previous steps this step needs.
+   */
+  inputs?: InputSpec;
+
+  /**
+   * Structured gate configuration for intent/target routing.
+   */
+  structuredGate?: StructuredGate;
+
+  /**
+   * Intent to step transition mapping.
+   */
+  transitions?: Transitions;
+
+  /**
    * Optional description of what this step does
    */
   description?: string;
 }
+
+/**
+ * Allowed intents for structured gate.
+ *
+ * - next: Proceed to next step
+ * - repeat: Retry current step
+ * - jump: Go to a specific step
+ * - closing: Signal workflow completion (closure step only)
+ * - abort: Terminate workflow with error
+ * - escalate: Escalate to verification support step (verification only)
+ * - handoff: Hand off to another workflow/agent (work only)
+ */
+export type GateIntent =
+  | "next"
+  | "repeat"
+  | "jump"
+  | "closing"
+  | "abort"
+  | "escalate"
+  | "handoff";
+
+/**
+ * Allowed intents for each step kind.
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 2.1
+ */
+export const STEP_KIND_ALLOWED_INTENTS: Record<
+  StepKind,
+  readonly GateIntent[]
+> = {
+  work: ["next", "repeat", "jump", "handoff"],
+  verification: ["next", "repeat", "jump", "escalate"],
+  closure: ["closing", "repeat"],
+} as const;
+
+/**
+ * Structured gate configuration for intent/target routing.
+ */
+export interface StructuredGate {
+  /** List of intents this step can emit */
+  allowedIntents: GateIntent[];
+  /** JSON path to extract intent from structured output (e.g., 'next_action.action') */
+  intentField?: string;
+  /** JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target') */
+  targetField?: string;
+  /** JSON paths to extract for handoff data (e.g., ['analysis.understanding', 'issue']) */
+  handoffFields?: string[];
+  /** How target step IDs are determined */
+  targetMode?: "explicit" | "dynamic" | "conditional";
+  /** Default intent if response parsing fails */
+  fallbackIntent?: GateIntent;
+}
+
+/**
+ * Transition rule for a single intent.
+ *
+ * - `target: string` - Transition to the specified step
+ * - `target: null` - Signal completion (terminal step)
+ * - `condition` variant - Conditional transition based on handoff data
+ */
+export type TransitionRule =
+  | { target: string | null; fallback?: string }
+  | { condition: string; targets: Record<string, string | null> };
+
+/**
+ * Map of intent to transition rule.
+ */
+export type Transitions = Record<string, TransitionRule>;
 
 /**
  * Step registry for an agent
@@ -99,13 +238,31 @@ export interface StepRegistry {
   pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
-  steps: Record<string, StepDefinition>;
+  steps: Record<string, PromptStepDefinition>;
 
   /**
    * Default base directory for user prompts
    * Default: ".agent/{agentId}/prompts"
    */
   userPromptsBase?: string;
+
+  /**
+   * Base directory for schema files
+   * Default: ".agent/{agentId}/schemas"
+   */
+  schemasBase?: string;
+
+  /**
+   * Entry step ID for starting execution
+   */
+  entryStep?: string;
+
+  /**
+   * Mode-based entry step mapping.
+   * Allows dynamic entry step selection based on execution mode.
+   * Example: { "issue": "initial.issue", "project": "initial.project" }
+   */
+  entryStepMapping?: Record<string, string>;
 }
 
 /**
@@ -155,7 +312,13 @@ export async function loadStepRegistry(
       );
     }
 
-    // Optionally validate schema
+    // Always validate stepKind/allowedIntents consistency (fail fast)
+    validateStepKindIntents(registry);
+
+    // Validate entryStepMapping references (fail fast)
+    validateEntryStepMapping(registry);
+
+    // Optionally validate full schema
     if (options.validateSchema) {
       validateStepRegistry(registry);
     }
@@ -179,7 +342,7 @@ export async function loadStepRegistry(
 export function getStepDefinition(
   registry: StepRegistry,
   stepId: string,
-): StepDefinition | undefined {
+): PromptStepDefinition | undefined {
   return registry.steps[stepId];
 }
 
@@ -235,12 +398,108 @@ export function createEmptyRegistry(
  */
 export function addStepDefinition(
   registry: StepRegistry,
-  step: StepDefinition,
+  step: PromptStepDefinition,
 ): void {
   if (registry.steps[step.stepId]) {
     throw new Error(`Step "${step.stepId}" already exists in registry`);
   }
   registry.steps[step.stepId] = step;
+}
+
+/**
+ * Validate stepKind/allowedIntents consistency.
+ *
+ * This is called by loadStepRegistry to fail fast when a step's
+ * allowedIntents set is not a subset of STEP_KIND_ALLOWED_INTENTS
+ * for its stepKind.
+ *
+ * @param registry - Registry to validate
+ * @throws Error if any step has invalid intent configuration
+ */
+export function validateStepKindIntents(registry: StepRegistry): void {
+  const errors: string[] = [];
+
+  for (const [stepId, step] of Object.entries(registry.steps)) {
+    const kind = inferStepKind(step);
+    if (kind && step.structuredGate) {
+      const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
+      for (const intent of step.structuredGate.allowedIntents) {
+        if (!allowedForKind.includes(intent)) {
+          errors.push(
+            `Step "${stepId}": intent '${intent}' not allowed for stepKind '${kind}'. ` +
+              `Allowed intents for ${kind}: ${allowedForKind.join(", ")}. ` +
+              `(Work steps use 'handoff' to transition to closure, closure steps use 'closing' to complete)`,
+          );
+        }
+      }
+
+      // Validate fallbackIntent
+      if (
+        step.structuredGate.fallbackIntent &&
+        !allowedForKind.includes(step.structuredGate.fallbackIntent)
+      ) {
+        errors.push(
+          `Step "${stepId}": fallbackIntent '${step.structuredGate.fallbackIntent}' ` +
+            `not allowed for stepKind '${kind}'`,
+        );
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Step registry validation failed (stepKind/intent mismatch):\n- ${
+        errors.join("\n- ")
+      }`,
+    );
+  }
+}
+
+/**
+ * Validate entryStepMapping configuration.
+ *
+ * This is called by loadStepRegistry to fail fast when:
+ * - Neither entryStep nor entryStepMapping is defined
+ * - entryStepMapping references non-existent steps
+ *
+ * @param registry - Registry to validate
+ * @throws Error if entry configuration is invalid
+ */
+export function validateEntryStepMapping(registry: StepRegistry): void {
+  // Require either entryStep or entryStepMapping
+  if (!registry.entryStepMapping && !registry.entryStep) {
+    throw new Error(
+      `Step registry for "${registry.agentId}" missing entry configuration. ` +
+        `Define either "entryStep" or "entryStepMapping".`,
+    );
+  }
+
+  // Validate entryStep exists if defined
+  if (registry.entryStep && !registry.steps[registry.entryStep]) {
+    throw new Error(
+      `Step registry for "${registry.agentId}": entryStep "${registry.entryStep}" ` +
+        `does not exist in steps.`,
+    );
+  }
+
+  // Validate all entryStepMapping targets exist
+  if (registry.entryStepMapping) {
+    const errors: string[] = [];
+    for (const [type, stepId] of Object.entries(registry.entryStepMapping)) {
+      if (!registry.steps[stepId]) {
+        errors.push(
+          `entryStepMapping["${type}"] references non-existent step "${stepId}"`,
+        );
+      }
+    }
+    if (errors.length > 0) {
+      throw new Error(
+        `Step registry for "${registry.agentId}" has invalid entryStepMapping:\n- ${
+          errors.join("\n- ")
+        }`,
+      );
+    }
+  }
 }
 
 /**
@@ -294,10 +553,84 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.usesStdin !== "boolean") {
       errors.push(`Step "${stepId}": usesStdin must be a boolean`);
     }
+
+    // Flow steps (with structuredGate) require explicit stepKind for tool permission enforcement
+    // This is a mandatory requirement per 08_step_flow_design.md
+    if (step.structuredGate && !step.stepKind) {
+      errors.push(
+        `Step "${stepId}": Flow step (has structuredGate) must have explicit stepKind. ` +
+          `Tool permissions depend on stepKind. Set stepKind to "work", "verification", or "closure".`,
+      );
+    }
+
+    // Validate stepKind and intent constraints
+    const kind = inferStepKind(step);
+    if (kind && step.structuredGate) {
+      const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
+      for (const intent of step.structuredGate.allowedIntents) {
+        if (!allowedForKind.includes(intent)) {
+          errors.push(
+            `Step "${stepId}": intent '${intent}' not allowed for stepKind '${kind}'. Allowed: ${
+              allowedForKind.join(", ")
+            }`,
+          );
+        }
+      }
+
+      // Validate fallbackIntent
+      if (
+        step.structuredGate.fallbackIntent &&
+        !allowedForKind.includes(step.structuredGate.fallbackIntent)
+      ) {
+        errors.push(
+          `Step "${stepId}": fallbackIntent '${step.structuredGate.fallbackIntent}' not allowed for stepKind '${kind}'`,
+        );
+      }
+    }
+
+    // Flow steps (with structuredGate) should have transitions
+    if (step.structuredGate && !step.transitions) {
+      errors.push(
+        `Step "${stepId}": structuredGate defined but transitions missing`,
+      );
+    }
   }
 
   if (errors.length > 0) {
     throw new Error(`Registry validation failed:\n- ${errors.join("\n- ")}`);
+  }
+}
+
+/**
+ * Infer stepKind from step definition.
+ *
+ * Priority:
+ * 1. Explicit stepKind if defined
+ * 2. Infer from c2 value
+ *
+ * @param step - Step definition
+ * @returns Inferred step kind or undefined
+ */
+export function inferStepKind(
+  step: PromptStepDefinition,
+): StepKind | undefined {
+  // Use explicit stepKind if defined
+  if (step.stepKind) {
+    return step.stepKind;
+  }
+
+  // Infer from c2
+  switch (step.c2) {
+    case "initial":
+    case "continuation":
+      return "work";
+    case "verification":
+      return "verification";
+    case "closure":
+      return "closure";
+    default:
+      // section and other non-flow steps don't have a kind
+      return undefined;
   }
 }
 

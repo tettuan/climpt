@@ -65,6 +65,7 @@ Deno.test("registry.json exists and has valid structure", async () => {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Registry file doesn't exist, which is OK (MCP will use defaults)
+      // deno-lint-ignore no-console
       console.log(
         "Registry file not found - MCP will use default configuration",
       );
@@ -422,6 +423,7 @@ Deno.test("Command structure follows C3L specification", async () => {
     }
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
+      // deno-lint-ignore no-console
       console.log("Registry file not found - skipping command structure test");
     } else {
       throw error;

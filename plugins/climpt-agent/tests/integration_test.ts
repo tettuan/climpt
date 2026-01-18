@@ -1,3 +1,4 @@
+// deno-lint-ignore-file explicit-function-return-type
 /**
  * @fileoverview Integration tests for climpt-agent
  *

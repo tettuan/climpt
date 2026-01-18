@@ -4,6 +4,7 @@
 
 import { ensureDir } from "@std/fs";
 import { join } from "@std/path";
+import { isRecord, isString } from "./type-guards.ts";
 
 export interface LoggerOptions {
   agentName: string;
@@ -24,6 +25,7 @@ export class Logger {
   private format: "jsonl" | "text";
   private file?: Deno.FsFile;
   private filePath?: string;
+  private currentToolContext?: string;
 
   private constructor(options: LoggerOptions) {
     this.agentName = options.agentName;
@@ -68,6 +70,14 @@ export class Logger {
 
   error(message: string, data?: Record<string, unknown>): void {
     this.log("error", message, data);
+  }
+
+  setToolContext(toolName: string): void {
+    this.currentToolContext = toolName;
+  }
+
+  clearToolContext(): void {
+    this.currentToolContext = undefined;
   }
 
   private log(
@@ -139,23 +149,41 @@ export class Logger {
     const type = msg.type as string;
 
     switch (type) {
-      case "assistant":
-        this.debug("Assistant response", {
-          content: this.extractTextContent(msg.message).substring(0, 200),
-        });
+      case "assistant": {
+        const content = this.extractTextContent(msg.message);
+        if (content.length > 0) {
+          this.debug("Assistant response", {
+            content: content.substring(0, 200),
+          });
+        } else if (this.currentToolContext) {
+          this.debug("Assistant streaming (tool)", {
+            tool: this.currentToolContext,
+          });
+        }
+        // Empty content without tool context is skipped
         break;
+      }
       case "tool_use":
+        this.setToolContext(msg.tool_name as string);
         this.debug("Tool use", { tool: msg.tool_name });
         break;
       case "tool_result":
         this.debug("Tool result", { success: true });
+        this.clearToolContext();
         break;
       case "error":
         this.error("SDK error", { error: msg.error });
         break;
-      case "result":
-        this.debug("SDK result", { sessionId: msg.session_id });
+      case "result": {
+        const resultData: Record<string, unknown> = {
+          sessionId: msg.session_id,
+        };
+        if (msg.structured_output !== undefined) {
+          resultData.structuredOutput = msg.structured_output;
+        }
+        this.debug("SDK result", resultData);
         break;
+      }
       default:
         this.debug(`SDK message: ${type}`);
     }
@@ -165,20 +193,16 @@ export class Logger {
     if (typeof message === "string") {
       return message;
     }
-    if (typeof message === "object" && message !== null) {
-      const msg = message as Record<string, unknown>;
-      if (typeof msg.content === "string") {
-        return msg.content;
+    if (isRecord(message)) {
+      if (isString(message.content)) {
+        return message.content;
       }
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter(
-            (c) =>
-              typeof c === "object" &&
-              c !== null &&
-              (c as Record<string, unknown>).type === "text",
+      if (Array.isArray(message.content)) {
+        return message.content
+          .filter((c): c is Record<string, unknown> =>
+            isRecord(c) && c.type === "text"
           )
-          .map((c) => (c as Record<string, unknown>).text as string)
+          .map((c) => isString(c.text) ? c.text : "")
           .join("\n");
       }
     }

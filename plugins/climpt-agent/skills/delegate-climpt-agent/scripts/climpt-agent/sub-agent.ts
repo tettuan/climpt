@@ -1,3 +1,4 @@
+// deno-lint-ignore-file prefer-ascii no-await-in-loop
 /**
  * @fileoverview Sub-agent execution for Climpt Agent
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/sub-agent

@@ -3,7 +3,8 @@
  */
 
 export * from "./types.ts";
-export { deepMerge, deepMergeAll } from "./deep_merge.ts";
+export * from "./contracts.ts";
+export { deepMerge, deepMergeAll } from "./deep-merge.ts";
 export { type LogEntry, Logger, type LoggerOptions } from "./logger.ts";
 export {
   applyDefaults,
@@ -13,3 +14,14 @@ export {
   resolveAgentPaths,
   type RuntimeConfig,
 } from "./config.ts";
+export {
+  getNumberProperty,
+  getProperty,
+  getStringProperty,
+  isArray,
+  isBoolean,
+  isNumber,
+  isRecord,
+  isString,
+  isStringArray,
+} from "./type-guards.ts";

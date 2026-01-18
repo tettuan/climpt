@@ -9,6 +9,7 @@ import type { CoordinationConfig, LabelConfig } from "./coordination-types.ts";
 import COORDINATION_CONFIG from "./coordination-config.json" with {
   type: "json",
 };
+import { deepMerge } from "../src_common/deep-merge.ts";
 
 /**
  * Default coordination configuration
@@ -65,41 +66,6 @@ const DEFAULT_COORDINATION: CoordinationConfig = {
 };
 
 /**
- * Deep merge two objects
- *
- * @param target - Base object
- * @param source - Object to merge into target
- * @returns Merged object
- */
-// deno-lint-ignore no-explicit-any
-function deepMerge(target: any, source: any): any {
-  if (!source) return target;
-
-  const result = { ...target };
-
-  for (const key of Object.keys(source)) {
-    const sourceValue = source[key];
-    const targetValue = target[key];
-
-    if (
-      sourceValue !== undefined &&
-      typeof sourceValue === "object" &&
-      sourceValue !== null &&
-      !Array.isArray(sourceValue) &&
-      typeof targetValue === "object" &&
-      targetValue !== null &&
-      !Array.isArray(targetValue)
-    ) {
-      result[key] = deepMerge(targetValue, sourceValue);
-    } else if (sourceValue !== undefined) {
-      result[key] = sourceValue;
-    }
-  }
-
-  return result;
-}
-
-/**
  * Load coordination configuration
  *
  * Merges default config with bundled config and optional overrides.
@@ -113,7 +79,13 @@ export function loadCoordinationConfig(
 ): CoordinationConfig {
   const bundled = COORDINATION_CONFIG as unknown as CoordinationConfig;
 
-  return deepMerge(deepMerge(DEFAULT_COORDINATION, bundled), overrides ?? {});
+  return deepMerge(
+    deepMerge(
+      DEFAULT_COORDINATION as unknown as Record<string, unknown>,
+      bundled as unknown as Partial<Record<string, unknown>>,
+    ),
+    (overrides ?? {}) as Partial<Record<string, unknown>>,
+  ) as unknown as CoordinationConfig;
 }
 
 /**

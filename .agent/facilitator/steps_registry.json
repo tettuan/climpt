@@ -1,36 +1,156 @@
 {
   "agentId": "facilitator",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "userPromptsBase": ".agent/facilitator/prompts",
+  "schemasBase": ".agent/facilitator/schemas",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+
+  "entryStepMapping": {
+    "issue": "initial.statuscheck",
+    "externalState": "initial.statuscheck",
+    "iterate": "initial.discover",
+    "composite": "initial.discover"
+  },
+
+  "completionPatterns": {
+    "git-dirty": {
+      "description": "未コミットの変更がある",
+      "edition": "failed",
+      "adaptation": "git-dirty",
+      "params": ["changedFiles", "untrackedFiles"]
+    },
+    "branch-not-pushed": {
+      "description": "ブランチがリモートにプッシュされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-pushed",
+      "params": ["branchName", "remoteStatus"]
+    },
+    "branch-not-merged": {
+      "description": "ブランチがマージされていない",
+      "edition": "failed",
+      "adaptation": "branch-not-merged",
+      "params": ["branchName", "baseBranch", "mergeStatus"]
+    }
+  },
+
+  "validators": {
+    "git-clean": {
+      "type": "command",
+      "command": "git status --porcelain",
+      "successWhen": "empty",
+      "failurePattern": "git-dirty",
+      "extractParams": {
+        "changedFiles": "parseChangedFiles",
+        "untrackedFiles": "parseUntrackedFiles"
+      }
+    },
+    "branch-pushed": {
+      "type": "command",
+      "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
+      "successWhen": "exitCode:0",
+      "failurePattern": "branch-not-pushed",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "remoteStatus": "parseRemoteStatus"
+      }
+    },
+    "branch-merged": {
+      "type": "command",
+      "command": "git log origin/develop..HEAD --oneline",
+      "successWhen": "empty",
+      "failurePattern": "branch-not-merged",
+      "extractParams": {
+        "branchName": "parseBranchName",
+        "baseBranch": "stdout",
+        "mergeStatus": "parseMergeStatus"
+      }
+    }
+  },
+
+  "completionSteps": {
+    "closure.facilitation": {
+      "stepId": "closure.facilitation",
+      "name": "Facilitation Completion Validation",
+      "c2": "retry",
+      "c3": "facilitation",
+      "completionConditions": [
+        { "validator": "git-clean" },
+        { "validator": "branch-pushed" },
+        { "validator": "branch-merged" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "closure.facilitation"
+      },
+      "description": "Validate facilitation completion with git-clean, branch-pushed, branch-merged"
+    }
+  },
+
   "steps": {
     "initial.discover": {
       "stepId": "initial.discover",
       "name": "Agent Discovery",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "discover",
       "edition": "default",
       "fallbackKey": "discover_initial_default",
       "uvVariables": [],
       "usesStdin": false,
-      "description": "Discover available agents and build registry (責務0: 発見)"
+      "description": "Discover available agents and build registry (責務0: 発見)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.discover"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["discovery.agents_found", "discovery.registry"]
+      },
+      "transitions": {
+        "next": { "target": "initial.statuscheck" },
+        "repeat": { "target": "initial.discover" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.statuscheck": {
       "stepId": "initial.statuscheck",
       "name": "Status Check Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "statuscheck",
       "edition": "default",
       "fallbackKey": "statuscheck_initial_default",
       "uvVariables": ["project_number", "project_title", "label_info", "previous_observation"],
       "usesStdin": false,
-      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)"
+      "description": "Gather project metrics, status, and delta since last observation (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.statuscheck"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["status.metrics", "status.delta"]
+      },
+      "transitions": {
+        "next": { "target": "initial.blockercheck" },
+        "repeat": { "target": "initial.statuscheck" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.statuscheck.empty": {
       "stepId": "initial.statuscheck.empty",
       "name": "Status Check (No Issues)",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "statuscheck",
       "edition": "default",
@@ -38,84 +158,208 @@
       "fallbackKey": "statuscheck_initial_empty",
       "uvVariables": ["project_number", "project_title", "label_info"],
       "usesStdin": false,
-      "description": "Status check when no issues found in project"
+      "description": "Status check when no issues found in project",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.statuscheck.empty"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": ["status.summary"]
+      },
+      "transitions": {
+        "next": { "target": "initial.report" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.blockercheck": {
       "stepId": "initial.blockercheck",
       "name": "Blocker Check Initial Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "blockercheck",
       "edition": "default",
       "fallbackKey": "blockercheck_initial_default",
       "uvVariables": ["project_number", "blocked_issues"],
       "usesStdin": false,
-      "description": "Identify blockers and dependencies (責務1: 把握)"
+      "description": "Identify blockers and dependencies (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.blockercheck"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["blockers.issues", "blockers.dependencies"]
+      },
+      "transitions": {
+        "next": { "target": "initial.stalecheck" },
+        "repeat": { "target": "initial.blockercheck" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.stalecheck": {
       "stepId": "initial.stalecheck",
       "name": "Stale Item Check Prompt",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "stalecheck",
       "edition": "default",
       "fallbackKey": "stalecheck_initial_default",
       "uvVariables": ["project_number", "stale_threshold_days"],
       "usesStdin": false,
-      "description": "Check for stale issues with no recent activity (責務1: 把握)"
+      "description": "Check for stale issues with no recent activity (責務1: 把握)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.stalecheck"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["stale.issues", "stale.recommendations"]
+      },
+      "transitions": {
+        "next": { "target": "initial.judge" },
+        "repeat": { "target": "initial.stalecheck" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.judge": {
       "stepId": "initial.judge",
       "name": "Issue State Judgment",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "judge",
       "edition": "default",
       "fallbackKey": "judge_initial_default",
       "uvVariables": ["project_number"],
       "usesStdin": false,
-      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)"
+      "description": "Judge state and freshness of each issue based on evidence (責務2: 判断)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.judge"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["judgment.decisions", "judgment.priorities"]
+      },
+      "transitions": {
+        "next": { "target": "initial.facilitate" },
+        "repeat": { "target": "initial.judge" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.facilitate": {
       "stepId": "initial.facilitate",
       "name": "Facilitation Maintenance Action",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "facilitate",
       "edition": "default",
       "fallbackKey": "facilitate_initial_default",
       "uvVariables": ["project_number", "issue_number", "action_type"],
       "usesStdin": false,
-      "description": "Maintain actionable state with comments and labels (責務3: 整備)"
+      "description": "Maintain actionable state with comments and labels (責務3: 整備)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.facilitate"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["facilitation.actions_taken", "facilitation.issues_updated"]
+      },
+      "transitions": {
+        "next": { "target": "initial.report" },
+        "repeat": { "target": "initial.facilitate" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "initial.report": {
       "stepId": "initial.report",
       "name": "Generate Recommendation Report",
+      "stepKind": "work",
       "c2": "initial",
       "c3": "report",
       "edition": "default",
       "fallbackKey": "report_initial_default",
       "uvVariables": ["project_number", "project_title", "report_type"],
       "usesStdin": false,
-      "description": "Recommend next agent with scored suggestions (責務4: 推奨)"
+      "description": "Recommend next agent with scored suggestions (責務4: 推奨)",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "initial.report"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": ["report.recommendations", "report.next_agent"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.statuscheck" },
+        "repeat": { "target": "initial.report" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
     "continuation.statuscheck": {
       "stepId": "continuation.statuscheck",
       "name": "Status Check Continuation",
+      "stepKind": "work",
       "c2": "continuation",
       "c3": "statuscheck",
       "edition": "default",
       "fallbackKey": "statuscheck_continuation_default",
       "uvVariables": ["completed_iterations", "previous_status"],
       "usesStdin": false,
-      "description": "Continuation prompt for ongoing status monitoring"
+      "description": "Continuation prompt for ongoing status monitoring",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "continuation.statuscheck"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["status.progress", "status.changes"]
+      },
+      "transitions": {
+        "next": { "target": "initial.blockercheck" },
+        "repeat": { "target": "continuation.statuscheck" },
+        "closing": { "target": "continuation.closure" }
+      }
     },
-    "continuation.complete": {
-      "stepId": "continuation.complete",
+    "continuation.closure": {
+      "stepId": "continuation.closure",
       "name": "Facilitation Complete",
+      "stepKind": "closure",
       "c2": "continuation",
-      "c3": "complete",
+      "c3": "closure",
       "edition": "default",
-      "fallbackKey": "complete_continuation_default",
+      "fallbackKey": "closure_continuation_default",
       "uvVariables": ["project_number", "actions_taken"],
       "usesStdin": false,
-      "description": "Completion message after facilitation cycle"
+      "description": "Completion message after facilitation cycle",
+      "outputSchemaRef": {
+        "file": "facilitator.schema.json",
+        "schema": "continuation.closure"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": "continuation.closure" }
+      }
     }
   }
 }

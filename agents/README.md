@@ -5,32 +5,78 @@ the Climpt prompt management system to enable iterative task execution.
 
 ## Features
 
-- **Iterative Execution**: Automatically continues iterations until completion
-  conditions are met
-- **Multiple Completion Strategies**: Choose from
-  Issue/Project/Iterate/Manual/Custom/StepFlow
+- **Dual-Loop Architecture**: Flow Loop (step advancement) + Completion Loop
+  (validation)
+- **Multiple Completion Strategies**: externalState, iterate, manual, stepFlow
 - **C3L Prompt Management**: Structured prompt management through Climpt
   integration
-- **Action System**: Automatically detect and execute actions (GitHub Issue
-  creation, file output, etc.) from agent output
+- **Worktree Isolation**: Git worktree support for branch-isolated execution
 - **Flexible Configuration**: Type-safe agent definitions via JSON Schema
+
+## Architecture
+
+The agent runtime uses a **dual-loop architecture**:
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Agent Runner                    │
+│  ┌───────────────┐    ┌───────────────────────┐ │
+│  │  Flow Loop    │───>│  Completion Loop      │ │
+│  │  (steps)      │    │  (validation)         │ │
+│  └───────────────┘    └───────────────────────┘ │
+└─────────────────────────────────────────────────┘
+```
+
+- **Flow Loop**: Advances through steps, manages handoff data, resolves prompts
+- **Completion Loop**: Validates completion conditions after completion signal
 
 ## Quick Start
 
-### Running the Iterator Agent
+### 1. Create a GitHub Issue
 
 ```bash
-# Run with issue completion
-deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
-
-# Or with deno task
-deno task agent:iterator --issue 123
+gh issue create --title "Task title" --body "Task description"
 ```
+
+### 2. Run the Iterator Agent
+
+```bash
+# Basic execution with issue number
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue <ISSUE_NUMBER>
+
+# Or use deno task
+deno task iterate-agent --issue <ISSUE_NUMBER>
+
+# With iteration limit
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --iterate-max 20
+
+# Resume previous session
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --resume
+```
+
+### CLI Options
+
+```bash
+# Show help
+deno run -A agents/scripts/run-agent.ts --help
+
+# List available agents
+deno run -A agents/scripts/run-agent.ts --list
+```
+
+| Option                 | Description                       |
+| ---------------------- | --------------------------------- |
+| `--agent, -a <name>`   | Agent name (iterator, reviewer)   |
+| `--issue, -i <n>`      | GitHub Issue number               |
+| `--iterate-max <n>`    | Maximum iterations (default: 500) |
+| `--resume`             | Resume previous session           |
+| `--branch <name>`      | Working branch for worktree       |
+| `--base-branch <name>` | Base branch for worktree          |
 
 ### Running the Reviewer Agent
 
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/reviewer --target src/
+deno run -A agents/scripts/run-agent.ts --agent reviewer --target src/
 ```
 
 ## Directory Structure
@@ -39,28 +85,44 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --target src/
 agents/
 +-- mod.ts                    # Public API exports
 +-- CLAUDE.md                 # Agent development guidelines
-+-- iterator/                 # Iterator agent
-|   +-- mod.ts
-|   +-- README.md
-|   +-- config.json
-|   +-- scripts/
-+-- reviewer/                 # Reviewer agent
-|   +-- mod.ts
-|   +-- README.md
-|   +-- scripts/
-|   +-- prompts/
++-- scripts/
+|   +-- run-agent.ts          # Unified agent runner CLI
++-- runner/                   # Core runner implementation
+|   +-- runner.ts             # AgentRunner (dual-loop core)
+|   +-- builder.ts            # Dependency injection builder
+|   +-- cli.ts                # CLI argument parser
+|   +-- loader.ts             # Agent definition loader
++-- completion/               # Completion handlers
+|   +-- factory.ts            # Handler factory
+|   +-- handlers/             # Built-in handlers
++-- loop/                     # Loop controllers
+|   +-- flow-controller.ts    # Flow loop (step advancement)
++-- prompts/                  # Prompt resolution
+|   +-- resolver.ts           # Prompt resolver
 +-- common/                   # Shared utilities
-|   +-- mod.ts
 |   +-- types.ts
-|   +-- logger.ts
-|   +-- step-registry.ts
-|   +-- prompt-resolver.ts
 |   +-- worktree.ts
-|   +-- coordination.ts
+|   +-- git-utils.ts
++-- validators/               # Pre-close validators
+|   +-- registry.ts
+|   +-- plugins/
 +-- schemas/                  # JSON Schemas
 |   +-- agent.schema.json
 |   +-- steps_registry.schema.json
 +-- docs/                     # Documentation
+```
+
+Agent configurations are located in `/.agent/<agent-name>/`:
+
+```
+.agent/
++-- iterator/
+|   +-- agent.json            # Agent definition
+|   +-- config.json           # Runtime config (optional)
+|   +-- steps_registry.json   # Step definitions
+|   +-- prompts/              # Prompt templates
++-- reviewer/
+    +-- ...
 ```
 
 ## Agent Definition (agent.json)
@@ -106,15 +168,16 @@ agents/
 
 ## Completion Types
 
-### 1. manual - Keyword Completion
+### 1. externalState - External State Monitoring
 
-Completes when agent outputs a specific keyword.
+Completes based on external state (e.g., GitHub Issue closed). Used by iterator
+agent.
 
 ```json
 {
-  "completionType": "manual",
+  "completionType": "externalState",
   "completionConfig": {
-    "completionKeyword": "TASK_COMPLETE"
+    "maxIterations": 500
   }
 }
 ```
@@ -132,29 +195,20 @@ Completes after specified number of iterations.
 }
 ```
 
-### 3. issue - GitHub Issue Completion
+### 3. manual - Keyword Completion
 
-Completes when related GitHub Issue is closed.
-
-```json
-{
-  "completionType": "issue",
-  "completionConfig": {}
-}
-```
-
-### 4. project - Project Task Completion
-
-Completes when GitHub Project tasks are all done.
+Completes when agent outputs a specific keyword.
 
 ```json
 {
-  "completionType": "project",
-  "completionConfig": {}
+  "completionType": "manual",
+  "completionConfig": {
+    "completionKeyword": "TASK_COMPLETE"
+  }
 }
 ```
 
-### 5. stepFlow - Step-Based Completion
+### 4. stepFlow - Step-Based Completion
 
 Completes through state machine-like step transitions.
 
@@ -162,19 +216,6 @@ Completes through state machine-like step transitions.
 {
   "completionType": "stepFlow",
   "completionConfig": {}
-}
-```
-
-### 6. custom - Custom Handler
-
-Implement custom completion logic.
-
-```json
-{
-  "completionType": "custom",
-  "completionConfig": {
-    "handlerPath": "./handlers/my-completion.ts"
-  }
 }
 ```
 
@@ -211,46 +252,18 @@ Implement custom completion logic.
 | `path` | `"path": "system.md"`                                          | `prompts/system.md`                         |
 | C3L    | `c1: "steps", c2: "initial", c3: "review", edition: "default"` | `prompts/steps/initial/review/f_default.md` |
 
-## Action System
-
-Detects specific formats in agent output and automatically executes actions.
-
-### Action Output Format
-
-When an agent outputs the following format, actions are executed:
-
-````markdown
-```action
-{
-  "type": "github-issue",
-  "content": "Bug description...",
-  "metadata": {
-    "title": "Fix authentication error",
-    "labels": ["bug", "high-priority"]
-  }
-}
-```
-````
-
-### Available Action Types
-
-- `github-issue` - Create GitHub Issue
-- `github-comment` - Comment on Issue
-- `file` - File output
-- `log` - Log output
-
 ## Use Cases
 
 ### 1. Issue Resolution Agent
 
 ```bash
-deno task agent:iterator --issue 42
+deno run -A agents/scripts/run-agent.ts --agent iterator --issue 42
 ```
 
 ### 2. Code Review Agent
 
 ```bash
-deno task agent:reviewer --target src/ --focus security
+deno run -A agents/scripts/run-agent.ts --agent reviewer --target src/
 ```
 
 ## Programmatic API
@@ -279,21 +292,40 @@ tmp/logs/agents/my-agent/
 
 ## Documentation
 
-Detailed documentation is available in the `docs/` directory:
+Core design docs live under `agents/docs/design/`, while builder/guide docs live
+under `agents/docs/builder/`:
 
-- [01_architecture.md](./docs/01_architecture.md) - Architecture overview
-- [02_agent_definition.md](./docs/02_agent_definition.md) - Agent definition
-  schema
-- [03_runner.md](./docs/03_runner.md) - Agent runner design
-- [04_completion_handlers.md](./docs/04_completion_handlers.md) - Completion
-  handlers
-- [05_prompt_system.md](./docs/05_prompt_system.md) - Prompt system
-- [06_action_system.md](./docs/06_action_system.md) - Action system
-- [07_config_system.md](./docs/07_config_system.md) - Configuration system
-- [08_implementation_guide.md](./docs/08_implementation_guide.md) -
-  Implementation guide
-- [step_flow_design.md](./docs/step_flow_design.md) - Step flow design
-- [migration_guide.md](./docs/migration_guide.md) - Migration guide
+Design:
+
+- [design/01_runner.md](./docs/design/01_runner.md) - Agent runner design
+- [design/02_prompt_system.md](./docs/design/02_prompt_system.md) - Prompt
+  system
+- [design/03_structured_outputs.md](./docs/design/03_structured_outputs.md) -
+  Structured output handling
+- [design/04_philosophy.md](./docs/design/04_philosophy.md) - Design philosophy
+- [design/05_core_architecture.md](./docs/design/05_core_architecture.md) -
+  Flow/Completion architecture
+- [design/06_contracts.md](./docs/design/06_contracts.md) - Contracts & I/O
+- [design/07_extension_points.md](./docs/design/07_extension_points.md) -
+  Extension points
+- [design/08_step_flow_design.md](./docs/design/08_step_flow_design.md) - Flow
+  step requirements
+
+Builder/Guides:
+
+- [builder/01_quickstart.md](./docs/builder/01_quickstart.md) - Quickstart
+- [builder/02_agent_definition.md](./docs/builder/02_agent_definition.md) -
+  Agent definition schema
+- [builder/03_builder_guide.md](./docs/builder/03_builder_guide.md) - End-to-end
+  builder guide
+- [builder/04_config_system.md](./docs/builder/04_config_system.md) - Config
+  layering
+- [builder/migration_guide.md](./docs/builder/migration_guide.md) - Migration
+  guide
+- [builder/migration_incompatibilities.md](./docs/builder/migration_incompatibilities.md)
+  - Incompatibilities list
+- [builder/migration_template.md](./docs/builder/migration_template.md) -
+  Migration template
 
 ## Troubleshooting
 

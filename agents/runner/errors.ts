@@ -1,0 +1,432 @@
+/**
+ * AgentError Hierarchy - Structured errors for AgentRunner
+ *
+ * Hierarchy:
+ * - AgentError (abstract base)
+ *   - AgentNotInitializedError (runner not initialized)
+ *   - AgentQueryError (SDK query failed)
+ *   - AgentCompletionError (completion check failed)
+ *   - AgentTimeoutError (operation timeout)
+ *   - AgentMaxIterationsError (max iterations exceeded)
+ */
+
+/**
+ * Base class for all agent errors
+ */
+export abstract class AgentError extends Error {
+  /**
+   * Error code for programmatic handling
+   */
+  abstract readonly code: string;
+
+  /**
+   * Whether this error allows recovery (e.g., retry)
+   */
+  abstract readonly recoverable: boolean;
+
+  /**
+   * Iteration number when error occurred (if applicable)
+   */
+  readonly iteration?: number;
+
+  constructor(
+    message: string,
+    options?: { cause?: Error; iteration?: number },
+  ) {
+    super(message, { cause: options?.cause });
+    this.name = this.constructor.name;
+    this.iteration = options?.iteration;
+  }
+
+  /**
+   * Get a structured representation for logging
+   */
+  toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      recoverable: this.recoverable,
+      iteration: this.iteration,
+      cause: this.cause instanceof Error ? this.cause.message : undefined,
+    };
+  }
+}
+
+/**
+ * Runner accessed before initialization
+ */
+export class AgentNotInitializedError extends AgentError {
+  readonly code = "AGENT_NOT_INITIALIZED";
+  readonly recoverable = false;
+
+  constructor(options?: { message?: string; cause?: Error }) {
+    super(
+      options?.message ?? "AgentRunner must be initialized before use",
+      { cause: options?.cause },
+    );
+  }
+}
+
+/**
+ * SDK query execution failed
+ */
+export class AgentQueryError extends AgentError {
+  readonly code = "AGENT_QUERY_ERROR";
+  readonly recoverable = true;
+
+  constructor(
+    message: string,
+    options?: { cause?: Error; iteration?: number },
+  ) {
+    super(message, options);
+  }
+}
+
+/**
+ * Completion check failed
+ */
+export class AgentCompletionError extends AgentError {
+  readonly code = "AGENT_COMPLETION_ERROR";
+  readonly recoverable = true;
+
+  constructor(
+    message: string,
+    options?: { cause?: Error; iteration?: number },
+  ) {
+    super(message, options);
+  }
+}
+
+/**
+ * Operation timed out
+ */
+export class AgentTimeoutError extends AgentError {
+  readonly code = "AGENT_TIMEOUT";
+  readonly recoverable = true;
+
+  /**
+   * Timeout duration in milliseconds
+   */
+  readonly timeoutMs: number;
+
+  constructor(
+    message: string,
+    timeoutMs: number,
+    options?: { cause?: Error; iteration?: number },
+  ) {
+    super(message, options);
+    this.timeoutMs = timeoutMs;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      timeoutMs: this.timeoutMs,
+    };
+  }
+}
+
+/**
+ * Maximum iterations reached without completion
+ */
+export class AgentMaxIterationsError extends AgentError {
+  readonly code = "AGENT_MAX_ITERATIONS";
+  readonly recoverable = false;
+
+  /**
+   * The maximum iterations limit
+   */
+  readonly maxIterations: number;
+
+  constructor(maxIterations: number, iteration?: number) {
+    super(
+      `Maximum iterations (${maxIterations}) reached without completion`,
+      { iteration },
+    );
+    this.maxIterations = maxIterations;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      maxIterations: this.maxIterations,
+    };
+  }
+}
+
+/**
+ * Type guard for AgentError
+ */
+export function isAgentError(error: unknown): error is AgentError {
+  return error instanceof AgentError;
+}
+
+/**
+ * Normalize any error to AgentError
+ */
+export function normalizeToAgentError(
+  error: unknown,
+  options?: { iteration?: number },
+): AgentError {
+  if (error instanceof AgentError) {
+    return error;
+  }
+  if (error instanceof Error) {
+    return new AgentQueryError(error.message, {
+      cause: error,
+      iteration: options?.iteration,
+    });
+  }
+  return new AgentQueryError(String(error), {
+    iteration: options?.iteration,
+  });
+}
+
+// Import types for new error classes
+// Note: These are imported here to avoid circular dependencies
+// and because the base errors.ts should remain independent
+
+/**
+ * SDK Error Category (duplicated to avoid circular import)
+ * Full definition in error-classifier.ts
+ */
+export type SdkErrorCategoryType =
+  | "environment"
+  | "network"
+  | "api"
+  | "input"
+  | "internal"
+  | "unknown";
+
+/**
+ * Environment information (duplicated to avoid circular import)
+ * Full definition in environment-checker.ts
+ */
+export interface EnvironmentInfoType {
+  insideClaudeCode: boolean;
+  sandboxed: boolean;
+  nestLevel: number;
+  warnings: string[];
+}
+
+/**
+ * Environment constraint error (e.g., double sandbox)
+ *
+ * This error indicates the execution environment does not support
+ * SDK operations. It is not recoverable without changing the
+ * execution context.
+ */
+export class AgentEnvironmentError extends AgentError {
+  readonly code = "AGENT_ENVIRONMENT_ERROR";
+  readonly recoverable = false;
+  readonly category: SdkErrorCategoryType;
+  readonly guidance: string;
+  readonly environment: EnvironmentInfoType;
+
+  constructor(
+    message: string,
+    options: {
+      category: SdkErrorCategoryType;
+      guidance: string;
+      environment: EnvironmentInfoType;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.category = options.category;
+    this.guidance = options.guidance;
+    this.environment = options.environment;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      category: this.category,
+      guidance: this.guidance,
+      environment: this.environment,
+    };
+  }
+}
+
+/**
+ * Rate limit error
+ *
+ * This error indicates the API rate limit has been reached.
+ * The agent should wait before retrying.
+ */
+export class AgentRateLimitError extends AgentError {
+  readonly code = "AGENT_RATE_LIMIT";
+  readonly recoverable = true;
+  readonly retryAfterMs: number;
+  readonly attempts: number;
+
+  constructor(
+    message: string,
+    options: {
+      retryAfterMs?: number;
+      attempts?: number;
+      cause?: Error;
+      iteration?: number;
+    } = {},
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.retryAfterMs = options.retryAfterMs ?? 0;
+    this.attempts = options.attempts ?? 0;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      retryAfterMs: this.retryAfterMs,
+      attempts: this.attempts,
+    };
+  }
+}
+
+/**
+ * Schema resolution failed
+ *
+ * This error indicates that a JSON Pointer in outputSchemaRef could not be
+ * resolved. The Flow loop should halt immediately - schema failures are fatal
+ * because StepGate cannot interpret intents without structured output.
+ */
+export class AgentSchemaResolutionError extends AgentError {
+  readonly code = "FAILED_SCHEMA_RESOLUTION";
+  readonly recoverable = false;
+  readonly stepId: string;
+  readonly schemaRef: string;
+  readonly consecutiveFailures: number;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      schemaRef: string;
+      consecutiveFailures: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+    this.schemaRef = options.schemaRef;
+    this.consecutiveFailures = options.consecutiveFailures;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+      schemaRef: this.schemaRef,
+      consecutiveFailures: this.consecutiveFailures,
+    };
+  }
+}
+
+/**
+ * Step ID mismatch error
+ *
+ * This error indicates that the structuredOutput.stepId returned by the LLM
+ * does not match the expected currentStepId. This is a configuration error
+ * that should be fixed immediately - the schema may be missing a "const"
+ * constraint or the LLM is returning the wrong step name.
+ */
+export class AgentStepIdMismatchError extends AgentError {
+  readonly code = "AGENT_STEP_ID_MISMATCH";
+  readonly recoverable = false;
+  readonly expectedStepId: string;
+  readonly actualStepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      expectedStepId: string;
+      actualStepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.expectedStepId = options.expectedStepId;
+    this.actualStepId = options.actualStepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      expectedStepId: this.expectedStepId,
+      actualStepId: this.actualStepId,
+    };
+  }
+}
+
+/**
+ * Step routing failed
+ *
+ * This error indicates that StepGate could not determine an intent from the
+ * structured output. This is a fatal error - all Flow steps must produce
+ * structured output with a valid intent for routing to occur.
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 6
+ */
+export class AgentStepRoutingError extends AgentError {
+  readonly code = "FAILED_STEP_ROUTING";
+  readonly recoverable = false;
+  readonly stepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+    };
+  }
+}
+
+/**
+ * Retryable query error with additional context
+ *
+ * This error indicates a query failure that may be recovered
+ * by retrying after a delay.
+ */
+export class AgentRetryableQueryError extends AgentError {
+  readonly code = "AGENT_RETRYABLE_QUERY_ERROR";
+  readonly recoverable = true;
+  readonly category: SdkErrorCategoryType;
+  readonly retryAfterMs?: number;
+
+  constructor(
+    message: string,
+    options: {
+      category: SdkErrorCategoryType;
+      retryAfterMs?: number;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.category = options.category;
+    this.retryAfterMs = options.retryAfterMs;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      category: this.category,
+      retryAfterMs: this.retryAfterMs,
+    };
+  }
+}

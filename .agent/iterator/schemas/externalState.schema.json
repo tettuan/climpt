@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "externalState.schema.json",
+  "description": "External State完了判定stepのスキーマ定義（GitHub Issue状態で完了を判定）",
+
+  "$defs": {
+    "issueContext": {
+      "type": "object",
+      "required": ["issue_number"],
+      "properties": {
+        "issue_number": {
+          "type": "integer",
+          "description": "GitHub Issue番号"
+        },
+        "issue_title": {
+          "type": "string",
+          "description": "Issue タイトル"
+        },
+        "issue_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Issue URL"
+        }
+      }
+    },
+
+    "workProgress": {
+      "type": "object",
+      "properties": {
+        "files_modified": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/fileChange" },
+          "description": "変更したファイル一覧"
+        },
+        "commits": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/commitInfo" },
+          "description": "作成したコミット一覧"
+        },
+        "tests_added": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "追加したテスト数"
+        },
+        "tests_passed": {
+          "type": "boolean",
+          "description": "テストが全てパスしたか"
+        }
+      }
+    }
+  },
+
+  "initial.externalState": {
+    "type": "object",
+    "description": "External State作業開始時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue", "analysis"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "initial.externalState",
+        "description": "実行されたstep識別子"
+      },
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "analysis": {
+        "type": "object",
+        "required": ["understanding", "approach"],
+        "properties": {
+          "understanding": {
+            "type": "string",
+            "description": "Issueの理解内容"
+          },
+          "approach": {
+            "type": "string",
+            "description": "実装アプローチ"
+          },
+          "affected_files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "影響を受けるファイル一覧"
+          },
+          "estimated_changes": {
+            "type": "string",
+            "enum": ["minor", "moderate", "significant"],
+            "description": "変更規模の見積もり"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "continuation.externalState": {
+    "type": "object",
+    "description": "External State継続作業時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue", "iteration"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "continuation.externalState",
+        "description": "実行されたstep識別子"
+      },
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "iteration": {
+        "type": "object",
+        "required": ["current", "work_done"],
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "現在のイテレーション番号"
+          },
+          "work_done": {
+            "type": "string",
+            "description": "このイテレーションで行った作業"
+          },
+          "remaining_work": {
+            "type": "string",
+            "description": "残りの作業（あれば）"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  },
+
+  "closure.externalState": {
+    "type": "object",
+    "description": "External State完了時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "closure.externalState",
+        "description": "実行されたstep識別子"
+      },
+      "issue": { "$ref": "#/$defs/issueContext" },
+      "completion": {
+        "type": "object",
+        "properties": {
+          "issue_closed": {
+            "type": "boolean",
+            "description": "GitHub Issueがクローズされたか"
+          },
+          "git_clean": {
+            "type": "boolean",
+            "description": "Git作業ディレクトリがクリーンか"
+          },
+          "final_summary": {
+            "type": "string",
+            "description": "完了時の最終サマリー"
+          }
+        }
+      },
+      "progress": { "$ref": "#/$defs/workProgress" }
+    }
+  }
+}

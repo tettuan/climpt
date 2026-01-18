@@ -34,8 +34,10 @@ export async function loadMCPConfig(): Promise<MCPConfig> {
   ];
 
   // Try to load existing config
+  // Sequential execution required: try paths in priority order, return on first success
   for (const configPath of configPaths) {
     try {
+      // deno-lint-ignore no-await-in-loop
       const configText = await Deno.readTextFile(configPath);
       const config = JSON.parse(configText) as MCPConfig;
       return config;

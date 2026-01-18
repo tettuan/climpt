@@ -109,6 +109,52 @@ for await (const message of response) {
 }
 ```
 
+## Sandbox 設計（2026-01-11 更新）
+
+### 二重 Sandbox の問題
+
+Claude Code 内から Agent を実行する場合、二重の sandbox が存在する：
+
+```
+Claude Code Bash tool sandbox (外側)
+  └─ Agent Runner (agents/scripts/run-agent.ts)
+       └─ SDK sandbox (内側) ← 我々が設定
+```
+
+**結果**: 内側の SDK sandbox で `api.anthropic.com` を許可しても、外側の Bash tool sandbox がブロックする。
+
+### 解決策
+
+1. **ターミナルから直接実行** - sandbox 外で実行
+   ```bash
+   deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123
+   ```
+
+2. **dangerouslyDisableSandbox 使用** - Claude Code 内から実行時
+   ```typescript
+   Bash({
+     command: "deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123",
+     dangerouslyDisableSandbox: true,
+   })
+   ```
+
+### SDK Sandbox 設定
+
+`agents/runner/sandbox-defaults.ts` で以下を設定：
+
+**Network allowedDomains:**
+- `api.anthropic.com`
+- `statsig.anthropic.com`
+- `sentry.anthropic.com`
+- `*.anthropic.com`
+- `*.*.anthropic.com`
+- GitHub、Deno、npm 関連ドメイン
+
+**Filesystem ignoreViolations:**
+- `~/.claude/projects/`
+- `~/.claude/statsig/`
+- `~/.claude/telemetry/`
+
 ## 記録日
 
-2025-12-20
+2025-12-20（更新: 2026-01-11）

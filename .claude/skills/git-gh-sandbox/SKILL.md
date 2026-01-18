@@ -4,35 +4,36 @@ description: Use when executing git or gh commands that require network access. 
 allowed-tools: [Bash, Read, Edit, Grep, Glob]
 ---
 
-# git/gh コマンドのサンドボックス制限
+# Network Sandbox Management
 
-## 概要
+## Overview
 
-Claude Code で git/gh コマンドを実行する場合、ネットワークアクセスが必要なコマンドは `dangerouslyDisableSandbox: true` が必要。
+Claude Code sandbox restricts network access by default. This skill documents:
+1. Which commands need sandbox bypass
+2. Current allowlist configuration
+3. Troubleshooting connection errors
 
-## 対象コマンド
+## Allowed Domains (settings.json)
 
-| カテゴリ | コマンド |
-|---------|---------|
-| Git ネットワーク | `git push`, `git pull`, `git fetch`, `git clone` |
-| GitHub CLI | `gh` コマンド全般 |
+Current allowlist in `.claude/settings.json`:
 
-## 使用例
+| Domain | Purpose |
+|--------|---------|
+| jsr.io, *.jsr.io | JSR package registry |
+| deno.land, *.deno.land | Deno standard library |
+| github.com | Git remote operations |
+| api.github.com | GitHub CLI (gh) |
 
-### Git push
+## Commands Requiring Sandbox Bypass
+
+Even with allowlist, some commands may need `dangerouslyDisableSandbox: true`:
+
+### Git Network Commands
 
 ```typescript
+// Required for: push, pull, fetch, clone
 Bash({
-  command: "git push -u origin feature-branch",
-  dangerouslyDisableSandbox: true,
-})
-```
-
-### Git pull/fetch
-
-```typescript
-Bash({
-  command: "git pull origin main",
+  command: "git push -u origin branch-name",
   dangerouslyDisableSandbox: true,
 })
 ```
@@ -40,28 +41,116 @@ Bash({
 ### GitHub CLI
 
 ```typescript
+// Required for all gh commands
 Bash({
   command: "gh pr create --base develop --head feature-branch",
   dangerouslyDisableSandbox: true,
 })
 ```
 
+### Deno with External Packages
+
 ```typescript
+// Required when JSR/deno.land fetch fails in sandbox
 Bash({
-  command: "gh pr merge 123 --merge",
+  command: "deno task ci",
   dangerouslyDisableSandbox: true,
 })
 ```
 
-## サンドボックス不要なコマンド
+### Claude Agent SDK (climpt-agent)
 
-以下はローカル操作のため `dangerouslyDisableSandbox` 不要:
+```typescript
+// Required for API calls to api.anthropic.com
+Bash({
+  command: "echo '...' | deno run climpt-agent.ts",
+  dangerouslyDisableSandbox: true,
+})
+```
 
-- `git status`
-- `git add`
-- `git commit`
-- `git log`
-- `git diff`
-- `git branch`
-- `git checkout`
-- `git merge` (ローカルマージ)
+## Commands NOT Requiring Bypass
+
+Local-only operations work in sandbox:
+
+- `git status`, `git add`, `git commit`
+- `git log`, `git diff`, `git branch`
+- `git checkout`, `git merge` (local)
+- `deno fmt`, `deno lint` (cached deps)
+- `deno test` (cached deps)
+
+## Troubleshooting
+
+### Connection Timeout / Retry
+
+```
+fatal: unable to access 'https://github.com/...':
+Could not resolve host: github.com
+```
+
+**Cause**: Sandbox blocking network access
+**Solution**: Add `dangerouslyDisableSandbox: true`
+
+### JSR Package Load Failed
+
+```
+error: JSR package manifest for '@std/path' failed to load.
+Import 'https://jsr.io/@std/path/meta.json' failed.
+```
+
+**Cause**: Sandbox blocking JSR access
+**Solutions**:
+1. Verify jsr.io in allowedDomains (should already be there)
+2. Use `dangerouslyDisableSandbox: true` if still failing
+
+### Transient Network Errors
+
+Connection may fail intermittently due to:
+- Network latency
+- DNS resolution delays
+- Rate limiting
+
+**Strategy**: Retry the command (usually succeeds on second attempt)
+
+```typescript
+// Retry pattern for network commands
+Bash({
+  command: "git push origin branch-name || sleep 2 && git push origin branch-name",
+  dangerouslyDisableSandbox: true,
+})
+```
+
+## Adding New Domains
+
+To allow new external domains, edit `.claude/settings.json`:
+
+```json
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "existing-domain.com",
+        "new-domain.com"
+      ]
+    }
+  }
+}
+```
+
+**Note**: Wildcards supported (e.g., `*.example.com`)
+
+## Quick Reference
+
+| Situation | Action |
+|-----------|--------|
+| git push/pull/fetch/clone | `dangerouslyDisableSandbox: true` |
+| gh (any command) | `dangerouslyDisableSandbox: true` |
+| deno task ci (fresh deps) | `dangerouslyDisableSandbox: true` |
+| deno task ci (cached) | Sandbox OK |
+| Claude API calls | `dangerouslyDisableSandbox: true` |
+| Connection error | Retry with sandbox bypass |
+
+## Related Skills
+
+- CI execution: `/local-ci`
+- CI errors: `/ci-troubleshooting`
+- Release flow: `/release-procedure`

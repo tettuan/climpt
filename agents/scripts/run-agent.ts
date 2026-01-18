@@ -8,18 +8,27 @@
  * @example Run iterator agent
  * ```bash
  * deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
- * deno run -A agents/scripts/run-agent.ts --agent iterator --project 5
  * ```
  *
  * @example Run reviewer agent
  * ```bash
- * deno run -A agents/scripts/run-agent.ts --agent reviewer --project 5
+ * deno run -A agents/scripts/run-agent.ts --agent reviewer --issue 123
  * ```
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
+import {
+  type FinalizeOptions,
+  finalizeWorktreeBranch,
+  setupWorktree,
+} from "../common/worktree.ts";
+import type {
+  WorktreeSetupConfig,
+  WorktreeSetupResult,
+} from "../common/types.ts";
+import type { FinalizeConfig } from "../src_common/types.ts";
 
 function printHelp(): void {
   // deno-lint-ignore no-console
@@ -39,30 +48,30 @@ Options:
 
 Iterator Options:
   --issue, -i <number>   GitHub Issue number to work on
-  --project, -p <number> GitHub Project number to work on
-  --project-owner <name> GitHub Project owner (user/org)
-  --label <name>         Filter project issues by label
   --iterate-max <n>      Maximum iterations (default: 100)
   --resume               Resume previous session
-  --include-completed    Include Done items from project board
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
 
 Reviewer Options:
-  --project, -p <number> GitHub Project number to review (required)
-  --requirements-label   Label for requirement issues (default: docs)
-  --review-label         Label for issues to review (default: review)
-  --iterate-max <n>      Maximum iterations (default: 50)
+  --issue, -i <number>   GitHub Issue number to review (required)
+  --iterate-max <n>      Maximum iterations (default: 300)
+  --branch <name>        Working branch for worktree mode
+  --base-branch <name>   Base branch for worktree mode
+
+Finalize Options:
+  --no-merge             Skip merging worktree branch to base
+  --push                 Push after merge
+  --push-remote <name>   Remote to push to (default: origin)
+  --create-pr            Create PR instead of direct merge
+  --pr-target <branch>   Target branch for PR (default: base branch)
 
 Examples:
   # Work on a GitHub Issue
   run-agent.ts --agent iterator --issue 123
 
-  # Work on a GitHub Project
-  run-agent.ts --agent iterator --project 5 --label docs
-
-  # Review a project
-  run-agent.ts --agent reviewer --project 5
+  # Review an issue
+  run-agent.ts --agent reviewer --issue 123
 `);
 }
 
@@ -70,19 +79,26 @@ async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     string: [
       "agent",
-      "project-owner",
-      "label",
       "branch",
       "base-branch",
       "requirements-label",
       "review-label",
+      "push-remote",
+      "pr-target",
     ],
-    boolean: ["help", "init", "list", "resume", "include-completed"],
+    boolean: [
+      "help",
+      "init",
+      "list",
+      "resume",
+      "no-merge",
+      "push",
+      "create-pr",
+    ],
     alias: {
       a: "agent",
       h: "help",
       i: "issue",
-      p: "project",
       m: "iterate-max",
     },
   });
@@ -143,13 +159,48 @@ async function main(): Promise<void> {
       }
     }
 
+    // Setup worktree if enabled in config
+    // When worktree is enabled, branch name is auto-generated if not specified
+    let workingDir = Deno.cwd();
+    let worktreeResult: WorktreeSetupResult | undefined;
+
+    const worktreeConfig = definition.worktree;
+    if (worktreeConfig?.enabled) {
+      const setupConfig: WorktreeSetupConfig = {
+        forceWorktree: true,
+        worktreeRoot: worktreeConfig.root ?? ".worktrees",
+      };
+
+      // deno-lint-ignore no-console
+      console.log(`\nSetting up worktree...`);
+      worktreeResult = await setupWorktree(setupConfig, {
+        branch: args.branch as string | undefined,
+        baseBranch: args["base-branch"] as string | undefined,
+      });
+
+      workingDir = worktreeResult.worktreePath;
+      // deno-lint-ignore no-console
+      console.log(`  Branch: ${worktreeResult.branchName}`);
+      // deno-lint-ignore no-console
+      console.log(`  Base: ${worktreeResult.baseBranch}`);
+      // deno-lint-ignore no-console
+      console.log(`  Path: ${worktreeResult.worktreePath}`);
+      if (worktreeResult.created) {
+        // deno-lint-ignore no-console
+        console.log(`  Status: Created new worktree`);
+      } else {
+        // deno-lint-ignore no-console
+        console.log(`  Status: Using existing worktree`);
+      }
+    }
+
     // Create and run the agent
     const runner = new AgentRunner(definition);
     // deno-lint-ignore no-console
     console.log(`\nStarting ${definition.displayName}...\n`);
 
     const result = await runner.run({
-      cwd: Deno.cwd(),
+      cwd: workingDir,
       args: runnerArgs,
       plugins: [],
     });
@@ -160,13 +211,112 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log(`Agent completed: ${result.success ? "SUCCESS" : "FAILED"}`);
     // deno-lint-ignore no-console
-    console.log(`Total iterations: ${result.totalIterations}`);
+    console.log(`Total iterations: ${result.iterations}`);
     // deno-lint-ignore no-console
-    console.log(`Reason: ${result.completionReason}`);
+    console.log(`Reason: ${result.reason}`);
     if (result.error) {
       // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);
     }
+
+    // Finalize worktree on success
+    if (result.success && worktreeResult) {
+      const parentCwd = Deno.cwd();
+
+      // Build finalize options from CLI args and agent definition
+      const finalizeConfig: FinalizeConfig = definition.finalize ?? {};
+      const finalizeOptions: FinalizeOptions = {
+        autoMerge: !args["no-merge"] && (finalizeConfig.autoMerge ?? true),
+        push: args.push || (finalizeConfig.push ?? false),
+        remote: (args["push-remote"] as string) ||
+          finalizeConfig.remote ||
+          "origin",
+        createPr: args["create-pr"] || (finalizeConfig.createPr ?? false),
+        prTarget: (args["pr-target"] as string) || finalizeConfig.prTarget,
+        logger: {
+          info: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.log(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+          warn: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.warn(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+          error: (msg, meta) => {
+            // deno-lint-ignore no-console
+            console.error(`  ${msg}`, meta ? JSON.stringify(meta) : "");
+          },
+        },
+      };
+
+      // deno-lint-ignore no-console
+      console.log(`\nFinalizing worktree...`);
+      const finalizationOutcome = await finalizeWorktreeBranch(
+        worktreeResult,
+        finalizeOptions,
+        parentCwd,
+      );
+
+      // Report finalization result
+      // deno-lint-ignore no-console
+      console.log(
+        `\nFinalization: ${finalizationOutcome.status.toUpperCase()}`,
+      );
+      // deno-lint-ignore no-console
+      console.log(`  Reason: ${finalizationOutcome.reason}`);
+
+      if (finalizationOutcome.merge) {
+        // deno-lint-ignore no-console
+        console.log(
+          `  Merge: ${
+            finalizationOutcome.merge.success ? "OK" : "FAILED"
+          } (${finalizationOutcome.merge.commitsMerged} commits)`,
+        );
+      }
+
+      if (finalizationOutcome.push) {
+        // deno-lint-ignore no-console
+        console.log(
+          `  Push: ${
+            finalizationOutcome.push.success ? "OK" : "FAILED"
+          } to ${finalizationOutcome.push.remote}`,
+        );
+      }
+
+      if (finalizationOutcome.pr) {
+        // deno-lint-ignore no-console
+        console.log(
+          `  PR: ${
+            finalizationOutcome.pr.success
+              ? finalizationOutcome.pr.url
+              : "FAILED"
+          }`,
+        );
+      }
+
+      // deno-lint-ignore no-console
+      console.log(
+        `  Cleanup: ${finalizationOutcome.cleanedUp ? "Done" : "Skipped"}`,
+      );
+
+      if (finalizationOutcome.pendingActions?.length) {
+        // deno-lint-ignore no-console
+        console.log(`  Pending actions:`);
+        for (const action of finalizationOutcome.pendingActions) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${action}`);
+        }
+      }
+    } else if (!result.success && worktreeResult) {
+      // Agent failed - preserve worktree for recovery
+      // deno-lint-ignore no-console
+      console.log(`\nWorktree preserved for recovery:`);
+      // deno-lint-ignore no-console
+      console.log(`  Path: ${worktreeResult.worktreePath}`);
+      // deno-lint-ignore no-console
+      console.log(`  Branch: ${worktreeResult.branchName}`);
+    }
+
     // deno-lint-ignore no-console
     console.log(`${"=".repeat(60)}\n`);
 
