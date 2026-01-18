@@ -343,7 +343,7 @@
         "schema": "initial.project.review"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -351,7 +351,7 @@
       "transitions": {
         "next": { "target": "continuation.project.review" },
         "repeat": { "target": "initial.project.again" },
-        "closing": { "target": "initial.project.closure" }
+        "handoff": { "target": "initial.project.closure" }
       },
       "description": "Review phase prompt for project mode"
     },
@@ -370,7 +370,7 @@
         "schema": "initial.project.again"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -378,7 +378,7 @@
       "transitions": {
         "next": { "target": "continuation.project.again" },
         "repeat": { "target": "initial.project.again" },
-        "closing": { "target": "initial.project.review" }
+        "handoff": { "target": "initial.project.review" }
       },
       "description": "Re-execution phase prompt after failed review"
     },
