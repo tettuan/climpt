@@ -463,7 +463,6 @@ Schema が structured output を強制するため、JSON 形式の指示は不�
 | `closing` | タスク完了（closure step のみ） |
 ```
 
-````
 ## Step 5: Step プロンプト作成
 
 ### Initial プロンプト
@@ -556,13 +555,13 @@ Agent ロジックが注入する変数:
 `completionType` に応じて、`entryStepMapping` に必要なキーを定義する。
 不足しているとロード時にエラーになる。
 
-| completionType    | Required entryStepMapping key |
-| ----------------- | ----------------------------- |
-| `externalState`   | `externalState`               |
-| `issue`           | `issue`                       |
-| `iterate`         | `iterate`                     |
-| `stepMachine`     | `stepMachine`                 |
-| `default`         | `default`                     |
+| completionType  | Required entryStepMapping key |
+| --------------- | ----------------------------- |
+| `externalState` | `externalState`               |
+| `issue`         | `issue`                       |
+| `iterate`       | `iterate`                     |
+| `stepMachine`   | `stepMachine`                 |
+| `default`       | `default`                     |
 
 例: `completionType: "externalState"` の場合:
 
@@ -575,35 +574,37 @@ Agent ロジックが注入する変数:
 
 ## Intent マッピング
 
-AI の `next_action.action` から遷移を決定。Step 種別ごとに許可される intent が異なる:
+AI の `next_action.action` から遷移を決定。Step 種別ごとに許可される intent
+が異なる:
 
 ### Work Step (`initial.*` / `continuation.*`)
 
-| Intent   | 動作                     |
-| -------- | ------------------------ |
-| `next`   | 次の Step へ             |
-| `repeat` | 同じ Step を再実行       |
-| `jump`   | 指定 Step へジャンプ     |
+| Intent   | 動作                 |
+| -------- | -------------------- |
+| `next`   | 次の Step へ         |
+| `repeat` | 同じ Step を再実行   |
+| `jump`   | 指定 Step へジャンプ |
 
 > **Rule**: Work Step は `closing` を返さない。
 
 ### Verification Step (`verification.*`)
 
-| Intent     | 動作                           |
-| ---------- | ------------------------------ |
-| `next`     | 次の Step へ                   |
-| `repeat`   | 検証対象 Step へ戻る           |
-| `jump`     | 指定 Step へジャンプ           |
+| Intent     | 動作                             |
+| ---------- | -------------------------------- |
+| `next`     | 次の Step へ                     |
+| `repeat`   | 検証対象 Step へ戻る             |
+| `jump`     | 指定 Step へジャンプ             |
 | `escalate` | サポート Step へエスカレーション |
 
-> **Rule**: Verification Step は `closing` を返さない。`escalate` は静的定義された Step のみに遷移。
+> **Rule**: Verification Step は `closing` を返さない。`escalate`
+> は静的定義された Step のみに遷移。
 
 ### Closure Step (`closure.*`)
 
-| Intent    | 動作                       |
-| --------- | -------------------------- |
+| Intent    | 動作                          |
+| --------- | ----------------------------- |
 | `closing` | Flow 終了、Boundary Hook 実行 |
-| `repeat`  | 作業 Step へ戻る           |
+| `repeat`  | 作業 Step へ戻る              |
 
 > **Rule**: `closing` を宣言できるのは Closure Step のみ。
 
@@ -655,11 +656,11 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 
 ## 関連ドキュメント
 
-| ドキュメント | 内容 |
-|-------------|------|
-| [02_agent_definition.md](./02_agent_definition.md) | agent.json の詳細 |
-| [03_builder_guide.md](./03_builder_guide.md) | 設計思想と連鎖 |
-| [04_config_system.md](./04_config_system.md) | 設定の優先順位 |
-| [design/02_prompt_system.md](../design/02_prompt_system.md) | C3L プロンプト解決 |
-| [design/03_structured_outputs.md](../design/03_structured_outputs.md) | Structured Output |
-| [design/08_step_flow_design.md](../design/08_step_flow_design.md) | Step Flow 設計 |
+| ドキュメント                                                          | 内容               |
+| --------------------------------------------------------------------- | ------------------ |
+| [02_agent_definition.md](./02_agent_definition.md)                    | agent.json の詳細  |
+| [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖     |
+| [04_config_system.md](./04_config_system.md)                          | 設定の優先順位     |
+| [design/02_prompt_system.md](../design/02_prompt_system.md)           | C3L プロンプト解決 |
+| [design/03_structured_outputs.md](../design/03_structured_outputs.md) | Structured Output  |
+| [design/08_step_flow_design.md](../design/08_step_flow_design.md)     | Step Flow 設計     |
