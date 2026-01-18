@@ -42,7 +42,11 @@ import {
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
-import { filterAllowedTools } from "../common/tool-policy.ts";
+import {
+  filterAllowedTools,
+  isBashCommandAllowed,
+} from "../common/tool-policy.ts";
+import type { StepKind } from "../common/step-registry.ts";
 import {
   CompletionChain,
   type CompletionValidationResult,
@@ -475,16 +479,17 @@ export class AgentRunner {
 
       // Apply stepKind-based tool gating if we have step info
       let allowedTools = this.definition.behavior.allowedTools;
+      let currentStepKind: StepKind | undefined;
       if (stepId && this.stepsRegistry) {
         const stepDef = this.stepsRegistry.steps[stepId] as
           | PromptStepDefinition
           | undefined;
         if (stepDef) {
-          const stepKind = inferStepKind(stepDef);
-          if (stepKind) {
-            allowedTools = filterAllowedTools(allowedTools, stepKind);
+          currentStepKind = inferStepKind(stepDef);
+          if (currentStepKind) {
+            allowedTools = filterAllowedTools(allowedTools, currentStepKind);
             ctx.logger.info(
-              `[ToolPolicy] Step "${stepId}" (${stepKind}): tools filtered to ${allowedTools.length} allowed`,
+              `[ToolPolicy] Step "${stepId}" (${currentStepKind}): tools filtered to ${allowedTools.length} allowed`,
             );
           }
         }
@@ -540,6 +545,26 @@ export class AgentRunner {
             `[StructuredOutput] Using schema for step: ${stepId}`,
           );
         }
+      }
+
+      // Configure PreToolUse hooks for boundary bash blocking
+      // Only enable for work/verification steps to block boundary commands
+      if (currentStepKind && currentStepKind !== "closure") {
+        const boundaryBashBlockingHook = this.createBoundaryBashBlockingHook(
+          currentStepKind,
+          ctx,
+        );
+        queryOptions.hooks = {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              hooks: [boundaryBashBlockingHook],
+            },
+          ],
+        };
+        ctx.logger.info(
+          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (stepKind: ${currentStepKind})`,
+        );
       }
 
       const queryIterator = query({
@@ -1381,5 +1406,66 @@ export class AgentRunner {
         structuredOutput: summary.structuredOutput,
       });
     }
+  }
+
+  // ============================================================================
+  // PreToolUse Hook Factory
+  // ============================================================================
+
+  /**
+   * Create a PreToolUse hook callback that blocks boundary bash commands.
+   *
+   * This hook is used to enforce the policy that Work/Verification steps
+   * cannot execute boundary actions like `gh issue close`, `gh pr merge`, etc.
+   *
+   * @param stepKind - Current step kind (work, verification, or closure)
+   * @param ctx - Runtime context for logging
+   * @returns Hook callback function for SDK PreToolUse event
+   *
+   * @see agents/docs/design/08_step_flow_design.md Section 2.1
+   * @see agents/common/tool-policy.ts
+   */
+  private createBoundaryBashBlockingHook(
+    stepKind: StepKind,
+    ctx: RuntimeContext,
+  ): (
+    input: { tool_name: string; tool_input: Record<string, unknown> },
+    toolUseId: string | undefined,
+    options: { signal: AbortSignal },
+  ) => Promise<Record<string, unknown>> {
+    return (input, _toolUseId, _options) => {
+      // Only check Bash commands
+      if (input.tool_name !== "Bash") {
+        return Promise.resolve({});
+      }
+
+      const command = input.tool_input.command as string | undefined;
+      if (!command) {
+        return Promise.resolve({});
+      }
+
+      // Check if command is allowed for this step kind
+      const result = isBashCommandAllowed(command, stepKind);
+
+      if (!result.allowed) {
+        ctx.logger.warn(
+          `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
+          {
+            command: command.substring(0, 100),
+            reason: result.reason,
+          },
+        );
+
+        return Promise.resolve({
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "deny",
+            permissionDecisionReason: result.reason,
+          },
+        });
+      }
+
+      return Promise.resolve({});
+    };
   }
 }
