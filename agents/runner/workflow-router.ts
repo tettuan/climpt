@@ -59,8 +59,7 @@ export class RoutingError extends Error {
 /**
  * WorkflowRouter resolves next step from intent and transitions config.
  *
- * Follows the declarative transitions mapping while providing
- * sensible defaults for backward compatibility.
+ * Follows the declarative transitions mapping with sensible defaults.
  */
 export class WorkflowRouter {
   constructor(private readonly registry: StepRegistry) {}
@@ -92,25 +91,7 @@ export class WorkflowRouter {
 
     // Handle terminal intents
     if (intent === "closing") {
-      const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
-
-      // Check if this is a transition (work step -> closure step) or terminal (closure step -> end)
-      // For backward compatibility, work steps can use 'closing' as a transition signal
-      // to a closure step, but only closure steps can signal workflow completion.
-      if (stepKind !== "closure" && stepDef?.transitions?.closing) {
-        const transitionRule = stepDef.transitions.closing;
-        if ("target" in transitionRule && transitionRule.target) {
-          // This is a transition to another step, not workflow completion
-          return {
-            nextStepId: transitionRule.target,
-            signalCompletion: false,
-            reason: interpretation.reason ??
-              `Transition to closure: ${transitionRule.target}`,
-          };
-        }
-      }
-
-      // Closure step or no transition defined - signal completion
+      // Only closure steps can emit closing intent - signal completion
       return {
         nextStepId: currentStepId,
         signalCompletion: true,
@@ -328,9 +309,6 @@ export class WorkflowRouter {
   /**
    * Validate that intent is allowed for the step's kind.
    *
-   * For backward compatibility, `closing` is allowed in work steps when
-   * there's a transition defined (treated as transition to closure step).
-   *
    * @throws RoutingError if intent is not allowed
    */
   private validateIntentForStepKind(
@@ -349,15 +327,6 @@ export class WorkflowRouter {
     // Note: abort is always allowed (emergency exit)
     if (intent === "abort") {
       return;
-    }
-
-    // Backward compatibility: allow 'closing' in work steps if transition defined
-    // This treats 'closing' as "transition to closure step" rather than "signal completion"
-    if (intent === "closing" && stepKind !== "closure") {
-      if (stepDef.transitions?.closing) {
-        // Allowed as transition signal
-        return;
-      }
     }
 
     // Check if intent is allowed for this step kind

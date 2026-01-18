@@ -349,13 +349,13 @@ Deno.test("WorkflowRouter - closure step can emit closing intent", () => {
   assertEquals(result.signalCompletion, true);
 });
 
-Deno.test("WorkflowRouter - work step closing with transition goes to closure step", () => {
-  // Backward compatibility: work step can use closing as transition signal
+Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
+  // Work steps must not emit closing intent - only closure steps can
   const registry = createRegistry({
     "initial.issue": {
       c2: "initial",
       transitions: {
-        closing: { target: "closure.issue" },
+        next: { target: "closure.issue" },
       },
     },
     "closure.issue": {
@@ -364,13 +364,15 @@ Deno.test("WorkflowRouter - work step closing with transition goes to closure st
   });
   const router = new WorkflowRouter(registry);
 
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "closing" }),
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "closing" }),
+      ),
+    RoutingError,
+    "Intent 'closing' not allowed for work step",
   );
-
-  assertEquals(result.nextStepId, "closure.issue");
-  assertEquals(result.signalCompletion, false);
 });
 
 Deno.test("WorkflowRouter - verification step can emit escalate intent", () => {

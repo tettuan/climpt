@@ -15,7 +15,7 @@ import type {
  * Result of interpreting structured output through a step gate.
  */
 export interface GateInterpretation {
-  /** Extracted intent (e.g., "next", "complete", "repeat") */
+  /** Extracted intent (e.g., "next", "closing", "repeat") */
   intent: GateIntent;
   /** Target step ID if intent is "jump" */
   target?: string;
@@ -69,8 +69,6 @@ const ACTION_TO_INTENT: Record<string, GateIntent> = {
   finished: "closing",
   pass: "next",
   fail: "repeat",
-  // Legacy alias (maps to closing for backward compatibility during migration)
-  complete: "closing",
 };
 
 /**

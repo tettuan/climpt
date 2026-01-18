@@ -286,7 +286,7 @@ Deno.test("StepGateInterpreter - case insensitive intent matching", () => {
   });
 
   assertEquals(
-    interpreter.interpret({ status: "COMPLETE" }, stepDef).intent,
+    interpreter.interpret({ status: "CLOSING" }, stepDef).intent,
     "closing",
   );
 

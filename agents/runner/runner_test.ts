@@ -5,7 +5,7 @@
  * SDK calls are not tested here to avoid complex mocking.
  */
 
-import { assertEquals, assertInstanceOf } from "@std/assert";
+import { assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
 import {
   AgentCompletionError,
   AgentError,
@@ -536,7 +536,7 @@ Deno.test("Completion Validation - FormatValidator validates text pattern", () =
 // =============================================================================
 
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
-import { WorkflowRouter } from "./workflow-router.ts";
+import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type {
   PromptStepDefinition,
   StepRegistry,
@@ -561,7 +561,7 @@ function createTestStepRegistry(): StepRegistry {
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "repeat", "closing"],
+          allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
           targetField: "next_action.details.target",
           fallbackIntent: "next",
@@ -570,7 +570,6 @@ function createTestStepRegistry(): StepRegistry {
         transitions: {
           next: { target: "continuation.test" },
           repeat: { target: "initial.test" },
-          closing: { target: "closure.test" },
         },
       },
       "continuation.test": {
@@ -583,14 +582,13 @@ function createTestStepRegistry(): StepRegistry {
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
-          allowedIntents: ["next", "repeat", "closing"],
+          allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
           fallbackIntent: "next",
         },
         transitions: {
           next: { target: "continuation.test" },
           repeat: { target: "continuation.test" },
-          closing: { target: "closure.test" },
         },
       },
       "closure.test": {
@@ -602,6 +600,15 @@ function createTestStepRegistry(): StepRegistry {
         fallbackKey: "test_closure_default",
         uvVariables: [],
         usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["closing", "repeat"],
+          intentField: "next_action.action",
+          fallbackIntent: "repeat",
+        },
+        transitions: {
+          closing: { target: null },
+          repeat: { target: "closure.test" },
+        },
       },
     },
   };
@@ -633,17 +640,20 @@ Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from struct
 Deno.test("Structured Gate Flow - interpreter extracts intent 'closing' from structured output", () => {
   const interpreter = new StepGateInterpreter();
   const registry = createTestStepRegistry();
-  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
 
   const structuredOutput = {
     status: "completed",
     next_action: {
-      action: "complete",
+      action: "closing",
       reason: "Task finished",
     },
   };
 
-  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+  const interpretation = interpreter.interpret(
+    structuredOutput,
+    closureStepDef,
+  );
 
   assertEquals(interpretation.intent, "closing");
   assertEquals(interpretation.usedFallback, false);
@@ -695,7 +705,7 @@ Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", (
   assertEquals(routing.signalCompletion, false);
 });
 
-Deno.test("Structured Gate Flow - work step closing transitions to closure step", () => {
+Deno.test("Structured Gate Flow - work step cannot emit closing intent", () => {
   const registry = createTestStepRegistry();
   const router = new WorkflowRouter(registry);
 
@@ -704,11 +714,12 @@ Deno.test("Structured Gate Flow - work step closing transitions to closure step"
     usedFallback: false,
   };
 
-  // Work step (initial.*) with closing transition goes to closure step
-  const routing = router.route("initial.test", interpretation);
-
-  assertEquals(routing.nextStepId, "closure.test");
-  assertEquals(routing.signalCompletion, false);
+  // Work step (initial.*) cannot emit closing intent - only closure steps can
+  assertThrows(
+    () => router.route("initial.test", interpretation),
+    RoutingError,
+    "Intent 'closing' not allowed for work step",
+  );
 });
 
 Deno.test("Structured Gate Flow - closure step closing signals completion", () => {
@@ -809,30 +820,28 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
   const registry = createTestStepRegistry();
   const router = new WorkflowRouter(registry);
 
-  // Simulate AI declaring completion via 'complete' (legacy alias for closing)
+  // Closure step declares closing intent
   const structuredOutput = {
     status: "completed",
     next_action: {
-      action: "complete",
+      action: "closing",
       reason: "All tasks finished",
     },
   };
 
-  // Interpreter extracts intent (complete -> closing)
-  const stepDef = registry.steps["continuation.test"] as PromptStepDefinition;
-  const interpretation = interpreter.interpret(structuredOutput, stepDef);
+  // Interpreter extracts closing intent from closure step
+  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+  const interpretation = interpreter.interpret(
+    structuredOutput,
+    closureStepDef,
+  );
 
   assertEquals(interpretation.intent, "closing");
 
-  // Work step routes to closure step (not direct completion)
-  const routing = router.route("continuation.test", interpretation);
-
-  assertEquals(routing.nextStepId, "closure.test");
-  assertEquals(routing.signalCompletion, false);
-
-  // Now closure step signals completion
+  // Closure step signals completion
   const closureRouting = router.route("closure.test", interpretation);
   assertEquals(closureRouting.signalCompletion, true);
+  assertEquals(closureRouting.reason, "All tasks finished");
 });
 
 // =============================================================================
