@@ -940,7 +940,12 @@ export class AgentRunner {
   /**
    * Check if AI declared completion via structured output.
    *
-   * Accepts both "closing" (new) and "complete" (legacy) for backward compatibility.
+   * Only "closing" intent from Closure Step triggers completion.
+   * See design/08_step_flow_design.md Section 3 and 7.1.
+   *
+   * Note: "complete" is accepted for backward compatibility.
+   * Note: status: "completed" is NOT a completion signal - it indicates
+   *       step completion, not workflow completion.
    */
   private hasAICompletionDeclaration(summary: IterationSummary): boolean {
     if (!summary.structuredOutput) {
@@ -949,10 +954,8 @@ export class AgentRunner {
 
     const so = summary.structuredOutput;
 
-    if (so.status === "completed") {
-      return true;
-    }
-
+    // Only "closing" (or legacy "complete") action triggers completion validation
+    // status: "completed" alone is NOT a completion signal per 08_step_flow_design.md
     if (isRecord(so.next_action)) {
       const nextAction = so.next_action as Record<string, unknown>;
       if (nextAction.action === "closing" || nextAction.action === "complete") {

@@ -20,9 +20,12 @@ Flow ループは Step が返す Structured Output から `completionSignal`
 
 ```
 completionSignal(response) =
-  response.status == "completed" OR
   response.next_action?.action == "closing"
 ```
+
+> **Note**: `status: "completed"` は**ステップ完了状態**を示すフィールドであり、
+> ワークフロー完了シグナルではない。`closing` intent のみが Completion Loop を
+> 起動する。詳細は `08_step_flow_design.md` Section 3 および 7.1 を参照。
 
 これ以外のケースでは Flow は継続し、Completion Loop は存在を主張しない。
 
