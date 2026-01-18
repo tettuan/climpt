@@ -15,21 +15,4 @@ Continue from the previous state.
 
 1. Review remaining work
 2. Execute the next step
-3. Output `complete` when finished
-
-## Output
-
-Respond with the following JSON structure:
-
-```json
-{
-  "progress": {
-    "completed": ["Completed item 1", "Completed item 2"],
-    "remaining": ["Remaining item 1"]
-  },
-  "next_action": {
-    "action": "next | complete",
-    "reason": "Reason for the action"
-  }
-}
-```
+3. Proceed to closure when all work is finished

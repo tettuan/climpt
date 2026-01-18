@@ -74,9 +74,8 @@ Agent のテストを開始する。
 
 - `entryStepMapping` または `entryStep` を**必ず**定義する
 - `.agent/{agent}/schemas/*.schema.json` を作成し、すべての Flow/Closure Step に
-  `outputSchemaRef` を設定する
-- プロンプトには Structured Output (JSON)
-  を**強制**する記述を追加し、`next_action.action` を明示させる
+  `outputSchemaRef` を設定する（schema が structured output を強制するため、
+  プロンプトには JSON 形式の記載は不要）
 - **`closing` intent**: Closure Step (`closure.*`) のみが `closing` を返す。work
   step (`initial.*`, `continuation.*`) は `closing` を返さない 1-1.
   エージェントに応じて、ステップを決め、対応するプロンプトも作ること 1-2.

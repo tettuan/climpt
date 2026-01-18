@@ -351,8 +351,9 @@ failed」で即停止する。
 ### Completion の考え方
 
 - Flow が終了する条件は **Structured Output で `next_action.action` を `closing`
-  に設定すること**。`isTerminal` のような暗黙フラグは Runner
-  では参照されないため、Step 定義とプロンプト内で JSON を返すよう必ず指示 する。
+  に設定すること**。`isTerminal` のような暗黙フラグは Runner では参照されない。
+- Schema が SDK の `formatted` オプションで渡されるため、プロンプトに JSON
+  形式の指示は不要。プロンプトは意味的な指示に集中する。
 - `transitions.closing.target` に `null` を明示すると、WorkflowRouter が
   completion と判定し Completion Loop へ制御を渡す。
 
@@ -371,7 +372,10 @@ failed」で即停止する。
 
 `.agent/{agent-name}/prompts/system.md`:
 
-````markdown
+Schema が structured output を強制するため、JSON 形式の指示は不要。
+意味的な指示（役割、目標、制約、アクションの意味）に集中する。
+
+```markdown
 # My Agent
 
 あなたは {役割} です。
@@ -386,21 +390,14 @@ failed」で即停止する。
 - {制約1}
 - {制約2}
 
-## 出力形式
+## アクションの意味
 
-必ず以下の JSON 形式で回答してください:
-
-```json
-{
-  "analysis": "分析内容",
-  "plan": ["ステップ1", "ステップ2"],
-  "next_action": {
-    "action": "continue | closing | retry",
-    "reason": "理由"
-  }
-}
+| Action    | 使用タイミング                  |
+| --------- | ------------------------------- |
+| `next`    | 次のステップに進む              |
+| `repeat`  | 現在のステップを再試行          |
+| `closing` | タスク完了（closure step のみ） |
 ```
-````
 
 ````
 ## Step 5: Step プロンプト作成
@@ -426,11 +423,7 @@ Issue #{uv-issue_number} に取り組みます。
 1. Issue の内容を理解する
 2. 実装計画を立てる
 3. 作業を開始する
-
-## 出力
-
-分析結果と計画を JSON で出力してください。
-````
+```
 
 ### Continuation プロンプト
 
@@ -454,11 +447,7 @@ name: Continuation Prompt
 
 1. 残りの作業を確認
 2. 次のステップを実行
-3. 完了したら `closing` を出力
-
-## 出力
-
-進捗と次のアクションを JSON で出力してください。
+3. 完了したら closure へ進む
 ```
 
 ## Step 6: 実行
@@ -559,3 +548,4 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 - `design/02_prompt_system.md` - C3L プロンプト解決
 - `design/08_step_flow_design.md` - Step フロー設計
 - `design/03_structured_outputs.md` - Structured Output
+````
