@@ -18,6 +18,17 @@
       },
       "source": "./plugins/climpt-agent",
       "category": "development"
+    },
+    {
+      "name": "climpt-agent-scaffolder",
+      "description": "Scaffold new Climpt agents with templates and configuration files",
+      "version": "1.0.0",
+      "author": {
+        "name": "tettuan",
+        "url": "https://github.com/tettuan"
+      },
+      "source": "./plugins/climpt-agent-scaffolder",
+      "category": "development"
     }
   ]
 }

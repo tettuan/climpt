@@ -1,0 +1,12 @@
+{
+  "name": "climpt-agent-scaffolder",
+  "version": "1.0.0",
+  "description": "Scaffold new Climpt agents with templates and configuration files",
+  "author": {
+    "name": "tettuan",
+    "url": "https://github.com/tettuan"
+  },
+  "repository": "https://github.com/tettuan/climpt",
+  "license": "MIT",
+  "keywords": ["climpt", "agent", "scaffolder", "template", "generator"]
+}
