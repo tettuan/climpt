@@ -79,7 +79,7 @@
   },
   "sandbox": {
     "network": {
-      "allowedDomains": [
+      "allowedHosts": [
         "jsr.io",
         "*.jsr.io",
         "deno.land",
