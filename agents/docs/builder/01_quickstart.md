@@ -55,22 +55,36 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
 └── prompts/
     ├── system.md           # システムプロンプト
     └── steps/
-        ├── initial/        # 初期フェーズ
+        ├── initial/        # Work Step: 初期フェーズ
         │   └── {c3}/
         │       └── f_default.md
-        ├── continuation/   # 継続フェーズ
+        ├── continuation/   # Work Step: 継続フェーズ
         │   └── {c3}/
         │       └── f_default.md
-        └── closure/        # 完了フェーズ
+        ├── verification/   # Verification Step: 検証フェーズ
+        │   └── {c3}/
+        │       └── f_default.md
+        └── closure/        # Closure Step: 完了フェーズ
             └── {c3}/
                 └── f_default.md
 ```
+
+### Step 種別 (Step Taxonomy)
+
+| 種別              | パターン                       | 責務         | 許可 Intent                          |
+| ----------------- | ------------------------------ | ------------ | ------------------------------------ |
+| Work Step         | `initial.*` / `continuation.*` | 成果物を生成 | `next`, `repeat`, `jump`             |
+| Verification Step | `verification.*`               | 成果物を検証 | `next`, `repeat`, `jump`, `escalate` |
+| Closure Step      | `closure.*`                    | 完了判定     | `closing`, `repeat`                  |
+
+> **Rule**: Work / Verification Step は `closing` を返さない。`closing` は
+> Closure Step 専用。
 
 ## Step 1: ディレクトリ作成
 
 ```bash
 AGENT_NAME=my-agent
-mkdir -p .agent/${AGENT_NAME}/prompts/steps/{initial,continuation,closure}/default
+mkdir -p .agent/${AGENT_NAME}/prompts/steps/{initial,continuation,verification,closure}/default
 mkdir -p .agent/${AGENT_NAME}/schemas
 ```
 
@@ -206,7 +220,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "jump"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis", "plan"]
@@ -214,7 +228,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "closing": { "target": "closure.default" }
+        "jump": { "target": "closure.default" }
       }
     },
     "continuation.default": {
@@ -228,15 +242,38 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "jump"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress"]
       },
       "transitions": {
-        "next": { "target": "continuation.default" },
+        "next": { "target": "verification.default" },
         "repeat": { "target": "continuation.default" },
-        "closing": { "target": "closure.default" }
+        "jump": { "target": "closure.default" }
+      }
+    },
+    "verification.default": {
+      "stepId": "verification.default",
+      "name": "Verification Step",
+      "c2": "verification",
+      "c3": "default",
+      "edition": "default",
+      "outputSchemaRef": {
+        "file": "step_outputs.schema.json",
+        "schema": "#/definitions/verification.default"
+      },
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "jump", "escalate"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["verification_result"]
+      },
+      "transitions": {
+        "next": { "target": "closure.default" },
+        "repeat": { "target": "continuation.default" },
+        "jump": { "target": "initial.default" },
+        "escalate": { "target": "continuation.default" }
       }
     },
     "closure.default": {
@@ -250,13 +287,14 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/closure.default"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": ["final_summary"]
       },
       "transitions": {
-        "closing": { "target": null }
+        "closing": { "target": null },
+        "repeat": { "target": "continuation.default" }
       }
     }
   }
@@ -290,7 +328,7 @@ Step ごとのスキーマを配置し、Flow から参照される。
         "next_action": {
           "type": "object",
           "properties": {
-            "action": { "enum": ["next", "repeat", "closing"] },
+            "action": { "enum": ["next", "repeat", "jump"] },
             "reason": { "type": "string" }
           },
           "required": ["action", "reason"],
@@ -333,7 +371,7 @@ failed」で即停止する。
           "type": "object",
           "required": ["action"],
           "properties": {
-            "action": { "enum": ["next", "repeat", "closing"] }
+            "action": { "enum": ["next", "repeat", "jump"] }
           },
           "additionalProperties": false
         }
@@ -356,6 +394,23 @@ failed」で即停止する。
   形式の指示は不要。プロンプトは意味的な指示に集中する。
 - `transitions.closing.target` に `null` を明示すると、WorkflowRouter が
   completion と判定し Completion Loop へ制御を渡す。
+
+### Boundary Hook
+
+Closure Step が `closing` intent を返した瞬間にだけ起動するフック機構。
+
+- **目的**: Issue close、Release 作成などの外部副作用を安全に実行
+- **保証**: Work / Verification Step は `closing` を返せないため、
+  誤って外部操作が実行されることを物理的に防ぐ
+- **実装**: Schema / Gate が `closing` を禁止している限り Boundary Hook
+  は呼び出されない
+
+```
+Flow 終了シーケンス:
+  Closure Step → closing intent → Boundary Hook → Completion Loop
+```
+
+詳細: `design/08_step_flow_design.md` Section 7.1
 
 ### 重要な設定
 
@@ -489,14 +544,37 @@ Agent ロジックが注入する変数:
 
 ## Intent マッピング
 
-AI の `next_action.action` から遷移を決定:
+AI の `next_action.action` から遷移を決定。Step 種別ごとに許可される intent が異なる:
 
-| AI 応答    | Intent    | 動作               |
-| ---------- | --------- | ------------------ |
-| `continue` | `next`    | 次の Step へ       |
-| `closing`  | `closing` | 完了               |
-| `retry`    | `repeat`  | 同じ Step を再実行 |
-| `escalate` | `abort`   | 中断               |
+### Work Step (`initial.*` / `continuation.*`)
+
+| Intent   | 動作                     |
+| -------- | ------------------------ |
+| `next`   | 次の Step へ             |
+| `repeat` | 同じ Step を再実行       |
+| `jump`   | 指定 Step へジャンプ     |
+
+> **Rule**: Work Step は `closing` を返さない。
+
+### Verification Step (`verification.*`)
+
+| Intent     | 動作                           |
+| ---------- | ------------------------------ |
+| `next`     | 次の Step へ                   |
+| `repeat`   | 検証対象 Step へ戻る           |
+| `jump`     | 指定 Step へジャンプ           |
+| `escalate` | サポート Step へエスカレーション |
+
+> **Rule**: Verification Step は `closing` を返さない。`escalate` は静的定義された Step のみに遷移。
+
+### Closure Step (`closure.*`)
+
+| Intent    | 動作                       |
+| --------- | -------------------------- |
+| `closing` | Flow 終了、Boundary Hook 実行 |
+| `repeat`  | 作業 Step へ戻る           |
+
+> **Rule**: `closing` を宣言できるのは Closure Step のみ。
 
 詳細: `design/08_step_flow_design.md`
 
