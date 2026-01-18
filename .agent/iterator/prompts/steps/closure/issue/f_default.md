@@ -1,58 +1,48 @@
 ---
-params:
-  - step_id
-input_text: true
+stepId: closure.issue
+name: Issue Closure Prompt
+description: Terminal step for issue completion
+uvVariables:
+  - issue_number
+customVariables:
+  - summary_section
 ---
 
-# Closure Handler
+# Issue Closure: Issue #{uv-issue_number}
 
-You are the closer. Your job is to verify closure status and execute any remaining closure work.
+{summary_section}
 
-## Previous Step Output
+## Closure Verification
 
-```json
-{input_text}
-```
+The issue work has been handed off for closure verification.
 
-## Task
+### Final Checklist
 
-1. **Analyze** the structured output above
-2. **Identify** incomplete items
-3. **Execute** remaining completion work
-4. **Report** final status
+Verify the following before finalizing:
 
-## Completion Checklist
+1. **GitHub Issue State**: Issue #{uv-issue_number} should be CLOSED
+2. **Git Status**: Working directory should be clean (no uncommitted changes)
+3. **Implementation**: All required changes should be committed
+4. **Type Check**: Run `deno check` or equivalent to ensure no type errors
+5. **Tests**: All tests should pass
 
-Verify and complete ALL of the following:
+### If Not Ready
 
-### 1. Tests
-- If `tests_passed` is false or missing: run tests and fix failures
-- Ensure all tests pass before proceeding
+If any of the above are not satisfied:
+- Fix the issue
+- Report `next_action.action = "repeat"` to retry closure validation
 
-### 2. Type Check
-- If `type_check_passed` is false or missing: run type check and fix errors
-- `deno check` or equivalent must pass
+### Closure Report
 
-### 3. Lint
-- If `lint_passed` is false or missing: run linter and fix issues
-- `deno lint` or equivalent must pass
+Report final status in your structured output:
+- `status`: "completed"
+- `next_action.action`: "closing" (signals workflow completion)
+- `summary`: Brief closure summary
+- `validation`: { git_clean, type_check_passed, tests_passed, ... }
+- `evidence`: { git_status_output, type_check_output, ... }
 
-### 4. Format
-- If `format_check_passed` is false or missing: run formatter
-- `deno fmt` or equivalent
+**NOTE**: This is a closure step. Use `"closing"` to complete, or `"repeat"` to retry.
 
-### 5. Git Status
-- If `git_clean` is false or missing: stage and commit changes
-- Working directory must be clean
+---
 
-### 6. Issue Close
-- If `issue_closed` is false or missing: close the GitHub issue
-- Run `gh issue close <issue_number>` with appropriate comment
-- Ensure issue state is CLOSED before reporting complete
-
-## Execution Rules
-
-- Execute each incomplete task in order
-- If a task fails, fix the issue and retry
-- Do not skip any failed items
-- Report actual execution results, not assumptions
+**This is a terminal step.** The agent will close after this iteration.

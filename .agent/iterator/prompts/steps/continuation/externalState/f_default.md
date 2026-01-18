@@ -30,13 +30,13 @@ Iterations completed: {uv-completed_iterations}
 ### External State Check
 After completing work:
 1. **Check Issue State**: Is GitHub Issue #{uv-issue_number} closed?
-2. If **closed** or all work done: Set `next_action.action = "closing"` to transition to closure step
+2. If **closed** or all work done: Set `next_action.action = "handoff"` to transition to closure step
 3. If **open** and more work needed: Set `next_action.action = "next"` to continue
 
 **IMPORTANT**: Use exact intent values:
 - `"next"` - continue working
 - `"repeat"` - retry current step
-- `"closing"` - transition to closure step (when all work is done)
+- `"handoff"` - hand off to closure step (when all work is done)
 
 ## Issue Actions
 

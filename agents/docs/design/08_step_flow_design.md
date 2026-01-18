@@ -39,12 +39,12 @@ flowchart TD
 
 ### 2.1 Step taxonomy (What / Why)
 
-| 種別                                       | What                                                                                     | Why                                                                |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Work Step (`initial.*` / `continuation.*`) | 成果物を生成し、`next` / `repeat` / `jump` / `handoff` intent を返す                     | 生成責務を一箇所に閉じ込め、Issue 操作などの境界行為を排除する     |
-| Verification Step (`verification.*`)       | 直前の Work Step 成果を自己検証し、`next` / `repeat` / `jump` / `escalate` intent を返す | Step ごとの完了基準を明確にし、Work Step での自己評価抜けを防ぐ    |
-| Closure Step (`closure.*`)                 | Workflow 全体と外部 state を突き合わせ、`closing` / `repeat` を返す                      | 完了可否を一箇所で判断し、Issue close 等の副作用をここに限定する   |
-| Boundary Hook (非 Step)                    | Closure Step が `closing` を宣言した瞬間だけ Issue / PR 操作を実行                       | 連鎖の境界をプログラムで保証し、Work/Verification からの逸脱を防ぐ |
+| 種別                                       | What                                                                                                                | Why                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Work Step (`initial.*` / `continuation.*`) | 成果物を生成し、`next` / `repeat` / `jump` / `handoff` intent を返す。作業完了時は `handoff` で Closure Step へ遷移 | 生成責務を一箇所に閉じ込め、Issue 操作などの境界行為を排除する     |
+| Verification Step (`verification.*`)       | 直前の Work Step 成果を自己検証し、`next` / `repeat` / `jump` / `escalate` intent を返す                            | Step ごとの完了基準を明確にし、Work Step での自己評価抜けを防ぐ    |
+| Closure Step (`closure.*`)                 | Workflow 全体と外部 state を突き合わせ、`closing` / `repeat` を返す                                                 | 完了可否を一箇所で判断し、Issue close 等の副作用をここに限定する   |
+| Boundary Hook (非 Step)                    | Closure Step が `closing` を宣言した瞬間だけ Issue / PR 操作を実行                                                  | 連鎖の境界をプログラムで保証し、Work/Verification からの逸脱を防ぐ |
 
 > **Rule**: Work / Verification Step では `closing` intent を返さない。Boundary
 > Hook は Closure Step を通過した run に対してのみ起動する。
@@ -61,6 +61,7 @@ flowchart LR
     DecideWork -->|next| NextStep[別 Step]
     DecideWork -->|repeat| Begin
     DecideWork -->|jump| JumpStep[任意 Step]
+    DecideWork -->|handoff| ClosureTarget[Closure Step]
   end
 
   subgraph VerifyStep["verification step (verification.*)"]

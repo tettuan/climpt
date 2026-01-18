@@ -73,12 +73,12 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
 
 | 種別              | パターン                       | 責務         | 許可 Intent                          |
 | ----------------- | ------------------------------ | ------------ | ------------------------------------ |
-| Work Step         | `initial.*` / `continuation.*` | 成果物を生成 | `next`, `repeat`, `jump`             |
+| Work Step         | `initial.*` / `continuation.*` | 成果物を生成 | `next`, `repeat`, `jump`, `handoff`  |
 | Verification Step | `verification.*`               | 成果物を検証 | `next`, `repeat`, `jump`, `escalate` |
 | Closure Step      | `closure.*`                    | 完了判定     | `closing`, `repeat`                  |
 
-> **Rule**: Work / Verification Step は `closing` を返さない。`closing` は
-> Closure Step 専用。
+> **Rule**: Work Step は `closing` を返さない。作業が完了したら `handoff` で
+> Closure Step に遷移する。Closure Step のみが `closing` を返せる。
 
 ## Step 1: ディレクトリ作成
 

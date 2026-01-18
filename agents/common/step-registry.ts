@@ -312,7 +312,10 @@ export async function loadStepRegistry(
       );
     }
 
-    // Optionally validate schema
+    // Always validate stepKind/allowedIntents consistency (fail fast)
+    validateStepKindIntents(registry);
+
+    // Optionally validate full schema
     if (options.validateSchema) {
       validateStepRegistry(registry);
     }
@@ -398,6 +401,55 @@ export function addStepDefinition(
     throw new Error(`Step "${step.stepId}" already exists in registry`);
   }
   registry.steps[step.stepId] = step;
+}
+
+/**
+ * Validate stepKind/allowedIntents consistency.
+ *
+ * This is called by loadStepRegistry to fail fast when a step's
+ * allowedIntents set is not a subset of STEP_KIND_ALLOWED_INTENTS
+ * for its stepKind.
+ *
+ * @param registry - Registry to validate
+ * @throws Error if any step has invalid intent configuration
+ */
+export function validateStepKindIntents(registry: StepRegistry): void {
+  const errors: string[] = [];
+
+  for (const [stepId, step] of Object.entries(registry.steps)) {
+    const kind = inferStepKind(step);
+    if (kind && step.structuredGate) {
+      const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
+      for (const intent of step.structuredGate.allowedIntents) {
+        if (!allowedForKind.includes(intent)) {
+          errors.push(
+            `Step "${stepId}": intent '${intent}' not allowed for stepKind '${kind}'. ` +
+              `Allowed intents for ${kind}: ${allowedForKind.join(", ")}. ` +
+              `(Work steps use 'handoff' to transition to closure, closure steps use 'closing' to complete)`,
+          );
+        }
+      }
+
+      // Validate fallbackIntent
+      if (
+        step.structuredGate.fallbackIntent &&
+        !allowedForKind.includes(step.structuredGate.fallbackIntent)
+      ) {
+        errors.push(
+          `Step "${stepId}": fallbackIntent '${step.structuredGate.fallbackIntent}' ` +
+            `not allowed for stepKind '${kind}'`,
+        );
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Step registry validation failed (stepKind/intent mismatch):\n- ${
+        errors.join("\n- ")
+      }`,
+    );
+  }
 }
 
 /**

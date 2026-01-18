@@ -121,13 +121,10 @@ export class WorkflowRouter {
       return this.resolveEscalate(currentStepId, interpretation);
     }
 
-    // Handle handoff - work step only, delegate to completion handler
+    // Handle handoff - work step transitions to closure step
+    // Uses transitions config to route to the appropriate closure step
     if (intent === "handoff") {
-      return {
-        nextStepId: currentStepId,
-        signalCompletion: true,
-        reason: interpretation.reason ?? "Intent: handoff",
-      };
+      return this.resolveHandoff(currentStepId, interpretation);
     }
 
     // Handle jump with explicit target
@@ -338,6 +335,58 @@ export class WorkflowRouter {
         intent,
       );
     }
+  }
+
+  /**
+   * Handle handoff intent for work steps.
+   *
+   * Handoff transitions to a closure step using the transitions config.
+   * If no transition is defined, signals completion for backward compatibility.
+   *
+   * @throws RoutingError if transition target doesn't exist
+   */
+  private resolveHandoff(
+    currentStepId: string,
+    interpretation: GateInterpretation,
+  ): RoutingResult {
+    const stepDef = this.getStepDefinition(currentStepId);
+
+    // Check if handoff transition is defined
+    if (stepDef?.transitions?.handoff) {
+      const transitionRule = stepDef.transitions.handoff;
+      if ("target" in transitionRule) {
+        if (transitionRule.target) {
+          if (!this.validateStepExists(transitionRule.target)) {
+            throw new RoutingError(
+              `Handoff target '${transitionRule.target}' does not exist in registry`,
+              currentStepId,
+              "handoff",
+            );
+          }
+          return {
+            nextStepId: transitionRule.target,
+            signalCompletion: false,
+            reason: interpretation.reason ??
+              `Handoff to closure: ${transitionRule.target}`,
+          };
+        }
+        // target: null means signal completion
+        if (transitionRule.target === null) {
+          return {
+            nextStepId: currentStepId,
+            signalCompletion: true,
+            reason: interpretation.reason ?? "Handoff: terminal transition",
+          };
+        }
+      }
+    }
+
+    // No transition defined - signal completion for backward compatibility
+    return {
+      nextStepId: currentStepId,
+      signalCompletion: true,
+      reason: interpretation.reason ?? "Intent: handoff (no transition)",
+    };
   }
 
   /**

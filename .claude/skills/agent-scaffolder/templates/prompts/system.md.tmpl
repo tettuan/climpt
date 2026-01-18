@@ -18,8 +18,17 @@ You are an autonomous agent that {{ROLE_DESCRIPTION}}.
 
 ## Action Meanings
 
+Work steps (initial.*, continuation.*) use:
 | Action | When to Use |
 |--------|-------------|
-| `next` | Proceed to the next step |
+| `next` | Continue working, proceed to next step |
 | `repeat` | Retry the current step |
-| `closing` | Task is finished (only in closure step) |
+| `handoff` | Hand off to closure step when work is complete |
+
+Closure steps use:
+| Action | When to Use |
+|--------|-------------|
+| `closing` | Complete the workflow (terminal) |
+| `repeat` | Retry closure validation |
+
+**IMPORTANT**: Work steps must use `handoff` (not `closing`) to transition to closure.

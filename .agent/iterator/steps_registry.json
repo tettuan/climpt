@@ -236,6 +236,33 @@
       },
       "description": "Continuation prompt for issue iterations"
     },
+    "closure.issue": {
+      "stepId": "closure.issue",
+      "name": "Issue Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "default",
+      "fallbackKey": "issue_closure_default",
+      "uvVariables": ["issue_number"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.issue" }
+      },
+      "description": "Completion prompt for issue (terminal step)"
+    },
     "section.projectcontext": {
       "stepId": "section.projectcontext",
       "name": "Project Context Section",
@@ -397,13 +424,14 @@
         "schema": "initial.project.closure"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": "initial.project.closure" }
+        "closing": { "target": null },
+        "repeat": { "target": "initial.project.closure" }
       },
       "description": "Completion message for project mode"
     },
@@ -422,7 +450,7 @@
         "schema": "continuation.project.preparation"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -430,7 +458,7 @@
       "transitions": {
         "next": { "target": "continuation.project.preparation" },
         "repeat": { "target": "continuation.project.preparation" },
-        "closing": { "target": "initial.project.review" }
+        "handoff": { "target": "initial.project.review" }
       },
       "description": "Continuation prompt for preparation phase"
     },
@@ -450,14 +478,14 @@
         "schema": "continuation.project.processingdone"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "closing"],
+        "allowedIntents": ["next", "handoff"],
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.review" },
-        "closing": { "target": "initial.project.closure" }
+        "handoff": { "target": "initial.project.closure" }
       },
       "description": "Message when all issues are processed"
     },
@@ -476,7 +504,7 @@
         "schema": "continuation.project.review"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -484,7 +512,7 @@
       "transitions": {
         "next": { "target": "continuation.project.review" },
         "repeat": { "target": "initial.project.again" },
-        "closing": { "target": "initial.project.closure" }
+        "handoff": { "target": "initial.project.closure" }
       },
       "description": "Continuation prompt for review phase"
     },
@@ -503,7 +531,7 @@
         "schema": "continuation.project.again"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -511,7 +539,7 @@
       "transitions": {
         "next": { "target": "continuation.project.again" },
         "repeat": { "target": "continuation.project.again" },
-        "closing": { "target": "initial.project.review" }
+        "handoff": { "target": "initial.project.review" }
       },
       "description": "Continuation prompt for again phase"
     },
@@ -530,13 +558,14 @@
         "schema": "continuation.project.closure"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": "continuation.project.closure" }
+        "closing": { "target": null },
+        "repeat": { "target": "continuation.project.closure" }
       },
       "description": "Continuation message for closure phase"
     },
@@ -555,7 +584,7 @@
         "schema": "initial.iterate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations"]
@@ -563,7 +592,7 @@
       "transitions": {
         "next": { "target": "continuation.iterate" },
         "repeat": { "target": "initial.iterate" },
-        "closing": { "target": "initial.iterate" }
+        "handoff": { "target": "closure.iterate" }
       },
       "description": "Initial prompt for iteration-based execution"
     },
@@ -582,7 +611,7 @@
         "schema": "continuation.iterate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations", "cumulative_progress"]
@@ -590,7 +619,7 @@
       "transitions": {
         "next": { "target": "continuation.iterate" },
         "repeat": { "target": "continuation.iterate" },
-        "closing": { "target": "continuation.iterate" }
+        "handoff": { "target": "closure.iterate" }
       },
       "description": "Continuation prompt for iteration-based execution"
     },
@@ -610,7 +639,7 @@
         "schema": "initial.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
@@ -618,7 +647,7 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "initial.externalState" },
-        "closing": { "target": "closure.externalState" }
+        "handoff": { "target": "closure.externalState" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
@@ -638,7 +667,7 @@
         "schema": "continuation.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["iteration.work_done", "progress"]
@@ -646,7 +675,7 @@
       "transitions": {
         "next": { "target": "continuation.externalState" },
         "repeat": { "target": "continuation.externalState" },
-        "closing": { "target": "closure.externalState" }
+        "handoff": { "target": "closure.externalState" }
       },
       "description": "Continuation prompt for external state completion"
     },
@@ -666,15 +695,43 @@
         "schema": "closure.externalState"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": "closure.externalState" }
+        "closing": { "target": null },
+        "repeat": { "target": "closure.externalState" }
       },
       "description": "Completion prompt for external state (terminal step)"
+    },
+    "closure.iterate": {
+      "stepId": "closure.iterate",
+      "name": "Iterate Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "iterate",
+      "edition": "default",
+      "fallbackKey": "iterate_closure_default",
+      "uvVariables": ["completed_iterations"],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "iterate.schema.json",
+        "schema": "closure.iterate"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.iterate" }
+      },
+      "description": "Completion prompt for iteration-based execution (terminal step)"
     }
   }
 }

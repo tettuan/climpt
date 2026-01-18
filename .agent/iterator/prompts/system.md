@@ -82,9 +82,16 @@ runtime owns the canonical stepId.
 
 ### Intent Values for `next_action.action`
 
-Use these exact values:
+Work steps (initial.*, continuation.*) use:
 - `"next"` - Continue to next step (default for work in progress)
 - `"repeat"` - Retry current step
-- `"closing"` - Transition to closure step (when all work is done)
+- `"handoff"` - Hand off to closure step (when all work is done)
 
-**IMPORTANT**: Do NOT use "complete", "continue", or "retry". Use the exact values above.
+Closure steps use:
+- `"closing"` - Complete the workflow (terminal)
+- `"repeat"` - Retry closure validation
+
+**IMPORTANT**:
+- Work steps must use `"handoff"` (not `"closing"`) to transition to closure
+- Only closure steps can emit `"closing"`
+- Do NOT use "complete", "continue", or "retry"

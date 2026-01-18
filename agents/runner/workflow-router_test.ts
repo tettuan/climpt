@@ -481,3 +481,115 @@ Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {
     "not allowed for closure step",
   );
 });
+
+// ============================================================================
+// Work -> Closure Flow Regression Test
+// ============================================================================
+
+Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
+  // Regression test for iterator closure alignment
+  // Work steps use 'handoff' to transition to closure steps
+  // Only closure steps emit 'closing' to complete
+
+  const registry = createRegistry({
+    "initial.externalState": {
+      c2: "initial",
+      stepKind: "work",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "handoff"],
+        intentField: "next_action.action",
+        fallbackIntent: "next",
+      },
+      transitions: {
+        next: { target: "continuation.externalState" },
+        repeat: { target: "initial.externalState" },
+        handoff: { target: "closure.externalState" },
+      },
+    },
+    "continuation.externalState": {
+      c2: "continuation",
+      stepKind: "work",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "handoff"],
+        intentField: "next_action.action",
+        fallbackIntent: "next",
+      },
+      transitions: {
+        next: { target: "continuation.externalState" },
+        repeat: { target: "continuation.externalState" },
+        handoff: { target: "closure.externalState" },
+      },
+    },
+    "closure.externalState": {
+      c2: "closure",
+      stepKind: "closure",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+        fallbackIntent: "closing",
+      },
+      transitions: {
+        closing: { target: null },
+        repeat: { target: "closure.externalState" },
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  // Step 1: Initial work step emits 'next' to continue
+  const step1 = router.route(
+    "initial.externalState",
+    createInterpretation({ intent: "next", reason: "Analysis complete" }),
+  );
+  assertEquals(step1.nextStepId, "continuation.externalState");
+  assertEquals(step1.signalCompletion, false);
+
+  // Step 2: Continuation work step emits 'handoff' to transition to closure
+  const step2 = router.route(
+    "continuation.externalState",
+    createInterpretation({ intent: "handoff", reason: "All work done" }),
+  );
+  assertEquals(step2.nextStepId, "closure.externalState");
+  assertEquals(step2.signalCompletion, false);
+
+  // Step 3: Closure step emits 'closing' to complete workflow
+  const step3 = router.route(
+    "closure.externalState",
+    createInterpretation({ intent: "closing", reason: "Closure verified" }),
+  );
+  assertEquals(step3.signalCompletion, true);
+  assertEquals(step3.reason, "Closure verified");
+});
+
+Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
+  // Regression test: work steps must use 'handoff', not 'closing'
+  const registry = createRegistry({
+    "initial.externalState": {
+      c2: "initial",
+      stepKind: "work",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "handoff"],
+        intentField: "next_action.action",
+      },
+      transitions: {
+        handoff: { target: "closure.externalState" },
+      },
+    },
+    "closure.externalState": {
+      c2: "closure",
+      stepKind: "closure",
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  // Work step trying to emit 'closing' should be rejected
+  assertThrows(
+    () =>
+      router.route(
+        "initial.externalState",
+        createInterpretation({ intent: "closing" }),
+      ),
+    RoutingError,
+    "Intent 'closing' not allowed for work step",
+  );
+});

@@ -89,5 +89,34 @@
         }
       }
     }
+  },
+
+  "closure.iterate": {
+    "type": "object",
+    "description": "イテレーション完了時のレスポンス",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "closure.iterate",
+        "description": "実行されたstep識別子"
+      },
+      "iteration": { "$ref": "#/$defs/iterationContext" },
+      "completion": {
+        "type": "object",
+        "properties": {
+          "total_iterations_completed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "完了した総イテレーション数"
+          },
+          "final_summary": {
+            "type": "string",
+            "description": "完了時の最終サマリー"
+          }
+        }
+      }
+    }
   }
 }
