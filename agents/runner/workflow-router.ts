@@ -3,12 +3,22 @@
  *
  * Maps gate interpretation results to concrete step transitions,
  * following the declarative transitions configuration.
+ *
+ * Enforces intent rules from the Step Flow design:
+ * - `closing` intent must target closure.* steps only
+ * - `escalate` intent routes to static verification support steps
+ *
+ * @see agents/docs/design/08_step_flow_design.md
  */
 
 import type {
   PromptStepDefinition,
   StepRegistry,
   TransitionRule,
+} from "../common/step-registry.ts";
+import {
+  inferStepKind,
+  STEP_KIND_ALLOWED_INTENTS,
 } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
@@ -58,9 +68,15 @@ export class WorkflowRouter {
   /**
    * Route to next step based on interpretation.
    *
+   * Validates intent rules:
+   * - Intent must be allowed for the step's stepKind
+   * - `closing` intent can only come from closure steps
+   * - `escalate` routes to verification support steps
+   *
    * @param currentStepId - Current step ID
    * @param interpretation - Gate interpretation result
    * @returns Routing result
+   * @throws RoutingError if intent is not allowed for step kind
    */
   route(
     currentStepId: string,
@@ -68,8 +84,33 @@ export class WorkflowRouter {
   ): RoutingResult {
     const { intent, target } = interpretation;
 
+    // Validate intent is allowed for step kind
+    const stepDef = this.getStepDefinition(currentStepId);
+    if (stepDef) {
+      this.validateIntentForStepKind(currentStepId, stepDef, intent);
+    }
+
     // Handle terminal intents
     if (intent === "closing") {
+      const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+
+      // Check if this is a transition (work step -> closure step) or terminal (closure step -> end)
+      // For backward compatibility, work steps can use 'closing' as a transition signal
+      // to a closure step, but only closure steps can signal workflow completion.
+      if (stepKind !== "closure" && stepDef?.transitions?.closing) {
+        const transitionRule = stepDef.transitions.closing;
+        if ("target" in transitionRule && transitionRule.target) {
+          // This is a transition to another step, not workflow completion
+          return {
+            nextStepId: transitionRule.target,
+            signalCompletion: false,
+            reason: interpretation.reason ??
+              `Transition to closure: ${transitionRule.target}`,
+          };
+        }
+      }
+
+      // Closure step or no transition defined - signal completion
       return {
         nextStepId: currentStepId,
         signalCompletion: true,
@@ -91,6 +132,20 @@ export class WorkflowRouter {
         nextStepId: currentStepId,
         signalCompletion: false,
         reason: interpretation.reason ?? "Intent: repeat",
+      };
+    }
+
+    // Handle escalate - verification step only, route to support step
+    if (intent === "escalate") {
+      return this.resolveEscalate(currentStepId, interpretation);
+    }
+
+    // Handle handoff - work step only, delegate to completion handler
+    if (intent === "handoff") {
+      return {
+        nextStepId: currentStepId,
+        signalCompletion: true,
+        reason: interpretation.reason ?? "Intent: handoff",
       };
     }
 
@@ -268,5 +323,98 @@ export class WorkflowRouter {
    */
   private validateStepExists(stepId: string): boolean {
     return stepId in this.registry.steps;
+  }
+
+  /**
+   * Validate that intent is allowed for the step's kind.
+   *
+   * For backward compatibility, `closing` is allowed in work steps when
+   * there's a transition defined (treated as transition to closure step).
+   *
+   * @throws RoutingError if intent is not allowed
+   */
+  private validateIntentForStepKind(
+    stepId: string,
+    stepDef: PromptStepDefinition,
+    intent: string,
+  ): void {
+    const stepKind = inferStepKind(stepDef);
+    if (!stepKind) {
+      // Non-flow step (e.g., section.*), skip validation
+      return;
+    }
+
+    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[stepKind];
+
+    // Note: abort is always allowed (emergency exit)
+    if (intent === "abort") {
+      return;
+    }
+
+    // Backward compatibility: allow 'closing' in work steps if transition defined
+    // This treats 'closing' as "transition to closure step" rather than "signal completion"
+    if (intent === "closing" && stepKind !== "closure") {
+      if (stepDef.transitions?.closing) {
+        // Allowed as transition signal
+        return;
+      }
+    }
+
+    // Check if intent is allowed for this step kind
+    if (!allowedIntents.includes(intent as never)) {
+      throw new RoutingError(
+        `Intent '${intent}' not allowed for ${stepKind} step '${stepId}'. ` +
+          `Allowed intents: ${allowedIntents.join(", ")}`,
+        stepId,
+        intent,
+      );
+    }
+  }
+
+  /**
+   * Handle escalate intent for verification steps.
+   *
+   * Escalate routes to a verification support step, which must be
+   * statically defined in the step's transitions.
+   *
+   * @throws RoutingError if no escalate transition defined
+   */
+  private resolveEscalate(
+    currentStepId: string,
+    interpretation: GateInterpretation,
+  ): RoutingResult {
+    const stepDef = this.getStepDefinition(currentStepId);
+    if (!stepDef?.transitions?.escalate) {
+      throw new RoutingError(
+        `No 'escalate' transition defined for step '${currentStepId}'. ` +
+          `Verification steps that use 'escalate' intent must define a transition target.`,
+        currentStepId,
+        "escalate",
+      );
+    }
+
+    const transitionRule = stepDef.transitions.escalate;
+    if ("target" in transitionRule && transitionRule.target) {
+      if (!this.validateStepExists(transitionRule.target)) {
+        throw new RoutingError(
+          `Escalate target '${transitionRule.target}' does not exist in registry`,
+          currentStepId,
+          "escalate",
+        );
+      }
+      return {
+        nextStepId: transitionRule.target,
+        signalCompletion: false,
+        reason: interpretation.reason ??
+          `Escalate to: ${transitionRule.target}`,
+      };
+    }
+
+    throw new RoutingError(
+      `Invalid 'escalate' transition for step '${currentStepId}'. ` +
+        `Must specify a target step.`,
+      currentStepId,
+      "escalate",
+    );
   }
 }

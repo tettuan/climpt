@@ -363,6 +363,40 @@ export class AgentStepIdMismatchError extends AgentError {
 }
 
 /**
+ * Step routing failed
+ *
+ * This error indicates that StepGate could not determine an intent from the
+ * structured output. This is a fatal error - all Flow steps must produce
+ * structured output with a valid intent for routing to occur.
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 6
+ */
+export class AgentStepRoutingError extends AgentError {
+  readonly code = "FAILED_STEP_ROUTING";
+  readonly recoverable = false;
+  readonly stepId: string;
+
+  constructor(
+    message: string,
+    options: {
+      stepId: string;
+      cause?: Error;
+      iteration?: number;
+    },
+  ) {
+    super(message, { cause: options.cause, iteration: options.iteration });
+    this.stepId = options.stepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+    };
+  }
+}
+
+/**
  * Retryable query error with additional context
  *
  * This error indicates a query failure that may be recovered

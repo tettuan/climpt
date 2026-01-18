@@ -319,3 +319,163 @@ Deno.test("WorkflowRouter - preserves reason from interpretation", () => {
 
   assertEquals(result.reason, "Analysis complete");
 });
+
+// ============================================================================
+// Step Kind and Intent Validation Tests
+// ============================================================================
+
+Deno.test("WorkflowRouter - closure step can emit closing intent", () => {
+  const registry = createRegistry({
+    "closure.default": {
+      c2: "closure",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+      },
+      transitions: {
+        closing: { target: null },
+        repeat: { target: "continuation.default" },
+      },
+    },
+    "continuation.default": {},
+  });
+  const router = new WorkflowRouter(registry);
+
+  const result = router.route(
+    "closure.default",
+    createInterpretation({ intent: "closing" }),
+  );
+
+  assertEquals(result.signalCompletion, true);
+});
+
+Deno.test("WorkflowRouter - work step closing with transition goes to closure step", () => {
+  // Backward compatibility: work step can use closing as transition signal
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+      transitions: {
+        closing: { target: "closure.issue" },
+      },
+    },
+    "closure.issue": {
+      c2: "closure",
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  const result = router.route(
+    "initial.issue",
+    createInterpretation({ intent: "closing" }),
+  );
+
+  assertEquals(result.nextStepId, "closure.issue");
+  assertEquals(result.signalCompletion, false);
+});
+
+Deno.test("WorkflowRouter - verification step can emit escalate intent", () => {
+  const registry = createRegistry({
+    "verification.default": {
+      c2: "verification",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "jump", "escalate"],
+        intentField: "next_action.action",
+      },
+      transitions: {
+        escalate: { target: "continuation.support" },
+      },
+    },
+    "continuation.support": {},
+  });
+  const router = new WorkflowRouter(registry);
+
+  const result = router.route(
+    "verification.default",
+    createInterpretation({ intent: "escalate" }),
+  );
+
+  assertEquals(result.nextStepId, "continuation.support");
+  assertEquals(result.signalCompletion, false);
+});
+
+Deno.test("WorkflowRouter - escalate without transition throws error", () => {
+  const registry = createRegistry({
+    "verification.default": {
+      c2: "verification",
+      // No escalate transition defined
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "verification.default",
+        createInterpretation({ intent: "escalate" }),
+      ),
+    RoutingError,
+    "No 'escalate' transition defined",
+  );
+});
+
+Deno.test("WorkflowRouter - work step cannot emit escalate intent", () => {
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+      transitions: {
+        escalate: { target: "continuation.support" },
+      },
+    },
+    "continuation.support": {},
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "escalate" }),
+      ),
+    RoutingError,
+    "not allowed for work step",
+  );
+});
+
+Deno.test("WorkflowRouter - handoff intent signals completion", () => {
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  const result = router.route(
+    "initial.issue",
+    createInterpretation({
+      intent: "handoff",
+      reason: "Delegating to reviewer",
+    }),
+  );
+
+  assertEquals(result.signalCompletion, true);
+  assertEquals(result.reason, "Delegating to reviewer");
+});
+
+Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {
+  const registry = createRegistry({
+    "closure.default": {
+      c2: "closure",
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "closure.default",
+        createInterpretation({ intent: "handoff" }),
+      ),
+    RoutingError,
+    "not allowed for closure step",
+  );
+});

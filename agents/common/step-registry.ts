@@ -19,6 +19,17 @@ import type { InputSpec } from "../src_common/contracts.ts";
 export type StepType = "prompt";
 
 /**
+ * Step kind for flow taxonomy.
+ *
+ * - work: Generates artifacts, emits next/repeat/jump/handoff
+ * - verification: Validates work, emits next/repeat/jump/escalate
+ * - closure: Final validation, emits closing/repeat
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 2.1
+ */
+export type StepKind = "work" | "verification" | "closure";
+
+/**
  * Step definition for external prompt resolution (C3L-based)
  *
  * Maps a logical step identifier to a prompt file and its requirements.
@@ -40,6 +51,21 @@ export interface PromptStepDefinition {
    * Default: "prompt"
    */
   type?: StepType;
+
+  /**
+   * Step kind for flow taxonomy.
+   *
+   * Determines allowed intents and validation rules:
+   * - work: next/repeat/jump/handoff (generates artifacts)
+   * - verification: next/repeat/jump/escalate (validates work)
+   * - closure: closing/repeat (final validation)
+   *
+   * If not specified, inferred from c2:
+   * - "initial", "continuation" -> "work"
+   * - "verification" -> "verification"
+   * - "closure" -> "closure"
+   */
+  stepKind?: StepKind;
 
   /**
    * C3L path component: c2 (e.g., "initial", "continuation", "section")
@@ -115,8 +141,37 @@ export interface PromptStepDefinition {
 
 /**
  * Allowed intents for structured gate.
+ *
+ * - next: Proceed to next step
+ * - repeat: Retry current step
+ * - jump: Go to a specific step
+ * - closing: Signal workflow completion (closure step only)
+ * - abort: Terminate workflow with error
+ * - escalate: Escalate to verification support step (verification only)
+ * - handoff: Hand off to another workflow/agent (work only)
  */
-export type GateIntent = "next" | "repeat" | "jump" | "closing" | "abort";
+export type GateIntent =
+  | "next"
+  | "repeat"
+  | "jump"
+  | "closing"
+  | "abort"
+  | "escalate"
+  | "handoff";
+
+/**
+ * Allowed intents for each step kind.
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 2.1
+ */
+export const STEP_KIND_ALLOWED_INTENTS: Record<
+  StepKind,
+  readonly GateIntent[]
+> = {
+  work: ["next", "repeat", "jump", "handoff"],
+  verification: ["next", "repeat", "jump", "escalate"],
+  closure: ["closing", "repeat"],
+} as const;
 
 /**
  * Structured gate configuration for intent/target routing.
@@ -396,10 +451,75 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.usesStdin !== "boolean") {
       errors.push(`Step "${stepId}": usesStdin must be a boolean`);
     }
+
+    // Validate stepKind and intent constraints
+    const kind = inferStepKind(step);
+    if (kind && step.structuredGate) {
+      const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
+      for (const intent of step.structuredGate.allowedIntents) {
+        if (!allowedForKind.includes(intent)) {
+          errors.push(
+            `Step "${stepId}": intent '${intent}' not allowed for stepKind '${kind}'. Allowed: ${
+              allowedForKind.join(", ")
+            }`,
+          );
+        }
+      }
+
+      // Validate fallbackIntent
+      if (
+        step.structuredGate.fallbackIntent &&
+        !allowedForKind.includes(step.structuredGate.fallbackIntent)
+      ) {
+        errors.push(
+          `Step "${stepId}": fallbackIntent '${step.structuredGate.fallbackIntent}' not allowed for stepKind '${kind}'`,
+        );
+      }
+    }
+
+    // Flow steps (with structuredGate) should have transitions
+    if (step.structuredGate && !step.transitions) {
+      errors.push(
+        `Step "${stepId}": structuredGate defined but transitions missing`,
+      );
+    }
   }
 
   if (errors.length > 0) {
     throw new Error(`Registry validation failed:\n- ${errors.join("\n- ")}`);
+  }
+}
+
+/**
+ * Infer stepKind from step definition.
+ *
+ * Priority:
+ * 1. Explicit stepKind if defined
+ * 2. Infer from c2 value
+ *
+ * @param step - Step definition
+ * @returns Inferred step kind or undefined
+ */
+export function inferStepKind(
+  step: PromptStepDefinition,
+): StepKind | undefined {
+  // Use explicit stepKind if defined
+  if (step.stepKind) {
+    return step.stepKind;
+  }
+
+  // Infer from c2
+  switch (step.c2) {
+    case "initial":
+    case "continuation":
+      return "work";
+    case "verification":
+      return "verification";
+    case "closure":
+      return "closure";
+    default:
+      // section and other non-flow steps don't have a kind
+      return undefined;
   }
 }
 

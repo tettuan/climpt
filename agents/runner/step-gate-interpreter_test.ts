@@ -125,10 +125,16 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
     "closing",
   );
 
-  // Test escalate -> abort
+  // Test escalate -> escalate (now a first-class intent for verification steps)
+  const verificationDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "repeat", "escalate"],
+      intentField: "action",
+    },
+  });
   assertEquals(
-    interpreter.interpret({ action: "escalate" }, stepDef).intent,
-    "abort",
+    interpreter.interpret({ action: "escalate" }, verificationDef).intent,
+    "escalate",
   );
 });
 

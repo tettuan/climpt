@@ -23,8 +23,18 @@ export type AgentEvent =
   | "queryExecuted"
   | "completionChecked"
   | "stateChange"
+  | "boundaryHook"
   | "error"
   | "completed";
+
+/**
+ * Boundary hook payload for closure step completion
+ */
+export interface BoundaryHookPayload {
+  stepId: string;
+  stepKind: "closure";
+  structuredOutput?: Record<string, unknown>;
+}
 
 /**
  * Payload types for each event
@@ -37,6 +47,7 @@ export interface AgentEventPayloads {
   queryExecuted: { summary: IterationSummary };
   completionChecked: { isComplete: boolean; reason?: string };
   stateChange: { previous: AgentState; current: AgentState };
+  boundaryHook: BoundaryHookPayload;
   error: { error: Error; recoverable: boolean };
   completed: { result: AgentResult };
 }

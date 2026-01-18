@@ -98,6 +98,11 @@
           "default": "prompt",
           "description": "Step type for categorization"
         },
+        "stepKind": {
+          "type": "string",
+          "enum": ["work", "verification", "closure"],
+          "description": "Step kind for flow taxonomy. Determines allowed intents: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
+        },
         "c2": {
           "type": "string",
           "description": "C3L Category (e.g., 'initial', 'continuation')"
@@ -210,9 +215,17 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["next", "repeat", "jump", "complete", "abort"]
+            "enum": [
+              "next",
+              "repeat",
+              "jump",
+              "closing",
+              "abort",
+              "escalate",
+              "handoff"
+            ]
           },
-          "description": "List of intents this step can emit"
+          "description": "List of intents this step can emit. Allowed values depend on stepKind: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
         },
         "intentField": {
           "type": "string",

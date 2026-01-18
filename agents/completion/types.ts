@@ -139,6 +139,24 @@ export interface CompletionHandler {
 
   /** Get description of completion status */
   getCompletionDescription(): Promise<string>;
+
+  /**
+   * Called when a closure step emits `closing` intent.
+   *
+   * This is the single surface for external side effects:
+   * - Issue close
+   * - Release publish
+   * - PR merge
+   *
+   * Optional - not all handlers need this.
+   *
+   * @see agents/docs/design/08_step_flow_design.md Section 7.1
+   */
+  onBoundaryHook?(payload: {
+    stepId: string;
+    stepKind: "closure";
+    structuredOutput?: Record<string, unknown>;
+  }): Promise<void>;
 }
 
 /**

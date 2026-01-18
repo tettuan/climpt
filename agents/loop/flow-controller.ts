@@ -165,6 +165,7 @@ export class FlowController {
     }
 
     // Check next_action.action field
+    // Accepts both "closing" (new) and "complete" (legacy) for backward compatibility
     if (
       typeof structuredOutput.next_action === "object" &&
       structuredOutput.next_action !== null
@@ -173,7 +174,7 @@ export class FlowController {
         string,
         unknown
       >;
-      if (nextAction.action === "complete") {
+      if (nextAction.action === "closing" || nextAction.action === "complete") {
         return true;
       }
     }

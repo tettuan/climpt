@@ -4,6 +4,7 @@
 
 import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
 import {
+  MalformedSchemaIdentifierError,
   resolveSchema,
   SchemaPointerError,
   SchemaResolver,
@@ -266,17 +267,20 @@ Deno.test("SchemaResolver - resolves JSON Pointer format #/$defs/stepId", async 
   assertEquals((schema.required as string[]).includes("stepId"), true);
 });
 
-Deno.test("SchemaResolver - normalizes double hash ##/$defs/stepId", async () => {
+Deno.test("SchemaResolver - rejects double hash ##/$defs/stepId", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
 
-  // Double hash should be normalized and still resolve
-  const schema = await resolver.resolve(
-    "common.schema.json",
-    "##/$defs/stepResponse",
+  // Double hash is malformed and should throw (fail-fast behavior)
+  await assertRejects(
+    async () => {
+      await resolver.resolve(
+        "common.schema.json",
+        "##/$defs/stepResponse",
+      );
+    },
+    MalformedSchemaIdentifierError,
+    "double hash",
   );
-
-  assertEquals(schema.type, "object");
-  assertEquals((schema.required as string[]).includes("stepId"), true);
 });
 
 Deno.test("SchemaResolver - resolves #/$defs/stepId format", async () => {
@@ -343,4 +347,51 @@ Deno.test("SchemaResolver - throws SchemaPointerError for missing bare name", as
     },
     SchemaPointerError,
   );
+});
+
+// =============================================================================
+// Malformed Schema Identifier Tests (fail-fast on invalid format)
+// =============================================================================
+
+Deno.test("SchemaResolver - throws on double hash identifier ##", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  await assertRejects(
+    async () => {
+      await resolver.resolve(
+        "issue.schema.json",
+        "##/definitions/initial.issue",
+      );
+    },
+    MalformedSchemaIdentifierError,
+    "double hash",
+  );
+});
+
+Deno.test("SchemaResolver - throws on empty path segment //", async () => {
+  const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
+
+  await assertRejects(
+    async () => {
+      await resolver.resolve(
+        "issue.schema.json",
+        "#/definitions//initial.issue",
+      );
+    },
+    MalformedSchemaIdentifierError,
+    "empty path segment",
+  );
+});
+
+Deno.test("MalformedSchemaIdentifierError - has correct properties", () => {
+  const error = new MalformedSchemaIdentifierError(
+    "##/definitions/test",
+    "double hash '##' is not valid",
+  );
+
+  assertInstanceOf(error, Error);
+  assertEquals(error.name, "MalformedSchemaIdentifierError");
+  assertEquals(error.identifier, "##/definitions/test");
+  assertEquals(error.message.includes("double hash"), true);
+  assertEquals(error.message.includes("JSON Pointer format"), true);
 });

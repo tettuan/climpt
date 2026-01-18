@@ -695,7 +695,7 @@ Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", (
   assertEquals(routing.signalCompletion, false);
 });
 
-Deno.test("Structured Gate Flow - router signals completion for 'closing' intent", () => {
+Deno.test("Structured Gate Flow - work step closing transitions to closure step", () => {
   const registry = createTestStepRegistry();
   const router = new WorkflowRouter(registry);
 
@@ -704,7 +704,24 @@ Deno.test("Structured Gate Flow - router signals completion for 'closing' intent
     usedFallback: false,
   };
 
+  // Work step (initial.*) with closing transition goes to closure step
   const routing = router.route("initial.test", interpretation);
+
+  assertEquals(routing.nextStepId, "closure.test");
+  assertEquals(routing.signalCompletion, false);
+});
+
+Deno.test("Structured Gate Flow - closure step closing signals completion", () => {
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  const interpretation = {
+    intent: "closing" as const,
+    usedFallback: false,
+  };
+
+  // Closure step with closing intent signals workflow completion
+  const routing = router.route("closure.test", interpretation);
 
   assertEquals(routing.signalCompletion, true);
 });
@@ -792,7 +809,7 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
   const registry = createTestStepRegistry();
   const router = new WorkflowRouter(registry);
 
-  // Simulate AI declaring completion
+  // Simulate AI declaring completion via 'complete' (legacy alias for closing)
   const structuredOutput = {
     status: "completed",
     next_action: {
@@ -801,18 +818,21 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
     },
   };
 
-  // Interpreter extracts intent
+  // Interpreter extracts intent (complete -> closing)
   const stepDef = registry.steps["continuation.test"] as PromptStepDefinition;
   const interpretation = interpreter.interpret(structuredOutput, stepDef);
 
   assertEquals(interpretation.intent, "closing");
 
-  // Router signals completion
+  // Work step routes to closure step (not direct completion)
   const routing = router.route("continuation.test", interpretation);
 
-  assertEquals(routing.signalCompletion, true);
-  // Reason comes from structured output's next_action.reason
-  assertEquals(routing.reason, "All tasks finished");
+  assertEquals(routing.nextStepId, "closure.test");
+  assertEquals(routing.signalCompletion, false);
+
+  // Now closure step signals completion
+  const closureRouting = router.route("closure.test", interpretation);
+  assertEquals(closureRouting.signalCompletion, true);
 });
 
 // =============================================================================

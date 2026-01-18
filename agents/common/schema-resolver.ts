@@ -16,6 +16,8 @@
  */
 
 import { dirname, join } from "@std/path";
+import type { PromptStepDefinition, StepKind } from "./step-registry.ts";
+import { inferStepKind } from "./step-registry.ts";
 
 /**
  * Error thrown when a JSON Pointer path cannot be resolved in a schema.
@@ -34,6 +36,23 @@ export class SchemaPointerError extends Error {
     this.name = "SchemaPointerError";
     this.pointer = pointer;
     this.file = file;
+  }
+}
+
+/**
+ * Error thrown when a schema identifier is malformed.
+ * Examples: "##/definitions/foo" (double hash), "//" (empty path segment)
+ */
+export class MalformedSchemaIdentifierError extends Error {
+  readonly identifier: string;
+
+  constructor(identifier: string, reason: string) {
+    super(
+      `Malformed schema identifier "${identifier}": ${reason}. ` +
+        `Use standard JSON Pointer format (e.g., "#/definitions/stepId").`,
+    );
+    this.name = "MalformedSchemaIdentifierError";
+    this.identifier = identifier;
   }
 }
 
@@ -95,20 +114,73 @@ export class SchemaResolver {
   }
 
   /**
+   * Resolve schema with step context for Runner integration.
+   *
+   * Returns both the resolved schema and the step kind, allowing
+   * Runner to automatically configure the SDK's `formatted` option
+   * with the appropriate intent constraints.
+   *
+   * @param stepDef - Step definition with outputSchemaRef
+   * @returns Object with resolved schema and step kind
+   * @throws SchemaPointerError if the schema reference cannot be resolved
+   * @throws MalformedSchemaIdentifierError if the identifier is malformed
+   */
+  async resolveForStep(
+    stepDef: PromptStepDefinition,
+  ): Promise<
+    { schema: Record<string, unknown>; stepKind: StepKind | undefined }
+  > {
+    if (!stepDef.outputSchemaRef) {
+      throw new Error(
+        `Step "${stepDef.stepId}" has no outputSchemaRef defined`,
+      );
+    }
+
+    const schema = await this.resolve(
+      stepDef.outputSchemaRef.file,
+      stepDef.outputSchemaRef.schema,
+    );
+
+    const stepKind = inferStepKind(stepDef);
+
+    return { schema, stepKind };
+  }
+
+  /**
    * Normalize schema identifier to standard format.
    *
+   * Validates:
+   * - Rejects double hash: "##/definitions/foo" (malformed)
+   * - Rejects empty path segments: "#//foo" (malformed)
+   *
    * Handles:
-   * - Double hash: "##/definitions/foo" -> "/definitions/foo"
    * - Single hash pointer: "#/definitions/foo" -> "/definitions/foo"
    * - Bare name: "foo" -> "foo" (unchanged)
+   *
+   * @throws MalformedSchemaIdentifierError on invalid format
    */
   private normalizeSchemaIdentifier(identifier: string): string {
-    // Strip leading # characters (handles ## or #)
-    let normalized = identifier;
-    while (normalized.startsWith("#")) {
-      normalized = normalized.slice(1);
+    // Fail-fast on malformed identifiers
+    if (identifier.startsWith("##")) {
+      throw new MalformedSchemaIdentifierError(
+        identifier,
+        "double hash '##' is not valid JSON Pointer syntax",
+      );
     }
-    return normalized;
+
+    if (identifier.includes("//")) {
+      throw new MalformedSchemaIdentifierError(
+        identifier,
+        "empty path segment '//' is not valid",
+      );
+    }
+
+    // Strip single leading # if present (JSON Pointer fragment identifier)
+    if (identifier.startsWith("#")) {
+      return identifier.slice(1);
+    }
+
+    return identifier;
   }
 
   /**

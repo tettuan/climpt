@@ -23,6 +23,7 @@ import {
   AgentRateLimitError,
   AgentSchemaResolutionError,
   AgentStepIdMismatchError,
+  AgentStepRoutingError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
@@ -40,6 +41,7 @@ import {
   type OutputSchemaRef,
 } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
+import { inferStepKind } from "../common/step-registry.ts";
 import {
   CompletionChain,
   type CompletionValidationResult,
@@ -315,6 +317,7 @@ export class AgentRunner {
 
         // R4: Fail-fast if iteration > 1 and no intent produced (no routing)
         // This prevents silent rerun of entry step when StepGate can't parse intent
+        // @see agents/docs/design/08_step_flow_design.md Section 6
         if (
           iteration > 1 &&
           routingResult === null &&
@@ -326,7 +329,10 @@ export class AgentRunner {
             `Flow steps must produce structured output with a valid intent. ` +
             `Check that the step's schema includes next_action.action and the LLM returns valid JSON.`;
           ctx.logger.error(errorMsg);
-          throw new Error(errorMsg);
+          throw new AgentStepRoutingError(errorMsg, {
+            stepId,
+            iteration,
+          });
         }
 
         // Check completion - prefer routing result, fall back to legacy handler
@@ -346,6 +352,11 @@ export class AgentRunner {
           ctx.logger.info(
             `[StepFlow] Router signaled completion: ${completionReason}`,
           );
+
+          // Invoke boundary hook for closure steps
+          // @see agents/docs/design/08_step_flow_design.md Section 7.1
+          // deno-lint-ignore no-await-in-loop
+          await this.invokeBoundaryHook(stepId, summary, ctx);
         } else {
           // Fall back to legacy completionHandler
           if (ctx.completionHandler.setCurrentSummary) {
@@ -883,6 +894,8 @@ export class AgentRunner {
 
   /**
    * Check if AI declared completion via structured output.
+   *
+   * Accepts both "closing" (new) and "complete" (legacy) for backward compatibility.
    */
   private hasAICompletionDeclaration(summary: IterationSummary): boolean {
     if (!summary.structuredOutput) {
@@ -897,7 +910,7 @@ export class AgentRunner {
 
     if (isRecord(so.next_action)) {
       const nextAction = so.next_action as Record<string, unknown>;
-      if (nextAction.action === "complete") {
+      if (nextAction.action === "closing" || nextAction.action === "complete") {
         return true;
       }
     }
@@ -1240,6 +1253,9 @@ export class AgentRunner {
       return null;
     }
 
+    // Get step kind for logging
+    const stepKind = inferStepKind(stepDef);
+
     // Interpret structured output through the gate
     const interpretation = this.stepGateInterpreter.interpret(
       summary.structuredOutput,
@@ -1247,6 +1263,8 @@ export class AgentRunner {
     );
 
     ctx.logger.info(`[StepFlow] Interpreted intent: ${interpretation.intent}`, {
+      stepId,
+      stepKind,
       target: interpretation.target,
       usedFallback: interpretation.usedFallback,
       reason: interpretation.reason,
@@ -1266,6 +1284,8 @@ export class AgentRunner {
     ctx.logger.info(
       `[StepFlow] Routing decision: ${stepId} -> ${routing.nextStepId}`,
       {
+        stepKind,
+        intent: interpretation.intent,
         signalCompletion: routing.signalCompletion,
         reason: routing.reason,
       },
@@ -1285,5 +1305,63 @@ export class AgentRunner {
    */
   private hasFlowRoutingEnabled(): boolean {
     return this.stepGateInterpreter !== null && this.workflowRouter !== null;
+  }
+
+  // ============================================================================
+  // Boundary Hook
+  // ============================================================================
+
+  /**
+   * Invoke boundary hook when a closure step emits `closing` intent.
+   *
+   * Boundary hook is the single surface for external side effects:
+   * - Issue close
+   * - Release publish
+   * - PR merge
+   *
+   * Work/Verification steps cannot mutate issues directly - all external
+   * state changes must flow through this hook.
+   *
+   * @see agents/docs/design/08_step_flow_design.md Section 7.1
+   */
+  private async invokeBoundaryHook(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+  ): Promise<void> {
+    // Only invoke for closure steps
+    const stepDef = this.stepsRegistry?.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+
+    if (stepKind !== "closure") {
+      ctx.logger.debug(
+        `[BoundaryHook] Skipping: step "${stepId}" is not a closure step (kind: ${
+          stepKind ?? "unknown"
+        })`,
+      );
+      return;
+    }
+
+    // Emit boundaryHook event for external handlers
+    await this.eventEmitter.emit("boundaryHook", {
+      stepId,
+      stepKind,
+      structuredOutput: summary.structuredOutput,
+    });
+
+    ctx.logger.info(`[BoundaryHook] Invoked for closure step: ${stepId}`);
+
+    // Delegate to completionHandler for actual side effects
+    // The completionHandler is responsible for implementing the boundary actions
+    // based on the agent's configuration
+    if (ctx.completionHandler.onBoundaryHook) {
+      await ctx.completionHandler.onBoundaryHook({
+        stepId,
+        stepKind,
+        structuredOutput: summary.structuredOutput,
+      });
+    }
   }
 }
