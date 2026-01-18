@@ -196,7 +196,7 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "targetField": "next_action.details.target",
         "fallbackIntent": "next",
@@ -205,7 +205,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "initial.issue" },
-        "closing": { "target": "closure.issue" }
+        "handoff": { "target": "closure.issue" }
       },
       "description": "Initial prompt when working on a single GitHub issue"
     },
@@ -224,7 +224,7 @@
         "schema": "continuation.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
@@ -232,7 +232,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "continuation.issue" },
-        "closing": { "target": "closure.issue" }
+        "handoff": { "target": "closure.issue" }
       },
       "description": "Continuation prompt for issue iterations"
     },
@@ -262,7 +262,7 @@
         "schema": "initial.project.preparation"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -270,7 +270,7 @@
       "transitions": {
         "next": { "target": "continuation.project.preparation" },
         "repeat": { "target": "initial.project.preparation" },
-        "closing": { "target": "initial.project.review" }
+        "handoff": { "target": "initial.project.review" }
       },
       "description": "Preparation phase prompt for project mode"
     },
@@ -290,15 +290,14 @@
         "schema": "initial.project.preparationempty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "closing", "abort"],
+        "allowedIntents": ["next", "handoff"],
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.preparation" },
-        "closing": { "target": "initial.project.closure" },
-        "abort": { "target": "initial.project.closure" }
+        "handoff": { "target": "initial.project.closure" }
       },
       "description": "Preparation phase prompt when no issues found"
     },
@@ -318,14 +317,14 @@
         "schema": "initial.project.processingempty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "closing"],
+        "allowedIntents": ["next", "handoff"],
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
       },
       "transitions": {
         "next": { "target": "initial.project.review" },
-        "closing": { "target": "initial.project.closure" }
+        "handoff": { "target": "initial.project.closure" }
       },
       "description": "Processing phase prompt when no current issue"
     },

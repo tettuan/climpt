@@ -17,6 +17,7 @@
   "steps": {
     "initial.default": {
       "stepId": "initial.default",
+      "stepKind": "work",
       "name": "Initial Prompt",
       "c2": "initial",
       "c3": "default",
@@ -27,7 +28,7 @@
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis", "plan"]
@@ -35,11 +36,12 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "closing": { "target": "closure.default" }
+        "handoff": { "target": "closure.default" }
       }
     },
     "continuation.default": {
       "stepId": "continuation.default",
+      "stepKind": "work",
       "name": "Continuation Prompt",
       "c2": "continuation",
       "c3": "default",
@@ -49,7 +51,7 @@
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress"]
@@ -57,11 +59,12 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "continuation.default" },
-        "closing": { "target": "closure.default" }
+        "handoff": { "target": "closure.default" }
       }
     },
     "closure.default": {
       "stepId": "closure.default",
+      "stepKind": "closure",
       "name": "Closure Step",
       "c2": "closure",
       "c3": "default",
@@ -71,13 +74,14 @@
         "schema": "#/definitions/closure.default"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": ["final_summary"]
       },
       "transitions": {
-        "closing": { "target": null }
+        "closing": { "target": null },
+        "repeat": { "target": "closure.default" }
       }
     }
   }
