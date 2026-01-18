@@ -69,9 +69,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd $CLAUDE_PROJECT_DIR && (deno fmt --check && deno lint && echo '{}') || echo '{\"decision\": \"block\", \"reason\": \"Lint/Format error\"}'",
-            "timeout": 30,
-            "statusMessage": "Checking format and lint..."
+            "command": "cd $CLAUDE_PROJECT_DIR && (deno fmt --check && deno lint && deno task test && echo '{}') || echo '{\"decision\": \"block\", \"reason\": \"CI error\"}'",
+            "timeout": 120,
+            "statusMessage": "Running CI..."
           }
         ]
       }
