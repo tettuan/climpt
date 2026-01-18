@@ -22,7 +22,6 @@ import {
   AgentQueryError,
   AgentRateLimitError,
   AgentSchemaResolutionError,
-  AgentStepIdMismatchError,
   AgentStepRoutingError,
   isAgentError,
   normalizeToAgentError,
@@ -280,8 +279,8 @@ export class AgentRunner {
         summaries.push(summary);
         sessionId = summary.sessionId;
 
-        // Validate stepId in structured output (fail-fast guard)
-        this.validateStructuredOutputStepId(stepId, summary, iteration, ctx);
+        // Normalize stepId in structured output (Flow owns canonical value)
+        this.normalizeStructuredOutputStepId(stepId, summary, ctx);
 
         // Record step output for step flow orchestration
         this.recordStepOutput(stepId, summary);
@@ -1159,21 +1158,24 @@ export class AgentRunner {
   }
 
   /**
-   * Validate that structuredOutput.stepId matches the expected stepId.
+   * Normalize stepId in structured output to match Flow's canonical value.
    *
-   * This is a fail-fast guard to catch schema configuration errors or LLM
-   * returning incorrect step names. The schema should define a "const" for
-   * stepId to enforce this at the schema level.
+   * Flow owns the authoritative stepId. The LLM only needs to provide intent
+   * (next/repeat/jump/closing) and optional targetStepId. Since stepId is
+   * defined with "const" in the schema, it should always match the expected
+   * value. If the LLM returns a different value, we correct it rather than
+   * failing, as Flow is the single source of truth.
    *
-   * @throws AgentStepIdMismatchError if stepId doesn't match
+   * This ensures routing decisions aren't influenced by arbitrary LLM strings.
+   *
+   * @see agents/docs/design/08_step_flow_design.md
    */
-  private validateStructuredOutputStepId(
+  private normalizeStructuredOutputStepId(
     expectedStepId: string,
     summary: IterationSummary,
-    iteration: number,
     ctx: RuntimeContext,
   ): void {
-    // Skip validation if no structured output
+    // Skip normalization if no structured output
     if (!summary.structuredOutput) {
       return;
     }
@@ -1183,36 +1185,39 @@ export class AgentRunner {
     // Check if stepId exists in structured output
     if (!isRecord(structuredOutput) || !isString(structuredOutput.stepId)) {
       ctx.logger.debug(
-        `[StepFlow] No stepId in structured output, skipping validation`,
+        `[StepFlow] No stepId in structured output, skipping normalization`,
       );
       return;
     }
 
     const actualStepId = structuredOutput.stepId;
 
-    // Validate stepId matches
+    // Normalize stepId if it differs from expected
     if (actualStepId !== expectedStepId) {
-      const errorMessage =
-        `[StepFlow] stepId mismatch: expected "${expectedStepId}", got "${actualStepId}". ` +
-        `Check that the schema defines "const": "${expectedStepId}" for stepId, ` +
-        `or verify the LLM is using the correct step identifier.`;
+      // Get step name for telemetry
+      const stepName = this.stepsRegistry?.steps[expectedStepId]?.name ??
+        expectedStepId;
+      // Get issue number if available
+      const issueNumber = this.args.issue;
 
-      ctx.logger.error(errorMessage, {
-        expectedStepId,
-        actualStepId,
-        iteration,
-      });
+      ctx.logger.warn(
+        `[StepFlow] stepId corrected: "${actualStepId}" -> "${expectedStepId}" ` +
+          `(Flow owns canonical stepId)`,
+        {
+          step: stepName,
+          expectedStepId,
+          actualStepId,
+          ...(issueNumber !== undefined && { issue: issueNumber }),
+        },
+      );
 
-      throw new AgentStepIdMismatchError(errorMessage, {
-        expectedStepId,
-        actualStepId,
-        iteration,
-      });
+      // Correct the value (Flow is single source of truth)
+      (structuredOutput as Record<string, unknown>).stepId = expectedStepId;
+    } else {
+      ctx.logger.debug(
+        `[StepFlow] stepId matches expected: ${actualStepId}`,
+      );
     }
-
-    ctx.logger.debug(
-      `[StepFlow] stepId validation passed: ${actualStepId}`,
-    );
   }
 
   /**

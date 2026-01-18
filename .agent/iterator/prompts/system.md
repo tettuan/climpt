@@ -73,3 +73,18 @@ Include validation results and evidence:
 ```issue-action
 {"action":"blocked","issue":NUMBER,"body":"Cannot proceed because...","label":"need clearance"}
 ```
+
+## Structured Output Rules
+
+When returning structured output with a `stepId` field, use the exact value from
+the schema's `const` definition. Do not generate your own stepId. The Flow
+runtime owns the canonical stepId.
+
+### Intent Values for `next_action.action`
+
+Use these exact values:
+- `"next"` - Continue to next step (default for work in progress)
+- `"repeat"` - Retry current step
+- `"closing"` - Transition to closure step (when all work is done)
+
+**IMPORTANT**: Do NOT use "complete", "continue", or "retry". Use the exact values above.

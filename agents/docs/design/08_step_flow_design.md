@@ -120,6 +120,34 @@ sequenceDiagram
   enum で固定する。
 - プロンプトは意味付けだけに集中し、構造的制約は schema が担う。
 
+### 3.1 stepId の正規化（Runtime 権限）
+
+- **What**: Flow が stepId の正規値を保持し、LLM が返す stepId
+  と一致しない場合は 自動補正する。
+- **Why**: `const` 制約は Anthropic SDK で強制されないため、LLM
+  が文脈から推測した stepId を返すことがある。Runtime で補正することで routing
+  の決定性を保つ。
+- **Rule**: LLM は intent（`next`/`repeat`/`jump`/`closing`）と optional な
+  `targetStepId` を返すだけでよい。stepId は参考情報であり、Flow
+  が単一の権限を持つ。
+
+```mermaid
+sequenceDiagram
+  participant Runner
+  participant LLM
+  participant Flow
+
+  Flow->>Runner: expectedStepId (canonical)
+  Runner->>LLM: prompt + schema
+  LLM-->>Runner: structured output (possibly wrong stepId)
+  Runner->>Runner: normalize stepId to canonical
+  Note over Runner: log warning if corrected
+  Runner->>Flow: corrected structured output
+```
+
+> **Telemetry**: 補正が発生した場合は `[StepFlow] stepId corrected` として
+> ログに記録される。頻発する場合は schema/prompt の見直しを検討する。
+
 ## 4. Structured Gate + Router
 
 ```mermaid
