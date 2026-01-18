@@ -140,6 +140,8 @@ deno task agent --init --agent {agent-name}
 
 This generates the directory structure with template files.
 
+**Builder Documentation**: For detailed guides on agent configuration and customization, see [`agents/docs/builder/`](agents/docs/builder/).
+
 ### Running Agents
 
 ```bash

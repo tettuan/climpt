@@ -1,4 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
+// deno-lint-ignore-file no-console no-await-in-loop
 
 /**
  * Agent Scaffolder Script
@@ -6,7 +7,7 @@
  * Generates a new Climpt agent structure from templates.
  *
  * Usage:
- *   deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
+ *   deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
  *     --name my-agent \
  *     --description "My agent description" \
  *     --completion-type externalState

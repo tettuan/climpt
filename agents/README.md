@@ -3,6 +3,9 @@
 Autonomous agent execution framework using the Claude Code SDK. Integrates with
 the Climpt prompt management system to enable iterative task execution.
 
+**New to agent configuration?** See the [Builder Guide](./docs/builder/) for
+step-by-step documentation on creating and customizing agents.
+
 ## Features
 
 - **Dual-Loop Architecture**: Flow Loop (step advancement) + Completion Loop

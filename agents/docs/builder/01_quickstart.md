@@ -4,15 +4,19 @@
 
 ## 作成方法の選択
 
-### 方法 1: Scaffolder Skill（推奨）
+### 方法 1: Scaffolder Plugin（推奨）
+
+まず Plugin をインストール:
+
+```bash
+# Marketplace 追加（初回のみ）
+/plugin marketplace add tettuan/climpt
+
+# Plugin インストール
+/plugin install climpt-agent-scaffolder
+```
 
 Claude Code で以下のいずれかを実行:
-
-```
-/agent-scaffolder
-```
-
-または自然言語で:
 
 - 「agent を作りたい」
 - 「新しい agent を作成」
@@ -23,7 +27,8 @@ Skill が agent 名や completionType を質問し、必要なファイルを自
 #### CLI から直接実行
 
 ```bash
-deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
+# Plugin インストール後
+deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
   --name my-agent \
   --description "My agent description" \
   --completion-type externalState
@@ -32,6 +37,10 @@ deno run -A .claude/skills/agent-scaffolder/scripts/scaffold.ts \
 #   --dry-run              生成内容をプレビュー
 #   --display-name "Name"  表示名を指定
 ```
+
+> **開発者向け**: このリポジトリ内で作業している場合は
+> `plugins/climpt-agent-scaffolder/skills/agent-scaffolder/scripts/scaffold.ts`
+> から直接実行可能。
 
 ### 方法 2: 手動作成
 
