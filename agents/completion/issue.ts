@@ -371,6 +371,59 @@ ${summarySection}
       return `Issue #${this.issueNumber} status unknown`;
     }
   }
+
+  /**
+   * Execute boundary actions when closing intent is received.
+   *
+   * This is the single surface for external side effects.
+   * Called by Runner when a closure step emits `closing` intent.
+   *
+   * Actions:
+   * - Close the GitHub Issue with a completion comment
+   *
+   * @see agents/docs/design/08_step_flow_design.md Section 7.1
+   */
+  async onBoundaryHook(payload: {
+    stepId: string;
+    stepKind: "closure";
+    structuredOutput?: Record<string, unknown>;
+  }): Promise<void> {
+    // Extract summary from structured output for the closing comment
+    const so = payload.structuredOutput ?? {};
+    const summary = typeof so.summary === "string"
+      ? so.summary
+      : "Issue completed by iterator agent.";
+
+    // Build closing comment
+    const comment = `## Completed
+
+${summary}
+
+---
+*Closed by Boundary Hook (closing intent from ${payload.stepId})*`;
+
+    // Execute gh issue close with comment
+    const args = ["issue", "close", String(this.issueNumber), "-c", comment];
+    if (this.repository) {
+      args.push("-R", this.repository);
+    }
+
+    const command = new Deno.Command("gh", {
+      args,
+      stdout: "piped",
+      stderr: "piped",
+      cwd: this.cwd,
+    });
+
+    const result = await command.output();
+
+    if (!result.success) {
+      const stderr = new TextDecoder().decode(result.stderr);
+      throw new Error(
+        `[BoundaryHook] Failed to close issue #${this.issueNumber}: ${stderr}`,
+      );
+    }
+  }
 }
 
 // ============================================================================

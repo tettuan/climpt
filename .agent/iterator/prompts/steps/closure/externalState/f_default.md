@@ -18,27 +18,33 @@ The external state indicates this issue is ready for closure.
 
 ### Final Checklist
 
-Verify the following before finalizing:
+Verify the following before returning `closing` intent:
 
-1. **GitHub Issue State**: Issue #{uv-issue_number} should be CLOSED
-2. **Git Status**: Working directory should be clean (no uncommitted changes)
-3. **Implementation**: All required changes should be committed
+1. **Git Status**: Run `git status --porcelain` - must be empty (no uncommitted changes)
+2. **Implementation**: All required changes should be committed
 
 ### If Not Ready
 
 If any of the above are not satisfied:
-- Fix the issue
+- Fix the issue (commit remaining changes, etc.)
 - Report `next_action.action = "repeat"` to retry closure validation
 
 ### Closure Report
 
-Report final status in your structured output:
+When all conditions are met, report in structured output:
 - `status`: "completed"
 - `next_action.action`: "closing" (signals workflow completion)
-- `summary`: Brief closure summary
+- `summary`: Brief closure summary describing what was accomplished
 
-**NOTE**: This is a closure step. Use `"closing"` to complete, or `"repeat"` to retry.
+## Boundary Hook
+
+**IMPORTANT**: Do NOT execute `gh issue close` directly.
+
+When you return `closing` intent, the **Boundary Hook** will automatically:
+- Close Issue #{uv-issue_number} with your summary as the closing comment
+
+Your role is to verify conditions and return the structured output only.
 
 ---
 
-**This is a terminal step.** The agent will close after this iteration.
+**This is a closure step.** Return `"closing"` to complete, or `"repeat"` to retry.

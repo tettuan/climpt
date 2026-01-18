@@ -27,33 +27,32 @@ Iterations completed: {uv-completed_iterations}
    - `subagent_type="general-purpose"` - multi-step implementation
 2. Mark task as `completed` when done
 
-### External State Check
-After completing work:
-1. **Check Issue State**: Is GitHub Issue #{uv-issue_number} closed?
-2. If **closed** or all work done: Set `next_action.action = "handoff"` to transition to closure step
-3. If **open** and more work needed: Set `next_action.action = "next"` to continue
+### Transition to Closure
+When all work is done:
+1. Commit all changes: `git add . && git commit -m "..."`
+2. Set `next_action.action = "handoff"` to transition to Closure Step
+3. If more work needed: Set `next_action.action = "next"` to continue
 
 **IMPORTANT**: Use exact intent values:
 - `"next"` - continue working
 - `"repeat"` - retry current step
 - `"handoff"` - hand off to closure step (when all work is done)
 
-## Issue Actions
+## Issue Actions (Allowed in Work Steps)
 
 ### Report Progress
 ```issue-action
 {"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
 ```
 
-### Complete Issue
+## Boundary Actions (NOT Allowed)
 
-**Before closing:**
-- Ensure all changes are committed (`git status` must be clean)
-- Run `git add .` && `git commit` if needed
+**Do NOT execute in Work Steps:**
+- `gh issue close`
+- `gh pr merge`
+- Any GitHub state-changing operations
 
-```issue-action
-{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- Implementation summary\n- Tasks completed: N"}
-```
+These are executed automatically by **Boundary Hook** when you return `closing` intent from Closure Step.
 
 ---
 

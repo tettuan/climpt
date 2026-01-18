@@ -14,10 +14,10 @@ customVariables:
 
 ## External State Completion Mode
 
-This issue uses **external state completion** - the issue is considered complete when:
-1. The GitHub Issue is closed
-2. All implementation requirements are met
-3. Changes are committed
+This issue uses **external state completion** - the workflow completes when:
+1. All implementation requirements are met
+2. Changes are committed (git clean)
+3. You return `handoff` intent, then `closing` intent in Closure Step
 
 ## Working Instructions
 
@@ -35,34 +35,32 @@ For each task:
    - `subagent_type="Plan"` for architectural decisions
 3. Mark task as `completed` when done
 
-### Step 3: External State Check
-At the end of each iteration:
-1. Check if GitHub Issue #{uv-issue_number} is closed
-2. If closed or all work done: Set `next_action.action = "handoff"` to transition to closure step
-3. If open and more work needed: Set `next_action.action = "next"` to continue
+### Step 3: Transition to Closure
+When all work is done:
+1. Commit all changes: `git add . && git commit -m "..."`
+2. Set `next_action.action = "handoff"` to transition to Closure Step
+3. In Closure Step, verify and return `closing` intent
 
 **IMPORTANT**: Use exact intent values:
 - `"next"` - continue working
 - `"repeat"` - retry current step
 - `"handoff"` - hand off to closure step (when all work is done)
 
-## Issue Actions
+## Issue Actions (Allowed in Work Steps)
 
 ### Report Progress
 ```issue-action
 {"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Task 1 done\n- [ ] Task 2 in progress"}
 ```
 
-### Complete Issue
+## Boundary Actions (NOT Allowed)
 
-**Pre-close checklist:**
-1. Run `git status` - ensure no uncommitted changes
-2. If changes exist: `git add .` && `git commit -m "..."`
-3. Verify clean state before closing
+**Do NOT execute in Work Steps:**
+- `gh issue close`
+- `gh pr merge`
+- Any GitHub state-changing operations
 
-```issue-action
-{"action":"close","issue":{uv-issue_number},"body":"## Resolution\n- Implementation summary\n- All changes committed"}
-```
+These are executed automatically by **Boundary Hook** when you return `closing` intent from Closure Step.
 
 ---
 

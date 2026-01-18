@@ -30,48 +30,50 @@ Use Task tool with appropriate subagent_type:
 
 Use structured outputs for GitHub operations:
 
-### Report Progress
+### Report Progress (Work Steps)
 ```issue-action
 {"action":"progress","issue":NUMBER,"body":"## Progress\n- [x] Done\n- [ ] In progress"}
 ```
 
-### Complete Issue
-
-Before closing, you MUST verify:
-1. Run `git status --porcelain` - must be empty (no uncommitted changes)
-2. Run `deno check` or type check - must pass
-3. Run tests if applicable
-
-Include validation results and evidence:
-
-```issue-action
-{
-  "action": "close",
-  "issue": NUMBER,
-  "body": "## Resolution\n- What was implemented",
-  "validation": {
-    "git_clean": true,
-    "type_check_passed": true,
-    "tests_passed": true
-  },
-  "evidence": {
-    "git_status_output": "",
-    "type_check_output": "Check successful",
-    "test_summary": "N passed, 0 failed"
-  }
-}
-```
-
-**IMPORTANT**: Do NOT close without validation. If validation fails, fix the issues first.
-
-### Ask Question
+### Ask Question (Work Steps)
 ```issue-action
 {"action":"question","issue":NUMBER,"body":"Need clarification on..."}
 ```
 
-### Report Blocker
+### Report Blocker (Work Steps)
 ```issue-action
 {"action":"blocked","issue":NUMBER,"body":"Cannot proceed because...","label":"need clearance"}
+```
+
+## Boundary Actions
+
+**IMPORTANT**: Do NOT execute `gh issue close`, `gh pr merge`, or similar boundary actions directly.
+
+Boundary actions (closing issues, merging PRs, publishing releases) are executed by the **Boundary Hook** when you return `closing` intent from a Closure Step.
+
+### How It Works
+
+1. Complete your work in Work Steps
+2. Return `handoff` intent to transition to Closure Step
+3. In Closure Step, verify conditions (git clean, tests pass, etc.)
+4. Return `closing` intent with a `summary` field
+5. **Boundary Hook automatically closes the issue** with your summary
+
+### Validation Before Closing
+
+Before returning `closing` intent in Closure Step:
+1. Run `git status --porcelain` - must be empty (no uncommitted changes)
+2. Run `deno check` or type check - must pass
+3. Run tests if applicable
+
+Include validation in your structured output:
+```json
+{
+  "status": "completed",
+  "next_action": { "action": "closing" },
+  "summary": "Implemented feature X with tests",
+  "validation": { "git_clean": true, "type_check_passed": true }
+}
 ```
 
 ## Structured Output Rules

@@ -32,3 +32,15 @@ Closure steps use:
 | `repeat` | Retry closure validation |
 
 **IMPORTANT**: Work steps must use `handoff` (not `closing`) to transition to closure.
+
+## Boundary Actions
+
+**IMPORTANT**: Do NOT execute boundary actions directly in any step.
+
+Boundary actions (closing issues, merging PRs, publishing releases) are executed by the **Boundary Hook** when you return `closing` intent from a Closure Step.
+
+Your role is to:
+1. Complete work in Work Steps
+2. Return `handoff` to transition to Closure Step
+3. Verify conditions in Closure Step
+4. Return `closing` intent - Boundary Hook handles the rest

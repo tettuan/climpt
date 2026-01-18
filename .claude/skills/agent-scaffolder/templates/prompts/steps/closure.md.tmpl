@@ -9,9 +9,17 @@ Finalize and summarize the completed work.
 
 ## Instructions
 
-1. Summarize all completed work
-2. List any remaining items or recommendations
-3. Confirm task closure
+1. Verify all changes are committed (`git status --porcelain` must be empty)
+2. Summarize all completed work in `summary` field
+3. Return `closing` intent to complete
+
+## Boundary Hook
+
+**IMPORTANT**: Do NOT execute boundary actions directly (e.g., `gh issue close`).
+
+When you return `closing` intent, the **Boundary Hook** will automatically execute any configured boundary actions (closing issues, merging PRs, etc.).
+
+Your role is to verify conditions and return structured output only.
 
 ## Intent Guide
 
