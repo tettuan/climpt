@@ -260,8 +260,8 @@ export class StepGateInterpreter {
     reason: string,
   ): { intent: GateIntent; usedFallback: boolean; reason: string } {
     // Fail-fast mode: throw immediately without fallback
-    // Per design doc Section 4/6: "Fail-fast: Gate が intent を解釈できなかった場合は
-    // Runner が FAILED_STEP_ROUTING で停止する"
+    // Per design doc Section 4/6: "When Gate cannot interpret intent,
+    // Runner stops with FAILED_STEP_ROUTING"
     if (gate.failFast) {
       throw new GateInterpretationError(
         `[failFast] Cannot determine intent: ${reason}. ` +
