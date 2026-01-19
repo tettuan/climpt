@@ -51,8 +51,12 @@ Options:
 
 Agent Initialization:
   --init creates a minimal agent template in .agent/<name>/
+
   For advanced scaffolding with step flow, use the scaffolder skill:
     /agent-scaffolder (in Claude Code)
+
+  Note: The scaffolder skill requires the plugin-dev plugin.
+  Install: https://github.com/anthropics/claude-code-plugin-dev
 
   Scaffolder features:
     - Interactive completionType selection
