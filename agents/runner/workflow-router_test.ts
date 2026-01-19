@@ -375,6 +375,31 @@ Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
   );
 });
 
+Deno.test("WorkflowRouter - verification step cannot emit closing intent", () => {
+  // Per design doc Section 2.1: verification steps must not emit closing
+  // Only closure steps can emit closing intent
+  const registry = createRegistry({
+    "verification.default": {
+      c2: "verification",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "escalate"],
+        intentField: "next_action.action",
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "verification.default",
+        createInterpretation({ intent: "closing" }),
+      ),
+    RoutingError,
+    "not allowed for verification step",
+  );
+});
+
 Deno.test("WorkflowRouter - verification step can emit escalate intent", () => {
   const registry = createRegistry({
     "verification.default": {

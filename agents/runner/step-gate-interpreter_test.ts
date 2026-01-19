@@ -311,3 +311,81 @@ Deno.test("StepGateInterpreter - handles empty handoff when no fields match", ()
   assertEquals(result.intent, "next");
   assertEquals(result.handoff, undefined);
 });
+
+// =============================================================================
+// failFast Mode Tests (Design Doc Section 4/6)
+// =============================================================================
+
+Deno.test("StepGateInterpreter - failFast throws when intent cannot be determined", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "closing"],
+      intentField: "missing.path",
+      failFast: true,
+    },
+  });
+
+  assertThrows(
+    () => interpreter.interpret({}, stepDef),
+    GateInterpretationError,
+    "failFast",
+  );
+});
+
+Deno.test("StepGateInterpreter - failFast throws when intent not in allowedIntents", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "repeat"], // closing not allowed
+      intentField: "action",
+      failFast: true,
+    },
+  });
+
+  assertThrows(
+    () => interpreter.interpret({ action: "closing" }, stepDef),
+    GateInterpretationError,
+    "failFast",
+  );
+});
+
+Deno.test("StepGateInterpreter - failFast error includes stepId", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    stepId: "test.failfast.step",
+    structuredGate: {
+      allowedIntents: ["next"],
+      intentField: "missing",
+      failFast: true,
+    },
+  });
+
+  try {
+    interpreter.interpret({}, stepDef);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    if (e instanceof GateInterpretationError) {
+      assertEquals(e.stepId, "test.failfast.step");
+    } else {
+      throw e;
+    }
+  }
+});
+
+Deno.test("StepGateInterpreter - failFast=false uses fallback (default behavior)", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "closing"],
+      intentField: "missing.path",
+      failFast: false,
+      fallbackIntent: "next",
+    },
+  });
+
+  // Should NOT throw, should use fallback
+  const result = interpreter.interpret({}, stepDef);
+  assertEquals(result.intent, "next");
+  assertEquals(result.usedFallback, true);
+});
