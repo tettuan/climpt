@@ -209,7 +209,7 @@
     },
     "StructuredGate": {
       "type": "object",
-      "required": ["allowedIntents"],
+      "required": ["allowedIntents", "intentSchemaRef"],
       "properties": {
         "allowedIntents": {
           "type": "array",
@@ -229,7 +229,7 @@
         },
         "intentSchemaRef": {
           "type": "string",
-          "description": "JSON Pointer to intent enum in schema (e.g., '#/definitions/initial.default/properties/next_action/properties/action'). When specified with failFast:true, intent validation is strict."
+          "description": "JSON Pointer to intent enum in schema (e.g., '#/definitions/initial.default/properties/next_action/properties/action'). Required per 08_step_flow_design.md Section 4."
         },
         "intentField": {
           "type": "string",
