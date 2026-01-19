@@ -14,6 +14,7 @@ import {
   saveStepRegistry,
   serializeRegistry,
   type StepRegistry,
+  validateIntentSchemaRef,
   validateStepRegistry,
 } from "./step-registry.ts";
 
@@ -339,6 +340,144 @@ Deno.test("saveStepRegistry - saves to file", async () => {
     assertEquals(loaded.steps.saved.uvVariables, ["x"]);
   } finally {
     await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// validateIntentSchemaRef Tests (Design Doc Section 4)
+// =============================================================================
+
+Deno.test("validateIntentSchemaRef - throws when structuredGate missing intentSchemaRef", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "closing"],
+          intentField: "status",
+          // intentSchemaRef is missing
+        },
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateIntentSchemaRef(registry),
+    Error,
+    "missing required intentSchemaRef",
+  );
+});
+
+Deno.test("validateIntentSchemaRef - passes when intentSchemaRef present", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "closing"],
+          intentField: "status",
+          intentSchemaRef: "#/definitions/test.step/properties/status",
+        },
+      },
+    },
+  };
+
+  // Should not throw
+  validateIntentSchemaRef(registry);
+});
+
+Deno.test("validateIntentSchemaRef - passes when no structuredGate", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        // No structuredGate - should pass
+      },
+    },
+  };
+
+  // Should not throw
+  validateIntentSchemaRef(registry);
+});
+
+Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "step.one": {
+        stepId: "step.one",
+        name: "Step One",
+        c2: "initial",
+        c3: "one",
+        edition: "default",
+        fallbackKey: "one",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next"],
+          intentField: "action",
+        },
+      },
+      "step.two": {
+        stepId: "step.two",
+        name: "Step Two",
+        c2: "continuation",
+        c3: "two",
+        edition: "default",
+        fallbackKey: "two",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "closing"],
+          intentField: "status",
+        },
+      },
+    },
+  };
+
+  try {
+    validateIntentSchemaRef(registry);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    if (e instanceof Error) {
+      // Should mention both steps
+      assertEquals(e.message.includes("step.one"), true);
+      assertEquals(e.message.includes("step.two"), true);
+    } else {
+      throw e;
+    }
   }
 });
 

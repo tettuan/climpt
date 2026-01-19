@@ -329,6 +329,9 @@ export async function loadStepRegistry(
     // Validate entryStepMapping references (fail fast)
     validateEntryStepMapping(registry);
 
+    // Validate intentSchemaRef presence (fail fast per design doc Section 4)
+    validateIntentSchemaRef(registry);
+
     // Optionally validate full schema
     if (options.validateSchema) {
       validateStepRegistry(registry);
@@ -510,6 +513,39 @@ export function validateEntryStepMapping(registry: StepRegistry): void {
         }`,
       );
     }
+  }
+}
+
+/**
+ * Validate intentSchemaRef presence in structuredGate.
+ *
+ * This is called by loadStepRegistry to fail fast when:
+ * - A step has structuredGate but missing intentSchemaRef
+ *
+ * Per 08_step_flow_design.md Section 4:
+ * > Required: All Flow Steps must define structuredGate.intentSchemaRef
+ * > and transitions, otherwise loading will fail.
+ *
+ * @param registry - Registry to validate
+ * @throws Error if any step with structuredGate is missing intentSchemaRef
+ */
+export function validateIntentSchemaRef(registry: StepRegistry): void {
+  const errors: string[] = [];
+
+  for (const [stepId, step] of Object.entries(registry.steps)) {
+    if (step.structuredGate && !step.structuredGate.intentSchemaRef) {
+      errors.push(
+        `Step "${stepId}" has structuredGate but missing required intentSchemaRef`,
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Step registry validation failed (missing intentSchemaRef):\n- ${
+        errors.join("\n- ")
+      }`,
+    );
   }
 }
 
