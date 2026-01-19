@@ -19,6 +19,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
 import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
+import { initAgent } from "../init.ts";
 import {
   type FinalizeOptions,
   finalizeWorktreeBranch,
@@ -37,25 +38,32 @@ Unified Agent Runner
 
 Usage:
   run-agent.ts --agent <name> [options]
+  run-agent.ts --init --agent <name>
+  run-agent.ts --list
 
 Required:
   --agent, -a <name>     Agent name (iterator, reviewer, etc.)
 
 Options:
   --help, -h             Show this help message
-  --init                 Initialize agent configuration
+  --init                 Initialize new agent with basic template
   --list                 List available agents
 
-Iterator Options:
-  --issue, -i <number>   GitHub Issue number to work on
-  --iterate-max <n>      Maximum iterations (default: 100)
-  --resume               Resume previous session
-  --branch <name>        Working branch for worktree mode
-  --base-branch <name>   Base branch for worktree mode
+Agent Initialization:
+  --init creates a minimal agent template in .agent/<name>/
+  For advanced scaffolding with step flow, use the scaffolder skill:
+    /agent-scaffolder (in Claude Code)
 
-Reviewer Options:
-  --issue, -i <number>   GitHub Issue number to review (required)
-  --iterate-max <n>      Maximum iterations (default: 300)
+  Scaffolder features:
+    - Interactive completionType selection
+    - Step flow configuration (stepMachine)
+    - Schema generation for structured outputs
+    - C3L prompt structure setup
+
+Common Options:
+  --issue, -i <number>   GitHub Issue number
+  --iterate-max <n>      Maximum iterations
+  --resume               Resume previous session
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
 
@@ -67,6 +75,9 @@ Finalize Options:
   --pr-target <branch>   Target branch for PR (default: base branch)
 
 Examples:
+  # Initialize new agent
+  run-agent.ts --init --agent my-agent
+
   # Work on a GitHub Issue
   run-agent.ts --agent iterator --issue 123
 
@@ -121,6 +132,25 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log("");
     Deno.exit(0);
+  }
+
+  // Initialize new agent
+  if (args.init) {
+    if (!args.agent) {
+      // deno-lint-ignore no-console
+      console.error("Error: --agent <name> is required for init");
+      Deno.exit(1);
+    }
+    try {
+      await initAgent(args.agent);
+      Deno.exit(0);
+    } catch (error) {
+      // deno-lint-ignore no-console
+      console.error(
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      Deno.exit(1);
+    }
   }
 
   // Agent name is required
