@@ -53,6 +53,7 @@
     "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
+    "agent": "deno run --allow-all agents/scripts/run-agent.ts",
     "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
     "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer",
     "bump-version": "deno run --allow-read --allow-write --allow-run scripts/bump-version.ts"

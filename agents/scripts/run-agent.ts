@@ -37,9 +37,9 @@ function printHelp(): void {
 Unified Agent Runner
 
 Usage:
-  run-agent.ts --agent <name> [options]
-  run-agent.ts --init --agent <name>
-  run-agent.ts --list
+  deno task agent --agent <name> [options]
+  deno task agent --init --agent <name>
+  deno task agent --list
 
 Required:
   --agent, -a <name>     Agent name (iterator, reviewer, etc.)
@@ -76,13 +76,13 @@ Finalize Options:
 
 Examples:
   # Initialize new agent
-  run-agent.ts --init --agent my-agent
+  deno task agent --init --agent my-agent
 
   # Work on a GitHub Issue
-  run-agent.ts --agent iterator --issue 123
+  deno task agent --agent iterator --issue 123
 
   # Review an issue
-  run-agent.ts --agent reviewer --issue 123
+  deno task agent --agent reviewer --issue 123
 `);
 }
 
