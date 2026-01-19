@@ -219,6 +219,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "steps": {
     "initial.default": {
       "stepId": "initial.default",
+      "stepKind": "work",
       "name": "Initial Prompt",
       "c2": "initial",
       "c3": "default",
@@ -229,19 +230,19 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump"],
+        "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "failFast": true,
         "handoffFields": ["analysis", "plan"]
       },
       "transitions": {
         "next": { "target": "continuation.default" },
-        "repeat": { "target": "initial.default" },
-        "jump": { "target": "closure.default" }
+        "repeat": { "target": "initial.default" }
       }
     },
     "continuation.default": {
       "stepId": "continuation.default",
+      "stepKind": "work",
       "name": "Continuation Prompt",
       "c2": "continuation",
       "c3": "default",
@@ -251,19 +252,20 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "failFast": true,
         "handoffFields": ["progress"]
       },
       "transitions": {
         "next": { "target": "verification.default" },
         "repeat": { "target": "continuation.default" },
-        "jump": { "target": "closure.default" }
+        "handoff": { "target": "closure.default" }
       }
     },
     "verification.default": {
       "stepId": "verification.default",
+      "stepKind": "verification",
       "name": "Verification Step",
       "c2": "verification",
       "c3": "default",
@@ -273,20 +275,20 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/verification.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump", "escalate"],
+        "allowedIntents": ["next", "repeat", "escalate"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "failFast": true,
         "handoffFields": ["verification_result"]
       },
       "transitions": {
         "next": { "target": "closure.default" },
         "repeat": { "target": "continuation.default" },
-        "jump": { "target": "initial.default" },
         "escalate": { "target": "continuation.default" }
       }
     },
     "closure.default": {
       "stepId": "closure.default",
+      "stepKind": "closure",
       "name": "Closure Step",
       "c2": "closure",
       "c3": "default",
@@ -298,7 +300,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "failFast": true,
         "handoffFields": ["final_summary"]
       },
       "transitions": {

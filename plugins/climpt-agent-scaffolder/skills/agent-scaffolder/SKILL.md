@@ -47,9 +47,10 @@ deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
 └── prompts/
     ├── system.md
     └── steps/
-        ├── initial/default/f_default.md
-        ├── continuation/default/f_default.md
-        └── closure/default/f_default.md
+        ├── initial/default/f_default.md       # Work step: 初期化
+        ├── continuation/default/f_default.md  # Work step: 継続
+        ├── verification/default/f_default.md  # Verification step: 検証
+        └── closure/default/f_default.md       # Closure step: 完了
 ```
 
 ### 4. 次のステップ案内

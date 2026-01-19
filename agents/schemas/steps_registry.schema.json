@@ -227,6 +227,10 @@
           },
           "description": "List of intents this step can emit. Allowed values depend on stepKind: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
         },
+        "intentSchemaRef": {
+          "type": "string",
+          "description": "JSON Pointer to intent enum in schema (e.g., '#/definitions/initial.default/properties/next_action/properties/action'). When specified with failFast:true, intent validation is strict."
+        },
         "intentField": {
           "type": "string",
           "description": "JSON path to extract intent from structured output (e.g., 'next_action.action')"
@@ -246,9 +250,14 @@
           "default": "explicit",
           "description": "How target step IDs are determined"
         },
+        "failFast": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, throw error instead of using fallback if intent cannot be determined. Recommended for production agents."
+        },
         "fallbackIntent": {
           "type": "string",
-          "description": "Default intent if response parsing fails"
+          "description": "Default intent if response parsing fails. Ignored when failFast is true."
         }
       }
     },

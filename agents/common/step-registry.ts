@@ -179,6 +179,12 @@ export const STEP_KIND_ALLOWED_INTENTS: Record<
 export interface StructuredGate {
   /** List of intents this step can emit */
   allowedIntents: GateIntent[];
+  /**
+   * JSON Pointer to intent enum in schema.
+   * Example: '#/definitions/initial.default/properties/next_action/properties/action'
+   * When specified with failFast:true, intent validation is strict.
+   */
+  intentSchemaRef?: string;
   /** JSON path to extract intent from structured output (e.g., 'next_action.action') */
   intentField?: string;
   /** JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target') */
@@ -187,7 +193,12 @@ export interface StructuredGate {
   handoffFields?: string[];
   /** How target step IDs are determined */
   targetMode?: "explicit" | "dynamic" | "conditional";
-  /** Default intent if response parsing fails */
+  /**
+   * When true, throw error instead of using fallback if intent cannot be determined.
+   * Recommended for production agents per 08_step_flow_design.md Section 4/6.
+   */
+  failFast?: boolean;
+  /** Default intent if response parsing fails. Ignored when failFast is true. */
   fallbackIntent?: GateIntent;
 }
 
