@@ -42,9 +42,9 @@ export async function initAgent(
   await ensureDir(join(agentDir, "prompts", "steps", "continuation", "manual"));
 
   // Create agent.json
+  // Note: $schema uses relative path from .agent/{name}/ to project root
   const agentJson = {
-    $schema:
-      "https://raw.githubusercontent.com/tettuan/climpt-agents/main/schemas/agent.schema.json",
+    $schema: "../../agents/schemas/agent.schema.json",
     version: "1.0.0",
     name: agentName,
     displayName: formatDisplayName(agentName),
@@ -94,15 +94,19 @@ export async function initAgent(
   );
 
   // Create steps_registry.json
+  // Format: Compatible with agents/prompts/resolver.ts (keywordSignal completion type)
+  // For stepMachine completion type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
     version: "1.0.0",
     basePath: "prompts",
     steps: {
+      // System prompt: uses direct path
       system: {
         name: "System Prompt",
         path: "system.md",
         variables: ["uv-agent_name", "uv-completion_criteria"],
       },
+      // Initial prompt: uses C3L path (c1/c2/c3)
       initial_manual: {
         name: "Manual Initial Prompt",
         c1: "steps",
@@ -111,6 +115,7 @@ export async function initAgent(
         edition: "default",
         variables: ["uv-topic", "uv-completion_keyword"],
       },
+      // Continuation prompt: uses C3L path
       continuation_manual: {
         name: "Manual Continuation Prompt",
         c1: "steps",
@@ -119,9 +124,6 @@ export async function initAgent(
         edition: "default",
         variables: ["uv-iteration", "uv-completion_keyword"],
       },
-    },
-    editions: {
-      default: "Standard",
     },
   };
 
