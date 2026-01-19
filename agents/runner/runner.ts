@@ -1056,9 +1056,30 @@ export class AgentRunner {
       return undefined;
     }
 
+    // Validate outputSchemaRef format - must be object with file and schema properties
+    const ref = stepDef.outputSchemaRef;
+    if (
+      typeof ref !== "object" ||
+      ref === null ||
+      typeof ref.file !== "string" ||
+      typeof ref.schema !== "string"
+    ) {
+      const actualValue = JSON.stringify(ref);
+      const errorMsg = `Invalid outputSchemaRef format for step "${stepId}": ` +
+        `expected object with "file" and "schema" properties, got ${actualValue}. ` +
+        `See agents/docs/builder/05_troubleshooting.md for correct format.`;
+      logger.error(`[SchemaResolution] ${errorMsg}`);
+      throw new AgentSchemaResolutionError(errorMsg, {
+        stepId,
+        schemaRef: actualValue,
+        consecutiveFailures: 1,
+        iteration,
+      });
+    }
+
     try {
       const schema = await this.loadSchemaFromRef(
-        stepDef.outputSchemaRef,
+        ref,
         logger,
       );
       // Success - reset failure counter for this step

@@ -87,6 +87,13 @@ Examples:
 
   # Review an issue
   deno task agent --agent reviewer --issue 123
+
+Documentation:
+  Quick Start:      agents/docs/builder/01_quickstart.md
+  Definition Ref:   agents/docs/builder/02_agent_definition.md
+  Troubleshooting:  agents/docs/builder/05_troubleshooting.md
+  Design Docs:      agents/docs/design/
+  JSON Schemas:     agents/schemas/
 `);
 }
 
