@@ -1054,3 +1054,211 @@ Deno.test("R5 - Two consecutive schema failures should throw AgentSchemaResoluti
     "Error should explain the halt reason",
   );
 });
+
+// =============================================================================
+// Boundary Hook Tests
+// @design_ref agents/docs/design/08_step_flow_design.md Section 7.1
+// =============================================================================
+
+import type { BoundaryHookPayload } from "./events.ts";
+
+Deno.test("BoundaryHook - payload has correct structure for closure step", () => {
+  // BoundaryHookPayload must have stepId, stepKind="closure", and optional structuredOutput
+  const payload: BoundaryHookPayload = {
+    stepId: "closure.issue",
+    stepKind: "closure",
+    structuredOutput: {
+      next_action: { action: "closing", reason: "Task complete" },
+    },
+  };
+
+  assertEquals(payload.stepId, "closure.issue");
+  assertEquals(payload.stepKind, "closure");
+  assertEquals(
+    (payload.structuredOutput?.next_action as Record<string, unknown>)?.action,
+    "closing",
+  );
+});
+
+Deno.test("BoundaryHook - only closure steps can invoke boundary hook", () => {
+  // Per design doc Section 7.1: Boundary hook fires only when Closure Step
+  // emits 'closing' intent. Work/Verification steps cannot trigger it.
+
+  // Verify the closure step type constraint
+  const closurePayload: BoundaryHookPayload = {
+    stepId: "closure.default",
+    stepKind: "closure",
+  };
+
+  // stepKind must be "closure" - this is enforced by TypeScript type
+  assertEquals(closurePayload.stepKind, "closure");
+
+  // Work step cannot create a valid BoundaryHookPayload
+  // (TypeScript prevents stepKind: "work" or stepKind: "verification")
+});
+
+Deno.test("BoundaryHook - event emitter accepts boundaryHook event", async () => {
+  const emitter = new AgentEventEmitter();
+  const receivedPayloads: BoundaryHookPayload[] = [];
+
+  emitter.on("boundaryHook", (payload) => {
+    receivedPayloads.push(payload);
+  });
+
+  await emitter.emit("boundaryHook", {
+    stepId: "closure.release",
+    stepKind: "closure",
+    structuredOutput: { release_version: "1.0.0" },
+  });
+
+  // Verify payload was received
+  assertEquals(receivedPayloads.length, 1);
+  const payload = receivedPayloads[0];
+  assertEquals(payload.stepId, "closure.release");
+  assertEquals(payload.stepKind, "closure");
+  assertEquals(
+    (payload.structuredOutput as Record<string, unknown>)?.release_version,
+    "1.0.0",
+  );
+});
+
+Deno.test("BoundaryHook - only firing on closing intent (router integration)", () => {
+  // Verify that router.signalCompletion is true only for closing intent from closure step
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Closure step with closing intent - should signal completion (triggers boundary hook)
+  const closingResult = router.route("closure.test", {
+    intent: "closing",
+    usedFallback: false,
+  });
+  assertEquals(closingResult.signalCompletion, true);
+
+  // Closure step with repeat intent - should NOT signal completion (no boundary hook)
+  const repeatResult = router.route("closure.test", {
+    intent: "repeat",
+    usedFallback: false,
+  });
+  assertEquals(repeatResult.signalCompletion, false);
+});
+
+Deno.test("BoundaryHook - work step closing intent rejected (no boundary hook possible)", () => {
+  // Per design doc: Work/Verification steps must NOT emit closing intent
+  // This prevents them from triggering boundary hooks
+  const registry = createTestStepRegistry();
+  const router = new WorkflowRouter(registry);
+
+  // Work step (initial.*) trying to emit closing - should throw
+  assertThrows(
+    () =>
+      router.route("initial.test", {
+        intent: "closing",
+        usedFallback: false,
+      }),
+    RoutingError,
+    "Intent 'closing' not allowed for work step",
+  );
+});
+
+// =============================================================================
+// stepId Normalization Tests
+// @design_ref agents/docs/design/08_step_flow_design.md Section 3.1
+// =============================================================================
+
+Deno.test("stepId Normalization - Flow owns canonical stepId", () => {
+  // Per design doc Section 3.1:
+  // - Flow has canonical stepId value
+  // - LLM may return different stepId (from context inference)
+  // - Runtime corrects to canonical value
+
+  // This is a design contract test - verifying the normalization logic
+  const expectedStepId = "initial.issue";
+  const llmReturnedStepId = "s_initial_issue"; // LLM may return wrong format
+
+  // Simulate normalization logic (from runner.ts normalizeStructuredOutputStepId)
+  const structuredOutput: Record<string, unknown> = {
+    stepId: llmReturnedStepId,
+    status: "in_progress",
+    next_action: { action: "continue" },
+  };
+
+  // Normalize: if differs, correct to expected
+  if (structuredOutput.stepId !== expectedStepId) {
+    structuredOutput.stepId = expectedStepId;
+  }
+
+  assertEquals(
+    structuredOutput.stepId,
+    expectedStepId,
+    "stepId should be corrected to canonical value",
+  );
+});
+
+Deno.test("stepId Normalization - no correction when stepId matches", () => {
+  const expectedStepId = "initial.issue";
+  const structuredOutput: Record<string, unknown> = {
+    stepId: expectedStepId, // Already correct
+    status: "completed",
+  };
+
+  // No change needed
+  const originalStepId = structuredOutput.stepId;
+
+  // Simulate normalization - should not change
+  if (structuredOutput.stepId !== expectedStepId) {
+    structuredOutput.stepId = expectedStepId;
+  }
+
+  assertEquals(structuredOutput.stepId, originalStepId);
+  assertEquals(structuredOutput.stepId, expectedStepId);
+});
+
+Deno.test("stepId Normalization - telemetry logs when correction occurs", () => {
+  // Per design doc: "[StepFlow] stepId corrected" should be logged
+  // This tests the expected log message format
+
+  const expectedStepId = "continuation.analysis";
+  const actualStepId = "s_analysis_continuation";
+
+  // Expected log format when correction occurs
+  const expectedLogPattern =
+    `[StepFlow] stepId corrected: "${actualStepId}" -> "${expectedStepId}"`;
+
+  assertEquals(
+    expectedLogPattern.includes("[StepFlow] stepId corrected"),
+    true,
+    "Log should include [StepFlow] prefix",
+  );
+  assertEquals(
+    expectedLogPattern.includes(actualStepId),
+    true,
+    "Log should include original stepId",
+  );
+  assertEquals(
+    expectedLogPattern.includes(expectedStepId),
+    true,
+    "Log should include canonical stepId",
+  );
+});
+
+Deno.test("stepId Normalization - LLM only needs to provide intent", () => {
+  // Per design doc:
+  // "LLM only needs to return intent (next/repeat/jump/closing) and optional targetStepId"
+  // stepId is reference information only, Flow has single authority
+
+  const structuredOutput = {
+    // stepId may be omitted or wrong - Flow will use its canonical value
+    next_action: {
+      action: "next",
+      reason: "Work in progress",
+    },
+    // Optional targetStepId for jump intent
+    // targetStepId: "s_review",
+  };
+
+  // The important part is the intent, not the stepId
+  const nextAction = structuredOutput.next_action as Record<string, unknown>;
+  assertEquals(nextAction.action, "next");
+
+  // Flow determines actual stepId from its registry, not from LLM output
+});

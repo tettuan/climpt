@@ -109,8 +109,26 @@ export class WorkflowRouter {
       };
     }
 
-    // Handle repeat - stay on current step
+    // Handle repeat - stay on current step, except for closure steps
+    // Per design 08_step_flow_design.md Section 3.2: closure repeat routes to work step via transitions
     if (intent === "repeat") {
+      if (stepDef?.c2 === "closure" && stepDef.transitions?.repeat) {
+        const transitionRule = stepDef.transitions.repeat;
+        const resolved = this.resolveTransitionRule(
+          transitionRule,
+          interpretation,
+        );
+        if (
+          resolved.nextStepId && this.validateStepExists(resolved.nextStepId)
+        ) {
+          return {
+            nextStepId: resolved.nextStepId,
+            signalCompletion: false,
+            reason: interpretation.reason ??
+              `Closure repeat -> ${resolved.nextStepId}`,
+          };
+        }
+      }
       return {
         nextStepId: currentStepId,
         signalCompletion: false,

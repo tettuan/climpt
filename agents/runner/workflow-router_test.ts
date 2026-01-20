@@ -646,3 +646,44 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
     "Intent 'closing' not allowed for work step",
   );
 });
+
+Deno.test("WorkflowRouter - closure repeat routes to work step via transitions", () => {
+  // Per design 08_step_flow_design.md Section 3.2:
+  // Closure step repeat should route to work step, not self-loop
+  const registry = createRegistry({
+    "continuation.externalState": {
+      c2: "continuation",
+      stepKind: "work",
+      structuredGate: {
+        allowedIntents: ["next", "repeat", "handoff"],
+        intentField: "next_action.action",
+      },
+      transitions: {
+        handoff: { target: "closure.externalState" },
+      },
+    },
+    "closure.externalState": {
+      c2: "closure",
+      stepKind: "closure",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+      },
+      transitions: {
+        closing: { target: null },
+        repeat: { target: "continuation.externalState" }, // Routes to work step
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  // Closure step emits 'repeat' - should route to continuation (work step)
+  const result = router.route(
+    "closure.externalState",
+    createInterpretation({ intent: "repeat" }),
+  );
+
+  assertEquals(result.nextStepId, "continuation.externalState");
+  assertEquals(result.signalCompletion, false);
+  assert(result.reason.includes("Closure repeat"));
+});
