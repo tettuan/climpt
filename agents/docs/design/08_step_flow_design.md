@@ -124,6 +124,9 @@ sequenceDiagram
   `next`/`repeat`/`jump`/`escalate`、Closure: `closing`/`repeat`）を schema の
   enum で固定する。
 - プロンプトは意味付けだけに集中し、構造的制約は schema が担う。
+- `intentField` は Step 定義で必須となり、Runtime が推測することはない。
+  pointer の誤りはロード時に検知され、修正されるまで Flow
+  は動かない。
 
 ### 3.1 stepId の正規化（Runtime 権限）
 
@@ -173,13 +176,18 @@ flowchart LR
 - **What**: `structuredGate` が Intent / handoff の抽出方法を宣言する。
 - **Why**: Flow は Router の結果だけで次の Step
   を決めればよくなり、責務を細分化。
-- **必須**: すべての Flow Step に `structuredGate` (`allowedIntents`,
-  `intentField`) と `transitions` を定義しないとロードで失敗する。
-- **推奨**: `intentSchemaRef` は schema tooling/validation 用途で推奨。Runtime
-  は `intentField` + `allowedIntents` で intent を抽出・検証する。
+- **必須**: すべての Flow Step は `structuredGate` (`allowedIntents`,
+  `intentField`, `intentSchemaRef`) と `transitions` を定義する。`intentField`
+  は推論されず、欠落しているとロードに失敗する。
+- **Pointer validation**: `intentSchemaRef` は Schema 上の intent enum へ
+  のみ張ることを許容し、Runner が `allowedIntents` との一致を検証する。
+  enum に余計な値が含まれていたり pointer が壊れている場合は即時停止する。
 - **Fail-fast**: Gate が intent を解釈できなかった場合は Runner が
-  `FAILED_STEP_ROUTING` で停止する。Documentation
-  で意図的に「フォールバック無し」と明記し、実装も即座に終端させる。
+  `FAILED_STEP_ROUTING` で停止する。`failFast` は既定で `true` であり、
+  プロダクション Agent では無効化できない。検証用途で `false` にした場合は
+  ログに `[StepFlow][SpecViolation]` を残し、フォールバック Intent
+  (`fallbackIntent` または最初の `allowedIntents`) を使うが、これは例外的オプション
+  であることをドキュメントに明記する。
 
 ### Step サブループとの結びつき
 
@@ -254,6 +262,10 @@ sequenceDiagram
 
 - **What**: intent が得られなければ即座に停止し、暗黙フォールバックを禁止。
 - **Why**: ループし続けるよりも、設定ミスを露見させるほうが健全。
+- **Policy**: `failFast` の既定値は `true` であり、Flow Agent はこの状態で
+  リリースする。どうしても一時的に `false` にする場合は
+  `fallbackIntent` を明示し、Runner が `[StepFlow][SpecViolation]`
+  を記録することで逸脱を検知可能にする。
 - **Link**: Step サブループ内の `Decide{intent}` から Gate
   に渡った結果が空のとき、即座に Flow を止める。
 
@@ -343,10 +355,14 @@ meaningful work.
 | -------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
 | `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須              | schema 失敗を即時検知              |
 | `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                     | Runtime が intent 検証             |
-| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須)                    | Runtime が intent 抽出             |
-| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指す (推奨)               | schema tooling/validation 用       |
+| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)          | Runtime が deterministic に intent 抽出 |
+| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指す (必須・enum 一致検証) | schema/allowedIntents の齟齬を失敗で露見 |
 | `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定 | 完了=Closure Step という秩序を維持 |
 | `handoffFields`                  | StepContext に積むキーを配列で宣言                          | 暗黙共有を防止                     |
+
+> **Fail-fast policy**: `structuredGate.failFast` の既定値は `true`。
+> プロダクション Agent では変更禁止とし、デバッグ目的で `false` にする場合は
+> ログ/テレメトリで逸脱を残すこと。
 
 図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
 と完全に一致させる。

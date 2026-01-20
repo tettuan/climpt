@@ -399,7 +399,10 @@ failed」で即停止する。
 
 `structuredGate.intentField` は Schema に沿って JSON を強制できることを前提に
 している。Schema がない Step はロード時エラーになるよう runner 側でも検証
-する想定である。
+する想定である。また `structuredGate.intentSchemaRef` は `next_action.action`
+など intent enum を定義するノードへしか張れない。`allowedIntents` に無い
+値や enum の余剰はロード時点で検出されるため、Step を追加／改名したときは
+両方のポインタを必ず更新する。
 
 ### Completion の考え方
 
@@ -440,11 +443,14 @@ Flow 終了シーケンス:
 
 | フィールド        | 必須 | 説明                                                                                                 |
 | ----------------- | ---- | ---------------------------------------------------------------------------------------------------- |
-| `allowedIntents`  | Yes  | このステップで許可される intent 配列                                                                 |
-| `intentField`     | Yes  | AI 出力から intent を読み取るパス (e.g. `next_action.action`)                                        |
-| `intentSchemaRef` | Yes  | intent enum への JSON Pointer (e.g. `#/definitions/stepId/properties/next_action/properties/action`) |
-| `failFast`        | No   | true の場合、intent 解釈失敗で即座に停止 (推奨: true)                                                |
+| `allowedIntents`  | Yes  | このステップで許可される intent 配列 (`stepKind` ごとの上限に一致)                                  |
+| `intentField`     | Yes  | AI 出力から intent を読み取るパス (e.g. `next_action.action`) ※欠落時はロードで失敗                  |
+| `intentSchemaRef` | Yes  | intent enum への JSON Pointer。Schema enum と `allowedIntents` の差異はロードで失敗                   |
+| `failFast`        | Yes* | 既定 `true`。プロダクションでは必須。デバッグで `false` にする場合は Spec Violation ログが出る     |
 | `handoffFields`   | No   | 次ステップへ引き継ぐフィールド名配列                                                                 |
+
+`*` failFast を `false` にできるのは一時的な検証作業のみ。Flow を本番投入する際は
+`true` に戻し、fallbackIntent を設定していても Runner が停止することを前提にする。
 
 詳細: `design/08_step_flow_design.md`
 
