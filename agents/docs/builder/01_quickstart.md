@@ -232,6 +232,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
+        "intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["analysis", "plan"]
       },
@@ -254,6 +255,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
+        "intentSchemaRef": "#/definitions/continuation.default/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["progress"]
       },
@@ -277,6 +279,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "escalate"],
         "intentField": "next_action.action",
+        "intentSchemaRef": "#/definitions/verification.default/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["verification_result"]
       },
@@ -300,6 +303,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
+        "intentSchemaRef": "#/definitions/closure.default/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["final_summary"]
       },
@@ -431,6 +435,16 @@ Flow 終了シーケンス:
 | `structuredGate`   | AI 応答から intent 抽出 |
 | `transitions`      | intent → 次の Step      |
 | `handoffFields`    | 次 Step へ渡すデータ    |
+
+#### structuredGate フィールド
+
+| フィールド        | 必須 | 説明                                                                                                 |
+| ----------------- | ---- | ---------------------------------------------------------------------------------------------------- |
+| `allowedIntents`  | Yes  | このステップで許可される intent 配列                                                                 |
+| `intentField`     | Yes  | AI 出力から intent を読み取るパス (e.g. `next_action.action`)                                        |
+| `intentSchemaRef` | Yes  | intent enum への JSON Pointer (e.g. `#/definitions/stepId/properties/next_action/properties/action`) |
+| `failFast`        | No   | true の場合、intent 解釈失敗で即座に停止 (推奨: true)                                                |
+| `handoffFields`   | No   | 次ステップへ引き継ぐフィールド名配列                                                                 |
 
 詳細: `design/08_step_flow_design.md`
 

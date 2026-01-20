@@ -4,9 +4,10 @@
  * Provides the agent execution loop components.
  *
  * Components:
- * - FlowController: Step advancement and handoff management
  * - StepContextImpl: Data passing between steps
  * - FormatValidator: Response format validation
+ *
+ * Note: Flow control is handled by AgentRunner + WorkflowRouter in runner/
  */
 
 export { StepContextImpl } from "./step-context.ts";
@@ -14,9 +15,4 @@ export {
   type FormatValidationResult,
   FormatValidator,
 } from "./format-validator.ts";
-export {
-  FlowController,
-  type FlowControllerConfig,
-  type FlowIterationSnapshot,
-} from "./flow-controller.ts";
 // ResponseFormat is now exported from common/completion-types.ts

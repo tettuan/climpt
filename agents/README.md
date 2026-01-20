@@ -98,8 +98,9 @@ agents/
 +-- completion/               # Completion handlers
 |   +-- factory.ts            # Handler factory
 |   +-- handlers/             # Built-in handlers
-+-- loop/                     # Loop controllers
-|   +-- flow-controller.ts    # Flow loop (step advancement)
++-- loop/                     # Loop utilities
+|   +-- step-context.ts       # Step data passing
+|   +-- format-validator.ts   # Response format validation
 +-- prompts/                  # Prompt resolution
 |   +-- resolver.ts           # Prompt resolver
 +-- common/                   # Shared utilities

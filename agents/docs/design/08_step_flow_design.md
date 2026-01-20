@@ -95,6 +95,10 @@ flowchart LR
   の回答ぶれを抑える。
 - **Rule**: Work / Verification Step は `closing` を返さず、`escalate` intent は
   Flow が静的に定義したサポート Step のみに遷移させる。
+- **Default scaffolder**: デフォルトの scaffolder は `escalate` を
+  `continuation.default` へルーティングする（`repeat` と同等）。専用のサポート
+  Step が必要な場合は、`support.verification` 等を追加し `transitions.escalate`
+  を カスタマイズする。
 - **Loop safety**: Closure Step の `transitions` は `closing` を Flow End
   へ、`repeat` を明示的に作業 Step へ向ける。`closing → closing`
   にはならず、repeat で再検証させる場合のみ戻る。
@@ -169,8 +173,10 @@ flowchart LR
 - **What**: `structuredGate` が Intent / handoff の抽出方法を宣言する。
 - **Why**: Flow は Router の結果だけで次の Step
   を決めればよくなり、責務を細分化。
-- **必須**: すべての Flow Step に `structuredGate.intentSchemaRef` と
-  `transitions` を定義しないとロードで失敗する。
+- **必須**: すべての Flow Step に `structuredGate` (`allowedIntents`,
+  `intentField`) と `transitions` を定義しないとロードで失敗する。
+- **推奨**: `intentSchemaRef` は schema tooling/validation 用途で推奨。Runtime
+  は `intentField` + `allowedIntents` で intent を抽出・検証する。
 - **Fail-fast**: Gate が intent を解釈できなかった場合は Runner が
   `FAILED_STEP_ROUTING` で停止する。Documentation
   で意図的に「フォールバック無し」と明記し、実装も即座に終端させる。
@@ -333,12 +339,14 @@ meaningful work.
 
 ## 8. 設定の型と要件（要約）
 
-| 要素                             | What                                                                 | Why                                |
-| -------------------------------- | -------------------------------------------------------------------- | ---------------------------------- |
-| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須                       | schema 失敗を即時検知              |
-| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指し、許可 intent を schema で宣言 | Router が明示的に判断              |
-| `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定          | 完了=Closure Step という秩序を維持 |
-| `handoffFields`                  | StepContext に積むキーを配列で宣言                                   | 暗黙共有を防止                     |
+| 要素                             | What                                                        | Why                                |
+| -------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須              | schema 失敗を即時検知              |
+| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                     | Runtime が intent 検証             |
+| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須)                    | Runtime が intent 抽出             |
+| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指す (推奨)               | schema tooling/validation 用       |
+| `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定 | 完了=Closure Step という秩序を維持 |
+| `handoffFields`                  | StepContext に積むキーを配列で宣言                          | 暗黙共有を防止                     |
 
 図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
 と完全に一致させる。
