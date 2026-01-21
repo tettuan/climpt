@@ -278,6 +278,7 @@ export class StepGateInterpreter {
 
     // failFast=false: Log [StepFlow][SpecViolation] per design doc Section 6
     // This is an exceptional debug-only mode; production should use failFast=true
+    // deno-lint-ignore no-console
     console.warn(
       `[StepFlow][SpecViolation] Step "${stepId}": Using fallback intent. ` +
         `Reason: ${reason}. failFast=false is for debugging only.`,
