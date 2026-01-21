@@ -184,8 +184,17 @@ export class Logger {
         this.debug("SDK result", resultData);
         break;
       }
+      case "user": {
+        const userContent = this.extractTextContent(msg.message);
+        if (userContent.length > 0) {
+          this.debug("User prompt", {
+            content: userContent.substring(0, 500),
+          });
+        }
+        break;
+      }
       default:
-        this.debug(`SDK message: ${type}`);
+        this.debug(`SDK message: ${type}`, { raw: msg });
     }
   }
 
