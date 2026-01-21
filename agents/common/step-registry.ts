@@ -693,20 +693,41 @@ export async function validateIntentSchemaEnums(
             `does not point to an enum in schema ${ref.file}#${ref.schema}`;
         }
 
-        // Compare with allowedIntents (allowedIntents is subset of schema enum)
-        // Schema may have a shared enum with all possible intents,
-        // but each step's allowedIntents must be a subset of that enum
+        // Per 08_step_flow_design.md Section 4:
+        // Schema enum must match allowedIntents exactly (symmetric).
+        // Extra values in schema enum indicate configuration drift.
         const schemaSet = new Set(schemaEnum);
+        const allowedSet = new Set<string>(gate.allowedIntents);
 
         // Check for intents in allowedIntents but not in schema
         const missingInSchema = gate.allowedIntents.filter(
           (intent) => !schemaSet.has(intent),
         );
-        if (missingInSchema.length > 0) {
-          return `Step "${stepId}": allowedIntents [${
-            missingInSchema.join(", ")
-          }] ` +
-            `not found in schema enum [${schemaEnum.join(", ")}]`;
+
+        // Check for intents in schema but not in allowedIntents
+        const extraInSchema = schemaEnum.filter(
+          (intent) => !allowedSet.has(intent),
+        );
+
+        if (missingInSchema.length > 0 || extraInSchema.length > 0) {
+          const errors: string[] = [];
+          if (missingInSchema.length > 0) {
+            errors.push(
+              `allowedIntents [${missingInSchema.join(", ")}] not in schema`,
+            );
+          }
+          if (extraInSchema.length > 0) {
+            errors.push(
+              `schema has extra [${
+                extraInSchema.join(", ")
+              }] not in allowedIntents`,
+            );
+          }
+          return `Step "${stepId}": enum mismatch - ${errors.join("; ")}. ` +
+            `Expected exact match: allowedIntents=[${
+              gate.allowedIntents.join(", ")
+            }], ` +
+            `schema enum=[${schemaEnum.join(", ")}]`;
         }
 
         return null; // No error

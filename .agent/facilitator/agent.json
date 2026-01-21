@@ -30,27 +30,9 @@
   "parameters": {
     "issue": {
       "type": "number",
-      "description": "GitHub Issue number to work on (takes priority over project)",
+      "description": "GitHub Issue number to work on",
       "required": false,
       "cli": "--issue"
-    },
-    "project": {
-      "type": "number",
-      "description": "GitHub Project number to facilitate",
-      "required": false,
-      "cli": "--project"
-    },
-    "projectOwner": {
-      "type": "string",
-      "description": "GitHub Project owner (user login or org name)",
-      "required": false,
-      "cli": "--project-owner"
-    },
-    "label": {
-      "type": "string",
-      "description": "Filter project issues by label",
-      "required": false,
-      "cli": "--label"
     },
     "iterateMax": {
       "type": "number",

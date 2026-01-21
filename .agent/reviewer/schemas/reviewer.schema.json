@@ -45,6 +45,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "review"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": {
         "type": "integer",
         "description": "GitHub Issue number"
@@ -69,6 +78,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "review"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": {
         "type": "integer"
       },
@@ -98,6 +116,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "review"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": {
         "type": "integer",
         "description": "GitHub Project number"
@@ -122,6 +149,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "review"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "iteration": {
         "type": "object",
         "properties": {
@@ -148,6 +184,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "validation"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["closing", "repeat"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "validation": {
         "type": "object",
         "required": ["git_clean"],

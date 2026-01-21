@@ -17,7 +17,15 @@ customVariables:
 This issue uses **external state completion** - the workflow completes when:
 1. All implementation requirements are met
 2. Changes are committed (git clean)
-3. You return `handoff` intent, then `closing` intent in Closure Step
+3. You transition through: initial → continuation → closure → end
+
+## Step Flow (Sequential Enforcement)
+
+```
+initial.externalState → (next) → continuation.externalState → (handoff) → closure.externalState → (closing) → end
+```
+
+**This is an initial step.** You MUST use `next` to continue to continuation step. `handoff` is NOT available in initial steps.
 
 ## Working Instructions
 
@@ -35,16 +43,15 @@ For each task:
    - `subagent_type="Plan"` for architectural decisions
 3. Mark task as `completed` when done
 
-### Step 3: Transition to Closure
-When all work is done:
-1. Commit all changes: `git add . && git commit -m "..."`
-2. Set `next_action.action = "handoff"` to transition to Closure Step
-3. In Closure Step, verify and return `closing` intent
+### Step 3: Continue to Next Step
+When initial work is done:
+1. Set `next_action.action = "next"` to continue to continuation step
+2. In continuation step, you can use `handoff` when all work is complete
+3. Closure step handles final verification and `closing` intent
 
-**IMPORTANT**: Use exact intent values:
-- `"next"` - continue working
-- `"repeat"` - retry current step
-- `"handoff"` - hand off to closure step (when all work is done)
+**IMPORTANT**: Use exact intent values for THIS step:
+- `"next"` - continue to continuation.externalState
+- `"repeat"` - retry this initial step
 
 ## Issue Actions (Allowed in Work Steps)
 

@@ -718,22 +718,23 @@ Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains value
   };
 
   try {
+    // Per design Section 4: symmetric validation - allowedIntents must exactly match schema enum
     await assertRejects(
       () => validateIntentSchemaEnums(registry, tempDir),
       Error,
-      "not found in schema enum",
+      "enum mismatch",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
 });
 
-Deno.test("validateIntentSchemaEnums - passes when schema enum is superset of allowedIntents", async () => {
+Deno.test("validateIntentSchemaEnums - throws when schema enum is superset of allowedIntents", async () => {
   const tempDir = await Deno.makeTempDir();
   const schemaPath = `${tempDir}/step_outputs.schema.json`;
 
   // Schema has "next", "repeat", "handoff" (shared enum), but allowedIntents only has "next", "repeat"
-  // This is valid: allowedIntents is subset of schema enum
+  // Per design Section 4: This is INVALID - schema must exactly match allowedIntents (symmetric)
   const schema = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     definitions: {
@@ -781,8 +782,12 @@ Deno.test("validateIntentSchemaEnums - passes when schema enum is superset of al
   };
 
   try {
-    // Should pass: allowedIntents is a subset of schema enum
-    await validateIntentSchemaEnums(registry, tempDir);
+    // Per design Section 4: Should FAIL - schema has extra "handoff" not in allowedIntents
+    await assertRejects(
+      () => validateIntentSchemaEnums(registry, tempDir),
+      Error,
+      "schema has extra [handoff] not in allowedIntents",
+    );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -840,11 +845,11 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
   };
 
   try {
-    // Should throw because "Next" != "next" and "Repeat" != "repeat"
+    // Should throw because "Next" != "next" and "Repeat" != "repeat" (case mismatch)
     await assertRejects(
       () => validateIntentSchemaEnums(registry, tempDir),
       Error,
-      "not found in schema enum",
+      "enum mismatch",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
