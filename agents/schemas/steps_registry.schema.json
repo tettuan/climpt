@@ -229,7 +229,8 @@
         },
         "intentSchemaRef": {
           "type": "string",
-          "description": "JSON Pointer to intent enum in schema (e.g., '#/definitions/initial.default/properties/next_action/properties/action'). Required per 08_step_flow_design.md Section 4."
+          "pattern": "^#/",
+          "description": "Internal JSON Pointer to intent enum in step schema (must start with '#/'). Example: '#/properties/next_action/properties/action'. External file references are NOT allowed - use $ref in step schema to share definitions. Required per 08_step_flow_design.md Section 4."
         },
         "intentField": {
           "type": "string",

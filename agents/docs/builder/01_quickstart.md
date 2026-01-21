@@ -404,6 +404,44 @@ failed」で即停止する。
 enum の余剰はロード時点で検出されるため、Step を追加／改名したときは
 両方のポインタを必ず更新する。
 
+#### intentSchemaRef のポインタ形式
+
+**重要**: `intentSchemaRef` は内部ポインタ形式 (`#/...` で始まる)
+のみ許可される。 外部ファイル参照 (例: `common.schema.json#/$defs/...`)
+は使用できない。
+
+```json
+// ✅ 正しい形式: 内部ポインタ
+"intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action"
+
+// ❌ 禁止: 外部ファイル参照
+"intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action"
+```
+
+共通定義を複数の Step スキーマで共有したい場合は、**Step スキーマ内で `$ref`
+を使用**して共通スキーマを参照し、`intentSchemaRef`
+はローカルポインタで指定する:
+
+```json
+// step_outputs.schema.json
+{
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "properties": {
+        "next_action": { "$ref": "common.schema.json#/$defs/nextAction" }
+      }
+    }
+  }
+}
+
+// steps_registry.json (intentSchemaRef は解決後のローカルパスを指す)
+"intentSchemaRef": "#/properties/next_action/properties/action"
+```
+
+この制約により、Registry ロード時に `intentSchemaRef` が実際のスキーマ enum
+を指しているか検証でき、`allowedIntents` との不整合を早期発見できる。
+
 ### Completion の考え方
 
 - Flow が終了する条件は **Structured Output で `next_action.action` を `closing`

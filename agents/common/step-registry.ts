@@ -11,6 +11,7 @@
 
 import { join } from "@std/path";
 import type { InputSpec } from "../src_common/contracts.ts";
+import { SchemaResolver } from "./schema-resolver.ts";
 
 /**
  * Step type for categorization
@@ -197,8 +198,10 @@ export interface StructuredGate {
   /** How target step IDs are determined */
   targetMode?: "explicit" | "dynamic" | "conditional";
   /**
-   * When true, throw error instead of using fallback if intent cannot be determined.
-   * Recommended for production agents per 08_step_flow_design.md Section 4/6.
+   * When true (default), throw error instead of using fallback if intent cannot be determined.
+   * Required for production agents per 08_step_flow_design.md Section 4/6.
+   * Set to false only for debugging - logs [StepFlow][SpecViolation] when fallback is used.
+   * @default true
    */
   failFast?: boolean;
   /** Default intent if response parsing fails. Ignored when failFast is true. */
@@ -288,6 +291,18 @@ export interface RegistryLoaderOptions {
 
   /** Validate schema on load */
   validateSchema?: boolean;
+
+  /**
+   * Validate intentSchemaRef enum matches allowedIntents.
+   * Requires schemasDir to be set. Default: false.
+   */
+  validateIntentEnums?: boolean;
+
+  /**
+   * Base directory for schema files.
+   * Required when validateIntentEnums is true.
+   */
+  schemasDir?: string;
 }
 
 /**
@@ -332,8 +347,13 @@ export async function loadStepRegistry(
     // Validate entryStepMapping references (fail fast)
     validateEntryStepMapping(registry);
 
-    // Validate intentSchemaRef presence (fail fast per design doc Section 4)
+    // Validate intentSchemaRef presence and format (fail fast per design doc Section 4)
     validateIntentSchemaRef(registry);
+
+    // Optionally validate intent schema enum matches allowedIntents
+    if (options.validateIntentEnums && options.schemasDir) {
+      await validateIntentSchemaEnums(registry, options.schemasDir);
+    }
 
     // Optionally validate full schema
     if (options.validateSchema) {
@@ -520,32 +540,190 @@ export function validateEntryStepMapping(registry: StepRegistry): void {
 }
 
 /**
- * Validate intentSchemaRef presence in structuredGate.
+ * Validate intentSchemaRef format and presence in structuredGate.
  *
  * This is called by loadStepRegistry to fail fast when:
  * - A step has structuredGate but missing intentSchemaRef
+ * - intentSchemaRef doesn't start with `#/` (internal pointer required)
+ * - intentField is missing (required per design doc Section 4)
  *
  * Per 08_step_flow_design.md Section 4:
  * > Required: All Flow Steps must define structuredGate.intentSchemaRef
  * > and transitions, otherwise loading will fail.
  *
+ * The intentSchemaRef must be an internal JSON Pointer (starts with `#/`).
+ * External file references (e.g., "common.schema.json#/...") are NOT allowed.
+ * To share definitions, use `$ref` in the step schema file.
+ *
  * @param registry - Registry to validate
- * @throws Error if any step with structuredGate is missing intentSchemaRef
+ * @throws Error if any step with structuredGate has invalid intentSchemaRef
  */
 export function validateIntentSchemaRef(registry: StepRegistry): void {
   const errors: string[] = [];
 
   for (const [stepId, step] of Object.entries(registry.steps)) {
-    if (step.structuredGate && !step.structuredGate.intentSchemaRef) {
-      errors.push(
-        `Step "${stepId}" has structuredGate but missing required intentSchemaRef`,
-      );
+    if (step.structuredGate) {
+      // Check intentSchemaRef presence
+      if (!step.structuredGate.intentSchemaRef) {
+        errors.push(
+          `Step "${stepId}" has structuredGate but missing required intentSchemaRef`,
+        );
+        continue;
+      }
+
+      // Check intentSchemaRef format (must be internal pointer starting with #/)
+      const ref = step.structuredGate.intentSchemaRef;
+      if (!ref.startsWith("#/")) {
+        errors.push(
+          `Step "${stepId}": intentSchemaRef must be internal pointer starting with "#/" ` +
+            `(got "${ref}"). Use $ref in step schema to reference common definitions.`,
+        );
+      }
+
+      // Check intentField presence (required per design doc Section 4)
+      if (!step.structuredGate.intentField) {
+        errors.push(
+          `Step "${stepId}" has structuredGate but missing required intentField`,
+        );
+      }
     }
   }
 
   if (errors.length > 0) {
     throw new Error(
-      `Step registry validation failed (missing intentSchemaRef):\n- ${
+      `Step registry validation failed (intentSchemaRef):\n- ${
+        errors.join("\n- ")
+      }`,
+    );
+  }
+}
+
+/**
+ * Extract enum values from a JSON pointer path in a resolved schema.
+ *
+ * @param schema - Resolved schema object
+ * @param pointer - JSON Pointer (e.g., "#/properties/next_action/properties/action")
+ * @returns Array of enum values or undefined if not found
+ */
+function extractEnumFromPointer(
+  schema: Record<string, unknown>,
+  pointer: string,
+): string[] | undefined {
+  // Remove leading #/ and split by /
+  const path = pointer.startsWith("#/") ? pointer.slice(2) : pointer;
+  const parts = path.split("/");
+
+  let current: unknown = schema;
+  for (const part of parts) {
+    if (current === null || typeof current !== "object") {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+
+  // Check if we found an enum
+  if (current && typeof current === "object" && "enum" in current) {
+    const enumValue = (current as { enum: unknown }).enum;
+    if (Array.isArray(enumValue)) {
+      return enumValue.filter((v): v is string => typeof v === "string");
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Validate that intentSchemaRef enum matches allowedIntents.
+ *
+ * This async validation loads each step's schema via SchemaResolver,
+ * extracts the enum from intentSchemaRef, and compares with allowedIntents.
+ *
+ * Per 08_step_flow_design.md Section 4:
+ * The enum in the schema must match allowedIntents exactly.
+ *
+ * @param registry - Registry to validate
+ * @param schemasDir - Base directory for schema files
+ * @throws Error if enum/allowedIntents mismatch is found
+ */
+export async function validateIntentSchemaEnums(
+  registry: StepRegistry,
+  schemasDir: string,
+): Promise<void> {
+  const resolver = new SchemaResolver(schemasDir);
+
+  // Collect steps that need validation
+  const stepsToValidate: Array<{
+    stepId: string;
+    gate: StructuredGate;
+    ref: { file: string; schema: string };
+  }> = [];
+
+  for (const [stepId, step] of Object.entries(registry.steps)) {
+    // Skip steps without structured gate or output schema
+    if (!step.structuredGate || !step.outputSchemaRef) {
+      continue;
+    }
+
+    const gate = step.structuredGate;
+    const ref = step.outputSchemaRef;
+
+    // Skip if intentSchemaRef is invalid format (caught by sync validation)
+    if (!gate.intentSchemaRef || !gate.intentSchemaRef.startsWith("#/")) {
+      continue;
+    }
+
+    stepsToValidate.push({ stepId, gate, ref });
+  }
+
+  // Validate all steps in parallel
+  const validationResults = await Promise.all(
+    stepsToValidate.map(async ({ stepId, gate, ref }) => {
+      try {
+        // Resolve the step's schema
+        const resolvedSchema = await resolver.resolve(ref.file, ref.schema);
+
+        // Extract enum from intentSchemaRef pointer
+        const schemaEnum = extractEnumFromPointer(
+          resolvedSchema,
+          gate.intentSchemaRef,
+        );
+
+        if (!schemaEnum) {
+          return `Step "${stepId}": intentSchemaRef "${gate.intentSchemaRef}" ` +
+            `does not point to an enum in schema ${ref.file}#${ref.schema}`;
+        }
+
+        // Compare with allowedIntents
+        const schemaSet = new Set(schemaEnum);
+
+        // Check for intents in allowedIntents but not in schema
+        const missingInSchema = gate.allowedIntents.filter(
+          (intent) => !schemaSet.has(intent),
+        );
+        if (missingInSchema.length > 0) {
+          return `Step "${stepId}": allowedIntents [${
+            missingInSchema.join(", ")
+          }] ` +
+            `not found in schema enum [${schemaEnum.join(", ")}]`;
+        }
+
+        return null; // No error
+      } catch (error) {
+        // Schema resolution errors are non-fatal for this validation
+        // The actual schema loading will catch these later
+        return `Step "${stepId}": Failed to load schema for enum validation: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      }
+    }),
+  );
+
+  // Collect errors
+  const errors = validationResults.filter((e): e is string => e !== null);
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Step registry validation failed (intent schema enum mismatch):\n- ${
         errors.join("\n- ")
       }`,
     );

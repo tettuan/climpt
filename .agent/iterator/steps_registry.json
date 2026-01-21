@@ -197,7 +197,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "targetField": "next_action.details.target",
         "fallbackIntent": "next",
@@ -225,7 +225,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["progress.completed_files", "progress.pending_tasks"]
@@ -254,7 +254,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
@@ -292,7 +292,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -321,7 +321,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
@@ -349,7 +349,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
@@ -376,7 +376,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -404,7 +404,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -432,7 +432,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
@@ -459,7 +459,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -488,7 +488,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "handoff",
         "handoffFields": ["summary"]
@@ -515,7 +515,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -543,7 +543,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["summary"]
@@ -571,7 +571,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
@@ -598,7 +598,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations"]
@@ -625,7 +625,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["work.work_done", "iteration.completed_iterations", "cumulative_progress"]
@@ -654,7 +654,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
@@ -682,7 +682,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["iteration.work_done", "progress"]
@@ -711,7 +711,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
@@ -739,7 +739,7 @@
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
-        "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []

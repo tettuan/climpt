@@ -43,12 +43,7 @@ import type {
   PromptStepDefinition,
   StepKind,
 } from "../common/step-registry.ts";
-import {
-  inferStepKind,
-  validateEntryStepMapping,
-  validateIntentSchemaRef,
-  validateStepKindIntents,
-} from "../common/step-registry.ts";
+import { inferStepKind, loadStepRegistry } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   isBashCommandAllowed,
@@ -711,16 +706,22 @@ export class AgentRunner {
     const registryPath = join(agentDir, "steps_registry.json");
 
     try {
-      const content = await Deno.readTextFile(registryPath);
-      const registry = JSON.parse(content) as StepRegistry;
+      // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
+      // This validates: stepKind/allowedIntents consistency, entryStepMapping, intentSchemaRef format
+      const schemasBase = `.agent/${this.definition.name}/schemas`;
+      const schemasDir = join(cwd, schemasBase);
 
-      // Validate registry structure (fail-fast per design/08_step_flow_design.md)
-      // These validations surface pointer/enum mismatches at load time
-      validateStepKindIntents(registry);
-      validateEntryStepMapping(registry);
-      validateIntentSchemaRef(registry);
+      const registry = await loadStepRegistry(
+        this.definition.name,
+        "", // Not used when registryPath is provided
+        {
+          registryPath,
+          validateIntentEnums: true,
+          schemasDir,
+        },
+      );
       logger.debug(
-        "Registry validation passed (stepKind, entryStep, intentSchemaRef)",
+        "Registry validation passed (stepKind, entryStep, intentSchemaRef, enum)",
       );
 
       // Check for extended registry capabilities

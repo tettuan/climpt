@@ -504,3 +504,100 @@ Deno.test("StepDefinition - supports type field", () => {
 
   assertEquals(step.type, "prompt");
 });
+
+// =============================================================================
+// intentSchemaRef Format Validation Tests
+// =============================================================================
+
+Deno.test("validateIntentSchemaRef - throws on external file reference", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "closing"],
+          intentField: "next_action.action",
+          // External file reference - should be rejected
+          intentSchemaRef:
+            "common.schema.json#/$defs/nextAction/properties/action",
+        },
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateIntentSchemaRef(registry),
+    Error,
+    'must be internal pointer starting with "#/"',
+  );
+});
+
+Deno.test("validateIntentSchemaRef - throws on missing intentField", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        // Type assertion to test runtime validation of bad data
+        structuredGate: {
+          allowedIntents: ["next"],
+          // intentField is missing
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        } as StructuredGate,
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateIntentSchemaRef(registry),
+    Error,
+    "missing required intentField",
+  );
+});
+
+Deno.test("validateIntentSchemaRef - passes with valid internal pointer", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        structuredGate: {
+          allowedIntents: ["next", "repeat"],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      },
+    },
+  };
+
+  // Should not throw
+  validateIntentSchemaRef(registry);
+});

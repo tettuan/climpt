@@ -62,6 +62,21 @@ deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
 3. 必要に応じて `steps_registry.json` に Step を追加
 4. `deno run -A agents/scripts/run-agent.ts --agent {name} --dry-run` で検証
 
+### 5. intentSchemaRef の形式
+
+**重要**: `structuredGate.intentSchemaRef` は Step スキーマ内の内部ポインタ (`#/...`)
+を使用すること。外部ファイル参照 (`common.schema.json#/...`) は禁止。
+
+```json
+// ✅ 正しい形式
+"intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action"
+
+// ❌ 禁止
+"intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action"
+```
+
+共通定義を使う場合は、Step スキーマ内で `$ref` で参照する。
+
 ## 詳細ドキュメント
 
 - `agents/docs/builder/01_quickstart.md` - クイックスタート
