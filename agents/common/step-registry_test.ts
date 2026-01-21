@@ -728,11 +728,12 @@ Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains value
   }
 });
 
-Deno.test("validateIntentSchemaEnums - throws when schema enum contains extra values (symmetric)", async () => {
+Deno.test("validateIntentSchemaEnums - passes when schema enum is superset of allowedIntents", async () => {
   const tempDir = await Deno.makeTempDir();
   const schemaPath = `${tempDir}/step_outputs.schema.json`;
 
-  // Schema has "next", "repeat", "handoff", but allowedIntents only has "next", "repeat"
+  // Schema has "next", "repeat", "handoff" (shared enum), but allowedIntents only has "next", "repeat"
+  // This is valid: allowedIntents is subset of schema enum
   const schema = {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     definitions: {
@@ -780,11 +781,8 @@ Deno.test("validateIntentSchemaEnums - throws when schema enum contains extra va
   };
 
   try {
-    await assertRejects(
-      () => validateIntentSchemaEnums(registry, tempDir),
-      Error,
-      "schema enum contains",
-    );
+    // Should pass: allowedIntents is a subset of schema enum
+    await validateIntentSchemaEnums(registry, tempDir);
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
