@@ -15,6 +15,7 @@ import {
   serializeRegistry,
   type StepRegistry,
   type StructuredGate,
+  validateIntentSchemaEnums,
   validateIntentSchemaRef,
   validateStepRegistry,
 } from "./step-registry.ts";
@@ -600,4 +601,254 @@ Deno.test("validateIntentSchemaRef - passes with valid internal pointer", () => 
 
   // Should not throw
   validateIntentSchemaRef(registry);
+});
+
+// =============================================================================
+// validateIntentSchemaEnums Tests (Symmetric Validation)
+// =============================================================================
+
+Deno.test("validateIntentSchemaEnums - passes when enum matches allowedIntents exactly", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const schemaPath = `${tempDir}/step_outputs.schema.json`;
+
+  // Create schema with enum matching allowedIntents
+  const schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    definitions: {
+      "test.step": {
+        type: "object",
+        properties: {
+          next_action: {
+            type: "object",
+            properties: {
+              action: { enum: ["next", "repeat"] },
+            },
+          },
+        },
+      },
+    },
+  };
+  await Deno.writeTextFile(schemaPath, JSON.stringify(schema));
+
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "test.step",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        outputSchemaRef: {
+          file: "step_outputs.schema.json",
+          schema: "#/definitions/test.step",
+        },
+        structuredGate: {
+          allowedIntents: ["next", "repeat"],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      },
+    },
+  };
+
+  try {
+    // Should not throw
+    await validateIntentSchemaEnums(registry, tempDir);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains values not in schema", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const schemaPath = `${tempDir}/step_outputs.schema.json`;
+
+  // Schema has only "next", but allowedIntents has "next" and "repeat"
+  const schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    definitions: {
+      "test.step": {
+        type: "object",
+        properties: {
+          next_action: {
+            type: "object",
+            properties: {
+              action: { enum: ["next"] },
+            },
+          },
+        },
+      },
+    },
+  };
+  await Deno.writeTextFile(schemaPath, JSON.stringify(schema));
+
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "test.step",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        outputSchemaRef: {
+          file: "step_outputs.schema.json",
+          schema: "#/definitions/test.step",
+        },
+        structuredGate: {
+          allowedIntents: ["next", "repeat"],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      },
+    },
+  };
+
+  try {
+    await assertRejects(
+      () => validateIntentSchemaEnums(registry, tempDir),
+      Error,
+      "not found in schema enum",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("validateIntentSchemaEnums - throws when schema enum contains extra values (symmetric)", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const schemaPath = `${tempDir}/step_outputs.schema.json`;
+
+  // Schema has "next", "repeat", "handoff", but allowedIntents only has "next", "repeat"
+  const schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    definitions: {
+      "test.step": {
+        type: "object",
+        properties: {
+          next_action: {
+            type: "object",
+            properties: {
+              action: { enum: ["next", "repeat", "handoff"] },
+            },
+          },
+        },
+      },
+    },
+  };
+  await Deno.writeTextFile(schemaPath, JSON.stringify(schema));
+
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "test.step",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        outputSchemaRef: {
+          file: "step_outputs.schema.json",
+          schema: "#/definitions/test.step",
+        },
+        structuredGate: {
+          allowedIntents: ["next", "repeat"],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      },
+    },
+  };
+
+  try {
+    await assertRejects(
+      () => validateIntentSchemaEnums(registry, tempDir),
+      Error,
+      "schema enum contains",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const schemaPath = `${tempDir}/step_outputs.schema.json`;
+
+  // Schema has "Next", "Repeat" (capitalized), but allowedIntents has "next", "repeat"
+  const schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    definitions: {
+      "test.step": {
+        type: "object",
+        properties: {
+          next_action: {
+            type: "object",
+            properties: {
+              action: { enum: ["Next", "Repeat"] },
+            },
+          },
+        },
+      },
+    },
+  };
+  await Deno.writeTextFile(schemaPath, JSON.stringify(schema));
+
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "test.step",
+    steps: {
+      "test.step": {
+        stepId: "test.step",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: [],
+        usesStdin: false,
+        outputSchemaRef: {
+          file: "step_outputs.schema.json",
+          schema: "#/definitions/test.step",
+        },
+        structuredGate: {
+          allowedIntents: ["next", "repeat"],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      },
+    },
+  };
+
+  try {
+    // Should throw because "Next" != "next" and "Repeat" != "repeat"
+    await assertRejects(
+      () => validateIntentSchemaEnums(registry, tempDir),
+      Error,
+      "not found in schema enum",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
 });

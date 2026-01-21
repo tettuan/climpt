@@ -350,14 +350,14 @@ meaningful work.
 
 ## 8. 設定の型と要件（要約）
 
-| 要素                             | What                                                         | Why                                      |
-| -------------------------------- | ------------------------------------------------------------ | ---------------------------------------- |
-| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須               | schema 失敗を即時検知                    |
-| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                      | Runtime が intent 検証                   |
-| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)           | Runtime が deterministic に intent 抽出  |
-| `structuredGate.intentSchemaRef` | `#/definitions/<stepId>/intent` を指す (必須・enum 一致検証) | schema/allowedIntents の齟齬を失敗で露見 |
-| `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定  | 完了=Closure Step という秩序を維持       |
-| `handoffFields`                  | StepContext に積むキーを配列で宣言                           | 暗黙共有を防止                           |
+| 要素                             | What                                                                   | Why                                              |
+| -------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
+| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須                         | schema 失敗を即時検知                            |
+| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                                | Runtime が intent 検証                           |
+| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)                     | Runtime が deterministic に intent 抽出          |
+| `structuredGate.intentSchemaRef` | `#/properties/next_action/properties/action` 形式の内部ポインタ (必須) | schema enum と allowedIntents の齟齬を失敗で露見 |
+| `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定            | 完了=Closure Step という秩序を維持               |
+| `handoffFields`                  | StepContext に積むキーを配列で宣言                                     | 暗黙共有を防止                                   |
 
 > **Fail-fast policy**: `structuredGate.failFast` の既定値は `true`。
 > プロダクション Agent では変更禁止とし、デバッグ目的で `false` にする場合は

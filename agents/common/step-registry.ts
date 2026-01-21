@@ -693,8 +693,9 @@ export async function validateIntentSchemaEnums(
             `does not point to an enum in schema ${ref.file}#${ref.schema}`;
         }
 
-        // Compare with allowedIntents
+        // Compare with allowedIntents (symmetric: must match exactly)
         const schemaSet = new Set(schemaEnum);
+        const allowedSet = new Set(gate.allowedIntents);
 
         // Check for intents in allowedIntents but not in schema
         const missingInSchema = gate.allowedIntents.filter(
@@ -705,6 +706,17 @@ export async function validateIntentSchemaEnums(
             missingInSchema.join(", ")
           }] ` +
             `not found in schema enum [${schemaEnum.join(", ")}]`;
+        }
+
+        // Check for values in schema enum but not in allowedIntents (symmetric validation)
+        const extraInSchema = schemaEnum.filter(
+          (value) => !allowedSet.has(value as GateIntent),
+        );
+        if (extraInSchema.length > 0) {
+          return `Step "${stepId}": schema enum contains [${
+            extraInSchema.join(", ")
+          }] ` +
+            `not listed in allowedIntents [${gate.allowedIntents.join(", ")}]`;
         }
 
         return null; // No error

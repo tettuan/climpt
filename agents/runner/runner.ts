@@ -708,20 +708,33 @@ export class AgentRunner {
     try {
       // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
       // This validates: stepKind/allowedIntents consistency, entryStepMapping, intentSchemaRef format
-      const schemasBase = `.agent/${this.definition.name}/schemas`;
-      const schemasDir = join(cwd, schemasBase);
-
+      //
+      // First load registry WITHOUT intent enum validation to get schemasBase
+      // Then validate enums with the correct schemasDir (honoring registry.schemasBase)
       const registry = await loadStepRegistry(
         this.definition.name,
         "", // Not used when registryPath is provided
         {
           registryPath,
-          validateIntentEnums: true,
-          schemasDir,
+          validateIntentEnums: false, // Defer enum validation
         },
       );
       logger.debug(
-        "Registry validation passed (stepKind, entryStep, intentSchemaRef, enum)",
+        "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
+      );
+
+      // Honor registry.schemasBase override per builder/01_quickstart.md
+      const schemasBase = registry.schemasBase ??
+        `.agent/${this.definition.name}/schemas`;
+      const schemasDir = join(cwd, schemasBase);
+
+      // Now validate intent schema enums with the correct schemasDir
+      const { validateIntentSchemaEnums } = await import(
+        "../common/step-registry.ts"
+      );
+      await validateIntentSchemaEnums(registry, schemasDir);
+      logger.debug(
+        "Intent schema enum validation passed",
       );
 
       // Check for extended registry capabilities
