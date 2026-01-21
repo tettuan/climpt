@@ -535,7 +535,10 @@ Deno.test("Completion Validation - FormatValidator validates text pattern", () =
 // Structured Gate Flow Integration Tests
 // =============================================================================
 
-import { StepGateInterpreter } from "./step-gate-interpreter.ts";
+import {
+  GateInterpretationError,
+  StepGateInterpreter,
+} from "./step-gate-interpreter.ts";
 import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type {
   PromptStepDefinition,
@@ -563,6 +566,8 @@ function createTestStepRegistry(): StepRegistry {
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
+          intentSchemaRef:
+            "#/definitions/initial.test/properties/next_action/properties/action",
           targetField: "next_action.details.target",
           fallbackIntent: "next",
           handoffFields: ["result.data"],
@@ -584,6 +589,8 @@ function createTestStepRegistry(): StepRegistry {
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
+          intentSchemaRef:
+            "#/definitions/continuation.test/properties/next_action/properties/action",
           fallbackIntent: "next",
         },
         transitions: {
@@ -603,6 +610,8 @@ function createTestStepRegistry(): StepRegistry {
         structuredGate: {
           allowedIntents: ["closing", "repeat"],
           intentField: "next_action.action",
+          intentSchemaRef:
+            "#/definitions/closure.test/properties/next_action/properties/action",
           fallbackIntent: "repeat",
         },
         transitions: {
@@ -659,7 +668,9 @@ Deno.test("Structured Gate Flow - interpreter extracts intent 'closing' from str
   assertEquals(interpretation.usedFallback, false);
 });
 
-Deno.test("Structured Gate Flow - interpreter uses fallback intent when action is missing", () => {
+Deno.test("Structured Gate Flow - interpreter throws when action is missing (failFast default)", () => {
+  // Per design/08_step_flow_design.md Section 4/6, failFast defaults to true
+  // Missing intent field should throw GateInterpretationError
   const interpreter = new StepGateInterpreter();
   const registry = createTestStepRegistry();
   const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
@@ -669,10 +680,11 @@ Deno.test("Structured Gate Flow - interpreter uses fallback intent when action i
     // no next_action field
   };
 
-  const interpretation = interpreter.interpret(structuredOutput, stepDef);
-
-  assertEquals(interpretation.intent, "next"); // fallbackIntent
-  assertEquals(interpretation.usedFallback, true);
+  assertThrows(
+    () => interpreter.interpret(structuredOutput, stepDef),
+    GateInterpretationError,
+    "failFast",
+  );
 });
 
 Deno.test("Structured Gate Flow - router routes 'next' intent to continuation step", () => {
@@ -754,6 +766,9 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
         usesStdin: false,
         structuredGate: {
           allowedIntents: ["next"],
+          intentField: "next_action.action",
+          intentSchemaRef:
+            "#/definitions/initial.foo/properties/next_action/properties/action",
         },
         // No explicit transitions - should use default (initial -> continuation)
       },

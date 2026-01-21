@@ -43,7 +43,12 @@ import type {
   PromptStepDefinition,
   StepKind,
 } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import {
+  inferStepKind,
+  validateEntryStepMapping,
+  validateIntentSchemaRef,
+  validateStepKindIntents,
+} from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   isBashCommandAllowed,
@@ -707,11 +712,33 @@ export class AgentRunner {
 
     try {
       const content = await Deno.readTextFile(registryPath);
-      const registry = JSON.parse(content);
+      const registry = JSON.parse(content) as StepRegistry;
+
+      // Validate registry structure (fail-fast per design/08_step_flow_design.md)
+      // These validations surface pointer/enum mismatches at load time
+      validateStepKindIntents(registry);
+      validateEntryStepMapping(registry);
+      validateIntentSchemaRef(registry);
+      logger.debug(
+        "Registry validation passed (stepKind, entryStep, intentSchemaRef)",
+      );
 
       // Check for extended registry capabilities
       const hasCompletionChain = hasCompletionChainSupport(registry);
       const hasFlowRouting = hasFlowRoutingSupport(registry);
+
+      // Fail-fast: stepMachine completion requires structuredGate on at least one step
+      // Per design/08_step_flow_design.md and builder/01_quickstart.md
+      if (
+        this.definition.behavior.completionType === "stepMachine" &&
+        !hasFlowRouting
+      ) {
+        throw new Error(
+          `[StepFlow][ConfigError] Agent "${this.definition.name}" uses completionType "stepMachine" ` +
+            `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
+            `or change completionType. See design/08_step_flow_design.md.`,
+        );
+      }
 
       if (!hasCompletionChain && !hasFlowRouting) {
         logger.debug(

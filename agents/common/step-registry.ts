@@ -182,11 +182,14 @@ export interface StructuredGate {
   /**
    * JSON Pointer to intent enum in schema.
    * Example: '#/definitions/initial.default/properties/next_action/properties/action'
-   * When specified with failFast:true, intent validation is strict.
+   * Required per 08_step_flow_design.md Section 4.
    */
-  intentSchemaRef?: string;
-  /** JSON path to extract intent from structured output (e.g., 'next_action.action') */
-  intentField?: string;
+  intentSchemaRef: string;
+  /**
+   * JSON path to extract intent from structured output (e.g., 'next_action.action').
+   * Required - Runtime does not infer this field.
+   */
+  intentField: string;
   /** JSON path to extract target step ID for jump intent (e.g., 'next_action.details.target') */
   targetField?: string;
   /** JSON paths to extract for handoff data (e.g., ['analysis.understanding', 'issue']) */

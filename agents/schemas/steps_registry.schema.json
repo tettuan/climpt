@@ -209,7 +209,7 @@
     },
     "StructuredGate": {
       "type": "object",
-      "required": ["allowedIntents", "intentSchemaRef"],
+      "required": ["allowedIntents", "intentSchemaRef", "intentField"],
       "properties": {
         "allowedIntents": {
           "type": "array",
@@ -252,8 +252,8 @@
         },
         "failFast": {
           "type": "boolean",
-          "default": false,
-          "description": "When true, throw error instead of using fallback if intent cannot be determined. Recommended for production agents."
+          "default": true,
+          "description": "When true (default), throw error instead of using fallback if intent cannot be determined. Required for production agents per design/08_step_flow_design.md Section 4/6. Set to false only for debugging."
         },
         "fallbackIntent": {
           "type": "string",

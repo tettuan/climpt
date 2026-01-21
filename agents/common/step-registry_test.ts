@@ -14,6 +14,7 @@ import {
   saveStepRegistry,
   serializeRegistry,
   type StepRegistry,
+  type StructuredGate,
   validateIntentSchemaRef,
   validateStepRegistry,
 } from "./step-registry.ts";
@@ -362,11 +363,12 @@ Deno.test("validateIntentSchemaRef - throws when structuredGate missing intentSc
         fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
+        // Type assertion to test runtime validation of bad data
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "status",
-          // intentSchemaRef is missing
-        },
+          // intentSchemaRef is missing - testing validation
+        } as StructuredGate,
       },
     },
   };
@@ -445,10 +447,11 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
         fallbackKey: "one",
         uvVariables: [],
         usesStdin: false,
+        // Type assertion to test runtime validation of bad data
         structuredGate: {
           allowedIntents: ["next"],
           intentField: "action",
-        },
+        } as StructuredGate,
       },
       "step.two": {
         stepId: "step.two",
@@ -459,10 +462,11 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
         fallbackKey: "two",
         uvVariables: [],
         usesStdin: false,
+        // Type assertion to test runtime validation of bad data
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "status",
-        },
+        } as StructuredGate,
       },
     },
   };

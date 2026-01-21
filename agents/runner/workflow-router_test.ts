@@ -331,6 +331,7 @@ Deno.test("WorkflowRouter - closure step can emit closing intent", () => {
       structuredGate: {
         allowedIntents: ["closing", "repeat"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
       transitions: {
         closing: { target: null },
@@ -384,6 +385,7 @@ Deno.test("WorkflowRouter - verification step cannot emit closing intent", () =>
       structuredGate: {
         allowedIntents: ["next", "repeat", "escalate"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
     },
   });
@@ -407,6 +409,7 @@ Deno.test("WorkflowRouter - verification step can emit escalate intent", () => {
       structuredGate: {
         allowedIntents: ["next", "repeat", "jump", "escalate"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
       transitions: {
         escalate: { target: "continuation.support" },
@@ -551,6 +554,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
         fallbackIntent: "next",
       },
       transitions: {
@@ -565,6 +569,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
         fallbackIntent: "next",
       },
       transitions: {
@@ -579,6 +584,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
       structuredGate: {
         allowedIntents: ["closing", "repeat"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
         fallbackIntent: "closing",
       },
       transitions: {
@@ -623,6 +629,7 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
       transitions: {
         handoff: { target: "closure.externalState" },
@@ -657,6 +664,7 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
       transitions: {
         handoff: { target: "closure.externalState" },
@@ -668,6 +676,7 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
       structuredGate: {
         allowedIntents: ["closing", "repeat"],
         intentField: "next_action.action",
+        intentSchemaRef: "#/test",
       },
       transitions: {
         closing: { target: null },

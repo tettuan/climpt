@@ -179,20 +179,25 @@ export class StepGateInterpreter {
 
   /**
    * Extract and validate intent from structured output.
+   *
+   * NOTE: intentField is now required in StructuredGate (per design/08_step_flow_design.md).
+   * Runtime does not infer the field path - missing intentField is a config error
+   * that should be caught at load time by validateIntentSchemaRef.
    */
   private extractIntent(
     output: Record<string, unknown>,
     gate: StructuredGate,
     stepDef: PromptStepDefinition,
   ): { intent: GateIntent; usedFallback: boolean; reason?: string } {
-    // If no intentField configured, try common patterns
-    const intentField = gate.intentField ?? this.inferIntentField(output);
+    // intentField is required - no inference fallback
+    const intentField = gate.intentField;
 
+    // Defensive check for runtime data that bypasses type system
     if (!intentField) {
       return this.useFallback(
         gate,
         stepDef.stepId,
-        "No intentField configured",
+        "intentField is required but missing - config error",
       );
     }
 
@@ -259,16 +264,24 @@ export class StepGateInterpreter {
     stepId: string,
     reason: string,
   ): { intent: GateIntent; usedFallback: boolean; reason: string } {
-    // Fail-fast mode: throw immediately without fallback
+    // Fail-fast mode (default per design doc): throw immediately without fallback
     // Per design doc Section 4/6: "When Gate cannot interpret intent,
     // Runner stops with FAILED_STEP_ROUTING"
-    if (gate.failFast) {
+    // Note: failFast defaults to true in schema as of design/08 update
+    if (gate.failFast !== false) {
       throw new GateInterpretationError(
         `[failFast] Cannot determine intent: ${reason}. ` +
-          `Step "${stepId}" has failFast:true, no fallback allowed.`,
+          `Step "${stepId}" has failFast enabled (default), no fallback allowed.`,
         stepId,
       );
     }
+
+    // failFast=false: Log [StepFlow][SpecViolation] per design doc Section 6
+    // This is an exceptional debug-only mode; production should use failFast=true
+    console.warn(
+      `[StepFlow][SpecViolation] Step "${stepId}": Using fallback intent. ` +
+        `Reason: ${reason}. failFast=false is for debugging only.`,
+    );
 
     if (
       gate.fallbackIntent && gate.allowedIntents.includes(gate.fallbackIntent)
@@ -304,28 +317,8 @@ export class StepGateInterpreter {
     );
   }
 
-  /**
-   * Try to infer intent field from common patterns in output.
-   */
-  private inferIntentField(output: Record<string, unknown>): string | null {
-    // Check common patterns in order of preference
-    const patterns = [
-      "next_action.action",
-      "intent",
-      "action",
-      "status",
-      "next_action.type",
-    ];
-
-    for (const pattern of patterns) {
-      const value = getValueAtPath(output, pattern);
-      if (value !== undefined && value !== null) {
-        return pattern;
-      }
-    }
-
-    return null;
-  }
+  // NOTE: inferIntentField was removed - intentField is now required in StructuredGate
+  // per design/08_step_flow_design.md Section 4. Runtime does not infer field paths.
 
   /**
    * Extract handoff data from structured output.
