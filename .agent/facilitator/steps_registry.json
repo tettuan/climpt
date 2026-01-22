@@ -10,6 +10,7 @@
   "entryStepMapping": {
     "issue": "initial.statuscheck",
     "externalState": "initial.statuscheck",
+    "structuredSignal": "initial.statuscheck",
     "iterate": "initial.discover",
     "composite": "initial.discover"
   },
