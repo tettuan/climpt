@@ -67,6 +67,7 @@ Deno.test("StepGateInterpreter - extracts intent from simple path", () => {
     structuredGate: {
       allowedIntents: ["next", "closing"],
       intentField: "status",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -82,6 +83,7 @@ Deno.test("StepGateInterpreter - extracts intent from nested path", () => {
     structuredGate: {
       allowedIntents: ["next", "repeat", "closing"],
       intentField: "next_action.action",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -104,6 +106,7 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
     structuredGate: {
       allowedIntents: ["next", "repeat", "closing", "abort"],
       intentField: "action",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -130,6 +133,7 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
     structuredGate: {
       allowedIntents: ["next", "repeat", "escalate"],
       intentField: "action",
+      intentSchemaRef: "#/test",
     },
   });
   assertEquals(
@@ -138,12 +142,14 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
   );
 });
 
-Deno.test("StepGateInterpreter - validates against allowedIntents", () => {
+Deno.test("StepGateInterpreter - validates against allowedIntents (with failFast=false)", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
       allowedIntents: ["next", "repeat"], // "closing" not allowed
       intentField: "action",
+      intentSchemaRef: "#/test",
+      failFast: false, // Explicitly disable for fallback test
       fallbackIntent: "next",
     },
   });
@@ -155,12 +161,14 @@ Deno.test("StepGateInterpreter - validates against allowedIntents", () => {
   assertEquals(result.reason, "Intent 'closing' not in allowedIntents");
 });
 
-Deno.test("StepGateInterpreter - uses fallbackIntent when extraction fails", () => {
+Deno.test("StepGateInterpreter - uses fallbackIntent when extraction fails (with failFast=false)", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({
     structuredGate: {
       allowedIntents: ["next", "repeat", "closing"],
       intentField: "missing.path",
+      intentSchemaRef: "#/test",
+      failFast: false, // Explicitly disable for fallback test
       fallbackIntent: "repeat",
     },
   });
@@ -177,6 +185,7 @@ Deno.test("StepGateInterpreter - extracts target for jump intent", () => {
     structuredGate: {
       allowedIntents: ["next", "jump", "closing"],
       intentField: "action",
+      intentSchemaRef: "#/test",
       targetField: "details.target",
     },
   });
@@ -199,6 +208,7 @@ Deno.test("StepGateInterpreter - extracts handoff fields", () => {
     structuredGate: {
       allowedIntents: ["next", "closing"],
       intentField: "status",
+      intentSchemaRef: "#/test",
       handoffFields: ["analysis.understanding", "issue.number"],
     },
   });
@@ -224,6 +234,7 @@ Deno.test("StepGateInterpreter - extracts reason from output", () => {
     structuredGate: {
       allowedIntents: ["next", "closing"],
       intentField: "next_action.action",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -240,24 +251,34 @@ Deno.test("StepGateInterpreter - extracts reason from output", () => {
   assertEquals(result.reason, "All tests passed");
 });
 
-Deno.test("StepGateInterpreter - infers intentField from common patterns", () => {
+Deno.test("StepGateInterpreter - missing intentField uses fallback (defensive, failFast=false)", () => {
+  // NOTE: intentField is now required in StructuredGate interface.
+  // This test covers the defensive runtime check for bad data with failFast=false.
   const interpreter = new StepGateInterpreter();
+
+  // Force cast to bypass TypeScript - simulating bad runtime data
   const stepDef = createStepDef({
     structuredGate: {
       allowedIntents: ["next", "closing"],
-      // No intentField specified
-    },
+      intentSchemaRef: "#/test",
+      failFast: false, // Explicitly disable for fallback test
+      // intentField intentionally omitted to test defensive check
+    } as unknown as import("../common/step-registry.ts").StructuredGate,
   });
 
-  // Should find next_action.action
   const output = {
     next_action: { action: "closing" },
   };
 
   const result = interpreter.interpret(output, stepDef);
 
-  assertEquals(result.intent, "closing");
-  assertEquals(result.usedFallback, false);
+  // Should use fallback since intentField is missing
+  assertEquals(result.intent, "next"); // First allowed intent as fallback
+  assertEquals(result.usedFallback, true);
+  assertEquals(
+    result.reason,
+    "intentField is required but missing - config error",
+  );
 });
 
 Deno.test("StepGateInterpreter - throws when no valid fallback", () => {
@@ -266,6 +287,7 @@ Deno.test("StepGateInterpreter - throws when no valid fallback", () => {
     structuredGate: {
       allowedIntents: [], // Empty - can't fallback
       intentField: "missing",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -282,6 +304,7 @@ Deno.test("StepGateInterpreter - case insensitive intent matching", () => {
     structuredGate: {
       allowedIntents: ["next", "closing"],
       intentField: "status",
+      intentSchemaRef: "#/test",
     },
   });
 
@@ -302,6 +325,7 @@ Deno.test("StepGateInterpreter - handles empty handoff when no fields match", ()
     structuredGate: {
       allowedIntents: ["next"],
       intentField: "status",
+      intentSchemaRef: "#/test",
       handoffFields: ["missing.field", "also.missing"],
     },
   });
@@ -310,4 +334,86 @@ Deno.test("StepGateInterpreter - handles empty handoff when no fields match", ()
 
   assertEquals(result.intent, "next");
   assertEquals(result.handoff, undefined);
+});
+
+// =============================================================================
+// failFast Mode Tests (Design Doc Section 4/6)
+// =============================================================================
+
+Deno.test("StepGateInterpreter - failFast throws when intent cannot be determined", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "closing"],
+      intentField: "missing.path",
+      intentSchemaRef: "#/test",
+      failFast: true,
+    },
+  });
+
+  assertThrows(
+    () => interpreter.interpret({}, stepDef),
+    GateInterpretationError,
+    "failFast",
+  );
+});
+
+Deno.test("StepGateInterpreter - failFast throws when intent not in allowedIntents", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "repeat"], // closing not allowed
+      intentField: "action",
+      intentSchemaRef: "#/test",
+      failFast: true,
+    },
+  });
+
+  assertThrows(
+    () => interpreter.interpret({ action: "closing" }, stepDef),
+    GateInterpretationError,
+    "failFast",
+  );
+});
+
+Deno.test("StepGateInterpreter - failFast error includes stepId", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    stepId: "test.failfast.step",
+    structuredGate: {
+      allowedIntents: ["next"],
+      intentField: "missing",
+      intentSchemaRef: "#/test",
+      failFast: true,
+    },
+  });
+
+  try {
+    interpreter.interpret({}, stepDef);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    if (e instanceof GateInterpretationError) {
+      assertEquals(e.stepId, "test.failfast.step");
+    } else {
+      throw e;
+    }
+  }
+});
+
+Deno.test("StepGateInterpreter - failFast=false uses fallback (default behavior)", () => {
+  const interpreter = new StepGateInterpreter();
+  const stepDef = createStepDef({
+    structuredGate: {
+      allowedIntents: ["next", "closing"],
+      intentField: "missing.path",
+      intentSchemaRef: "#/test",
+      failFast: false,
+      fallbackIntent: "next",
+    },
+  });
+
+  // Should NOT throw, should use fallback
+  const result = interpreter.interpret({}, stepDef);
+  assertEquals(result.intent, "next");
+  assertEquals(result.usedFallback, true);
 });

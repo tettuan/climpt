@@ -61,6 +61,19 @@
         "const": "initial.externalState",
         "description": "実行されたstep識別子"
       },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "Intent for initial step (handoff not allowed per design 7.3)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "analysis": {
         "type": "object",
@@ -101,6 +114,19 @@
         "const": "continuation.externalState",
         "description": "実行されたstep識別子"
       },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat", "handoff"],
+            "description": "Intent for continuation step (handoff available after work cycle)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "iteration": {
         "type": "object",
@@ -135,6 +161,19 @@
         "type": "string",
         "const": "closure.externalState",
         "description": "実行されたstep識別子"
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "Intent for closure step (closing completes workflow)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
       },
       "issue": { "$ref": "#/$defs/issueContext" },
       "completion": {

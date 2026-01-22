@@ -1,5 +1,5 @@
 {
-  "$schema": "../../schemas/agent-definition.schema.json",
+  "$schema": "../../agents/schemas/agent.schema.json",
   "version": "1.10.0",
   "name": "iterator",
   "displayName": "Iterator Agent",

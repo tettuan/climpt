@@ -121,7 +121,7 @@ Step B receives uv-s_a.finding
 
 | 領域              | 状態   | Why                                                            |
 | ----------------- | ------ | -------------------------------------------------------------- |
-| Flow ループ       | 実装済 | FlowController で単方向遷移を管理。                            |
+| Flow ループ       | 実装済 | AgentRunner + WorkflowRouter で単方向遷移を管理。              |
 | Completion ループ | 実装済 | CompletionChain で Structured Output + 検証条件を統合。        |
 | handoff           | 実装済 | StepContext で Step 間データ引き継ぎを実現。                   |
 | Worktree finalize | 実装済 | finalizeWorktreeBranch で merge → push → PR → cleanup を一貫。 |

@@ -135,6 +135,7 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
     `${baseDir}/schemas`,
     `${baseDir}/prompts/steps/initial/default`,
     `${baseDir}/prompts/steps/continuation/default`,
+    `${baseDir}/prompts/steps/verification/default`,
     `${baseDir}/prompts/steps/closure/default`,
   ];
 
@@ -166,6 +167,10 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
     {
       template: "prompts/steps/continuation.md.tmpl",
       output: `${baseDir}/prompts/steps/continuation/default/f_default.md`,
+    },
+    {
+      template: "prompts/steps/verification.md.tmpl",
+      output: `${baseDir}/prompts/steps/verification/default/f_default.md`,
     },
     {
       template: "prompts/steps/closure.md.tmpl",

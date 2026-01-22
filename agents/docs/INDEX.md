@@ -32,6 +32,7 @@ Flow/Completion の哲学、境界、C3L、Structured Output など、すべて�
 | `builder/02_agent_definition.md`         | `agent.json` のスキーマ詳細。                          |
 | `builder/03_builder_guide.md`            | 設定→実行→プロンプト連鎖を What/Why で俯瞰するガイド。 |
 | `builder/04_config_system.md`            | デフォルト/ユーザー/CLI のマージ規則。                 |
+| `builder/05_troubleshooting.md`          | よくある問題と解決方法（構造化出力、ログの読み方）。   |
 | `builder/migration_guide.md`             | 既存 Agent を v2 設計へ移行するための手順。            |
 | `builder/migration_incompatibilities.md` | 非互換点と回避策の一覧。                               |
 | `builder/migration_template.md`          | 移行作業を記録するテンプレート。                       |

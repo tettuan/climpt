@@ -404,7 +404,14 @@ export class SchemaResolver {
   }
 
   /**
-   * Merge allOf schemas into a single schema
+   * Merge allOf schemas into a single schema.
+   *
+   * Per JSON Schema semantics, allOf represents inheritance. The parent schema
+   * (which contains the allOf) is the derived type and should override base types.
+   * Therefore we merge allOf schemas FIRST, then let parent properties override.
+   *
+   * This ensures per-step enum overrides in the parent take precedence over
+   * base type definitions referenced via allOf.
    */
   private async mergeAllOf(
     allOf: Record<string, unknown>[],
@@ -413,10 +420,20 @@ export class SchemaResolver {
     visited: Set<string>,
     depth: number,
   ): Promise<Record<string, unknown>> {
-    // Start with parent properties (excluding allOf)
     const result: Record<string, unknown> = {};
 
-    // Copy parent properties except allOf using Promise.all
+    // Step 1: Merge all allOf schemas FIRST (base types)
+    const allOfResolved = await Promise.all(
+      allOf.map((schema) =>
+        this.resolveRefs(schema, currentFile, visited, depth)
+      ),
+    );
+    for (const resolved of allOfResolved) {
+      this.deepMerge(result, resolved);
+    }
+
+    // Step 2: Merge parent properties LAST (derived type overrides)
+    // This ensures per-step enum definitions override base type enums
     const parentEntries = Object.entries(parent).filter(([key]) =>
       key !== "allOf"
     );
@@ -426,17 +443,9 @@ export class SchemaResolver {
       ),
     );
     for (let i = 0; i < parentEntries.length; i++) {
-      result[parentEntries[i][0]] = parentResolvedValues[i];
-    }
-
-    // Merge each schema in allOf using Promise.all
-    const allOfResolved = await Promise.all(
-      allOf.map((schema) =>
-        this.resolveRefs(schema, currentFile, visited, depth)
-      ),
-    );
-    for (const resolved of allOfResolved) {
-      this.deepMerge(result, resolved);
+      this.deepMerge(result, {
+        [parentEntries[i][0]]: parentResolvedValues[i],
+      });
     }
 
     return result;

@@ -60,6 +60,19 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "iteration", "work"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "Intent for initial step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "iteration": { "$ref": "#/$defs/iterationContext" },
       "work": { "$ref": "#/$defs/iterationWork" },
       "task_understanding": {
@@ -75,6 +88,19 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "iteration", "work"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat", "handoff"],
+            "description": "Intent for continuation step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "iteration": { "$ref": "#/$defs/iterationContext" },
       "work": { "$ref": "#/$defs/iterationWork" },
       "cumulative_progress": {
@@ -101,6 +127,19 @@
         "type": "string",
         "const": "closure.iterate",
         "description": "実行されたstep識別子"
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "Intent for closure step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
       },
       "iteration": { "$ref": "#/$defs/iterationContext" },
       "completion": {

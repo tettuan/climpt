@@ -78,6 +78,45 @@
       },
       "additionalProperties": false
     },
+    "verification.default": {
+      "type": "object",
+      "required": ["verification_result", "next_action"],
+      "properties": {
+        "verification_result": {
+          "type": "object",
+          "required": ["status", "findings"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "partial"],
+              "description": "Overall verification status"
+            },
+            "findings": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of verification findings"
+            }
+          },
+          "description": "Verification result details"
+        },
+        "next_action": {
+          "type": "object",
+          "required": ["action", "reason"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": ["next", "repeat", "escalate"]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for the chosen action"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "closure.default": {
       "type": "object",
       "required": ["final_summary", "next_action"],

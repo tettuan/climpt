@@ -36,6 +36,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "discovery"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "discovery": {
         "type": "object",
         "properties": {
@@ -58,6 +67,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "status_report"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "status_report": {
         "type": "object",
@@ -89,6 +107,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "status": {
         "type": "object",
@@ -105,6 +132,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "blockers"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "blockers": {
         "type": "object",
@@ -135,6 +171,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "stale"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "stale": {
         "type": "object",
@@ -158,6 +203,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "judgment"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "judgment": {
         "type": "object",
@@ -194,6 +248,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "facilitation"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "facilitation": {
         "type": "object",
@@ -224,6 +287,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "report"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "report": {
         "type": "object",
@@ -257,6 +329,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["next", "repeat", "handoff"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "iteration": {
         "type": "object",
         "properties": {
@@ -279,10 +360,19 @@
 
   "continuation.closure": {
     "type": "object",
-    "description": "Facilitation complete response",
+    "description": "Facilitation complete response (legacy, replaced by closure.facilitation)",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["closing", "repeat"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "actions_taken": {
         "type": "array",
@@ -297,6 +387,15 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "validation"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": { "type": "string", "enum": ["closing", "repeat"] },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "validation": {
         "type": "object",
         "required": ["git_clean"],

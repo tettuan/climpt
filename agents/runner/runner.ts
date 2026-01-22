@@ -43,7 +43,7 @@ import type {
   PromptStepDefinition,
   StepKind,
 } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import { inferStepKind, loadStepRegistry } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   isBashCommandAllowed,
@@ -706,12 +706,53 @@ export class AgentRunner {
     const registryPath = join(agentDir, "steps_registry.json");
 
     try {
-      const content = await Deno.readTextFile(registryPath);
-      const registry = JSON.parse(content);
+      // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
+      // This validates: stepKind/allowedIntents consistency, entryStepMapping, intentSchemaRef format
+      //
+      // First load registry WITHOUT intent enum validation to get schemasBase
+      // Then validate enums with the correct schemasDir (honoring registry.schemasBase)
+      const registry = await loadStepRegistry(
+        this.definition.name,
+        "", // Not used when registryPath is provided
+        {
+          registryPath,
+          validateIntentEnums: false, // Defer enum validation
+        },
+      );
+      logger.debug(
+        "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
+      );
+
+      // Honor registry.schemasBase override per builder/01_quickstart.md
+      const schemasBase = registry.schemasBase ??
+        `.agent/${this.definition.name}/schemas`;
+      const schemasDir = join(cwd, schemasBase);
+
+      // Now validate intent schema enums with the correct schemasDir
+      const { validateIntentSchemaEnums } = await import(
+        "../common/step-registry.ts"
+      );
+      await validateIntentSchemaEnums(registry, schemasDir);
+      logger.debug(
+        "Intent schema enum validation passed",
+      );
 
       // Check for extended registry capabilities
       const hasCompletionChain = hasCompletionChainSupport(registry);
       const hasFlowRouting = hasFlowRoutingSupport(registry);
+
+      // Fail-fast: stepMachine completion requires structuredGate on at least one step
+      // Per design/08_step_flow_design.md and builder/01_quickstart.md
+      if (
+        this.definition.behavior.completionType === "stepMachine" &&
+        !hasFlowRouting
+      ) {
+        throw new Error(
+          `[StepFlow][ConfigError] Agent "${this.definition.name}" uses completionType "stepMachine" ` +
+            `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
+            `or change completionType. See design/08_step_flow_design.md.`,
+        );
+      }
 
       if (!hasCompletionChain && !hasFlowRouting) {
         logger.debug(
@@ -1056,9 +1097,30 @@ export class AgentRunner {
       return undefined;
     }
 
+    // Validate outputSchemaRef format - must be object with file and schema properties
+    const ref = stepDef.outputSchemaRef;
+    if (
+      typeof ref !== "object" ||
+      ref === null ||
+      typeof ref.file !== "string" ||
+      typeof ref.schema !== "string"
+    ) {
+      const actualValue = JSON.stringify(ref);
+      const errorMsg = `Invalid outputSchemaRef format for step "${stepId}": ` +
+        `expected object with "file" and "schema" properties, got ${actualValue}. ` +
+        `See agents/docs/builder/05_troubleshooting.md for correct format.`;
+      logger.error(`[SchemaResolution] ${errorMsg}`);
+      throw new AgentSchemaResolutionError(errorMsg, {
+        stepId,
+        schemaRef: actualValue,
+        consecutiveFailures: 1,
+        iteration,
+      });
+    }
+
     try {
       const schema = await this.loadSchemaFromRef(
-        stepDef.outputSchemaRef,
+        ref,
         logger,
       );
       // Success - reset failure counter for this step
