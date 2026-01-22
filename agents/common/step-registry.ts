@@ -370,11 +370,22 @@ export async function loadStepRegistry(
 }
 
 /**
- * Get a step definition by ID
+ * Get a step definition by ID.
  *
- * @param registry - Step registry
- * @param stepId - Step identifier to find
- * @returns Step definition or undefined
+ * Retrieves a PromptStepDefinition from the registry by its stepId.
+ * Returns undefined if no step with the given ID exists.
+ *
+ * @param registry - The StepRegistry to search in
+ * @param stepId - The unique step identifier to find (e.g., "initial.issue", "continuation.project")
+ * @returns The PromptStepDefinition if found, or undefined if the step does not exist
+ *
+ * @example
+ * ```typescript
+ * const step = getStepDefinition(registry, "initial.issue");
+ * if (step) {
+ *   console.log(`Found step: ${step.name}`);
+ * }
+ * ```
  */
 export function getStepDefinition(
   registry: StepRegistry,
@@ -405,12 +416,24 @@ export function hasStep(registry: StepRegistry, stepId: string): boolean {
 }
 
 /**
- * Create an empty registry for an agent
+ * Create an empty registry for an agent.
  *
- * @param agentId - Agent identifier
- * @param c1 - C3L path component c1 (e.g., "steps")
- * @param version - Registry version (default: "1.0.0")
- * @returns Empty step registry
+ * Creates a new StepRegistry with default configuration. The registry
+ * is initialized with an empty steps collection and a default user
+ * prompts base path of `.agent/{agentId}/prompts`.
+ *
+ * @param agentId - Unique identifier for the agent (e.g., "iterator", "reviewer")
+ * @param c1 - C3L path component c1, typically "steps" for step definitions
+ * @param version - Semantic version string for the registry (default: "1.0.0")
+ * @returns A new StepRegistry object with the specified configuration and empty steps
+ *
+ * @example
+ * ```typescript
+ * const registry = createEmptyRegistry("my-agent");
+ * // registry.agentId === "my-agent"
+ * // registry.steps === {}
+ * // registry.userPromptsBase === ".agent/my-agent/prompts"
+ * ```
  */
 export function createEmptyRegistry(
   agentId: string,
@@ -427,11 +450,30 @@ export function createEmptyRegistry(
 }
 
 /**
- * Add a step definition to a registry
+ * Add a step definition to a registry.
  *
- * @param registry - Step registry to modify
- * @param step - Step definition to add
- * @throws Error if step already exists
+ * Adds a new PromptStepDefinition to the registry's steps collection,
+ * indexed by its stepId. This function mutates the registry in place.
+ *
+ * @param registry - The StepRegistry object to modify
+ * @param step - The PromptStepDefinition to add to the registry
+ * @returns void - The function modifies the registry in place
+ * @throws {Error} If a step with the same stepId already exists in the registry
+ *
+ * @example
+ * ```typescript
+ * const registry = createEmptyRegistry("my-agent");
+ * addStepDefinition(registry, {
+ *   stepId: "initial.issue",
+ *   name: "Issue Analysis",
+ *   c2: "initial",
+ *   c3: "issue",
+ *   edition: "default",
+ *   fallbackKey: "initial_issue",
+ *   uvVariables: ["issue_number"],
+ *   usesStdin: false
+ * });
+ * ```
  */
 export function addStepDefinition(
   registry: StepRegistry,
