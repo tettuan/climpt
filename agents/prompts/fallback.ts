@@ -129,6 +129,29 @@ Review and validate the work:
 
 When ready, indicate "Phase: complete" to finish.
 `,
+
+    // Structured signal completion type
+    initial_structured_signal: `# Task Start
+
+Work on the assigned task. When complete, output a structured completion signal.
+
+## Completion Signal Type
+{uv-signal_type}
+
+## Required Fields
+{uv-required_fields}
+
+Do not output the completion signal until you have verified the task is done.
+`,
+
+    continuation_structured_signal: `# Continuation (Iteration {uv-iteration})
+
+{uv-previous_summary}
+
+Continue working on the task.
+
+When complete, output the structured signal of type: {uv-signal_type}
+`,
   };
 
   get(stepId: string, variables: Record<string, string>): string {
