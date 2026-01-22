@@ -135,12 +135,14 @@ Work step のプロンプトには以下を明示する:
 
 ## 注意点
 
-| 項目                   | 注意                                                            |
-| ---------------------- | --------------------------------------------------------------- |
-| Flow → Completion 連鎖 | Flow が `closure` に到達しないと Completion は実行されない      |
-| Intent 解釈            | `structuredGate.intentField` のパスが Schema と一致していること |
-| Handoff のタイミング   | Work Step からの `handoff` は初期ステップでは警告が出る         |
-| Schema 必須            | すべての Flow Step に `outputSchemaRef` が必要                  |
+| 項目                   | 注意                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| Flow → Completion 連鎖 | Flow が `closure` に到達しないと Completion は実行されない                                |
+| Intent 解釈            | `intentField` と Schema のパスを一致させ、`intentSchemaRef` も更新                        |
+| intentSchemaRef 形式   | 内部ポインタ (`#/...`) のみ。外部ファイル参照は禁止。共有は Step スキーマで `$ref` を使用 |
+| Fail-fast 設定         | `structuredGate.failFast=true` を維持し、例外運用は Spec Violation ログで監視             |
+| Handoff のタイミング   | Work Step からの `handoff` は初期ステップでは警告が出る                                   |
+| Schema 必須            | すべての Flow Step に `outputSchemaRef` が必要                                            |
 
 ---
 

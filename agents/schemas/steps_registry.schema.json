@@ -209,7 +209,7 @@
     },
     "StructuredGate": {
       "type": "object",
-      "required": ["allowedIntents"],
+      "required": ["allowedIntents", "intentSchemaRef", "intentField"],
       "properties": {
         "allowedIntents": {
           "type": "array",
@@ -226,6 +226,11 @@
             ]
           },
           "description": "List of intents this step can emit. Allowed values depend on stepKind: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
+        },
+        "intentSchemaRef": {
+          "type": "string",
+          "pattern": "^#/",
+          "description": "Internal JSON Pointer to intent enum in step schema (must start with '#/'). Example: '#/properties/next_action/properties/action'. External file references are NOT allowed - use $ref in step schema to share definitions. Required per 08_step_flow_design.md Section 4."
         },
         "intentField": {
           "type": "string",
@@ -246,9 +251,14 @@
           "default": "explicit",
           "description": "How target step IDs are determined"
         },
+        "failFast": {
+          "type": "boolean",
+          "default": true,
+          "description": "When true (default), throw error instead of using fallback if intent cannot be determined. Required for production agents per design/08_step_flow_design.md Section 4/6. Set to false only for debugging."
+        },
         "fallbackIntent": {
           "type": "string",
-          "description": "Default intent if response parsing fails"
+          "description": "Default intent if response parsing fails. Ignored when failFast is true."
         }
       }
     },

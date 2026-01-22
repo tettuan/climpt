@@ -56,6 +56,19 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "issue", "analysis"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "Intent for initial step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "analysis": {
         "type": "object",
@@ -91,6 +104,19 @@
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
     "required": ["stepId", "status", "summary", "issue", "iteration"],
     "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat", "handoff"],
+            "description": "Intent for continuation step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "issue": { "$ref": "#/$defs/issueContext" },
       "iteration": {
         "type": "object",
@@ -129,7 +155,19 @@
         "type": "array",
         "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
       },
-      "next_action": { "$ref": "common.schema.json#/$defs/nextAction" },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "Intent for closure step"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
       "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
       "issue": {
         "type": "integer",

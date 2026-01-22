@@ -110,7 +110,8 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.findings", "review.recommendations"]
@@ -118,7 +119,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "initial.issue" },
-        "closing": { "target": "closure.review" }
+        "handoff": { "target": "closure.review" }
       }
     },
     "continuation.issue": {
@@ -137,7 +138,8 @@
         "schema": "continuation.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.findings", "review.recommendations"]
@@ -145,7 +147,7 @@
       "transitions": {
         "next": { "target": "continuation.issue" },
         "repeat": { "target": "continuation.issue" },
-        "closing": { "target": "closure.review" }
+        "handoff": { "target": "closure.review" }
       }
     },
     "initial.default": {
@@ -166,7 +168,8 @@
         "schema": "initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.summary", "review.issues_found"]
@@ -174,7 +177,7 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "initial.default" },
-        "closing": { "target": "closure.review" }
+        "handoff": { "target": "closure.review" }
       }
     },
     "continuation.default": {
@@ -193,7 +196,8 @@
         "schema": "continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["review.progress", "review.remaining_items"]
@@ -201,8 +205,36 @@
       "transitions": {
         "next": { "target": "continuation.default" },
         "repeat": { "target": "continuation.default" },
-        "closing": { "target": "closure.review" }
+        "handoff": { "target": "closure.review" }
       }
+    },
+    "closure.review": {
+      "stepId": "closure.review",
+      "name": "Review Closure Prompt",
+      "type": "prompt",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "review",
+      "edition": "default",
+      "fallbackKey": "review_closure_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "reviewer.schema.json",
+        "schema": "closure.review"
+      },
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.review" }
+      },
+      "description": "Completion prompt for review (terminal step)"
     }
   }
 }

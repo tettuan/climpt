@@ -219,6 +219,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "steps": {
     "initial.default": {
       "stepId": "initial.default",
+      "stepKind": "work",
       "name": "Initial Prompt",
       "c2": "initial",
       "c3": "default",
@@ -229,19 +230,20 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump"],
+        "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "failFast": true,
         "handoffFields": ["analysis", "plan"]
       },
       "transitions": {
         "next": { "target": "continuation.default" },
-        "repeat": { "target": "initial.default" },
-        "jump": { "target": "closure.default" }
+        "repeat": { "target": "initial.default" }
       }
     },
     "continuation.default": {
       "stepId": "continuation.default",
+      "stepKind": "work",
       "name": "Continuation Prompt",
       "c2": "continuation",
       "c3": "default",
@@ -251,19 +253,21 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump"],
+        "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "failFast": true,
         "handoffFields": ["progress"]
       },
       "transitions": {
         "next": { "target": "verification.default" },
         "repeat": { "target": "continuation.default" },
-        "jump": { "target": "closure.default" }
+        "handoff": { "target": "closure.default" }
       }
     },
     "verification.default": {
       "stepId": "verification.default",
+      "stepKind": "verification",
       "name": "Verification Step",
       "c2": "verification",
       "c3": "default",
@@ -273,20 +277,21 @@ mkdir -p .agent/${AGENT_NAME}/schemas
         "schema": "#/definitions/verification.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "jump", "escalate"],
+        "allowedIntents": ["next", "repeat", "escalate"],
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "failFast": true,
         "handoffFields": ["verification_result"]
       },
       "transitions": {
         "next": { "target": "closure.default" },
         "repeat": { "target": "continuation.default" },
-        "jump": { "target": "initial.default" },
         "escalate": { "target": "continuation.default" }
       }
     },
     "closure.default": {
       "stepId": "closure.default",
+      "stepKind": "closure",
       "name": "Closure Step",
       "c2": "closure",
       "c3": "default",
@@ -298,7 +303,8 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "failFast": true,
         "handoffFields": ["final_summary"]
       },
       "transitions": {
@@ -337,7 +343,7 @@ Step ごとのスキーマを配置し、Flow から参照される。
         "next_action": {
           "type": "object",
           "properties": {
-            "action": { "enum": ["next", "repeat", "jump"] },
+            "action": { "enum": ["next", "repeat"] },
             "reason": { "type": "string" }
           },
           "required": ["action", "reason"],
@@ -380,7 +386,7 @@ failed」で即停止する。
           "type": "object",
           "required": ["action"],
           "properties": {
-            "action": { "enum": ["next", "repeat", "jump"] }
+            "action": { "enum": ["next", "repeat"] }
           },
           "additionalProperties": false
         }
@@ -393,7 +399,54 @@ failed」で即停止する。
 
 `structuredGate.intentField` は Schema に沿って JSON を強制できることを前提に
 している。Schema がない Step はロード時エラーになるよう runner 側でも検証
-する想定である。
+する想定である。また `structuredGate.intentSchemaRef` は `next_action.action`
+など intent enum を定義するノードへしか張れない。`allowedIntents` に無い 値や
+enum の余剰はロード時点で検出されるため、Step を追加／改名したときは
+両方のポインタを必ず更新する。
+
+#### intentSchemaRef のポインタ形式
+
+**重要**: `intentSchemaRef` は**解決済み Step スキーマ内**の内部ポインタ
+(`#/properties/...`) を使用する。Runner は `outputSchemaRef.schema` で Step
+スキーマを解決した後に `intentSchemaRef` を適用するため、 `definitions`
+ノードを含むパスは動作しない。
+
+```json
+// ✅ 正しい形式: 解決済みスキーマへのポインタ
+"intentSchemaRef": "#/properties/next_action/properties/action"
+
+// ❌ 禁止: definitions を含むパス（解決後に存在しない）
+"intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action"
+
+// ❌ 禁止: 外部ファイル参照
+"intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action"
+```
+
+共通定義を複数の Step スキーマで共有したい場合は、**Step スキーマ内で `$ref`
+を使用**して共通スキーマを参照し、`intentSchemaRef`
+は解決後のローカルポインタで指定する:
+
+```json
+// step_outputs.schema.json
+{
+  "definitions": {
+    "initial.default": {
+      "type": "object",
+      "properties": {
+        "next_action": { "$ref": "common.schema.json#/$defs/nextAction" }
+      }
+    }
+  }
+}
+
+// steps_registry.json
+// outputSchemaRef.schema: "#/definitions/initial.default" → Step スキーマを解決
+// intentSchemaRef: 解決後のスキーマ内のパスを指定
+"intentSchemaRef": "#/properties/next_action/properties/action"
+```
+
+この制約により、Registry ロード時に `intentSchemaRef` が実際のスキーマ enum
+を指しているか検証でき、`allowedIntents` との不整合を早期発見できる。
 
 ### Completion の考え方
 
@@ -429,6 +482,20 @@ Flow 終了シーケンス:
 | `structuredGate`   | AI 応答から intent 抽出 |
 | `transitions`      | intent → 次の Step      |
 | `handoffFields`    | 次 Step へ渡すデータ    |
+
+#### structuredGate フィールド
+
+| フィールド        | 必須 | 説明                                                                                           |
+| ----------------- | ---- | ---------------------------------------------------------------------------------------------- |
+| `allowedIntents`  | Yes  | このステップで許可される intent 配列 (`stepKind` ごとの上限に一致)                             |
+| `intentField`     | Yes  | AI 出力から intent を読み取るパス (e.g. `next_action.action`) ※欠落時はロードで失敗            |
+| `intentSchemaRef` | Yes  | intent enum への JSON Pointer。Schema enum と `allowedIntents` の差異はロードで失敗            |
+| `failFast`        | Yes* | 既定 `true`。プロダクションでは必須。デバッグで `false` にする場合は Spec Violation ログが出る |
+| `handoffFields`   | No   | 次ステップへ引き継ぐフィールド名配列                                                           |
+
+`*` failFast を `false` にできるのは一時的な検証作業のみ。Flow
+を本番投入する際は `true` に戻し、fallbackIntent を設定していても Runner
+が停止することを前提にする。
 
 詳細: `design/08_step_flow_design.md`
 

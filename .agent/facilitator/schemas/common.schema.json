@@ -65,8 +65,8 @@
       "properties": {
         "action": {
           "type": "string",
-          "enum": ["next", "repeat", "closing", "escalate", "wait"],
-          "description": "推奨アクション (next=continue, repeat=retry, closing=complete)"
+          "enum": ["next", "repeat", "handoff", "closing", "escalate", "wait"],
+          "description": "推奨アクション (next=continue, repeat=retry, handoff=to closure, closing=complete)"
         },
         "reason": {
           "type": "string",

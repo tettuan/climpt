@@ -992,6 +992,7 @@ function createMockStepsRegistry(
         structuredGate: {
           allowedIntents: ["next", "repeat", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "next",
         },
         transitions: {
@@ -1012,6 +1013,7 @@ function createMockStepsRegistry(
         structuredGate: {
           allowedIntents: ["next", "repeat", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "next",
         },
         transitions: {
@@ -1100,6 +1102,7 @@ Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", 
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "closing",
         },
         transitions: {
@@ -1151,6 +1154,7 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "closing",
         },
         transitions: {
@@ -1198,6 +1202,7 @@ Deno.test("StepMachineCompletionHandler - isComplete true after transition to co
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "closing",
         },
         transitions: {
@@ -1297,6 +1302,7 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
         structuredGate: {
           allowedIntents: ["next", "closing"],
           intentField: "next_action.action",
+          intentSchemaRef: "#/test",
           fallbackIntent: "closing",
         },
         transitions: {

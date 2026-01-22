@@ -10,6 +10,7 @@
   "entryStepMapping": {
     "issue": "initial.statuscheck",
     "externalState": "initial.statuscheck",
+    "structuredSignal": "initial.statuscheck",
     "iterate": "initial.discover",
     "composite": "initial.discover"
   },
@@ -109,7 +110,8 @@
         "schema": "initial.discover"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["discovery.agents_found", "discovery.registry"]
@@ -117,7 +119,7 @@
       "transitions": {
         "next": { "target": "initial.statuscheck" },
         "repeat": { "target": "initial.discover" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.statuscheck": {
@@ -136,7 +138,8 @@
         "schema": "initial.statuscheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["status.metrics", "status.delta"]
@@ -144,7 +147,7 @@
       "transitions": {
         "next": { "target": "initial.blockercheck" },
         "repeat": { "target": "initial.statuscheck" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.statuscheck.empty": {
@@ -164,14 +167,15 @@
         "schema": "initial.statuscheck.empty"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "closing"],
+        "allowedIntents": ["next", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "fallbackIntent": "handoff",
         "handoffFields": ["status.summary"]
       },
       "transitions": {
         "next": { "target": "initial.report" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.blockercheck": {
@@ -190,7 +194,8 @@
         "schema": "initial.blockercheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["blockers.issues", "blockers.dependencies"]
@@ -198,7 +203,7 @@
       "transitions": {
         "next": { "target": "initial.stalecheck" },
         "repeat": { "target": "initial.blockercheck" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.stalecheck": {
@@ -217,7 +222,8 @@
         "schema": "initial.stalecheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["stale.issues", "stale.recommendations"]
@@ -225,7 +231,7 @@
       "transitions": {
         "next": { "target": "initial.judge" },
         "repeat": { "target": "initial.stalecheck" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.judge": {
@@ -244,7 +250,8 @@
         "schema": "initial.judge"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["judgment.decisions", "judgment.priorities"]
@@ -252,7 +259,7 @@
       "transitions": {
         "next": { "target": "initial.facilitate" },
         "repeat": { "target": "initial.judge" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.facilitate": {
@@ -271,7 +278,8 @@
         "schema": "initial.facilitate"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["facilitation.actions_taken", "facilitation.issues_updated"]
@@ -279,7 +287,7 @@
       "transitions": {
         "next": { "target": "initial.report" },
         "repeat": { "target": "initial.facilitate" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "initial.report": {
@@ -298,15 +306,16 @@
         "schema": "initial.report"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "closing",
+        "fallbackIntent": "handoff",
         "handoffFields": ["report.recommendations", "report.next_agent"]
       },
       "transitions": {
         "next": { "target": "continuation.statuscheck" },
         "repeat": { "target": "initial.report" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
     "continuation.statuscheck": {
@@ -325,7 +334,8 @@
         "schema": "continuation.statuscheck"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "closing"],
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
         "handoffFields": ["status.progress", "status.changes"]
@@ -333,32 +343,35 @@
       "transitions": {
         "next": { "target": "initial.blockercheck" },
         "repeat": { "target": "continuation.statuscheck" },
-        "closing": { "target": "continuation.closure" }
+        "handoff": { "target": "closure.facilitation" }
       }
     },
-    "continuation.closure": {
-      "stepId": "continuation.closure",
-      "name": "Facilitation Complete",
+    "closure.facilitation": {
+      "stepId": "closure.facilitation",
+      "name": "Facilitation Closure Prompt",
+      "type": "prompt",
       "stepKind": "closure",
-      "c2": "continuation",
-      "c3": "closure",
+      "c2": "closure",
+      "c3": "facilitation",
       "edition": "default",
-      "fallbackKey": "closure_continuation_default",
+      "fallbackKey": "facilitation_closure_default",
       "uvVariables": ["project_number", "actions_taken"],
       "usesStdin": false,
-      "description": "Completion message after facilitation cycle",
+      "description": "Completion prompt for facilitation (terminal step)",
       "outputSchemaRef": {
         "file": "facilitator.schema.json",
-        "schema": "continuation.closure"
+        "schema": "closure.facilitation"
       },
       "structuredGate": {
-        "allowedIntents": ["closing"],
+        "allowedIntents": ["closing", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": "continuation.closure" }
+        "closing": { "target": null },
+        "repeat": { "target": "closure.facilitation" }
       }
     }
   }
