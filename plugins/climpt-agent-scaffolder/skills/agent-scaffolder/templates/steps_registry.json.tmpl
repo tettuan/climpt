@@ -32,7 +32,7 @@
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["analysis", "plan"]
       },
@@ -55,7 +55,7 @@
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/continuation.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["progress"]
       },
@@ -79,7 +79,7 @@
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "escalate"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/verification.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["verification_result"]
       },
@@ -103,7 +103,7 @@
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/closure.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["final_summary"]
       },

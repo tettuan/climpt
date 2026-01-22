@@ -232,7 +232,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["analysis", "plan"]
       },
@@ -255,7 +255,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/continuation.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["progress"]
       },
@@ -279,7 +279,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "escalate"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/verification.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["verification_result"]
       },
@@ -303,7 +303,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
         "intentField": "next_action.action",
-        "intentSchemaRef": "#/definitions/closure.default/properties/next_action/properties/action",
+        "intentSchemaRef": "#/properties/next_action/properties/action",
         "failFast": true,
         "handoffFields": ["final_summary"]
       },
@@ -406,12 +406,16 @@ enum の余剰はロード時点で検出されるため、Step を追加／改�
 
 #### intentSchemaRef のポインタ形式
 
-**重要**: `intentSchemaRef` は内部ポインタ形式 (`#/...` で始まる)
-のみ許可される。 外部ファイル参照 (例: `common.schema.json#/$defs/...`)
-は使用できない。
+**重要**: `intentSchemaRef` は**解決済み Step スキーマ内**の内部ポインタ
+(`#/properties/...`) を使用する。Runner は `outputSchemaRef.schema` で Step
+スキーマを解決した後に `intentSchemaRef` を適用するため、 `definitions`
+ノードを含むパスは動作しない。
 
 ```json
-// ✅ 正しい形式: 内部ポインタ
+// ✅ 正しい形式: 解決済みスキーマへのポインタ
+"intentSchemaRef": "#/properties/next_action/properties/action"
+
+// ❌ 禁止: definitions を含むパス（解決後に存在しない）
 "intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action"
 
 // ❌ 禁止: 外部ファイル参照
@@ -420,7 +424,7 @@ enum の余剰はロード時点で検出されるため、Step を追加／改�
 
 共通定義を複数の Step スキーマで共有したい場合は、**Step スキーマ内で `$ref`
 を使用**して共通スキーマを参照し、`intentSchemaRef`
-はローカルポインタで指定する:
+は解決後のローカルポインタで指定する:
 
 ```json
 // step_outputs.schema.json
@@ -435,7 +439,9 @@ enum の余剰はロード時点で検出されるため、Step を追加／改�
   }
 }
 
-// steps_registry.json (intentSchemaRef は解決後のローカルパスを指す)
+// steps_registry.json
+// outputSchemaRef.schema: "#/definitions/initial.default" → Step スキーマを解決
+// intentSchemaRef: 解決後のスキーマ内のパスを指定
 "intentSchemaRef": "#/properties/next_action/properties/action"
 ```
 

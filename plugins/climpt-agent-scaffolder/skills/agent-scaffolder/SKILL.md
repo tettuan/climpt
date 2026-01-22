@@ -64,18 +64,24 @@ deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
 
 ### 5. intentSchemaRef の形式
 
-**重要**: `structuredGate.intentSchemaRef` は Step スキーマ内の内部ポインタ (`#/...`)
-を使用すること。外部ファイル参照 (`common.schema.json#/...`) は禁止。
+**重要**: `structuredGate.intentSchemaRef` は**解決済み Step スキーマ内**の
+内部ポインタ (`#/properties/...`) を使用すること。Runner は `outputSchemaRef.schema`
+で Step スキーマを解決した後に `intentSchemaRef` を適用するため、
+`definitions` を含むパスは動作しない。
 
 ```json
-// ✅ 正しい形式
+// ✅ 正しい形式: 解決済みスキーマへのポインタ
+"intentSchemaRef": "#/properties/next_action/properties/action"
+
+// ❌ 禁止: definitions を含むパス（解決後に存在しない）
 "intentSchemaRef": "#/definitions/initial.default/properties/next_action/properties/action"
 
-// ❌ 禁止
+// ❌ 禁止: 外部ファイル参照
 "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action"
 ```
 
-共通定義を使う場合は、Step スキーマ内で `$ref` で参照する。
+共通定義を使う場合は、Step スキーマ内で `$ref` で参照し、
+`intentSchemaRef` は解決後のローカルポインタを指定する。
 
 ## 詳細ドキュメント
 
