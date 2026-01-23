@@ -32,6 +32,13 @@ export interface AgentBehavior {
   permissionMode: PermissionMode;
   /** Fine-grained sandbox configuration (uses defaults if not specified) */
   sandboxConfig?: SandboxConfig;
+  /**
+   * Auto-response message for AskUserQuestion tool.
+   * When set, the agent will automatically respond with this message
+   * instead of waiting for user input, enabling autonomous execution.
+   * Default: "Use your best judgment to choose the optimal approach. No need to confirm again."
+   */
+  askUserAutoResponse?: string;
 }
 
 /**
