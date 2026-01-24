@@ -10,6 +10,17 @@ customVariables:
 
 # Issue Closure: Issue #{uv-issue_number}
 
+> **CRITICAL: DO NOT RUN `gh` COMMANDS**
+>
+> You MUST NOT execute these commands directly:
+>
+> - `gh issue close` - BLOCKED
+> - `gh issue edit` - BLOCKED
+> - `gh api` - BLOCKED
+>
+> The **Boundary Hook** will handle all GitHub operations when you return
+> `closing` intent. Running gh commands will be blocked by ToolPolicy.
+
 {summary_section}
 
 ## Your Role: Implementation Complete, Hand Off to Reviewer
