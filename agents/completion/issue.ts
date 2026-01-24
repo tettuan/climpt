@@ -463,24 +463,89 @@ ${summarySection}
 
   /**
    * Update issue labels using gh CLI
+   *
+   * Handles missing labels gracefully:
+   * - Only removes labels that exist on the issue
+   * - Runs add and remove operations separately to prevent partial failures
    */
   private async updateLabels(labels: LabelConfig): Promise<void> {
-    const args: string[] = ["issue", "edit", String(this.issueNumber)];
-
-    for (const label of labels.add ?? []) {
-      args.push("--add-label", label);
-    }
-    for (const label of labels.remove ?? []) {
-      args.push("--remove-label", label);
-    }
-
-    if (this.repository) {
-      args.push("-R", this.repository);
-    }
-
     // Skip if no label changes
     if (!labels.add?.length && !labels.remove?.length) {
       return;
+    }
+
+    // Get current labels on the issue to filter remove operations
+    const currentLabels = await this.getCurrentLabels();
+
+    // Filter remove list to only labels that exist
+    const labelsToRemove = (labels.remove ?? []).filter((label) =>
+      currentLabels.includes(label)
+    );
+
+    // Build args for add operation
+    if (labels.add?.length) {
+      const addArgs: string[] = ["issue", "edit", String(this.issueNumber)];
+      for (const label of labels.add) {
+        addArgs.push("--add-label", label);
+      }
+      if (this.repository) {
+        addArgs.push("-R", this.repository);
+      }
+
+      const addResult = await new Deno.Command("gh", {
+        args: addArgs,
+        stdout: "piped",
+        stderr: "piped",
+        cwd: this.cwd,
+      }).output();
+
+      if (!addResult.success) {
+        const stderr = new TextDecoder().decode(addResult.stderr);
+        throw new Error(
+          `[BoundaryHook] Failed to add labels on issue #${this.issueNumber}: ${stderr}`,
+        );
+      }
+    }
+
+    // Build args for remove operation (only for existing labels)
+    if (labelsToRemove.length) {
+      const removeArgs: string[] = ["issue", "edit", String(this.issueNumber)];
+      for (const label of labelsToRemove) {
+        removeArgs.push("--remove-label", label);
+      }
+      if (this.repository) {
+        removeArgs.push("-R", this.repository);
+      }
+
+      const removeResult = await new Deno.Command("gh", {
+        args: removeArgs,
+        stdout: "piped",
+        stderr: "piped",
+        cwd: this.cwd,
+      }).output();
+
+      if (!removeResult.success) {
+        const stderr = new TextDecoder().decode(removeResult.stderr);
+        throw new Error(
+          `[BoundaryHook] Failed to remove labels on issue #${this.issueNumber}: ${stderr}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Get current labels on the issue
+   */
+  private async getCurrentLabels(): Promise<string[]> {
+    const args = [
+      "issue",
+      "view",
+      String(this.issueNumber),
+      "--json",
+      "labels",
+    ];
+    if (this.repository) {
+      args.push("-R", this.repository);
     }
 
     const result = await new Deno.Command("gh", {
@@ -491,10 +556,16 @@ ${summarySection}
     }).output();
 
     if (!result.success) {
-      const stderr = new TextDecoder().decode(result.stderr);
-      throw new Error(
-        `[BoundaryHook] Failed to update labels on issue #${this.issueNumber}: ${stderr}`,
-      );
+      // If we can't get labels, return empty array to skip remove operations
+      return [];
+    }
+
+    try {
+      const output = new TextDecoder().decode(result.stdout);
+      const data = JSON.parse(output) as { labels: { name: string }[] };
+      return data.labels.map((l) => l.name);
+    } catch {
+      return [];
     }
   }
 
