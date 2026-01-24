@@ -128,13 +128,46 @@ CLI 引数の定義。
 
 ```json
 {
-  "github": { "enabled": true },
+  "github": {
+    "enabled": true,
+    "labels": {
+      "requirements": "docs",
+      "inProgress": "in-progress",
+      "blocked": "need clearance",
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "close"
+  },
   "worktree": {
     "enabled": true,
     "root": ".worktrees"
   }
 }
 ```
+
+#### github.labels.completion
+
+Issue 完了時に自動適用するラベル設定。
+
+| フィールド | 説明                   |
+| ---------- | ---------------------- |
+| `add`      | 完了時に追加するラベル |
+| `remove`   | 完了時に削除するラベル |
+
+#### github.defaultClosureAction
+
+Issue 完了時のデフォルトアクション。AI の structured output で上書き可能。
+
+| 値                | 説明                                 |
+| ----------------- | ------------------------------------ |
+| `close`           | Issue をクローズ（デフォルト）       |
+| `label-only`      | ラベル変更のみ、Issue は OPEN のまま |
+| `label-and-close` | ラベル変更後に Issue をクローズ      |
+
+**優先順位**: AI structured output > `defaultClosureAction` > `"close"`
 
 ### finalize
 

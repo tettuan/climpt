@@ -38,6 +38,24 @@ export interface ProjectContext {
   labelFilter?: string;
 }
 
+/**
+ * Label configuration for issue completion
+ */
+export interface LabelConfig {
+  add?: string[];
+  remove?: string[];
+}
+
+/**
+ * GitHub configuration for issue handler
+ */
+export interface GitHubLabelConfig {
+  labels?: {
+    completion?: LabelConfig;
+  };
+  defaultClosureAction?: "close" | "label-only" | "label-and-close";
+}
+
 export class IssueCompletionHandler extends BaseCompletionHandler {
   readonly type = "externalState" as const;
   private promptResolver?: PromptResolver;
@@ -45,6 +63,7 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
   private repository?: string;
   private cwd?: string;
   private lastSummary?: IterationSummary;
+  private githubConfig?: GitHubLabelConfig;
 
   constructor(
     private readonly issueNumber: number,
@@ -74,6 +93,13 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
    */
   setProjectContext(context: ProjectContext): void {
     this.projectContext = context;
+  }
+
+  /**
+   * Set GitHub configuration for labels and closure action
+   */
+  setGitHubConfig(config: GitHubLabelConfig): void {
+    this.githubConfig = config;
   }
 
   /**
@@ -378,8 +404,10 @@ ${summarySection}
    * This is the single surface for external side effects.
    * Called by Runner when a closure step emits `closing` intent.
    *
-   * Actions:
-   * - Close the GitHub Issue with a completion comment
+   * Actions depend on `action` field (or defaultClosureAction config):
+   * - "close": Close the GitHub Issue with a completion comment
+   * - "label-only": Update labels only, keep issue open
+   * - "label-and-close": Update labels then close
    *
    * @see agents/docs/design/08_step_flow_design.md Section 7.1
    */
@@ -388,34 +416,110 @@ ${summarySection}
     stepKind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
-    // Extract summary from structured output for the closing comment
+    // Extract data from structured output
     const so = payload.structuredOutput ?? {};
     const summary = typeof so.summary === "string"
       ? so.summary
       : "Issue completed by iterator agent.";
 
-    // Build closing comment
+    // Resolve labels (AI override > config defaults)
+    const labels = this.resolveLabels(so);
+
+    // Determine action (AI override > config default > "close")
+    const action =
+      (typeof so.action === "string"
+        ? so.action
+        : this.githubConfig?.defaultClosureAction) ?? "close";
+
+    // Execute based on action type
+    if (action === "label-only") {
+      await this.updateLabels(labels);
+    } else if (action === "close") {
+      await this.closeIssue(summary, payload.stepId);
+    } else if (action === "label-and-close") {
+      await this.updateLabels(labels);
+      await this.closeIssue(summary, payload.stepId);
+    }
+  }
+
+  /**
+   * Resolve label configuration with priority:
+   * 1. AI structured output (highest)
+   * 2. agent.json github.labels.completion
+   * 3. Empty (no label changes)
+   */
+  private resolveLabels(so: Record<string, unknown>): LabelConfig {
+    // Check for AI-specified labels in structured output
+    const issueObj = so.issue as Record<string, unknown> | undefined;
+    const aiLabels = issueObj?.labels as LabelConfig | undefined;
+
+    if (aiLabels && (aiLabels.add?.length || aiLabels.remove?.length)) {
+      return aiLabels;
+    }
+
+    // Fall back to config defaults
+    return this.githubConfig?.labels?.completion ?? {};
+  }
+
+  /**
+   * Update issue labels using gh CLI
+   */
+  private async updateLabels(labels: LabelConfig): Promise<void> {
+    const args: string[] = ["issue", "edit", String(this.issueNumber)];
+
+    for (const label of labels.add ?? []) {
+      args.push("--add-label", label);
+    }
+    for (const label of labels.remove ?? []) {
+      args.push("--remove-label", label);
+    }
+
+    if (this.repository) {
+      args.push("-R", this.repository);
+    }
+
+    // Skip if no label changes
+    if (!labels.add?.length && !labels.remove?.length) {
+      return;
+    }
+
+    const result = await new Deno.Command("gh", {
+      args,
+      stdout: "piped",
+      stderr: "piped",
+      cwd: this.cwd,
+    }).output();
+
+    if (!result.success) {
+      const stderr = new TextDecoder().decode(result.stderr);
+      throw new Error(
+        `[BoundaryHook] Failed to update labels on issue #${this.issueNumber}: ${stderr}`,
+      );
+    }
+  }
+
+  /**
+   * Close the issue with a completion comment
+   */
+  private async closeIssue(summary: string, stepId: string): Promise<void> {
     const comment = `## Completed
 
 ${summary}
 
 ---
-*Closed by Boundary Hook (closing intent from ${payload.stepId})*`;
+*Closed by Boundary Hook (closing intent from ${stepId})*`;
 
-    // Execute gh issue close with comment
     const args = ["issue", "close", String(this.issueNumber), "-c", comment];
     if (this.repository) {
       args.push("-R", this.repository);
     }
 
-    const command = new Deno.Command("gh", {
+    const result = await new Deno.Command("gh", {
       args,
       stdout: "piped",
       stderr: "piped",
       cwd: this.cwd,
-    });
-
-    const result = await command.output();
+    }).output();
 
     if (!result.success) {
       const stderr = new TextDecoder().decode(result.stderr);

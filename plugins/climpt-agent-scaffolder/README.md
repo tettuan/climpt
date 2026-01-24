@@ -57,6 +57,12 @@ Options:
 | `keywordSignal`   | Keyword-based completion | `completionKeyword`   |
 | `stepMachine`     | Step graph-based flow    | `steps_registry.json` |
 
+> **Note**: The scaffolder supports these 4 completion types. For advanced types
+> (`checkBudget`, `structuredSignal`, `composite`, `custom`), scaffold with a
+> base type and manually edit `agent.json`. See
+> [Agent Definition](https://github.com/tettuan/climpt/blob/main/agents/docs/builder/02_agent_definition.md#completiontype)
+> for details.
+
 ## Generated Structure
 
 ```
@@ -68,9 +74,10 @@ Options:
 └── prompts/
     ├── system.md
     └── steps/
-        ├── initial/default/f_default.md
-        ├── continuation/default/f_default.md
-        └── closure/default/f_default.md
+        ├── initial/default/f_default.md       # Work step: initialization
+        ├── continuation/default/f_default.md  # Work step: continuation
+        ├── verification/default/f_default.md  # Verification step: validates work output
+        └── closure/default/f_default.md       # Closure step: completion
 ```
 
 ## Next Steps After Scaffolding

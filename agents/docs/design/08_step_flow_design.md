@@ -298,12 +298,17 @@ flowchart LR
 ### 7.1 Boundary hook
 
 - **What**: Closure Step が `closing` intent を返した瞬間にだけ起動し、Issue
-  close や Release 作成などの副作用を実行するシンプルな関数。
+  close / Issue ラベル管理 / Release 作成などの副作用を実行するシンプルな関数。
 - **Why**: Work / Verification Step が誤って Issue
   操作を行うことを物理的に防ぎ、Flow の鎖を壊さない。
 - **Implication**: Schema / Gate が `closing` intent
   を禁止している限り、Boundary Hook
   は決して呼び出されないため、設定ミスが外部副作用へ波及しない。
+- **Side effects**: Boundary hook は以下の外部副作用を実行可能:
+  - Issue close（デフォルト）
+  - Issue ラベル変更（`github.labels.completion` 設定または AI structured
+    output）
+  - `label-only` モードでは Issue を OPEN のまま残し、ラベルのみ変更
 
 ### 7.2 Step kind とツール許可
 
@@ -350,18 +355,23 @@ meaningful work.
 
 ## 8. 設定の型と要件（要約）
 
-| 要素                             | What                                                                   | Why                                              |
-| -------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------ |
-| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須                         | schema 失敗を即時検知                            |
-| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                                | Runtime が intent 検証                           |
-| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)                     | Runtime が deterministic に intent 抽出          |
-| `structuredGate.intentSchemaRef` | `#/properties/next_action/properties/action` 形式の内部ポインタ (必須) | schema enum と allowedIntents の齟齬を失敗で露見 |
-| `transitions[target]`            | intent → Step を列挙し `closing` は `closure.<domain>` 固定            | 完了=Closure Step という秩序を維持               |
-| `handoffFields`                  | StepContext に積むキーを配列で宣言                                     | 暗黙共有を防止                                   |
+| 要素                             | What                                                                                                      | Why                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `outputSchemaRef`                | JSON Pointer (`#/definitions/<stepId>`) を必須                                                            | schema 失敗を即時検知                                                   |
+| `structuredGate.allowedIntents`  | 許可 intent 配列 (必須)                                                                                   | Runtime が intent 検証                                                  |
+| `structuredGate.intentField`     | AI 出力から intent を抽出するパス (必須・推測禁止)                                                        | Runtime が deterministic に intent 抽出                                 |
+| `structuredGate.intentSchemaRef` | `#/properties/next_action/properties/action` 形式の内部ポインタ (必須)                                    | schema enum と allowedIntents の齟齬を失敗で露見                        |
+| `transitions[target]`            | intent → Step を列挙。`closing` は `target: null`（終端）、`handoff` が `closure.<domain>` へルーティング | `closing` = 終了宣言、`handoff` = Closure Step 遷移という明確な役割分担 |
+| `handoffFields`                  | StepContext に積むキーを配列で宣言                                                                        | 暗黙共有を防止                                                          |
 
 > **Fail-fast policy**: `structuredGate.failFast` の既定値は `true`。
 > プロダクション Agent では変更禁止とし、デバッグ目的で `false` にする場合は
 > ログ/テレメトリで逸脱を残すこと。
+
+> **closing target rule**: `closing` intent に対する `transitions[target]`
+> は必ず `null`（終端）を指定すること。Router は `closing` の非 null
+> ターゲットを無視し、 終端として処理する。`closure.<domain>`
+> への遷移が必要な場合は `handoff` を使用する。
 
 図と表をそのまま仕様書にし、Flow の構造を改変しない限り Run-time
 と完全に一致させる。
