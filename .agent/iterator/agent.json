@@ -1,6 +1,6 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "iterator",
   "displayName": "Iterator Agent",
   "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",

@@ -106,6 +106,52 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
 |-----|------|
 | `{input_text}` | STDIN からの入力テキスト |
 
+## Closure Options
+
+完了時のアクションを `agent.json` で設定:
+
+```json
+{
+  "github": {
+    "labels": {
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "label-only"
+  }
+}
+```
+
+### defaultClosureAction
+
+| 値 | 動作 |
+|----|------|
+| `close` | Issue をクローズ（デフォルト） |
+| `label-only` | ラベル変更のみ、Issue は OPEN のまま |
+| `label-and-close` | ラベル変更後にクローズ |
+
+### AI からのオーバーライド
+
+AI は structured output で closure action を指定可能:
+
+```json
+{
+  "closure": {
+    "action": "close",
+    "issue": {
+      "labels": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    }
+  }
+}
+```
+
+優先順位: AI structured output > agent.json 設定 > デフォルト値
+
 ## カスタマイズ
 
 プロンプトをカスタマイズするには:
