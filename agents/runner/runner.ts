@@ -248,15 +248,34 @@ export class AgentRunner {
         }
 
         // deno-lint-ignore no-await-in-loop
-        const systemPrompt = await ctx.promptResolver.resolveSystemPrompt({
-          "uv-agent_name": this.definition.name,
-          "uv-completion_criteria":
-            ctx.completionHandler.buildCompletionCriteria().detailed,
+        const customSystemPrompt = await ctx.promptResolver.resolveSystemPrompt(
+          {
+            "uv-agent_name": this.definition.name,
+            "uv-completion_criteria":
+              ctx.completionHandler.buildCompletionCriteria().detailed,
+          },
+        );
+
+        // Build system prompt with claude_code preset + custom append
+        const systemPrompt = {
+          type: "preset" as const,
+          preset: "claude_code" as const,
+          append: customSystemPrompt,
+        };
+
+        // Debug: Log system prompt structure
+        ctx.logger.info("[SystemPrompt] Using preset configuration", {
+          type: systemPrompt.type,
+          preset: systemPrompt.preset,
+          appendLength: customSystemPrompt.length,
         });
 
         // Emit promptBuilt event
         // deno-lint-ignore no-await-in-loop
-        await this.eventEmitter.emit("promptBuilt", { prompt, systemPrompt });
+        await this.eventEmitter.emit("promptBuilt", {
+          prompt,
+          systemPrompt: customSystemPrompt,
+        });
 
         // Determine step ID for this iteration
         const stepId = this.getStepIdForIteration(iteration);
@@ -456,7 +475,11 @@ export class AgentRunner {
 
   private async executeQuery(options: {
     prompt: string;
-    systemPrompt: string;
+    systemPrompt: string | {
+      type: "preset";
+      preset: "claude_code";
+      append?: string;
+    };
     plugins: string[];
     sessionId?: string;
     iteration: number;
@@ -505,6 +528,36 @@ export class AgentRunner {
         settingSources: ["user", "project"],
         plugins,
         resume: sessionId,
+        // Auto-respond to AskUserQuestion to enable autonomous execution
+        // Instead of waiting for user input, delegate decision to Claude
+        canUseTool: (
+          toolName: string,
+          input: Record<string, unknown>,
+        ) => {
+          if (toolName === "AskUserQuestion") {
+            const autoResponse = this.definition.behavior.askUserAutoResponse ??
+              "Use your best judgment to choose the optimal approach. No need to confirm again.";
+            const questions = input.questions as Array<{
+              question: string;
+              options: Array<{ label: string }>;
+            }>;
+            const answers: Record<string, string> = {};
+            for (const q of questions) {
+              // Delegate decision to Claude using configured response
+              answers[q.question] = autoResponse;
+            }
+            ctx.logger.info(
+              "[AskUserQuestion] Auto-responding with delegation",
+              { questionCount: questions.length, response: autoResponse },
+            );
+            return {
+              behavior: "allow",
+              updatedInput: { questions: input.questions, answers },
+            };
+          }
+          // Allow other tools
+          return { behavior: "allow", updatedInput: input };
+        },
       };
 
       // Configure sandbox
