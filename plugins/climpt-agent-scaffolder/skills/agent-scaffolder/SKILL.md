@@ -20,12 +20,27 @@ Climpt Agent の雛形を生成する Skill。
 
 ### completionType 選択肢
 
+**scaffolder がサポートするタイプ:**
+
 | タイプ            | 用途                | 設定                  |
 | ----------------- | ------------------- | --------------------- |
 | `externalState`   | Issue/PR の状態監視 | `maxIterations`       |
 | `iterationBudget` | 固定回数で終了      | `maxIterations`       |
 | `keywordSignal`   | キーワードで終了    | `completionKeyword`   |
 | `stepMachine`     | Step グラフで判定   | `steps_registry.json` |
+
+**上級タイプ（scaffolding 後に手動編集が必要）:**
+
+| タイプ             | 用途                              |
+| ------------------ | --------------------------------- |
+| `checkBudget`      | Status check の回数で終了         |
+| `structuredSignal` | JSON schema で完了宣言を受け取る  |
+| `composite`        | 複数条件 (any/all) の合成         |
+| `custom`           | 外部 CompletionHandler で任意判定 |
+
+上級タイプを使用する場合は、基本タイプで scaffold 後、 `agent.json` の
+`behavior.completionType` と `completionConfig` を手動で編集する。 詳細:
+`agents/docs/builder/02_agent_definition.md`
 
 ### 2. Scaffolding 実行
 
@@ -65,9 +80,9 @@ deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
 ### 5. intentSchemaRef の形式
 
 **重要**: `structuredGate.intentSchemaRef` は**解決済み Step スキーマ内**の
-内部ポインタ (`#/properties/...`) を使用すること。Runner は `outputSchemaRef.schema`
-で Step スキーマを解決した後に `intentSchemaRef` を適用するため、
-`definitions` を含むパスは動作しない。
+内部ポインタ (`#/properties/...`) を使用すること。Runner は
+`outputSchemaRef.schema` で Step スキーマを解決した後に `intentSchemaRef`
+を適用するため、 `definitions` を含むパスは動作しない。
 
 ```json
 // ✅ 正しい形式: 解決済みスキーマへのポインタ
@@ -80,8 +95,8 @@ deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
 "intentSchemaRef": "common.schema.json#/$defs/nextAction/properties/action"
 ```
 
-共通定義を使う場合は、Step スキーマ内で `$ref` で参照し、
-`intentSchemaRef` は解決後のローカルポインタを指定する。
+共通定義を使う場合は、Step スキーマ内で `$ref` で参照し、 `intentSchemaRef`
+は解決後のローカルポインタを指定する。
 
 ## 詳細ドキュメント
 

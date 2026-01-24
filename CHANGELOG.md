@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-01-25
+
+### Added
+- Label-only completion mode for issue closure (`defaultClosureAction: "label-only"`)
+- Configurable completion labels in agent.json (`github.labels.completion`)
+- AI can override closure action via structured output (`closure.action`)
+
+### Fixed
+- `setGitHubConfig()` was not being called, causing `defaultClosureAction` to be ignored
+- Label removal fails gracefully when label doesn't exist on issue
+- Block `gh issue close` commands during closure steps via tool policy
+
 ## [1.10.8] - 2026-01-24
 
 ### Added

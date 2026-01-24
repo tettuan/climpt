@@ -110,7 +110,10 @@ export const STEP_KIND_TOOL_POLICY: Record<StepKind, ToolSet> = {
   closure: {
     allowed: [...BASE_TOOLS, ...BOUNDARY_TOOLS],
     denied: [],
-    blockBoundaryBash: false,
+    // Block boundary bash commands even in closure steps.
+    // The boundary hook handles GitHub operations based on defaultClosureAction.
+    // This ensures AI doesn't bypass label-only mode by running gh commands directly.
+    blockBoundaryBash: true,
   },
 } as const;
 

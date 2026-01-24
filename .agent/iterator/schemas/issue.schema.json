@@ -145,7 +145,14 @@
     "type": "object",
     "description": "Issue完了検証のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
-    "required": ["stepId", "status", "summary", "issue", "action", "validation"],
+    "required": [
+      "stepId",
+      "status",
+      "summary",
+      "issue",
+      "action",
+      "validation"
+    ],
     "additionalProperties": false,
     "properties": {
       "stepId": { "type": "string" },
@@ -170,13 +177,36 @@
       },
       "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
       "issue": {
-        "type": "integer",
-        "description": "GitHub Issue番号"
+        "type": "object",
+        "description": "Issue情報",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "description": "GitHub Issue番号"
+          },
+          "labels": {
+            "type": "object",
+            "description": "ラベル変更設定（オプション、AI指定で設定をオーバーライド）",
+            "properties": {
+              "add": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "追加するラベル"
+              },
+              "remove": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "削除するラベル"
+              }
+            }
+          }
+        }
       },
       "action": {
         "type": "string",
-        "const": "close",
-        "description": "実行アクション"
+        "enum": ["close", "label-only", "label-and-close"],
+        "default": "close",
+        "description": "完了アクション: close (Issueクローズ), label-only (ラベル変更のみ), label-and-close (ラベル変更後クローズ)"
       },
       "body": {
         "type": "string",

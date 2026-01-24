@@ -228,11 +228,15 @@ Options:
       --dry-run                  Preview without creating files
   -h, --help                     Show this help
 
-Completion Types:
+Completion Types (supported):
   externalState    - Monitor external resource state (Issue/PR)
   iterationBudget  - Fixed number of iterations
   keywordSignal    - Completion keyword detection
   stepMachine      - Step graph-based flow
+
+Advanced types (require manual agent.json edits):
+  checkBudget, structuredSignal, composite, custom
+  See: agents/docs/builder/02_agent_definition.md
 
 Examples:
   deno run -A scaffold.ts --name code-reviewer --description "Reviews pull requests"
