@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.8] - 2026-01-24
+
+### Added
+- `/update-changelog` skill for CHANGELOG.md maintenance
+- `/update-docs` skill for documentation update guidance
+- Release procedure checklist with documentation requirements
+
+## [1.10.7] - 2026-01-24
+
+### Added
+- Autonomous execution mode with `askUserAutoResponse` config option
+- `claude_code` preset for agent execution
+
+### Fixed
+- Step Flow implementation aligned with design doc
+- `intentSchemaRef` validation and pointer format
+- Structured signal fallback templates
+
+## [1.10.6] - 2026-01-18
+
+### Added
+- `deno task agent` command for running agents
+- `--init` flag for agent scaffold generation
+- Boundary Hook for issue close execution (`iterator` agent)
+- `PreToolUse` hooks for boundary bash blocking
+- stepKind-based tool permission enforcement
+- `functional-testing` skill for design-driven testing
+- `validateIntentSchemaRef` for fail-fast validation
+
+### Changed
+- Removed legacy completionType aliases
+
+### Fixed
+- Multi-step agent execution hardening
+- Handoff intent alignment for project steps
+- Intent values alignment with structuredGate allowedIntents
+
+## [1.10.0] - 2026-01-05
+
+### Added
+- Agent framework migration from climpt-agents
+- Unified `AgentRunner` engine
+- Coordination handoff protocol and validation
+- Auto-commit safety net before worktree cleanup (`iterator` agent)
+
 ## [1.9.3] - 2025-12-27
 
 ### Added

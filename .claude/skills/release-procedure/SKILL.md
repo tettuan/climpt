@@ -31,6 +31,36 @@ git commit -m "chore: bump version to x.y.z"
 git push -u origin release/x.y.z
 ```
 
+## ドキュメント更新（リリース前必須）
+
+**重要**: リリース前に以下の2つのスキルを使用してドキュメントを更新すること。
+
+### 1. CHANGELOG 更新
+
+`/update-changelog` スキルを使用:
+- 変更内容を [Unreleased] セクションに記載
+- 検索可能なキーワードを含める（コマンド名、オプション名、設定名）
+- リリース時に [x.y.z] - YYYY-MM-DD へ移動
+
+### 2. ドキュメント更新
+
+`/update-docs` スキルを使用:
+- 変更の種類に応じて適切な場所を更新
+- CLI オプション変更 → `--help` 必須、README 推奨
+- 新機能 → README に簡潔な説明とサンプル
+- 設定変更 → スキーマ説明、README/docs
+
+### チェックリスト
+
+```
+□ CHANGELOG.md に変更を記載（/update-changelog）
+□ 必要なドキュメントを更新（/update-docs）
+  □ CLI変更 → --help 出力確認
+  □ 新機能 → README.md / README.ja.md
+  □ Agent変更 → agents/README.md
+  □ 設定変更 → スキーマ説明
+```
+
 **重要**: `deno task bump-version` は release/* ブランチ名からバージョンを自動検出する。
 手動指定も可能: `deno task bump-version 1.10.2`
 
@@ -355,6 +385,10 @@ git push origin release/1.9.15
   2. src/version.ts の CLIMPT_VERSION を更新
   3. deno task ci  ← ローカルCIを通す（重要）
   4. git commit -m "chore: bump version to x.y.z"
+
+ドキュメント更新（リリース前必須）:
+  1. /update-changelog → CHANGELOG.md に変更を記載
+  2. /update-docs → README, --help 等を必要に応じて更新
 
 リリースフロー:
   1. release/* → develop PR作成
