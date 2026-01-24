@@ -241,6 +241,10 @@ export async function createCompletionHandler(
       isOptionalString(args.repository) ? args.repository : undefined,
     );
     issueHandler.setPromptResolver(promptResolver);
+    // Pass GitHub config for label operations and closure action
+    if (definition.github) {
+      issueHandler.setGitHubConfig(definition.github);
+    }
     return issueHandler;
   }
 
