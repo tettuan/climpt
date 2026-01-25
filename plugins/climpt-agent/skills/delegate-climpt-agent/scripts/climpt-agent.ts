@@ -14,7 +14,7 @@
  * 6. Runs a sub-agent using Claude Agent SDK with the prompt
  */
 
-import { join } from "@std/path";
+import { join } from "jsr:@std/path";
 
 // Local modules
 import { parseArgs, validateArgs } from "./climpt-agent/cli.ts";
