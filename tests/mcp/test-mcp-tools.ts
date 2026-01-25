@@ -11,10 +11,7 @@
  * the command construction and execution logic, tested separately.
  */
 
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 import type { Command } from "../../src/mcp/types.ts";
 import { describeCommand, searchCommands } from "../../src/mcp/similarity.ts";
 
