@@ -163,14 +163,29 @@ export class Logger {
         // Empty content without tool context is skipped
         break;
       }
-      case "tool_use":
-        this.setToolContext(msg.tool_name as string);
-        this.debug("Tool use", { tool: msg.tool_name });
+      case "tool_use": {
+        const toolName = msg.tool_name as string;
+        const toolUseId = msg.tool_use_id as string | undefined;
+        const input = msg.input as Record<string, unknown> | undefined;
+        this.setToolContext(toolName);
+        this.info("Tool use", {
+          tool: toolName,
+          toolUseId,
+          inputSummary: this.summarizeToolInput(toolName, input),
+        });
         break;
-      case "tool_result":
-        this.debug("Tool result", { success: true });
+      }
+      case "tool_result": {
+        const isError = msg.is_error as boolean | undefined;
+        const toolUseId = msg.tool_use_id as string | undefined;
+        this.info("Tool result", {
+          toolUseId,
+          success: !isError,
+          ...(isError && { error: msg.error_message }),
+        });
         this.clearToolContext();
         break;
+      }
       case "error":
         this.error("SDK error", { error: msg.error });
         break;
@@ -216,6 +231,41 @@ export class Logger {
       }
     }
     return JSON.stringify(message);
+  }
+
+  /**
+   * Summarize tool input for logging (privacy-aware)
+   */
+  private summarizeToolInput(
+    toolName: string,
+    input?: Record<string, unknown>,
+  ): string {
+    if (!input) return "";
+
+    switch (toolName) {
+      case "Read":
+        return `file_path: ${input.file_path}`;
+      case "Write":
+        return `file_path: ${input.file_path}, content: ${
+          String(input.content || "").length
+        } chars`;
+      case "Edit":
+        return `file_path: ${input.file_path}`;
+      case "Bash":
+        return `command: ${String(input.command || "").substring(0, 100)}...`;
+      case "Glob":
+        return `pattern: ${input.pattern}`;
+      case "Grep":
+        return `pattern: ${input.pattern}, path: ${input.path || "."}`;
+      case "Skill":
+        return `skill: ${input.skill}${
+          input.args ? `, args: ${input.args}` : ""
+        }`;
+      case "Task":
+        return `subagent: ${input.subagent_type}, desc: ${input.description}`;
+      default:
+        return JSON.stringify(input).substring(0, 200);
+    }
   }
 
   async close(): Promise<void> {

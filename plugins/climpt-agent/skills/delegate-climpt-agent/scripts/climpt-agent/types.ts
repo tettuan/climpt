@@ -16,7 +16,33 @@ export type LogLevel =
   | "debug"
   | "assistant"
   | "system"
-  | "result";
+  | "result"
+  | "tool_use"
+  | "tool_result";
+
+/**
+ * Tool use information for logging
+ */
+export interface ToolUseInfo {
+  /** Tool name */
+  toolName: string;
+  /** Tool use ID from SDK */
+  toolUseId?: string;
+  /** Summarized input (privacy-aware) */
+  inputSummary?: string;
+}
+
+/**
+ * Tool result information for logging
+ */
+export interface ToolResultInfo {
+  /** Tool use ID from SDK */
+  toolUseId?: string;
+  /** Whether the tool succeeded */
+  success: boolean;
+  /** Error message if failed */
+  errorMessage?: string;
+}
 
 /**
  * Log entry for JSONL format
