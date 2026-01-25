@@ -8,7 +8,7 @@
  * @module climpt-plugins/tests/climpt-agent_test
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "jsr:@std/assert";
 
 // Import modules under test
 import { generateSubAgentName } from "../skills/delegate-climpt-agent/scripts/climpt-agent/command.ts";

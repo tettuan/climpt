@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 import type { MCPConfig } from "../../src/mcp/types.ts";
 import { DEFAULT_MCP_CONFIG } from "../../src/mcp/types.ts";
 

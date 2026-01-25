@@ -1,9 +1,5 @@
-import {
-  assertEquals,
-  assertExists,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { resolve } from "@std/path";
 
 // Test registry.json loading and structure
 Deno.test("registry.json exists and has valid structure", async () => {

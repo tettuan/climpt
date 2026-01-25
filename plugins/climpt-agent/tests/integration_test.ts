@@ -7,10 +7,7 @@
  * @module climpt-plugins/tests/integration_test
  */
 
-import {
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
 
 import { handleMessage } from "../skills/delegate-climpt-agent/scripts/climpt-agent/sub-agent.ts";
 import type { Logger } from "../skills/delegate-climpt-agent/scripts/climpt-agent/logger.ts";
