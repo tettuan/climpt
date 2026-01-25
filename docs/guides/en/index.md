@@ -12,6 +12,7 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included.
 ## Guides
 
 - [Overview](00-overview.md)
+- [Agent Configuration Concepts](00-1-concepts.md) ← **Start here for "what" and "why"**
 - [Prerequisites](01-prerequisites.md)
 - [Climpt Setup](02-climpt-setup.md)
 - [Instruction Creation](03-instruction-creation.md)

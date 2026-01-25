@@ -16,6 +16,7 @@ This guide is divided into the following files for step-by-step environment setu
 
 | Chapter | File | Content |
 |---------|------|---------|
+| 0.1 | [00-1-concepts.md](./00-1-concepts.md) | **Agent concepts (what/why)** |
 | 1 | [01-prerequisites.md](./01-prerequisites.md) | Prerequisites (Deno, gh CLI) |
 | 2 | [02-climpt-setup.md](./02-climpt-setup.md) | Climpt installation and setup |
 | 3 | [03-instruction-creation.md](./03-instruction-creation.md) | Creating instructions (prompts) |
