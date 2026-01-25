@@ -24,7 +24,7 @@ import {
   loadMCPConfig,
   loadRegistryForAgent as loadRegistryBase,
 } from "./registry.ts";
-import { getPromptLogger } from "./prompt-logger.ts";
+import { getPromptLogger, type PromptLogger } from "./prompt-logger.ts";
 
 // deno-lint-ignore no-console
 console.error("[START] MCP Server starting...");
@@ -390,15 +390,44 @@ server.setRequestHandler(
           `[EXEC] Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
         );
 
-        // Log prompt execution for Guimpt IDE usage statistics
+        // Parse edition and adaptation from options
+        let edition: string | undefined;
+        let adaptation: string | undefined;
+        if (options && Array.isArray(options)) {
+          for (const opt of options) {
+            if (opt.startsWith("-e=") || opt.startsWith("--edition=")) {
+              edition = opt.split("=")[1];
+            } else if (
+              opt.startsWith("-a=") || opt.startsWith("--adaptation=")
+            ) {
+              adaptation = opt.split("=")[1];
+            }
+          }
+        }
+
+        // Start execution tracking for structured logging
+        let tracker:
+          | Awaited<
+            ReturnType<PromptLogger["startExecution"]>
+          >
+          | null = null;
         try {
           const logger = await getPromptLogger();
-          await logger.writeExecutionLog({ agent, c1, c2, c3 });
+          tracker = logger.startExecution(
+            { c1, c2, c3 },
+            {
+              agent,
+              edition,
+              adaptation,
+              options: options && options.length > 0 ? options : undefined,
+            },
+            "mcp",
+          );
         } catch (logError) {
           // Log errors should not block execution
           // deno-lint-ignore no-console
           console.error(
-            "[WARN] Failed to write prompt execution log:",
+            "[WARN] Failed to start execution logging:",
             logError,
           );
         }
@@ -406,6 +435,19 @@ server.setRequestHandler(
         const { code, stdout, stderr } = await command.output();
         const stdoutText = new TextDecoder().decode(stdout);
         const stderrText = new TextDecoder().decode(stderr);
+
+        // Log execution result
+        if (tracker) {
+          try {
+            await tracker.complete({
+              success: code === 0,
+              exitCode: code,
+              errorMessage: code !== 0 ? stderrText : undefined,
+            });
+          } catch {
+            // Logging errors should not block response
+          }
+        }
 
         // MCP specification: Return clean output to users, hiding internal implementation details
         // On success: return stdout content directly

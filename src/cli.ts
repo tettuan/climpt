@@ -14,6 +14,10 @@ import {
   FRONTMATTER_TO_SCHEMA_VERSION,
 } from "./version.ts";
 import { runInit } from "./init/mod.ts";
+import {
+  getPromptLogger,
+  parseCliArgsForLogging,
+} from "./mcp/prompt-logger.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -232,8 +236,57 @@ export async function main(_args: string[] = []): Promise<void> {
     if (!runBreakdown) {
       await importBreakdown();
     }
+
+    // Extract config prefix for logging
+    const configArg = _args.find((arg) => arg.startsWith("--config="));
+    const configPrefix = configArg ? configArg.split("=")[1] : undefined;
+
+    // Parse arguments for logging
+    const logParams = parseCliArgsForLogging(_args, configPrefix);
+
+    // Start execution tracking if this is a prompt call
+    let tracker:
+      | Awaited<
+        ReturnType<
+          Awaited<ReturnType<typeof getPromptLogger>>["startExecution"]
+        >
+      >
+      | null = null;
+
+    if (logParams) {
+      try {
+        const logger = await getPromptLogger();
+        tracker = logger.startExecution(
+          logParams.c3l,
+          logParams.context,
+          "cli",
+        );
+      } catch {
+        // Logging errors should not block execution
+      }
+    }
+
     // Call the runBreakdown function with arguments
-    await runBreakdown(_args);
+    try {
+      await runBreakdown(_args);
+
+      // Log successful completion
+      if (tracker) {
+        await tracker.complete({ success: true, exitCode: 0 });
+      }
+    } catch (runError) {
+      // Log failed execution
+      if (tracker) {
+        await tracker.complete({
+          success: false,
+          exitCode: 1,
+          errorMessage: runError instanceof Error
+            ? runError.message
+            : String(runError),
+        });
+      }
+      throw runError;
+    }
   } catch (error) {
     // deno-lint-ignore no-console
     console.error("Failed to execute:", error);
