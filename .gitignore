@@ -101,4 +101,7 @@ debug*.ts
 # MCP runtime config
 .agent/climpt/mcp/
 
+# CI local state
+.ci-local/
+
 
