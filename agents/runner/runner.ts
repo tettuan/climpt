@@ -46,6 +46,7 @@ import type {
 import { inferStepKind, loadStepRegistry } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
+  getToolPolicy,
   isBashCommandAllowed,
 } from "../common/tool-policy.ts";
 import {
@@ -603,8 +604,8 @@ export class AgentRunner {
       }
 
       // Configure PreToolUse hooks for boundary bash blocking
-      // Only enable for work/verification steps to block boundary commands
-      if (currentStepKind && currentStepKind !== "closure") {
+      // Enable based on tool policy's blockBoundaryBash setting for each stepKind
+      if (currentStepKind && getToolPolicy(currentStepKind).blockBoundaryBash) {
         const boundaryBashBlockingHook = this.createBoundaryBashBlockingHook(
           currentStepKind,
           ctx,

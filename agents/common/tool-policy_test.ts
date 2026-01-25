@@ -34,10 +34,12 @@ Deno.test("tool-policy: verification step denies boundary tools", () => {
   assertEquals(policy.denied.includes("githubIssueClose"), true);
 });
 
-Deno.test("tool-policy: closure step allows boundary tools", () => {
+Deno.test("tool-policy: closure step allows boundary tools but blocks bash", () => {
   const policy = getToolPolicy("closure");
-  assertEquals(policy.blockBoundaryBash, false);
+  // Bash commands are blocked even in closure - boundary hook handles them
+  assertEquals(policy.blockBoundaryBash, true);
   assertEquals(policy.denied.length, 0);
+  // Boundary tools are still allowed (for non-bash tools like githubIssueClose)
   assertEquals(policy.allowed.includes("githubIssueClose"), true);
 });
 
@@ -93,9 +95,12 @@ Deno.test("tool-policy: isBashCommandAllowed blocks gh pr merge in verification 
   assertEquals(result.reason?.includes("boundary action"), true);
 });
 
-Deno.test("tool-policy: isBashCommandAllowed allows gh issue close in closure step", () => {
+Deno.test("tool-policy: isBashCommandAllowed blocks gh issue close even in closure step", () => {
+  // Boundary bash commands are blocked in all steps
+  // The boundary hook handles GitHub operations based on defaultClosureAction
   const result = isBashCommandAllowed("gh issue close 123", "closure");
-  assertEquals(result.allowed, true);
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
 });
 
 Deno.test("tool-policy: isBashCommandAllowed allows non-boundary commands in work step", () => {

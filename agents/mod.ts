@@ -1,15 +1,27 @@
 /**
  * Agents Module - Top-level Entry Point
  *
- * Usage Example:
+ * @module
+ *
+ * This module provides the agent framework for autonomous task execution,
+ * including the AgentRunner, completion handlers, and type definitions.
+ *
+ * ## Usage Example
+ *
  * ```typescript
- * import { AgentRunner, loadAgentDefinition } from "./agents/mod.ts";
+ * import { AgentRunner, loadAgentDefinition } from "jsr:@aidevtool/climpt/agents";
  *
  * const definition = await loadAgentDefinition("my-agent", ".");
  * const runner = new AgentRunner(definition);
- * await runner.initialize({ cwd: ".", args: {} });
- * const result = await runner.run();
+ * const result = await runner.run({ cwd: ".", args: {} });
  * ```
+ *
+ * ## Key Exports
+ *
+ * - **AgentRunner**: Main class for running agents
+ * - **loadAgentDefinition**: Load agent configuration from .agent directory
+ * - **CompletionHandlers**: Various completion strategies (issue, iterate, manual)
+ * - **Types**: AgentDefinition, AgentResult, CompletionType, etc.
  */
 
 // === V2 Architecture (Recommended) ===

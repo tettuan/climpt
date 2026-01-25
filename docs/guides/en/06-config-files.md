@@ -4,6 +4,30 @@
 
 Explains Climpt's directory structure and configuration file details.
 
+## When to Customize Each File
+
+Before diving into details, understand **when** you need to modify each file:
+
+| File | Customize When... | Leave Default When... |
+|------|-------------------|----------------------|
+| `app.yml` | Prompts are in a non-standard location; sharing prompts across projects | Using standard `.agent/` structure |
+| `user.yml` | Enforcing naming conventions; restricting command options; per-user output paths | No validation or path customization needed |
+| `registry_config.json` | Managing multiple agents; sharing agents across projects | Single agent in standard location |
+
+### Common Scenarios
+
+**Scenario 1: Team sharing prompts**
+→ Customize `app.yml` to point to shared directory
+
+**Scenario 2: Enforce branch naming**
+→ Add validation pattern in `user.yml`
+
+**Scenario 3: Multiple agents (iterator + reviewer)**
+→ Add entries to `registry_config.json`
+
+**Scenario 4: First-time setup**
+→ Use defaults, customize later as needed
+
 ## Contents
 
 1. [Directory Structure](#61-directory-structure)

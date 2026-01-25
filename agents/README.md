@@ -163,12 +163,52 @@ Agent configurations are located in `/.agent/<agent-name>/`:
     "fallbackDir": "prompts/"
   },
 
+  "github": {
+    "enabled": true,
+    "labels": {
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "close"
+  },
+
   "logging": {
     "directory": "tmp/logs/agents/code-reviewer",
     "format": "jsonl"
   }
 }
 ```
+
+### GitHub Integration
+
+Configure Issue closure behavior with the `github` section:
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "labels": {
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "close"
+  }
+}
+```
+
+#### Closure Actions
+
+| Action            | Description                         |
+| ----------------- | ----------------------------------- |
+| `close`           | Close the Issue (default)           |
+| `label-only`      | Update labels only, keep Issue open |
+| `label-and-close` | Update labels then close            |
+
+The AI can override `defaultClosureAction` via structured output.
 
 ## Completion Types
 

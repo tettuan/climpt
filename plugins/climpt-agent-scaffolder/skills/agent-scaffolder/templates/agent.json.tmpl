@@ -29,6 +29,18 @@
     "fallbackDir": "prompts/"
   },
 
+  "github": {
+    "enabled": true,
+    "labels": {
+      "inProgress": "in-progress",
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "close"
+  },
+
   "logging": {
     "directory": "tmp/logs/agents/{{AGENT_NAME}}",
     "format": "jsonl"

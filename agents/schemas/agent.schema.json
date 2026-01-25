@@ -323,10 +323,46 @@
         },
         "labels": {
           "type": "object",
+          "properties": {
+            "requirements": {
+              "type": "string",
+              "description": "Label for requirements documentation"
+            },
+            "inProgress": {
+              "type": "string",
+              "description": "Label for in-progress state"
+            },
+            "blocked": {
+              "type": "string",
+              "description": "Label for blocked state"
+            },
+            "completion": {
+              "type": "object",
+              "description": "Labels to apply on issue completion",
+              "properties": {
+                "add": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Labels to add on completion"
+                },
+                "remove": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Labels to remove on completion"
+                }
+              }
+            }
+          },
           "additionalProperties": {
             "type": "string"
           },
           "description": "Label mappings"
+        },
+        "defaultClosureAction": {
+          "type": "string",
+          "enum": ["close", "label-only", "label-and-close"],
+          "default": "close",
+          "description": "Default action for issue closure: close (close issue), label-only (change labels only, keep open), label-and-close (change labels then close)"
         }
       }
     },

@@ -9,18 +9,68 @@
 import { join } from "@std/path";
 
 /**
+ * C3L coordinates for prompt identification
+ */
+export interface C3LCoordinates {
+  /** Domain (c1) - e.g., "git", "code", "test" */
+  c1: string;
+  /** Action (c2) - e.g., "create", "review", "fix" */
+  c2: string;
+  /** Target (c3) - e.g., "issue", "branch", "file" */
+  c3: string;
+}
+
+/**
+ * Execution context for prompt call
+ */
+export interface ExecutionContext {
+  /** Agent name - e.g., "climpt", "iterator" */
+  agent: string;
+  /** Edition (layer type) - e.g., "default", "issue", "task" */
+  edition?: string;
+  /** Adaptation (prompt variation) */
+  adaptation?: string;
+  /** Command options passed */
+  options?: string[];
+  /** Input source - "stdin", "file", or file path */
+  inputSource?: string;
+  /** Output destination */
+  outputDestination?: string;
+}
+
+/**
+ * Execution result
+ */
+export interface ExecutionResult {
+  /** Whether execution succeeded */
+  success: boolean;
+  /** Exit code if available */
+  exitCode?: number;
+  /** Error message if failed */
+  errorMessage?: string;
+  /** Execution duration in milliseconds */
+  durationMs?: number;
+}
+
+/**
  * Log entry for prompt execution
  */
 export interface PromptExecutionLog {
   timestamp: string;
-  level: "info";
-  message: "Climpt prompt executed";
+  level: "info" | "error";
+  message: string;
   metadata: {
-    type: "climpt_prompt_used";
-    c1: string;
-    c2: string;
-    c3: string;
+    type: "climpt_prompt_call";
+    /** C3L coordinates */
+    c3l: C3LCoordinates;
+    /** Full prompt path */
     promptPath: string;
+    /** Execution context */
+    context: ExecutionContext;
+    /** Execution result (if completed) */
+    result?: ExecutionResult;
+    /** Invocation source */
+    source: "cli" | "mcp";
   };
 }
 
@@ -73,9 +123,10 @@ export class PromptLogger {
   }
 
   /**
-   * Write a prompt execution log entry
+   * Write a prompt execution log entry (legacy format, kept for compatibility)
    *
    * @param params - Execution parameters (agent, c1, c2, c3)
+   * @deprecated Use logPromptCall instead
    */
   async writeExecutionLog(params: {
     agent: string;
@@ -83,26 +134,50 @@ export class PromptLogger {
     c2: string;
     c3: string;
   }): Promise<void> {
+    await this.logPromptCall({
+      c3l: { c1: params.c1, c2: params.c2, c3: params.c3 },
+      context: { agent: params.agent },
+      source: "mcp",
+    });
+  }
+
+  /**
+   * Log a prompt call with full context
+   *
+   * @param params - Full execution parameters
+   */
+  async logPromptCall(params: {
+    c3l: C3LCoordinates;
+    context: ExecutionContext;
+    result?: ExecutionResult;
+    source: "cli" | "mcp";
+  }): Promise<void> {
     if (!this.file) {
-      // Lazy initialization if not already initialized
       await this.initialize();
     }
 
-    const { agent, c1, c2, c3 } = params;
+    const { c3l, context, result, source } = params;
+    const { c1, c2, c3 } = c3l;
 
-    // Build promptPath: agent/{agent}/prompts/{c1}/{c2}/{c3}/f_default.md
-    const promptPath = `agent/${agent}/prompts/${c1}/${c2}/${c3}/f_default.md`;
+    // Build promptPath based on edition
+    const edition = context.edition || "default";
+    const adaptation = context.adaptation ? `_${context.adaptation}` : "";
+    const promptPath =
+      `.agent/${context.agent}/prompts/${c1}/${c2}/${c3}/f_${edition}${adaptation}.md`;
 
     const entry: PromptExecutionLog = {
       timestamp: new Date().toISOString(),
-      level: "info",
-      message: "Climpt prompt executed",
+      level: result?.success === false ? "error" : "info",
+      message: result
+        ? (result.success ? "Climpt prompt completed" : "Climpt prompt failed")
+        : "Climpt prompt called",
       metadata: {
-        type: "climpt_prompt_used",
-        c1,
-        c2,
-        c3,
+        type: "climpt_prompt_call",
+        c3l: { c1, c2, c3 },
         promptPath,
+        context,
+        result,
+        source,
       },
     };
 
@@ -111,6 +186,36 @@ export class PromptLogger {
     if (this.file) {
       await this.file.write(encoder.encode(line));
     }
+  }
+
+  /**
+   * Create an execution tracker for measuring duration
+   *
+   * @param c3l - C3L coordinates
+   * @param context - Execution context
+   * @param source - Invocation source
+   * @returns Object with complete() method to finalize the log
+   */
+  startExecution(
+    c3l: C3LCoordinates,
+    context: ExecutionContext,
+    source: "cli" | "mcp",
+  ): {
+    complete: (result: Omit<ExecutionResult, "durationMs">) => Promise<void>;
+  } {
+    const startTime = Date.now();
+
+    return {
+      complete: async (result: Omit<ExecutionResult, "durationMs">) => {
+        const durationMs = Date.now() - startTime;
+        await this.logPromptCall({
+          c3l,
+          context,
+          result: { ...result, durationMs },
+          source,
+        });
+      },
+    };
   }
 
   /**
@@ -198,4 +303,69 @@ export async function getPromptLogger(): Promise<PromptLogger> {
     await promptLoggerInstance.initialize();
   }
   return promptLoggerInstance;
+}
+
+/**
+ * Parse CLI arguments to extract C3L coordinates and context
+ *
+ * @param args - CLI arguments
+ * @param configPrefix - Config prefix (agent name)
+ * @returns Parsed C3L coordinates and context, or null if not a prompt call
+ */
+export function parseCliArgsForLogging(
+  args: string[],
+  configPrefix?: string,
+): { c3l: C3LCoordinates; context: ExecutionContext } | null {
+  // Filter out option arguments to get positional args
+  const positionalArgs = args.filter((arg) => !arg.startsWith("-"));
+
+  // Need at least 2 positional args: c2 (directive) and c3 (layer)
+  if (positionalArgs.length < 2) {
+    return null;
+  }
+
+  const c2 = positionalArgs[0];
+  const c3 = positionalArgs[1];
+
+  // Determine c1 (domain) from config prefix or default
+  const agent = configPrefix || "climpt";
+  const c1 = configPrefix || "default";
+
+  // Parse options
+  const options: string[] = [];
+  let edition: string | undefined;
+  let adaptation: string | undefined;
+  let inputSource: string | undefined;
+  let outputDestination: string | undefined;
+
+  for (const arg of args) {
+    if (arg.startsWith("-e=") || arg.startsWith("--edition=")) {
+      edition = arg.split("=")[1];
+    } else if (arg.startsWith("-a=") || arg.startsWith("--adaptation=")) {
+      adaptation = arg.split("=")[1];
+    } else if (arg.startsWith("-f=") || arg.startsWith("--from=")) {
+      inputSource = arg.split("=")[1];
+    } else if (arg.startsWith("-o=") || arg.startsWith("--destination=")) {
+      outputDestination = arg.split("=")[1];
+    } else if (arg.startsWith("-") || arg.startsWith("--")) {
+      options.push(arg);
+    }
+  }
+
+  // Check for stdin input
+  if (!inputSource && !Deno.stdin.isTerminal()) {
+    inputSource = "stdin";
+  }
+
+  return {
+    c3l: { c1, c2, c3 },
+    context: {
+      agent,
+      edition,
+      adaptation,
+      options: options.length > 0 ? options : undefined,
+      inputSource,
+      outputDestination,
+    },
+  };
 }

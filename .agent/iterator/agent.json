@@ -1,6 +1,6 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "name": "iterator",
   "displayName": "Iterator Agent",
   "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",
@@ -10,7 +10,17 @@
     "completionConfig": {
       "maxIterations": 500
     },
-    "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep", "Task", "TodoWrite"],
+    "allowedTools": [
+      "Skill",
+      "Read",
+      "Write",
+      "Edit",
+      "Bash",
+      "Glob",
+      "Grep",
+      "Task",
+      "TodoWrite"
+    ],
     "permissionMode": "acceptEdits",
     "preCloseValidation": {
       "enabled": true,
@@ -66,8 +76,13 @@
     "labels": {
       "requirements": "docs",
       "inProgress": "in-progress",
-      "blocked": "need clearance"
-    }
+      "blocked": "need clearance",
+      "completion": {
+        "add": ["done"],
+        "remove": ["in-progress"]
+      }
+    },
+    "defaultClosureAction": "label-only"
   },
   "worktree": {
     "enabled": true,
