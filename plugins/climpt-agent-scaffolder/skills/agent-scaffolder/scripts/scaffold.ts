@@ -13,13 +13,9 @@
  *     --completion-type externalState
  */
 
-import { parse } from "https://deno.land/std@0.224.0/flags/mod.ts";
-import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
-import {
-  dirname,
-  fromFileUrl,
-  join,
-} from "https://deno.land/std@0.224.0/path/mod.ts";
+import { parse } from "jsr:@std/flags";
+import { ensureDir } from "jsr:@std/fs";
+import { dirname, fromFileUrl, join } from "jsr:@std/path";
 
 interface ScaffoldOptions {
   name: string;

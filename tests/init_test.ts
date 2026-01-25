@@ -8,11 +8,8 @@
  * @module tests/init_test
  */
 
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
+import { join } from "@std/path";
 
 // Import modules under test
 import { detectExisting, hasExistingFiles } from "../src/init/detector.ts";

@@ -1,7 +1,4 @@
-import {
-  assertEquals,
-  assertExists,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertExists } from "@std/assert";
 
 // Test that MCP tool configurations match available configs
 Deno.test("MCP tool names match availableConfigs", async () => {

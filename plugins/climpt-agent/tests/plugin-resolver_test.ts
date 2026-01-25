@@ -6,7 +6,7 @@
  * @module climpt-plugins/tests/plugin-resolver_test
  */
 
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "jsr:@std/assert";
 import { join } from "jsr:@std/path@^1";
 
 import {
