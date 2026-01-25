@@ -1,8 +1,49 @@
-# Agent 作成クイックスタート
+# Agent Creation Quickstart
 
-設定とプロンプトだけで Agent を作成する手順。
+Create an Agent using only configuration and prompts.
 
-## 作成方法の選択
+## Agent Structure at a Glance
+
+Before creating files, understand what each piece does:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  agent.json                                                 │
+│  ├── name, description      ← What is this Agent?          │
+│  ├── completionType         ← When does it stop?           │
+│  ├── parameters             ← What inputs does it accept?  │
+│  └── behavior               ← How does it behave?          │
+├─────────────────────────────────────────────────────────────┤
+│  steps_registry.json                                        │
+│  ├── entryStepMapping       ← Where does it start?         │
+│  ├── steps                  ← What steps exist?            │
+│  │   ├── structuredGate     ← What intents are allowed?    │
+│  │   └── transitions        ← Where does each intent go?   │
+│  └── outputSchemaRef        ← What output format?          │
+├─────────────────────────────────────────────────────────────┤
+│  prompts/                                                   │
+│  ├── system.md              ← Role and constraints         │
+│  └── steps/{c2}/{c3}/       ← Per-step instructions        │
+├─────────────────────────────────────────────────────────────┤
+│  schemas/                                                   │
+│  └── step_outputs.schema.json  ← Output validation         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Decisions
+
+| Decision           | Options                                                            | Impact                             |
+| ------------------ | ------------------------------------------------------------------ | ---------------------------------- |
+| **completionType** | `externalState`, `iterationBudget`, `keywordSignal`, `stepMachine` | Determines how Agent knows to stop |
+| **Step flow**      | Linear, branching, looping                                         | Determines task complexity         |
+| **Output schema**  | Minimal, detailed                                                  | Determines response validation     |
+
+For concept details, see
+[Agent Configuration Concepts](../../guides/en/00-1-concepts.md).
+
+---
+
+## Creation Methods
 
 ### 方法 1: Scaffolder Plugin（推奨）
 
