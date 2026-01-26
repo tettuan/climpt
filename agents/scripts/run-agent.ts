@@ -70,6 +70,7 @@ Common Options:
   --resume               Resume previous session
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
+  --verbose, -v          Enable verbose logging (SDK I/O details)
 
 Finalize Options:
   --no-merge             Skip merging worktree branch to base
@@ -116,12 +117,14 @@ async function main(): Promise<void> {
       "no-merge",
       "push",
       "create-pr",
+      "verbose",
     ],
     alias: {
       a: "agent",
       h: "help",
       i: "issue",
       m: "iterate-max",
+      v: "verbose",
     },
   });
 
@@ -244,6 +247,7 @@ async function main(): Promise<void> {
       cwd: workingDir,
       args: runnerArgs,
       plugins: [],
+      verbose: args.verbose,
     });
 
     // Report result
