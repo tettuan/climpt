@@ -113,8 +113,13 @@ export async function runSubAgent(
  * - result: Task completion (success/error)
  * - system: Initialization info
  * - user: User message echo (ignored)
+ * - tool_use: Tool invocation
+ * - tool_result: Tool execution result
  * - stream_event: Partial streaming data (ignored)
  * - compact_boundary: Context compaction marker (ignored)
+ *
+ * Note: SDK type definitions may not include all message types.
+ * We handle them via runtime type checking.
  *
  * @internal Exported for testing
  */
@@ -122,45 +127,88 @@ export async function handleMessage(
   message: SDKMessage,
   logger: Logger,
 ): Promise<void> {
-  switch (message.type) {
-    case "assistant":
-      if (message.message.content) {
-        for (const block of message.message.content) {
-          if (block.type === "text") {
+  // Cast to unknown for runtime type checking of undocumented message types
+  const msg = message as unknown as Record<string, unknown>;
+  const msgType = msg.type as string;
+
+  switch (msgType) {
+    case "assistant": {
+      const assistantMsg = message as SDKMessage & {
+        message: { content?: Array<{ type: string; text?: string }> };
+      };
+      if (assistantMsg.message.content) {
+        for (const block of assistantMsg.message.content) {
+          if (block.type === "text" && block.text) {
             await logger.writeAssistant(block.text);
           }
         }
       }
       break;
+    }
 
     case "result": {
-      if (message.subtype === "success") {
-        await logger.writeResult("success", message.total_cost_usd);
+      const resultMsg = msg as {
+        subtype?: string;
+        total_cost_usd?: number;
+        errors?: string[];
+      };
+      if (resultMsg.subtype === "success") {
+        await logger.writeResult("success", resultMsg.total_cost_usd);
       } else {
-        const errors = (message as { errors?: string[] }).errors ?? [];
+        const errors = resultMsg.errors ?? [];
         await logger.writeResult("error", undefined, { errors });
       }
       break;
     }
 
-    case "system":
-      if (message.subtype === "init") {
-        const msg = message as {
-          session_id: string;
-          model: string;
-          permissionMode?: string;
-          mcp_servers?: Array<{ name: string; status: string }>;
-          tools?: string[];
-        };
+    case "system": {
+      const systemMsg = msg as {
+        subtype?: string;
+        session_id?: string;
+        model?: string;
+        permissionMode?: string;
+        mcp_servers?: Array<{ name: string; status: string }>;
+        tools?: string[];
+      };
+      if (systemMsg.subtype === "init") {
         await logger.writeSystem(
-          `Session: ${msg.session_id}, Model: ${msg.model}`,
+          `Session: ${systemMsg.session_id}, Model: ${systemMsg.model}`,
           {
-            permissionMode: msg.permissionMode,
-            mcp_servers: msg.mcp_servers,
+            permissionMode: systemMsg.permissionMode,
+            mcp_servers: systemMsg.mcp_servers,
           },
         );
       }
       break;
+    }
+
+    case "tool_use": {
+      const toolMsg = msg as {
+        tool_name: string;
+        tool_use_id?: string;
+        input?: Record<string, unknown>;
+      };
+      await logger.writeToolUse({
+        toolName: toolMsg.tool_name,
+        toolUseId: toolMsg.tool_use_id,
+        inputSummary: summarizeToolInput(toolMsg.tool_name, toolMsg.input),
+      });
+      break;
+    }
+
+    case "tool_result": {
+      const toolResultMsg = msg as {
+        tool_use_id?: string;
+        is_error?: boolean;
+        error_message?: string;
+      };
+      await logger.writeToolResult({
+        toolUseId: toolResultMsg.tool_use_id,
+        success: !toolResultMsg.is_error,
+        errorMessage: toolResultMsg.error_message,
+      });
+      break;
+    }
 
     case "user":
       // User message echo - no action needed
@@ -169,5 +217,40 @@ export async function handleMessage(
     default:
       // Handle unknown/new message types gracefully
       break;
+  }
+}
+
+/**
+ * Summarize tool input for logging (privacy-aware)
+ */
+function summarizeToolInput(
+  toolName: string,
+  input?: Record<string, unknown>,
+): string {
+  if (!input) return "";
+
+  switch (toolName) {
+    case "Read":
+      return `file_path: ${input.file_path}`;
+    case "Write":
+      return `file_path: ${input.file_path}, content: ${
+        String(input.content || "").length
+      } chars`;
+    case "Edit":
+      return `file_path: ${input.file_path}`;
+    case "Bash":
+      return `command: ${String(input.command || "").substring(0, 100)}...`;
+    case "Glob":
+      return `pattern: ${input.pattern}`;
+    case "Grep":
+      return `pattern: ${input.pattern}, path: ${input.path || "."}`;
+    case "Skill":
+      return `skill: ${input.skill}${
+        input.args ? `, args: ${input.args}` : ""
+      }`;
+    case "Task":
+      return `subagent: ${input.subagent_type}, desc: ${input.description}`;
+    default:
+      return JSON.stringify(input).substring(0, 200);
   }
 }

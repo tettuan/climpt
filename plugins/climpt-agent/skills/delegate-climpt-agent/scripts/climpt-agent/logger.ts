@@ -6,7 +6,13 @@
 import { ensureDir } from "jsr:@std/fs";
 import { join } from "jsr:@std/path";
 
-import type { LogEntry, LogLevel, LogSummary } from "./types.ts";
+import type {
+  LogEntry,
+  LogLevel,
+  LogSummary,
+  ToolResultInfo,
+  ToolUseInfo,
+} from "./types.ts";
 
 /**
  * Logger that writes JSONL to file
@@ -124,6 +130,25 @@ export class Logger {
     metadata?: Record<string, unknown>,
   ): Promise<void> {
     await this.writeLog("error", message, metadata);
+  }
+
+  /**
+   * Log a tool use event
+   */
+  async writeToolUse(toolUse: ToolUseInfo): Promise<void> {
+    await this.writeLog("tool_use", `Tool invoked: ${toolUse.toolName}`, {
+      toolUse,
+    });
+  }
+
+  /**
+   * Log a tool result event
+   */
+  async writeToolResult(toolResult: ToolResultInfo): Promise<void> {
+    const status = toolResult.success ? "completed" : "failed";
+    await this.writeLog("tool_result", `Tool ${status}`, {
+      toolResult,
+    });
   }
 
   async writeSection(title: string, content: string): Promise<void> {
