@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-await-in-loop
+// Verification comment for Issue #337: Testing agent execution and verbose logging
 /**
  * @fileoverview Tests for climpt init module
  *
