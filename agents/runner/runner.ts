@@ -74,6 +74,7 @@ import type { StepContext } from "../src_common/contracts.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -82,6 +83,8 @@ export interface RunnerOptions {
   args: Record<string, unknown>;
   /** Additional plugins to load */
   plugins?: string[];
+  /** Enable verbose logging of SDK I/O */
+  verbose?: boolean;
 }
 
 // CompletionValidationResult is now imported from completion-chain.ts
@@ -119,6 +122,9 @@ export class AgentRunner {
   private schemaResolutionFailed = false;
   // Maximum consecutive schema failures before aborting
   private static readonly MAX_SCHEMA_FAILURES = 2;
+
+  // Verbose logging for SDK I/O debugging
+  private verboseLogger: VerboseLogger | null = null;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -189,6 +195,17 @@ export class AgentRunner {
     // Initialize Completion validation if registry supports it
     await this.initializeCompletionValidation(agentDir, cwd, logger);
 
+    // Initialize verbose logger if enabled
+    if (options.verbose) {
+      this.verboseLogger = await createVerboseLogger(
+        this.definition.logging.directory,
+        this.definition.name,
+      );
+      logger.info("[Verbose] Verbose logging enabled", {
+        logPath: this.verboseLogger.getLogPath(),
+      });
+    }
+
     // Assign all context at once (atomic initialization)
     this.context = {
       completionHandler,
@@ -227,6 +244,13 @@ export class AgentRunner {
         await this.eventEmitter.emit("iterationStart", { iteration });
 
         ctx.logger.info(`=== Iteration ${iteration} ===`);
+
+        // Verbose: Log iteration start
+        const stepId = this.getStepIdForIteration(iteration);
+        if (this.verboseLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await this.verboseLogger.logIterationStart(iteration, stepId);
+        }
 
         // Build prompt
         const lastSummary = summaries.length > 0
@@ -278,10 +302,15 @@ export class AgentRunner {
           systemPrompt: customSystemPrompt,
         });
 
-        // Determine step ID for this iteration
-        const stepId = this.getStepIdForIteration(iteration);
+        // Verbose: Log prompt and system prompt
+        if (this.verboseLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await this.verboseLogger.logPrompt(prompt);
+          // deno-lint-ignore no-await-in-loop
+          await this.verboseLogger.logSystemPrompt(systemPrompt);
+        }
 
-        // Execute Claude SDK query
+        // Execute Claude SDK query (stepId already determined at iteration start)
         // deno-lint-ignore no-await-in-loop
         const summary = await this.executeQuery({
           prompt,
@@ -406,6 +435,23 @@ export class AgentRunner {
         // deno-lint-ignore no-await-in-loop
         await this.eventEmitter.emit("iterationEnd", { iteration, summary });
 
+        // Verbose: Log iteration end with summary
+        if (this.verboseLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await this.verboseLogger.logIterationEnd(iteration, {
+            toolsUsed: summary.toolsUsed,
+            errors: summary.errors,
+          });
+          // deno-lint-ignore no-await-in-loop
+          await this.verboseLogger.logSdkResult({
+            sessionId: summary.sessionId,
+            structuredOutput: summary.structuredOutput,
+            assistantResponses: summary.assistantResponses,
+            toolsUsed: summary.toolsUsed,
+            errors: summary.errors,
+          });
+        }
+
         if (isComplete) {
           ctx.logger.info(
             `Agent completed after ${iteration} iteration(s): ${completionReason}`,
@@ -470,6 +516,13 @@ export class AgentRunner {
         error: errorReason,
       };
     } finally {
+      // Close verbose logger if enabled
+      if (this.verboseLogger) {
+        await this.verboseLogger.close();
+        ctx.logger.info("[Verbose] Verbose log saved", {
+          logPath: this.verboseLogger.getLogPath(),
+        });
+      }
       await ctx.logger.close();
     }
   }
@@ -623,6 +676,15 @@ export class AgentRunner {
         );
       }
 
+      // Verbose: Log full SDK request options
+      if (this.verboseLogger) {
+        await this.verboseLogger.logSdkRequest({
+          ...queryOptions,
+          // Exclude canUseTool callback (not serializable)
+          canUseTool: "[Function]",
+        });
+      }
+
       const queryIterator = query({
         prompt,
         options: queryOptions,
@@ -630,6 +692,12 @@ export class AgentRunner {
 
       for await (const message of queryIterator) {
         ctx.logger.logSdkMessage(message);
+
+        // Verbose: Log raw SDK message
+        if (this.verboseLogger) {
+          await this.verboseLogger.logSdkMessage(message);
+        }
+
         this.processMessage(message, summary);
       }
     } catch (error) {
