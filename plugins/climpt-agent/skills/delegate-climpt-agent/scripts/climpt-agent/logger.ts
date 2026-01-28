@@ -19,12 +19,12 @@ import type {
  */
 export class Logger {
   private logFile: Deno.FsFile | null = null;
-  private logPath: string = "";
+  private logPath = "";
   private assistantMessages: string[] = [];
-  private resultCost: number = 0;
+  private resultCost = 0;
   private resultStatus: "success" | "error" | "pending" = "pending";
 
-  async init(logDir: string, maxFiles: number = 100): Promise<void> {
+  async init(logDir: string, maxFiles = 100): Promise<void> {
     await ensureDir(logDir);
     await this.rotateLogs(logDir, maxFiles);
 

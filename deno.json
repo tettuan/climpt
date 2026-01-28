@@ -81,17 +81,37 @@
   },
   "lint": {
     "include": ["src/", "*.ts", "agents/"],
-    "exclude": ["dist/", "node_modules/"],
+    "exclude": ["dist/", "node_modules/", "**/*_test.ts", "tests/"],
     "rules": {
       "tags": ["recommended"],
       "include": [
+        "ban-untagged-todo",
+        "camelcase",
+        "default-param-last",
         "eqeqeq",
         "explicit-function-return-type",
-        "no-non-null-assertion",
+        "explicit-module-boundary-types",
+        "guard-for-in",
         "no-await-in-loop",
-        "default-param-last",
+        "no-boolean-literal-for-arguments",
+        "no-console",
+        "no-const-assign",
+        "no-eval",
+        "no-implicit-declare-namespace-export",
+        "no-inferrable-types",
+        "no-non-null-asserted-optional-chain",
+        "no-non-null-assertion",
+        "no-self-compare",
+        "no-slow-types",
+        "no-sparse-arrays",
+        "no-sync-fn-in-async-fn",
+        "no-throw-literal",
+        "no-undef",
+        "no-useless-rename",
         "prefer-ascii",
-        "no-console"
+        "single-var-declarator",
+        "triple-slash-reference",
+        "verbatim-module-syntax"
       ]
     }
   }

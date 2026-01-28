@@ -18,6 +18,9 @@ import {
 } from "./types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 
+const COMPLETE = true;
+const INCOMPLETE = false;
+
 /**
  * Step state for tracking execution progress
  */
@@ -373,7 +376,7 @@ ${this.buildStepInstructions(stepDef)}
   isComplete(): Promise<boolean> {
     // Check if marked complete by transition
     if (this.state.isComplete) {
-      return Promise.resolve(true);
+      return Promise.resolve(COMPLETE);
     }
 
     // Check if last summary has completion signal
@@ -384,7 +387,7 @@ ${this.buildStepInstructions(stepDef)}
       if (so.status === "completed" || so.complete === true) {
         this.state.isComplete = true;
         this.state.completionReason = "AI declared completion";
-        return Promise.resolve(true);
+        return Promise.resolve(COMPLETE);
       }
 
       // Check for next_action.action === "complete"
@@ -393,12 +396,12 @@ ${this.buildStepInstructions(stepDef)}
         if (nextAction.action === "complete") {
           this.state.isComplete = true;
           this.state.completionReason = "AI requested completion action";
-          return Promise.resolve(true);
+          return Promise.resolve(COMPLETE);
         }
       }
     }
 
-    return Promise.resolve(false);
+    return Promise.resolve(INCOMPLETE);
   }
 
   async getCompletionDescription(): Promise<string> {

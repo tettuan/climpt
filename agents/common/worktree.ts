@@ -22,6 +22,9 @@ import {
   runGit,
 } from "./git-utils.ts";
 
+/** Flag to force delete branch even if not fully merged */
+const FORCE_DELETE = true;
+
 // Re-export for backwards compatibility
 export { getCurrentBranch, getRepoRoot } from "./git-utils.ts";
 
@@ -201,7 +204,7 @@ export async function mergeWorktreeBranch(
 
   if (!hasCommits) {
     // No commits to merge - just delete the branch
-    const deleted = await deleteBranch(worktreeBranch, parentCwd, true);
+    const deleted = await deleteBranch(worktreeBranch, parentCwd, FORCE_DELETE);
     return {
       merged: false,
       commitsMerged: 0,
@@ -249,7 +252,7 @@ export async function mergeWorktreeBranch(
   }
 
   // Delete the worktree branch after successful merge
-  const deleted = await deleteBranch(worktreeBranch, parentCwd, true);
+  const deleted = await deleteBranch(worktreeBranch, parentCwd, FORCE_DELETE);
 
   return {
     merged: true,

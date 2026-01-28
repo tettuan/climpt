@@ -26,7 +26,7 @@ export interface AssistantMessage {
  */
 export interface ToolUseMessage {
   readonly type: "tool_use";
-  readonly tool_name: string;
+  readonly "tool_name": string;
   readonly input?: Record<string, unknown>;
 }
 
@@ -35,9 +35,9 @@ export interface ToolUseMessage {
  */
 export interface ResultMessage {
   readonly type: "result";
-  readonly session_id: string;
+  readonly "session_id": string;
   readonly subtype?: string;
-  readonly structured_output?: Record<string, unknown>;
+  readonly "structured_output"?: Record<string, unknown>;
 }
 
 /**

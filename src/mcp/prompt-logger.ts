@@ -79,7 +79,7 @@ export interface PromptExecutionLog {
  */
 export class PromptLogger {
   private file: Deno.FsFile | null = null;
-  private logPath: string = "";
+  private logPath = "";
   private logDir: string;
   private maxFiles: number;
 

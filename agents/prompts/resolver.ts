@@ -7,11 +7,8 @@
 import { join } from "@std/path";
 import { DefaultFallbackProvider } from "./fallback.ts";
 import type { Variables } from "../src_common/contracts.ts";
-import {
-  FilePromptAdapter,
-  PromptAdapter,
-  PromptNotFoundError,
-} from "./adapter.ts";
+import type { PromptAdapter } from "./adapter.ts";
+import { FilePromptAdapter, PromptNotFoundError } from "./adapter.ts";
 import { substituteVariables } from "./variable-substitutor.ts";
 
 export interface PromptResolverOptions {

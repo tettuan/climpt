@@ -85,7 +85,7 @@ export interface Command {
   title?: string;
   description: string;
   usage?: string;
-  c3l_version?: string;
+  "c3l_version"?: string;
   options?: CommandOptions;
   uv?: UserVariable[];
 }
