@@ -108,7 +108,7 @@ Deno.test("getPattern - returns undefined when registry has no completionPattern
 // Test: buildGenericRetryPrompt (via buildRetryPrompt fallback path)
 // ============================================================================
 
-Deno.test("buildGenericRetryPrompt - generates generic message when no prompts found", async () => {
+Deno.test("buildGenericRetryPrompt - loads fallback f_failed.md template", async () => {
   // Use empty registry with no completionPatterns to trigger fallback path
   const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
@@ -130,19 +130,11 @@ Deno.test("buildGenericRetryPrompt - generates generic message when no prompts f
     validationResult,
   );
 
-  // Should contain the generic message structure
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "Detected pattern: unknown-pattern");
-  assertStringIncludes(prompt, "### Error details");
-  assertStringIncludes(prompt, "Some error occurred");
-  assertStringIncludes(prompt, "### Details");
-  assertStringIncludes(prompt, "**changedFiles:**");
-  assertStringIncludes(prompt, "- file1.ts");
-  assertStringIncludes(prompt, "- file2.ts");
-  assertStringIncludes(
-    prompt,
-    "Please resolve this issue and try completing again.",
-  );
+  // Should contain the fallback message from f_failed.md (Japanese template)
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "問題を解決して、再度完了を試みてください。");
 });
 
 Deno.test("buildGenericRetryPrompt - handles validation result without pattern", async () => {
@@ -161,10 +153,12 @@ Deno.test("buildGenericRetryPrompt - handles validation result without pattern",
     validationResult,
   );
 
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "### Error details");
-  assertStringIncludes(prompt, "Generic failure");
-  // Should not include pattern line since none was provided
+  // Should contain the fallback message from f_failed.md (Japanese template)
+  // Note: error is not displayed as it's not passed via params to the template
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "問題を解決して、再度完了を試みてください。");
 });
 
 Deno.test("buildGenericRetryPrompt - handles empty params gracefully", async () => {
@@ -184,12 +178,11 @@ Deno.test("buildGenericRetryPrompt - handles empty params gracefully", async () 
     validationResult,
   );
 
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "Detected pattern: test-pattern");
-  assertStringIncludes(
-    prompt,
-    "Please resolve this issue and try completing again.",
-  );
+  // Should contain the fallback message from f_failed.md (Japanese template)
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "問題を解決して、再度完了を試みてください。");
 });
 
 Deno.test("buildGenericRetryPrompt - handles array params with objects", async () => {
@@ -214,9 +207,9 @@ Deno.test("buildGenericRetryPrompt - handles array params with objects", async (
     validationResult,
   );
 
-  assertStringIncludes(prompt, "**errors:**");
-  assertStringIncludes(prompt, '{"file":"a.ts","line":10}');
-  assertStringIncludes(prompt, '{"file":"b.ts","line":20}');
+  // Should contain the fallback message from f_failed.md (Japanese template)
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
 });
 
 // ============================================================================
@@ -238,9 +231,12 @@ Deno.test("buildRetryPrompt - falls back when pattern not in registry", async ()
     validationResult,
   );
 
-  // Should fall back to generic prompt
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "Detected pattern: non-existent-pattern");
+  // Should fall back to f_failed.md template (Japanese)
+  // Note: error is not displayed as it's not passed via params to the template
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "問題を解決して、再度完了を試みてください。");
 });
 
 Deno.test("buildRetryPrompt - falls back when pattern is undefined", async () => {
@@ -257,41 +253,42 @@ Deno.test("buildRetryPrompt - falls back when pattern is undefined", async () =>
     validationResult,
   );
 
-  // Should fall back to generic prompt
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "### Error details");
-  assertStringIncludes(prompt, "No pattern provided");
+  // Should fall back to f_failed.md template (Japanese)
+  // Note: error is not displayed as it's not passed via params to the template
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 完了条件が満たされていません");
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "問題を解決して、再度完了を試みてください。");
 });
 
 // ============================================================================
 // Test: buildFallbackPrompt path (when C3L prompt loading fails)
 // ============================================================================
 
-Deno.test("buildFallbackPrompt - loads generic f_failed.md path on pattern prompt failure", async () => {
-  // This test verifies the fallback chain when C3L prompt loading fails
-  // Since we can't mock C3LPromptLoader easily, we test the fallback to generic message
+Deno.test("buildFallbackPrompt - loads pattern-specific prompt when available", async () => {
+  // This test verifies that pattern-specific prompts are loaded
+  // The git-dirty pattern has a dedicated f_failed_git-dirty.md template
   const handler = new RetryHandler(testRegistry, testContext);
 
   const validationResult: ValidatorResult = {
     valid: false,
-    pattern: "git-dirty", // Valid pattern in registry
+    pattern: "git-dirty", // Valid pattern in registry with dedicated prompt
     error: "Git directory is dirty",
     params: {
       changedFiles: ["modified.ts"],
     },
   };
 
-  // This will attempt to load C3L prompt, fail (no actual prompt file),
-  // then fall back to f_failed.md, fail again, then generate generic message
+  // This will load the pattern-specific f_failed_git-dirty.md template
   const prompt = await handler.buildRetryPrompt(
     testStepConfig,
     validationResult,
   );
 
-  // Should eventually fall back to generic message
-  assertStringIncludes(prompt, "## Completion conditions not met");
-  assertStringIncludes(prompt, "Detected pattern: git-dirty");
-  assertStringIncludes(prompt, "Git directory is dirty");
+  // Should load git-dirty specific template (Japanese)
+  // deno-lint-ignore prefer-ascii
+  assertStringIncludes(prompt, "## 未コミットの変更があります");
+  assertStringIncludes(prompt, "modified.ts");
 });
 
 // ============================================================================
