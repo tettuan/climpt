@@ -5,7 +5,7 @@ Delegates development tasks to sub-agents using Claude Agent SDK.
 ## Features
 
 - Spawns independent sub-agents for complex tasks
-- Automatic command matching via cosine similarity search
+- Automatic command matching via BM25+RRF search algorithm
 - Supports git operations, meta operations, and more
 
 ## Sandbox Requirement

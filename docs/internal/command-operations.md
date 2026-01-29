@@ -8,11 +8,11 @@
 
 | ファイル | 用途 |
 |----------|------|
-| `src/mcp/similarity.ts` | MCP Server の類似度検索・describe 実装 |
+| `src/mcp/similarity.ts` | MCP Server の BM25+RRF 検索・describe 実装 |
 | `src/mcp/registry.ts` | MCP Server のレジストリ読み込み |
-| `climpt-plugins/plugins/climpt-agent/lib/similarity.ts` | Plugin の類似度検索・describe 実装 |
-| `climpt-plugins/plugins/climpt-agent/lib/registry.ts` | Plugin のレジストリ読み込み |
-| `climpt-plugins/plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` | Plugin のエントリポイント |
+| `plugins/climpt-agent/lib/similarity.ts` | Plugin の BM25+RRF 検索・describe 実装 |
+| `plugins/climpt-agent/lib/registry.ts` | Plugin のレジストリ読み込み |
+| `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` | Plugin のエントリポイント |
 
 **関連ドキュメント:**
 - [Registry Specification](./registry-specification.md) - レジストリ構造の定義
@@ -22,6 +22,7 @@
 | Operation | Description | Input | Output |
 |-----------|-------------|-------|--------|
 | `search` | 自然言語クエリからコマンド検索 | query, agent | SearchResult[] |
+| `searchWithRRF` | 複数クエリを RRF で統合検索 | queries[], agent | RRFResult[] |
 | `describe` | C3L識別子からコマンド詳細取得 | c1, c2, c3, agent | Command[] |
 | `execute` | コマンド実行して指示プロンプト取得 | c1, c2, c3, agent, options | string |
 
@@ -29,53 +30,49 @@
 
 ### 概要
 
-自然言語クエリを受け取り、コサイン類似度を用いて最も関連性の高いコマンドを返す。
+自然言語クエリを受け取り、BM25 アルゴリズムを用いて最も関連性の高いコマンドを返す。
 
-### アルゴリズム: Word-based Cosine Similarity
+### アルゴリズム: BM25 (Best Match 25)
 
-単語レベルのコサイン類似度を使用。シンプルだが効果的な意味検索手法。
+BM25 は Elasticsearch、Lucene などで使用される業界標準の検索アルゴリズム。コサイン類似度と比較して以下の利点がある:
 
-#### 手順
+- **IDF (Inverse Document Frequency)**: "create", "get" など頻出単語の重みを低減
+- **文書長正規化**: 長いドキュメントへのバイアスを補正
+- **飽和関数**: 単語頻度の過度な影響を抑制
 
-1. **トークン化**: クエリと検索対象を小文字化し、空白で分割
-2. **語彙構築**: 両方のテキストから一意な単語リストを作成
-3. **ベクトル化**: 各テキストを語彙に基づく出現頻度ベクトルに変換
-4. **類似度計算**: コサイン類似度を計算
-
-#### 擬似コード
-
-```
-function cosineSimilarity(a: string, b: string): number {
-  // Step 1: Tokenize
-  wordsA = a.toLowerCase().split(/\s+/)
-  wordsB = b.toLowerCase().split(/\s+/)
-
-  // Step 2: Build vocabulary
-  allWords = unique(wordsA + wordsB)
-
-  // Step 3: Create frequency vectors
-  vectorA = [count of each word in wordsA]
-  vectorB = [count of each word in wordsB]
-
-  // Step 4: Calculate cosine similarity
-  dotProduct = sum(vectorA[i] * vectorB[i])
-  magnitudeA = sqrt(sum(vectorA[i]^2))
-  magnitudeB = sqrt(sum(vectorB[i]^2))
-
-  return dotProduct / (magnitudeA * magnitudeB)
-}
-```
-
-#### 数式
+#### BM25 数式
 
 $$
-\text{similarity} = \frac{\vec{A} \cdot \vec{B}}{|\vec{A}| \times |\vec{B}|}
+\text{score}(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot (1 - b + b \cdot \frac{|D|}{\text{avgdl}})}
 $$
 
 Where:
-- $\vec{A}$, $\vec{B}$: 単語頻度ベクトル
-- $\vec{A} \cdot \vec{B}$: 内積
-- $|\vec{A}|$, $|\vec{B}|$: ベクトルの大きさ (L2ノルム)
+- $f(q_i, D)$: ドキュメント D における単語 $q_i$ の出現頻度
+- $|D|$: ドキュメント長（トークン数）
+- $\text{avgdl}$: コーパス全体の平均ドキュメント長
+- $k_1 = 1.2$: 頻度飽和パラメータ
+- $b = 0.75$: 文書長正規化パラメータ
+
+#### IDF 計算
+
+$$
+\text{IDF}(t) = \log\left(\frac{N - df(t) + 0.5}{df(t) + 0.5} + 1\right)
+$$
+
+Where:
+- $N$: 総ドキュメント数
+- $df(t)$: 単語 $t$ を含むドキュメント数
+
+### トークン化
+
+テキストを以下のルールで分割:
+
+1. **空白分割**: スペースで単語を分離
+2. **ハイフン分割**: `group-commit` → `group`, `commit`, `group-commit`
+3. **アンダースコア分割**: `unstaged_changes` → `unstaged`, `changes`, `unstaged_changes`
+4. **CamelCase 分割**: `groupCommit` → `group`, `commit`, `groupcommit`
+
+元の複合トークンは後方互換性のため保持される。
 
 ### 検索対象テキストの構築
 
@@ -97,22 +94,71 @@ interface SearchResult {
   c2: string;           // アクション識別子
   c3: string;           // ターゲット識別子
   description: string;  // コマンド説明
-  score: number;        // 類似度スコア (0-1)
+  score: number;        // BM25 スコア (0 以上、上限なし)
 }
 ```
 
 ### スコアの解釈
 
-| Score Range | 解釈 |
-|-------------|------|
-| 0.8 - 1.0 | 非常に高い一致 |
-| 0.5 - 0.8 | 中程度の一致 |
-| 0.2 - 0.5 | 低い一致 |
-| 0.0 - 0.2 | ほぼ無関係 |
+BM25 スコアはコサイン類似度と異なり 0-1 に正規化されない。相対的な順位付けに使用する。
+
+| スコア特性 | 解釈 |
+|------------|------|
+| 高いスコア | クエリとの関連性が高い |
+| 低いスコア | クエリとの関連性が低い |
+| 0 | 一致するトークンなし |
 
 ### デフォルト結果数
 
 `topN = 3` (上位3件を返す)
+
+## Search with RRF (Reciprocal Rank Fusion)
+
+### 概要
+
+複数の検索クエリの結果を RRF アルゴリズムで統合し、より精度の高い検索結果を返す。
+
+C3L に沿った2つのクエリを使用:
+- **query1 (action)**: アクションに焦点 (c2 に対応)
+- **query2 (target)**: ターゲットに焦点 (c3 に対応)
+
+### RRF アルゴリズム
+
+$$
+\text{score}(d) = \sum_{i=1}^{n} \frac{1}{k + \text{rank}_i(d)}
+$$
+
+Where:
+- $k = 60$: スムージングパラメータ（標準値）
+- $\text{rank}_i(d)$: クエリ $i$ でのドキュメント $d$ の順位（1-indexed）
+
+### 使用例
+
+```typescript
+const results = searchWithRRF(commands, [
+  "draft create write compose",      // action-focused
+  "specification document entry"     // target-focused
+], 3);
+```
+
+### RRF 結果フォーマット
+
+```typescript
+interface RRFResult {
+  c1: string;
+  c2: string;
+  c3: string;
+  description: string;
+  score: number;        // RRF 統合スコア
+  ranks: number[];      // 各クエリでの順位 (1-indexed, -1 = not found)
+}
+```
+
+### RRF の利点
+
+- **ランク統合**: 異なる観点からの検索結果を公平に統合
+- **スコア正規化不要**: 順位ベースのため、異なるスコアスケールを統一
+- **ノイズ耐性**: 1つのクエリで低順位でも、他で高順位なら浮上
 
 ## Describe Operation
 
@@ -207,3 +253,10 @@ const DEFAULT_CONFIG: MCPConfig = {
 
 - コマンド実行失敗: stderr の内容をエラーとして返す
 - タイムアウト: 適切なタイムアウトエラーを返す
+
+## 実装参照
+
+- MCP Server: `src/mcp/similarity.ts`
+- Plugin: `plugins/climpt-agent/lib/similarity.ts`
+
+両実装は同一の仕様に従い、同一の検索結果を返す。
