@@ -329,7 +329,7 @@ export function parseCliArgsForLogging(
 
   // Determine c1 (domain) from config prefix or default
   const agent = configPrefix || "climpt";
-  const c1 = configPrefix || "default";
+  const c1 = configPrefix || "climpt";
 
   // Parse options
   const options: string[] = [];

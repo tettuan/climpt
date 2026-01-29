@@ -18,7 +18,8 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
-import { listAgents, loadAgentDefinition } from "../runner/loader.ts";
+import { listAgents } from "../runner/loader.ts";
+import { loadConfiguration } from "../config/mod.ts";
 import { initAgent } from "../init.ts";
 import {
   type FinalizeOptions,
@@ -184,7 +185,7 @@ async function main(): Promise<void> {
     // Load agent definition
     // deno-lint-ignore no-console
     console.log(`\nLoading agent: ${agentName}`);
-    const definition = await loadAgentDefinition(agentName, Deno.cwd());
+    const definition = await loadConfiguration(agentName, Deno.cwd());
     // deno-lint-ignore no-console
     console.log(`  ${definition.displayName}: ${definition.description}`);
 
