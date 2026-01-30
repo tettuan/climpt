@@ -8,6 +8,8 @@ Agent 開発時によく遭遇する問題と解決方法。
   - [outputSchemaRef の形式エラー](#outputschemaref-の形式エラー)
   - [スキーマロードエラー](#スキーマロードエラー)
   - [構造化出力が効かない](#構造化出力が効かない)
+- [Boundary Hook / Issue 操作](#boundary-hook--issue-操作)
+  - [Issue が意図せず close される](#issue-が意図せず-close-される)
 - [エージェントの行動制御](#エージェントの行動制御)
 - [ログの読み方](#ログの読み方)
 
@@ -131,6 +133,64 @@ cat .agent/my-agent/steps_registry.json | jq '.steps["initial.assess"].outputSch
 1. `outputSchemaRef` をオブジェクト形式で設定
 2. スキーマファイルが存在することを確認
 3. `schema` で指定したキーが definitions に存在することを確認
+
+---
+
+## Boundary Hook / Issue 操作
+
+### Issue が意図せず close される
+
+**症状**
+
+- 中間 Agent（Analyst, Architect, Writer 等）が closure step で Issue を close
+  してしまう
+- Multi-agent ワークフローで、後続の Agent が処理すべき Issue が見つからない
+
+**原因**
+
+`github.defaultClosureAction` のデフォルト値が `close` のため、closure step で
+`closing` intent を返すと Boundary Hook が Issue を自動的に close する。
+
+```
+closure step → closing intent → Boundary Hook → Issue close (デフォルト動作)
+```
+
+**解決方法**
+
+中間 Agent の `agent.json` で `defaultClosureAction` を `label-only`
+に設定する。
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "defaultClosureAction": "label-only",
+    "labels": {
+      "completion": {
+        "add": ["planning"],
+        "remove": ["backlog"]
+      }
+    }
+  }
+}
+```
+
+**Multi-agent ワークフローの設定例**
+
+| Agent       | defaultClosureAction | 完了時の動作                      |
+| ----------- | -------------------- | --------------------------------- |
+| Analyst     | `label-only`         | ラベルを `planning` に変更        |
+| Architect   | `label-only`         | ラベルを `ready` に変更           |
+| Writer      | `label-only`         | ラベルを `needs-review` に変更    |
+| Reviewer    | `label-only`         | ラベルを `reviewed` に変更        |
+| Facilitator | `close`              | Issue を close（最終 Agent のみ） |
+
+**関連ドキュメント**
+
+- 設定詳細:
+  [02_agent_definition.md - github.defaultClosureAction](02_agent_definition.md#githubdefaultclosureaction)
+- 設計背景:
+  [../design/08_step_flow_design.md - Section 7.1 Boundary Hook](../design/08_step_flow_design.md)
 
 ---
 
