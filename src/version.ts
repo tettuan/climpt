@@ -22,7 +22,7 @@
  * console.log(`Climpt version: ${CLIMPT_VERSION}`);
  * ```
  */
-export const CLIMPT_VERSION = "1.11.8";
+export const CLIMPT_VERSION = "1.11.9";
 
 /**
  * Version of the breakdown package to use.

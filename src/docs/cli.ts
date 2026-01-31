@@ -9,12 +9,17 @@
  *
  * @example Install all docs
  * ```bash
- * dx jsr:@aidevtool/climpt/docs/cli
+ * deno run -A jsr:@aidevtool/climpt/docs
  * ```
  *
  * @example Install Japanese guides only
  * ```bash
- * dx jsr:@aidevtool/climpt/docs/cli install ./docs --lang=ja --category=guides
+ * deno run -A jsr:@aidevtool/climpt/docs install ./docs --lang=ja --category=guides
+ * ```
+ *
+ * @example Update to latest version
+ * ```bash
+ * deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
  * ```
  */
 
@@ -22,7 +27,7 @@ import { parseArgs } from "@std/cli/parse-args";
 import { install, list } from "./mod.ts";
 
 const HELP = `
-Usage: dx jsr:@aidevtool/climpt/docs [command] [options]
+Usage: deno run -A jsr:@aidevtool/climpt/docs [command] [options]
 
 Commands:
   install [dir]   Install docs (default: ./climpt-docs)
@@ -34,9 +39,12 @@ Options:
   --mode=MODE     Output: preserve | flatten | single
   --version=VER   Specific version (default: latest)
   -h, --help      Show help
+
+Update to latest:
+  deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
 `;
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     boolean: ["help"],
     string: ["category", "lang", "mode", "version"],
