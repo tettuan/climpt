@@ -149,6 +149,11 @@
         "description": {
           "type": "string",
           "description": "Optional description of what this step does"
+        },
+        "model": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Model to use for this step. Resolution order: step.model > behavior.defaultModel > 'opus' (system default). Use haiku for cost optimization on routine steps."
         }
       }
     },
