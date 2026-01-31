@@ -597,6 +597,7 @@ export const INITIAL_AGENT_STATE: AgentState = {
 import type { CompletionHandler } from "../completion/mod.ts";
 import type { PromptResolver } from "../prompts/resolver.ts";
 import type { Logger } from "./logger.ts";
+import type { PromptLogger } from "../common/prompt-logger.ts";
 
 /**
  * Runtime context containing initialized dependencies.
@@ -608,6 +609,8 @@ export interface RuntimeContext {
   readonly promptResolver: PromptResolver;
   readonly logger: Logger;
   readonly cwd: string;
+  /** Optional prompt logger for usage analysis */
+  readonly promptLogger?: PromptLogger;
 }
 
 /**

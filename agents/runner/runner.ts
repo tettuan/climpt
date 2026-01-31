@@ -75,6 +75,7 @@ import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
+import { PromptLogger } from "../common/prompt-logger.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -206,12 +207,25 @@ export class AgentRunner {
       });
     }
 
+    // Initialize prompt logger for usage analysis
+    const promptLogger = new PromptLogger(logger, {
+      logSuccess: true,
+      logFailures: true,
+      logVariables: true, // Log uv-* variables for usage analysis
+    });
+
+    // Inject prompt logger into resolver for automatic logging
+    // This enables logging of actual file paths (e.g., iterator/initial/issue/f_default.md)
+    // with edition, adaptation, and variable information
+    promptResolver.setPromptLogger(promptLogger);
+
     // Assign all context at once (atomic initialization)
     this.context = {
       completionHandler,
       promptResolver,
       logger,
       cwd,
+      promptLogger,
     };
   }
 
@@ -257,29 +271,62 @@ export class AgentRunner {
           ? summaries[summaries.length - 1]
           : undefined;
         let prompt: string;
+        let promptSource: "user" | "fallback";
+        let promptType: "retry" | "initial" | "continuation";
+        const promptStartTime = performance.now();
+
         if (this.pendingRetryPrompt) {
           prompt = this.pendingRetryPrompt;
+          promptSource = "user";
+          promptType = "retry";
           this.pendingRetryPrompt = null;
           ctx.logger.debug("Using retry prompt from completion validation");
         } else if (iteration === 1) {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildInitialPrompt();
+          promptSource = "user";
+          promptType = "initial";
         } else {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1,
             lastSummary,
           );
+          promptSource = "user";
+          promptType = "continuation";
         }
 
+        const promptTimeMs = performance.now() - promptStartTime;
+
+        // Log step prompt for usage analysis
+        // Note: Step prompts are constructed by CompletionHandler, not loaded from files
+        // The stepId identifies which step in the flow is being executed
+        if (ctx.promptLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await ctx.promptLogger.logResolution(
+            {
+              stepId,
+              source: promptSource,
+              content: prompt,
+              // Include prompt type and completion type for analysis
+              promptPath:
+                `${this.definition.behavior.completionType}/${promptType}`,
+            },
+            promptTimeMs,
+          );
+        }
+
+        // Resolve system prompt (logging is automatic via PromptResolver.setPromptLogger)
         // deno-lint-ignore no-await-in-loop
-        const customSystemPrompt = await ctx.promptResolver.resolveSystemPrompt(
-          {
-            "uv-agent_name": this.definition.name,
-            "uv-completion_criteria":
-              ctx.completionHandler.buildCompletionCriteria().detailed,
-          },
-        );
+        const systemPromptResult = await ctx.promptResolver
+          .resolveSystemPromptWithMetadata(
+            {
+              "uv-agent_name": this.definition.name,
+              "uv-completion_criteria":
+                ctx.completionHandler.buildCompletionCriteria().detailed,
+            },
+          );
+        const customSystemPrompt = systemPromptResult.content;
 
         // Build system prompt with claude_code preset + custom append
         const systemPrompt = {
