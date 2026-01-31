@@ -259,6 +259,28 @@ deno task verify-docs
 
 ---
 
+## Docs Distribution (配布対象)
+
+manifest.json に含まれる = JSR経由でインストール可能なドキュメント。
+
+### 配布対象
+
+| ディレクトリ | 内容 |
+|--------------|------|
+| `docs/guides/en/` | 英語ガイド |
+| `docs/internal/` | 設計ドキュメント |
+| `docs/*.md` | トップレベルのドキュメント |
+
+### 配布除外
+
+| ディレクトリ | 理由 |
+|--------------|------|
+| `docs/guides/ja/` | 日本語版は任意 |
+| `docs/reference/` | 外部参照資料（SDK docs等） |
+| `*.ja.md` | 日本語版は配布対象外 |
+
+---
+
 ## Quick Reference
 
 ### ファイル分類
@@ -266,6 +288,7 @@ deno task verify-docs
 | ファイル種別 | 役割 | 修正対象？ |
 |--------------|------|-----------|
 | docs/internal/ | 設計意図の記録 | No（読むだけ） |
+| docs/reference/ | 外部参照資料 | No（配布対象外） |
 | README.md | 実装の説明 | Yes |
 | docs/guides/ | 詳細な使い方 | Yes |
 | --help | CLI説明 | Yes |
