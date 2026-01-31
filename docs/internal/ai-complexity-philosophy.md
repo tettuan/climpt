@@ -1,126 +1,126 @@
-# AI実装と複雑性：思想的原理
+# AI Implementation and Complexity: Philosophical Principles
 
-## なぜAIは複雑化を生むのか
+## Why Does AI Generate Complexity?
 
-AIは「見えている範囲」でしか最適化できない。
+AI can only optimize within the scope it can see.
 
 ```
 Σ local_optima ≠ global_optimum
 ```
 
-コンテキスト窓という認知的限界の中で、AIは常に局所最適解を求める。一つ一つの判断は合理的に見える。しかし局所最適の積み重ねは、全体の複雑化を必然的に生む。
+Within the cognitive limits of a context window, AI constantly seeks local optima. Each individual decision appears rational. However, the accumulation of local optima inevitably generates overall complexity.
 
-これは意図ではない。構造的な限界である。
+This is not intentional. It is a structural limitation.
 
-### 複雑化の3つの源泉
+### Three Sources of Complexity
 
-**コンテキスト分断**
-AIは過去の設計意図を継承できない。なぜそう設計されたのかという文脈が失われ、同じ問題に対して異なる解法が増殖する。
+**Context Fragmentation**
+AI cannot inherit past design intentions. The context of why something was designed that way is lost, and different solutions for the same problem proliferate.
 
-**技術的好奇心**
-AIは抽象化やパターンを「良いもの」として学習している。必要性を問わず、抽象化それ自体を目的化する傾向がある。
+**Technical Curiosity**
+AI has learned to view abstraction and patterns as "good things." There is a tendency to make abstraction itself a goal, regardless of necessity.
 
-**削除への抵抗**
-AIは既存コードを「尊重」しすぎる。本来削除すべきものを残し、その上に新しい層を積み重ねる。
+**Resistance to Deletion**
+AI "respects" existing code too much. It keeps things that should be deleted and layers new things on top.
 
 ---
 
-## 3つの原理
+## Three Principles
 
-### エントロピー：秩序は崩壊する
+### Entropy: Order Decays
 
-熱力学第二法則。閉じた系のエントロピーは増大し続ける。
+Second law of thermodynamics. Entropy in a closed system continues to increase.
 
 ```
 C(t+1) ≥ C(t)  when  E = 0
 
-C: Complexity（複雑性）
-t: Time（時間）
-E: Energy（意図的な設計介入）
+C: Complexity
+t: Time
+E: Energy (intentional design intervention)
 ```
 
-コードベースも同じである。放置すれば複雑性は増大する。秩序の維持には外部からのエネルギー投入—意図的な設計判断、リファクタリング、削除—が必要である。
+Codebases are the same. Left alone, complexity increases. Maintaining order requires energy input from outside—intentional design decisions, refactoring, deletion.
 
-複雑性を減らすには、エネルギーが要る。
+Reducing complexity requires energy.
 
 ```
 ΔC < 0  requires  E > 0
 ```
 
-**思想的意味**: 追加より削除を。複雑化より単純化を。秩序は自然には生まれない。
+**Philosophical meaning**: Delete rather than add. Simplify rather than complicate. Order does not emerge naturally.
 
-### 重力：関連するものは引き合う
+### Gravity: Related Things Attract
 
-万有引力の法則。質量を持つものは互いに引き合う。
+Law of universal gravitation. Things with mass attract each other.
 
 ```
 A(f₁, f₂) = R(f₁, f₂) / D²
 
-A: Attraction（引力）
-f: Function（機能）
-R: Relevance（関連性）
-D: Distance（配置距離）
+A: Attraction
+f: Function
+R: Relevance
+D: Distance (placement distance)
 ```
 
-機能も同じである。関連する機能は自然に凝集しようとする。この力に逆らう設計—本来近くにあるべきものを遠ざけ、無関係なものを近づける—は不自然であり、やがて破綻する。
+Functions are the same. Related functions naturally try to cohere. Design that fights this force—separating things that should be near, bringing unrelated things close—is unnatural and will eventually fail.
 
-凝集度は、内部引力と外部引力の比で測れる。
+Cohesion can be measured by the ratio of internal to external attraction.
 
 ```
 Cohesion = Σ A_internal / Σ A_external
 ```
 
-**思想的意味**: 自然な凝集に従え。関心事の近さを尊重せよ。
+**Philosophical meaning**: Follow natural cohesion. Respect the proximity of concerns.
 
-### 収束：繰り返しの中で残るもの
+### Convergence: What Remains Through Repetition
 
-大数の法則。試行を重ねれば、結果は期待値に収束する。
+Law of large numbers. With repeated trials, results converge to expected value.
 
 ```
 lim   P(n) → P*
 n→∞
 
-P: Pattern（パターン）
-n: Usage count（使用回数）
-P*: Optimal pattern（最適パターン）
+P: Pattern
+n: Usage count
+P*: Optimal pattern
 ```
 
-実装パターンも同じである。繰り返し使われ、生き残ってきたパターンには理由がある。新奇なアプローチより、実証されたパターンを信頼せよ。
+Implementation patterns are the same. Patterns that have been repeatedly used and survived have reasons. Trust proven patterns over novel approaches.
 
-パターンの信頼性は、使用回数の平方根に比例する。
+Pattern reliability is proportional to the square root of usage count.
 
 ```
 Reliability ∝ √n
 ```
 
-**思想的意味**: 新奇より実証を。独自性より一貫性を。
+**Philosophical meaning**: Proven over novel. Consistency over uniqueness.
 
 ---
 
-## 惑星モデル：コアから構築せよ
+## Planetary Model: Build from the Core
 
-プロダクトのVisionは太陽系の中心である。
+The product Vision is the center of the solar system.
 
 ```
 System = { Core, Orbit₁, Orbit₂, ..., Orbitₙ }
 
-Core: Vision（不動の中心）
-Orbitᵢ: Peripheral features（周回する機能群）
+Core: Vision (immobile center)
+Orbitᵢ: Peripheral features (orbiting feature groups)
 ```
 
-太陽は自転しながら、惑星を従える。惑星は公転しながら、太陽の引力に縛られる。引力の源泉はコアにあり、周辺はその力場の中で秩序を保つ。
+The sun rotates while holding the planets. Planets revolve while bound by the sun's gravity. The source of gravity is in the core, and the periphery maintains order within that field of force.
 
-### コア優先の原理
+### Core-First Principle
 
 ```
 M_core → ∞  ⟹  Orbit stability → max
 
-M: Mass（質量 = 明確さ × 使用頻度）
+M: Mass (clarity × frequency of use)
 ```
 
-コアの質量が大きいほど、周辺の軌道は安定する。曖昧なVision、弱いコアの周りでは、周辺機能は散逸する。
+The greater the core's mass, the more stable the peripheral orbits. Around a vague Vision or weak core, peripheral features dissipate.
 
-構築順序は、中心から外へ。
+Build order is from center outward.
 
 ```
 Build order: Core → Orbit₁ → Orbit₂ → ... → Orbitₙ
@@ -129,48 +129,48 @@ Build order: Core → Orbit₁ → Orbit₂ → ... → Orbitₙ
 ∀i,j (i<j): Orbitⱼ may depend on Orbitᵢ
 ```
 
-コアを固めずに周辺を作ることは、太陽なき惑星系を作ることである。それは崩壊する。
+Building the periphery without solidifying the core is building a planetary system without a sun. It will collapse.
 
-### レバレッジの法則
+### Law of Leverage
 
 ```
 L = ΔV_peripheral / ΔE_core
 
-L: Leverage（てこ比）
-ΔV: Value change（価値変化）
-ΔE: Energy invested（投入エネルギー）
+L: Leverage
+ΔV: Value change
+ΔE: Energy invested
 ```
 
-コアへの1単位の投資は、周辺に多大な価値を生む。逆に、周辺への投資はコアに還元されない。
+One unit of investment in the core generates tremendous value in the periphery. Conversely, investment in the periphery does not return to the core.
 
-高レバレッジのコアを構築せよ。何度も機能し、強く引力を生むコアを。周辺は、そのあとでついてくる。
+Build a high-leverage core. One that works repeatedly and generates strong gravity. The periphery will follow.
 
-**思想的意味**: 中心から固めよ。コアなき周辺は散逸する。
-
----
-
-## 問いかけ
-
-実装の前に、4つの問いを立てよ。
-
-**エントロピーへの問い**
-> この追加は、システム全体の秩序を高めるか、それとも崩壊させるか。
-
-**重力への問い**
-> この配置は、機能の自然な引力に従っているか、それとも逆らっているか。
-
-**収束への問い**
-> この方法は、実証されたパターンに沿っているか、それとも逸脱しているか。
-
-**惑星モデルへの問い**
-> これはコアを強化するか、それとも周辺を肥大化させるか。
-
-4つの問いすべてに肯定で答えられないなら、立ち止まれ。
+**Philosophical meaning**: Solidify from the center. Periphery without core dissipates.
 
 ---
 
-## 結語
+## Questions
 
-AIの限界を認識し、原理に従うこと。それが複雑性との戦いにおける唯一の武器である。
+Before implementing, ask four questions.
 
-コードは書くものではない。削るものである。
+**Question for Entropy**
+> Does this addition increase or decay the overall system's order?
+
+**Question for Gravity**
+> Does this placement follow or fight the natural attraction of functions?
+
+**Question for Convergence**
+> Does this method follow or deviate from proven patterns?
+
+**Question for Planetary Model**
+> Does this strengthen the core or bloat the periphery?
+
+If you cannot answer affirmatively to all four questions, stop.
+
+---
+
+## Conclusion
+
+Recognize AI's limitations and follow principles. That is the only weapon in the battle against complexity.
+
+Code is not something you write. It is something you carve away.

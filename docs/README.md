@@ -1,106 +1,106 @@
-# プロジェクト固有AI呼び出し言語 仕様書
+# Project-Specific AI Invocation Language Specification
 
-## 1. 目的
-この仕様は、特定プロジェクト専用のCLI呼び出し言語を定義し、Claude CodeなどのCLI AIエージェントからの入力を受け取り、適切な処理を行うための一貫した構文・文法・パラメータ仕様を提供する。
+## 1. Purpose
+This specification defines a project-specific CLI invocation language that receives input from CLI AI agents like Claude Code and provides consistent syntax, grammar, and parameter specifications for appropriate processing.
 
 ---
 
-## 2. 文法仕様（n1）
+## 2. Grammar Specification (n1)
 
-### 2.1 コマンド構造
+### 2.1 Command Structure
 ```
-<ベースコマンド> <サブコマンド> [オプション] [--パラメータ=値] <<< "インラインプロンプト"
+<base-command> <subcommand> [options] [--parameter=value] <<< "inline prompt"
 ```
 
-- **ベースコマンド**: 固有プロジェクトのCLIツール名（例: `climpt-data`）
-- **サブコマンド**: 処理対象の動作（例: `fetch`, `analyze`, `render`）
-- **オプション**: 短縮形・ロング形（例: `-e=SQL`, `--uv-market=JP`）
-- **パラメータ**: 実行モード、対象範囲、出力形式など
-- **インラインプロンプト**: AIエージェントに解釈させる自然言語指示
+- **Base command**: Project-specific CLI tool name (e.g., `climpt-data`)
+- **Subcommand**: Action to perform on target (e.g., `fetch`, `analyze`, `render`)
+- **Options**: Short/long forms (e.g., `-e=SQL`, `--uv-market=JP`)
+- **Parameters**: Execution mode, target scope, output format, etc.
+- **Inline prompt**: Natural language instruction for AI agent to interpret
 
-### 2.2 構文ルール
-- 引数は半角スペース区切り
-- パラメータは `--key=value` 形式
-- インラインプロンプトは `<<< "..."` で囲む
-- 入力はUTF-8エンコーディング必須
-- 予約語はサブコマンドとして使用不可（例: `help`, `version`）
-
----
-
-## 3. Claude Code 連携仕様（n2）
-
-### 3.1 AIエージェント入力モード
-- インラインプロンプト部分をClaude Codeが受け取り、自然言語処理して適切なSQL・スクリプト・API呼び出しへ変換
-- AIエージェントは**文法仕様に準拠したコマンド**を直接出力する
-
-### 3.2 想定フロー
-1. ユーザがCLIに自然言語を入力（インラインプロンプト）
-2. CLIはその文字列をClaude Codeに送信
-3. Claude Codeは仕様書に沿ってコマンドやコードを生成
-4. CLIが実行
+### 2.2 Syntax Rules
+- Arguments are space-delimited
+- Parameters use `--key=value` format
+- Inline prompts are enclosed in `<<< "..."`
+- UTF-8 encoding required for input
+- Reserved words cannot be used as subcommands (e.g., `help`, `version`)
 
 ---
 
-## 4. プロジェクト固有AI呼び出し言語化（n3）
+## 3. Claude Code Integration Specification (n2)
 
-- ベースコマンドは各プロジェクト専用の命名規則に従う
-- サブコマンドは**ドメイン分析結果**に基づき命名
-- パラメータキーは短く・一貫性を持たせる（例: `-i`, `-a`, `-f`）
-- 言語仕様は**拡張可能**（将来的な新機能追加を想定）
+### 3.1 AI Agent Input Mode
+- Claude Code receives the inline prompt portion and processes natural language to convert to appropriate SQL, scripts, or API calls
+- AI agent directly outputs **commands compliant with grammar specification**
 
----
-
-## 5. パラメータ仕様書（n7）
-
-| パラメータ       | 型      | 必須 | 説明                           | 例                  |
-|----------------|--------|------|--------------------------------|---------------------|
-| `-e`, `--edition` | ENUM   | Yes  | 入力形式 (SQL, CSV, JSON)      | `-e=SQL`            |
-| `-a`, `--agg`   | ENUM   | No   | 集計モード (full, compact)     | `-a=compact`        |
-| `-f`, `--from`  | PATH   | No   | 入力ファイルパス               | `-f=query.sql`      |
-| `--uv-market`   | ENUM   | No   | 市場コード                     | `--uv-market=JP`    |
-| `--dry-run`     | BOOL   | No   | 実行せず構文確認               | `--dry-run`         |
+### 3.2 Expected Flow
+1. User inputs natural language to CLI (inline prompt)
+2. CLI sends the string to Claude Code
+3. Claude Code generates commands or code according to specification
+4. CLI executes
 
 ---
 
-## 6. サンプルコマンド（n6）
+## 4. Project-Specific AI Invocation Language (n3)
+
+- Base commands follow project-specific naming conventions
+- Subcommands are named based on **domain analysis results**
+- Parameter keys are short and consistent (e.g., `-i`, `-a`, `-f`)
+- Language specification is **extensible** (anticipating future feature additions)
+
+---
+
+## 5. Parameter Specification (n7)
+
+| Parameter        | Type   | Required | Description                    | Example             |
+|------------------|--------|----------|--------------------------------|---------------------|
+| `-e`, `--edition`| ENUM   | Yes      | Input format (SQL, CSV, JSON)  | `-e=SQL`            |
+| `-a`, `--agg`    | ENUM   | No       | Aggregation mode (full, compact)| `-a=compact`       |
+| `-f`, `--from`   | PATH   | No       | Input file path                | `-f=query.sql`      |
+| `--uv-market`    | ENUM   | No       | Market code                    | `--uv-market=JP`    |
+| `--dry-run`      | BOOL   | No       | Syntax check without execution | `--dry-run`         |
+
+---
+
+## 6. Sample Commands (n6)
 
 ```
-# 最新1ヶ月の株価をJP市場から取得
+# Fetch latest month's stock prices from JP market
 climpt-data fetch prices -e=SQL -a=compact -f=query.sql --uv-market=JP <<< "latest month"
 
-# 特定銘柄の2023年データを分析
+# Analyze 2023 data for specific stock
 climpt-data analyze trends -e=CSV --symbol=7203 <<< "analyze year 2023"
 
-# 生成したチャートをPNG形式で出力
+# Output generated chart in PNG format
 climpt-data render chart --format=png <<< "daily close prices"
 ```
 
 ---
 
-## 7. ドメイン分析から呼び出し言語を導出する手順
+## 7. Procedure for Deriving Invocation Language from Domain Analysis
 
-1. **ドメイン境界の特定**
-   - プロジェクトの業務範囲（例: 株価データ取得、分析、可視化）を洗い出す
-2. **ユースケース抽出**
-   - ユーザーが実行する主要な処理を列挙
-   - 動詞ベースでサブコマンド候補を作成（例: fetch, analyze, render）
-3. **エンティティ定義**
-   - データ構造（例: prices, trends, orders）を明確化
-4. **コマンド命名規則決定**
-   - `<動詞> <エンティティ>`の形式に統一
-5. **パラメータマッピング**
-   - 各ユースケースに必要な可変要素をパラメータとして定義
-   - 型・必須/任意・デフォルト値を設定
-6. **AI解釈範囲の決定**
-   - AIに解釈させる部分（自然言語）とCLI側で解釈する部分（パラメータ）を分離
-7. **プロトタイプ検証**
-   - Claude Codeに仕様を読み込ませ、サンプルプロンプトで正しく動くか確認
-8. **正式版仕様書作成**
-   - 文法仕様（n1）、連携仕様（n2）、言語仕様（n3）、パラメータ仕様（n7）を統合し、サンプル（n6）を添付
+1. **Identify Domain Boundaries**
+   - Identify project's business scope (e.g., stock price retrieval, analysis, visualization)
+2. **Extract Use Cases**
+   - List main processes users execute
+   - Create subcommand candidates in verb form (e.g., fetch, analyze, render)
+3. **Define Entities**
+   - Clarify data structures (e.g., prices, trends, orders)
+4. **Determine Command Naming Rules**
+   - Standardize to `<verb> <entity>` format
+5. **Parameter Mapping**
+   - Define variable elements needed for each use case as parameters
+   - Set type, required/optional, and default values
+6. **Determine AI Interpretation Scope**
+   - Separate parts for AI interpretation (natural language) from CLI interpretation (parameters)
+7. **Prototype Validation**
+   - Load specification into Claude Code and verify it works correctly with sample prompts
+8. **Create Final Specification**
+   - Integrate grammar spec (n1), integration spec (n2), language spec (n3), parameter spec (n7), and attach samples (n6)
 
 ---
 
-## 8. バージョン管理
-- `vMAJOR.MINOR.PATCH`形式で管理
-- 新機能追加時はMINORを、後方互換性を壊す変更時はMAJORを更新
-- ドキュメントはリポジトリ内`docs/cli-language.md`として保存
+## 8. Version Management
+- Managed in `vMAJOR.MINOR.PATCH` format
+- Update MINOR for new features, MAJOR for backward-incompatible changes
+- Documentation stored as `docs/cli-language.md` in repository

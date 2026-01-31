@@ -1,12 +1,12 @@
-# MCP 連携仕様
+# MCP Integration Specification
 
-Climpt Agent と Climpt MCP サーバーの連携仕様を説明します。
+This document explains the integration specification between Climpt Agent and Climpt MCP server.
 
-## 概要
+## Overview
 
-Climpt Agent は Climpt MCP サーバーを通じてコマンドの検索・詳細取得・実行を行います。
+Climpt Agent performs command search, detail retrieval, and execution through the Climpt MCP server.
 
-## MCP サーバー設定
+## MCP Server Configuration
 
 ### .mcp.json
 
@@ -31,49 +31,49 @@ Climpt Agent は Climpt MCP サーバーを通じてコマンドの検索・詳�
 }
 ```
 
-### 環境変数
+### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `${CLAUDE_PLUGIN_ROOT}` | プラグインディレクトリの絶対パス |
+| `${CLAUDE_PLUGIN_ROOT}` | Absolute path to plugin directory |
 
 ## MCP Tools
 
 ### search
 
-自然言語クエリから類似コマンドを検索します。
+Searches for similar commands from natural language query.
 
-**ツール名:** `mcp__climpt__search`
+**Tool name:** `mcp__climpt__search`
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `query` | string | Yes | - | 検索クエリ |
-| `agent` | string | No | `"climpt"` | エージェント名 |
+| `query` | string | Yes | - | Search query |
+| `agent` | string | No | `"climpt"` | Agent name |
 
-**レスポンス:**
+**Response:**
 
 ```typescript
 interface SearchResult {
-  c1: string;           // ドメイン識別子
-  c2: string;           // アクション識別子
-  c3: string;           // ターゲット識別子
-  description: string;  // コマンド説明
-  score: number;        // 類似度スコア (0-1)
+  c1: string;           // Domain identifier
+  c2: string;           // Action identifier
+  c3: string;           // Target identifier
+  description: string;  // Command description
+  score: number;        // Similarity score (0-1)
 }
 ```
 
-**使用例:**
+**Usage example:**
 
 ```
 mcp__climpt__search({
-  "query": "変更をグループ化してコミット",
+  "query": "group changes and commit",
   "agent": "climpt"
 })
 ```
 
-**レスポンス例:**
+**Response example:**
 
 ```json
 [
@@ -96,20 +96,20 @@ mcp__climpt__search({
 
 ### describe
 
-C3L 識別子からコマンドの詳細情報を取得します。
+Retrieves detailed command information from C3L identifiers.
 
-**ツール名:** `mcp__climpt__describe`
+**Tool name:** `mcp__climpt__describe`
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `agent` | string | No | `"climpt"` | エージェント名 |
-| `c1` | string | Yes | - | ドメイン識別子 |
-| `c2` | string | Yes | - | アクション識別子 |
-| `c3` | string | Yes | - | ターゲット識別子 |
+| `agent` | string | No | `"climpt"` | Agent name |
+| `c1` | string | Yes | - | Domain identifier |
+| `c2` | string | Yes | - | Action identifier |
+| `c3` | string | Yes | - | Target identifier |
 
-**レスポンス:**
+**Response:**
 
 ```typescript
 interface CommandDescription {
@@ -128,7 +128,7 @@ interface CommandDescription {
 }
 ```
 
-**使用例:**
+**Usage example:**
 
 ```
 mcp__climpt__describe({
@@ -141,25 +141,25 @@ mcp__climpt__describe({
 
 ### execute
 
-コマンドを実行し、指示プロンプトを取得します。
+Executes a command and retrieves the instruction prompt.
 
-**ツール名:** `mcp__climpt__execute`
+**Tool name:** `mcp__climpt__execute`
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `agent` | string | Yes | - | エージェント名 (`"climpt"`) |
-| `c1` | string | Yes | - | ドメイン識別子 (例: `"git"`, `"meta"`) |
-| `c2` | string | Yes | - | アクション識別子 |
-| `c3` | string | Yes | - | ターゲット識別子 |
-| `options` | object | No | `{}` | コマンドオプション |
+| `agent` | string | Yes | - | Agent name (`"climpt"`) |
+| `c1` | string | Yes | - | Domain identifier (e.g., `"git"`, `"meta"`) |
+| `c2` | string | Yes | - | Action identifier |
+| `c3` | string | Yes | - | Target identifier |
+| `options` | object | No | `{}` | Command options |
 
-**レスポンス:**
+**Response:**
 
-指示ドキュメント（プロンプト）がテキストとして返されます。
+Instruction document (prompt) is returned as text.
 
-**使用例:**
+**Usage example:**
 
 ```
 mcp__climpt__execute({
@@ -173,17 +173,17 @@ mcp__climpt__execute({
 
 ### reload
 
-レジストリキャッシュをリロードします。
+Reloads the registry cache.
 
-**ツール名:** `mcp__climpt__reload`
+**Tool name:** `mcp__climpt__reload`
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `agent` | string | No | `"climpt"` | エージェント名 |
+| `agent` | string | No | `"climpt"` | Agent name |
 
-**使用例:**
+**Usage example:**
 
 ```
 mcp__climpt__reload({
@@ -191,15 +191,15 @@ mcp__climpt__reload({
 })
 ```
 
-## Registry 構造
+## Registry Structure
 
-### ファイルパス
+### File Path
 
 ```
 .agent/climpt/registry.json
 ```
 
-### スキーマ
+### Schema
 
 ```typescript
 interface Registry {
@@ -212,11 +212,11 @@ interface Registry {
 }
 
 interface Command {
-  c1: string;           // ドメイン識別子
-  c2: string;           // アクション識別子
-  c3: string;           // ターゲット識別子
-  description: string;  // コマンド説明
-  usage?: string;       // 使用方法
+  c1: string;           // Domain identifier
+  c2: string;           // Action identifier
+  c3: string;           // Target identifier
+  description: string;  // Command description
+  usage?: string;       // Usage
   options?: {
     edition?: string[];
     adaptation?: string[];
@@ -227,76 +227,76 @@ interface Command {
 }
 ```
 
-### 現在のコマンド一覧
+### Current Command List
 
 #### c1: git
 
 | c2 | c3 | Description |
 |----|-----|-------------|
-| `decide-branch` | `working-branch` | タスク内容に基づいてブランチ作成判断 |
-| `find-oldest` | `descendant-branch` | 最古の関連ブランチを検索・マージ |
-| `group-commit` | `unstaged-changes` | 変更をセマンティック単位でコミット |
-| `list-select` | `pr-branch` | PR付きブランチ一覧から次のターゲット選択 |
-| `merge-up` | `base-branch` | 派生ブランチを親ブランチにマージ |
+| `decide-branch` | `working-branch` | Decide whether to create branch based on task content |
+| `find-oldest` | `descendant-branch` | Search and merge oldest related branch |
+| `group-commit` | `unstaged-changes` | Commit changes in semantic units |
+| `list-select` | `pr-branch` | Select next target from PR-attached branch list |
+| `merge-up` | `base-branch` | Merge derived branch to parent branch |
 
 #### c1: meta
 
 | c2 | c3 | Description |
 |----|-----|-------------|
-| `build` | `frontmatter` | C3L v0.5 準拠 frontmatter 生成 |
-| `create` | `instruction` | 新規 instruction ファイル作成 |
+| `build` | `frontmatter` | Generate C3L v0.5 compliant frontmatter |
+| `create` | `instruction` | Create new instruction file |
 
-## コマンド実行フロー
+## Command Execution Flow
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                     Climpt MCP Server                        │
 │                                                              │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │ execute ツール                                           │ │
+│  │ execute tool                                            │ │
 │  │                                                         │ │
-│  │ 1. agent, c1, c2, c3, options を受け取る                │ │
-│  │ 2. configParam を構築:                                  │ │
-│  │    - agent === "climpt" → c1 をそのまま使用             │ │
-│  │    - それ以外 → `${agent}-${c1}` を使用                 │ │
-│  │ 3. Deno で Climpt CLI を実行:                           │ │
+│  │ 1. Receive agent, c1, c2, c3, options                  │ │
+│  │ 2. Construct configParam:                              │ │
+│  │    - agent === "climpt" → use c1 as is                 │ │
+│  │    - otherwise → use `${agent}-${c1}`                  │ │
+│  │ 3. Execute Climpt CLI with Deno:                       │ │
 │  │    deno run jsr:@aidevtool/climpt                      │ │
 │  │      --config=${configParam}                           │ │
 │  │      ${c2}                                             │ │
 │  │      ${c3}                                             │ │
-│  │ 4. stdout を返却 (指示プロンプト)                       │ │
+│  │ 4. Return stdout (instruction prompt)                  │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 類似度検索アルゴリズム
+## Similarity Search Algorithm
 
-### 概要
+### Overview
 
-`search` ツールは TF-IDF ベースのコサイン類似度を使用してコマンドを検索します。
+The `search` tool uses TF-IDF based cosine similarity to search commands.
 
-### 実装詳細
+### Implementation Details
 
 ```
-1. クエリをトークン化
-2. 各コマンドの description をトークン化
-3. TF-IDF ベクトルを計算
-4. コサイン類似度でランキング
-5. スコア降順でソート
+1. Tokenize query
+2. Tokenize description of each command
+3. Calculate TF-IDF vectors
+4. Rank by cosine similarity
+5. Sort by descending score
 ```
 
-### スコアの解釈
+### Score Interpretation
 
-| Score Range | 解釈 |
-|-------------|------|
-| 0.8 - 1.0 | 非常に高い一致 |
-| 0.5 - 0.8 | 中程度の一致 |
-| 0.2 - 0.5 | 低い一致 |
-| 0.0 - 0.2 | ほぼ無関係 |
+| Score Range | Interpretation |
+|-------------|----------------|
+| 0.8 - 1.0 | Very high match |
+| 0.5 - 0.8 | Moderate match |
+| 0.2 - 0.5 | Low match |
+| 0.0 - 0.2 | Almost unrelated |
 
-## エラーハンドリング
+## Error Handling
 
-### コマンドが見つからない
+### Command Not Found
 
 ```json
 {
@@ -307,7 +307,7 @@ interface Command {
 }
 ```
 
-### レジストリ読み込みエラー
+### Registry Load Error
 
 ```json
 {
@@ -317,7 +317,7 @@ interface Command {
 }
 ```
 
-### 実行エラー
+### Execution Error
 
 ```json
 {
@@ -327,9 +327,9 @@ interface Command {
 }
 ```
 
-## ベストプラクティス
+## Best Practices
 
-1. **search → describe → execute** の順序で呼び出す
-2. 検索結果が複数ある場合は `score` と `description` を確認して選択
-3. `reload` は registry.json を更新した後に実行
-4. `agent` パラメータは常に `"climpt"` を使用
+1. Call in order of **search → describe → execute**
+2. When there are multiple search results, check `score` and `description` to select
+3. Execute `reload` after updating registry.json
+4. Always use `"climpt"` for the `agent` parameter

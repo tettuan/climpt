@@ -1,31 +1,27 @@
-# Climpt MCP Server セットアップガイド
+# Climpt MCP Server Setup Guide
 
-## 概要
+## Overview
 
-Climpt MCP ServerはClaude
-Codeのslashコマンドから`climpt`の機能を利用できるようにするMCP (Model Context
-Protocol) サーバーです。
+Climpt MCP Server is an MCP (Model Context Protocol) server that enables using `climpt` functionality from Claude Code slash commands.
 
-## 利用可能なコマンド
+## Available Commands
 
 ### `search`
 
-実行したいコマンドを簡潔に説明して渡すと、コサイン類似度で説明文から近いコマンドを3つ返します。受け取った結果から最適なコマンドを選べます。
+Pass a brief description of the command you want to execute, and it returns the 3 closest commands based on cosine similarity of the description. You can choose the optimal command from the results.
 
-**引数:**
+**Arguments:**
 
-- `query` (必須): 実行したいことの簡潔な説明（例: 'commit changes to git',
-  'generate API documentation', 'run tests'）
-- `agent` (オプション): 検索対象のエージェント名（例: 'climpt',
-  'inspector'）。省略時は 'climpt' が使用されます
+- `query` (required): Brief description of what you want to do (e.g., 'commit changes to git', 'generate API documentation', 'run tests')
+- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if omitted
 
-**動作:**
+**Behavior:**
 
-- 指定されたエージェントのregistry.jsonから`c1 + c2 + c3 + description`の文字列を対象にコサイン類似度を計算
-- 類似度上位3つのコマンドを返却
-- 返却値には各コマンドの`c1`, `c2`, `c3`, `description`, `score`を含む
+- Calculates cosine similarity against `c1 + c2 + c3 + description` strings from the specified agent's registry.json
+- Returns the top 3 commands by similarity
+- Return value includes `c1`, `c2`, `c3`, `description`, `score` for each command
 
-**使用例（基本）:**
+**Basic usage example:**
 
 ```json
 {
@@ -33,7 +29,7 @@ Protocol) サーバーです。
 }
 ```
 
-**使用例（エージェント指定）:**
+**Usage example with agent specification:**
 
 ```json
 {
@@ -44,28 +40,22 @@ Protocol) サーバーです。
 
 ### `describe`
 
-searchで受け取った`c1`, `c2`,
-`c3`を渡すと、一致するコマンドの説明文を全て返します。その中から最適な使用法やオプションの組み合わせを知ることができ、オプションの使い方も選べます。
+Pass the `c1`, `c2`, `c3` received from search, and it returns all descriptions for matching commands. From this you can learn the optimal usage and option combinations, and choose how to use options.
 
-**引数:**
+**Arguments:**
 
-- `c1` (必須): searchから得たドメイン識別子（例: git, spec, test, code, docs,
-  meta）
-- `c2` (必須): searchから得たアクション識別子（例: create, analyze, execute,
-  generate）
-- `c3` (必須): searchから得たターゲット識別子（例: unstaged-changes,
-  quality-metrics, unit-tests）
-- `agent` (オプション): 検索対象のエージェント名（例: 'climpt',
-  'inspector'）。省略時は 'climpt' が使用されます
+- `c1` (required): Domain identifier from search (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from search (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from search (e.g., unstaged-changes, quality-metrics, unit-tests)
+- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if omitted
 
-**動作:**
+**Behavior:**
 
-- 指定されたエージェントのregistry.jsonから、指定された`c1`, `c2`,
-  `c3`に一致する全レコードを返却
-- 同じc1,c2,c3でオプションが異なる複数のレコードが存在する場合、全て返却
-- 使用方法、利用可能なオプション、ファイル/標準入力/出力先サポートを含む完全なJSON構造を返却
+- Returns all records matching the specified `c1`, `c2`, `c3` from the specified agent's registry.json
+- If multiple records with the same c1, c2, c3 but different options exist, all are returned
+- Returns complete JSON structure including usage, available options, and file/stdin/output support
 
-**使用例（基本）:**
+**Basic usage example:**
 
 ```json
 {
@@ -75,7 +65,7 @@ searchで受け取った`c1`, `c2`,
 }
 ```
 
-**使用例（エージェント指定）:**
+**Usage example with agent specification:**
 
 ```json
 {
@@ -88,37 +78,27 @@ searchで受け取った`c1`, `c2`,
 
 ### `execute`
 
-describeで得られた詳細情報をもとに、`<agent-name>`, `<c1>`, `<c2>`, `<c3>`
-の4つを必ず渡し、かつ、describeから得られたオプション引数（`-*`/`--*`
-形式）も含めて実行します。オプションに渡す値も作成してから execute
-へ渡してください。execute
-の結果は指示書であるため、得られた指示に従って進めてください。
+Based on the detailed information from describe, always pass the 4 values `<agent-name>`, `<c1>`, `<c2>`, `<c3>`, along with option arguments (`-*`/`--*` format) obtained from describe. Create the values to pass to options before passing to execute. The result of execute is an instruction, so proceed according to the obtained instructions.
 
-**注意:**
-STDINサポートが必要な場合は、MCPではなくCLIから直接climptコマンドを実行してください。
+**Note:**
+If STDIN support is needed, execute the climpt command directly from CLI instead of MCP.
 
-**引数:**
+**Arguments:**
 
-- `agent` (必須): C3L仕様のエージェント名（例: 'climpt', 'inspector',
-  'auditor'）。Agent-Domainモデルにおけるエージェント（自律実行者）に対応
-- `c1` (必須): describeから得たドメイン識別子（例: git, spec, test, code, docs,
-  meta）
-- `c2` (必須): describeから得たアクション識別子（例: create, analyze, execute,
-  generate）
-- `c3` (必須): describeから得たターゲット識別子（例: unstaged-changes,
-  quality-metrics, unit-tests）
-- `options` (オプション): describeから得たコマンドラインオプションの配列（例:
-  `['-f=file.txt']`）
+- `agent` (required): Agent name per C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the agent (autonomous executor) in the Agent-Domain model
+- `c1` (required): Domain identifier from describe (e.g., git, spec, test, code, docs, meta)
+- `c2` (required): Action identifier from describe (e.g., create, analyze, execute, generate)
+- `c3` (required): Target identifier from describe (e.g., unstaged-changes, quality-metrics, unit-tests)
+- `options` (optional): Array of command-line options from describe (e.g., `['-f=file.txt']`)
 
-**動作:**
+**Behavior:**
 
-- C3L v0.5 仕様に従い `--config` パラメータを構築: `agent === "climpt"` の場合は
-  `--config=<c1>`、それ以外は `--config=<agent>-<c1>`
-- `deno run jsr:@aidevtool/climpt --config=... <c2> <c3> [options]` を実行
-- stdout, stderr, 終了コードを含む実行結果を返却
-- 実行結果には指示内容が含まれており、その指示に従って次の作業を進める
+- Constructs `--config` parameter per C3L v0.5 specification: `--config=<c1>` if `agent === "climpt"`, otherwise `--config=<agent>-<c1>`
+- Executes `deno run jsr:@aidevtool/climpt --config=... <c2> <c3> [options]`
+- Returns execution result including stdout, stderr, and exit code
+- The execution result contains instructions; proceed with the next task according to those instructions
 
-**使用例（基本）:**
+**Basic usage example:**
 
 ```json
 {
@@ -129,13 +109,13 @@ STDINサポートが必要な場合は、MCPではなくCLIから直接climptコ
 }
 ```
 
-実行されるコマンド:
+Executed command:
 
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=git group-commit unstaged-changes
 ```
 
-**使用例（オプション付き）:**
+**Usage example with options:**
 
 ```json
 {
@@ -147,7 +127,7 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
 }
 ```
 
-実行されるコマンド:
+Executed command:
 
 ```bash
 deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config jsr:@aidevtool/climpt --config=inspector-code analyze complexity -f=src/main.ts
@@ -155,23 +135,20 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
 
 ### `reload`
 
-registry.jsonを更新した後、MCPサーバーを再起動せずにキャッシュをクリアして再読み込みします。全てのエージェントのキャッシュをクリアするか、特定のエージェントのみクリアするかを選択できます。
+After updating registry.json, clears the cache and reloads without restarting the MCP server. You can choose to clear the cache for all agents or only a specific agent.
 
-**引数:**
+**Arguments:**
 
-- `agent` (オプション): 再読み込みするエージェント名（例: 'climpt',
-  'inspector'）。省略時は全エージェントのキャッシュをクリアし、MCP設定ファイルに定義されている全エージェントを再読み込みします
+- `agent` (optional): Agent name to reload (e.g., 'climpt', 'inspector'). If omitted, clears cache for all agents and reloads all agents defined in the MCP configuration file
 
-**動作:**
+**Behavior:**
 
-- エージェント指定時:
-  指定されたエージェントのキャッシュをクリアし、registry.jsonから再読み込み
-- エージェント未指定時:
-  全エージェントのキャッシュをクリアし、レジストリ設定ファイル（`.agent/climpt/config/registry_config.json`）に定義されている全エージェントのregistry.jsonを再読み込み
-- エージェントが廃止された場合や新規追加された場合でも、設定ファイルに基づいて正しく更新される
-- 再読み込み後のコマンド数と成功メッセージを返却
+- With agent specified: Clears cache for the specified agent and reloads from registry.json
+- Without agent specified: Clears cache for all agents and reloads registry.json for all agents defined in the registry configuration file (`.agent/climpt/config/registry_config.json`)
+- Correctly updates based on the configuration file even when agents are deprecated or newly added
+- Returns command count and success message after reload
 
-**使用例（特定エージェント）:**
+**Usage example (specific agent):**
 
 ```json
 {
@@ -179,7 +156,7 @@ registry.jsonを更新した後、MCPサーバーを再起動せずにキャッ�
 }
 ```
 
-**返却例（特定エージェント）:**
+**Return example (specific agent):**
 
 ```json
 {
@@ -190,13 +167,13 @@ registry.jsonを更新した後、MCPサーバーを再起動せずにキャッ�
 }
 ```
 
-**使用例（全エージェント）:**
+**Usage example (all agents):**
 
 ```json
 {}
 ```
 
-**返却例（全エージェント）:**
+**Return example (all agents):**
 
 ```json
 {
@@ -219,20 +196,20 @@ registry.jsonを更新した後、MCPサーバーを再起動せずにキャッ�
 }
 ```
 
-## セットアップ手順
+## Setup Instructions
 
-### 1. リポジトリのクローン
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/tettuan/climpt.git
 cd climpt
 ```
 
-### 2. 複数Registryの設定（v1.6.1以降）
+### 2. Multiple Registry Configuration (v1.6.1+)
 
-複数のエージェントのregistryを使用する場合、`.agent/climpt/config/registry_config.json`を作成します。
+To use registries from multiple agents, create `.agent/climpt/config/registry_config.json`.
 
-**デフォルト設定:** MCPサーバー起動時に自動的に作成されます：
+**Default configuration:** Automatically created when MCP server starts:
 
 ```json
 {
@@ -242,7 +219,7 @@ cd climpt
 }
 ```
 
-**複数エージェント設定例:**
+**Multiple agent configuration example:**
 
 ```json
 {
@@ -254,15 +231,15 @@ cd climpt
 }
 ```
 
-**設定場所の優先順位:**
+**Configuration location priority:**
 
-1. カレントディレクトリ: `.agent/climpt/config/registry_config.json`
-2. ホームディレクトリ: `~/.agent/climpt/config/registry_config.json`
-3. デフォルト設定（自動作成）
+1. Current directory: `.agent/climpt/config/registry_config.json`
+2. Home directory: `~/.agent/climpt/config/registry_config.json`
+3. Default configuration (auto-created)
 
-### 3. Claude Codeの設定
+### 3. Claude Code Configuration
 
-Claude Codeの設定ファイル（`~/.claude/claude_settings.json`）に以下を追加：
+Add the following to Claude Code's settings file (`~/.claude/claude_settings.json`):
 
 ```json
 {
@@ -282,24 +259,24 @@ Claude Codeの設定ファイル（`~/.claude/claude_settings.json`）に以下�
 }
 ```
 
-**注意:** `/path/to/climpt` を実際のclimptリポジトリのパスに置き換えてください。
+**Note:** Replace `/path/to/climpt` with the actual path to your climpt repository.
 
-### 4. 動作確認
+### 4. Verify Operation
 
-1. Claude Codeを再起動
-2. 以下のツールを試す：
-   - `search` - コマンド検索（類似度ベース）
-   - `describe` - コマンド詳細取得
-   - `execute` - コマンド実行
+1. Restart Claude Code
+2. Try the following tools:
+   - `search` - Command search (similarity-based)
+   - `describe` - Get command details
+   - `execute` - Execute commands
 
-## ツール機能
+## Tool Functions
 
-MCPサーバーは以下のツールを提供します：
+The MCP server provides the following tools:
 
-### `search` ツール
+### `search` Tool
 
 ```javascript
-// 使用例: コマンド検索
+// Usage example: Command search
 {
   "tool": "search",
   "arguments": {
@@ -307,7 +284,7 @@ MCPサーバーは以下のツールを提供します：
   }
 }
 
-// 返却例
+// Return example
 {
   "results": [
     {
@@ -321,10 +298,10 @@ MCPサーバーは以下のツールを提供します：
 }
 ```
 
-### `describe` ツール
+### `describe` Tool
 
 ```javascript
-// 使用例: コマンド詳細取得
+// Usage example: Get command details
 {
   "tool": "describe",
   "arguments": {
@@ -334,7 +311,7 @@ MCPサーバーは以下のツールを提供します：
   }
 }
 
-// 返却例: registry.jsonの該当レコード全体
+// Return example: Entire matching record from registry.json
 {
   "commands": [
     {
@@ -349,34 +326,34 @@ MCPサーバーは以下のツールを提供します：
 }
 ```
 
-## トラブルシューティング
+## Troubleshooting
 
-### サーバーが起動しない場合
+### Server Won't Start
 
-- Denoがインストールされているか確認: `deno --version`
-- パスが正しいか確認
-- 権限フラグが適切か確認
+- Verify Deno is installed: `deno --version`
+- Verify the path is correct
+- Verify permission flags are appropriate
 
-### コマンドが認識されない場合
+### Commands Not Recognized
 
-- Claude Codeを再起動
-- 設定ファイルのJSON構文を確認
-- MCPサーバー名が`climpt`になっているか確認
+- Restart Claude Code
+- Verify JSON syntax in configuration file
+- Verify MCP server name is `climpt`
 
-## 開発者向け情報
+## Developer Information
 
-### ローカルでのテスト
+### Local Testing
 
 ```bash
-# MCPサーバーを直接起動してテスト
+# Start MCP server directly for testing
 deno run --allow-read --allow-write --allow-net --allow-env src/mcp/index.ts
 ```
 
-### デバッグ
+### Debugging
 
-環境変数`DEBUG=mcp*`を設定することで詳細なログを確認できます。
+Set environment variable `DEBUG=mcp*` to see detailed logs.
 
-## 参考リンク
+## Reference Links
 
 - [MCP SDK for TypeScript](https://jsr.io/@modelcontextprotocol/sdk)
 - [Climpt Repository](https://github.com/tettuan/climpt)

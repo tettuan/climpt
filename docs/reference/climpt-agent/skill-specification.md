@@ -1,8 +1,8 @@
-# Skill 仕様 (delegate-climpt-agent)
+# Skill Specification (delegate-climpt-agent)
 
-`delegate-climpt-agent` Skill の技術仕様を説明します。
+This document explains the technical specification of the `delegate-climpt-agent` Skill.
 
-## SKILL.md 構造
+## SKILL.md Structure
 
 ### Frontmatter
 
@@ -13,40 +13,40 @@ description: Delegates development tasks to Climpt Agent. Use when user asks to 
 ---
 ```
 
-#### フィールド
+#### Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Skill 識別子 (最大64文字、小文字・数字・ハイフンのみ) |
-| `description` | string | Yes | Skill の発動条件を記述 (最大1024文字) |
+| `name` | string | Yes | Skill identifier (max 64 chars, lowercase, numbers, hyphens only) |
+| `description` | string | Yes | Describes Skill triggering conditions (max 1024 chars) |
 
-### Description の設計指針
+### Description Design Guidelines
 
-`description` は Claude が Skill を発動するかどうかを判断する重要なフィールドです：
+The `description` is an important field that Claude uses to determine whether to trigger the Skill:
 
-1. **具体的なユースケースを列挙**: git operations, branch management, frontmatter generation など
-2. **アクション動詞を使用**: "delegates", "use when user asks" など
-3. **ドメイン固有の用語を含める**: Climpt, git commits, PR workflows など
+1. **List specific use cases**: git operations, branch management, frontmatter generation, etc.
+2. **Use action verbs**: "delegates", "use when user asks", etc.
+3. **Include domain-specific terms**: Climpt, git commits, PR workflows, etc.
 
-## ワークフロー
+## Workflow
 
-### Step 1: コマンド検索
+### Step 1: Command Search
 
 ```
 mcp__climpt__search({
-  "query": "<ユーザーの意図>",
+  "query": "<user intent>",
   "agent": "climpt"
 })
 ```
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | Yes | 自然言語での検索クエリ |
-| `agent` | string | Yes | 常に `"climpt"` |
+| `query` | string | Yes | Natural language search query |
+| `agent` | string | Yes | Always `"climpt"` |
 
-**レスポンス:**
+**Response:**
 
 ```json
 [
@@ -60,7 +60,7 @@ mcp__climpt__search({
 ]
 ```
 
-### Step 2: コマンド詳細取得
+### Step 2: Get Command Details
 
 ```
 mcp__climpt__describe({
@@ -71,16 +71,16 @@ mcp__climpt__describe({
 })
 ```
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `agent` | string | Yes | 常に `"climpt"` |
-| `c1` | string | Yes | ドメイン識別子 |
-| `c2` | string | Yes | アクション識別子 |
-| `c3` | string | Yes | ターゲット識別子 |
+| `agent` | string | Yes | Always `"climpt"` |
+| `c1` | string | Yes | Domain identifier |
+| `c2` | string | Yes | Action identifier |
+| `c3` | string | Yes | Target identifier |
 
-**レスポンス:**
+**Response:**
 
 ```json
 {
@@ -99,7 +99,7 @@ mcp__climpt__describe({
 }
 ```
 
-### Step 3: コマンド実行
+### Step 3: Execute Command
 
 ```
 mcp__climpt__execute({
@@ -111,42 +111,42 @@ mcp__climpt__execute({
 })
 ```
 
-**パラメータ:**
+**Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `agent` | string | Yes | 常に `"climpt"` |
-| `c1` | string | Yes | ドメイン識別子 |
-| `c2` | string | Yes | アクション識別子 |
-| `c3` | string | Yes | ターゲット識別子 |
-| `options` | object | No | コマンドオプション |
+| `agent` | string | Yes | Always `"climpt"` |
+| `c1` | string | Yes | Domain identifier |
+| `c2` | string | Yes | Action identifier |
+| `c3` | string | Yes | Target identifier |
+| `options` | object | No | Command options |
 
-**レスポンス:**
+**Response:**
 
-指示ドキュメント（プロンプト）がテキストとして返されます。
+Instruction document (prompt) is returned as text.
 
-## C3L 命名規則
+## C3L Naming Convention
 
 Commands follow the C3L (Command 3-Level) naming convention:
 
-### レベル定義
+### Level Definitions
 
 | Level | Description | Pattern | Examples |
 |-------|-------------|---------|----------|
-| `agent` | MCP サーバー識別子 | - | `climpt`, `inspector` |
-| `c1` | ドメイン識別子 | `<domain>` | `git`, `meta`, `spec` |
-| `c2` | アクション識別子 | `<verb>-<modifier>?` | `group-commit`, `build`, `create` |
-| `c3` | ターゲット識別子 | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
+| `agent` | MCP server identifier | - | `climpt`, `inspector` |
+| `c1` | Domain identifier | `<domain>` | `git`, `meta`, `spec` |
+| `c2` | Action identifier | `<verb>-<modifier>?` | `group-commit`, `build`, `create` |
+| `c3` | Target identifier | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
 
-### 命名パターン
+### Naming Pattern
 
-**Sub-agent 名生成:**
+**Sub-agent name generation:**
 
 ```
 <agent>-<c1>-<c2>-<c3>
 ```
 
-**例:**
+**Examples:**
 
 | agent | c1 | c2 | c3 | Sub-agent Name |
 |-------|----|----|-----|----------------|
@@ -154,43 +154,43 @@ Commands follow the C3L (Command 3-Level) naming convention:
 | `climpt` | `meta` | `build` | `frontmatter` | `climpt-meta-build-frontmatter` |
 | `climpt` | `meta` | `create` | `instruction` | `climpt-meta-create-instruction` |
 
-## 発動条件
+## Triggering Conditions
 
-Skill は以下の条件で自動発動します：
+The Skill auto-triggers under the following conditions:
 
-1. **Git 操作関連**
-   - 「コミットして」「変更をまとめて」
-   - 「ブランチを決めて」「ブランチを整理して」
-   - 「PRを確認して」「マージして」
+1. **Git operation related**
+   - "commit this", "group the changes"
+   - "decide the branch", "organize branches"
+   - "check the PR", "merge this"
 
-2. **Meta 操作関連**
-   - 「frontmatter を生成して」
-   - 「instruction を作成して」
+2. **Meta operation related**
+   - "generate frontmatter"
+   - "create instruction"
 
-3. **一般的なワークフロー**
-   - 「開発フローを実行して」
-   - 「Climpt コマンドを実行して」
+3. **General workflows**
+   - "run the development flow"
+   - "execute Climpt command"
 
-## エラーハンドリング
+## Error Handling
 
-### 検索結果なし
-
-```markdown
-Climpt コマンドが見つかりませんでした。
-- クエリを別の表現で試してください
-- `mcp__climpt__reload` でレジストリを更新してください
-```
-
-### 実行エラー
+### No Search Results
 
 ```markdown
-コマンド実行に失敗しました: <error message>
-- コマンドパラメータを確認してください
-- Climpt CLI が正しくインストールされているか確認してください
+Climpt command not found.
+- Try rephrasing the query
+- Run `mcp__climpt__reload` to update the registry
 ```
 
-## ベストプラクティス
+### Execution Error
 
-1. **検索クエリは具体的に**: 「変更をコミット」より「意味的に近いファイルをグループ化してコミット」が精度向上
-2. **複数候補がある場合**: スコアと description を比較して最適なコマンドを選択
-3. **オプションの活用**: edition, adaptation などを適切に設定してカスタマイズ
+```markdown
+Command execution failed: <error message>
+- Check command parameters
+- Verify Climpt CLI is properly installed
+```
+
+## Best Practices
+
+1. **Be specific with search queries**: "commit changes" → "group semantically related files and commit" improves accuracy
+2. **When there are multiple candidates**: Compare score and description to select the optimal command
+3. **Use options**: Appropriately configure edition, adaptation, etc. for customization

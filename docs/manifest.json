@@ -1,5 +1,5 @@
 {
-  "version": "1.11.6",
+  "version": "1.11.7",
   "entries": [
     {
       "id": "guides-en-00-1-concepts",
@@ -82,78 +82,6 @@
       "bytes": 11770
     },
     {
-      "id": "guides-ja-00-overview",
-      "path": "guides/ja/00-overview.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "Iterate Agent 導入ガイド",
-      "bytes": 8070
-    },
-    {
-      "id": "guides-ja-01-prerequisites",
-      "path": "guides/ja/01-prerequisites.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "1. 前提条件",
-      "bytes": 4095
-    },
-    {
-      "id": "guides-ja-02-climpt-setup",
-      "path": "guides/ja/02-climpt-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "2. Climpt のセットアップ",
-      "bytes": 3898
-    },
-    {
-      "id": "guides-ja-03-instruction-creation",
-      "path": "guides/ja/03-instruction-creation.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "3. 指示書（プロンプト）の作成方法",
-      "bytes": 11764
-    },
-    {
-      "id": "guides-ja-04-iterate-agent-setup",
-      "path": "guides/ja/04-iterate-agent-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "4. Iterate Agent の設定と実行",
-      "bytes": 15286
-    },
-    {
-      "id": "guides-ja-05-architecture",
-      "path": "guides/ja/05-architecture.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "5. Climpt 全体像",
-      "bytes": 20148
-    },
-    {
-      "id": "guides-ja-06-config-files",
-      "path": "guides/ja/06-config-files.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "6. 設定ファイル編",
-      "bytes": 10711
-    },
-    {
-      "id": "guides-ja-07-dependencies",
-      "path": "guides/ja/07-dependencies.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "7. 依存構造編",
-      "bytes": 23770
-    },
-    {
-      "id": "guides-ja-08-prompt-structure",
-      "path": "guides/ja/08-prompt-structure.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "8. プロンプト構造編",
-      "bytes": 12655
-    },
-    {
       "id": "c3l_specification_v0.1",
       "path": "c3l_specification_v0.1.md",
       "category": "internal",
@@ -191,12 +119,26 @@
       "id": "internal-agent-test",
       "path": "internal/agent-test.md",
       "category": "internal",
+      "title": "Agent List",
+      "bytes": 8269
+    },
+    {
+      "id": "internal-agent-test.ja",
+      "path": "internal/agent-test.ja.md",
+      "category": "internal",
       "title": "Agent 一覧",
       "bytes": 8983
     },
     {
       "id": "internal-ai-complexity-philosophy",
       "path": "internal/ai-complexity-philosophy.md",
+      "category": "internal",
+      "title": "AI Implementation and Complexity: Philosophical Principles",
+      "bytes": 4935
+    },
+    {
+      "id": "internal-ai-complexity-philosophy.ja",
+      "path": "internal/ai-complexity-philosophy.ja.md",
       "category": "internal",
       "title": "AI実装と複雑性：思想的原理",
       "bytes": 5624
@@ -226,6 +168,13 @@
       "id": "internal-iterate-agent-c3l-integration",
       "path": "internal/iterate-agent-c3l-integration.md",
       "category": "internal",
+      "title": "Iterate Agent C3L Integration Design",
+      "bytes": 11186
+    },
+    {
+      "id": "internal-iterate-agent-c3l-integration.ja",
+      "path": "internal/iterate-agent-c3l-integration.ja.md",
+      "category": "internal",
       "title": "Iterate Agent C3L 統合設計",
       "bytes": 11300
     },
@@ -254,12 +203,26 @@
       "id": "internal-worktree-design",
       "path": "internal/worktree-design.md",
       "category": "internal",
+      "title": "Worktree Integration Design Document",
+      "bytes": 6737
+    },
+    {
+      "id": "internal-worktree-design.ja",
+      "path": "internal/worktree-design.ja.md",
+      "category": "internal",
       "title": "Worktree 統合設計書",
       "bytes": 7297
     },
     {
       "id": "mcp-setup",
       "path": "mcp-setup.md",
+      "category": "internal",
+      "title": "Climpt MCP Server Setup Guide",
+      "bytes": 9187
+    },
+    {
+      "id": "mcp-setup.ja",
+      "path": "mcp-setup.ja.md",
       "category": "internal",
       "title": "Climpt MCP Server セットアップガイド",
       "bytes": 10463
@@ -275,232 +238,15 @@
       "id": "README",
       "path": "README.md",
       "category": "internal",
+      "title": "Project-Specific AI Invocation Language Specification",
+      "bytes": 4280
+    },
+    {
+      "id": "README.ja",
+      "path": "README.ja.md",
+      "category": "internal",
       "title": "プロジェクト固有AI呼び出し言語 仕様書",
       "bytes": 4818
-    },
-    {
-      "id": "reference-claude-agent-sdk-overview",
-      "path": "reference/claude-agent-sdk-overview.md",
-      "category": "reference",
-      "title": "Agent SDK overview",
-      "bytes": 7456
-    },
-    {
-      "id": "reference-claude-agent-sdk-typescript",
-      "path": "reference/claude-agent-sdk-typescript.md",
-      "category": "reference",
-      "title": "Agent SDK reference - TypeScript",
-      "bytes": 46689
-    },
-    {
-      "id": "reference-climpt-agent-agent-script",
-      "path": "reference/climpt-agent/agent-script.md",
-      "category": "reference",
-      "title": "Agent Script 仕様 (climpt-agent.ts)",
-      "bytes": 6528
-    },
-    {
-      "id": "reference-climpt-agent-mcp-integration",
-      "path": "reference/climpt-agent/mcp-integration.md",
-      "category": "reference",
-      "title": "MCP 連携仕様",
-      "bytes": 8827
-    },
-    {
-      "id": "reference-climpt-agent-overview",
-      "path": "reference/climpt-agent/overview.md",
-      "category": "reference",
-      "title": "Climpt Agent Overview",
-      "bytes": 5350
-    },
-    {
-      "id": "reference-climpt-agent-skill-specification",
-      "path": "reference/climpt-agent/skill-specification.md",
-      "category": "reference",
-      "title": "Skill 仕様 (delegate-climpt-agent)",
-      "bytes": 5580
-    },
-    {
-      "id": "reference-plugins-plugins",
-      "path": "reference/plugins/plugins.md",
-      "category": "reference",
-      "title": "Plugins - Claude Code Docs",
-      "bytes": 10184
-    },
-    {
-      "id": "reference-plugins-plugins-reference",
-      "path": "reference/plugins/plugins-reference.md",
-      "category": "reference",
-      "title": "Plugins reference - Claude Code Docs",
-      "bytes": 13720
-    },
-    {
-      "id": "reference-reference-backup-claude-agent-sdk-overview",
-      "path": "reference/reference-backup/claude-agent-sdk-overview.md",
-      "category": "reference",
-      "title": "Agent SDK overview",
-      "bytes": 7456
-    },
-    {
-      "id": "reference-reference-backup-claude-agent-sdk-typescript",
-      "path": "reference/reference-backup/claude-agent-sdk-typescript.md",
-      "category": "reference",
-      "title": "Agent SDK reference - TypeScript",
-      "bytes": 46689
-    },
-    {
-      "id": "reference-reference-backup-skills-overview",
-      "path": "reference/reference-backup/skills/overview.md",
-      "category": "reference",
-      "title": "Agent Skills",
-      "bytes": 17886
-    },
-    {
-      "id": "reference-sdk-cost-tracking",
-      "path": "reference/sdk/cost-tracking.md",
-      "category": "reference",
-      "title": "Tracking Costs and Usage",
-      "bytes": 11009
-    },
-    {
-      "id": "reference-sdk-custom-tools",
-      "path": "reference/sdk/custom-tools.md",
-      "category": "reference",
-      "title": "Custom Tools",
-      "bytes": 21505
-    },
-    {
-      "id": "reference-sdk-file-checkpointing",
-      "path": "reference/sdk/file-checkpointing.md",
-      "category": "reference",
-      "title": "Rewind file changes with checkpointing",
-      "bytes": 27585
-    },
-    {
-      "id": "reference-sdk-hooks",
-      "path": "reference/sdk/hooks.md",
-      "category": "reference",
-      "title": "Intercept and control agent behavior with hooks",
-      "bytes": 30718
-    },
-    {
-      "id": "reference-sdk-mcp",
-      "path": "reference/sdk/mcp.md",
-      "category": "reference",
-      "title": "MCP in the SDK",
-      "bytes": 7707
-    },
-    {
-      "id": "reference-sdk-modifying-system-prompts",
-      "path": "reference/sdk/modifying-system-prompts.md",
-      "category": "reference",
-      "title": "Modifying system prompts",
-      "bytes": 14941
-    },
-    {
-      "id": "reference-sdk-permissions",
-      "path": "reference/sdk/permissions.md",
-      "category": "reference",
-      "title": "Handling Permissions",
-      "bytes": 12889
-    },
-    {
-      "id": "reference-sdk-plugins",
-      "path": "reference/sdk/plugins.md",
-      "category": "reference",
-      "title": "Plugins in the SDK",
-      "bytes": 10386
-    },
-    {
-      "id": "reference-sdk-secure-deployment",
-      "path": "reference/sdk/secure-deployment.md",
-      "category": "reference",
-      "title": "Securely deploying AI agents",
-      "bytes": 21155
-    },
-    {
-      "id": "reference-sdk-sessions",
-      "path": "reference/sdk/sessions.md",
-      "category": "reference",
-      "title": "Session Management",
-      "bytes": 7552
-    },
-    {
-      "id": "reference-sdk-skills",
-      "path": "reference/sdk/skills.md",
-      "category": "reference",
-      "title": "Agent Skills in the SDK",
-      "bytes": 10428
-    },
-    {
-      "id": "reference-sdk-slash-commands",
-      "path": "reference/sdk/slash-commands.md",
-      "category": "reference",
-      "title": "Slash Commands in the SDK",
-      "bytes": 12327
-    },
-    {
-      "id": "reference-sdk-streaming-vs-single-mode",
-      "path": "reference/sdk/streaming-vs-single-mode.md",
-      "category": "reference",
-      "title": "Streaming Input",
-      "bytes": 7798
-    },
-    {
-      "id": "reference-sdk-structured-outputs",
-      "path": "reference/sdk/structured-outputs.md",
-      "category": "reference",
-      "title": "Structured outputs in the SDK",
-      "bytes": 10299
-    },
-    {
-      "id": "reference-sdk-subagents",
-      "path": "reference/sdk/subagents.md",
-      "category": "reference",
-      "title": "Subagents in the SDK",
-      "bytes": 18079
-    },
-    {
-      "id": "reference-sdk-todo-tracking",
-      "path": "reference/sdk/todo-tracking.md",
-      "category": "reference",
-      "title": "Todo Lists",
-      "bytes": 5811
-    },
-    {
-      "id": "reference-skills-agent-sdk-skills",
-      "path": "reference/skills/agent-sdk-skills.md",
-      "category": "reference",
-      "title": "Agent Skills in the SDK",
-      "bytes": 8901
-    },
-    {
-      "id": "reference-skills-best-practices",
-      "path": "reference/skills/best-practices.md",
-      "category": "reference",
-      "title": "Skill authoring best practices",
-      "bytes": 40677
-    },
-    {
-      "id": "reference-skills-overview",
-      "path": "reference/skills/overview.md",
-      "category": "reference",
-      "title": "Agent Skills",
-      "bytes": 16201
-    },
-    {
-      "id": "reference-skills-quickstart",
-      "path": "reference/skills/quickstart.md",
-      "category": "reference",
-      "title": "Get started with Agent Skills in the API",
-      "bytes": 10042
-    },
-    {
-      "id": "reference-sub-agents",
-      "path": "reference/sub-agents.md",
-      "category": "reference",
-      "title": "サブエージェント",
-      "bytes": 606139
     }
   ]
 }
