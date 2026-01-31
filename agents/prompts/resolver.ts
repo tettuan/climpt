@@ -10,6 +10,7 @@ import type { Variables } from "../src_common/contracts.ts";
 import type { PromptAdapter } from "./adapter.ts";
 import { FilePromptAdapter, PromptNotFoundError } from "./adapter.ts";
 import { substituteVariables } from "./variable-substitutor.ts";
+import type { PromptLogger } from "../common/prompt-logger.ts";
 
 export interface PromptResolverOptions {
   agentName: string;
@@ -30,6 +31,12 @@ export interface PromptResolutionResult {
   source: "file" | "climpt" | "fallback";
   /** Full file path if resolved from file or climpt (e.g., "iterator/initial/issue/f_default.md") */
   promptPath?: string;
+  /** Variables that were substituted (uv-* parameters) */
+  substitutedVariables?: Record<string, string>;
+  /** Edition used for C3L path (e.g., "default", "empty") */
+  edition?: string;
+  /** Adaptation variant if used (e.g., "preparation", "preparation_empty") */
+  adaptation?: string;
 }
 
 export interface StepRegistry {
@@ -54,11 +61,20 @@ export class PromptResolver {
   private agentDir: string;
   private registry: StepRegistry;
   private fallbackProvider: DefaultFallbackProvider;
+  private promptLogger?: PromptLogger;
 
   private constructor(agentDir: string, registry: StepRegistry) {
     this.agentDir = agentDir;
     this.registry = registry;
     this.fallbackProvider = new DefaultFallbackProvider();
+  }
+
+  /**
+   * Set prompt logger for automatic resolution logging.
+   * When set, all resolve() and resolveWithMetadata() calls will be logged.
+   */
+  setPromptLogger(logger: PromptLogger): void {
+    this.promptLogger = logger;
   }
 
   static async create(options: PromptResolverOptions): Promise<PromptResolver> {
@@ -91,26 +107,44 @@ export class PromptResolver {
   /**
    * Resolve a prompt and return metadata including the file path.
    * Use this method when you need to log which prompt file was used.
+   *
+   * When a PromptLogger is set via setPromptLogger(), resolution results
+   * are automatically logged with file path, variables, and edition info.
    */
   async resolveWithMetadata(
     stepId: string,
     variables: Record<string, string>,
   ): Promise<PromptResolutionResult> {
+    const startTime = performance.now();
     const step = this.registry.steps[stepId];
+
+    // Extract uv-* variables for logging
+    const uvVariables: Record<string, string> = {};
+    for (const [key, value] of Object.entries(variables)) {
+      if (key.startsWith("uv-")) {
+        uvVariables[key] = value;
+      }
+    }
 
     if (!step) {
       // Try fallback provider for known steps
       try {
         const content = this.fallbackProvider.get(stepId, variables);
-        return {
+        const result: PromptResolutionResult = {
           content,
           stepId,
           source: "fallback",
+          substitutedVariables: uvVariables,
         };
+        await this.logResolution(result, performance.now() - startTime);
+        return result;
       } catch {
         throw new Error(`Unknown step: ${stepId}`);
       }
     }
+
+    // Get edition for logging
+    const edition = step.edition ?? "default";
 
     // Build path
     const promptPath = step.path ?? this.buildC3LPath(step);
@@ -123,31 +157,54 @@ export class PromptResolver {
         variables,
         step.useStdin,
       );
-      return {
+      const result: PromptResolutionResult = {
         content,
         stepId,
         source: "climpt",
         promptPath,
+        substitutedVariables: uvVariables,
+        edition,
       };
+      await this.logResolution(result, performance.now() - startTime);
+      return result;
     } catch {
       try {
         const content = await this.renderFallback(fullPath, variables);
-        return {
+        const result: PromptResolutionResult = {
           content,
           stepId,
           source: "file",
           promptPath,
+          substitutedVariables: uvVariables,
+          edition,
         };
+        await this.logResolution(result, performance.now() - startTime);
+        return result;
       } catch {
         // Final fallback to built-in templates
         const content = this.fallbackProvider.get(stepId, variables);
-        return {
+        const result: PromptResolutionResult = {
           content,
           stepId,
           source: "fallback",
+          substitutedVariables: uvVariables,
         };
+        await this.logResolution(result, performance.now() - startTime);
+        return result;
       }
     }
+  }
+
+  /**
+   * Log prompt resolution if logger is set.
+   */
+  private async logResolution(
+    result: PromptResolutionResult,
+    timeMs: number,
+  ): Promise<void> {
+    if (!this.promptLogger) return;
+
+    await this.promptLogger.logResolution(result, timeMs);
   }
 
   async resolveSystemPrompt(
@@ -164,16 +221,29 @@ export class PromptResolver {
   async resolveSystemPromptWithMetadata(
     variables: Record<string, string>,
   ): Promise<PromptResolutionResult> {
+    const startTime = performance.now();
+
+    // Extract uv-* variables for logging
+    const uvVariables: Record<string, string> = {};
+    for (const [key, value] of Object.entries(variables)) {
+      if (key.startsWith("uv-")) {
+        uvVariables[key] = value;
+      }
+    }
+
     try {
       return await this.resolveWithMetadata("system", variables);
     } catch {
       // Return a default system prompt
       const content = this.fallbackProvider.getSystemPrompt(variables);
-      return {
+      const result: PromptResolutionResult = {
         content,
         stepId: "system",
         source: "fallback",
+        substitutedVariables: uvVariables,
       };
+      await this.logResolution(result, performance.now() - startTime);
+      return result;
     }
   }
 

@@ -211,8 +211,13 @@ export class AgentRunner {
     const promptLogger = new PromptLogger(logger, {
       logSuccess: true,
       logFailures: true,
-      logVariables: false, // Privacy: don't log variable values by default
+      logVariables: true, // Log uv-* variables for usage analysis
     });
+
+    // Inject prompt logger into resolver for automatic logging
+    // This enables logging of actual file paths (e.g., iterator/initial/issue/f_default.md)
+    // with edition, adaptation, and variable information
+    promptResolver.setPromptLogger(promptLogger);
 
     // Assign all context at once (atomic initialization)
     this.context = {
@@ -311,8 +316,7 @@ export class AgentRunner {
           );
         }
 
-        // Resolve system prompt and log for usage analysis
-        const systemPromptStartTime = performance.now();
+        // Resolve system prompt (logging is automatic via PromptResolver.setPromptLogger)
         // deno-lint-ignore no-await-in-loop
         const systemPromptResult = await ctx.promptResolver
           .resolveSystemPromptWithMetadata(
@@ -323,23 +327,6 @@ export class AgentRunner {
             },
           );
         const customSystemPrompt = systemPromptResult.content;
-        const systemPromptTimeMs = performance.now() - systemPromptStartTime;
-
-        // Log prompt resolution for usage analysis (includes actual file path like f_default.md)
-        if (ctx.promptLogger) {
-          // deno-lint-ignore no-await-in-loop
-          await ctx.promptLogger.logResolution(
-            {
-              stepId: systemPromptResult.stepId,
-              source: systemPromptResult.source === "fallback"
-                ? "fallback"
-                : "user",
-              content: customSystemPrompt,
-              promptPath: systemPromptResult.promptPath,
-            },
-            systemPromptTimeMs,
-          );
-        }
 
         // Build system prompt with claude_code preset + custom append
         const systemPrompt = {
