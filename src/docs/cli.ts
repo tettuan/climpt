@@ -36,7 +36,7 @@ Options:
   -h, --help      Show help
 `;
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
     boolean: ["help"],
     string: ["category", "lang", "mode", "version"],

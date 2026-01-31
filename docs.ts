@@ -20,3 +20,8 @@
 
 export { install, list } from "./src/docs/mod.ts";
 export type { Entry, Options, Result } from "./src/docs/types.ts";
+
+if (import.meta.main) {
+  const { main } = await import("./src/docs/cli.ts");
+  await main();
+}
