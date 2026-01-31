@@ -410,6 +410,32 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
 ```
 
+#### Worktree モードでのログ出力
+
+Worktree モード（`forceWorktree: true`）で agent を実行した場合、ログは常に**メインリポジトリ**の `tmp/logs/` ディレクトリに出力されます。worktree ディレクトリ内には出力されません。
+
+```
+# メインリポジトリ（agent を起動した場所）
+your-project/
+├── tmp/
+│   └── logs/
+│       └── agents/
+│           └── climpt/
+│               └── session-*.jsonl  ← ログはここに出力
+│
+# Worktree（agent が作業を行う場所）
+../worktree/feature-branch/
+├── src/
+└── ...                              ← worktree 内にはログなし
+```
+
+この設計により：
+- **ログの一元管理**: 実行モードに関わらず、すべてのログが同一場所に保存
+- **git 汚染の防止**: worktree ディレクトリがクリーンな状態でコミット可能
+- **アクセスの容易さ**: worktree クリーンアップ後もログにアクセス可能
+
+> **注意**: `tmp/` ディレクトリは `.gitignore` に含まれているため、ログがコミットされることはありません。
+
 ログの確認：
 
 ```bash

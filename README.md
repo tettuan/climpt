@@ -162,13 +162,14 @@ deno task agent --agent {name} --iterate-max 10
 
 | Type | Description |
 |------|-------------|
-| `issue` | Completes when GitHub Issue is closed |
-| `project` | Processes multiple Issues from GitHub Project |
-| `iterate` | Runs for specified iterations (`maxIterations`) |
-| `manual` | Exits when agent outputs `completionKeyword` |
+| `externalState` | Monitors external resource state (GitHub issue/project, file, API) |
+| `iterationBudget` | Runs for specified iterations (`maxIterations`) |
+| `checkBudget` | Runs for specified status checks (`maxChecks`) |
+| `keywordSignal` | Exits when agent outputs `completionKeyword` |
+| `structuredSignal` | Detects structured action block output (`signalType`) |
+| `stepMachine` | Follows step state machine (`registryPath`, `entryStep`) |
+| `composite` | Combined conditions with operator (and/or/first) |
 | `custom` | Uses custom handler (`handlerPath`) |
-| `facilitator` | Monitors project status periodically |
-| `stepFlow` | Follows step-based execution flow |
 
 ### Built-in Agents
 
@@ -254,8 +255,8 @@ Install docs locally as markdown:
 # Install all docs
 dx jsr:@aidevtool/climpt/docs
 
-# Install Japanese guides only
-dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=ja
+# Install English guides only
+dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=en
 
 # Combine into single file
 dx jsr:@aidevtool/climpt/docs install ./docs --mode=single

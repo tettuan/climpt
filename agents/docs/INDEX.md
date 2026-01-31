@@ -20,6 +20,7 @@ Flow/Completion の哲学、境界、C3L、Structured Output など、すべて�
 | `design/06_contracts.md`          | StepContext や CompletionChain の契約、I/O、失敗条件。      |
 | `design/07_extension_points.md`   | 差し替え可能な拡張ポイントと制約。                          |
 | `design/08_step_flow_design.md`   | Flow Step の strict gate 仕様と handoff 設計。              |
+| `design/09_model_selection.md`    | ステップごとのモデル選択と解決優先順位。                    |
 
 ## 汎用 Agentを利用したエージェント追加方法
 
