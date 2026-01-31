@@ -3,10 +3,43 @@
  *
  * Logs prompt resolution events to help with debugging and auditing.
  * Integrates with the existing Logger infrastructure.
+ *
+ * Supports multiple logger backends:
+ * - common/logger.ts Logger (async write() method)
+ * - src_common/logger.ts Logger (sync info/debug/warn/error methods)
  */
 
 import type { Logger } from "./logger.ts";
-import type { PromptResolutionResult } from "./prompt-resolver.ts";
+// Support both resolver implementations
+import type { PromptResolutionResult as CommonPromptResolutionResult } from "./prompt-resolver.ts";
+import type { PromptResolutionResult as PromptsPromptResolutionResult } from "../prompts/resolver.ts";
+
+/**
+ * Unified prompt resolution result type that supports both resolvers.
+ * - common/prompt-resolver.ts uses source: "user" | "fallback"
+ * - prompts/resolver.ts uses source: "file" | "climpt" | "fallback"
+ */
+export type PromptResolutionResult =
+  | CommonPromptResolutionResult
+  | PromptsPromptResolutionResult;
+
+/**
+ * Minimal logger interface for PromptLogger.
+ * Both common/logger.ts and src_common/logger.ts can satisfy this interface.
+ */
+export interface PromptLoggerBackend {
+  /** Write method (async) - from common/logger.ts */
+  write?(
+    level: "info" | "debug" | "warn" | "error",
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void>;
+  /** Sync log methods - from src_common/logger.ts */
+  info?(message: string, data?: Record<string, unknown>): void;
+  debug?(message: string, data?: Record<string, unknown>): void;
+  warn?(message: string, data?: Record<string, unknown>): void;
+  error?(message: string, data?: Record<string, unknown>): void;
+}
 
 /**
  * Prompt resolution log entry details
@@ -15,16 +48,22 @@ export interface PromptResolutionLog {
   /** Step ID that was resolved */
   stepId: string;
 
-  /** Source of the resolved prompt */
-  source: "user" | "fallback";
+  /**
+   * Source of the resolved prompt:
+   * - "user": User-provided prompt file (from common/prompt-resolver.ts)
+   * - "file": Direct file read (from prompts/resolver.ts)
+   * - "climpt": Resolved via Climpt CLI (from prompts/resolver.ts)
+   * - "fallback": Built-in/embedded prompt
+   */
+  source: "user" | "file" | "climpt" | "fallback";
 
-  /** Path to user file (if source is "user") */
+  /** Path to prompt file (e.g., "iterator/initial/issue/f_default.md") */
   promptPath?: string;
 
   /** Fallback key used (if source is "fallback") */
   fallbackKey?: string;
 
-  /** Variables that were substituted */
+  /** Variables that were substituted (uv-* parameters) */
   variables?: Record<string, string>;
 
   /** Content length (for reference, not actual content for privacy) */
@@ -32,6 +71,12 @@ export interface PromptResolutionLog {
 
   /** Resolution time in milliseconds */
   resolutionTimeMs?: number;
+
+  /** Edition used for C3L path (e.g., "default", "empty") */
+  edition?: string;
+
+  /** Adaptation variant if used */
+  adaptation?: string;
 
   /** Any warnings during resolution */
   warnings?: string[];
@@ -70,7 +115,7 @@ export class PromptLogger {
   private options: Required<PromptLoggerOptions>;
 
   constructor(
-    private readonly logger: Logger,
+    private readonly logger: PromptLoggerBackend | Logger,
     options: PromptLoggerOptions = {},
   ) {
     this.options = {
@@ -80,6 +125,39 @@ export class PromptLogger {
       logContentPreview: options.logContentPreview ?? false,
       maxPreviewLength: options.maxPreviewLength ?? 100,
     };
+  }
+
+  /**
+   * Write to the logger backend, handling both async write() and sync log methods.
+   */
+  private async writeLog(
+    level: "info" | "debug" | "warn" | "error",
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    const backend = this.logger as PromptLoggerBackend;
+
+    // Prefer async write() method if available (common/logger.ts)
+    if (backend.write) {
+      await backend.write(level, message, metadata);
+      return;
+    }
+
+    // Fall back to sync log methods (src_common/logger.ts)
+    switch (level) {
+      case "info":
+        backend.info?.(message, metadata);
+        break;
+      case "debug":
+        backend.debug?.(message, metadata);
+        break;
+      case "warn":
+        backend.warn?.(message, metadata);
+        break;
+      case "error":
+        backend.error?.(message, metadata);
+        break;
+    }
   }
 
   /**
@@ -95,11 +173,22 @@ export class PromptLogger {
     if (!this.options.logSuccess) return;
 
     const logEntry = this.buildLogEntry(result, resolutionTimeMs);
-    const sourceLabel = result.source === "user" ? "user file" : "fallback";
 
-    await this.logger.write(
+    // Map source to human-readable label
+    const sourceLabels: Record<string, string> = {
+      user: "user file",
+      file: "file",
+      climpt: "climpt",
+      fallback: "fallback",
+    };
+    const sourceLabel = sourceLabels[result.source] ?? result.source;
+
+    // Build log message with path info when available
+    const pathInfo = result.promptPath ? ` [${result.promptPath}]` : "";
+
+    await this.writeLog(
       "info",
-      `Prompt resolved: ${result.stepId} (${sourceLabel})`,
+      `Prompt resolved: ${result.stepId} (${sourceLabel})${pathInfo}`,
       {
         promptResolution: logEntry,
       },
@@ -120,7 +209,7 @@ export class PromptLogger {
   ): Promise<void> {
     if (!this.options.logFailures) return;
 
-    await this.logger.write("error", `Prompt resolution failed: ${stepId}`, {
+    await this.writeLog("error", `Prompt resolution failed: ${stepId}`, {
       promptResolution: {
         stepId,
         error: {
@@ -144,7 +233,7 @@ export class PromptLogger {
     warning: string,
     context?: Record<string, unknown>,
   ): Promise<void> {
-    await this.logger.write("debug", `Prompt warning: ${stepId} - ${warning}`, {
+    await this.writeLog("debug", `Prompt warning: ${stepId} - ${warning}`, {
       promptResolution: {
         stepId,
         warning,
@@ -165,7 +254,7 @@ export class PromptLogger {
     userPath: string,
     fallbackKey: string,
   ): Promise<void> {
-    await this.logger.write(
+    await this.writeLog(
       "debug",
       `Prompt fallback: ${stepId} (user file not found)`,
       {
@@ -187,7 +276,7 @@ export class PromptLogger {
   ): PromptResolutionLog {
     const entry: PromptResolutionLog = {
       stepId: result.stepId,
-      source: result.source,
+      source: result.source as PromptResolutionLog["source"],
       contentLength: result.content.length,
     };
 
@@ -201,6 +290,15 @@ export class PromptLogger {
 
     if (this.options.logVariables && result.substitutedVariables) {
       entry.variables = result.substitutedVariables;
+    }
+
+    // Include edition and adaptation if available (from prompts/resolver.ts)
+    const extendedResult = result as PromptsPromptResolutionResult;
+    if (extendedResult.edition) {
+      entry.edition = extendedResult.edition;
+    }
+    if (extendedResult.adaptation) {
+      entry.adaptation = extendedResult.adaptation;
     }
 
     return entry;
@@ -221,7 +319,18 @@ export async function logPromptResolution(
   result: PromptResolutionResult,
   options: { resolutionTimeMs?: number; logVariables?: boolean } = {},
 ): Promise<void> {
-  const sourceLabel = result.source === "user" ? "user file" : "fallback";
+  // Map source to human-readable label
+  const sourceLabels: Record<string, string> = {
+    user: "user file",
+    file: "file",
+    climpt: "climpt",
+    fallback: "fallback",
+  };
+  const sourceLabel = sourceLabels[result.source] ?? result.source;
+  const pathInfo = result.promptPath ? ` [${result.promptPath}]` : "";
+
+  // Include edition and adaptation if available
+  const extendedResult = result as PromptsPromptResolutionResult;
 
   const metadata: Record<string, unknown> = {
     promptResolution: {
@@ -230,6 +339,10 @@ export async function logPromptResolution(
       contentLength: result.content.length,
       promptPath: result.promptPath,
       resolutionTimeMs: options.resolutionTimeMs,
+      ...(extendedResult.edition ? { edition: extendedResult.edition } : {}),
+      ...(extendedResult.adaptation
+        ? { adaptation: extendedResult.adaptation }
+        : {}),
       ...(options.logVariables && result.substitutedVariables
         ? { variables: result.substitutedVariables }
         : {}),
@@ -238,7 +351,7 @@ export async function logPromptResolution(
 
   await logger.write(
     "info",
-    `Prompt resolved: ${result.stepId} (${sourceLabel})`,
+    `Prompt resolved: ${result.stepId} (${sourceLabel})${pathInfo}`,
     metadata,
   );
 }
