@@ -1,5 +1,22 @@
 #!/usr/bin/env -S deno run --allow-net --allow-write --allow-read
-/** Climpt Docs CLI */
+/**
+ * Climpt Docs CLI
+ *
+ * Command-line interface for installing and listing Climpt documentation.
+ * Downloads documentation from JSR and saves locally as markdown files.
+ *
+ * @module
+ *
+ * @example Install all docs
+ * ```bash
+ * dx jsr:@aidevtool/climpt/docs/cli
+ * ```
+ *
+ * @example Install Japanese guides only
+ * ```bash
+ * dx jsr:@aidevtool/climpt/docs/cli install ./docs --lang=ja --category=guides
+ * ```
+ */
 
 import { parseArgs } from "@std/cli/parse-args";
 import { install, list } from "./mod.ts";
