@@ -232,6 +232,26 @@ Climptは `.agent/climpt/config/` に2つの設定ファイルを使用：
 
 📖 [設定ガイド](https://tettuan.github.io/climpt/)
 
+## ドキュメント
+
+ドキュメントをmarkdownとしてローカルにインストール：
+
+```bash
+# 全ドキュメントをインストール
+dx jsr:@aidevtool/climpt/docs
+
+# 日本語ガイドのみインストール
+dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=ja
+
+# 1ファイルに結合
+dx jsr:@aidevtool/climpt/docs install ./docs --mode=single
+
+# 利用可能なドキュメント一覧
+dx jsr:@aidevtool/climpt/docs list
+```
+
+📖 [オンラインドキュメント](https://tettuan.github.io/climpt/)
+
 ## 必要要件
 
 - Deno 2.5以上

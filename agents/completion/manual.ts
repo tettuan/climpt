@@ -9,6 +9,8 @@ import {
   type IterationSummary,
 } from "./types.ts";
 
+const INCOMPLETE = false;
+
 export class ManualCompletionHandler extends BaseCompletionHandler {
   readonly type = "keywordSignal" as const;
   private promptResolver?: PromptResolver;
@@ -91,7 +93,7 @@ Work on the task. When complete, output: ${this.completionKeyword}
   }
 
   isComplete(): Promise<boolean> {
-    if (!this.lastSummary) return Promise.resolve(false);
+    if (!this.lastSummary) return Promise.resolve(INCOMPLETE);
     return Promise.resolve(
       this.lastSummary.assistantResponses.some((response) =>
         response.includes(this.completionKeyword)

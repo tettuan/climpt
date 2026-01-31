@@ -81,7 +81,7 @@ export class FormatValidator {
 
           // Basic schema validation if provided
           if (format.schema) {
-            // TODO: Implement full JSON Schema validation
+            // NOTE: Full JSON Schema validation not yet implemented
             // For now, just check required properties exist
             const required = format.schema.required as string[] | undefined;
             if (required) {

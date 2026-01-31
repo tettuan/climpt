@@ -246,6 +246,26 @@ Climpt uses two config files in `.agent/climpt/config/`:
 
 📖 [Configuration Guide](https://tettuan.github.io/climpt/)
 
+## Documentation
+
+Install docs locally as markdown:
+
+```bash
+# Install all docs
+dx jsr:@aidevtool/climpt/docs
+
+# Install Japanese guides only
+dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=ja
+
+# Combine into single file
+dx jsr:@aidevtool/climpt/docs install ./docs --mode=single
+
+# List available docs
+dx jsr:@aidevtool/climpt/docs list
+```
+
+📖 [Online Documentation](https://tettuan.github.io/climpt/)
+
 ## Requirements
 
 - Deno 2.5+

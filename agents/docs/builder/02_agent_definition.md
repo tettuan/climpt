@@ -169,6 +169,24 @@ Issue 完了時のデフォルトアクション。AI の structured output で�
 
 **優先順位**: AI structured output > `defaultClosureAction` > `"close"`
 
+**Multi-agent ワークフローでの使い分け**
+
+複数の Agent が連携するワークフローでは、最終 Agent 以外は `label-only`
+を使用する。
+
+```
+Analyst (label-only) → Architect (label-only) → Writer (label-only) → Facilitator (close)
+```
+
+| Agent の役割 | 推奨値       | 理由                                      |
+| ------------ | ------------ | ----------------------------------------- |
+| 中間 Agent   | `label-only` | Issue を OPEN のまま次の Agent へ引き継ぐ |
+| 最終 Agent   | `close`      | ワークフロー完了時に Issue をクローズ     |
+
+> **注意**: デフォルト値は `close` のため、中間 Agent で明示的に `label-only` を
+> 設定しないと、意図せず Issue がクローズされる。 → トラブルシューティング:
+> [Issue が意図せず close される](05_troubleshooting.md#issue-が意図せず-close-される)
+
 ### finalize
 
 Flow ループ完了後のワークツリー処理を制御する。`finalizeWorktreeBranch`

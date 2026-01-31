@@ -12,6 +12,9 @@ import {
   type IterationSummary,
 } from "./types.ts";
 
+const COMPLETE = true;
+const INCOMPLETE = false;
+
 export class StructuredSignalCompletionHandler extends BaseCompletionHandler {
   readonly type = "structuredSignal" as const;
   private promptResolver?: PromptResolver;
@@ -133,12 +136,12 @@ Work on the task. When complete, output the structured signal:
   }
 
   isComplete(): Promise<boolean> {
-    if (!this.lastSummary) return Promise.resolve(false);
+    if (!this.lastSummary) return Promise.resolve(INCOMPLETE);
 
     // Check if structured output matches the signal
     const so = this.lastSummary.structuredOutput;
     if (!so || typeof so !== "object") {
-      return Promise.resolve(false);
+      return Promise.resolve(INCOMPLETE);
     }
 
     // Check if structured output has the expected signal type
@@ -156,12 +159,12 @@ Work on the task. When complete, output the structured signal:
               return output[key] === value;
             },
           );
-          if (matches) return Promise.resolve(true);
+          if (matches) return Promise.resolve(COMPLETE);
         } else {
-          return Promise.resolve(true);
+          return Promise.resolve(COMPLETE);
         }
       }
-      return Promise.resolve(false);
+      return Promise.resolve(INCOMPLETE);
     }
 
     // Check required fields if specified
@@ -174,11 +177,11 @@ Work on the task. When complete, output the structured signal:
           return output[key] === value;
         },
       );
-      if (matches) return Promise.resolve(true);
-      return Promise.resolve(false);
+      if (matches) return Promise.resolve(COMPLETE);
+      return Promise.resolve(INCOMPLETE);
     }
 
-    return Promise.resolve(true);
+    return Promise.resolve(COMPLETE);
   }
 
   async getCompletionDescription(): Promise<string> {

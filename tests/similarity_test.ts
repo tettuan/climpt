@@ -58,11 +58,11 @@ Deno.test("tokenize: handles complex mixed text", () => {
   assertEquals(tokens.includes("func"), true);
 });
 
-Deno.test("tokenize: returns unique tokens", () => {
+Deno.test("tokenize: preserves duplicates for BM25 TF", () => {
   const tokens = tokenize("commit commit-message");
   // "commit" appears both standalone and as part of hyphenated
   const commitCount = tokens.filter((t) => t === "commit").length;
-  assertEquals(commitCount, 1); // deduplicated
+  assertEquals(commitCount, 2); // preserves duplicates for term frequency
 });
 
 Deno.test("tokenize: handles empty string", () => {

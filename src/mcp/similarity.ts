@@ -30,7 +30,7 @@ const BM25_B = 0.75; // Document length normalization parameter
  * Original compound tokens are preserved to maintain backward compatibility.
  *
  * @param text Input text to tokenize
- * @returns Array of lowercase tokens (deduplicated)
+ * @returns Array of lowercase tokens (with duplicates for BM25 TF)
  */
 export function tokenize(text: string): string[] {
   const tokens: string[] = [];
@@ -62,8 +62,8 @@ export function tokenize(text: string): string[] {
     }
   }
 
-  // Return unique tokens
-  return [...new Set(tokens)];
+  // Return tokens with duplicates preserved for BM25 term frequency
+  return tokens;
 }
 
 /**

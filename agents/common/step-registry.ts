@@ -317,7 +317,7 @@ export interface RegistryLoaderOptions {
  */
 export async function loadStepRegistry(
   agentId: string,
-  agentsDir: string = "agents",
+  agentsDir = "agents",
   options: RegistryLoaderOptions = {},
 ): Promise<StepRegistry> {
   const registryPath = options.registryPath ??
@@ -437,8 +437,8 @@ export function hasStep(registry: StepRegistry, stepId: string): boolean {
  */
 export function createEmptyRegistry(
   agentId: string,
-  c1: string = "steps",
-  version: string = "1.0.0",
+  c1 = "steps",
+  version = "1.0.0",
 ): StepRegistry {
   return {
     agentId,
@@ -936,7 +936,7 @@ export function inferStepKind(
  */
 export function serializeRegistry(
   registry: StepRegistry,
-  pretty: boolean = true,
+  pretty = true,
 ): string {
   return JSON.stringify(registry, null, pretty ? 2 : 0);
 }
