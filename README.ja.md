@@ -140,6 +140,8 @@ deno task agent --init --agent {agent-name}
 
 テンプレートファイルを含むディレクトリ構成が生成されます。
 
+**ビルダードキュメント**: エージェント設定とカスタマイズの詳細ガイドは [`agents/docs/builder/`](agents/docs/builder/) を参照。
+
 ### エージェント実行
 
 ```bash
@@ -160,13 +162,14 @@ deno task agent --agent {name} --iterate-max 10
 
 | タイプ | 説明 |
 |--------|------|
-| `issue` | GitHub Issue がクローズされたら完了 |
-| `project` | GitHub Project から複数の Issue を処理 |
-| `iterate` | 指定回数（`maxIterations`）反復実行 |
-| `manual` | エージェントが `completionKeyword` を出力したら終了 |
+| `externalState` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
+| `iterationBudget` | 指定回数（`maxIterations`）反復実行 |
+| `checkBudget` | 指定回数（`maxChecks`）ステータス確認 |
+| `keywordSignal` | エージェントが `completionKeyword` を出力したら終了 |
+| `structuredSignal` | 構造化アクションブロック出力を検出（`signalType`） |
+| `stepMachine` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
+| `composite` | 複合条件（and/or/first演算子） |
 | `custom` | カスタムハンドラー（`handlerPath`）を使用 |
-| `facilitator` | プロジェクト状況を定期的に監視 |
-| `stepFlow` | ステップベースの実行フローに従う |
 
 ### 組み込みエージェント
 
@@ -184,6 +187,18 @@ deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 1
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
 ```
+
+### ドキュメント
+
+| ドキュメント | パス | 説明 |
+|-------------|------|------|
+| クイックスタート | `agents/docs/builder/01_quickstart.md` | エージェント作成ガイド |
+| 定義リファレンス | `agents/docs/builder/02_agent_definition.md` | agent.json フィールド |
+| トラブルシューティング | `agents/docs/builder/05_troubleshooting.md` | よくある問題と解決策 |
+| 設計ドキュメント | `agents/docs/design/` | アーキテクチャとコンセプト |
+| JSON スキーマ | `agents/schemas/` | agent.schema.json, steps_registry.schema.json |
+
+CLIオプションは `deno task agent --help` を参照。
 
 ### 設定例
 
@@ -240,8 +255,8 @@ Climptは `.agent/climpt/config/` に2つの設定ファイルを使用：
 # 全ドキュメントをインストール
 dx jsr:@aidevtool/climpt/docs
 
-# 日本語ガイドのみインストール
-dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=ja
+# 英語ガイドのみインストール
+dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=en
 
 # 1ファイルに結合
 dx jsr:@aidevtool/climpt/docs install ./docs --mode=single

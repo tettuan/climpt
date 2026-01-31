@@ -173,6 +173,48 @@ flowchart TD
 
 ---
 
+## Log Output
+
+### Log Location
+
+Agent logs are always written to the **main repository's** `tmp/logs/` directory, regardless of worktree mode.
+
+```
+# Main repository
+your-project/
+├── tmp/logs/agents/{agent-name}/
+│   └── session-*.jsonl      ← All logs written here
+│
+# Worktree (no logs here)
+../worktree/{branch-name}/
+└── (work files only)
+```
+
+### Rationale
+
+| Concern | Solution |
+|---------|----------|
+| Centralized access | Logs in one location for all execution modes |
+| Git cleanliness | Worktree stays clean for commits |
+| Post-cleanup access | Logs persist after worktree removal |
+| No duplication | Single log per session |
+
+### gitignore Configuration
+
+Both `tmp/` and worktree directories are excluded from git:
+
+```gitignore
+# Log directory
+tmp/
+tmp/*
+
+# Worktree directories
+/worktree-*
+/worktree-*/
+```
+
+---
+
 ## Configuration Example
 
 ```json

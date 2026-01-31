@@ -175,6 +175,48 @@ flowchart TD
 
 ---
 
+## ログ出力
+
+### ログ出力先
+
+Agent のログは、worktree モードに関わらず、常に**メインリポジトリ**の `tmp/logs/` ディレクトリに出力されます。
+
+```
+# メインリポジトリ
+your-project/
+├── tmp/logs/agents/{agent-name}/
+│   └── session-*.jsonl      ← すべてのログはここに出力
+│
+# Worktree（ログなし）
+../worktree/{branch-name}/
+└── (作業ファイルのみ)
+```
+
+### 設計理由
+
+| 課題 | 解決策 |
+|------|--------|
+| 一元管理 | 実行モードに関わらず同一場所にログを保存 |
+| git クリーンネス | worktree はコミット用にクリーン維持 |
+| クリーンアップ後のアクセス | worktree 削除後もログは残存 |
+| 重複防止 | セッションごとに1つのログファイル |
+
+### gitignore 設定
+
+`tmp/` と worktree ディレクトリは git から除外されています：
+
+```gitignore
+# ログディレクトリ
+tmp/
+tmp/*
+
+# Worktree ディレクトリ
+/worktree-*
+/worktree-*/
+```
+
+---
+
 ## 設定例
 
 ```json

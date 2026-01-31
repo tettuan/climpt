@@ -35,6 +35,29 @@ Agent の振る舞い。
 }
 ```
 
+### defaultModel
+
+使用するモデルのデフォルト値。省略時は `opus`（システムデフォルト）。
+
+```json
+{
+  "behavior": {
+    "defaultModel": "sonnet"
+  }
+}
+```
+
+| 値       | 説明                           |
+| -------- | ------------------------------ |
+| `opus`   | 最高性能（システムデフォルト） |
+| `sonnet` | 高性能・バランス               |
+| `haiku`  | 高速・低コスト                 |
+
+**通常は設定不要**。opus がデフォルトのため、エージェント全体で異なるモデルを
+使いたい場合のみ指定する。ステップごとの指定は `steps_registry.json` で行う。
+
+詳細: [design/09_model_selection.md](../design/09_model_selection.md)
+
 ### completionType
 
 | タイプ             | What                                      | Why                                                       | 主な設定                                   |
@@ -267,3 +290,4 @@ load(path) → parse → validate → 起動 or エラー
 | [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖              |
 | [04_config_system.md](./04_config_system.md)                          | 設定の優先順位              |
 | [design/03_structured_outputs.md](../design/03_structured_outputs.md) | completionConditions の詳細 |
+| [design/09_model_selection.md](../design/09_model_selection.md)       | モデル選択の設計            |

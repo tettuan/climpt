@@ -523,6 +523,28 @@ Flow 終了シーケンス:
 | `structuredGate`   | AI 応答から intent 抽出 |
 | `transitions`      | intent → 次の Step      |
 | `handoffFields`    | 次 Step へ渡すデータ    |
+| `model`            | 使用モデル（任意）      |
+
+#### model フィールド（任意）
+
+ステップごとに使用するモデルを指定できる。省略時は opus（システムデフォルト）。
+
+```json
+{
+  "initial.default": {
+    "stepId": "initial.default",
+    "model": "haiku"
+  }
+}
+```
+
+| 値       | 用途                         |
+| -------- | ---------------------------- |
+| `opus`   | デフォルト。重要な判断       |
+| `sonnet` | コストと品質のバランス       |
+| `haiku`  | 定型処理、リトライ、繰り返し |
+
+詳細: [design/09_model_selection.md](../design/09_model_selection.md)
 
 #### structuredGate フィールド
 
@@ -772,3 +794,4 @@ Error: Prompt file not found: prompts/steps/initial/default/f_default.md
 | [design/02_prompt_system.md](../design/02_prompt_system.md)           | C3L プロンプト解決 |
 | [design/03_structured_outputs.md](../design/03_structured_outputs.md) | Structured Output  |
 | [design/08_step_flow_design.md](../design/08_step_flow_design.md)     | Step Flow 設計     |
+| [design/09_model_selection.md](../design/09_model_selection.md)       | モデル選択設計     |
