@@ -3,10 +3,32 @@
  *
  * Logs prompt resolution events to help with debugging and auditing.
  * Integrates with the existing Logger infrastructure.
+ *
+ * Supports multiple logger backends:
+ * - common/logger.ts Logger (async write() method)
+ * - src_common/logger.ts Logger (sync info/debug/warn/error methods)
  */
 
 import type { Logger } from "./logger.ts";
 import type { PromptResolutionResult } from "./prompt-resolver.ts";
+
+/**
+ * Minimal logger interface for PromptLogger.
+ * Both common/logger.ts and src_common/logger.ts can satisfy this interface.
+ */
+export interface PromptLoggerBackend {
+  /** Write method (async) - from common/logger.ts */
+  write?(
+    level: "info" | "debug" | "warn" | "error",
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void>;
+  /** Sync log methods - from src_common/logger.ts */
+  info?(message: string, data?: Record<string, unknown>): void;
+  debug?(message: string, data?: Record<string, unknown>): void;
+  warn?(message: string, data?: Record<string, unknown>): void;
+  error?(message: string, data?: Record<string, unknown>): void;
+}
 
 /**
  * Prompt resolution log entry details
@@ -70,7 +92,7 @@ export class PromptLogger {
   private options: Required<PromptLoggerOptions>;
 
   constructor(
-    private readonly logger: Logger,
+    private readonly logger: PromptLoggerBackend | Logger,
     options: PromptLoggerOptions = {},
   ) {
     this.options = {
@@ -80,6 +102,39 @@ export class PromptLogger {
       logContentPreview: options.logContentPreview ?? false,
       maxPreviewLength: options.maxPreviewLength ?? 100,
     };
+  }
+
+  /**
+   * Write to the logger backend, handling both async write() and sync log methods.
+   */
+  private async writeLog(
+    level: "info" | "debug" | "warn" | "error",
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    const backend = this.logger as PromptLoggerBackend;
+
+    // Prefer async write() method if available (common/logger.ts)
+    if (backend.write) {
+      await backend.write(level, message, metadata);
+      return;
+    }
+
+    // Fall back to sync log methods (src_common/logger.ts)
+    switch (level) {
+      case "info":
+        backend.info?.(message, metadata);
+        break;
+      case "debug":
+        backend.debug?.(message, metadata);
+        break;
+      case "warn":
+        backend.warn?.(message, metadata);
+        break;
+      case "error":
+        backend.error?.(message, metadata);
+        break;
+    }
   }
 
   /**
@@ -97,7 +152,7 @@ export class PromptLogger {
     const logEntry = this.buildLogEntry(result, resolutionTimeMs);
     const sourceLabel = result.source === "user" ? "user file" : "fallback";
 
-    await this.logger.write(
+    await this.writeLog(
       "info",
       `Prompt resolved: ${result.stepId} (${sourceLabel})`,
       {
@@ -120,7 +175,7 @@ export class PromptLogger {
   ): Promise<void> {
     if (!this.options.logFailures) return;
 
-    await this.logger.write("error", `Prompt resolution failed: ${stepId}`, {
+    await this.writeLog("error", `Prompt resolution failed: ${stepId}`, {
       promptResolution: {
         stepId,
         error: {
@@ -144,7 +199,7 @@ export class PromptLogger {
     warning: string,
     context?: Record<string, unknown>,
   ): Promise<void> {
-    await this.logger.write("debug", `Prompt warning: ${stepId} - ${warning}`, {
+    await this.writeLog("debug", `Prompt warning: ${stepId} - ${warning}`, {
       promptResolution: {
         stepId,
         warning,
@@ -165,7 +220,7 @@ export class PromptLogger {
     userPath: string,
     fallbackKey: string,
   ): Promise<void> {
-    await this.logger.write(
+    await this.writeLog(
       "debug",
       `Prompt fallback: ${stepId} (user file not found)`,
       {

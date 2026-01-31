@@ -75,6 +75,7 @@ import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
+import { PromptLogger } from "../common/prompt-logger.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -206,12 +207,20 @@ export class AgentRunner {
       });
     }
 
+    // Initialize prompt logger for usage analysis
+    const promptLogger = new PromptLogger(logger, {
+      logSuccess: true,
+      logFailures: true,
+      logVariables: false, // Privacy: don't log variable values by default
+    });
+
     // Assign all context at once (atomic initialization)
     this.context = {
       completionHandler,
       promptResolver,
       logger,
       cwd,
+      promptLogger,
     };
   }
 
@@ -257,21 +266,45 @@ export class AgentRunner {
           ? summaries[summaries.length - 1]
           : undefined;
         let prompt: string;
+        let promptStepId: string;
+        const promptStartTime = performance.now();
+
         if (this.pendingRetryPrompt) {
           prompt = this.pendingRetryPrompt;
+          promptStepId = `${stepId}.retry`;
           this.pendingRetryPrompt = null;
           ctx.logger.debug("Using retry prompt from completion validation");
         } else if (iteration === 1) {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildInitialPrompt();
+          promptStepId = stepId;
         } else {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1,
             lastSummary,
           );
+          promptStepId = stepId;
         }
 
+        const promptTimeMs = performance.now() - promptStartTime;
+
+        // Log step prompt resolution for usage analysis
+        if (ctx.promptLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await ctx.promptLogger.logResolution(
+            {
+              stepId: promptStepId,
+              source: "user",
+              content: prompt,
+              promptPath: `${this.definition.name}/step/${promptStepId}`,
+            },
+            promptTimeMs,
+          );
+        }
+
+        // Resolve system prompt and log for usage analysis
+        const systemPromptStartTime = performance.now();
         // deno-lint-ignore no-await-in-loop
         const customSystemPrompt = await ctx.promptResolver.resolveSystemPrompt(
           {
@@ -280,6 +313,21 @@ export class AgentRunner {
               ctx.completionHandler.buildCompletionCriteria().detailed,
           },
         );
+        const systemPromptTimeMs = performance.now() - systemPromptStartTime;
+
+        // Log prompt resolution for usage analysis
+        if (ctx.promptLogger) {
+          // deno-lint-ignore no-await-in-loop
+          await ctx.promptLogger.logResolution(
+            {
+              stepId: "system",
+              source: "user", // System prompts are always from user configuration
+              content: customSystemPrompt,
+              promptPath: `${this.definition.name}/prompts/system`,
+            },
+            systemPromptTimeMs,
+          );
+        }
 
         // Build system prompt with claude_code preset + custom append
         const systemPrompt = {
