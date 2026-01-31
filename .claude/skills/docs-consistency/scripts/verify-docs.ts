@@ -331,7 +331,7 @@ async function checkAgents(): Promise<void> {
     return;
   }
 
-  const completionTypes = ["issue", "project", "iterate", "manual", "custom", "facilitator", "stepFlow"];
+  const completionTypes = ["externalState", "iterationBudget", "keywordSignal", "stepMachine"];
   const docTypes = completionTypes.filter((t) => agentsReadme.includes(t));
 
   report({
@@ -342,39 +342,57 @@ async function checkAgents(): Promise<void> {
   });
 }
 
-async function checkMultilangDocs(): Promise<void> {
-  console.log("\n## Multi-language Docs Check\n");
+async function checkGuideDocs(): Promise<void> {
+  console.log("\n## Guide Docs Check\n");
 
   const enFiles: string[] = [];
-  const jaFiles: string[] = [];
 
   try {
     for await (const entry of Deno.readDir("docs/guides/en")) {
       if (entry.isFile && entry.name.endsWith(".md")) enFiles.push(entry.name);
     }
-    for await (const entry of Deno.readDir("docs/guides/ja")) {
-      if (entry.isFile && entry.name.endsWith(".md")) jaFiles.push(entry.name);
-    }
   } catch {
-    report({ name: "Guides Dirs", passed: false, message: "Guide directories not found" });
+    report({ name: "Guides Dir", passed: false, message: "docs/guides/en not found" });
     return;
   }
 
   report({
     name: "Guide Count",
-    passed: enFiles.length === jaFiles.length,
-    message: `EN: ${enFiles.length}, JA: ${jaFiles.length}`,
+    passed: enFiles.length > 0,
+    message: `${enFiles.length} guides found`,
   });
+}
 
-  const enSet = new Set(enFiles);
-  const jaSet = new Set(jaFiles);
-  const missingInJa = enFiles.filter((f) => !jaSet.has(f));
+async function checkEnglishRequired(): Promise<void> {
+  console.log("\n## English Version Check\n");
+  console.log("Convention: *.md = English, *.ja.md = Japanese\n");
 
-  report({
-    name: "File Sync",
-    passed: missingInJa.length === 0,
-    message: missingInJa.length === 0 ? "Synced" : `Missing in JA: ${missingInJa.join(", ")}`,
-  });
+  // Check docs with Japanese titles in .md files (should be .ja.md or translated)
+  const manifest = JSON.parse(await readFile("docs/manifest.json"));
+  const japanesePattern = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/; // hiragana, katakana, kanji
+
+  const jaInEnFiles = manifest.entries
+    .filter((e: { path: string; title?: string }) =>
+      !e.path.endsWith(".ja.md") &&
+      !e.path.includes("/ja/") &&
+      e.title && japanesePattern.test(e.title)
+    )
+    .map((e: { path: string; title: string }) => `${e.path}: ${e.title}`);
+
+  if (jaInEnFiles.length > 0) {
+    report({
+      name: "Naming Convention",
+      passed: false,
+      message: `${jaInEnFiles.length} .md files have JA titles (rename to .ja.md or translate)`,
+      details: jaInEnFiles.slice(0, 10),
+    });
+  } else {
+    report({
+      name: "Naming Convention",
+      passed: true,
+      message: "All .md files have EN titles",
+    });
+  }
 }
 
 // =============================================================================
@@ -440,7 +458,8 @@ async function main(): Promise<void> {
       await checkReadmeSync();
       await checkManifest();
       await checkAgents();
-      await checkMultilangDocs();
+      await checkGuideDocs();
+      await checkEnglishRequired();
       break;
     default:
       console.log(`Unknown target: ${target}`);

@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   for await (
     const file of walk("docs", {
       exts: [".md"],
-      skip: [/manifest\.json/, /index\.md/],
+      skip: [/manifest\.json/, /index\.md/, /guides\/ja\//],
     })
   ) {
     if (!file.isFile) continue;

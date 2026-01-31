@@ -1,6 +1,6 @@
 ---
 name: docs-consistency
-description: Verify and fix documentation to match implementation. Use when updating docs, releasing versions, or when user mentions 'docs consistency', 'docs update'. Extracts design intent, investigates implementation, then updates docs accordingly.
+description: Verify and fix documentation to match implementation. Use when updating docs, releasing versions, or when user mentions 'docs consistency', 'docs update', 'docs verify', 'ドキュメント更新', '最新にして', 'docsを直して'. Extracts design intent, investigates implementation, then updates docs accordingly.
 allowed-tools: [Read, Edit, Grep, Glob, Bash, Write]
 ---
 
@@ -215,6 +215,47 @@ docsファイル追加/削除時：
 ```bash
 deno task generate-docs-manifest
 ```
+
+---
+
+## Phase 6: 英語版の確保
+
+### 命名規則
+
+| パターン | 言語 |
+|----------|------|
+| `*.md` | 英語版（必須） |
+| `*.ja.md` | 日本語版（任意） |
+
+### 日本語タイトルのファイル検出
+
+```bash
+deno task verify-docs
+# "Naming Convention" チェックで検出
+```
+
+### 対処フロー
+
+1. **リネーム**: 日本語のみのファイルを `.ja.md` に変更
+   ```bash
+   mv docs/foo.md docs/foo.ja.md
+   ```
+
+2. **英語版作成**: `.ja.md` を翻訳して `.md` を作成
+   - タイトル（H1）を英訳
+   - セクション見出しを英訳
+   - 本文を英訳（コード例はそのまま）
+
+3. **manifest再生成**:
+   ```bash
+   deno task generate-docs-manifest
+   ```
+
+### 翻訳のポイント
+
+- 技術用語・コード・コマンドは原文維持
+- 説明文のみ自然な英語に
+- 構造（見出しレベル、リスト形式）は維持
 
 ---
 

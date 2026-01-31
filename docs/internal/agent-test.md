@@ -1,148 +1,142 @@
-Agent のテストを開始する。
-設定とプロンプトで作成可能なので、以下の手順でテストする。
+# Agent List
 
-## スキーマ解決失敗時の停止ルール（Fail-Fast）
+Starting agent testing.
+Since agents can be created with configuration and prompts, test according to the following procedure.
 
-**重要**: スキーマ解決に失敗した場合、ランナーは以下のルールで動作します：
+## Fail-Fast Rules on Schema Resolution Failure
 
-1. **1回目の失敗**: 警告ログを出力し、`StructuredOutputUnavailable` として
-   StepGate をスキップ。同じステップで次のイテレーションを試行。
-2. **2回連続の失敗**: `FAILED_SCHEMA_RESOLUTION`
-   エラーで即座に停止。無限ループを防止。
+**Important**: When schema resolution fails, the runner operates according to these rules:
 
-### ログメッセージ
+1. **First failure**: Outputs warning log, skips StepGate as `StructuredOutputUnavailable`. Attempts next iteration in the same step.
+2. **Two consecutive failures**: Stops immediately with `FAILED_SCHEMA_RESOLUTION` error. Prevents infinite loops.
 
-- `[SchemaResolution] Failed to resolve schema pointer (failure N/2)` -
-  スキーマポインタ解決失敗
-- `[SchemaResolution] Marking iteration as StructuredOutputUnavailable` -
-  StepGate スキップ
-- `FAILED_SCHEMA_RESOLUTION` - 2回連続失敗で停止
+### Log Messages
 
-### よくある原因と対処
+- `[SchemaResolution] Failed to resolve schema pointer (failure N/2)` - Schema pointer resolution failure
+- `[SchemaResolution] Marking iteration as StructuredOutputUnavailable` - StepGate skip
+- `FAILED_SCHEMA_RESOLUTION` - Stopped after 2 consecutive failures
 
-| 原因                                                        | 対処法                                                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
-| `outputSchemaRef.schema` が bare name (`"initial.default"`) | JSON Pointer 形式に変更: `"#/definitions/initial.default"` |
-| `schemas/step_outputs.schema.json` が存在しない             | スキーマファイルを作成                                     |
-| ポインタ先の `definitions` が存在しない                     | スキーマファイルに定義を追加                               |
+### Common Causes and Solutions
 
-### 参照
+| Cause                                                          | Solution                                                    |
+| -------------------------------------------------------------- | ----------------------------------------------------------- |
+| `outputSchemaRef.schema` is bare name (`"initial.default"`)    | Change to JSON Pointer format: `"#/definitions/initial.default"` |
+| `schemas/step_outputs.schema.json` doesn't exist               | Create schema file                                          |
+| `definitions` at pointer target doesn't exist                  | Add definition to schema file                               |
 
-- `agents/docs/builder/01_quickstart.md` - スキーマ設定の正しい形式
-- `agents/docs/design/08_step_flow_design.md` - Flow ステップの要件
+### References
+
+- `agents/docs/builder/01_quickstart.md` - Correct schema configuration format
+- `agents/docs/design/08_step_flow_design.md` - Flow step requirements
 
 ---
 
-テスト方法：ランダムテスト
-テスト概要：エージェント名を、以下の「ジャンル」からランダムに選び、選んだジャンルの中から、さらに特定の作業プロセス名称をランダムに決める。これを「エージェント名」とする。
-テストの目的：
-複数ステップ、ステップの手戻りを伴う、多段階で30近いステップ実行のエージェント構築と実装の容易性を確認する。（最低5step以上、30ステップ以内）
+Test Method: Random Testing
+Test Overview: Randomly select an agent name from the "Genres" below, then randomly determine a specific work process name from within the selected genre. This becomes the "agent name".
+Test Purpose:
+Confirm the ease of building and implementing agents with multi-step execution, step backtracking, and multi-stage flows with nearly 30 steps. (Minimum 5 steps, maximum 30 steps)
 
-その後、以下の「手順」に従う。
+Then follow the "Procedure" below.
 
-## ジャンル
+## Genres
 
-ランダム値は、新たなbash実行から得ること。
+Random values should be obtained from a new bash execution.
 
-- 家事
-- 移動
-- 買い物
-- 記事作成
-- ソフトウェア開発
-- 本屋
-- 花屋
-- 芸能
-- スポーツ練習
-- 経理
-- 広報
-- デザイン受託
-- その他分野からランダムに選ぶ
+- Housework
+- Transportation
+- Shopping
+- Article Writing
+- Software Development
+- Bookstore
+- Flower Shop
+- Entertainment
+- Sports Practice
+- Accounting
+- Public Relations
+- Design Contracting
+- Randomly select from other fields
 
-## 手順
+## Procedure
 
-1. quickガイドをもとにエージェントを構築する（既存実装を参照しない）
+1. Build an agent based on the quick guide (without referencing existing implementations)
 
-   **Skill を使用**: `/agent-scaffolder` を呼び出して雛形を生成する。
+   **Use Skill**: Call `/agent-scaffolder` to generate a template.
 
    ```
    /agent-scaffolder
    ```
 
-   参照ドキュメント:
+   Reference documents:
    - `agents/docs/builder/01_quickstart.md`
    - `agents/docs/design/08_step_flow_design.md`
 
-- `entryStepMapping` または `entryStep` を**必ず**定義する
-- `.agent/{agent}/schemas/*.schema.json` を作成し、すべての Flow/Closure Step に
-  `outputSchemaRef` を設定する（schema が structured output を強制するため、
-  プロンプトには JSON 形式の記載は不要）
-- **`closing` intent**: Closure Step (`closure.*`) のみが `closing` を返す。work
-  step (`initial.*`, `continuation.*`) は `closing` を返さない 1-1.
-  エージェントに応じて、ステップを決め、対応するプロンプトも作ること 1-2.
-  ブランチを `test/agent-validation` ブランチに維持すること 1-3.
-  ブランチは最終的に破棄するため、コミットは不要
+- **Must** define `entryStepMapping` or `entryStep`
+- Create `.agent/{agent}/schemas/*.schema.json` and set `outputSchemaRef` for all Flow/Closure Steps (since schema enforces structured output, JSON format notation is unnecessary in prompts)
+- **`closing` intent**: Only Closure Steps (`closure.*`) return `closing`. Work steps (`initial.*`, `continuation.*`) do not return `closing`
+  1-1. Determine steps according to the agent and create corresponding prompts
+  1-2. Maintain branch as `test/agent-validation` branch
+  1-3. Commits are unnecessary as the branch will eventually be discarded
 
-2. 構築したエージェントへ依頼する内容を issue へ書く
-3. 実行手順を tmp/tests/{agent-name}/
-   配下に階層を作って作成し、ログの書き出される場所も記す 4-1. gh issue
-   番号を示した実行CLIを示す（実行はしない） 4-2.
-   期待する実行結果を記載する（プロンプトやissueから、予測される結果を導き出す）
+2. Write the request for the built agent in an issue
+3. Create the execution procedure in tmp/tests/{agent-name}/ directory hierarchy, noting where logs will be written
+   4-1. Show execution CLI with gh issue number (do not execute)
+   4-2. Document expected execution results (derive predicted results from prompts and issue)
 
 ---
 
-実行手順に従い、他のプロセス（Terminal）から実行する。これは待機していること。（あなたが実行しない）
+Follow the execution procedure and execute from another process (Terminal). This will be waiting. (You do not execute)
 
 ---
 
-実行した報告をもとに、あなたはログを監視する。
-問題点を把握し、記録する。修正はしない。
+Based on the execution report, you monitor the logs.
+Identify and record issues. Do not fix.
 
 ---
 
-## 実行CLI
+## Execution CLI
 
 ```bash
-# Agent 一覧
+# Agent list
 deno run -A agents/scripts/run-agent.ts --list
 
-# 基本実行
+# Basic execution
 deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number}
 
-# イテレーション制限付き
+# With iteration limit
 deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} --iterate-max 10
 
-# worktree モードでブランチ指定
+# Specify branch in worktree mode
 deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} \
   --branch feature/test-{number} --base-branch release/x.x.x
 ```
 
-### オプション一覧
+### Option List
 
-| オプション             | 説明                                   |
-| ---------------------- | -------------------------------------- |
-| `--agent, -a <name>`   | Agent 名を指定 (必須)                  |
-| `--issue, -i <number>` | 対象の GitHub Issue 番号               |
-| `--iterate-max <n>`    | 最大イテレーション数 (デフォルト: 100) |
-| `--resume`             | 前回セッションを再開                   |
-| `--branch <name>`      | worktree 用ブランチ名                  |
-| `--base-branch <name>` | worktree のベースブランチ              |
-| `--no-merge`           | 完了後の自動マージをスキップ           |
-| `--push`               | マージ後にリモートへプッシュ           |
-| `--create-pr`          | 直接マージではなく PR を作成           |
+| Option                 | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `--agent, -a <name>`   | Specify agent name (required)            |
+| `--issue, -i <number>` | Target GitHub Issue number               |
+| `--iterate-max <n>`    | Maximum iterations (default: 100)        |
+| `--resume`             | Resume previous session                  |
+| `--branch <name>`      | Branch name for worktree                 |
+| `--base-branch <name>` | Base branch for worktree                 |
+| `--no-merge`           | Skip auto-merge after completion         |
+| `--push`               | Push to remote after merge               |
+| `--create-pr`          | Create PR instead of direct merge        |
 
-## ログの監視
+## Log Monitoring
 
-ログは `tmp/logs/agents/{agent-name}/` に出力される。
+Logs are output to `tmp/logs/agents/{agent-name}/`.
 
 ```bash
-# 最新ログファイルを確認
+# Check latest log files
 ls -lt tmp/logs/agents/{agent-name}/ | head -5
 
-# リアルタイム監視
+# Real-time monitoring
 tail -f tmp/logs/agents/{agent-name}/{log-file}.jsonl
 ```
 
-### ログフォーマット (JSONL)
+### Log Format (JSONL)
 
 ```json
 {"timestamp":"...","level":"info","message":"Agent started","data":{...}}
@@ -152,59 +146,56 @@ tail -f tmp/logs/agents/{agent-name}/{log-file}.jsonl
 {"timestamp":"...","level":"info","message":"Agent completed after N iteration(s): ..."}
 ```
 
-### 問題点の記録
+### Recording Issues
 
-- tmp/tests/{agent-name}/troubles/
-  配下に階層を作って、都度問題点を記録する。起きたことを書くこと。
+- Create directory hierarchy under tmp/tests/{agent-name}/troubles/ and record issues as they occur. Document what happened.
 
-問題点の例：
+Example issues:
 
-- 示された情報だけではなく、既存実装を調べるような手順を考慮してしまうこと（ドキュメントからの指示が不足）
-- `closing` intent を work step で返してしまう（プロンプトの制約不足）
-- スキーマ解決失敗でループが停止する（`outputSchemaRef` の設定ミス）
+- Considering procedures that investigate existing implementations rather than only the information provided (insufficient instructions from documentation)
+- Returning `closing` intent in work step (insufficient prompt constraints)
+- Loop stops due to schema resolution failure (`outputSchemaRef` configuration error)
 
-## Intent マッピング
+## Intent Mapping
 
-AI の `next_action.action` から遷移を決定:
+Determines transition from AI's `next_action.action`:
 
-| AI 応答    | Intent    | 動作                      |
-| ---------- | --------- | ------------------------- |
-| `next`     | `next`    | 次の Step へ              |
-| `continue` | `next`    | 次の Step へ              |
-| `repeat`   | `repeat`  | 同じ Step を再実行        |
-| `retry`    | `repeat`  | 同じ Step を再実行        |
-| `closing`  | `closing` | 完了 (Closure Step のみ)  |
-| `done`     | `closing` | 完了                      |
-| `finished` | `closing` | 完了                      |
-| `complete` | `closing` | 完了 (後方互換エイリアス) |
-| `escalate` | `abort`   | 中断                      |
-| `abort`    | `abort`   | 中断                      |
+| AI Response | Intent    | Behavior                      |
+| ----------- | --------- | ----------------------------- |
+| `next`      | `next`    | Go to next Step               |
+| `continue`  | `next`    | Go to next Step               |
+| `repeat`    | `repeat`  | Re-execute same Step          |
+| `retry`     | `repeat`  | Re-execute same Step          |
+| `closing`   | `closing` | Complete (Closure Step only)  |
+| `done`      | `closing` | Complete                      |
+| `finished`  | `closing` | Complete                      |
+| `complete`  | `closing` | Complete (backward compat alias) |
+| `escalate`  | `abort`   | Abort                         |
+| `abort`     | `abort`   | Abort                         |
 
-詳細: `agents/docs/design/08_step_flow_design.md`
+Details: `agents/docs/design/08_step_flow_design.md`
 
-## Step フロー構成
+## Step Flow Configuration
 
 ```
 .agent/{agent-name}/prompts/steps/
-├── initial/        # 初期フェーズ (work step)
+├── initial/        # Initial phase (work step)
 │   └── {c3}/
 │       └── f_default.md
-├── continuation/   # 継続フェーズ (work step)
+├── continuation/   # Continuation phase (work step)
 │   └── {c3}/
 │       └── f_default.md
-└── closure/        # 完了フェーズ (closure step)
+└── closure/        # Completion phase (closure step)
     └── {c3}/
         └── f_default.md
 ```
 
-### Step の役割
+### Step Roles
 
-| フェーズ     | Step ID 例             | 返せる Intent            | 役割               |
-| ------------ | ---------------------- | ------------------------ | ------------------ |
-| initial      | `initial.default`      | `next`, `repeat`, `jump` | タスク分析・計画   |
-| continuation | `continuation.default` | `next`, `repeat`, `jump` | 作業実行・継続     |
-| closure      | `closure.default`      | `closing`, `repeat`      | 完了確認・締め処理 |
+| Phase        | Step ID Example        | Returnable Intents       | Role                    |
+| ------------ | ---------------------- | ------------------------ | ----------------------- |
+| initial      | `initial.default`      | `next`, `repeat`, `jump` | Task analysis & planning |
+| continuation | `continuation.default` | `next`, `repeat`, `jump` | Work execution & continuation |
+| closure      | `closure.default`      | `closing`, `repeat`      | Completion confirmation & closing |
 
-**重要**: work step (`initial.*`, `continuation.*`) は `closing`
-を返さない。Closure Step (`closure.*`) のみが `closing` を宣言して Flow
-を閉じる。
+**Important**: Work steps (`initial.*`, `continuation.*`) do not return `closing`. Only Closure Steps (`closure.*`) can declare `closing` to close the Flow.

@@ -1,5 +1,5 @@
 {
-  "version": "1.11.6",
+  "version": "1.11.7",
   "entries": [
     {
       "id": "guides-en-00-1-concepts",
@@ -82,78 +82,6 @@
       "bytes": 11770
     },
     {
-      "id": "guides-ja-00-overview",
-      "path": "guides/ja/00-overview.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "Iterate Agent 導入ガイド",
-      "bytes": 8070
-    },
-    {
-      "id": "guides-ja-01-prerequisites",
-      "path": "guides/ja/01-prerequisites.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "1. 前提条件",
-      "bytes": 4095
-    },
-    {
-      "id": "guides-ja-02-climpt-setup",
-      "path": "guides/ja/02-climpt-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "2. Climpt のセットアップ",
-      "bytes": 3898
-    },
-    {
-      "id": "guides-ja-03-instruction-creation",
-      "path": "guides/ja/03-instruction-creation.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "3. 指示書（プロンプト）の作成方法",
-      "bytes": 11764
-    },
-    {
-      "id": "guides-ja-04-iterate-agent-setup",
-      "path": "guides/ja/04-iterate-agent-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "4. Iterate Agent の設定と実行",
-      "bytes": 15286
-    },
-    {
-      "id": "guides-ja-05-architecture",
-      "path": "guides/ja/05-architecture.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "5. Climpt 全体像",
-      "bytes": 20148
-    },
-    {
-      "id": "guides-ja-06-config-files",
-      "path": "guides/ja/06-config-files.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "6. 設定ファイル編",
-      "bytes": 10711
-    },
-    {
-      "id": "guides-ja-07-dependencies",
-      "path": "guides/ja/07-dependencies.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "7. 依存構造編",
-      "bytes": 23770
-    },
-    {
-      "id": "guides-ja-08-prompt-structure",
-      "path": "guides/ja/08-prompt-structure.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "8. プロンプト構造編",
-      "bytes": 12655
-    },
-    {
       "id": "c3l_specification_v0.1",
       "path": "c3l_specification_v0.1.md",
       "category": "internal",
@@ -191,12 +119,26 @@
       "id": "internal-agent-test",
       "path": "internal/agent-test.md",
       "category": "internal",
+      "title": "Agent List",
+      "bytes": 8269
+    },
+    {
+      "id": "internal-agent-test.ja",
+      "path": "internal/agent-test.ja.md",
+      "category": "internal",
       "title": "Agent 一覧",
       "bytes": 8983
     },
     {
       "id": "internal-ai-complexity-philosophy",
       "path": "internal/ai-complexity-philosophy.md",
+      "category": "internal",
+      "title": "AI Implementation and Complexity: Philosophical Principles",
+      "bytes": 4935
+    },
+    {
+      "id": "internal-ai-complexity-philosophy.ja",
+      "path": "internal/ai-complexity-philosophy.ja.md",
       "category": "internal",
       "title": "AI実装と複雑性：思想的原理",
       "bytes": 5624
@@ -226,6 +168,13 @@
       "id": "internal-iterate-agent-c3l-integration",
       "path": "internal/iterate-agent-c3l-integration.md",
       "category": "internal",
+      "title": "Iterate Agent C3L Integration Design",
+      "bytes": 11186
+    },
+    {
+      "id": "internal-iterate-agent-c3l-integration.ja",
+      "path": "internal/iterate-agent-c3l-integration.ja.md",
+      "category": "internal",
       "title": "Iterate Agent C3L 統合設計",
       "bytes": 11300
     },
@@ -254,12 +203,26 @@
       "id": "internal-worktree-design",
       "path": "internal/worktree-design.md",
       "category": "internal",
+      "title": "Worktree Integration Design Document",
+      "bytes": 6737
+    },
+    {
+      "id": "internal-worktree-design.ja",
+      "path": "internal/worktree-design.ja.md",
+      "category": "internal",
       "title": "Worktree 統合設計書",
       "bytes": 7297
     },
     {
       "id": "mcp-setup",
       "path": "mcp-setup.md",
+      "category": "internal",
+      "title": "Climpt MCP Server Setup Guide",
+      "bytes": 9187
+    },
+    {
+      "id": "mcp-setup.ja",
+      "path": "mcp-setup.ja.md",
       "category": "internal",
       "title": "Climpt MCP Server セットアップガイド",
       "bytes": 10463
@@ -274,6 +237,13 @@
     {
       "id": "README",
       "path": "README.md",
+      "category": "internal",
+      "title": "Project-Specific AI Invocation Language Specification",
+      "bytes": 4280
+    },
+    {
+      "id": "README.ja",
+      "path": "README.ja.md",
       "category": "internal",
       "title": "プロジェクト固有AI呼び出し言語 仕様書",
       "bytes": 4818
@@ -296,12 +266,26 @@
       "id": "reference-climpt-agent-agent-script",
       "path": "reference/climpt-agent/agent-script.md",
       "category": "reference",
+      "title": "Agent Script Specification (climpt-agent.ts)",
+      "bytes": 6139
+    },
+    {
+      "id": "reference-climpt-agent-agent-script.ja",
+      "path": "reference/climpt-agent/agent-script.ja.md",
+      "category": "reference",
       "title": "Agent Script 仕様 (climpt-agent.ts)",
       "bytes": 6528
     },
     {
       "id": "reference-climpt-agent-mcp-integration",
       "path": "reference/climpt-agent/mcp-integration.md",
+      "category": "reference",
+      "title": "MCP Integration Specification",
+      "bytes": 8271
+    },
+    {
+      "id": "reference-climpt-agent-mcp-integration.ja",
+      "path": "reference/climpt-agent/mcp-integration.ja.md",
       "category": "reference",
       "title": "MCP 連携仕様",
       "bytes": 8827
@@ -316,6 +300,13 @@
     {
       "id": "reference-climpt-agent-skill-specification",
       "path": "reference/climpt-agent/skill-specification.md",
+      "category": "reference",
+      "title": "Skill Specification (delegate-climpt-agent)",
+      "bytes": 5044
+    },
+    {
+      "id": "reference-climpt-agent-skill-specification.ja",
+      "path": "reference/climpt-agent/skill-specification.ja.md",
       "category": "reference",
       "title": "Skill 仕様 (delegate-climpt-agent)",
       "bytes": 5580
@@ -496,8 +487,8 @@
       "bytes": 10042
     },
     {
-      "id": "reference-sub-agents",
-      "path": "reference/sub-agents.md",
+      "id": "reference-sub-agents.ja",
+      "path": "reference/sub-agents.ja.md",
       "category": "reference",
       "title": "サブエージェント",
       "bytes": 606139
