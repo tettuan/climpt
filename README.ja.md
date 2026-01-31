@@ -253,17 +253,22 @@ Climptは `.agent/climpt/config/` に2つの設定ファイルを使用：
 
 ```bash
 # 全ドキュメントをインストール
-dx jsr:@aidevtool/climpt/docs
+deno run -A jsr:@aidevtool/climpt/docs
 
-# 英語ガイドのみインストール
-dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=en
+# 日本語ガイドのみインストール
+deno run -A jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=ja
 
 # 1ファイルに結合
-dx jsr:@aidevtool/climpt/docs install ./docs --mode=single
+deno run -A jsr:@aidevtool/climpt/docs install ./docs --mode=single
 
 # 利用可能なドキュメント一覧
-dx jsr:@aidevtool/climpt/docs list
+deno run -A jsr:@aidevtool/climpt/docs list
+
+# 最新バージョンに更新（再ダウンロード）
+deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
 ```
+
+`-r` フラグ（`--reload`）でJSRから最新バージョンを強制的に再ダウンロードします。
 
 📖 [オンラインドキュメント](https://tettuan.github.io/climpt/)
 

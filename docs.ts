@@ -5,8 +5,9 @@
  *
  * @example CLI
  * ```bash
- * dx jsr:@aidevtool/climpt/docs
- * dx jsr:@aidevtool/climpt/docs install ./docs --lang=ja
+ * deno run -A jsr:@aidevtool/climpt/docs
+ * deno run -A jsr:@aidevtool/climpt/docs install ./docs --lang=ja
+ * deno run -Ar jsr:@aidevtool/climpt/docs install ./docs  # Update to latest
  * ```
  *
  * @example API

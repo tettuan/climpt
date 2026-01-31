@@ -253,17 +253,22 @@ Install docs locally as markdown:
 
 ```bash
 # Install all docs
-dx jsr:@aidevtool/climpt/docs
+deno run -A jsr:@aidevtool/climpt/docs
 
 # Install English guides only
-dx jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=en
+deno run -A jsr:@aidevtool/climpt/docs install ./docs --category=guides --lang=en
 
 # Combine into single file
-dx jsr:@aidevtool/climpt/docs install ./docs --mode=single
+deno run -A jsr:@aidevtool/climpt/docs install ./docs --mode=single
 
 # List available docs
-dx jsr:@aidevtool/climpt/docs list
+deno run -A jsr:@aidevtool/climpt/docs list
+
+# Update to latest version (re-download)
+deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
 ```
+
+The `-r` flag (`--reload`) forces re-download of the latest version from JSR.
 
 📖 [Online Documentation](https://tettuan.github.io/climpt/)
 
