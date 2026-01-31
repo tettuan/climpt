@@ -1,5 +1,5 @@
 {
-  "version": "1.11.7",
+  "version": "1.11.8",
   "entries": [
     {
       "id": "guides-en-00-1-concepts",
@@ -47,7 +47,7 @@
       "category": "guides",
       "lang": "en",
       "title": "4. Iterate Agent Setup and Execution",
-      "bytes": 13483
+      "bytes": 14416
     },
     {
       "id": "guides-en-05-architecture",
@@ -204,14 +204,14 @@
       "path": "internal/worktree-design.md",
       "category": "internal",
       "title": "Worktree Integration Design Document",
-      "bytes": 6737
+      "bytes": 7593
     },
     {
       "id": "internal-worktree-design.ja",
       "path": "internal/worktree-design.ja.md",
       "category": "internal",
       "title": "Worktree 統合設計書",
-      "bytes": 7297
+      "bytes": 8341
     },
     {
       "id": "mcp-setup",
