@@ -116,6 +116,18 @@ grep -r "install\|list" src/docs/ --include="*.ts" -l
 
 ## Phase 3: docs との照合
 
+### 3.0 メモを開き差分表を準備
+
+Phase 1/2で作成したメモを参照しながら差分表を作成する：
+
+```bash
+# 作成したメモを確認
+cat tmp/docs-review/{feature}-intent.md
+cat tmp/docs-review/{feature}-implementation.md
+```
+
+これらのメモから「設計/実装」列の値を差分表へ転記していく。
+
 ### 3.1 現在のdocsを確認
 
 ```bash
@@ -157,6 +169,20 @@ cat docs/internal/docs-distribution-design.md
 # 実装の説明を追記/修正
 # 設計意図(Why)を反映した説明文
 ```
+
+メモ（intent.md / implementation.md）は文案の素材として活用する：
+- 差分表の「設計/実装」列からdocs修正文を起草
+- PR descriptionの背景説明に流用
+
+### 4.4 メモの保存方針
+
+修正完了後のtmp/docs-review/の扱い：
+
+| 状況 | 対処 |
+|------|------|
+| 単純な修正で価値が低い | `rm -rf tmp/docs-review/` で削除 |
+| PR説明の補足に有用 | PRにリンク or 内容を引用 |
+| 設計判断の記録として残す | `docs/internal/changes/` へ昇格 |
 
 ---
 
@@ -202,6 +228,7 @@ deno task generate-docs-manifest
 | README.md | 実装の説明 | Yes |
 | docs/guides/ | 詳細な使い方 | Yes |
 | --help | CLI説明 | Yes |
+| tmp/docs-review/ | 作業用メモ | 完了後削除 or PR添付 |
 
 ### チェックリスト
 
@@ -229,6 +256,10 @@ Phase 5: 形式チェック
 - [ ] deno task verify-docs 実行
 - [ ] 全チェック pass
 - [ ] manifest.json 更新（必要時）
+
+Phase 6: メモの後処理
+- [ ] intent/implementation メモの内容をdocs修正に反映した
+- [ ] tmp/docs-review/ を削除 or docs/internal/changes/ へ昇格
 ```
 
 ---
