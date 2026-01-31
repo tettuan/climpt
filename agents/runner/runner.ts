@@ -266,38 +266,46 @@ export class AgentRunner {
           ? summaries[summaries.length - 1]
           : undefined;
         let prompt: string;
-        let promptStepId: string;
+        let promptSource: "user" | "fallback";
+        let promptType: "retry" | "initial" | "continuation";
         const promptStartTime = performance.now();
 
         if (this.pendingRetryPrompt) {
           prompt = this.pendingRetryPrompt;
-          promptStepId = `${stepId}.retry`;
+          promptSource = "user";
+          promptType = "retry";
           this.pendingRetryPrompt = null;
           ctx.logger.debug("Using retry prompt from completion validation");
         } else if (iteration === 1) {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildInitialPrompt();
-          promptStepId = stepId;
+          promptSource = "user";
+          promptType = "initial";
         } else {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildContinuationPrompt(
             iteration - 1,
             lastSummary,
           );
-          promptStepId = stepId;
+          promptSource = "user";
+          promptType = "continuation";
         }
 
         const promptTimeMs = performance.now() - promptStartTime;
 
-        // Log step prompt resolution for usage analysis
+        // Log step prompt for usage analysis
+        // Note: Step prompts are constructed by CompletionHandler, not loaded from files
+        // The stepId identifies which step in the flow is being executed
         if (ctx.promptLogger) {
           // deno-lint-ignore no-await-in-loop
           await ctx.promptLogger.logResolution(
             {
-              stepId: promptStepId,
-              source: "user",
+              stepId,
+              source: promptSource,
               content: prompt,
-              promptPath: `${this.definition.name}/step/${promptStepId}`,
+              // Include prompt type and completion type for analysis
+              promptPath:
+                `${this.definition.behavior.completionType}/${promptType}`,
             },
             promptTimeMs,
           );
@@ -306,24 +314,28 @@ export class AgentRunner {
         // Resolve system prompt and log for usage analysis
         const systemPromptStartTime = performance.now();
         // deno-lint-ignore no-await-in-loop
-        const customSystemPrompt = await ctx.promptResolver.resolveSystemPrompt(
-          {
-            "uv-agent_name": this.definition.name,
-            "uv-completion_criteria":
-              ctx.completionHandler.buildCompletionCriteria().detailed,
-          },
-        );
+        const systemPromptResult = await ctx.promptResolver
+          .resolveSystemPromptWithMetadata(
+            {
+              "uv-agent_name": this.definition.name,
+              "uv-completion_criteria":
+                ctx.completionHandler.buildCompletionCriteria().detailed,
+            },
+          );
+        const customSystemPrompt = systemPromptResult.content;
         const systemPromptTimeMs = performance.now() - systemPromptStartTime;
 
-        // Log prompt resolution for usage analysis
+        // Log prompt resolution for usage analysis (includes actual file path like f_default.md)
         if (ctx.promptLogger) {
           // deno-lint-ignore no-await-in-loop
           await ctx.promptLogger.logResolution(
             {
-              stepId: "system",
-              source: "user", // System prompts are always from user configuration
+              stepId: systemPromptResult.stepId,
+              source: systemPromptResult.source === "fallback"
+                ? "fallback"
+                : "user",
               content: customSystemPrompt,
-              promptPath: `${this.definition.name}/prompts/system`,
+              promptPath: systemPromptResult.promptPath,
             },
             systemPromptTimeMs,
           );

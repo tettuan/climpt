@@ -18,6 +18,20 @@ export interface PromptResolverOptions {
   fallbackDir?: string;
 }
 
+/**
+ * Result of prompt resolution with metadata for logging.
+ */
+export interface PromptResolutionResult {
+  /** Resolved prompt content */
+  content: string;
+  /** Step ID that was resolved */
+  stepId: string;
+  /** Source of the prompt: 'file' (from disk), 'climpt' (via CLI), or 'fallback' (embedded) */
+  source: "file" | "climpt" | "fallback";
+  /** Full file path if resolved from file or climpt (e.g., "iterator/initial/issue/f_default.md") */
+  promptPath?: string;
+}
+
 export interface StepRegistry {
   version: string;
   basePath: string;
@@ -70,12 +84,29 @@ export class PromptResolver {
     stepId: string,
     variables: Record<string, string>,
   ): Promise<string> {
+    const result = await this.resolveWithMetadata(stepId, variables);
+    return result.content;
+  }
+
+  /**
+   * Resolve a prompt and return metadata including the file path.
+   * Use this method when you need to log which prompt file was used.
+   */
+  async resolveWithMetadata(
+    stepId: string,
+    variables: Record<string, string>,
+  ): Promise<PromptResolutionResult> {
     const step = this.registry.steps[stepId];
 
     if (!step) {
       // Try fallback provider for known steps
       try {
-        return this.fallbackProvider.get(stepId, variables);
+        const content = this.fallbackProvider.get(stepId, variables);
+        return {
+          content,
+          stepId,
+          source: "fallback",
+        };
       } catch {
         throw new Error(`Unknown step: ${stepId}`);
       }
@@ -87,13 +118,34 @@ export class PromptResolver {
 
     // Try Climpt first, then fallback to direct file read
     try {
-      return await this.renderWithClimpt(fullPath, variables, step.useStdin);
+      const content = await this.renderWithClimpt(
+        fullPath,
+        variables,
+        step.useStdin,
+      );
+      return {
+        content,
+        stepId,
+        source: "climpt",
+        promptPath,
+      };
     } catch {
       try {
-        return await this.renderFallback(fullPath, variables);
+        const content = await this.renderFallback(fullPath, variables);
+        return {
+          content,
+          stepId,
+          source: "file",
+          promptPath,
+        };
       } catch {
         // Final fallback to built-in templates
-        return this.fallbackProvider.get(stepId, variables);
+        const content = this.fallbackProvider.get(stepId, variables);
+        return {
+          content,
+          stepId,
+          source: "fallback",
+        };
       }
     }
   }
@@ -101,11 +153,27 @@ export class PromptResolver {
   async resolveSystemPrompt(
     variables: Record<string, string>,
   ): Promise<string> {
+    const result = await this.resolveSystemPromptWithMetadata(variables);
+    return result.content;
+  }
+
+  /**
+   * Resolve the system prompt and return metadata including the file path.
+   * Use this method when you need to log which system prompt file was used.
+   */
+  async resolveSystemPromptWithMetadata(
+    variables: Record<string, string>,
+  ): Promise<PromptResolutionResult> {
     try {
-      return await this.resolve("system", variables);
+      return await this.resolveWithMetadata("system", variables);
     } catch {
       // Return a default system prompt
-      return this.fallbackProvider.getSystemPrompt(variables);
+      const content = this.fallbackProvider.getSystemPrompt(variables);
+      return {
+        content,
+        stepId: "system",
+        source: "fallback",
+      };
     }
   }
 
