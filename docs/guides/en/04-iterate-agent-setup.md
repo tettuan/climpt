@@ -410,6 +410,32 @@ Logs are saved in JSONL format:
 tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
 ```
 
+#### Log Output in Worktree Mode
+
+When running agents in worktree mode (`forceWorktree: true`), logs are always written to the **main repository's** `tmp/logs/` directory, not within the worktree directory.
+
+```
+# Main repository (where you started the agent)
+your-project/
+├── tmp/
+│   └── logs/
+│       └── agents/
+│           └── climpt/
+│               └── session-*.jsonl  ← Logs are written here
+│
+# Worktree (where the agent performs work)
+../worktree/feature-branch/
+├── src/
+└── ...                              ← No logs in worktree
+```
+
+This ensures:
+- **Centralized logging**: All logs are in one location regardless of execution mode
+- **No git pollution**: Worktree directories remain clean for commits
+- **Easy access**: Logs are accessible even after worktree cleanup
+
+> **Note**: The `tmp/` directory is included in `.gitignore`, so logs are never committed.
+
 Viewing logs:
 
 ```bash
