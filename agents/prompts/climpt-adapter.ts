@@ -8,7 +8,8 @@
  * providing C3L (Category 3 Level) format prompt retrieval
  */
 
-import { PromptAdapter, PromptNotFoundError } from "./adapter.ts";
+import type { PromptAdapter } from "./adapter.ts";
+import { PromptNotFoundError } from "./adapter.ts";
 
 /**
  * C3L reference structure for Climpt prompts.

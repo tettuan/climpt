@@ -117,7 +117,7 @@ server.setRequestHandler(
       {
         name: "search",
         description:
-          "Pass a brief description of the command you want to execute. Finds the 3 most similar commands using cosine similarity against command descriptions. You can then select the most appropriate command from the results.",
+          "Pass a brief description of the command you want to execute. Finds the top 3 most relevant commands using BM25+RRF (Reciprocal Rank Fusion) ranking against command descriptions. You can then select the most appropriate command from the results.",
         inputSchema: {
           type: "object",
           properties: {

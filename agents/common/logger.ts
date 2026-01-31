@@ -21,7 +21,7 @@ export class Logger {
   private logPath: string;
   private maxFiles: number;
   private logDir: string;
-  private stepCounter: number = 0;
+  private stepCounter = 0;
   private correlationId?: string;
 
   /**
@@ -36,7 +36,7 @@ export class Logger {
     logDir: string,
     _agentName: AgentName,
     correlationId?: string,
-    maxFiles: number = 100,
+    maxFiles = 100,
   ) {
     this.logDir = logDir;
     this.correlationId = correlationId;
@@ -210,7 +210,7 @@ export async function createLogger(
   logDir: string,
   agentName: AgentName,
   correlationId?: string,
-  maxFiles: number = 100,
+  maxFiles = 100,
 ): Promise<Logger> {
   const logger = new Logger(logDir, agentName, correlationId, maxFiles);
   await logger.initialize();

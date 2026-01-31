@@ -23,6 +23,9 @@ export function parseArgs(args: string[]): CliArgs {
       result.intent = arg.slice(9);
     } else if (arg.startsWith("--agent=")) {
       result.agent = arg.slice(8);
+    } else if (arg.startsWith("--registry=")) {
+      // Alias for --agent (clarifies registry semantics for delegate plugin)
+      result.agent = arg.slice(11);
     } else if (arg.startsWith("--options=")) {
       result.options = arg.slice(10).split(",");
     }
@@ -74,7 +77,11 @@ export function displayHelp(): void {
     "  --intent   Detailed description for option resolution (defaults to action+target)",
   );
   // deno-lint-ignore no-console
-  console.error('  --agent    Agent name (default: "climpt")');
+  console.error('  --agent    Agent/registry name (default: "climpt")');
+  // deno-lint-ignore no-console
+  console.error(
+    "  --registry Alias for --agent (clarifies registry semantics)",
+  );
   // deno-lint-ignore no-console
   console.error("  --options  Comma-separated list of options");
   // deno-lint-ignore no-console

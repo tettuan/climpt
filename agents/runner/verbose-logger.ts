@@ -14,7 +14,13 @@
  *     ...
  *     050_sdk_result.json
  *     index.jsonl  (metadata index)
+ *
+ * @module
  */
+
+/** Flag indicating content should be saved as markdown */
+const IS_MARKDOWN = true;
+const IS_JSON = false;
 
 import { ensureDir } from "@std/fs";
 import { join } from "@std/path";
@@ -57,11 +63,11 @@ export interface IndexEntry {
  * Saves each log entry as an individual file for easy analysis.
  */
 export class VerboseLogger {
-  private logDir: string = "";
+  private logDir = "";
   private indexFile: Deno.FsFile | null = null;
-  private seq: number = 0;
-  private sdkMessageCount: number = 0;
-  private currentIteration: number = 0;
+  private seq = 0;
+  private sdkMessageCount = 0;
+  private currentIteration = 0;
   private currentStepId: string | undefined;
 
   /**
@@ -162,7 +168,7 @@ export class VerboseLogger {
       prompt,
       `Length: ${prompt.length} chars`,
       undefined, // subSeq
-      true, // isMarkdown
+      IS_MARKDOWN,
     );
   }
 
@@ -197,7 +203,13 @@ export class VerboseLogger {
       }
     }
 
-    await this.writeEntry("system_prompt", content, summary, undefined, true); // isMarkdown
+    await this.writeEntry(
+      "system_prompt",
+      content,
+      summary,
+      undefined,
+      IS_MARKDOWN,
+    );
   }
 
   /**
@@ -212,7 +224,7 @@ export class VerboseLogger {
       message,
       `Type: ${msgType}`,
       this.sdkMessageCount,
-      false,
+      IS_JSON,
     );
   }
 
@@ -241,7 +253,7 @@ export class VerboseLogger {
     data: unknown,
     summary?: string,
     subSeq?: number,
-    isMarkdown: boolean = false,
+    isMarkdown = false,
   ): Promise<void> {
     this.seq++;
 
