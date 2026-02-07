@@ -121,18 +121,23 @@ export class IssueCompletionHandler extends BaseCompletionHandler {
       ? this.buildProjectContextSection()
       : "";
 
-    return `
-${projectSection}## Current Task: Issue #${this.issueNumber}
+    const action = this.getClosureAction();
+    const issueActionsSection = action === "label-only"
+      ? `## Issue Actions
 
-Work on GitHub Issue #${this.issueNumber} until it is closed.
+### Report Progress
+\`\`\`issue-action
+{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- What was done"}
+\`\`\`
 
-## Working Style
+### Complete Your Phase
+\`\`\`issue-action
+{"action":"complete","issue":${this.issueNumber},"body":"## Phase Complete\\n- What was analyzed/produced"}
+\`\`\`
 
-1. **Use TodoWrite** to track tasks
-2. **Delegate complex work** to sub-agents
-3. **Report progress** via issue-action blocks
-
-## Issue Actions
+**Important**: Do NOT close this issue. Only complete your assigned phase.
+The next agent in the pipeline will continue the work.`
+      : `## Issue Actions
 
 ### Report Progress
 \`\`\`issue-action
@@ -142,7 +147,24 @@ Work on GitHub Issue #${this.issueNumber} until it is closed.
 ### Complete Issue
 \`\`\`issue-action
 {"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented"}
-\`\`\`
+\`\`\``;
+
+    return `
+${projectSection}## Current Task: Issue #${this.issueNumber}
+
+Work on GitHub Issue #${this.issueNumber}${
+      action === "label-only"
+        ? " (your assigned phase only)"
+        : " until it is closed"
+    }.
+
+## Working Style
+
+1. **Use TodoWrite** to track tasks
+2. **Delegate complex work** to sub-agents
+3. **Report progress** via issue-action blocks
+
+${issueActionsSection}
 
 Start by analyzing the issue requirements and creating a task breakdown.
     `.trim();
@@ -191,6 +213,21 @@ Start by analyzing the issue requirements and creating a task breakdown.
       ? this.formatIterationSummary(previousSummary)
       : "";
 
+    const action = this.getClosureAction();
+    const completionInstruction = action === "label-only"
+      ? `4. Use issue-action to report progress or mark phase complete when done
+
+\`\`\`issue-action
+{"action":"complete","issue":${this.issueNumber},"body":"## Phase Complete\\n- What was analyzed/produced"}
+\`\`\`
+
+**Important**: Do NOT close this issue. Only complete your assigned phase.`
+      : `4. Use issue-action to report progress or close when done
+
+\`\`\`issue-action
+{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented"}
+\`\`\``;
+
     return `
 Continue working on Issue #${this.issueNumber}.
 Iterations completed: ${completedIterations}
@@ -202,19 +239,34 @@ ${summarySection}
 1. Check TodoWrite for pending tasks
 2. Execute next task
 3. Mark completed and move forward
-4. Use issue-action to report progress or close when done
-
-\`\`\`issue-action
-{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented"}
-\`\`\`
+${completionInstruction}
     `.trim();
   }
 
+  private getClosureAction(): "close" | "label-only" | "label-and-close" {
+    return this.githubConfig?.defaultClosureAction ?? "close";
+  }
+
   buildCompletionCriteria(): CompletionCriteria {
+    const action = this.getClosureAction();
+
+    if (action === "label-only") {
+      return {
+        short: `Complete phase for Issue #${this.issueNumber}`,
+        detailed:
+          `Complete your assigned phase for GitHub Issue #${this.issueNumber}. ` +
+          `Do NOT close the issue -- only update labels when your phase is done. ` +
+          `The next agent in the pipeline will continue the work. ` +
+          `Use issue-action blocks to report progress.`,
+      };
+    }
+
+    // "close" and "label-and-close" both instruct closure
     return {
       short: `Close Issue #${this.issueNumber}`,
       detailed:
-        `Complete the requirements in GitHub Issue #${this.issueNumber} and close it when done. Use issue-action blocks to report progress and close the issue.`,
+        `Complete the requirements in GitHub Issue #${this.issueNumber} and close it when done. ` +
+        `Use issue-action blocks to report progress and close the issue.`,
     };
   }
 

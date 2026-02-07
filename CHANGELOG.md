@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.12] - 2026-02-08
+
+### Fixed
+- `buildCompletionCriteria()` now reflects `defaultClosureAction` setting — prompt layer generates "complete your phase" instead of "close" when `label-only` is configured
+- `buildInitialPrompt()` and `buildContinuationPrompt()` select label-only fallback templates when applicable
+- JSR-distributed docs updated: `externalState` completion type, iterate-agent setup guides, and design notes now reference `defaultClosureAction` behavior
+
 ## [1.11.0] - 2026-01-25
 
 ### Added

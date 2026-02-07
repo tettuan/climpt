@@ -993,6 +993,9 @@ ${ISSUE_CONTENT}
 Start by analyzing the issue requirements and planning your first task.
 ```
 
+> **Note**: `defaultClosureAction: "label-only"` の場合、プロンプトは "close" ではなく
+> "complete your phase" に切り替わる。詳細は `agents/docs/builder/02_agent_definition.md` 参照。
+
 ### A.2 Project-based Initial Prompt
 
 ```markdown
@@ -1037,6 +1040,8 @@ You have completed ${N} iteration(s) working on GitHub Issue #${ISSUE_NUMBER}.
 
 Continue making progress on the issue requirements.
 ```
+
+> **Note**: `defaultClosureAction: "label-only"` 時は "closing" が "complete your phase" に変わる。
 
 ### A.5 Continuation Prompt (Project-based)
 

@@ -158,7 +158,12 @@ closure step → closing intent → Boundary Hook → Issue close (デフォル�
 **解決方法**
 
 中間 Agent の `agent.json` で `defaultClosureAction` を `label-only`
-に設定する。
+に設定する。この設定は 2 つのレイヤーに影響する:
+
+1. **Boundary Hook 層**: `gh issue close` の実行をブロック
+2. **Prompt 層**: `buildCompletionCriteria()` が「Do NOT close the issue」を
+   生成し、フォールバックプロンプトも `"action":"complete"`（phase
+   完了）に切り替わる
 
 ```json
 {

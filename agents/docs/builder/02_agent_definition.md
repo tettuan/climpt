@@ -210,6 +210,20 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 > 設定しないと、意図せず Issue がクローズされる。 → トラブルシューティング:
 > [Issue が意図せず close される](05_troubleshooting.md#issue-が意図せず-close-される)
 
+**Prompt 層への影響**
+
+`defaultClosureAction` は Boundary Hook だけでなく、Prompt 生成にも反映される。
+
+| 設定値            | `buildCompletionCriteria().short` | Prompt のクローズ指示      |
+| ----------------- | --------------------------------- | -------------------------- |
+| `close`           | `Close Issue #N`                  | `"close it when done"`     |
+| `label-only`      | `Complete phase for Issue #N`     | `"Do NOT close the issue"` |
+| `label-and-close` | `Close Issue #N`                  | `"close it when done"`     |
+
+`label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
+`buildContinuationPrompt()`）も `"action":"close"` の代わりに
+`"action":"complete"` を使用し、エージェントに phase 完了のみを指示する。
+
 ### finalize
 
 Flow ループ完了後のワークツリー処理を制御する。`finalizeWorktreeBranch`
