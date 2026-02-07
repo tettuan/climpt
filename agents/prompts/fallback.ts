@@ -76,6 +76,25 @@ Continue working on Issue #{uv-issue_number}.
 When all requirements are satisfied, close the issue.
 `,
 
+    // Issue completion type - label-only variant (for intermediate agents in multi-agent workflows)
+    initial_issue_label_only: `# GitHub Issue #{uv-issue_number}
+
+Work on completing your assigned phase for Issue #{uv-issue_number}.
+
+Review the issue, understand the requirements, and complete your phase.
+
+Do NOT close this issue. The next agent in the pipeline will continue the work.
+`,
+
+    continuation_issue_label_only: `# Continuation (Iteration {uv-iteration})
+
+Continue working on your phase for Issue #{uv-issue_number}.
+
+{uv-previous_summary}
+
+Complete your assigned phase. Do NOT close this issue.
+`,
+
     // Project completion type
     initial_project: `# GitHub Project #{uv-project_number}
 

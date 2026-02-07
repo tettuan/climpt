@@ -244,7 +244,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 
 | Mode | Completion Condition | Check Method |
 |------|---------------------|--------------|
-| `--issue` | Issue is closed | `gh issue view --json state` |
+| `--issue` | Issue is closed (`label-only` setting: phase complete) | `gh issue view --json state` |
 | `--project` | All items complete | `gh project view --format json` |
 | `--iterate-max` | Reached specified count | Internal counter |
 

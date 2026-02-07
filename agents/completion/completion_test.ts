@@ -195,6 +195,56 @@ Deno.test("IssueCompletionHandler - buildCompletionCriteria", () => {
   assertEquals(criteria.detailed.includes("123"), true);
 });
 
+Deno.test("IssueCompletionHandler - buildCompletionCriteria with label-only", () => {
+  const handler = new IssueCompletionHandler(123);
+  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
+  const criteria = handler.buildCompletionCriteria();
+
+  assertEquals(criteria.short, "Complete phase for Issue #123");
+  assertEquals(criteria.detailed.includes("Do NOT close"), true);
+  assertEquals(criteria.detailed.includes("close it when done"), false);
+  assertEquals(criteria.detailed.includes("123"), true);
+});
+
+Deno.test("IssueCompletionHandler - buildCompletionCriteria with label-and-close", () => {
+  const handler = new IssueCompletionHandler(123);
+  handler.setGitHubConfig({ defaultClosureAction: "label-and-close" });
+  const criteria = handler.buildCompletionCriteria();
+
+  assertEquals(criteria.short, "Close Issue #123");
+  assertEquals(criteria.detailed.includes("close it when done"), true);
+});
+
+Deno.test("IssueCompletionHandler - buildCompletionCriteria with close (explicit)", () => {
+  const handler = new IssueCompletionHandler(123);
+  handler.setGitHubConfig({ defaultClosureAction: "close" });
+  const criteria = handler.buildCompletionCriteria();
+
+  assertEquals(criteria.short, "Close Issue #123");
+  assertEquals(criteria.detailed.includes("close it when done"), true);
+});
+
+Deno.test("IssueCompletionHandler - buildInitialPrompt with label-only", async () => {
+  const handler = new IssueCompletionHandler(999);
+  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(prompt.includes("your assigned phase only"), true);
+  assertEquals(prompt.includes("Do NOT close"), true);
+  assertEquals(prompt.includes('"action":"close"'), false);
+  assertEquals(prompt.includes('"action":"complete"'), true);
+});
+
+Deno.test("IssueCompletionHandler - buildContinuationPrompt with label-only", async () => {
+  const handler = new IssueCompletionHandler(555);
+  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
+  const prompt = await handler.buildContinuationPrompt(3);
+
+  assertEquals(prompt.includes("Do NOT close"), true);
+  assertEquals(prompt.includes('"action":"close"'), false);
+  assertEquals(prompt.includes('"action":"complete"'), true);
+});
+
 Deno.test("IssueCompletionHandler - buildInitialPrompt without resolver", async () => {
   const handler = new IssueCompletionHandler(999);
   const prompt = await handler.buildInitialPrompt();
