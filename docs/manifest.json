@@ -1,5 +1,5 @@
 {
-  "version": "1.11.8",
+  "version": "1.11.12",
   "entries": [
     {
       "id": "guides-en-00-1-concepts",
@@ -7,7 +7,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Agent Configuration Concepts",
-      "bytes": 6135
+      "bytes": 6196
     },
     {
       "id": "guides-en-00-overview",
@@ -47,7 +47,7 @@
       "category": "guides",
       "lang": "en",
       "title": "4. Iterate Agent Setup and Execution",
-      "bytes": 14416
+      "bytes": 14455
     },
     {
       "id": "guides-en-05-architecture",
@@ -183,7 +183,7 @@
       "path": "internal/iterate-agent-design.md",
       "category": "internal",
       "title": "Iterate Agent - Design Specification",
-      "bytes": 37996
+      "bytes": 38317
     },
     {
       "id": "internal-prompt-architecture",
