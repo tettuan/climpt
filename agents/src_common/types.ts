@@ -269,6 +269,15 @@ export interface AgentResult {
 
   /** Error message if failed */
   error?: string;
+
+  /** Cumulative cost in USD (from SDK result) */
+  totalCostUsd?: number;
+
+  /** Number of SDK turns executed */
+  numTurns?: number;
+
+  /** Total execution duration in milliseconds */
+  durationMs?: number;
 }
 
 /**
@@ -297,6 +306,12 @@ export interface IterationSummary {
   };
   /** Flag indicating schema resolution failed for this iteration (R2 fail-fast) */
   schemaResolutionFailed?: boolean;
+  /** Cumulative cost in USD (from SDK result) */
+  totalCostUsd?: number;
+  /** Number of SDK turns executed */
+  numTurns?: number;
+  /** Total execution duration in milliseconds */
+  durationMs?: number;
 }
 
 // ============================================================================

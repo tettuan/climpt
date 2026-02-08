@@ -56,22 +56,27 @@ export function getDefaultFilesystemPaths(): string[] {
 }
 
 /**
- * Default sandbox configuration
+ * Default sandbox configuration (lazily evaluated)
  *
  * Note: SDK uses `allowedDomains` format, but we also maintain
  * `trustedDomains` for internal consistency. The runner converts
  * to SDK format when passing to query().
+ *
+ * This is a function (not a constant) to avoid calling Deno.env.get("HOME")
+ * at module load time, which would require --allow-env just to import this module.
  */
-export const DEFAULT_SANDBOX_CONFIG: SandboxConfig = {
-  enabled: true,
-  network: {
-    mode: "custom",
-    trustedDomains: DEFAULT_TRUSTED_DOMAINS,
-  },
-  filesystem: {
-    allowedPaths: getDefaultFilesystemPaths(),
-  },
-};
+export function getDefaultSandboxConfig(): SandboxConfig {
+  return {
+    enabled: true,
+    network: {
+      mode: "custom",
+      trustedDomains: DEFAULT_TRUSTED_DOMAINS,
+    },
+    filesystem: {
+      allowedPaths: getDefaultFilesystemPaths(),
+    },
+  };
+}
 
 /**
  * Convert internal SandboxConfig to SDK SandboxSettings format
@@ -98,8 +103,10 @@ export function toSdkSandboxConfig(
 export function mergeSandboxConfig(
   agentConfig?: SandboxConfig,
 ): SandboxConfig {
+  const defaults = getDefaultSandboxConfig();
+
   if (!agentConfig) {
-    return DEFAULT_SANDBOX_CONFIG;
+    return defaults;
   }
 
   // If agent explicitly disables sandbox, respect that
@@ -107,8 +114,8 @@ export function mergeSandboxConfig(
     return agentConfig;
   }
 
-  // Merge network config - DEFAULT_SANDBOX_CONFIG.network is always defined
-  const defaultNetwork = DEFAULT_SANDBOX_CONFIG.network;
+  // Merge network config
+  const defaultNetwork = defaults.network;
   const mergedNetwork = agentConfig.network
     ? {
       mode: agentConfig.network.mode ?? defaultNetwork?.mode,
@@ -118,7 +125,7 @@ export function mergeSandboxConfig(
     : defaultNetwork;
 
   // Merge filesystem config - combine default paths with agent-specific paths
-  const defaultFilesystem = DEFAULT_SANDBOX_CONFIG.filesystem;
+  const defaultFilesystem = defaults.filesystem;
   const mergedFilesystem = {
     allowedPaths: [
       ...(defaultFilesystem?.allowedPaths ?? []),
@@ -127,7 +134,7 @@ export function mergeSandboxConfig(
   };
 
   return {
-    enabled: agentConfig.enabled ?? DEFAULT_SANDBOX_CONFIG.enabled,
+    enabled: agentConfig.enabled ?? defaults.enabled,
     network: mergedNetwork,
     filesystem: mergedFilesystem,
   };

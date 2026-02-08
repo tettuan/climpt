@@ -196,6 +196,15 @@ export class Logger {
         if (msg.structured_output !== undefined) {
           resultData.structuredOutput = msg.structured_output;
         }
+        if (msg.total_cost_usd !== undefined) {
+          resultData.totalCostUsd = msg.total_cost_usd;
+        }
+        if (msg.num_turns !== undefined) {
+          resultData.numTurns = msg.num_turns;
+        }
+        if (msg.duration_ms !== undefined) {
+          resultData.durationMs = msg.duration_ms;
+        }
         this.debug("SDK result", resultData);
         break;
       }
