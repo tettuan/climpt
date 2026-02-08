@@ -17,6 +17,7 @@ export interface PromptResolverOptions {
   agentDir: string;
   registryPath: string;
   fallbackDir?: string;
+  systemPromptPath?: string;
 }
 
 /**
@@ -62,11 +63,17 @@ export class PromptResolver {
   private registry: StepRegistry;
   private fallbackProvider: DefaultFallbackProvider;
   private promptLogger?: PromptLogger;
+  private systemPromptPath?: string;
 
-  private constructor(agentDir: string, registry: StepRegistry) {
+  private constructor(
+    agentDir: string,
+    registry: StepRegistry,
+    systemPromptPath?: string,
+  ) {
     this.agentDir = agentDir;
     this.registry = registry;
     this.fallbackProvider = new DefaultFallbackProvider();
+    this.systemPromptPath = systemPromptPath;
   }
 
   /**
@@ -93,7 +100,11 @@ export class PromptResolver {
       };
     }
 
-    return new PromptResolver(options.agentDir, registry);
+    return new PromptResolver(
+      options.agentDir,
+      registry,
+      options.systemPromptPath,
+    );
   }
 
   async resolve(
@@ -228,6 +239,25 @@ export class PromptResolver {
     for (const [key, value] of Object.entries(variables)) {
       if (key.startsWith("uv-")) {
         uvVariables[key] = value;
+      }
+    }
+
+    // Try systemPromptPath first (from agent.json behavior.systemPromptPath)
+    if (this.systemPromptPath) {
+      try {
+        const fullPath = join(this.agentDir, this.systemPromptPath);
+        const content = await this.renderFallback(fullPath, variables);
+        const result: PromptResolutionResult = {
+          content,
+          stepId: "system",
+          source: "file",
+          promptPath: this.systemPromptPath,
+          substitutedVariables: uvVariables,
+        };
+        await this.logResolution(result, performance.now() - startTime);
+        return result;
+      } catch {
+        // Fall through to registry-based resolution or fallback
       }
     }
 
