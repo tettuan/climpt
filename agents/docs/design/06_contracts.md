@@ -144,11 +144,17 @@ interface AgentResult {
   success: boolean;
   reason: string; // 完了/エラーの理由
   iterations: number; // 実行回数
+
+  // SDK メトリクス（result メッセージから取得、optional）
+  totalCostUsd?: number; // 累積コスト（USD）
+  numTurns?: number; // SDK ターン数
+  durationMs?: number; // 実行時間（ミリ秒）
 }
 
 // 不変条件:
 // success=true  ⇒ reason は完了理由
 // success=false ⇒ reason はエラー内容
+// totalCostUsd  ⇒ SDK が返した場合のみ設定
 ```
 
 ### CompletionValidationResult

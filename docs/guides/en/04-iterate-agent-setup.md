@@ -372,13 +372,13 @@ A detailed report is displayed upon completion:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ⏱️  Performance
-  | Metric         | Value          |
-  |----------------|----------------|
-  | Total Time     | 328s (~5.5min) |
-  | API Time       | 241s (~4min)   |
-  | Turns          | 28             |
-  | Iterations     | 1              |
-  | Total Cost     | $0.82 USD      |
+  | Metric         | Value          | Source              |
+  |----------------|----------------|---------------------|
+  | Total Time     | 328s (~5.5min) | SDK `duration_ms`   |
+  | API Time       | 241s (~4min)   | SDK internal        |
+  | Turns          | 28             | SDK `num_turns`     |
+  | Iterations     | 1              | Agent runner        |
+  | Total Cost     | $0.82 USD      | SDK `total_cost_usd`|
 
 📈 Token Usage
   | Model            | Input  | Output | Cache Read | Cost  |
