@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.13] - 2026-02-08
+
 ### Added
 - SDK cost metrics (`totalCostUsd`, `numTurns`, `durationMs`) propagated to `AgentResult`, JSONL logs, and console output
 
