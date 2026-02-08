@@ -1,6 +1,40 @@
 {
-  "version": "1.11.12",
+  "version": "1.11.13",
   "entries": [
+    {
+      "id": "c3l_specification_v0.1",
+      "path": "c3l_specification_v0.1.md",
+      "category": "guides",
+      "title": "Climpt Project-Specific AI Invocation Language – Spec & Claude Code Integration v0.1",
+      "bytes": 12748
+    },
+    {
+      "id": "c3l_specification_v0.3",
+      "path": "c3l_specification_v0.3.md",
+      "category": "guides",
+      "title": "C3L (Climpt 3-word Language) Specification v0.3",
+      "bytes": 7609
+    },
+    {
+      "id": "c3l_specification_v0.4",
+      "path": "c3l_specification_v0.4.md",
+      "category": "guides",
+      "title": "C3L (Climpt 3-word Language) Specification v0.4",
+      "bytes": 6975
+    },
+    {
+      "id": "c3l_specification_v0.5",
+      "path": "c3l_specification_v0.5.md",
+      "category": "guides",
+      "title": "C3L (Climpt 3-word Language) Specification v0.5",
+      "bytes": 7414
+    },
+    {
+      "id": "C3L-issues",
+      "path": "C3L-issues.md",
+      "category": "guides",
+      "bytes": 202
+    },
     {
       "id": "guides-en-00-1-concepts",
       "path": "guides/en/00-1-concepts.md",
@@ -82,171 +116,25 @@
       "bytes": 11770
     },
     {
-      "id": "c3l_specification_v0.1",
-      "path": "c3l_specification_v0.1.md",
-      "category": "internal",
-      "title": "Climpt Project-Specific AI Invocation Language – Spec & Claude Code Integration v0.1",
-      "bytes": 12748
-    },
-    {
-      "id": "c3l_specification_v0.3",
-      "path": "c3l_specification_v0.3.md",
-      "category": "internal",
-      "title": "C3L (Climpt 3-word Language) Specification v0.3",
-      "bytes": 7609
-    },
-    {
-      "id": "c3l_specification_v0.4",
-      "path": "c3l_specification_v0.4.md",
-      "category": "internal",
-      "title": "C3L (Climpt 3-word Language) Specification v0.4",
-      "bytes": 6975
-    },
-    {
-      "id": "c3l_specification_v0.5",
-      "path": "c3l_specification_v0.5.md",
-      "category": "internal",
-      "title": "C3L (Climpt 3-word Language) Specification v0.5",
-      "bytes": 7414
-    },
-    {
-      "id": "C3L-issues",
-      "path": "C3L-issues.md",
-      "category": "internal",
-      "bytes": 202
-    },
-    {
-      "id": "internal-agent-test",
-      "path": "internal/agent-test.md",
-      "category": "internal",
-      "title": "Agent List",
-      "bytes": 8269
-    },
-    {
-      "id": "internal-agent-test.ja",
-      "path": "internal/agent-test.ja.md",
-      "category": "internal",
-      "title": "Agent 一覧",
-      "bytes": 8983
-    },
-    {
-      "id": "internal-ai-complexity-philosophy",
-      "path": "internal/ai-complexity-philosophy.md",
-      "category": "internal",
-      "title": "AI Implementation and Complexity: Philosophical Principles",
-      "bytes": 4935
-    },
-    {
-      "id": "internal-ai-complexity-philosophy.ja",
-      "path": "internal/ai-complexity-philosophy.ja.md",
-      "category": "internal",
-      "title": "AI実装と複雑性：思想的原理",
-      "bytes": 5624
-    },
-    {
-      "id": "internal-claude-agent-sdk",
-      "path": "internal/claude-agent-sdk.md",
-      "category": "internal",
-      "title": "Claude Agent SDK",
-      "bytes": 4633
-    },
-    {
-      "id": "internal-command-operations",
-      "path": "internal/command-operations.md",
-      "category": "internal",
-      "title": "Command Operations Specification",
-      "bytes": 7945
-    },
-    {
-      "id": "internal-docs-distribution-design",
-      "path": "internal/docs-distribution-design.md",
-      "category": "internal",
-      "title": "Docs Distribution Design",
-      "bytes": 2030
-    },
-    {
-      "id": "internal-iterate-agent-c3l-integration",
-      "path": "internal/iterate-agent-c3l-integration.md",
-      "category": "internal",
-      "title": "Iterate Agent C3L Integration Design",
-      "bytes": 11186
-    },
-    {
-      "id": "internal-iterate-agent-c3l-integration.ja",
-      "path": "internal/iterate-agent-c3l-integration.ja.md",
-      "category": "internal",
-      "title": "Iterate Agent C3L 統合設計",
-      "bytes": 11300
-    },
-    {
-      "id": "internal-iterate-agent-design",
-      "path": "internal/iterate-agent-design.md",
-      "category": "internal",
-      "title": "Iterate Agent - Design Specification",
-      "bytes": 38317
-    },
-    {
-      "id": "internal-prompt-architecture",
-      "path": "internal/prompt-architecture.md",
-      "category": "internal",
-      "title": "Prompt Architecture",
-      "bytes": 12403
-    },
-    {
-      "id": "internal-registry-specification",
-      "path": "internal/registry-specification.md",
-      "category": "internal",
-      "title": "Registry Specification",
-      "bytes": 3950
-    },
-    {
-      "id": "internal-worktree-design",
-      "path": "internal/worktree-design.md",
-      "category": "internal",
-      "title": "Worktree Integration Design Document",
-      "bytes": 7593
-    },
-    {
-      "id": "internal-worktree-design.ja",
-      "path": "internal/worktree-design.ja.md",
-      "category": "internal",
-      "title": "Worktree 統合設計書",
-      "bytes": 8341
-    },
-    {
       "id": "mcp-setup",
       "path": "mcp-setup.md",
-      "category": "internal",
+      "category": "guides",
       "title": "Climpt MCP Server Setup Guide",
       "bytes": 9187
     },
     {
       "id": "mcp-setup.ja",
       "path": "mcp-setup.ja.md",
-      "category": "internal",
+      "category": "guides",
       "title": "Climpt MCP Server セットアップガイド",
       "bytes": 10463
     },
     {
       "id": "prompt-customization-guide",
       "path": "prompt-customization-guide.md",
-      "category": "internal",
+      "category": "guides",
       "title": "Prompt Customization Guide",
       "bytes": 8194
-    },
-    {
-      "id": "README",
-      "path": "README.md",
-      "category": "internal",
-      "title": "Project-Specific AI Invocation Language Specification",
-      "bytes": 4280
-    },
-    {
-      "id": "README.ja",
-      "path": "README.ja.md",
-      "category": "internal",
-      "title": "プロジェクト固有AI呼び出し言語 仕様書",
-      "bytes": 4818
     }
   ]
 }

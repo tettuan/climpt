@@ -38,6 +38,9 @@ export interface ResultMessage {
   readonly "session_id": string;
   readonly subtype?: string;
   readonly "structured_output"?: Record<string, unknown>;
+  readonly "total_cost_usd"?: number;
+  readonly "num_turns"?: number;
+  readonly "duration_ms"?: number;
 }
 
 /**

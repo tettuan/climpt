@@ -496,6 +496,9 @@ export class AgentRunner {
             assistantResponses: summary.assistantResponses,
             toolsUsed: summary.toolsUsed,
             errors: summary.errors,
+            totalCostUsd: summary.totalCostUsd,
+            numTurns: summary.numTurns,
+            durationMs: summary.durationMs,
           });
         }
 
@@ -528,11 +531,23 @@ export class AgentRunner {
 
       const completionDescription = await ctx.completionHandler
         .getCompletionDescription();
+      const lastCostSummary = [...summaries].reverse().find((s) =>
+        s.totalCostUsd !== undefined
+      );
       const result: AgentResult = {
         success: true,
         iterations: iteration,
         reason: completionDescription,
         summaries,
+        ...(lastCostSummary?.totalCostUsd !== undefined && {
+          totalCostUsd: lastCostSummary.totalCostUsd,
+        }),
+        ...(lastCostSummary?.numTurns !== undefined && {
+          numTurns: lastCostSummary.numTurns,
+        }),
+        ...(lastCostSummary?.durationMs !== undefined && {
+          durationMs: lastCostSummary.durationMs,
+        }),
       };
 
       // Emit completed event
@@ -555,12 +570,24 @@ export class AgentRunner {
       });
 
       const errorReason = agentError.message;
+      const lastCostSummaryOnError = [...summaries].reverse().find((s) =>
+        s.totalCostUsd !== undefined
+      );
       return {
         success: false,
         iterations: iteration,
         reason: errorReason,
         summaries,
         error: errorReason,
+        ...(lastCostSummaryOnError?.totalCostUsd !== undefined && {
+          totalCostUsd: lastCostSummaryOnError.totalCostUsd,
+        }),
+        ...(lastCostSummaryOnError?.numTurns !== undefined && {
+          numTurns: lastCostSummaryOnError.numTurns,
+        }),
+        ...(lastCostSummaryOnError?.durationMs !== undefined && {
+          durationMs: lastCostSummaryOnError.durationMs,
+        }),
       };
     } finally {
       // Close verbose logger if enabled
@@ -819,6 +846,15 @@ export class AgentRunner {
       if (message.structured_output) {
         summary.structuredOutput = message.structured_output;
         ctx.logger.info("[StructuredOutput] Got structured output from result");
+      }
+      if (message.total_cost_usd !== undefined) {
+        summary.totalCostUsd = message.total_cost_usd;
+      }
+      if (message.num_turns !== undefined) {
+        summary.numTurns = message.num_turns;
+      }
+      if (message.duration_ms !== undefined) {
+        summary.durationMs = message.duration_ms;
       }
     } else if (isErrorMessage(message)) {
       summary.errors.push(message.error.message ?? "Unknown error");

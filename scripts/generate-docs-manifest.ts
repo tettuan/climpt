@@ -23,6 +23,14 @@ function generateId(path: string): string {
 function inferCategory(path: string): string {
   if (path.startsWith("guides/")) return "guides";
   if (path.startsWith("reference/")) return "reference";
+  if (
+    path.startsWith("mcp-setup") ||
+    path.startsWith("prompt-customization-guide") ||
+    path.startsWith("c3l_specification") ||
+    path.startsWith("C3L-")
+  ) {
+    return "guides";
+  }
   return "internal";
 }
 
@@ -43,18 +51,27 @@ async function main(): Promise<void> {
   for await (
     const file of walk("docs", {
       exts: [".md"],
-      skip: [/manifest\.json/, /index\.md/, /guides\/ja\//, /reference\//],
+      skip: [
+        /manifest\.json/,
+        /index\.md/,
+        /guides\/ja\//,
+        /reference\//,
+        /internal\//,
+      ],
     })
   ) {
     if (!file.isFile) continue;
 
     const path = relative("docs", file.path);
+    const category = inferCategory(path);
+    if (category === "internal") continue;
+
     const content = await Deno.readTextFile(file.path);
 
     entries.push({
       id: generateId(path),
       path,
-      category: inferCategory(path),
+      category,
       lang: inferLang(path),
       title: extractTitle(content),
       bytes: new TextEncoder().encode(content).length,

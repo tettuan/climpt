@@ -260,6 +260,18 @@ async function main(): Promise<void> {
     console.log(`Total iterations: ${result.iterations}`);
     // deno-lint-ignore no-console
     console.log(`Reason: ${result.reason}`);
+    if (result.totalCostUsd !== undefined) {
+      // deno-lint-ignore no-console
+      console.log(`Total cost: $${result.totalCostUsd.toFixed(4)} USD`);
+    }
+    if (result.numTurns !== undefined) {
+      // deno-lint-ignore no-console
+      console.log(`SDK turns: ${result.numTurns}`);
+    }
+    if (result.durationMs !== undefined) {
+      // deno-lint-ignore no-console
+      console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
+    }
     if (result.error) {
       // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);

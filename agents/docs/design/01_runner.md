@@ -110,15 +110,21 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 
 ## 成果としての出力
 
-Runner の `AgentResult` は 3 つだけを報告する。
+Runner の `AgentResult` はコア 3 フィールドと SDK メトリクスを報告する。
 
 ```ts
 interface AgentResult {
   success: boolean; // Completion Loop が allComplete を返したか
   reason: string; // Flow/Completion どちらで止まったのか（人が読むメッセージ）
   iterations: number; // Flow ループを何回まわしたか
+
+  // SDK メトリクス（SDK result メッセージから取得）
+  totalCostUsd?: number; // 累積コスト（USD）
+  numTurns?: number; // SDK ターン数
+  durationMs?: number; // 実行時間（ミリ秒）
 }
 ```
 
-この 3 つを正確に届けることが Runner
-の最終責務であり、余計な状態や副作用を持ち込まない。
+コア 3 フィールドを正確に届けることが Runner の最終責務であり、
+余計な状態や副作用を持ち込まない。SDK メトリクスは result メッセージに
+含まれる場合のみ伝搬され、ログとコンソール出力の両方に記録される。

@@ -75,6 +75,7 @@ deno run -A agents/scripts/run-agent.ts --list
 | `--resume`             | Resume previous session           |
 | `--branch <name>`      | Working branch for worktree       |
 | `--base-branch <name>` | Base branch for worktree          |
+| `--verbose, -v`        | Enable verbose logging            |
 
 ### Running the Reviewer Agent
 
@@ -323,7 +324,36 @@ const result = await runIterator({
 console.log(`Success: ${result.success}`);
 console.log(`Iterations: ${result.totalIterations}`);
 console.log(`Completion: ${result.completionReason}`);
+
+// SDK metrics (available when SDK returns them)
+if (result.totalCostUsd !== undefined) {
+  console.log(`Cost: $${result.totalCostUsd.toFixed(4)} USD`);
+}
+if (result.numTurns !== undefined) {
+  console.log(`SDK turns: ${result.numTurns}`);
+}
+if (result.durationMs !== undefined) {
+  console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
+}
 ```
+
+## Execution Report
+
+Upon completion, the runner outputs a summary including SDK metrics:
+
+```
+============================================================
+Agent completed: SUCCESS
+Total iterations: 3
+Reason: All completion conditions met
+Total cost: $0.1234 USD
+SDK turns: 15
+Duration: 45.2s
+============================================================
+```
+
+These metrics (`totalCostUsd`, `numTurns`, `durationMs`) are also recorded in
+JSONL log entries for each iteration.
 
 ## Logs
 

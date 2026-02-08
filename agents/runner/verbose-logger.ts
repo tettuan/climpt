@@ -237,11 +237,27 @@ export class VerboseLogger {
     assistantResponses: string[];
     toolsUsed: string[];
     errors: string[];
+    totalCostUsd?: number;
+    numTurns?: number;
+    durationMs?: number;
   }): Promise<void> {
+    const parts = [
+      `Tools: ${result.toolsUsed.length}`,
+      `Responses: ${result.assistantResponses.length}`,
+    ];
+    if (result.totalCostUsd !== undefined) {
+      parts.push(`Cost: $${result.totalCostUsd.toFixed(4)}`);
+    }
+    if (result.numTurns !== undefined) {
+      parts.push(`Turns: ${result.numTurns}`);
+    }
+    if (result.durationMs !== undefined) {
+      parts.push(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
+    }
     await this.writeEntry(
       "sdk_result",
       result,
-      `Tools: ${result.toolsUsed.length}, Responses: ${result.assistantResponses.length}`,
+      parts.join(", "),
     );
   }
 
