@@ -342,6 +342,8 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 これらのプロンプトはUV変数を使用して動的にコンテンツを挿入します（例：`{uv-agent_name}`, `{uv-completion_criteria}`）。
 
+デフォルトの system.md テンプレートには `{uv-completion_criteria}` が含まれており、実行時に CompletionHandler の値で自動的に展開されます。独自の完了条件を定義したい場合は、`{uv-completion_criteria}` を使わずに system.md に直接記述してください。
+
 ### --agent オプションについて
 
 `--agent` は `registry_config.json` で定義されたレジストリ名を指定します：

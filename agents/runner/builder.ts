@@ -78,6 +78,7 @@ export interface PromptResolverFactoryOptions {
   agentDir: string;
   registryPath: string;
   fallbackDir?: string;
+  systemPromptPath?: string;
 }
 
 /**

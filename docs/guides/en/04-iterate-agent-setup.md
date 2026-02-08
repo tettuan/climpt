@@ -342,6 +342,8 @@ System prompts are located in `.agent/iterator/prompts/dev/` using C3L format:
 
 These prompts use UV variables for dynamic content injection (e.g., `{uv-agent_name}`, `{uv-completion_criteria}`).
 
+The default system.md template includes `{uv-completion_criteria}`, which is automatically populated by the completion handler at runtime. If you want to define custom completion criteria, replace `{uv-completion_criteria}` with your own text directly in system.md.
+
 ### About the --agent Option
 
 The `--agent` option specifies a registry name defined in `registry_config.json`:

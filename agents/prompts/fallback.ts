@@ -24,6 +24,10 @@ You are operating as the **{uv-agent_name}** agent.
 - Report progress regularly
 - Ask for clarification when needed
 - Follow the completion criteria closely
+
+## Note
+
+This is a fallback system prompt. After completing your task, tell the user to create a \`prompts/system.md\` file with a role-specific system prompt tailored to this agent.
 `,
 
     // Iterate completion type

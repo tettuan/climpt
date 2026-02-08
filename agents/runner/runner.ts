@@ -190,6 +190,7 @@ export class AgentRunner {
         agentDir,
         registryPath: this.definition.prompts.registry,
         fallbackDir: this.definition.prompts.fallbackDir,
+        systemPromptPath: this.definition.behavior.systemPromptPath,
       },
     );
 
