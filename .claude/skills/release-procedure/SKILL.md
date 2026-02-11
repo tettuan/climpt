@@ -53,6 +53,24 @@ git push -u origin release/x.y.z
 - 新機能 → README に簡潔な説明とサンプル
 - 設定変更 → スキーマ説明、README/docs
 
+### 3. docs/manifest.json 更新
+
+リリース前に `docs/manifest.json` を最新状態に更新する:
+
+- `version` フィールドをリリースバージョンに更新
+- エントリの追加・削除: `docs/` 配下のファイル増減を反映
+- `bytes` フィールド: 各ファイルの実サイズと一致させる
+- `lang` フィールド: en/ja ガイドには必ず指定
+
+```bash
+# 確認: manifest のエントリと実ファイルの突き合わせ
+ls docs/*.md docs/guides/en/*.md docs/guides/ja/*.md
+# manifest に無いファイル、または manifest にあるが存在しないファイルがないか確認
+
+# bytes 確認
+wc -c docs/*.md docs/guides/en/*.md docs/guides/ja/*.md
+```
+
 ### チェックリスト
 
 ```
@@ -62,6 +80,10 @@ git push -u origin release/x.y.z
   □ 新機能 → README.md / README.ja.md
   □ Agent変更 → agents/README.md
   □ 設定変更 → スキーマ説明
+□ docs/manifest.json を更新
+  □ version をリリースバージョンに更新
+  □ ファイル追加・削除を反映
+  □ bytes を実サイズに更新
 ```
 
 **重要**: `deno task bump-version` は release/* ブランチ名からバージョンを自動検出する。
@@ -340,6 +362,7 @@ git push origin release/1.9.15
 ドキュメント更新（リリース前必須）:
   1. /update-changelog → CHANGELOG.md に変更を記載
   2. /update-docs → README, --help 等を必要に応じて更新
+  3. docs/manifest.json → version, entries, bytes を最新化
 
 リリースフロー:
   1. release/* → develop PR作成
