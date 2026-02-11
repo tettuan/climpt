@@ -35,7 +35,12 @@ const REQUIRED_FIELDS = [
 /**
  * Valid permission modes
  */
-const VALID_PERMISSION_MODES = ["plan", "acceptEdits", "bypassPermissions"];
+const VALID_PERMISSION_MODES = [
+  "default",
+  "plan",
+  "acceptEdits",
+  "bypassPermissions",
+];
 
 /**
  * Valid logging formats

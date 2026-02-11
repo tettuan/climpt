@@ -25,7 +25,7 @@ import {
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { CompletionHandler } from "../completion/types.ts";
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 
 // =============================================================================
 // Test Fixtures

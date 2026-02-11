@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: 作業の進め方。実装・計画・調査・設計・レビュー・監査など作業全般に適用。
+description: How to approach work. Applies to all tasks including implementation, planning, investigation, design, review, and auditing.
 ---
 
 # Workflow

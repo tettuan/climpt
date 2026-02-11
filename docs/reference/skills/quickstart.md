@@ -1,10 +1,13 @@
 # Get started with Agent Skills in the API
 
-Learn how to use Agent Skills to create documents with the Claude API in under 10 minutes.
+Learn how to use Agent Skills to create documents with the Claude API in under
+10 minutes.
 
 ---
 
-This tutorial shows you how to use Agent Skills to create a PowerPoint presentation. You'll learn how to enable Skills, make a simple request, and access the generated file.
+This tutorial shows you how to use Agent Skills to create a PowerPoint
+presentation. You'll learn how to enable Skills, make a simple request, and
+access the generated file.
 
 ## Prerequisites
 
@@ -14,20 +17,26 @@ This tutorial shows you how to use Agent Skills to create a PowerPoint presentat
 
 ## What are Agent Skills?
 
-Pre-built Agent Skills extend Claude's capabilities with specialized expertise for tasks like creating documents, analyzing data, and processing files. Anthropic provides the following pre-built Agent Skills in the API:
+Pre-built Agent Skills extend Claude's capabilities with specialized expertise
+for tasks like creating documents, analyzing data, and processing files.
+Anthropic provides the following pre-built Agent Skills in the API:
 
 - **PowerPoint (pptx)**: Create and edit presentations
 - **Excel (xlsx)**: Create and analyze spreadsheets
 - **Word (docx)**: Create and edit documents
 - **PDF (pdf)**: Generate PDF documents
 
-For custom Skills, see the [Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills) for examples of building your own Skills with domain-specific expertise.
+For custom Skills, see the
+[Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills)
+for examples of building your own Skills with domain-specific expertise.
 
 ## Step 1: List available Skills
 
-First, let's see what Skills are available. We'll use the Skills API to list all Anthropic-managed Skills:
+First, let's see what Skills are available. We'll use the Skills API to list all
+Anthropic-managed Skills:
 
 **Python:**
+
 ```python
 import anthropic
 
@@ -44,15 +53,16 @@ for skill in skills.data:
 ```
 
 **TypeScript:**
+
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic();
 
 // List Anthropic-managed Skills
 const skills = await client.beta.skills.list({
-  source: 'anthropic',
-  betas: ['skills-2025-10-02']
+  source: "anthropic",
+  betas: ["skills-2025-10-02"],
 });
 
 for (const skill of skills.data) {
@@ -61,6 +71,7 @@ for (const skill of skills.data) {
 ```
 
 **Shell:**
+
 ```bash
 curl "https://api.anthropic.com/v1/skills?source=anthropic" \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
@@ -70,13 +81,18 @@ curl "https://api.anthropic.com/v1/skills?source=anthropic" \
 
 You see the following Skills: `pptx`, `xlsx`, `docx`, and `pdf`.
 
-This API returns each Skill's metadata: its name and description. Claude loads this metadata at startup to know what Skills are available. This is the first level of **progressive disclosure**, where Claude discovers Skills without loading their full instructions yet.
+This API returns each Skill's metadata: its name and description. Claude loads
+this metadata at startup to know what Skills are available. This is the first
+level of **progressive disclosure**, where Claude discovers Skills without
+loading their full instructions yet.
 
 ## Step 2: Create a presentation
 
-Now we'll use the PowerPoint Skill to create a presentation about renewable energy. We specify Skills using the `container` parameter in the Messages API:
+Now we'll use the PowerPoint Skill to create a presentation about renewable
+energy. We specify Skills using the `container` parameter in the Messages API:
 
 **Python:**
+
 ```python
 import anthropic
 
@@ -110,39 +126,41 @@ print(response.content)
 ```
 
 **TypeScript:**
+
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 
 const client = new Anthropic();
 
 // Create a message with the PowerPoint Skill
 const response = await client.beta.messages.create({
-  model: 'claude-sonnet-4-5-20250929',
+  model: "claude-sonnet-4-5-20250929",
   max_tokens: 4096,
-  betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
+  betas: ["code-execution-2025-08-25", "skills-2025-10-02"],
   container: {
     skills: [
       {
-        type: 'anthropic',
-        skill_id: 'pptx',
-        version: 'latest'
-      }
-    ]
+        type: "anthropic",
+        skill_id: "pptx",
+        version: "latest",
+      },
+    ],
   },
   messages: [{
-    role: 'user',
-    content: 'Create a presentation about renewable energy with 5 slides'
+    role: "user",
+    content: "Create a presentation about renewable energy with 5 slides",
   }],
   tools: [{
-    type: 'code_execution_20250825',
-    name: 'code_execution'
-  }]
+    type: "code_execution_20250825",
+    name: "code_execution",
+  }],
 });
 
 console.log(response.content);
 ```
 
 **Shell:**
+
 ```bash
 curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
@@ -181,13 +199,20 @@ Let's break down what each part does:
 - **`tools`**: Enables code execution (required for Skills)
 - **Beta headers**: `code-execution-2025-08-25` and `skills-2025-10-02`
 
-When you make this request, Claude automatically matches your task to the relevant Skill. Since you asked for a presentation, Claude determines the PowerPoint Skill is relevant and loads its full instructions: the second level of progressive disclosure. Then Claude executes the Skill's code to create your presentation.
+When you make this request, Claude automatically matches your task to the
+relevant Skill. Since you asked for a presentation, Claude determines the
+PowerPoint Skill is relevant and loads its full instructions: the second level
+of progressive disclosure. Then Claude executes the Skill's code to create your
+presentation.
 
 ## Step 3: Download the created file
 
-The presentation was created in the code execution container and saved as a file. The response includes a file reference with a file ID. Extract the file ID and download it using the Files API:
+The presentation was created in the code execution container and saved as a
+file. The response includes a file reference with a file ID. Extract the file ID
+and download it using the Files API:
 
 **Python:**
+
 ```python
 # Extract file ID from response
 file_id = None
@@ -214,14 +239,15 @@ if file_id:
 ```
 
 **TypeScript:**
+
 ```typescript
 // Extract file ID from response
 let fileId: string | null = null;
 for (const block of response.content) {
-  if (block.type === 'tool_use' && block.name === 'code_execution') {
+  if (block.type === "tool_use" && block.name === "code_execution") {
     // File ID is in the tool result
     for (const resultBlock of block.content) {
-      if ('file_id' in resultBlock) {
+      if ("file_id" in resultBlock) {
         fileId = resultBlock.file_id;
         break;
       }
@@ -232,18 +258,22 @@ for (const block of response.content) {
 if (fileId) {
   // Download the file
   const fileContent = await client.beta.files.download(fileId, {
-    betas: ['files-api-2025-04-14']
+    betas: ["files-api-2025-04-14"],
   });
 
   // Save to disk
-  const fs = require('fs');
-  fs.writeFileSync('renewable_energy.pptx', Buffer.from(await fileContent.arrayBuffer()));
+  const fs = require("fs");
+  fs.writeFileSync(
+    "renewable_energy.pptx",
+    Buffer.from(await fileContent.arrayBuffer()),
+  );
 
-  console.log('Presentation saved to renewable_energy.pptx');
+  console.log("Presentation saved to renewable_energy.pptx");
 }
 ```
 
 **Shell:**
+
 ```bash
 # Extract file_id from response (using jq)
 FILE_ID=$(echo "$RESPONSE" | jq -r '.content[] | select(.type=="tool_use" and .name=="code_execution") | .content[] | select(.file_id) | .file_id')
@@ -265,6 +295,7 @@ Now that you've created your first document with Skills, try these variations:
 ### Create a spreadsheet
 
 **Python:**
+
 ```python
 response = client.beta.messages.create(
     model="claude-sonnet-4-5-20250929",
@@ -293,6 +324,7 @@ response = client.beta.messages.create(
 ### Create a Word document
 
 **Python:**
+
 ```python
 response = client.beta.messages.create(
     model="claude-sonnet-4-5-20250929",
@@ -321,6 +353,7 @@ response = client.beta.messages.create(
 ### Generate a PDF
 
 **Python:**
+
 ```python
 response = client.beta.messages.create(
     model="claude-sonnet-4-5-20250929",
@@ -350,6 +383,9 @@ response = client.beta.messages.create(
 
 Now that you've used pre-built Agent Skills, you can:
 
-- [Authoring Guide](best-practices.md) - Learn best practices for writing effective Skills
-- [Use Skills in the Agent SDK](agent-sdk-skills.md) - Use Skills programmatically in TypeScript and Python
-- [Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills) - Explore example Skills and implementation patterns
+- [Authoring Guide](best-practices.md) - Learn best practices for writing
+  effective Skills
+- [Use Skills in the Agent SDK](agent-sdk-skills.md) - Use Skills
+  programmatically in TypeScript and Python
+- [Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills) -
+  Explore example Skills and implementation patterns

@@ -1,18 +1,20 @@
 # Climpt Project-Specific AI Invocation Language – Spec & Claude Code Integration v0.1
 
-> Status: **Draft v0.1** (stabilize after field testing)
-> Scope: Defines the *project-specific AI invocation language* built on `climpt` 3-words CLI, and its integration contract with CLI AI agents (e.g., Claude Code).
+> Status: **Draft v0.1** (stabilize after field testing) Scope: Defines the
+> _project-specific AI invocation language_ built on `climpt` 3-words CLI, and
+> its integration contract with CLI AI agents (e.g., Claude Code).
 
 ---
 
 ## 0. Design Goals
 
-* **Deterministic prompt generation** from a canonical 3-words command shape.
-* **Human-readable SVO/SVOO semantics**, machine-parseable grammar.
-* **Stable interface** for AI agents via a *handoff prompt* template and JSON payload.
-* **Composable variables** via `-e`, `-a`, `-f`, `--uv-*`, and `STDIN`.
-* **Reproducibility**: canonical ordering & normalization rules.
-* **Safety**: prompt-injection resistance, escaping/quoting rules.
+- **Deterministic prompt generation** from a canonical 3-words command shape.
+- **Human-readable SVO/SVOO semantics**, machine-parseable grammar.
+- **Stable interface** for AI agents via a _handoff prompt_ template and JSON
+  payload.
+- **Composable variables** via `-e`, `-a`, `-f`, `--uv-*`, and `STDIN`.
+- **Reproducibility**: canonical ordering & normalization rules.
+- **Safety**: prompt-injection resistance, escaping/quoting rules.
 
 ---
 
@@ -26,9 +28,9 @@ climpt-<c1> <c2> <c3> [OPTIONS] [VARIANTS] [STDIN]
 
 Where:
 
-* `<c1>` = **Category** (domain top-level)
-* `<c2>` = **Verb** (action)
-* `<c3>` = **Object** (target)
+- `<c1>` = **Category** (domain top-level)
+- `<c2>` = **Verb** (action)
+- `<c3>` = **Object** (target)
 
 ### 1.2 Options & Inputs (Canonical Order)
 
@@ -36,13 +38,15 @@ Where:
 -e=<o1> -a=<o2> -f=<file> --uv-<name>=<value>... <<< "STDIN"
 ```
 
-* `-e=<o1>`: **primary edition type/mode** (e.g., `SQL`, `JSON`, `SCHEMA`, `TEXT`, `CSV`, `YAML`, `MD`, `CODE`)
-* `-a=<o2>`: **additional mode/variant** (free-form or enum per command)
-* `-f=<path>`: **file payload** path (relative/absolute)
-* `--uv-<name>=<value>`: **user variable(s)**; repeatable
-* `<<< "..."`: **STDIN heredoc** short free text
+- `-e=<o1>`: **primary edition type/mode** (e.g., `SQL`, `JSON`, `SCHEMA`,
+  `TEXT`, `CSV`, `YAML`, `MD`, `CODE`)
+- `-a=<o2>`: **additional mode/variant** (free-form or enum per command)
+- `-f=<path>`: **file payload** path (relative/absolute)
+- `--uv-<name>=<value>`: **user variable(s)**; repeatable
+- `<<< "..."`: **STDIN heredoc** short free text
 
-> **Normalization**: Parser accepts any option order but **emits** canonical order: `-e`, `-a`, `-f`, `--uv-*` (sorted by variable name), then `STDIN`.
+> **Normalization**: Parser accepts any option order but **emits** canonical
+> order: `-e`, `-a`, `-f`, `--uv-*` (sorted by variable name), then `STDIN`.
 
 ### 1.3 Examples
 
@@ -56,15 +60,16 @@ climpt-code transform schema -e=SCHEMA -f=domain.yaml --uv-target=go <<< "reposi
 
 ## 2. Semantics (SVO / SVOO)
 
-* **S (Subject)**: `climpt-<c1>` (the domain category / agent role)
-* **V (Verb)**: `<c2>` (action: `fetch`, `transform`, `generate`, `validate`, `render`, `deploy`, etc.)
-* **O (Object)**: `<c3>` (target: `prices`, `schema`, `summary`, `chart`, etc.)
-* **O' (Secondary Object)**: supplied via `-i`/`-a` or content-bearing options
+- **S (Subject)**: `climpt-<c1>` (the domain category / agent role)
+- **V (Verb)**: `<c2>` (action: `fetch`, `transform`, `generate`, `validate`,
+  `render`, `deploy`, etc.)
+- **O (Object)**: `<c3>` (target: `prices`, `schema`, `summary`, `chart`, etc.)
+- **O' (Secondary Object)**: supplied via `-i`/`-a` or content-bearing options
 
 Mapping intuition:
 
-* *SVO*: `climpt-data fetch prices` → “(Data agent) fetch (prices)”
-* *SVOO*: `-e=SQL -a=compact` → additional/secondary objects/constraints
+- _SVO_: `climpt-data fetch prices` → “(Data agent) fetch (prices)”
+- _SVOO_: `-e=SQL -a=compact` → additional/secondary objects/constraints
 
 ---
 
@@ -97,13 +102,16 @@ WS            := /\s+/ ;
 
 ### 3.1 Reserved Words
 
-* Verbs (recommended set): `fetch`, `transform`, `generate`, `validate`, `render`, `analyze`, `summarize`, `deploy`, `test`, `package`.
-* Categories (recommended set): `data`, `code`, `report`, `infra`, `test`, `design`.
-* Objects: domain-specific; maintain a registry per project.
+- Verbs (recommended set): `fetch`, `transform`, `generate`, `validate`,
+  `render`, `analyze`, `summarize`, `deploy`, `test`, `package`.
+- Categories (recommended set): `data`, `code`, `report`, `infra`, `test`,
+  `design`.
+- Objects: domain-specific; maintain a registry per project.
 
 ### 3.2 Case & Kebab
 
-* Prefer **lower-kebab-case** for identifiers; parser is case-sensitive by default.
+- Prefer **lower-kebab-case** for identifiers; parser is case-sensitive by
+  default.
 
 ---
 
@@ -113,24 +121,25 @@ WS            := /\s+/ ;
 
 Enumerated baseline: `SQL | JSON | SCHEMA | TEXT | CSV | YAML | MD | CODE`.
 
-* Projects may extend with `PROTO`, `OPENAPI`, `GRAPHQL`, `PARQUET`, etc.
+- Projects may extend with `PROTO`, `OPENAPI`, `GRAPHQL`, `PARQUET`, etc.
 
 ### 4.2 Additional Options (`-a`)
 
-* Either free-form or verb/object-specific enums, e.g.,
+- Either free-form or verb/object-specific enums, e.g.,
 
-  * `fetch prices -a=compact|full|ohlcv`
-  * `generate summary -a=daily|weekly|release`
+  - `fetch prices -a=compact|full|ohlcv`
+  - `generate summary -a=daily|weekly|release`
 
 ### 4.3 Variables (`--uv-*`)
 
-* Names: `^[a-z][a-z0-9_-]*$`
-* Values: quoted for spaces or special chars
-* Collisions: last one wins during parse; normalized output **deduplicates by name**.
+- Names: `^[a-z][a-z0-9_-]*$`
+- Values: quoted for spaces or special chars
+- Collisions: last one wins during parse; normalized output **deduplicates by
+  name**.
 
 ### 4.4 File (`-f`)
 
-* Resolve vs CWD; forbid directory traversal if configured (see §9 Security).
+- Resolve vs CWD; forbid directory traversal if configured (see §9 Security).
 
 ### 4.5 Compatibility Matrix (excerpt)
 
@@ -146,10 +155,10 @@ code      transform   schema    SCHEMA     go|ts|rust    -e
 
 ## 5. Canonical Emission & Normalization
 
-* Option order: `-e`, `-a`, `-f`, then sorted `--uv-*` (by `name` ASC).
-* Quoting: prefer **double quotes**; escape `"` and `\` inside.
-* Whitespace: collapse multiple spaces to single in emission.
-* Idempotence: `emit(parse(cmd)) == canonical(cmd)`.
+- Option order: `-e`, `-a`, `-f`, then sorted `--uv-*` (by `name` ASC).
+- Quoting: prefer **double quotes**; escape `"` and `\` inside.
+- Whitespace: collapse multiple spaces to single in emission.
+- Idempotence: `emit(parse(cmd)) == canonical(cmd)`.
 
 ---
 
@@ -179,27 +188,27 @@ code      transform   schema    SCHEMA     go|ts|rust    -e
   "type": "object",
   "required": ["version", "c1", "c2", "c3"],
   "properties": {
-    "version": {"type": "string", "const": "0.1"},
-    "c1": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-    "c2": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-    "c3": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "version": { "type": "string", "const": "0.1" },
+    "c1": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "c2": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+    "c3": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
     "options": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "e": {"type": "string"},
-        "a": {"type": "string"},
-        "f": {"type": "string"}
+        "e": { "type": "string" },
+        "a": { "type": "string" },
+        "f": { "type": "string" }
       }
     },
     "uv": {
       "type": "object",
       "patternProperties": {
-        "^[a-z][a-z0-9_-]*$": {"type": ["string", "number", "boolean"]}
+        "^[a-z][a-z0-9_-]*$": { "type": ["string", "number", "boolean"] }
       },
       "additionalProperties": false
     },
-    "stdin": {"type": ["string", "null" ]}
+    "stdin": { "type": ["string", "null"] }
   }
 }
 ```
@@ -251,13 +260,14 @@ Execute the task precisely as specified by SVO/SVOO semantics above.
 5) Emit summary with key decisions.
 ```
 
-> **Note**: For large `-f`, pass *file path only* and ask the agent to request chunks or summaries to mitigate token limits.
+> **Note**: For large `-f`, pass _file path only_ and ask the agent to request
+> chunks or summaries to mitigate token limits.
 
 ### 7.2 Emission Modes
 
-* **stdout**: print the handoff prompt (default)
-* **--emit=json**: print the AST (JSON) for programmatic use
-* **--emit=both**: print prompt then `\n---\n` then JSON
+- **stdout**: print the handoff prompt (default)
+- **--emit=json**: print the AST (JSON) for programmatic use
+- **--emit=both**: print prompt then `\n---\n` then JSON
 
 ---
 
@@ -287,7 +297,7 @@ claude-code --prompt-file .climpt/handoff/2025-08-14T12-00Z.txt
 
 ### 8.4 Result Capture Contract
 
-* Claude Code should wrap outputs with markers:
+- Claude Code should wrap outputs with markers:
 
 ```
 [[CLIMPT-RESULT v0.1]]
@@ -295,32 +305,34 @@ claude-code --prompt-file .climpt/handoff/2025-08-14T12-00Z.txt
 [[/CLIMPT-RESULT]]
 ```
 
-* `climpt` may provide a `--capture` helper to extract the payload.
+- `climpt` may provide a `--capture` helper to extract the payload.
 
 ### 8.5 Environment Conventions
 
-* `CLIMPT_PROJECT_ROOT` — base path resolution
-* `CLIMPT_EMIT` — `prompt|json|both`
-* `CLIMPT_STRICT` — `0|1` to enable strict validation
-* `CLIMPT_MAX_FILE_BYTES` — cap for `-f` ingestion
+- `CLIMPT_PROJECT_ROOT` — base path resolution
+- `CLIMPT_EMIT` — `prompt|json|both`
+- `CLIMPT_STRICT` — `0|1` to enable strict validation
+- `CLIMPT_MAX_FILE_BYTES` — cap for `-f` ingestion
 
 ### 8.6 Exit Codes
 
-* `0` success (prompt emitted)
-* `2` parse error (see §10)
-* `3` validation error
-* `4` file IO error
+- `0` success (prompt emitted)
+- `2` parse error (see §10)
+- `3` validation error
+- `4` file IO error
 
 ---
 
 ## 9. Security & Prompt-Injection Mitigations
 
-* **Quoting/escaping**: enforce double-quoted strings; escape `"` and `\`.
-* **File gating**: forbid `..` path segments if `CLIMPT_STRICT=1`.
-* **Redaction**: mask sensitive UV keys (e.g., `token`, `apikey`) in prompt headers.
-* **Size limits**: enforce `CLIMPT_MAX_FILE_BYTES`.
-* **Echo discipline**: never echo raw secrets to stdout; prefer placeholders.
-* **Agent guardrails**: constraints block instructs agents to respect scope and request missing fields rather than hallucinating.
+- **Quoting/escaping**: enforce double-quoted strings; escape `"` and `\`.
+- **File gating**: forbid `..` path segments if `CLIMPT_STRICT=1`.
+- **Redaction**: mask sensitive UV keys (e.g., `token`, `apikey`) in prompt
+  headers.
+- **Size limits**: enforce `CLIMPT_MAX_FILE_BYTES`.
+- **Echo discipline**: never echo raw secrets to stdout; prefer placeholders.
+- **Agent guardrails**: constraints block instructs agents to respect scope and
+  request missing fields rather than hallucinating.
 
 ---
 
@@ -337,7 +349,8 @@ E310 FileTooLarge      exceeds CLIMPT_MAX_FILE_BYTES
 E900 InternalError     unexpected condition; please report
 ```
 
-* **Diagnostic Tips**: emit canonical suggestion when possible: `Did you mean: <canonical form>`.
+- **Diagnostic Tips**: emit canonical suggestion when possible:
+  `Did you mean: <canonical form>`.
 
 ---
 
@@ -390,11 +403,11 @@ Category: code
 
 ## 13. Tooling Roadmap
 
-* **Parser/Emitter**: Deno/TypeScript module in `@aidevtool/climpt-language`
-* **CLI wrappers**: `.deno/bin/climpt-<c1>` shims auto-dispatching to core
-* **Shell completion**: generate zsh/bash completions from the domain registry
-* **Linter**: `climpt lint` to enforce canonicalization and matrix validation
-* **Formatter**: `climpt fmt` to re-emit canonical command
+- **Parser/Emitter**: Deno/TypeScript module in `@aidevtool/climpt-language`
+- **CLI wrappers**: `.deno/bin/climpt-<c1>` shims auto-dispatching to core
+- **Shell completion**: generate zsh/bash completions from the domain registry
+- **Linter**: `climpt lint` to enforce canonicalization and matrix validation
+- **Formatter**: `climpt fmt` to re-emit canonical command
 
 ---
 
@@ -418,18 +431,20 @@ fetch-prices:
 
 ## 15. Versioning & Compatibility
 
-* Language version in AST: `version: "0.1"`
-* Handoff markers: `[[CLIMPT-RESULT v0.1]]` / `[[/CLIMPT-RESULT]]`
-* Backward-compatible additions only within `0.x`; breaking changes bump minor.
+- Language version in AST: `version: "0.1"`
+- Handoff markers: `[[CLIMPT-RESULT v0.1]]` / `[[/CLIMPT-RESULT]]`
+- Backward-compatible additions only within `0.x`; breaking changes bump minor.
 
 ---
 
 ## 16. Quick Reference
 
-* **Shape**: `climpt-<c1> <c2> <c3> -e=<o1> -a=<o2> -f=<file> --uv-<k>=<v>... <<< "stdin"`
-* **Best practice**: keep `STDIN` short; use `-f` for large payloads; use UVs for knobs.
-* **Security**: quote everything; never pass secrets verbatim.
+- **Shape**:
+  `climpt-<c1> <c2> <c3> -e=<o1> -a=<o2> -f=<file> --uv-<k>=<v>... <<< "stdin"`
+- **Best practice**: keep `STDIN` short; use `-f` for large payloads; use UVs
+  for knobs.
+- **Security**: quote everything; never pass secrets verbatim.
 
 ---
 
-*End of Spec v0.1*
+_End of Spec v0.1_

@@ -1,38 +1,20 @@
-[English](../en/03-instruction-creation.md) | [日本語](../ja/03-instruction-creation.md)
+[English](../en/03-instruction-creation.md) |
+[日本語](../ja/03-instruction-creation.md)
 
 # 3. Creating Instructions (Prompts)
 
 This explains how to create instruction files (prompt files) used with Climpt.
 
-## Contents
-
-1. [What are Instructions](#31-what-are-instructions)
-2. [Creation Flow](#32-creation-flow)
-3. [Step 1: Create Instruction with meta create instruction](#33-step-1-create-instruction-with-meta-create-instruction)
-4. [Step 2: Generate Frontmatter with meta build frontmatter](#34-step-2-generate-frontmatter-with-meta-build-frontmatter)
-5. [Step 3: Update Registry](#35-step-3-update-registry)
-6. [Instruction Structure](#36-instruction-structure)
-7. [Practical Examples](#37-practical-examples)
-
----
-
 ## 3.1 What are Instructions
 
-Instructions are markdown files that define directives for AI.
-Following the C3L (Climpt 3-word Language) specification, they consist of three elements:
+Instructions are markdown files that define directives for AI. They follow the
+C3L (Climpt 3-word Language) path convention (see
+[00-1-concepts.md](./00-1-concepts.md) for details).
 
-| Element | Role | Examples |
-|---------|------|----------|
-| c1 (Domain) | Target area | `git`, `code`, `meta`, `test` |
-| c2 (Action) | Action to execute | `create`, `analyze`, `review` |
-| c3 (Target) | Target object | `branch`, `pull-request`, `instruction` |
-
-Command format:
-```bash
-climpt-<c1> <c2> <c3> [options]
-```
+Command format: `climpt-<c1> <c2> <c3> [options]`
 
 Examples:
+
 ```bash
 climpt-git decide-branch working-branch
 climpt-meta create instruction
@@ -43,50 +25,18 @@ climpt-code review pull-request
 
 ## 3.2 Creation Flow
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 Instruction Creation Flow                    │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Step 1: meta create instruction                           │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Enter purpose, domain, action, target               │   │
-│  │ → Generate prompt file template                     │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                         ↓                                   │
-│  Step 2: meta build frontmatter                            │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Generate C3L v0.5 compliant frontmatter             │   │
-│  │ → Insert in YAML format at file beginning           │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                         ↓                                   │
-│  Step 3: Registry Update (/reg)                            │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Regenerate registry.json from prompts               │   │
-│  │ → Command becomes available via MCP/CLI             │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+1. **`meta create instruction`** -- Enter purpose, domain, action, target to
+   generate a prompt file template
+2. **`meta build frontmatter`** -- Generate C3L v0.5 compliant frontmatter and
+   insert at file beginning
+3. **Registry Update (`/reg`)** -- Regenerate registry.json so the command
+   becomes available via MCP/CLI
 
 ---
 
 ## 3.3 Step 1: Create Instruction with meta create instruction
 
 ### Command Execution
-
-Execute the following in Claude Code or invoke the Skill:
-
-```bash
-# Pass information via stdin
-echo "Purpose: Analyze code complexity
-Domain: code
-Action: analyze
-Target: complexity
-Description: Calculate cyclomatic complexity and provide improvement suggestions" | climpt-meta create instruction
-```
-
-Or use heredoc:
 
 ```bash
 climpt-meta create instruction << 'EOF'
@@ -116,34 +66,17 @@ Please use meta create instruction.
 
 This command generates:
 
-1. Directory structure:
-   ```
-   .agent/climpt/prompts/code/analyze/complexity/
-   ```
-
-2. Prompt file:
-   ```
-   .agent/climpt/prompts/code/analyze/complexity/f_default.md
-   ```
-
-3. Config files (if needed):
-   ```
-   .agent/climpt/config/code-app.yml
-   .agent/climpt/config/code-user.yml
-   ```
-
-4. Executable file (if needed):
-   ```
-   .deno/bin/climpt-code
-   ```
+1. Directory structure: `.agent/climpt/prompts/code/analyze/complexity/`
+2. Prompt file: `.agent/climpt/prompts/code/analyze/complexity/f_default.md`
+3. Config files (if needed): `.agent/climpt/config/code-app.yml`,
+   `code-user.yml`
+4. Executable file (if needed): `.deno/bin/climpt-code`
 
 ---
 
 ## 3.4 Step 2: Generate Frontmatter with meta build frontmatter
 
 Generate C3L v0.5 compliant frontmatter for the created prompt file.
-
-### Command Execution
 
 ```bash
 echo "Domain: code
@@ -181,14 +114,7 @@ options:
 - Enclose `c3l_version` in quotes: `"0.5"`
 - `title` and `description` must be in English
 
-### Inserting Frontmatter
-
-Insert the generated frontmatter at the beginning of the prompt file:
-
-```bash
-# Edit prompt file
-vim .agent/climpt/prompts/code/analyze/complexity/f_default.md
-```
+Insert the generated frontmatter at the beginning of the prompt file.
 
 ---
 
@@ -202,33 +128,18 @@ After creating/updating prompt files, regenerate the registry.
 /reg
 ```
 
-Or:
+Or via CLI:
 
 ```bash
 deno task generate-registry
+# Or: deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
 ```
 
-### Execute via JSR
-
-```bash
-deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
-```
-
-### Execution Result
-
-```
-Registry generated successfully!
-Updated: .agent/climpt/registry.json
-Commands: 12 registered
-```
-
-### Verify registry.json
+Verify the new command is registered:
 
 ```bash
 cat .agent/climpt/registry.json | jq '.tools.commands[] | select(.c1 == "code")'
 ```
-
-Success if the new command is registered.
 
 ---
 
@@ -245,50 +156,28 @@ Success if the new command is registered.
 
 ### File Naming Convention
 
-| Filename | Description | Usage Condition |
-|----------|-------------|-----------------|
-| `f_default.md` | Default | When `--edition` not specified |
-| `f_<edition>.md` | Specific edition | When `--edition=<edition>` specified |
-| `f_<edition>_<adaptation>.md` | Combination | When both specified |
+| Filename                      | Description      | Usage Condition                      |
+| ----------------------------- | ---------------- | ------------------------------------ |
+| `f_default.md`                | Default          | When `--edition` not specified       |
+| `f_<edition>.md`              | Specific edition | When `--edition=<edition>` specified |
+| `f_<edition>_<adaptation>.md` | Combination      | When both specified                  |
 
 ### Template Variables
 
 Variables available in prompts:
 
-| Variable | CLI Option | Description |
-|----------|------------|-------------|
-| `{input_text}` | STDIN | Text from standard input |
-| `{input_text_file}` | `-f`, `--from` | Input file path |
-| `{destination_path}` | `-o`, `--destination` | Output destination path |
-| `{uv-*}` | `--uv-*` | Custom variables |
-
-### Example: Using Template Variables
-
-```markdown
-# Code Complexity Analysis
-
-## Target File
-
-{input_text_file}
-
-## Analysis Content
-
-{input_text}
-
-## Output Destination
-
-Save results to `{destination_path}`.
-
-## Options
-
-Maximum lines: {uv-max-lines}
-```
+| Variable             | CLI Option                | Description              |
+| -------------------- | ------------------------- | ------------------------ |
+| `{input_text}`       | STDIN                     | Text from standard input |
+| `{input_text_file}`  | `--from` (or `-f`)        | Input file path          |
+| `{destination_path}` | `--destination` (or `-o`) | Output destination path  |
+| `{uv-*}`             | `--uv-*`                  | Custom variables         |
 
 ---
 
-## 3.7 Practical Examples
+## 3.7 Practical Example
 
-### Example 1: Creating Git Branch Decision Command
+Create a git branch decision command:
 
 ```bash
 # Step 1: Create instruction
@@ -300,7 +189,7 @@ Target: working-branch
 Description: Decide whether to create new branch or continue on current branch
 EOF
 
-# Step 2: Generate frontmatter (if needed)
+# Step 2: Generate frontmatter
 climpt-meta build frontmatter << 'EOF'
 Domain: git
 Action: decide-branch
@@ -311,58 +200,3 @@ EOF
 # Step 3: Update registry
 deno task generate-registry
 ```
-
-### Example 2: Creating Code Review Command
-
-```bash
-# Step 1: Create instruction
-climpt-meta create instruction << 'EOF'
-Purpose: Execute pull request code review
-Domain: code
-Action: review
-Target: pull-request
-Description: Analyze code quality, bugs, and improvements to provide feedback
-EOF
-
-# Step 2 & 3: Generate frontmatter + Update registry
-climpt-meta build frontmatter << 'EOF'
-Domain: code
-Action: review
-Target: pull-request
-Purpose: Review pull request code and provide feedback
-EOF
-
-deno task generate-registry
-```
-
----
-
-## Verification Checklist
-
-After creating instructions, verify the following:
-
-- [ ] Prompt file exists in correct location
-  ```bash
-  ls -la .agent/climpt/prompts/<domain>/<action>/<target>/
-  ```
-
-- [ ] Frontmatter is in correct format
-  ```bash
-  head -30 .agent/climpt/prompts/<domain>/<action>/<target>/f_default.md
-  ```
-
-- [ ] Registered in registry
-  ```bash
-  cat .agent/climpt/registry.json | jq '.tools.commands[] | select(.c2 == "<action>")'
-  ```
-
-- [ ] Command can be executed
-  ```bash
-  climpt-<domain> <action> <target> --help
-  ```
-
----
-
-## Next Step
-
-Proceed to [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) to set up Iterate Agent.

@@ -553,6 +553,93 @@ Deno.test("PromptResolver - getUserFilePath with adaptation", () => {
   );
 });
 
+// Test adaptation override
+Deno.test("PromptResolver - adaptation override changes resolved path", () => {
+  const registry = createEmptyRegistry("test-agent");
+  addStepDefinition(registry, {
+    stepId: "closure.issue",
+    name: "Closure Issue",
+    c2: "closure",
+    c3: "issue",
+    edition: "default",
+    fallbackKey: "closure_issue",
+    uvVariables: [],
+    usesStdin: false,
+  });
+
+  const fallbackProvider = createFallbackProvider({});
+
+  const resolver = new PromptResolver(registry, fallbackProvider, {
+    workingDir: "/work",
+  });
+
+  // With adaptation override, path should include adaptation
+  const pathWithOverride = resolver.getUserFilePath("closure.issue");
+  assertEquals(
+    pathWithOverride,
+    "/work/.agent/test-agent/prompts/steps/closure/issue/f_default.md",
+  );
+});
+
+Deno.test("PromptResolver - adaptation override resolves adapted fallback", async () => {
+  const registry = createEmptyRegistry("test-agent");
+  addStepDefinition(registry, {
+    stepId: "closure.issue",
+    name: "Closure Issue",
+    c2: "closure",
+    c3: "issue",
+    edition: "default",
+    fallbackKey: "closure_issue",
+    uvVariables: [],
+    usesStdin: false,
+  });
+
+  // Register fallback for both the base and adapted key
+  const fallbackProvider = createFallbackProvider({
+    "closure_issue": "Default close action",
+  });
+
+  const resolver = new PromptResolver(registry, fallbackProvider, {
+    workingDir: "/nonexistent",
+  });
+
+  // Without override - resolves to base fallback
+  const baseResult = await resolver.resolve("closure.issue");
+  assertEquals(baseResult.source, "fallback");
+  assertEquals(baseResult.content, "Default close action");
+  assertEquals(baseResult.stepId, "closure.issue");
+});
+
+Deno.test("PromptResolver - resolve without override preserves existing behavior", async () => {
+  const registry = createEmptyRegistry("test-agent");
+  addStepDefinition(registry, {
+    stepId: "initial.test",
+    name: "Test",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
+    fallbackKey: "test_fallback",
+    uvVariables: ["name"],
+    usesStdin: false,
+  });
+
+  const fallbackProvider = createFallbackProvider({
+    "test_fallback": "Hello {uv-name}",
+  });
+
+  const resolver = new PromptResolver(registry, fallbackProvider, {
+    workingDir: "/nonexistent",
+  });
+
+  // Calling resolve without overrides should work exactly as before
+  const result = await resolver.resolve("initial.test", {
+    uv: { name: "World" },
+  });
+
+  assertEquals(result.content, "Hello World");
+  assertEquals(result.source, "fallback");
+});
+
 Deno.test("PromptResolver - custom variables substitution", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {

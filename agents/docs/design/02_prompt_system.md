@@ -82,7 +82,7 @@ prompts/steps/continuation/manual/f_detailed.md
 
 ## UV 変数
 
-User Variable。プロンプト内で `{{uv-xxx}}` で参照。
+User Variable。プロンプト内で `{uv-xxx}` で参照。
 
 | 変数                     | 説明             |
 | ------------------------ | ---------------- |
@@ -98,11 +98,11 @@ User Variable。プロンプト内で `{{uv-xxx}}` で参照。
 ### system.md
 
 ```markdown
-# {{uv-agent_name}} Agent
+# {uv-agent_name} Agent
 
 ## 完了条件
 
-{{uv-completion_criteria}}
+{uv-completion_criteria}
 
 ## ガイドライン
 
@@ -114,7 +114,7 @@ User Variable。プロンプト内で `{{uv-xxx}}` で参照。
 ### initial/issue/f_default.md
 
 ```markdown
-# Issue #{{uv-issue_number}} 対応開始
+# Issue #{uv-issue_number} 対応開始
 
 Issue の内容を確認し、作業を開始してください。 完了したら Issue
 をクローズしてください。

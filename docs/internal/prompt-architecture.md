@@ -21,16 +21,16 @@ Manages step definitions that map logical step IDs to prompt files.
 
 ```typescript
 interface StepDefinition {
-  stepId: string;        // Unique identifier (e.g., "initial.issue")
-  name: string;          // Human-readable name
-  c2: string;            // C3L component (e.g., "initial")
-  c3: string;            // C3L component (e.g., "issue")
-  edition: string;       // Edition (e.g., "default", "preparation")
-  adaptation?: string;   // Optional variant (e.g., "empty", "done")
-  fallbackKey: string;   // Key for embedded fallback prompt
+  stepId: string; // Unique identifier (e.g., "initial.issue")
+  name: string; // Human-readable name
+  c2: string; // C3L component (e.g., "initial")
+  c3: string; // C3L component (e.g., "issue")
+  edition: string; // Edition (e.g., "default", "preparation")
+  adaptation?: string; // Optional variant (e.g., "empty", "done")
+  fallbackKey: string; // Key for embedded fallback prompt
   uvVariables: string[]; // Required UV variable names
-  usesStdin: boolean;    // Whether step uses STDIN input
-  description?: string;  // Optional description
+  usesStdin: boolean; // Whether step uses STDIN input
+  description?: string; // Optional description
 }
 ```
 
@@ -38,9 +38,9 @@ interface StepDefinition {
 
 ```typescript
 interface StepRegistry {
-  agentId: string;       // Agent identifier
-  version: string;       // Registry version
-  c1: string;            // C3L c1 component (e.g., "steps")
+  agentId: string; // Agent identifier
+  version: string; // Registry version
+  c1: string; // C3L c1 component (e.g., "steps")
   pathTemplate?: string; // Path template with adaptation
   pathTemplateNoAdaptation?: string; // Path template without adaptation
   steps: Record<string, StepDefinition>;
@@ -50,17 +50,17 @@ interface StepRegistry {
 
 #### Key Functions
 
-| Function | Description |
-|----------|-------------|
+| Function                                        | Description                  |
+| ----------------------------------------------- | ---------------------------- |
 | `loadStepRegistry(agentId, agentsDir, options)` | Load registry from JSON file |
-| `getStepDefinition(registry, stepId)` | Get step by ID |
-| `getStepIds(registry)` | Get all step IDs |
-| `hasStep(registry, stepId)` | Check if step exists |
-| `createEmptyRegistry(agentId, c1, version)` | Create new empty registry |
-| `addStepDefinition(registry, step)` | Add step to registry |
-| `validateStepRegistry(registry)` | Validate registry structure |
-| `serializeRegistry(registry, pretty)` | Convert to JSON string |
-| `saveStepRegistry(registry, filePath)` | Save to file |
+| `getStepDefinition(registry, stepId)`           | Get step by ID               |
+| `getStepIds(registry)`                          | Get all step IDs             |
+| `hasStep(registry, stepId)`                     | Check if step exists         |
+| `createEmptyRegistry(agentId, c1, version)`     | Create new empty registry    |
+| `addStepDefinition(registry, step)`             | Add step to registry         |
+| `validateStepRegistry(registry)`                | Validate registry structure  |
+| `serializeRegistry(registry, pretty)`           | Convert to JSON string       |
+| `saveStepRegistry(registry, filePath)`          | Save to file                 |
 
 ### 2. PromptResolver (`agents/common/prompt-resolver.ts`)
 
@@ -70,10 +70,10 @@ Resolves prompts via breakdown (C3L) with fallback support.
 
 ```typescript
 interface PromptResolutionResult {
-  content: string;       // Resolved prompt content
+  content: string; // Resolved prompt content
   source: "user" | "fallback"; // Source of the prompt
-  promptPath?: string;   // Actual file path (if user file)
-  stepId: string;        // Step ID that was resolved
+  promptPath?: string; // Actual file path (if user file)
+  stepId: string; // Step ID that was resolved
   substitutedVariables?: Record<string, string>; // Variables substituted
 }
 ```
@@ -82,8 +82,8 @@ interface PromptResolutionResult {
 
 ```typescript
 interface PromptVariables {
-  uv?: Record<string, string>;    // UV variables (without "uv-" prefix)
-  inputText?: string;             // STDIN input
+  uv?: Record<string, string>; // UV variables (without "uv-" prefix)
+  inputText?: string; // STDIN input
   custom?: Record<string, string>; // Custom variables
 }
 ```
@@ -104,12 +104,12 @@ class PromptResolver {
   constructor(
     registry: StepRegistry,
     fallbackProvider: FallbackPromptProvider,
-    options?: PromptResolverOptions
+    options?: PromptResolverOptions,
   );
 
   async resolve(
     stepId: string,
-    variables?: PromptVariables
+    variables?: PromptVariables,
   ): Promise<PromptResolutionResult>;
 
   async canResolve(stepId: string): Promise<boolean>;
@@ -152,11 +152,11 @@ Integrates with breakdown CLI to resolve prompts using C3L paths.
 
 ```typescript
 interface C3LPath {
-  c1: string;           // Domain (e.g., "steps")
-  c2: string;           // Action (e.g., "initial")
-  c3: string;           // Target (e.g., "issue")
-  edition: string;      // Edition (e.g., "default")
-  adaptation?: string;  // Optional adaptation
+  c1: string; // Domain (e.g., "steps")
+  c2: string; // Action (e.g., "initial")
+  c3: string; // Target (e.g., "issue")
+  edition: string; // Edition (e.g., "default")
+  adaptation?: string; // Optional adaptation
 }
 ```
 
@@ -166,12 +166,12 @@ interface C3LPath {
 const loader = new C3LPromptLoader({
   agentId: "iterator",
   configSuffix: "steps",
-  workingDir: Deno.cwd()
+  workingDir: Deno.cwd(),
 });
 
 const result = await loader.load(
   { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
-  { uv: { issue_number: "123" } }
+  { uv: { issue_number: "123" } },
 );
 ```
 

@@ -1,6 +1,7 @@
 # Prompt Customization Guide
 
-This guide explains how to customize prompts for Climpt agents (Iterator, Reviewer, etc.).
+This guide explains how to customize prompts for Climpt agents (Iterator,
+Reviewer, etc.).
 
 ## Overview
 
@@ -55,11 +56,11 @@ Each agent has its own prompt directory under `.agent/`:
 
 Prompt paths follow the C3L (Command 3-Level) naming convention:
 
-| Level | Name | Description | Examples |
-|-------|------|-------------|----------|
-| c1 | Domain | Prompt category | `steps`, `dev` |
-| c2 | Action | Execution phase | `initial`, `continuation`, `section` |
-| c3 | Target | Mode/target | `issue`, `project`, `iterate` |
+| Level | Name   | Description     | Examples                             |
+| ----- | ------ | --------------- | ------------------------------------ |
+| c1    | Domain | Prompt category | `steps`, `dev`                       |
+| c2    | Action | Execution phase | `initial`, `continuation`, `section` |
+| c3    | Target | Mode/target     | `issue`, `project`, `iterate`        |
 
 ### File Naming Convention
 
@@ -69,6 +70,7 @@ Prompt files follow this pattern:
 - **Without adaptation**: `f_{edition}.md`
 
 Examples:
+
 - `f_default.md` - Default edition prompt
 - `f_preparation.md` - Preparation phase prompt
 - `f_preparation_empty.md` - Preparation with "empty" adaptation
@@ -80,32 +82,33 @@ Examples:
 
 User Variables are agent-specific values passed at runtime:
 
-| Variable | Agent | Description |
-|----------|-------|-------------|
-| `{uv-issue_number}` | Iterator | GitHub issue number |
-| `{uv-project_number}` | Iterator | GitHub project number |
-| `{uv-project_title}` | Iterator | Project title |
-| `{uv-label_info}` | Iterator | Label information |
+| Variable                    | Agent             | Description                   |
+| --------------------------- | ----------------- | ----------------------------- |
+| `{uv-issue_number}`         | Iterator          | GitHub issue number           |
+| `{uv-project_number}`       | Iterator          | GitHub project number         |
+| `{uv-project_title}`        | Iterator          | Project title                 |
+| `{uv-label_info}`           | Iterator          | Label information             |
 | `{uv-completed_iterations}` | Iterator/Reviewer | Count of completed iterations |
-| `{uv-total_issues}` | Iterator | Total issues in project |
-| `{uv-current_index}` | Iterator | Current issue index |
-| `{uv-iterations}` | Iterator | Target iteration count |
-| `{uv-project}` | Reviewer | Project identifier |
-| `{uv-iteration}` | Reviewer | Current iteration number |
+| `{uv-total_issues}`         | Iterator          | Total issues in project       |
+| `{uv-current_index}`        | Iterator          | Current issue index           |
+| `{uv-iterations}`           | Iterator          | Target iteration count        |
+| `{uv-project}`              | Reviewer          | Project identifier            |
+| `{uv-iteration}`            | Reviewer          | Current iteration number      |
 
 ### STDIN Input (`{input_text}`)
 
-For steps that accept STDIN input, use `{input_text}` to insert the input content.
+For steps that accept STDIN input, use `{input_text}` to insert the input
+content.
 
 ### Custom Variables
 
 Some prompts support custom variables for runtime-generated content:
 
-| Variable | Description |
-|----------|-------------|
+| Variable                    | Description              |
+| --------------------------- | ------------------------ |
 | `{project_context_section}` | Inserted project context |
-| `{issue_content}` | GitHub issue body |
-| `{cross_repo_note}` | Cross-repository notes |
+| `{issue_content}`           | GitHub issue body        |
+| `{cross_repo_note}`         | Cross-repository notes   |
 
 ## Creating Custom Prompts
 
@@ -138,6 +141,7 @@ Create a file at the correct path:
 ```
 
 For the example above:
+
 ```
 .agent/iterator/prompts/steps/initial/issue/f_default.md
 ```
@@ -229,23 +233,23 @@ Use issue-action blocks to report findings.
 
 ### Iterator Steps
 
-| Step ID | Description | UV Variables |
-|---------|-------------|--------------|
-| `initial.issue` | Issue mode initial prompt | `issue_number` |
-| `continuation.issue` | Issue mode continuation | `issue_number`, `completed_iterations` |
-| `initial.project.preparation` | Project preparation phase | `project_number`, `project_title`, `label_info`, `total_issues` |
-| `initial.project.review` | Project review phase | `project_number`, `project_title`, `label_info`, `issues_completed`, `label_filter` |
-| `initial.project.complete` | Project completion message | `project_number`, `label_info`, `issues_completed` |
-| `section.projectcontext` | Project context section | `project_number`, `project_title`, `label_info`, `current_index`, `total_issues` |
-| `initial.iterate` | Iterate mode initial | `iterations` |
-| `continuation.iterate` | Iterate mode continuation | `completed_iterations`, `remaining` |
+| Step ID                       | Description                | UV Variables                                                                        |
+| ----------------------------- | -------------------------- | ----------------------------------------------------------------------------------- |
+| `initial.issue`               | Issue mode initial prompt  | `issue_number`                                                                      |
+| `continuation.issue`          | Issue mode continuation    | `issue_number`, `completed_iterations`                                              |
+| `initial.project.preparation` | Project preparation phase  | `project_number`, `project_title`, `label_info`, `total_issues`                     |
+| `initial.project.review`      | Project review phase       | `project_number`, `project_title`, `label_info`, `issues_completed`, `label_filter` |
+| `initial.project.complete`    | Project completion message | `project_number`, `label_info`, `issues_completed`                                  |
+| `section.projectcontext`      | Project context section    | `project_number`, `project_title`, `label_info`, `current_index`, `total_issues`    |
+| `initial.iterate`             | Iterate mode initial       | `iterations`                                                                        |
+| `continuation.iterate`        | Iterate mode continuation  | `completed_iterations`, `remaining`                                                 |
 
 ### Reviewer Steps
 
-| Step ID | Description | UV Variables |
-|---------|-------------|--------------|
-| `initial.default` | Initial review prompt | `project`, `requirements_label`, `review_label` |
-| `continuation.default` | Continuation review | `iteration` |
+| Step ID                | Description           | UV Variables                                    |
+| ---------------------- | --------------------- | ----------------------------------------------- |
+| `initial.default`      | Initial review prompt | `project`, `requirements_label`, `review_label` |
+| `continuation.default` | Continuation review   | `iteration`                                     |
 
 ## Fallback Behavior
 
@@ -274,7 +278,8 @@ deno task cli iterator-steps initial issue --format prompt
 
 ### Variables Not Substituted
 
-- Confirm variable names match exactly (e.g., `{uv-issue_number}` not `{uv-issue-number}`)
+- Confirm variable names match exactly (e.g., `{uv-issue_number}` not
+  `{uv-issue-number}`)
 - Check that required UV variables are passed by the agent
 - Verify the step definition lists all required variables
 

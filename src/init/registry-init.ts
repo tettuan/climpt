@@ -3,8 +3,10 @@
  * @module init/registry-init
  */
 
+import { ensureDir } from "@std/fs/ensure-dir";
+import { exists } from "@std/fs/exists";
 import { resolve } from "@std/path";
-import type { Registry } from "./types.ts";
+import { createInitResult, type Registry } from "./types.ts";
 
 const SCHEMA_FILES = [
   "registry.schema.json",
@@ -14,34 +16,6 @@ const SCHEMA_FILES = [
 ] as const;
 
 /**
- * Check if a path exists
- */
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
- * Ensure directory exists, creating it if necessary
- */
-async function ensureDir(path: string): Promise<void> {
-  try {
-    await Deno.mkdir(path, { recursive: true });
-  } catch (error) {
-    if (!(error instanceof Deno.errors.AlreadyExists)) {
-      throw error;
-    }
-  }
-}
-
-/**
  * Execute Registry & Schema initialization
  */
 export async function initRegistryAndSchema(
@@ -49,7 +23,7 @@ export async function initRegistryAndSchema(
   workingDir: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
-  const result = { created: [] as string[], skipped: [] as string[] };
+  const result = createInitResult();
   const fullWorkingDir = resolve(projectRoot, workingDir);
 
   // 1. Deploy frontmatter-to-schema/ files
@@ -81,7 +55,7 @@ async function deploySchemaFiles(
   workingDir: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
-  const result = { created: [] as string[], skipped: [] as string[] };
+  const result = createInitResult();
   const schemaDir = resolve(workingDir, "frontmatter-to-schema");
 
   if ((await exists(schemaDir)) && !force) {
@@ -295,7 +269,7 @@ async function createRegistryConfig(
   workingDirRelative: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
-  const result = { created: [] as string[], skipped: [] as string[] };
+  const result = createInitResult();
   const configPath = resolve(workingDir, "config/registry_config.json");
 
   if ((await exists(configPath)) && !force) {
@@ -330,7 +304,7 @@ async function initRegistry(
   workingDir: string,
   force: boolean,
 ): Promise<{ created: string[]; skipped: string[] }> {
-  const result = { created: [] as string[], skipped: [] as string[] };
+  const result = createInitResult();
   const registryPath = resolve(workingDir, "registry.json");
 
   if ((await exists(registryPath)) && !force) {

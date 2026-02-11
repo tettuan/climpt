@@ -2,24 +2,31 @@
 
 ## Overview
 
-Climpt MCP Server is an MCP (Model Context Protocol) server that enables using `climpt` functionality from Claude Code slash commands.
+Climpt MCP Server is an MCP (Model Context Protocol) server that enables using
+`climpt` functionality from Claude Code slash commands.
 
 ## Available Commands
 
 ### `search`
 
-Pass a brief description of the command you want to execute, and it returns the 3 closest commands based on cosine similarity of the description. You can choose the optimal command from the results.
+Pass a brief description of the command you want to execute, and it returns the
+3 closest commands based on cosine similarity of the description. You can choose
+the optimal command from the results.
 
 **Arguments:**
 
-- `query` (required): Brief description of what you want to do (e.g., 'commit changes to git', 'generate API documentation', 'run tests')
-- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if omitted
+- `query` (required): Brief description of what you want to do (e.g., 'commit
+  changes to git', 'generate API documentation', 'run tests')
+- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector').
+  Defaults to 'climpt' if omitted
 
 **Behavior:**
 
-- Calculates cosine similarity against `c1 + c2 + c3 + description` strings from the specified agent's registry.json
+- Calculates cosine similarity against `c1 + c2 + c3 + description` strings from
+  the specified agent's registry.json
 - Returns the top 3 commands by similarity
-- Return value includes `c1`, `c2`, `c3`, `description`, `score` for each command
+- Return value includes `c1`, `c2`, `c3`, `description`, `score` for each
+  command
 
 **Basic usage example:**
 
@@ -40,20 +47,29 @@ Pass a brief description of the command you want to execute, and it returns the 
 
 ### `describe`
 
-Pass the `c1`, `c2`, `c3` received from search, and it returns all descriptions for matching commands. From this you can learn the optimal usage and option combinations, and choose how to use options.
+Pass the `c1`, `c2`, `c3` received from search, and it returns all descriptions
+for matching commands. From this you can learn the optimal usage and option
+combinations, and choose how to use options.
 
 **Arguments:**
 
-- `c1` (required): Domain identifier from search (e.g., git, spec, test, code, docs, meta)
-- `c2` (required): Action identifier from search (e.g., create, analyze, execute, generate)
-- `c3` (required): Target identifier from search (e.g., unstaged-changes, quality-metrics, unit-tests)
-- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector'). Defaults to 'climpt' if omitted
+- `c1` (required): Domain identifier from search (e.g., git, spec, test, code,
+  docs, meta)
+- `c2` (required): Action identifier from search (e.g., create, analyze,
+  execute, generate)
+- `c3` (required): Target identifier from search (e.g., unstaged-changes,
+  quality-metrics, unit-tests)
+- `agent` (optional): Agent name to search (e.g., 'climpt', 'inspector').
+  Defaults to 'climpt' if omitted
 
 **Behavior:**
 
-- Returns all records matching the specified `c1`, `c2`, `c3` from the specified agent's registry.json
-- If multiple records with the same c1, c2, c3 but different options exist, all are returned
-- Returns complete JSON structure including usage, available options, and file/stdin/output support
+- Returns all records matching the specified `c1`, `c2`, `c3` from the specified
+  agent's registry.json
+- If multiple records with the same c1, c2, c3 but different options exist, all
+  are returned
+- Returns complete JSON structure including usage, available options, and
+  file/stdin/output support
 
 **Basic usage example:**
 
@@ -78,25 +94,37 @@ Pass the `c1`, `c2`, `c3` received from search, and it returns all descriptions 
 
 ### `execute`
 
-Based on the detailed information from describe, always pass the 4 values `<agent-name>`, `<c1>`, `<c2>`, `<c3>`, along with option arguments (`-*`/`--*` format) obtained from describe. Create the values to pass to options before passing to execute. The result of execute is an instruction, so proceed according to the obtained instructions.
+Based on the detailed information from describe, always pass the 4 values
+`<agent-name>`, `<c1>`, `<c2>`, `<c3>`, along with option arguments (`-*`/`--*`
+format) obtained from describe. Create the values to pass to options before
+passing to execute. The result of execute is an instruction, so proceed
+according to the obtained instructions.
 
-**Note:**
-If STDIN support is needed, execute the climpt command directly from CLI instead of MCP.
+**Note:** If STDIN support is needed, execute the climpt command directly from
+CLI instead of MCP.
 
 **Arguments:**
 
-- `agent` (required): Agent name per C3L specification (e.g., 'climpt', 'inspector', 'auditor'). Corresponds to the agent (autonomous executor) in the Agent-Domain model
-- `c1` (required): Domain identifier from describe (e.g., git, spec, test, code, docs, meta)
-- `c2` (required): Action identifier from describe (e.g., create, analyze, execute, generate)
-- `c3` (required): Target identifier from describe (e.g., unstaged-changes, quality-metrics, unit-tests)
-- `options` (optional): Array of command-line options from describe (e.g., `['-f=file.txt']`)
+- `agent` (required): Agent name per C3L specification (e.g., 'climpt',
+  'inspector', 'auditor'). Corresponds to the agent (autonomous executor) in the
+  Agent-Domain model
+- `c1` (required): Domain identifier from describe (e.g., git, spec, test, code,
+  docs, meta)
+- `c2` (required): Action identifier from describe (e.g., create, analyze,
+  execute, generate)
+- `c3` (required): Target identifier from describe (e.g., unstaged-changes,
+  quality-metrics, unit-tests)
+- `options` (optional): Array of command-line options from describe (e.g.,
+  `['-f=file.txt']`)
 
 **Behavior:**
 
-- Constructs `--config` parameter per C3L v0.5 specification: `--config=<c1>` if `agent === "climpt"`, otherwise `--config=<agent>-<c1>`
+- Constructs `--config` parameter per C3L v0.5 specification: `--config=<c1>` if
+  `agent === "climpt"`, otherwise `--config=<agent>-<c1>`
 - Executes `deno run jsr:@aidevtool/climpt --config=... <c2> <c3> [options]`
 - Returns execution result including stdout, stderr, and exit code
-- The execution result contains instructions; proceed with the next task according to those instructions
+- The execution result contains instructions; proceed with the next task
+  according to those instructions
 
 **Basic usage example:**
 
@@ -135,17 +163,25 @@ deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-con
 
 ### `reload`
 
-After updating registry.json, clears the cache and reloads without restarting the MCP server. You can choose to clear the cache for all agents or only a specific agent.
+After updating registry.json, clears the cache and reloads without restarting
+the MCP server. You can choose to clear the cache for all agents or only a
+specific agent.
 
 **Arguments:**
 
-- `agent` (optional): Agent name to reload (e.g., 'climpt', 'inspector'). If omitted, clears cache for all agents and reloads all agents defined in the MCP configuration file
+- `agent` (optional): Agent name to reload (e.g., 'climpt', 'inspector'). If
+  omitted, clears cache for all agents and reloads all agents defined in the MCP
+  configuration file
 
 **Behavior:**
 
-- With agent specified: Clears cache for the specified agent and reloads from registry.json
-- Without agent specified: Clears cache for all agents and reloads registry.json for all agents defined in the registry configuration file (`.agent/climpt/config/registry_config.json`)
-- Correctly updates based on the configuration file even when agents are deprecated or newly added
+- With agent specified: Clears cache for the specified agent and reloads from
+  registry.json
+- Without agent specified: Clears cache for all agents and reloads registry.json
+  for all agents defined in the registry configuration file
+  (`.agent/climpt/config/registry_config.json`)
+- Correctly updates based on the configuration file even when agents are
+  deprecated or newly added
 - Returns command count and success message after reload
 
 **Usage example (specific agent):**
@@ -207,7 +243,8 @@ cd climpt
 
 ### 2. Multiple Registry Configuration (v1.6.1+)
 
-To use registries from multiple agents, create `.agent/climpt/config/registry_config.json`.
+To use registries from multiple agents, create
+`.agent/climpt/config/registry_config.json`.
 
 **Default configuration:** Automatically created when MCP server starts:
 
@@ -239,7 +276,8 @@ To use registries from multiple agents, create `.agent/climpt/config/registry_co
 
 ### 3. Claude Code Configuration
 
-Add the following to Claude Code's settings file (`~/.claude/claude_settings.json`):
+Add the following to Claude Code's settings file
+(`~/.claude/claude_settings.json`):
 
 ```json
 {
@@ -259,7 +297,8 @@ Add the following to Claude Code's settings file (`~/.claude/claude_settings.jso
 }
 ```
 
-**Note:** Replace `/path/to/climpt` with the actual path to your climpt repository.
+**Note:** Replace `/path/to/climpt` with the actual path to your climpt
+repository.
 
 ### 4. Verify Operation
 

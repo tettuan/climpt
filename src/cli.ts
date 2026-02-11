@@ -18,6 +18,7 @@ import {
   getPromptLogger,
   parseCliArgsForLogging,
 } from "./mcp/prompt-logger.ts";
+import { logger } from "./utils/logger.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -255,8 +256,8 @@ export async function main(_args: string[] = []): Promise<void> {
 
     if (logParams) {
       try {
-        const logger = await getPromptLogger();
-        tracker = logger.startExecution(
+        const promptLogger = await getPromptLogger();
+        tracker = promptLogger.startExecution(
           logParams.c3l,
           logParams.context,
           "cli",
@@ -288,8 +289,7 @@ export async function main(_args: string[] = []): Promise<void> {
       throw runError;
     }
   } catch (error) {
-    // deno-lint-ignore no-console
-    console.error("Failed to execute:", error);
+    logger.error("Failed to execute:", error);
     Deno.exit(1);
   }
 }

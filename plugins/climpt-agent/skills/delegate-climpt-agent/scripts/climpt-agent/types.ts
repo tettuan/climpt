@@ -127,13 +127,6 @@ export interface PromptContext {
 }
 
 /**
- * User variable definition from registry
- */
-export interface UserVariable {
-  [key: string]: string;
-}
-
-/**
  * Extended command with uv field for options prompt building
  */
 export interface CommandWithUV {
@@ -148,9 +141,16 @@ export interface CommandWithUV {
     file?: boolean;
     stdin?: boolean;
     destination?: boolean;
+
+    /**
+     * User-defined variables that can be passed via --uv-* options
+     * Maps variable name to description
+     * @example { "max-line-num": "Maximum lines per file", "storypoint": "Story point estimation" }
+     */
+    uv?: {
+      [name: string]: string;
+    };
   };
-  /** User variables (uv-*) array */
-  uv?: UserVariable[];
 }
 
 /**

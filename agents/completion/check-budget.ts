@@ -5,7 +5,7 @@
  * the number of status checks performed, not iterations.
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
   BaseCompletionHandler,
   type CompletionCriteria,

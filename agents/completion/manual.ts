@@ -2,7 +2,7 @@
  * Manual completion handler - completes when LLM outputs a specific keyword
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
   BaseCompletionHandler,
   type CompletionCriteria,

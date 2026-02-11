@@ -7,6 +7,7 @@
  */
 
 import { join } from "@std/path";
+import { logger } from "../utils/logger.ts";
 
 /**
  * C3L coordinates for prompt identification
@@ -275,8 +276,7 @@ export class PromptLogger {
         try {
           await Deno.remove(filePath);
         } catch (error) {
-          // deno-lint-ignore no-console
-          console.warn(`Failed to delete old log file ${filePath}:`, error);
+          logger.warn(`Failed to delete old log file ${filePath}:`, error);
         }
       });
       await Promise.all(deletePromises);

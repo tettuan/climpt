@@ -1,40 +1,44 @@
 # Command Operations Specification
 
-コマンド検索・詳細取得・実行の仕様書。MCP サーバーおよび Plugin 実装の両方がこの仕様に準拠する。
+コマンド検索・詳細取得・実行の仕様書。MCP サーバーおよび Plugin
+実装の両方がこの仕様に準拠する。
 
 ## 参照元
 
 この仕様は以下のファイルから参照されている:
 
-| ファイル | 用途 |
-|----------|------|
-| `src/mcp/similarity.ts` | MCP Server の BM25+RRF 検索・describe 実装 |
-| `src/mcp/registry.ts` | MCP Server のレジストリ読み込み |
-| `plugins/climpt-agent/lib/similarity.ts` | Plugin の BM25+RRF 検索・describe 実装 |
-| `plugins/climpt-agent/lib/registry.ts` | Plugin のレジストリ読み込み |
-| `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` | Plugin のエントリポイント |
+| ファイル                                                                    | 用途                                       |
+| --------------------------------------------------------------------------- | ------------------------------------------ |
+| `src/mcp/similarity.ts`                                                     | MCP Server の BM25+RRF 検索・describe 実装 |
+| `src/mcp/registry.ts`                                                       | MCP Server のレジストリ読み込み            |
+| `plugins/climpt-agent/lib/similarity.ts`                                    | Plugin の BM25+RRF 検索・describe 実装     |
+| `plugins/climpt-agent/lib/registry.ts`                                      | Plugin のレジストリ読み込み                |
+| `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` | Plugin のエントリポイント                  |
 
 **関連ドキュメント:**
+
 - [Registry Specification](./registry-specification.md) - レジストリ構造の定義
 
 ## 操作一覧
 
-| Operation | Description | Input | Output |
-|-----------|-------------|-------|--------|
-| `search` | 自然言語クエリからコマンド検索 | query, agent | SearchResult[] |
-| `searchWithRRF` | 複数クエリを RRF で統合検索 | queries[], agent | RRFResult[] |
-| `describe` | C3L識別子からコマンド詳細取得 | c1, c2, c3, agent | Command[] |
-| `execute` | コマンド実行して指示プロンプト取得 | c1, c2, c3, agent, options | string |
+| Operation       | Description                        | Input                      | Output         |
+| --------------- | ---------------------------------- | -------------------------- | -------------- |
+| `search`        | 自然言語クエリからコマンド検索     | query, agent               | SearchResult[] |
+| `searchWithRRF` | 複数クエリを RRF で統合検索        | queries[], agent           | RRFResult[]    |
+| `describe`      | C3L識別子からコマンド詳細取得      | c1, c2, c3, agent          | Command[]      |
+| `execute`       | コマンド実行して指示プロンプト取得 | c1, c2, c3, agent, options | string         |
 
 ## Search Operation
 
 ### 概要
 
-自然言語クエリを受け取り、BM25 アルゴリズムを用いて最も関連性の高いコマンドを返す。
+自然言語クエリを受け取り、BM25
+アルゴリズムを用いて最も関連性の高いコマンドを返す。
 
 ### アルゴリズム: BM25 (Best Match 25)
 
-BM25 は Elasticsearch、Lucene などで使用される業界標準の検索アルゴリズム。コサイン類似度と比較して以下の利点がある:
+BM25 は Elasticsearch、Lucene
+などで使用される業界標準の検索アルゴリズム。コサイン類似度と比較して以下の利点がある:
 
 - **IDF (Inverse Document Frequency)**: "create", "get" など頻出単語の重みを低減
 - **文書長正規化**: 長いドキュメントへのバイアスを補正
@@ -47,6 +51,7 @@ $$
 $$
 
 Where:
+
 - $f(q_i, D)$: ドキュメント D における単語 $q_i$ の出現頻度
 - $|D|$: ドキュメント長（トークン数）
 - $\text{avgdl}$: コーパス全体の平均ドキュメント長
@@ -60,6 +65,7 @@ $$
 $$
 
 Where:
+
 - $N$: 総ドキュメント数
 - $df(t)$: 単語 $t$ を含むドキュメント数
 
@@ -69,7 +75,8 @@ Where:
 
 1. **空白分割**: スペースで単語を分離
 2. **ハイフン分割**: `group-commit` → `group`, `commit`, `group-commit`
-3. **アンダースコア分割**: `unstaged_changes` → `unstaged`, `changes`, `unstaged_changes`
+3. **アンダースコア分割**: `unstaged_changes` → `unstaged`, `changes`,
+   `unstaged_changes`
 4. **CamelCase 分割**: `groupCommit` → `group`, `commit`, `groupcommit`
 
 元の複合トークンは後方互換性のため保持される。
@@ -90,23 +97,24 @@ searchTarget = "${c1} ${c2} ${c3} ${description}".toLowerCase()
 
 ```typescript
 interface SearchResult {
-  c1: string;           // ドメイン識別子
-  c2: string;           // アクション識別子
-  c3: string;           // ターゲット識別子
-  description: string;  // コマンド説明
-  score: number;        // BM25 スコア (0 以上、上限なし)
+  c1: string; // ドメイン識別子
+  c2: string; // アクション識別子
+  c3: string; // ターゲット識別子
+  description: string; // コマンド説明
+  score: number; // BM25 スコア (0 以上、上限なし)
 }
 ```
 
 ### スコアの解釈
 
-BM25 スコアはコサイン類似度と異なり 0-1 に正規化されない。相対的な順位付けに使用する。
+BM25 スコアはコサイン類似度と異なり 0-1
+に正規化されない。相対的な順位付けに使用する。
 
-| スコア特性 | 解釈 |
-|------------|------|
+| スコア特性 | 解釈                   |
+| ---------- | ---------------------- |
 | 高いスコア | クエリとの関連性が高い |
 | 低いスコア | クエリとの関連性が低い |
-| 0 | 一致するトークンなし |
+| 0          | 一致するトークンなし   |
 
 ### デフォルト結果数
 
@@ -116,9 +124,11 @@ BM25 スコアはコサイン類似度と異なり 0-1 に正規化されない�
 
 ### 概要
 
-複数の検索クエリの結果を RRF アルゴリズムで統合し、より精度の高い検索結果を返す。
+複数の検索クエリの結果を RRF
+アルゴリズムで統合し、より精度の高い検索結果を返す。
 
 C3L に沿った2つのクエリを使用:
+
 - **query1 (action)**: アクションに焦点 (c2 に対応)
 - **query2 (target)**: ターゲットに焦点 (c3 に対応)
 
@@ -129,6 +139,7 @@ $$
 $$
 
 Where:
+
 - $k = 60$: スムージングパラメータ（標準値）
 - $\text{rank}_i(d)$: クエリ $i$ でのドキュメント $d$ の順位（1-indexed）
 
@@ -136,8 +147,8 @@ Where:
 
 ```typescript
 const results = searchWithRRF(commands, [
-  "draft create write compose",      // action-focused
-  "specification document entry"     // target-focused
+  "draft create write compose", // action-focused
+  "specification document entry", // target-focused
 ], 3);
 ```
 
@@ -149,8 +160,8 @@ interface RRFResult {
   c2: string;
   c3: string;
   description: string;
-  score: number;        // RRF 統合スコア
-  ranks: number[];      // 各クエリでの順位 (1-indexed, -1 = not found)
+  score: number; // RRF 統合スコア
+  ranks: number[]; // 各クエリでの順位 (1-indexed, -1 = not found)
 }
 ```
 
@@ -204,11 +215,11 @@ deno run \
 
 ### オプションのマッピング
 
-| Option Key | CLI Flag | Example |
-|------------|----------|---------|
-| `edition` | `-e` / `--edition` | `-e=detailed` |
-| `adaptation` | `-a` / `--adaptation` | `-a=custom` |
-| `file` | `-f` / `--from` | `-f=input.md` |
+| Option Key    | CLI Flag               | Example        |
+| ------------- | ---------------------- | -------------- |
+| `edition`     | `-e` / `--edition`     | `-e=detailed`  |
+| `adaptation`  | `-a` / `--adaptation`  | `-a=custom`    |
+| `file`        | `-f` / `--from`        | `-f=input.md`  |
 | `destination` | `-d` / `--destination` | `-d=output.md` |
 
 ### 戻り値
@@ -228,8 +239,8 @@ deno run \
 ```typescript
 const DEFAULT_CONFIG: MCPConfig = {
   registries: {
-    "climpt": ".agent/climpt/registry.json"
-  }
+    "climpt": ".agent/climpt/registry.json",
+  },
 };
 ```
 

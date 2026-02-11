@@ -103,7 +103,8 @@ Climpt には自律型エージェントシステム（Iterator Agent, Reviewer 
 
 ### Iterator Agent
 
-GitHub Issue/Project から要件を取得し、完了条件を満たすまで反復実行する自律型エージェント。
+GitHub Issue/Project
+から要件を取得し、完了条件を満たすまで反復実行する自律型エージェント。
 
 ```bash
 # Issue モード: Issue がクローズされるまで実行
@@ -118,7 +119,8 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
 
 ### Reviewer Agent
 
-実装が要件を満たしているかを検証し、不足箇所を Issue として登録する自律型エージェント。
+実装が要件を満たしているかを検証し、不足箇所を Issue
+として登録する自律型エージェント。
 
 ```bash
 # プロジェクト全体をレビュー（docs/review ラベルを使用）
@@ -146,13 +148,13 @@ agents/
 
 ### Key Configuration Files
 
-| ファイル               | 用途                                  |
-| ---------------------- | ------------------------------------- |
-| `config.json`          | Agent 設定（ツール、権限、ロギング）  |
-| `registry.json`        | プロンプトレジストリ                  |
-| `steps_registry.json`  | ステップ定義（C3L パスマッピング）    |
-| `prompts/system.md`    | システムプロンプト                    |
-| `prompts/steps/`       | フェーズ別プロンプトテンプレート      |
+| ファイル              | 用途                                 |
+| --------------------- | ------------------------------------ |
+| `config.json`         | Agent 設定（ツール、権限、ロギング） |
+| `registry.json`       | プロンプトレジストリ                 |
+| `steps_registry.json` | ステップ定義（C3L パスマッピング）   |
+| `prompts/system.md`   | システムプロンプト                   |
+| `prompts/steps/`      | フェーズ別プロンプトテンプレート     |
 
 ### Programmatic Usage
 

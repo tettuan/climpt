@@ -272,6 +272,35 @@ deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
 
 📖 [オンラインドキュメント](https://tettuan.github.io/climpt/)
 
+## Examples（E2E動作確認）
+
+[`examples/`](examples/) ディレクトリには、ユースケースごとに整理された実行可能なシェルスクリプトが含まれています。リリース前にこれらを実行して、エンドツーエンドの動作を確認してください：
+
+```bash
+# スクリプトに実行権限を付与
+chmod +x examples/**/*.sh examples/*.sh
+
+# セットアップの確認
+./examples/01_setup/01_install.sh
+
+# CLI基本操作の確認
+./examples/02_cli_basic/01_decompose.sh
+
+# クリーンアップ
+./examples/07_clean.sh
+```
+
+| フォルダ | 説明 |
+|----------|------|
+| [01_setup/](examples/01_setup/) | インストールと初期化 |
+| [02_cli_basic/](examples/02_cli_basic/) | 基本CLIコマンド：分解、要約、欠陥分析 |
+| [03_mcp/](examples/03_mcp/) | MCPサーバー設定とIDE連携 |
+| [04_docs/](examples/04_docs/) | ドキュメントインストーラー |
+| [05_agents/](examples/05_agents/) | エージェントフレームワーク（iterator、reviewer） |
+| [06_registry/](examples/06_registry/) | レジストリ生成と構造 |
+
+詳細は [`examples/README.md`](examples/README.md) を参照。
+
 ## 必要要件
 
 - Deno 2.5以上

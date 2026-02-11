@@ -1,40 +1,50 @@
 # Plugins in the SDK
 
-Load custom plugins to extend Claude Code with commands, agents, skills, and hooks through the Agent SDK
+Load custom plugins to extend Claude Code with commands, agents, skills, and
+hooks through the Agent SDK
 
 ---
 
-Plugins allow you to extend Claude Code with custom functionality that can be shared across projects. Through the Agent SDK, you can programmatically load plugins from local directories to add custom slash commands, agents, skills, hooks, and MCP servers to your agent sessions.
+Plugins allow you to extend Claude Code with custom functionality that can be
+shared across projects. Through the Agent SDK, you can programmatically load
+plugins from local directories to add custom slash commands, agents, skills,
+hooks, and MCP servers to your agent sessions.
 
 ## What are plugins?
 
 Plugins are packages of Claude Code extensions that can include:
+
 - **Commands**: Custom slash commands
 - **Agents**: Specialized subagents for specific tasks
 - **Skills**: Model-invoked capabilities that Claude uses autonomously
 - **Hooks**: Event handlers that respond to tool use and other events
 - **MCP servers**: External tool integrations via Model Context Protocol
 
-For complete information on plugin structure and how to create plugins, see [Plugins](https://code.claude.com/docs/en/plugins).
+For complete information on plugin structure and how to create plugins, see
+[Plugins](https://code.claude.com/docs/en/plugins).
 
 ## Loading plugins
 
-Load plugins by providing their local file system paths in your options configuration. The SDK supports loading multiple plugins from different locations.
+Load plugins by providing their local file system paths in your options
+configuration. The SDK supports loading multiple plugins from different
+locations.
 
 <CodeGroup>
 
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "Hello",
-  options: {
-    plugins: [
-      { type: "local", path: "./my-plugin" },
-      { type: "local", path: "/absolute/path/to/another-plugin" }
-    ]
-  }
-})) {
+for await (
+  const message of query({
+    prompt: "Hello",
+    options: {
+      plugins: [
+        { type: "local", path: "./my-plugin" },
+        { type: "local", path: "/absolute/path/to/another-plugin" },
+      ],
+    },
+  })
+) {
   // Plugin commands, agents, and other features are now available
 }
 ```
@@ -64,8 +74,11 @@ asyncio.run(main())
 ### Path specifications
 
 Plugin paths can be:
-- **Relative paths**: Resolved relative to your current working directory (e.g., `"./plugins/my-plugin"`)
-- **Absolute paths**: Full file system paths (e.g., `"/home/user/plugins/my-plugin"`)
+
+- **Relative paths**: Resolved relative to your current working directory (e.g.,
+  `"./plugins/my-plugin"`)
+- **Absolute paths**: Full file system paths (e.g.,
+  `"/home/user/plugins/my-plugin"`)
 
 <Note>
 The path should point to the plugin's root directory (the directory containing `.claude-plugin/plugin.json`).
@@ -73,19 +86,22 @@ The path should point to the plugin's root directory (the directory containing `
 
 ## Verifying plugin installation
 
-When plugins load successfully, they appear in the system initialization message. You can verify that your plugins are available:
+When plugins load successfully, they appear in the system initialization
+message. You can verify that your plugins are available:
 
 <CodeGroup>
 
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "Hello",
-  options: {
-    plugins: [{ type: "local", path: "./my-plugin" }]
-  }
-})) {
+for await (
+  const message of query({
+    prompt: "Hello",
+    options: {
+      plugins: [{ type: "local", path: "./my-plugin" }],
+    },
+  })
+) {
   if (message.type === "system" && message.subtype === "init") {
     // Check loaded plugins
     console.log("Plugins:", message.plugins);
@@ -123,7 +139,8 @@ asyncio.run(main())
 
 ## Using plugin commands
 
-Commands from plugins are automatically namespaced with the plugin name to avoid conflicts. The format is `plugin-name:command-name`.
+Commands from plugins are automatically namespaced with the plugin name to avoid
+conflicts. The format is `plugin-name:command-name`.
 
 <CodeGroup>
 
@@ -131,12 +148,14 @@ Commands from plugins are automatically namespaced with the plugin name to avoid
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Load a plugin with a custom /greet command
-for await (const message of query({
-  prompt: "/my-plugin:greet",  // Use plugin command with namespace
-  options: {
-    plugins: [{ type: "local", path: "./my-plugin" }]
-  }
-})) {
+for await (
+  const message of query({
+    prompt: "/my-plugin:greet", // Use plugin command with namespace
+    options: {
+      plugins: [{ type: "local", path: "./my-plugin" }],
+    },
+  })
+) {
   // Claude executes the custom greeting command from the plugin
   if (message.type === "assistant") {
     console.log(message.content);
@@ -184,15 +203,17 @@ async function runWithPlugin() {
 
   console.log("Loading plugin from:", pluginPath);
 
-  for await (const message of query({
-    prompt: "What custom commands do you have available?",
-    options: {
-      plugins: [
-        { type: "local", path: pluginPath }
-      ],
-      maxTurns: 3
-    }
-  })) {
+  for await (
+    const message of query({
+      prompt: "What custom commands do you have available?",
+      options: {
+        plugins: [
+          { type: "local", path: pluginPath },
+        ],
+        maxTurns: 3,
+      },
+    })
+  ) {
     if (message.type === "system" && message.subtype === "init") {
       console.log("Loaded plugins:", message.plugins);
       console.log("Available commands:", message.slash_commands);
@@ -256,7 +277,8 @@ if __name__ == "__main__":
 
 ## Plugin structure reference
 
-A plugin directory must contain a `.claude-plugin/plugin.json` manifest file. It can optionally include:
+A plugin directory must contain a `.claude-plugin/plugin.json` manifest file. It
+can optionally include:
 
 ```
 my-plugin/
@@ -275,8 +297,11 @@ my-plugin/
 ```
 
 For detailed information on creating plugins, see:
-- [Plugins](https://code.claude.com/docs/en/plugins) - Complete plugin development guide
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference) - Technical specifications and schemas
+
+- [Plugins](https://code.claude.com/docs/en/plugins) - Complete plugin
+  development guide
+- [Plugins reference](https://code.claude.com/docs/en/plugins-reference) -
+  Technical specifications and schemas
 
 ## Common use cases
 
@@ -286,8 +311,8 @@ Load plugins during development without installing them globally:
 
 ```typescript
 plugins: [
-  { type: "local", path: "./dev-plugins/my-plugin" }
-]
+  { type: "local", path: "./dev-plugins/my-plugin" },
+];
 ```
 
 ### Project-specific extensions
@@ -296,8 +321,8 @@ Include plugins in your project repository for team-wide consistency:
 
 ```typescript
 plugins: [
-  { type: "local", path: "./project-plugins/team-workflows" }
-]
+  { type: "local", path: "./project-plugins/team-workflows" },
+];
 ```
 
 ### Multiple plugin sources
@@ -307,8 +332,8 @@ Combine plugins from different locations:
 ```typescript
 plugins: [
   { type: "local", path: "./local-plugin" },
-  { type: "local", path: "~/.claude/custom-plugins/shared-plugin" }
-]
+  { type: "local", path: "~/.claude/custom-plugins/shared-plugin" },
+];
 ```
 
 ## Troubleshooting
@@ -317,7 +342,8 @@ plugins: [
 
 If your plugin doesn't appear in the init message:
 
-1. **Check the path**: Ensure the path points to the plugin root directory (containing `.claude-plugin/`)
+1. **Check the path**: Ensure the path points to the plugin root directory
+   (containing `.claude-plugin/`)
 2. **Validate plugin.json**: Ensure your manifest file has valid JSON syntax
 3. **Check file permissions**: Ensure the plugin directory is readable
 
@@ -325,22 +351,29 @@ If your plugin doesn't appear in the init message:
 
 If plugin commands don't work:
 
-1. **Use the namespace**: Plugin commands require the `plugin-name:command-name` format
-2. **Check init message**: Verify the command appears in `slash_commands` with the correct namespace
-3. **Validate command files**: Ensure command markdown files are in the `commands/` directory
+1. **Use the namespace**: Plugin commands require the `plugin-name:command-name`
+   format
+2. **Check init message**: Verify the command appears in `slash_commands` with
+   the correct namespace
+3. **Validate command files**: Ensure command markdown files are in the
+   `commands/` directory
 
 ### Path resolution issues
 
 If relative paths don't work:
 
-1. **Check working directory**: Relative paths are resolved from your current working directory
+1. **Check working directory**: Relative paths are resolved from your current
+   working directory
 2. **Use absolute paths**: For reliability, consider using absolute paths
 3. **Normalize paths**: Use path utilities to construct paths correctly
 
 ## See also
 
-- [Plugins](https://code.claude.com/docs/en/plugins) - Complete plugin development guide
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference) - Technical specifications
-- [Slash Commands](/docs/en/agent-sdk/slash-commands) - Using slash commands in the SDK
+- [Plugins](https://code.claude.com/docs/en/plugins) - Complete plugin
+  development guide
+- [Plugins reference](https://code.claude.com/docs/en/plugins-reference) -
+  Technical specifications
+- [Slash Commands](/docs/en/agent-sdk/slash-commands) - Using slash commands in
+  the SDK
 - [Subagents](/docs/en/agent-sdk/subagents) - Working with specialized agents
 - [Skills](/docs/en/agent-sdk/skills) - Using Agent Skills

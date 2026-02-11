@@ -4,7 +4,8 @@
 
 ### サンドボックスの仕組み
 
-Claude Agent SDK は内部で Claude Code プロセスを起動し、SDK 自体にもサンドボックス設定が存在する：
+Claude Agent SDK は内部で Claude Code プロセスを起動し、SDK
+自体にもサンドボックス設定が存在する：
 
 - `enabled`: サンドボックスの有効/無効
 - `autoAllowBashIfSandboxed`: サンドボックス時に Bash を自動許可
@@ -14,11 +15,13 @@ Claude Agent SDK は内部で Claude Code プロセスを起動し、SDK 自体�
 
 型定義: `/entrypoints/sandboxTypes.d.ts`
 
-**注**: デフォルト値については公式ドキュメントで確認できていない。型定義上は全て optional となっている。
+**注**: デフォルト値については公式ドキュメントで確認できていない。型定義上は全て
+optional となっている。
 
 ### 問題: Claude Code の Bash ツール経由での実行が失敗する
 
-Claude Agent SDK を Claude Code の Bash ツールから実行すると、以下のエラーが発生する：
+Claude Agent SDK を Claude Code の Bash
+ツールから実行すると、以下のエラーが発生する：
 
 ```
 Error: EPERM: operation not permitted, open '/Users/[user]/.claude/projects/...'
@@ -43,6 +46,7 @@ Claude Code の Bash ツールは、デフォルトでサンドボックスモ�
 ```
 
 Claude Agent SDK は以下のディレクトリへの書き込みを必要とする：
+
 - `~/.claude/projects/` - セッションログ
 - `~/.claude/statsig/` - 統計情報
 - `~/.claude/telemetry/` - テレメトリデータ
@@ -51,7 +55,8 @@ Claude Agent SDK は以下のディレクトリへの書き込みを必要とす
 
 #### 解決策
 
-Bash ツール実行時に `dangerouslyDisableSandbox: true` を指定してサンドボックスを無効化する：
+Bash ツール実行時に `dangerouslyDisableSandbox: true`
+を指定してサンドボックスを無効化する：
 
 ```typescript
 Bash({
@@ -121,7 +126,8 @@ Claude Code Bash tool sandbox (外側)
        └─ SDK sandbox (内側) ← 我々が設定
 ```
 
-**結果**: 内側の SDK sandbox で `api.anthropic.com` を許可しても、外側の Bash tool sandbox がブロックする。
+**結果**: 内側の SDK sandbox で `api.anthropic.com` を許可しても、外側の Bash
+tool sandbox がブロックする。
 
 ### 解決策
 
@@ -133,9 +139,10 @@ Claude Code Bash tool sandbox (外側)
 2. **dangerouslyDisableSandbox 使用** - Claude Code 内から実行時
    ```typescript
    Bash({
-     command: "deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123",
+     command:
+       "deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123",
      dangerouslyDisableSandbox: true,
-   })
+   });
    ```
 
 ### SDK Sandbox 設定
@@ -143,6 +150,7 @@ Claude Code Bash tool sandbox (外側)
 `agents/runner/sandbox-defaults.ts` で以下を設定：
 
 **Network allowedDomains:**
+
 - `api.anthropic.com`
 - `statsig.anthropic.com`
 - `sentry.anthropic.com`
@@ -151,6 +159,7 @@ Claude Code Bash tool sandbox (外側)
 - GitHub、Deno、npm 関連ドメイン
 
 **Filesystem ignoreViolations:**
+
 - `~/.claude/projects/`
 - `~/.claude/statsig/`
 - `~/.claude/telemetry/`

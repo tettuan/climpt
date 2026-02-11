@@ -1,7 +1,6 @@
 # Iterate Agent C3L 統合設計
 
-> 設計日: 2026-01-01
-> ステータス: Final
+> 設計日: 2026-01-01 ステータス: Final
 
 ---
 
@@ -14,11 +13,11 @@ iterate-agent のプロンプト管理を climpt の C3L フレームワーク�
 
 ### 1.2 設計原則
 
-| 原則 | 説明 |
-|-----|------|
+| 原則                  | 説明                                                       |
+| --------------------- | ---------------------------------------------------------- |
 | **climpt 機能の活用** | registry.json 生成、プロンプト展開は既存 climpt 機能を使用 |
-| **階層の分離** | `.agent/climpt/` と `.agent/iterator/` は独立 |
-| **C3L 準拠** | `iterator-dev start <mode>` の命名規則に従う |
+| **階層の分離**        | `.agent/climpt/` と `.agent/iterator/` は独立              |
+| **C3L 準拠**          | `iterator-dev start <mode>` の命名規則に従う               |
 
 ---
 
@@ -66,13 +65,13 @@ graph TB
 
 ### 2.2 階層分離の確認
 
-| 項目 | `.agent/climpt/` | `.agent/iterator/` |
-|-----|-----------------|-------------------|
-| 用途 | 汎用開発タスク | iterate-agent 専用 |
-| C3L Agent | `climpt` | `iterator` |
-| c1 例 | `git`, `meta`, `test` | `dev` |
-| 使用者 | delegate-climpt-agent | iterate-agent 起動時 |
-| 独立性 | 既存（変更なし） | 新規追加 |
+| 項目      | `.agent/climpt/`      | `.agent/iterator/`   |
+| --------- | --------------------- | -------------------- |
+| 用途      | 汎用開発タスク        | iterate-agent 専用   |
+| C3L Agent | `climpt`              | `iterator`           |
+| c1 例     | `git`, `meta`, `test` | `dev`                |
+| 使用者    | delegate-climpt-agent | iterate-agent 起動時 |
+| 独立性    | 既存（変更なし）      | 新規追加             |
 
 ---
 
@@ -113,8 +112,8 @@ graph TB
     └── registry.json                     # /reg で生成
 ```
 
-**Note**: iterator の config (`iterator-dev-app.yml`) は `.agent/climpt/config/` に配置。
-breakdown ライブラリがこの場所から config を読み込むため。
+**Note**: iterator の config (`iterator-dev-app.yml`) は `.agent/climpt/config/`
+に配置。 breakdown ライブラリがこの場所から config を読み込むため。
 
 ---
 
@@ -133,11 +132,11 @@ iterator-dev start project
 
 ### 4.2 モード対応
 
-| iterate-agent オプション | C3L コマンド |
-|------------------------|-------------|
-| `--project 5` | `iterator-dev start project` |
-| `--issue 123` | `iterator-dev start issue` |
-| (デフォルト) | `iterator-dev start default` |
+| iterate-agent オプション | C3L コマンド                 |
+| ------------------------ | ---------------------------- |
+| `--project 5`            | `iterator-dev start project` |
+| `--issue 123`            | `iterator-dev start issue`   |
+| (デフォルト)             | `iterator-dev start default` |
 
 ---
 
@@ -298,19 +297,18 @@ options:
 
 ### 7.2 テンプレート変数
 
-| 変数 | 置換タイミング | 説明 |
-|-----|--------------|------|
-| `{{AGENT}}` | iterate-agent | エージェント名 |
-| `{{COMPLETION_CRITERIA}}` | iterate-agent | 完了条件（短） |
-| `{{COMPLETION_CRITERIA_DETAIL}}` | iterate-agent | 完了条件（詳細） |
+| 変数                       | 置換タイミング | 説明             |
+| -------------------------- | -------------- | ---------------- |
+| `{uv-agent_name}`          | iterate-agent  | エージェント名   |
+| `{uv-completion_criteria}` | iterate-agent  | 完了条件（詳細） |
 
 ### 7.3 モード別差分
 
-| 要素 | project | issue | default |
-|-----|---------|-------|---------|
-| 目的 | 全Issue完了 | 単一Issue完了 | N回反復 |
-| issue-action | 必須 | なし | なし |
-| GitHub連携 | Project API | Issue API | なし |
+| 要素         | project     | issue         | default |
+| ------------ | ----------- | ------------- | ------- |
+| 目的         | 全Issue完了 | 単一Issue完了 | N回反復 |
+| issue-action | 必須        | なし          | なし    |
+| GitHub連携   | Project API | Issue API     | なし    |
 
 ---
 
@@ -318,14 +316,14 @@ options:
 
 ### 8.1 変更ファイル一覧
 
-| ファイル | 変更内容 |
-|---------|---------|
-| `.agent/iterator/` | 新規ディレクトリ作成 |
-| `.agent/iterator/config/dev-app.yml` | 新規作成 |
-| `.agent/iterator/prompts/dev/start/*/f_default.md` | 新規作成 (3ファイル) |
-| `.agent/iterator/registry.json` | /reg で生成 |
-| `.agent/climpt/config/registry_config.json` | iterator エントリ追加 |
-| `agents/iterator/scripts/config.ts` | C3L 経由読み込み対応 |
+| ファイル                                           | 変更内容              |
+| -------------------------------------------------- | --------------------- |
+| `.agent/iterator/`                                 | 新規ディレクトリ作成  |
+| `.agent/iterator/config/dev-app.yml`               | 新規作成              |
+| `.agent/iterator/prompts/dev/start/*/f_default.md` | 新規作成 (3ファイル)  |
+| `.agent/iterator/registry.json`                    | /reg で生成           |
+| `.agent/climpt/config/registry_config.json`        | iterator エントリ追加 |
+| `agents/iterator/scripts/config.ts`                | C3L 経由読み込み対応  |
 
 ### 8.2 config.ts 変更
 
@@ -337,7 +335,10 @@ export async function loadSystemPromptViaC3L(
 
   const command = new Deno.Command("deno", {
     args: [
-      "run", "--allow-read", "--allow-write", "--allow-env",
+      "run",
+      "--allow-read",
+      "--allow-write",
+      "--allow-env",
       "jsr:@aidevtool/climpt",
       "--config=iterator-dev",
       "start",
@@ -356,21 +357,21 @@ export async function loadSystemPromptViaC3L(
 
 ### 9.1 climpt 機能の活用
 
-| 機能 | 使用箇所 | 確認 |
-|-----|---------|------|
-| `/reg` | iterator registry.json 生成 | ✅ `--input`, `--output` オプションで対応 |
-| CLI プロンプト展開 | iterator-dev start * | ✅ `--config=iterator-dev` で対応 |
-| registry_config.json | --agent=iterator 解決 | ✅ iterator エントリ追加で対応 |
-| frontmatter-to-schema | registry.json 生成 | ✅ 既存スキーマ再利用 |
+| 機能                  | 使用箇所                    | 確認                                      |
+| --------------------- | --------------------------- | ----------------------------------------- |
+| `/reg`                | iterator registry.json 生成 | ✅ `--input`, `--output` オプションで対応 |
+| CLI プロンプト展開    | iterator-dev start *        | ✅ `--config=iterator-dev` で対応         |
+| registry_config.json  | --agent=iterator 解決       | ✅ iterator エントリ追加で対応            |
+| frontmatter-to-schema | registry.json 生成          | ✅ 既存スキーマ再利用                     |
 
 ### 9.2 階層の独立性
 
-| 確認項目 | climpt | iterator | 独立性 |
-|---------|--------|----------|-------|
-| prompts/ | git/, meta/, test/ | dev/start/ | ✅ 別ディレクトリ |
-| registry.json | .agent/climpt/ | .agent/iterator/ | ✅ 別ファイル |
-| config/*.yml | git-app.yml, meta-app.yml | dev-app.yml | ✅ 別ファイル |
-| C3L Agent 名 | climpt | iterator | ✅ 別名 |
+| 確認項目      | climpt                    | iterator         | 独立性            |
+| ------------- | ------------------------- | ---------------- | ----------------- |
+| prompts/      | git/, meta/, test/        | dev/start/       | ✅ 別ディレクトリ |
+| registry.json | .agent/climpt/            | .agent/iterator/ | ✅ 別ファイル     |
+| config/*.yml  | git-app.yml, meta-app.yml | dev-app.yml      | ✅ 別ファイル     |
+| C3L Agent 名  | climpt                    | iterator         | ✅ 別名           |
 
 ### 9.3 データフロー確認
 

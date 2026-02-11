@@ -6,7 +6,7 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
-import { PromptResolver } from "../prompts/resolver.ts";
+import { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type { CompletionHandler, ContractCompletionHandler } from "./types.ts";
 import {
   IssueCompletionHandler,

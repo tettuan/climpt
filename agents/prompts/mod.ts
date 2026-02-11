@@ -29,25 +29,18 @@ export {
 } from "./variable-substitutor.ts";
 
 // ============================================================================
-// Resolver (v2)
+// Resolver Adapter (replaces old PromptResolver)
 // ============================================================================
 
 export {
-  type PromptReferenceV2,
-  PromptResolverV2,
-  type ResolverOptions,
-} from "./resolver.ts";
-
-// ============================================================================
-// Legacy exports (backward compatibility)
-// ============================================================================
-
-export {
-  PromptResolver,
+  type PromptResolutionResult,
+  PromptResolverAdapter,
   type PromptResolverOptions,
-  type StepDefinition as PromptStepDefinition,
-  type StepRegistry,
-} from "./resolver.ts";
+} from "./resolver-adapter.ts";
+
+// ============================================================================
+// Fallback
+// ============================================================================
 
 /** @deprecated Use PromptNotFoundError from adapter.ts instead */
 export {

@@ -1,6 +1,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import type { MCPConfig } from "../../src/mcp/types.ts";
 import { DEFAULT_MCP_CONFIG } from "../../src/mcp/types.ts";
+import { cleanupTempDir, createTempDir } from "../test-utils.ts";
 
 // Test MCP config structure
 Deno.test("MCP config has correct default structure", () => {
@@ -18,7 +19,7 @@ Deno.test("MCP config has correct default structure", () => {
 
 // Test MCP config.json creation
 Deno.test("MCP config.json can be created with default values", async () => {
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await createTempDir();
   const originalCwd = Deno.cwd();
 
   try {
@@ -46,13 +47,13 @@ Deno.test("MCP config.json can be created with default values", async () => {
     );
   } finally {
     Deno.chdir(originalCwd);
-    await Deno.remove(tempDir, { recursive: true });
+    await cleanupTempDir(tempDir);
   }
 });
 
 // Test MCP config.json with multiple registries
 Deno.test("MCP config.json supports multiple registries", async () => {
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await createTempDir();
 
   try {
     // Create config with multiple registries
@@ -88,14 +89,14 @@ Deno.test("MCP config.json supports multiple registries", async () => {
       ".agent/auditor/registry.json",
     );
   } finally {
-    await Deno.remove(tempDir, { recursive: true });
+    await cleanupTempDir(tempDir);
   }
 });
 
 // Test MCP config loading from different locations
 Deno.test("MCP config can be loaded from current or home directory", async () => {
-  const tempWorkDir = await Deno.makeTempDir();
-  const tempHomeDir = await Deno.makeTempDir();
+  const tempWorkDir = await createTempDir();
+  const tempHomeDir = await createTempDir();
   const originalCwd = Deno.cwd();
   const originalHome = Deno.env.get("HOME");
 
@@ -147,8 +148,8 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
     } else {
       Deno.env.delete("HOME");
     }
-    await Deno.remove(tempWorkDir, { recursive: true });
-    await Deno.remove(tempHomeDir, { recursive: true });
+    await cleanupTempDir(tempWorkDir);
+    await cleanupTempDir(tempHomeDir);
   }
 });
 

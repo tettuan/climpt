@@ -1,33 +1,33 @@
 {
-  "version": "1.11.13",
+  "version": "1.11.16",
   "entries": [
     {
       "id": "c3l_specification_v0.1",
       "path": "c3l_specification_v0.1.md",
       "category": "guides",
       "title": "Climpt Project-Specific AI Invocation Language – Spec & Claude Code Integration v0.1",
-      "bytes": 12748
+      "bytes": 12795
     },
     {
       "id": "c3l_specification_v0.3",
       "path": "c3l_specification_v0.3.md",
       "category": "guides",
       "title": "C3L (Climpt 3-word Language) Specification v0.3",
-      "bytes": 7609
+      "bytes": 8076
     },
     {
       "id": "c3l_specification_v0.4",
       "path": "c3l_specification_v0.4.md",
       "category": "guides",
       "title": "C3L (Climpt 3-word Language) Specification v0.4",
-      "bytes": 6975
+      "bytes": 8059
     },
     {
       "id": "c3l_specification_v0.5",
       "path": "c3l_specification_v0.5.md",
       "category": "guides",
       "title": "C3L (Climpt 3-word Language) Specification v0.5",
-      "bytes": 7414
+      "bytes": 8695
     },
     {
       "id": "C3L-issues",
@@ -41,7 +41,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Agent Configuration Concepts",
-      "bytes": 6196
+      "bytes": 7628
     },
     {
       "id": "guides-en-00-overview",
@@ -49,7 +49,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Iterate Agent Introduction Guide",
-      "bytes": 7596
+      "bytes": 8247
     },
     {
       "id": "guides-en-01-prerequisites",
@@ -57,7 +57,7 @@
       "category": "guides",
       "lang": "en",
       "title": "1. Prerequisites",
-      "bytes": 3745
+      "bytes": 3817
     },
     {
       "id": "guides-en-02-climpt-setup",
@@ -65,7 +65,7 @@
       "category": "guides",
       "lang": "en",
       "title": "2. Climpt Setup",
-      "bytes": 3299
+      "bytes": 3302
     },
     {
       "id": "guides-en-03-instruction-creation",
@@ -73,7 +73,7 @@
       "category": "guides",
       "lang": "en",
       "title": "3. Creating Instructions (Prompts)",
-      "bytes": 10051
+      "bytes": 10483
     },
     {
       "id": "guides-en-04-iterate-agent-setup",
@@ -81,7 +81,7 @@
       "category": "guides",
       "lang": "en",
       "title": "4. Iterate Agent Setup and Execution",
-      "bytes": 14455
+      "bytes": 16184
     },
     {
       "id": "guides-en-05-architecture",
@@ -89,7 +89,7 @@
       "category": "guides",
       "lang": "en",
       "title": "5. Climpt Overview",
-      "bytes": 19204
+      "bytes": 20336
     },
     {
       "id": "guides-en-06-config-files",
@@ -97,7 +97,7 @@
       "category": "guides",
       "lang": "en",
       "title": "6. Config Files",
-      "bytes": 9376
+      "bytes": 10106
     },
     {
       "id": "guides-en-07-dependencies",
@@ -105,7 +105,7 @@
       "category": "guides",
       "lang": "en",
       "title": "7. Dependencies",
-      "bytes": 22917
+      "bytes": 23684
     },
     {
       "id": "guides-en-08-prompt-structure",
@@ -113,14 +113,86 @@
       "category": "guides",
       "lang": "en",
       "title": "8. Prompt Structure",
-      "bytes": 11770
+      "bytes": 12589
+    },
+    {
+      "id": "guides-ja-00-overview",
+      "path": "guides/ja/00-overview.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "Iterate Agent 導入ガイド",
+      "bytes": 8605
+    },
+    {
+      "id": "guides-ja-01-prerequisites",
+      "path": "guides/ja/01-prerequisites.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "1. 前提条件",
+      "bytes": 4172
+    },
+    {
+      "id": "guides-ja-02-climpt-setup",
+      "path": "guides/ja/02-climpt-setup.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "2. Climpt のセットアップ",
+      "bytes": 3901
+    },
+    {
+      "id": "guides-ja-03-instruction-creation",
+      "path": "guides/ja/03-instruction-creation.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "3. 指示書（プロンプト）の作成方法",
+      "bytes": 12249
+    },
+    {
+      "id": "guides-ja-04-iterate-agent-setup",
+      "path": "guides/ja/04-iterate-agent-setup.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "4. Iterate Agent の設定と実行",
+      "bytes": 18426
+    },
+    {
+      "id": "guides-ja-05-architecture",
+      "path": "guides/ja/05-architecture.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "5. Climpt 全体像",
+      "bytes": 21257
+    },
+    {
+      "id": "guides-ja-06-config-files",
+      "path": "guides/ja/06-config-files.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "6. 設定ファイル編",
+      "bytes": 11255
+    },
+    {
+      "id": "guides-ja-07-dependencies",
+      "path": "guides/ja/07-dependencies.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "7. 依存構造編",
+      "bytes": 24437
+    },
+    {
+      "id": "guides-ja-08-prompt-structure",
+      "path": "guides/ja/08-prompt-structure.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "8. プロンプト構造編",
+      "bytes": 13366
     },
     {
       "id": "mcp-setup",
       "path": "mcp-setup.md",
       "category": "guides",
       "title": "Climpt MCP Server Setup Guide",
-      "bytes": 9187
+      "bytes": 9237
     },
     {
       "id": "mcp-setup.ja",
@@ -134,7 +206,7 @@
       "path": "prompt-customization-guide.md",
       "category": "guides",
       "title": "Prompt Customization Guide",
-      "bytes": 8194
+      "bytes": 9487
     }
   ]
 }

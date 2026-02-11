@@ -1,6 +1,6 @@
 ---
 name: absolute-path-checker
-description: 実装のテスト、リファクタリング、ポータビリティ、ディレクトリ階層について議論する際に、絶対パスが実装コードに存在しないことを確認する
+description: Verify no absolute paths exist in implementation code when discussing tests, refactoring, portability, or directory hierarchy
 allowed-tools: [Grep, Read, Edit, Bash]
 ---
 

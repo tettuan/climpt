@@ -272,6 +272,36 @@ The `-r` flag (`--reload`) forces re-download of the latest version from JSR.
 
 📖 [Online Documentation](https://tettuan.github.io/climpt/)
 
+## Examples (E2E Verification)
+
+The [`examples/`](examples/) directory contains executable shell scripts organized
+by use case. Run these before each release to verify end-to-end functionality:
+
+```bash
+# Make scripts executable
+chmod +x examples/**/*.sh examples/*.sh
+
+# Run setup verification
+./examples/01_setup/01_install.sh
+
+# Run CLI basic operations
+./examples/02_cli_basic/01_decompose.sh
+
+# Clean up afterwards
+./examples/07_clean.sh
+```
+
+| Folder | Description |
+|--------|-------------|
+| [01_setup/](examples/01_setup/) | Installation and initialization |
+| [02_cli_basic/](examples/02_cli_basic/) | Core CLI commands: decompose, summary, defect |
+| [03_mcp/](examples/03_mcp/) | MCP server setup and IDE integration |
+| [04_docs/](examples/04_docs/) | Documentation installer |
+| [05_agents/](examples/05_agents/) | Agent framework (iterator, reviewer) |
+| [06_registry/](examples/06_registry/) | Registry generation and structure |
+
+See [`examples/README.md`](examples/README.md) for full details.
+
 ## Requirements
 
 - Deno 2.5+
@@ -284,4 +314,3 @@ MIT License - see [LICENSE](LICENSE) file.
 ## Contributing
 
 Issues and PRs welcome at [GitHub](https://github.com/tettuan/climpt).
-# Test commit for CI hook
