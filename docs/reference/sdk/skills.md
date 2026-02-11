@@ -353,7 +353,7 @@ For general Skills troubleshooting (YAML syntax, debugging, etc.), see the
   Conceptual overview, benefits, and architecture
 - [Agent Skills Best Practices](/docs/en/agents-and-tools/agent-skills/best-practices):
   Authoring guidelines for effective Skills
-- [Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills):
+- [Agent Skills Cookbook](https://platform.claude.com/cookbook/skills-notebooks-01-skills-introduction):
   Example Skills and templates
 
 ### SDK Resources

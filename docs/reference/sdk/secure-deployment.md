@@ -38,7 +38,7 @@ Agents can take unintended actions due to prompt injection (instructions
 embedded in content they process) or model error. Claude models are designed to
 resist this, and as we analyzed in our
 [model card](https://assets.anthropic.com/m/64823ba7485345a7/Claude-Opus-4-5-System-Card.pdf),
-we believe Claude Opus 4.5 is the most robust frontier model available.
+we believe Claude Opus 4.6 is the most robust frontier model available.
 
 Defense in depth is still good practice though. For example, if an agent
 processes a malicious file that instructs it to send customer data to an
@@ -268,8 +268,8 @@ docker run --runtime=runsc agent-image
 | Workload              | Overhead                                           |
 | --------------------- | -------------------------------------------------- |
 | CPU-bound computation | ~0% (no syscall interception)                      |
-| Simple syscalls       | ~2× slower                                         |
-| File I/O intensive    | Up to 10-200× slower for heavy open/close patterns |
+| Simple syscalls       | ~2x slower                                         |
+| File I/O intensive    | Up to 10-200x slower for heavy open/close patterns |
 
 For multi-tenant environments or when processing untrusted content, the
 additional isolation is often worth the overhead.

@@ -230,7 +230,7 @@ Use matchers to filter which tools trigger your callbacks:
 Use the `matcher` pattern to target specific tools whenever possible. A matcher
 with `'Bash'` only runs for Bash commands, while omitting the pattern runs your
 callbacks for every tool call. Note that matchers only filter by **tool name**,
-not by file paths or other arguments—to filter by file path, check
+not by file paths or other arguments--to filter by file path, check
 `tool_input.file_path` inside your callback.
 
 Matchers only apply to tool-based hooks (`PreToolUse`, `PostToolUse`,
@@ -370,13 +370,13 @@ modify, or add context to the operation, return an object with a
 
 **Fields inside `hookSpecificOutput`**:
 
-| Field                      | Type                             | Hooks                                                                                | Description                                                      |
-| -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `hookEventName`            | `string`                         | All                                                                                  | Required. Use `input.hook_event_name` to match the current event |
-| `permissionDecision`       | `'allow'` \| `'deny'` \| `'ask'` | PreToolUse                                                                           | Controls whether the tool executes                               |
-| `permissionDecisionReason` | `string`                         | PreToolUse                                                                           | Explanation shown to Claude for the decision                     |
-| `updatedInput`             | `object`                         | PreToolUse                                                                           | Modified tool input (requires `permissionDecision: 'allow'`)     |
-| `additionalContext`        | `string`                         | PostToolUse, UserPromptSubmit, SessionStart<sup>TS</sup>, SubagentStart<sup>TS</sup> | Context added to the conversation                                |
+| Field                      | Type                             | Hooks                                                                                            | Description                                                      |
+| -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `hookEventName`            | `string`                         | All                                                                                              | Required. Use `input.hook_event_name` to match the current event |
+| `permissionDecision`       | `'allow'` \| `'deny'` \| `'ask'` | PreToolUse                                                                                       | Controls whether the tool executes                               |
+| `permissionDecisionReason` | `string`                         | PreToolUse                                                                                       | Explanation shown to Claude for the decision                     |
+| `updatedInput`             | `object`                         | PreToolUse                                                                                       | Modified tool input (requires `permissionDecision: 'allow'`)     |
+| `additionalContext`        | `string`                         | PreToolUse, PostToolUse, UserPromptSubmit, SessionStart<sup>TS</sup>, SubagentStart<sup>TS</sup> | Context added to the conversation                                |
 
 This example blocks write operations to the `/etc` directory while injecting a
 system message to remind Claude about safe file practices:
@@ -434,7 +434,7 @@ order:
 3. **Allow** rules are checked third.
 4. **Default to Ask** if nothing matches.
 
-If any hook returns `deny`, the operation is blocked—other hooks returning
+If any hook returns `deny`, the operation is blocked--other hooks returning
 `allow` won't override it.
 
 #### Block a tool
