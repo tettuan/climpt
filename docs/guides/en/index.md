@@ -23,6 +23,18 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included.
 - [Dependencies](07-dependencies.md)
 - [Prompt Structure](08-prompt-structure.md)
 
+## Examples (E2E Verification)
+
+Run the [`examples/`](../../../examples/) scripts to verify end-to-end
+functionality before each release:
+
+- [Setup](../../../examples/01_setup/) - Installation and initialization
+- [CLI Basic](../../../examples/02_cli_basic/) - Core CLI commands
+- [MCP](../../../examples/03_mcp/) - MCP server and IDE integration
+- [Docs](../../../examples/04_docs/) - Documentation installer
+- [Agents](../../../examples/05_agents/) - Agent framework
+- [Registry](../../../examples/06_registry/) - Registry generation
+
 ## Links
 
 - [GitHub Repository](https://github.com/tettuan/climpt)

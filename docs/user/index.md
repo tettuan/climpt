@@ -101,6 +101,19 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 | With input file | `climpt -f=input.md <directive> <layer>` |
 | List commands   | Use MCP `search` tool                    |
 
+## Examples (E2E Verification)
+
+The [`examples/`](../../examples/) directory contains executable shell scripts
+for verifying end-to-end functionality. Run these before each release:
+
+```bash
+chmod +x examples/**/*.sh examples/*.sh
+./examples/01_setup/01_install.sh
+./examples/02_cli_basic/01_decompose.sh
+```
+
+See [`examples/README.md`](../../examples/README.md) for the full list.
+
 ## Related Documentation
 
 - [Developer Documentation](../developer/index.md) - For developers building

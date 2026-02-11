@@ -82,6 +82,16 @@ contribute to the project.
 For implementation details and technical specifications, see
 [Internal Documentation](../internal/index.md).
 
+## Examples (E2E Verification)
+
+Run [`examples/`](../../examples/) scripts to verify functionality before
+releases. Particularly useful for developers:
+
+- [Agent examples](../../examples/05_agents/) - Iterator, reviewer, and config
+- [Registry examples](../../examples/06_registry/) - Registry generation
+
+See [`examples/README.md`](../../examples/README.md) for the full list.
+
 ## Quick Links
 
 | Resource                                               | Description                    |
