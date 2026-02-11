@@ -122,7 +122,12 @@ export function validateAgentDefinition(
     }
 
     // Validate permission mode
-    const validPermissionModes = ["plan", "acceptEdits", "bypassPermissions"];
+    const validPermissionModes = [
+      "default",
+      "plan",
+      "acceptEdits",
+      "bypassPermissions",
+    ];
     if (
       def.behavior.permissionMode &&
       !validPermissionModes.includes(def.behavior.permissionMode)

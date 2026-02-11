@@ -170,7 +170,7 @@
         },
         "permissionMode": {
           "type": "string",
-          "enum": ["plan", "acceptEdits", "bypassPermissions"],
+          "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
           "description": "Claude permission mode"
         },
         "sandboxConfig": {

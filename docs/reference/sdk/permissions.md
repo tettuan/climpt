@@ -81,12 +81,12 @@ streaming sessions.
 
 The SDK supports four permission modes, each with different behavior:
 
-| Mode                | Description                  | Tool Behavior                                                                                              |
-| :------------------ | :--------------------------- | :--------------------------------------------------------------------------------------------------------- |
-| `default`           | Standard permission behavior | Normal permission checks apply                                                                             |
-| `plan`              | Planning mode - no execution | Claude can only use read-only tools; presents a plan before execution **(Not currently supported in SDK)** |
-| `acceptEdits`       | Auto-accept file edits       | File edits and filesystem operations are automatically approved                                            |
-| `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution)                                                |
+| Mode                | Description                  | Tool Behavior                                                   |
+| :------------------ | :--------------------------- | :-------------------------------------------------------------- |
+| `default`           | Standard permission behavior | Normal permission checks apply                                  |
+| `plan`              | Planning mode                | No tool execution; Claude plans without making changes          |
+| `acceptEdits`       | Auto-accept file edits       | File edits and filesystem operations are automatically approved |
+| `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution)     |
 
 ### Setting Permission Mode
 
@@ -272,6 +272,121 @@ permissionMode: "default";
 // Switch to acceptEdits for rapid iteration
 await q.setPermissionMode("acceptEdits");
 ```
+
+## allowedTools and Tool Filtering
+
+The `allowedTools` option is the primary mechanism for restricting which tools
+an agent can use. Understanding how it interacts with the SDK is critical for
+building secure agent boundaries.
+
+### How allowedTools Works
+
+When you pass `allowedTools` to `query()`, only the listed tools are available
+to Claude. Any tool not in the list is silently unavailable — Claude will not
+attempt to use it.
+
+```typescript
+const result = query({
+  prompt: "Analyze this code",
+  options: {
+    allowedTools: ["Read", "Glob", "Grep"], // Only these 3 tools available
+  },
+});
+```
+
+### SDK Init Message vs Effective Restrictions
+
+**Important:** The `SDKSystemMessage` (type `"system"`, subtype `"init"`)
+contains a `tools` field that lists **all available tools** registered in the
+SDK runtime, not the filtered set. This is informational and does not reflect
+the effective restrictions.
+
+```typescript
+// SDK init message example
+{
+  type: "system",
+  subtype: "init",
+  tools: ["Read", "Write", "Edit", "Bash", ...], // All 22+ tools
+  // ...
+}
+```
+
+The `allowedTools` restriction is enforced **at tool usage time**, not at
+initialization. When Claude attempts to use a tool not in `allowedTools`, the
+SDK blocks the call before execution.
+
+**Summary of the flow:**
+
+```
+agent.json allowedTools ──→ filterAllowedTools() ──→ SDK query options
+                               (step-kind filter)      ↓
+                                                   SDK enforces at
+                                                   tool usage time
+```
+
+### Tool Filtering in Climpt Agents
+
+Climpt agents use a two-layer tool filtering system:
+
+1. **Static filter (`allowedTools` in agent.json):** Defines the base set of
+   tools the agent can use across all steps.
+
+2. **Dynamic filter (`filterAllowedTools()`):** Further restricts tools based on
+   the current step kind (work, verification, closure). This prevents boundary
+   actions (like closing GitHub issues) during work steps.
+
+```
+agent.json allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep",
+                          "githubIssueClose", "githubPrMerge", ...]
+                                    │
+                                    ▼
+                        filterAllowedTools(tools, stepKind)
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+              work step      verification     closure step
+              (6 tools)      (6 tools)        (all tools)
+              No boundary    No boundary      Boundary tools
+              tools          tools            included
+```
+
+#### Step Kind Categories
+
+| Step Kind      | Available Tools                    | Boundary Tools |
+| :------------- | :--------------------------------- | :------------- |
+| `work`         | Base tools (Read, Write, Edit ...) | Blocked        |
+| `verification` | Base tools (Read, Write, Edit ...) | Blocked        |
+| `closure`      | Base tools + Boundary tools        | Allowed        |
+
+#### Base Tools vs Boundary Tools
+
+**Base Tools** (always available): `Bash`, `Read`, `Write`, `Edit`, `Glob`,
+`Grep`, `WebFetch`, `WebSearch`, `Task`, `TodoWrite`
+
+**Boundary Tools** (closure only): `githubIssueClose`, `githubIssueUpdate`,
+`githubIssueComment`, `githubPrClose`, `githubPrMerge`, `githubPrUpdate`,
+`githubReleaseCreate`, `githubReleasePublish`
+
+### Designing Secure Agent Boundaries
+
+To structurally guarantee tool restrictions:
+
+1. **Use `allowedTools` as the primary guard.** Only list tools the agent
+   genuinely needs. Do not rely solely on `permissionMode` for safety.
+
+2. **Verify tool restrictions in logs.** Look for the `[ToolPolicy]` log entry
+   that shows the filtered tool count:
+   ```
+   [ToolPolicy] Step "dev" (work): tools filtered to 6 allowed
+   ```
+
+3. **Combine with `canUseTool` for runtime checks.** Use the callback for
+   additional validation beyond the static list.
+
+4. **Do not confuse SDK init tools with effective restrictions.** The init
+   message's `tools` array is informational. The `allowedTools` option is the
+   effective filter.
 
 ## canUseTool
 
