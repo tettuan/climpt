@@ -47,4 +47,4 @@ export const BREAKDOWN_VERSION = "1.8.2";
  *
  * @constant {string}
  */
-export const FRONTMATTER_TO_SCHEMA_VERSION = "1.7.1";
+export const FRONTMATTER_TO_SCHEMA_VERSION = "1.7.3";
