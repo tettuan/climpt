@@ -178,11 +178,11 @@ Prompts for each check:
 
 Variables used in prompts:
 
-| Variable Name  | Description  | Value Source  |
-| -------------- | ------------ | ------------- |
-| `{{uv-topic}}` | Task content | CLI parameter |
-|                |              |               |
-|                |              |               |
+| Variable Name | Description  | Value Source  |
+| ------------- | ------------ | ------------- |
+| `{uv-topic}`  | Task content | CLI parameter |
+|               |              |               |
+|               |              |               |
 
 ---
 

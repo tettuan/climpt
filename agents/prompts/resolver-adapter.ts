@@ -212,19 +212,11 @@ export class PromptResolverAdapter {
       try {
         const fullPath = join(this.agentDir, this.systemPromptPath);
         const content = await Deno.readTextFile(fullPath);
-        // Simple variable substitution
+        // Variable substitution: {uv-xxx} single-brace only
         const resolved = content
-          .replace(/\{\{([^}]+)\}\}/g, (_, key) => {
-            const varKey = key.trim();
-            return variables[varKey] ?? variables[`uv-${varKey}`] ??
-              `{{${key}}}`;
-          })
-          .replace(/\{([^}]+)\}/g, (_, key) => {
-            const varKey = key.trim();
-            if (varKey.startsWith("uv-")) {
-              return variables[varKey] ?? `{${key}}`;
-            }
-            return variables[`uv-${varKey}`] ?? variables[varKey] ?? `{${key}}`;
+          .replace(/\{uv-([a-zA-Z0-9_-]+)\}/g, (match, varName) => {
+            const value = variables[`uv-${varName}`] ?? variables[varName];
+            return value ?? match;
           });
 
         const result: PromptResolutionResult = {
