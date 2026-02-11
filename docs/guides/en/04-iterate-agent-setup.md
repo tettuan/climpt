@@ -328,12 +328,30 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 | `logging.directory` | Log output destination       |
 | `logging.maxFiles`  | Maximum log files (rotation) |
 
+### allowedTools Behavior
+
+`allowedTools` is the **primary mechanism** for restricting which tools the
+agent can use. Only tools listed here are available to Claude during execution.
+
+**Important notes:**
+
+- The SDK init message shows all registered tools (22+), but the `allowedTools`
+  restriction is enforced at tool usage time, not at initialization
+- Climpt agents apply additional step-kind-based filtering via
+  `filterAllowedTools()` — boundary tools (e.g., `githubIssueClose`) are
+  automatically removed during work/verification steps
+- To structurally guarantee tool restrictions, always define `allowedTools`
+  explicitly rather than relying solely on `permissionMode`
+
+For SDK permission modes, see
+[Configure permissions](../../reference/sdk/permissions.md#permission-modes).
+
 ### permissionMode Types
 
 | Mode                | Description                              | Recommended Use                    |
 | ------------------- | ---------------------------------------- | ---------------------------------- |
 | `default`           | Confirmation required for all operations | Initial testing                    |
-| `plan`              | Only planning allowed                    | Plan review                        |
+| `plan`              | Planning mode (no tool execution)        | Plan review                        |
 | `acceptEdits`       | Auto-approve file edits                  | **Normal operation (recommended)** |
 | `bypassPermissions` | Auto-approve all operations              | Full automation                    |
 
@@ -355,6 +373,47 @@ The default system.md template includes `{uv-completion_criteria}`, which is
 automatically populated by the completion handler at runtime. If you want to
 define custom completion criteria, replace `{uv-completion_criteria}` with your
 own text directly in system.md.
+
+### The `claude_code` Preset
+
+The Agent SDK uses an **empty system prompt** by default. To use Claude Code's
+full system prompt (tool instructions, code guidelines, safety rules, and
+environment context), specify the `claude_code` preset in your agent
+configuration:
+
+```json
+{
+  "agents": {
+    "climpt": {
+      "systemPrompt": {
+        "type": "preset",
+        "preset": "claude_code",
+        "append": "Custom instructions added after the preset prompt."
+      }
+    }
+  }
+}
+```
+
+**Key points:**
+
+- The preset provides tool usage instructions, code guidelines, git protocols,
+  and environment context — without it, the agent operates with minimal guidance
+- The preset does **NOT** automatically load CLAUDE.md files — you must
+  configure `settingSources: ["project"]` separately to load project-level
+  instructions
+- Use `append` to add custom instructions while preserving all built-in
+  functionality
+
+| Scenario                     | Configuration                    |
+| :--------------------------- | :------------------------------- |
+| Claude Code-like agent       | Use `claude_code` preset         |
+| Custom behavior from scratch | Use custom `systemPrompt` string |
+| Extend Claude Code behavior  | Use preset with `append`         |
+| Minimal/embedded agent       | Omit preset (empty prompt)       |
+
+For detailed documentation, see
+[Modifying system prompts](../../reference/sdk/modifying-system-prompts.md#understanding-system-prompts).
 
 ### About the --agent Option
 

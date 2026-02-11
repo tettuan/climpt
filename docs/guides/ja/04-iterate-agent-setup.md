@@ -327,14 +327,35 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 | `logging.directory` | ログ出力先                           |
 | `logging.maxFiles`  | ログファイル最大数（ローテーション） |
 
+### allowedTools の動作
+
+`allowedTools`
+はエージェントが使用できるツールを制限する**主要なメカニズム**です。
+ここにリストされたツールのみが実行時に Claude に公開されます。
+
+**重要な注意点:**
+
+- SDK init メッセージには登録済み全ツール（22
+  個以上）が表示されるが、`allowedTools`
+  による制限はツール使用時に適用される（初期化時ではない）
+- Climpt エージェントは `filterAllowedTools()`
+  による追加のステップ種別フィルタを 適用する — boundary ツール（例:
+  `githubIssueClose`）は work/verification ステップで自動的に除外される
+- ツール制限を構造的に保証するには、`permissionMode` だけに頼らず `allowedTools`
+  を明示的に定義すること
+
+SDK の権限モードについて詳細は
+[Configure permissions](../../reference/sdk/permissions.md#permission-modes)
+を参照。
+
 ### permissionMode の種類
 
-| モード              | 説明                     | 推奨用途             |
-| ------------------- | ------------------------ | -------------------- |
-| `default`           | すべての操作に確認が必要 | 初回テスト           |
-| `plan`              | プランニングのみ許可     | 計画確認             |
-| `acceptEdits`       | ファイル編集を自動承認   | **通常運用（推奨）** |
-| `bypassPermissions` | すべての操作を自動承認   | 完全自動化           |
+| モード              | 説明                                 | 推奨用途             |
+| ------------------- | ------------------------------------ | -------------------- |
+| `default`           | すべての操作に確認が必要             | 初回テスト           |
+| `plan`              | プランニングモード（ツール実行なし） | 計画確認             |
+| `acceptEdits`       | ファイル編集を自動承認               | **通常運用（推奨）** |
+| `bypassPermissions` | すべての操作を自動承認               | 完全自動化           |
 
 ### システムプロンプトのカスタマイズ
 
@@ -355,6 +376,48 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 が含まれており、実行時に CompletionHandler
 の値で自動的に展開されます。独自の完了条件を定義したい場合は、`{uv-completion_criteria}`
 を使わずに system.md に直接記述してください。
+
+### `claude_code` プリセット
+
+Agent SDK はデフォルトで**空のシステムプロンプト**を使用します。Claude Code
+の完全なシステムプロンプト（ツール指示、コードガイドライン、安全ルール、環境コンテキスト）を使用するには、エージェント設定で
+`claude_code` プリセットを指定します：
+
+```json
+{
+  "agents": {
+    "climpt": {
+      "systemPrompt": {
+        "type": "preset",
+        "preset": "claude_code",
+        "append": "プリセットプロンプトの後に追加するカスタム指示。"
+      }
+    }
+  }
+}
+```
+
+**重要なポイント:**
+
+- プリセットはツール使用指示、コードガイドライン、git
+  プロトコル、環境コンテキストを提供する —
+  これがないとエージェントは最小限のガイダンスで動作する
+- プリセットは CLAUDE.md ファイルを**自動的にはロードしない** —
+  プロジェクトレベルの指示をロードするには `settingSources: ["project"]`
+  を別途設定する必要がある
+- `append`
+  を使用すると、組み込み機能をすべて保持したままカスタム指示を追加できる
+
+| シナリオ                     | 設定                           |
+| :--------------------------- | :----------------------------- |
+| Claude Code 風のエージェント | `claude_code` プリセットを使用 |
+| ゼロからカスタム動作         | カスタム `systemPrompt` 文字列 |
+| Claude Code の動作を拡張     | プリセット + `append`          |
+| 最小限/組み込みエージェント  | プリセット省略（空プロンプト） |
+
+詳細は
+[Modifying system prompts](../../reference/sdk/modifying-system-prompts.md#understanding-system-prompts)
+を参照。
 
 ### --agent オプションについて
 

@@ -16,7 +16,7 @@ A system prompt is the initial instruction set that shapes how Claude behaves
 throughout a conversation.
 
 <Note>
-**Default behavior:** The Agent SDK uses an **empty system prompt** by default for maximum flexibility. To use Claude Code's system prompt (tool instructions, code guidelines, etc.), specify `systemPrompt: { preset: "claude_code" }` in TypeScript or `system_prompt="claude_code"` in Python.
+**Default behavior:** The Agent SDK uses a **minimal system prompt** by default. It contains only essential tool instructions but omits Claude Code's coding guidelines, response style, and project context. To include the full Claude Code system prompt, specify `systemPrompt: { preset: "claude_code" }` in TypeScript or `system_prompt={"type": "preset", "preset": "claude_code"}` in Python.
 </Note>
 
 Claude Code's system prompt includes:
@@ -26,102 +26,6 @@ Claude Code's system prompt includes:
 - Response tone and verbosity settings
 - Security and safety instructions
 - Context about the current working directory and environment
-
-## The `claude_code` Preset
-
-The `claude_code` preset is a built-in configuration that provides Claude Code's
-full system prompt and tool definitions. Understanding this preset is essential
-for building agents that behave like Claude Code.
-
-### What the Preset Provides
-
-When you set `systemPrompt: { type: "preset", preset: "claude_code" }`, the SDK
-loads Claude Code's complete system prompt, which includes:
-
-| Component               | Description                                             |
-| :---------------------- | :------------------------------------------------------ |
-| Tool usage instructions | Detailed guidance on when/how to use each built-in tool |
-| Code guidelines         | Style, formatting, and security best practices          |
-| Response tone           | Communication style, verbosity, and formatting rules    |
-| Safety instructions     | Security considerations and ethical guidelines          |
-| Environment context     | Current working directory, platform, date, model info   |
-| Git protocols           | Commit, PR, and branch management instructions          |
-
-### Preset Variants
-
-The preset can be used in two configuration options:
-
-#### 1. System Prompt Preset
-
-Controls the system prompt (instructions and behavior):
-
-```typescript
-// Use Claude Code's system prompt as-is
-systemPrompt: { type: "preset", preset: "claude_code" }
-
-// Use Claude Code's system prompt + custom additions
-systemPrompt: { type: "preset", preset: "claude_code", append: "Custom instructions here" }
-```
-
-#### 2. Tools Preset
-
-Controls which tools are available:
-
-```typescript
-// Use Claude Code's default tool set
-tools: { type: "preset", preset: "claude_code" }
-
-// Or specify tools explicitly
-allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-```
-
-### Default Behavior (No Preset)
-
-When no `systemPrompt` is specified, the SDK uses an **empty system prompt**.
-This means:
-
-- No tool usage instructions
-- No code guidelines or safety rules
-- No environment context
-- Claude operates with minimal behavioral guidance
-
-This is intentional for maximum flexibility but means you must provide your own
-instructions for predictable behavior.
-
-### CLAUDE.md and the Preset
-
-**The `claude_code` preset does NOT automatically load CLAUDE.md files.** You
-must explicitly configure `settingSources` to load project instructions:
-
-```typescript
-const result = query({
-  prompt: "Work on this feature",
-  options: {
-    systemPrompt: { type: "preset", preset: "claude_code" },
-    settingSources: ["project"], // Required to load CLAUDE.md
-  },
-});
-```
-
-### Runtime Logging
-
-When the preset is active, agents log the configuration at startup:
-
-```
-[SystemPrompt] Using preset configuration { type: "preset", preset: "claude_code" }
-```
-
-This confirms the preset is loaded. If you don't see this log, the agent is
-using either a custom system prompt or an empty prompt.
-
-### When to Use the Preset
-
-| Scenario                            | Recommendation                   |
-| :---------------------------------- | :------------------------------- |
-| Building a Claude Code-like agent   | Use `claude_code` preset         |
-| Custom agent with specific behavior | Use custom `systemPrompt` string |
-| Extending Claude Code behavior      | Use preset with `append`         |
-| Minimal/embedded agent              | Omit preset (empty prompt)       |
 
 ## Methods of modification
 
@@ -246,10 +150,10 @@ async for message in query(
 
 **Key characteristics:**
 
-- ✅ Persistent across all sessions in a project
-- ✅ Shared with team via git
-- ✅ Automatic discovery (no code changes needed)
-- ⚠️ Requires loading settings via `settingSources`
+- Persistent across all sessions in a project
+- Shared with team via git
+- Automatic discovery (no code changes needed)
+- Requires loading settings via `settingSources`
 
 ### Method 2: Output styles (persistent configurations)
 
