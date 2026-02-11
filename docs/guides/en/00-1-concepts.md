@@ -50,21 +50,9 @@ The most important decision when creating an Agent.
 | `keywordSignal`   | Agent should stop when it says a specific word                          | Simple completion detection                                                           |
 | `stepMachine`     | Agent follows a state machine with explicit transitions                 | Complex multi-phase workflows                                                         |
 
-**Decision Guide:**
-
-```
-Q: Does completion depend on external state (GitHub, API)?
-   Yes → externalState
-   No  ↓
-
-Q: Do you want a fixed number of iterations?
-   Yes → iterationBudget
-   No  ↓
-
-Q: Is a simple keyword enough to signal completion?
-   Yes → keywordSignal
-   No  → stepMachine
-```
+**Decision Guide:** Does completion depend on external state? ->
+`externalState`. Fixed iteration count? -> `iterationBudget`. Simple keyword
+signal? -> `keywordSignal`. Otherwise -> `stepMachine`.
 
 ### 2. C3L Path Structure: Why Three Levels?
 
@@ -77,8 +65,6 @@ prompts/{c1}/{c2}/{c3}/f_{edition}.md
          │     └─ Action (what verb)
          └─ Domain (what area)
 ```
-
-**Why this structure?**
 
 | Level       | Purpose                   | Example                   | Benefit               |
 | ----------- | ------------------------- | ------------------------- | --------------------- |
@@ -105,26 +91,15 @@ Agents use three types of steps, each with a specific responsibility:
 
 **Why separate them?**
 
-- **Work steps** cannot say "I'm done" → Prevents premature completion
-- **Verification steps** validate before closing → Ensures quality
-- **Closure steps** are the only ones that can end the flow → Clear completion
+- **Work steps** cannot say "I'm done" -- prevents premature completion
+- **Verification steps** validate before closing -- ensures quality
+- **Closure steps** are the only ones that can end the flow -- clear completion
   authority
-
-```
-Work → Work → Verification → Closure
-  │      │         │            │
-  │      │         │            └─ "closing" ends the Agent
-  │      │         └─ Can send back to Work if issues found
-  │      └─ Can continue or handoff
-  └─ Cannot return "closing"
-```
 
 ### 4. Structured Output: Why Schema Validation?
 
 Every step must define an output schema. The AI's response is validated against
 this schema.
-
-**Why?**
 
 | Without Schema                    | With Schema                            |
 | --------------------------------- | -------------------------------------- |

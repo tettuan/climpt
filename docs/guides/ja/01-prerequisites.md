@@ -23,46 +23,15 @@ Deno は TypeScript/JavaScript ランタイムです。Climpt の実行に必要
 curl -fsSL https://deno.land/install.sh | sh
 ```
 
-### macOS (Homebrew)
+macOS では `brew install deno` も可能です。
 
-```bash
-brew install deno
-```
-
-### Windows (PowerShell)
-
-```powershell
-irm https://deno.land/install.ps1 | iex
-```
+> **他のプラットフォーム**: [deno.land](https://deno.land)
+> のインストール手順を参照してください。
 
 ### インストール確認
 
 ```bash
 deno --version
-```
-
-出力例：
-
-```
-deno 2.1.4 (stable, release, aarch64-apple-darwin)
-v8 13.0.245.12-rusty
-typescript 5.6.2
-```
-
-### PATH の設定
-
-インストール後、Deno が見つからない場合は PATH を設定します：
-
-```bash
-# ~/.bashrc または ~/.zshrc に追加
-export DENO_INSTALL="$HOME/.deno"
-export PATH="$DENO_INSTALL/bin:$PATH"
-```
-
-設定を反映：
-
-```bash
-source ~/.zshrc  # または source ~/.bashrc
 ```
 
 ---
@@ -90,38 +59,14 @@ sudo apt update
 sudo apt install gh -y
 ```
 
-### Linux (dnf)
-
-```bash
-# Fedora/RHEL
-sudo dnf install 'dnf-command(config-manager)'
-sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
-sudo dnf install gh
-```
-
-### Windows
-
-```powershell
-# Scoop
-scoop install gh
-
-# Chocolatey
-choco install gh
-
-# winget
-winget install --id GitHub.cli
-```
+> **他のプラットフォーム（Windows、Fedora 等）**:
+> [cli.github.com/manual/installation](https://cli.github.com/manual/installation)
+> を参照してください。
 
 ### インストール確認
 
 ```bash
 gh --version
-```
-
-出力例：
-
-```
-gh version 2.62.0 (2024-11-14)
 ```
 
 ---
@@ -130,75 +75,37 @@ gh version 2.62.0 (2024-11-14)
 
 `gh` をインストールしたら、GitHub アカウントで認証します。
 
-### 認証の実行
-
 ```bash
 gh auth login
 ```
 
 対話形式で以下を選択：
 
-1. **Where do you use GitHub?** → `GitHub.com` を選択
-
+1. **Where do you use GitHub?** → `GitHub.com`
 2. **What is your preferred protocol for Git operations on this host?** →
-   `HTTPS` を選択（推奨）
-
-3. **Authenticate Git with your GitHub credentials?** → `Yes` を選択
-
+   `HTTPS`（推奨）
+3. **Authenticate Git with your GitHub credentials?** → `Yes`
 4. **How would you like to authenticate GitHub CLI?** →
-   `Login with a web browser` を選択
-
+   `Login with a web browser`
 5. ブラウザが開くので、表示されたコードを入力して認証
 
-### 認証の確認
+認証の確認：
 
 ```bash
 gh auth status
 ```
 
-成功時の出力例：
-
-```
-github.com
-  ✓ Logged in to github.com account your-username
-  ✓ Git operations for github.com configured to use https protocol.
-  ✓ Token: gho_************************************
-  ✓ Token scopes: 'gist', 'read:org', 'repo', 'workflow'
-```
-
-### 認証に問題がある場合
-
-```bash
-# 再認証
-gh auth logout
-gh auth login
-
-# トークンの更新
-gh auth refresh
-```
+問題がある場合は `gh auth logout` → `gh auth login` で再認証、または
+`gh auth refresh` でトークンを更新してください。
 
 ---
 
 ## 確認チェックリスト
 
-以下のコマンドがすべて正常に動作することを確認してください：
-
 ```bash
-# Deno バージョン確認
-deno --version
-
-# gh バージョン確認
-gh --version
-
-# gh 認証状態確認
-gh auth status
+deno --version       # Deno バージョン確認
+gh --version         # gh バージョン確認
+gh auth status       # gh 認証状態確認
 ```
 
 すべて正常であれば、次のステップへ進みます。
-
----
-
-## 次のステップ
-
-[02-climpt-setup.md](./02-climpt-setup.md) へ進んで、Climpt
-をインストールします。

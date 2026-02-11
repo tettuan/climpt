@@ -38,39 +38,15 @@ setup:
 Climpt consists of five layers, enabling autonomous execution with Iterate Agent
 at the top.
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                        5-Layer Structure                        │
-├────────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ [Top Layer] Iterator/Reviewer Agent                      │  │
-│  │             Connects with GitHub Issue/Project, iterates │  │
-│  └────────────────────────┬────────────────────────────────┘  │
-│                           ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ [Middle Layer] delegate-climpt-agent Skill               │  │
-│  │                Command search, option resolution         │  │
-│  └────────────────────────┬────────────────────────────────┘  │
-│                           ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ [Execution Layer] Sub-Agent (climpt-agent.ts)            │  │
-│  │                   Retrieves prompt, works autonomously   │  │
-│  └────────────────────────┬────────────────────────────────┘  │
-│  ─────────────────────────┼────────────────────────────────── │
-│                           ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ [Tool Layer] CLI / MCP                                   │  │
-│  │              Interface for prompt retrieval              │  │
-│  └────────────────────────┬────────────────────────────────┘  │
-│                           ▼                                    │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │ [Config Layer] registry.json / prompts/                  │  │
-│  │                Prompt templates and command definitions  │  │
-│  └─────────────────────────────────────────────────────────┘  │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
-```
+- **Top Layer**: Iterator/Reviewer Agent -- connects with GitHub Issue/Project,
+  iterates
+  - **Middle Layer**: delegate-climpt-agent Skill -- command search, option
+    resolution
+    - **Execution Layer**: Sub-Agent (climpt-agent.ts) -- retrieves prompt,
+      works autonomously
+      - **Tool Layer**: CLI / MCP -- interface for prompt retrieval
+        - **Config Layer**: registry.json / prompts/ -- prompt templates and
+          command definitions
 
 ### Execution Flow
 
@@ -88,49 +64,14 @@ See [05-architecture.md](./05-architecture.md) for details.
 
 ## Setup Flow
 
-```
-1. Prepare Prerequisites
-   ├── Install Deno 2.x
-   ├── Install GitHub CLI (gh)
-   └── Authenticate gh
-
-2. Climpt Setup
-   ├── Install Climpt
-   ├── Initialize with climpt init
-   └── Install Claude Code plugin
-
-3. Create Instructions (Optional)
-   ├── Create new with meta create instruction
-   ├── Generate frontmatter with meta build frontmatter
-   └── Regenerate registry with /reg
-
-4. Run Iterate Agent
-   ├── Initialize with iterate-agent --init
-   └── Execute with --issue or --project
-
-5. Understanding the System (Advanced)
-   ├── Overview: Architecture and execution flow
-   ├── Config Files: app.yml, user.yml details
-   ├── Dependencies: Registry, MCP, package relationships
-   └── Prompt Structure: Manual creation, template variables
-```
-
-## Requirements
-
-| Requirement     | Minimum Version | Purpose                 |
-| --------------- | --------------- | ----------------------- |
-| Deno            | 2.x             | Climpt runtime          |
-| GitHub CLI (gh) | 2.x             | GitHub API access       |
-| Claude Code     | Latest          | AI-assisted development |
-
-## Estimated Time
-
-- Prerequisites preparation: 10-15 minutes
-- Climpt setup: 5-10 minutes
-- Instruction creation: As needed
-- Iterate Agent execution: Immediate
-
-## Next Step
-
-Proceed to [01-prerequisites.md](./01-prerequisites.md) to prepare the
-prerequisites.
+1. **Prepare Prerequisites** -- Install Deno 2.x, GitHub CLI (gh), authenticate
+   gh
+2. **Climpt Setup** -- Install Climpt, initialize with `climpt init`, install
+   Claude Code plugin
+3. **Create Instructions** (Optional) -- Create with `meta create instruction`,
+   generate frontmatter with `meta build frontmatter`, regenerate registry with
+   `/reg`
+4. **Run Iterate Agent** -- Initialize with `iterate-agent --init`, execute with
+   `--issue` or `--project`
+5. **Understanding the System** (Advanced) -- Architecture, config files,
+   dependencies, prompt structure

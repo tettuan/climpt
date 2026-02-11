@@ -5,17 +5,6 @@
 Explains prompt file structure, manual creation methods, and template variable
 mechanisms.
 
-## Contents
-
-1. [Prompt File Basics](#81-prompt-file-basics)
-2. [Writing Frontmatter](#82-writing-frontmatter)
-3. [Template Variables](#83-template-variables)
-4. [User Variables (uv)](#84-user-variables-uv)
-5. [Manual Prompt Creation Steps](#85-manual-prompt-creation-steps)
-6. [Edition and Adaptation](#86-edition-and-adaptation)
-
----
-
 ## 8.1 Prompt File Basics
 
 ### File Placement
@@ -169,54 +158,6 @@ echo "function test() { return 1; }" | \
   -o=./output/result.md
 ```
 
-Output after replacement:
-
-```markdown
-# Code Analysis
-
-## Target File
-
-./src/main.ts
-
-## Input Content
-```
-
-function test() { return 1; }
-
-```
-## Output Destination
-./output/result.md
-```
-
-### Replacement Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Template Replacement Flow                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Prompt template:                                           │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ File: {input_text_file}                             │   │
-│  │ Content: {input_text}                               │   │
-│  │ Language: {uv-lang}                                 │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                            │                                │
-│                            ▼                                │
-│  CLI input:                                                 │
-│  echo "code" | climpt-code analyze -f=main.ts --uv-lang=ts  │
-│                            │                                │
-│                            ▼                                │
-│  After replacement:                                         │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ File: main.ts                                       │   │
-│  │ Content: code                                       │   │
-│  │ Language: ts                                        │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
 ---
 
 ## 8.4 User Variables (uv)
@@ -287,85 +228,20 @@ uv:
 
 How to create prompts manually without using `meta create instruction`.
 
-### Step 1: Create Directory
+### Step 1: Create directory and prompt file
 
 ```bash
 mkdir -p .agent/climpt/prompts/code/analyze/complexity
-```
-
-### Step 2: Create Prompt File
-
-```bash
 touch .agent/climpt/prompts/code/analyze/complexity/f_default.md
 ```
 
-### Step 3: Write Frontmatter
+Write frontmatter and prompt body into `f_default.md` (see sections 8.2 and 8.3
+for format).
 
-```markdown
----
-c1: code
-c2: analyze
-c3: complexity
-title: Analyze Code Complexity
-description: Calculate cyclomatic complexity and provide improvement suggestions
-usage: climpt-code analyze complexity
-c3l_version: "0.5"
-options:
-  edition:
-    - default
-  adaptation:
-    - default
-    - detailed
-  file: true
-  stdin: true
-  destination: true
----
-```
-
-### Step 4: Write Prompt Body
-
-```markdown
-# Code Complexity Analysis
-
-## Target
-
-Please analyze the complexity of the following code.
-
-### Input File
-
-{input_text_file}
-
-### Input Content
-```
-
-{input_text}
-
-```
-## Analysis Items
-
-1. Cyclomatic complexity
-2. Cognitive complexity
-3. Nesting depth
-4. Function line count
-
-## Output Format
-
-Output analysis results in the following format:
-
-- Score for each function
-- List of areas needing improvement
-- Specific improvement suggestions
-
-## Output Destination
-
-{destination_path}
-```
-
-### Step 5: Check/Create Config File
-
-Only for new domains:
+### Step 2: Create config and executable (new domains only)
 
 ```bash
+# Config file
 cat > .agent/climpt/config/code-app.yml << 'EOF'
 working_dir: ".agent/climpt"
 app_prompt:
@@ -373,11 +249,8 @@ app_prompt:
 app_schema:
   base_dir: "schema/code"
 EOF
-```
 
-### Step 6: Create Executable (For CLI Use)
-
-```bash
+# CLI executable
 cat > .deno/bin/climpt-code << 'EOF'
 #!/bin/sh
 case "$1" in
@@ -393,21 +266,13 @@ EOF
 chmod +x .deno/bin/climpt-code
 ```
 
-### Step 7: Update Registry
+### Step 3: Update registry and verify
 
 ```bash
 deno task generate-registry
-# or
-deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
-```
 
-### Step 8: Verify Operation
-
-```bash
 climpt-code analyze complexity --help
-
-echo "function test() { if(a) { if(b) { } } }" | \
-  climpt-code analyze complexity
+echo "function test() { if(a) { if(b) { } } }" | climpt-code analyze complexity
 ```
 
 ---
@@ -459,41 +324,3 @@ prompts/code/review/pull-request/
 ├── f_bug_detailed.md      # Bug fix + detailed
 └── f_feature_strict.md    # New feature + strict
 ```
-
----
-
-## Checklist
-
-Verification items after prompt creation:
-
-- [ ] File exists in correct location
-  ```bash
-  ls .agent/climpt/prompts/{c1}/{c2}/{c3}/
-  ```
-
-- [ ] Frontmatter is in correct format
-  ```bash
-  head -20 .agent/climpt/prompts/{c1}/{c2}/{c3}/f_default.md
-  ```
-
-- [ ] All values are in English
-
-- [ ] Registered in registry
-  ```bash
-  cat .agent/climpt/registry.json | jq '.tools.commands[] | select(.c2 == "{c2}")'
-  ```
-
-- [ ] Command can be executed
-  ```bash
-  climpt-{c1} {c2} {c3} --help
-  ```
-
----
-
-## Related Guides
-
-- [03-instruction-creation.md](./03-instruction-creation.md) - Instruction
-  creation via auto-generation
-- [05-architecture.md](./05-architecture.md) - Architecture Overview
-- [06-config-files.md](./06-config-files.md) - Config Files
-- [07-dependencies.md](./07-dependencies.md) - Dependencies

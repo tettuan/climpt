@@ -4,17 +4,6 @@
 
 プロンプトファイルの構造、手動作成方法、テンプレート変数の仕組みを説明します。
 
-## 目次
-
-1. [プロンプトファイルの基本](#81-プロンプトファイルの基本)
-2. [フロントマターの書き方](#82-フロントマターの書き方)
-3. [テンプレート変数](#83-テンプレート変数)
-4. [ユーザー変数（uv）](#84-ユーザー変数uv)
-5. [プロンプトの手動作成手順](#85-プロンプトの手動作成手順)
-6. [エディションとアダプテーション](#86-エディションとアダプテーション)
-
----
-
 ## 8.1 プロンプトファイルの基本
 
 ### ファイル配置
@@ -45,13 +34,10 @@ title: Decide Working Branch
 description: Decide branch strategy based on task content
 ---
 
----
-
 # プロンプト本文（Markdown）
 
-ここにAIへの指示を記述します。
-
-テンプレート変数を使用できます： {input_text} {destination_path}
+ここにAIへの指示を記述します。 テンプレート変数を使用できます： {input_text}
+{destination_path}
 ```
 
 ### ファイル命名規則
@@ -168,53 +154,7 @@ echo "function test() { return 1; }" | \
   -o=./output/result.md
 ```
 
-置換後の出力：
-
-```markdown
-# コード分析
-
-## 対象ファイル
-
-./src/main.ts
-
-## 入力内容
-```
-
-function test() { return 1; }
-
-```
-## 出力先
-./output/result.md
-```
-
-### 置換フロー
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   テンプレート置換の流れ                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  プロンプトテンプレート:                                    │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ ファイル: {input_text_file}                         │   │
-│  │ 内容: {input_text}                                  │   │
-│  │ 言語: {uv-lang}                                     │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                            │                                │
-│                            ▼                                │
-│  CLI 入力:                                                  │
-│  echo "code" | climpt-code analyze -f=main.ts --uv-lang=ts  │
-│                            │                                │
-│                            ▼                                │
-│  置換後:                                                    │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ ファイル: main.ts                                   │   │
-│  │ 内容: code                                          │   │
-│  │ 言語: ts                                            │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+テンプレート変数は CLI 入力の値で置換され、最終プロンプトが出力されます。
 
 ---
 
@@ -286,127 +226,25 @@ uv:
 
 `meta create instruction` を使わずに手動で作成する方法です。
 
-### Step 1: ディレクトリ作成
+### Step 1: ディレクトリとファイルを作成
 
 ```bash
 mkdir -p .agent/climpt/prompts/code/analyze/complexity
-```
-
-### Step 2: プロンプトファイル作成
-
-```bash
 touch .agent/climpt/prompts/code/analyze/complexity/f_default.md
 ```
 
-### Step 3: フロントマター記述
+### Step 2: フロントマターとプロンプト本文を記述
 
-```markdown
----
-c1: code
-c2: analyze
-c3: complexity
-title: Analyze Code Complexity
-description: Calculate cyclomatic complexity and provide improvement suggestions
-usage: climpt-code analyze complexity
-c3l_version: "0.5"
-options:
-  edition:
-    - default
-  adaptation:
-    - default
-    - detailed
-  file: true
-  stdin: true
-  destination: true
----
-```
+ファイルの先頭にフロントマター（c1, c2, c3, title
+等）を記述し、続けてプロンプト本文を記述します。新規ドメインの場合は
+`{domain}-app.yml`
+と実行ファイル（`.deno/bin/climpt-{domain}`）も作成してください。
 
-### Step 4: プロンプト本文記述
-
-```markdown
-# コード複雑度分析
-
-## 対象
-
-以下のコードの複雑度を分析してください。
-
-### 入力ファイル
-
-{input_text_file}
-
-### 入力内容
-```
-
-{input_text}
-
-```
-## 分析項目
-
-1. サイクロマティック複雑度
-2. 認知的複雑度
-3. ネストの深さ
-4. 関数の行数
-
-## 出力形式
-
-分析結果を以下の形式で出力してください：
-
-- 各関数のスコア
-- 改善が必要な箇所のリスト
-- 具体的な改善提案
-
-## 出力先
-
-{destination_path}
-```
-
-### Step 5: 設定ファイル確認/作成
-
-新規ドメインの場合のみ：
-
-```bash
-cat > .agent/climpt/config/code-app.yml << 'EOF'
-working_dir: ".agent/climpt"
-app_prompt:
-  base_dir: "prompts/code"
-app_schema:
-  base_dir: "schema/code"
-EOF
-```
-
-### Step 6: 実行ファイル作成（CLI 使用時）
-
-```bash
-cat > .deno/bin/climpt-code << 'EOF'
-#!/bin/sh
-case "$1" in
-    -h|--help|-v|--version)
-        exec deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config 'jsr:@aidevtool/climpt' "$@"
-        ;;
-    *)
-        exec deno run --allow-read --allow-write --allow-env --allow-run --allow-net --no-config 'jsr:@aidevtool/climpt' --config=code "$@"
-        ;;
-esac
-EOF
-
-chmod +x .deno/bin/climpt-code
-```
-
-### Step 7: レジストリ更新
+### Step 3: レジストリ更新と動作確認
 
 ```bash
 deno task generate-registry
-# または
-deno run --allow-read --allow-write --allow-env jsr:@aidevtool/climpt/reg
-```
-
-### Step 8: 動作確認
-
-```bash
-climpt-code analyze complexity --help
-
-echo "function test() { if(a) { if(b) { } } }" | \
-  climpt-code analyze complexity
+climpt-{domain} {action} {target} --help
 ```
 
 ---
@@ -425,10 +263,10 @@ echo "function test() { if(a) { if(b) { } } }" | \
 ```
 --edition=bug --adaptation=detailed の場合:
 
-1. f_bug_detailed.md  ← 最優先
+1. f_bug_detailed.md  <- 最優先
 2. f_bug.md
 3. f_default_detailed.md
-4. f_default.md       ← 最後のフォールバック
+4. f_default.md       <- 最後のフォールバック
 ```
 
 ### 使用例
@@ -458,41 +296,3 @@ prompts/code/review/pull-request/
 ├── f_bug_detailed.md      # バグ修正 + 詳細
 └── f_feature_strict.md    # 新機能 + 厳格
 ```
-
----
-
-## チェックリスト
-
-プロンプト作成後の確認事項：
-
-- [ ] ファイルが正しい場所に存在
-  ```bash
-  ls .agent/climpt/prompts/{c1}/{c2}/{c3}/
-  ```
-
-- [ ] フロントマターが正しい形式
-  ```bash
-  head -20 .agent/climpt/prompts/{c1}/{c2}/{c3}/f_default.md
-  ```
-
-- [ ] すべての値が英語で記述されている
-
-- [ ] レジストリに登録されている
-  ```bash
-  cat .agent/climpt/registry.json | jq '.tools.commands[] | select(.c2 == "{c2}")'
-  ```
-
-- [ ] コマンドが実行できる
-  ```bash
-  climpt-{c1} {c2} {c3} --help
-  ```
-
----
-
-## 関連ガイド
-
-- [03-instruction-creation.md](./03-instruction-creation.md) -
-  自動生成による指示書作成
-- [05-architecture.md](./05-architecture.md) - 全体像編
-- [06-config-files.md](./06-config-files.md) - 設定ファイル編
-- [07-dependencies.md](./07-dependencies.md) - 依存構造編

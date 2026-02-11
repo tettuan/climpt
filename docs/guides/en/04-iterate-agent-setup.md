@@ -6,42 +6,16 @@
 Set up and run Iterate Agent to automatically process GitHub Issues and
 Projects.
 
-## Contents
-
-1. [What is Iterate Agent](#41-what-is-iterate-agent)
-2. [Prerequisites](#42-prerequisites)
-3. [Initialization](#43-initialization)
-4. [Basic Usage](#44-basic-usage)
-5. [Completion Criteria](#45-completion-criteria)
-6. [Configuration Customization](#46-configuration-customization)
-7. [Execution Report](#47-execution-report)
-8. [Troubleshooting](#48-troubleshooting)
-
----
-
 ## 4.1 What is Iterate Agent
 
 Iterate Agent is an autonomous development agent using the Claude Agent SDK. It
 automatically repeats the following cycle:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  Iterate Agent Operation                     │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. Get requirements from GitHub Issue/Project             │
-│                    ↓                                        │
-│  2. Execute task via delegate-climpt-agent Skill           │
-│                    ↓                                        │
-│  3. Sub-agent performs development work                    │
-│                    ↓                                        │
-│  4. Evaluate results, check completion criteria            │
-│                    ↓                                        │
-│  5. Incomplete → Determine next task, return to 2          │
-│     Complete   → Finish                                    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+1. Get requirements from GitHub Issue/Project
+2. Execute task via delegate-climpt-agent Skill
+3. Sub-agent performs development work
+4. Evaluate results, check completion criteria
+5. Incomplete: determine next task, return to step 2. Complete: finish.
 
 ### Key Features
 
@@ -57,8 +31,6 @@ automatically repeats the following cycle:
 
 **Important**: Iterate Agent requires the following setup before use:
 
-### Required
-
 | Requirement              | Description                         | Verification                  |
 | ------------------------ | ----------------------------------- | ----------------------------- |
 | **GitHub CLI (`gh`)**    | Must be installed and authenticated | `gh auth status`              |
@@ -66,8 +38,6 @@ automatically repeats the following cycle:
 | **GitHub remote**        | Repository must be pushed to GitHub | `git remote -v`               |
 | **Target Issue/Project** | Must exist on GitHub                | `gh issue list`               |
 | **Claude Code Plugin**   | climpt-agent plugin installed       | Check `.claude/settings.json` |
-
-### Claude Code Plugin Setup
 
 The `delegate-climpt-agent` Skill requires the climpt-agent plugin:
 
@@ -77,46 +47,15 @@ The `delegate-climpt-agent` Skill requires the climpt-agent plugin:
 /plugin install climpt-agent
 ```
 
-After installation, your `.claude/settings.json` should include:
-
-```json
-{
-  "plugins": {
-    "marketplace": ["tettuan/climpt"],
-    "installed": ["climpt-agent"]
-  }
-}
-```
-
 > **Note**: The agent will display a warning if the plugin is not installed but
 > will continue to run with limited functionality.
-
-### GitHub CLI Setup
-
-```bash
-# Install (macOS)
-brew install gh
-
-# Install (other platforms)
-# See: https://cli.github.com/manual/installation
-
-# Authenticate
-gh auth login
-```
 
 ### Verify Setup
 
 ```bash
-# Check gh authentication
 gh auth status
-
-# Check git repository
 git status
-
-# Check GitHub remote
 git remote -v
-
-# List available issues
 gh issue list
 ```
 
@@ -135,35 +74,11 @@ This creates the required configuration files. See
 
 ## 4.3 Initialization
 
-### Navigate to Project Directory
-
-```bash
-cd your-project
-```
-
 ### Execute Initialization Command
 
 ```bash
+cd your-project
 deno run -A jsr:@aidevtool/climpt/agents/iterator --init
-```
-
-Example output:
-
-```
-Iterate Agent initialized successfully!
-
-Created files:
-  - agents/iterator/config.json
-  - .agent/iterator/prompts/dev/*
-
-Next steps:
-  1. Review and customize the configuration in agents/iterator/config.json
-  2. Install the Claude Code plugin (required for delegate-climpt-agent Skill):
-     /plugin marketplace add tettuan/climpt
-     /plugin install climpt-agent
-  3. Run: deno run -A jsr:@aidevtool/climpt/agents/iterator --issue <number>
-
-Note: Requires 'gh' CLI (https://cli.github.com) with authentication.
 ```
 
 ### Created Files
@@ -191,12 +106,6 @@ Automatically execute until the specified Issue is closed:
 deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
-Short form:
-
-```bash
-deno run -A jsr:@aidevtool/climpt/agents/iterator -i 123
-```
-
 ### Project-Based Execution
 
 Execute until all items in the Project are complete:
@@ -205,24 +114,12 @@ Execute until all items in the Project are complete:
 deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 ```
 
-Short form:
-
-```bash
-deno run -A jsr:@aidevtool/climpt/agents/iterator -p 5
-```
-
 ### Limit Iteration Count
 
 Stop after maximum 10 iterations:
 
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
-```
-
-Short form:
-
-```bash
-deno run -A jsr:@aidevtool/climpt/agents/iterator -m 10
 ```
 
 ### Resume Session
@@ -266,23 +163,6 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --iterate-max 10
 
 # Work on a project owned by a different user/organization
 deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
-```
-
-### About --project-owner
-
-Project numbers are scoped per project owner (user or organization). By default,
-the repository owner's projects are used, but you can specify a different owner
-with `--project-owner`:
-
-```bash
-# Your own projects (@me = authenticated user)
-deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner @me
-
-# Organization's projects
-deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my-org
-
-# Another user's projects (requires access permission)
-deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner tettuan
 ```
 
 ---
@@ -439,12 +319,9 @@ The `--agent` option specifies a registry name defined in
 
 ## 4.7 Execution Report
 
-A detailed report is displayed upon completion:
+A detailed report is displayed upon completion. Sample Performance table:
 
 ```
-📊 Execution Report
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 ⏱️  Performance
   | Metric         | Value          | Source              |
   |----------------|----------------|---------------------|
@@ -453,28 +330,9 @@ A detailed report is displayed upon completion:
   | Turns          | 28             | SDK `num_turns`     |
   | Iterations     | 1              | Agent runner        |
   | Total Cost     | $0.82 USD      | SDK `total_cost_usd`|
-
-📈 Token Usage
-  | Model            | Input  | Output | Cache Read | Cost  |
-  |------------------|--------|--------|------------|-------|
-  | claude-opus-4-5  | 3,120  | 6,000  | 663,775    | $0.79 |
-  | claude-haiku-4-5 | 32,380 | 656    | 0          | $0.04 |
-
-📋 Activity
-  | Metric         | Value |
-  |----------------|-------|
-  | Log Entries    | 142   |
-  | Errors         | 2     |
-  | Issue Updates  | 3     |
-  | Project Updates| 1     |
-  | Completion     | ✅ criteria_met |
-
-🛠️  Tools Used
-  - Edit: 12
-  - Bash: 8
-  - Read: 25
-  - Grep: 15
 ```
+
+The report also includes Token Usage, Activity, and Tools Used sections.
 
 ### Log Files
 
@@ -483,37 +341,6 @@ Logs are saved in JSONL format:
 ```
 tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
 ```
-
-#### Log Output in Worktree Mode
-
-When running agents in worktree mode (`forceWorktree: true`), logs are always
-written to the **main repository's** `tmp/logs/` directory, not within the
-worktree directory.
-
-```
-# Main repository (where you started the agent)
-your-project/
-├── tmp/
-│   └── logs/
-│       └── agents/
-│           └── climpt/
-│               └── session-*.jsonl  ← Logs are written here
-│
-# Worktree (where the agent performs work)
-../worktree/feature-branch/
-├── src/
-└── ...                              ← No logs in worktree
-```
-
-This ensures:
-
-- **Centralized logging**: All logs are in one location regardless of execution
-  mode
-- **No git pollution**: Worktree directories remain clean for commits
-- **Easy access**: Logs are accessible even after worktree cleanup
-
-> **Note**: The `tmp/` directory is included in `.gitignore`, so logs are never
-> committed.
 
 Viewing logs:
 
@@ -532,40 +359,23 @@ cat tmp/logs/agents/climpt/session-*.jsonl | jq 'select(.level == "assistant")'
 
 ## 4.8 Troubleshooting
 
-### gh command not found
+### gh command not found / gh auth status fails
 
-GitHub CLI is not installed:
+GitHub CLI must be installed and authenticated:
 
 ```bash
-# macOS
-brew install gh
-
-# Authenticate
+brew install gh    # macOS
 gh auth login
 ```
 
-→ See [01-prerequisites.md](./01-prerequisites.md)
+See [01-prerequisites.md](./01-prerequisites.md)
 
-### Configuration file not found
+### Configuration file not found / Empty output from breakdown CLI
 
-Run from project root:
+Run init from project root (re-run if prompt templates are missing):
 
 ```bash
 cd your-project
-deno run -A jsr:@aidevtool/climpt/agents/iterator --init
-```
-
-### Empty output from breakdown CLI
-
-Verify prompt templates exist:
-
-```bash
-ls -la .agent/iterator/prompts/dev/
-```
-
-If not found, re-run `--init`:
-
-```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
@@ -583,30 +393,12 @@ Check `permissionMode` in `config.json`:
 }
 ```
 
-### gh auth status fails
+### Project not found / Issue not found
 
-Re-authenticate with GitHub CLI:
-
-```bash
-gh auth logout
-gh auth login
-```
-
-### Project not found
-
-Verify Project number and owner:
+Verify the target exists on GitHub:
 
 ```bash
-# List projects
 gh project list --owner @me
-```
-
-### Issue not found
-
-Verify Issue number:
-
-```bash
-# List issues
 gh issue list
 ```
 
@@ -632,12 +424,6 @@ deno task iterate-agent --project 5 --iterate-max 10
 ```
 
 ---
-
-## Next Steps
-
-- Try Iterate Agent on an actual Issue
-- Customize system prompt for your project
-- Create custom instructions to extend Climpt Skills
 
 ## Related Documentation
 

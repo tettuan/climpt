@@ -4,55 +4,7 @@
 
 Explains Climpt's registry, MCP server, and external package dependencies.
 
-## Contents
-
-1. [Package Dependencies](#71-package-dependencies)
-2. [Registry Mechanism](#72-registry-mechanism)
-3. [Registry Generation](#73-registry-generation)
-4. [MCP Server Operation](#74-mcp-server-operation)
-5. [Claude Code Plugin Integration](#75-claude-code-plugin-integration)
-
----
-
 ## 7.1 Package Dependencies
-
-### Dependency Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Climpt Package Structure                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │          jsr:@aidevtool/climpt                        │ │
-│  │                                                       │ │
-│  │  Entry points:                                        │ │
-│  │  - /cli      → CLI execution                         │ │
-│  │  - /mcp      → MCP server                            │ │
-│  │  - /reg      → Registry generation                   │ │
-│  │  - /agents/iterator → Iterate Agent                  │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                            │                                │
-│                            ▼                                │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │          jsr:@tettuan/breakdown                       │ │
-│  │                                                       │ │
-│  │  Features:                                            │ │
-│  │  - YAML config file parsing                          │ │
-│  │  - Prompt file loading                               │ │
-│  │  - Template variable replacement                     │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                            │                                │
-│                            ▼                                │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │       jsr:@aidevtool/frontmatter-to-schema           │ │
-│  │                                                       │ │
-│  │  Features:                                            │ │
-│  │  - Generate registry from frontmatter                │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
 
 ### Main Packages
 
@@ -61,6 +13,12 @@ Explains Climpt's registry, MCP server, and external package dependencies.
 | `@aidevtool/climpt`                | Main package                        | `jsr:@aidevtool/climpt`                |
 | `@tettuan/breakdown`               | Core features (template processing) | `jsr:@tettuan/breakdown`               |
 | `@aidevtool/frontmatter-to-schema` | Registry generation                 | `jsr:@aidevtool/frontmatter-to-schema` |
+
+`@aidevtool/climpt` provides entry points: `/cli` (CLI execution), `/mcp` (MCP
+server), `/reg` (registry generation), `/agents/iterator` (Iterate Agent). It
+depends on `@tettuan/breakdown` for YAML config parsing, prompt file loading,
+and template variable replacement, and on `@aidevtool/frontmatter-to-schema` for
+generating registries from frontmatter.
 
 ---
 
@@ -138,44 +96,12 @@ interface Command {
 
 ## 7.3 Registry Generation
 
-### Generation Flow
+Registry generation scans prompt files, extracts frontmatter metadata,
+transforms it according to a schema, and outputs `registry.json`.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   Registry Generation Flow                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Step 1: Scan Prompt Files                                 │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ .agent/climpt/prompts/**/*.md                       │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                            │                                │
-│                            ▼                                │
-│  Step 2: Extract Frontmatter                               │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ ---                                                 │   │
-│  │ c1: git                                             │   │
-│  │ c2: decide-branch                                   │   │
-│  │ c3: working-branch                                  │   │
-│  │ description: ...                                    │   │
-│  │ options: ...                                        │   │
-│  │ ---                                                 │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                            │                                │
-│                            ▼                                │
-│  Step 3: Transform According to Schema                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ Use registry.schema.json                            │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                            │                                │
-│                            ▼                                │
-│  Step 4: Output registry.json                              │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ .agent/climpt/registry.json                         │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+**Flow**: Scan `.agent/climpt/prompts/**/*.md` -> Extract frontmatter (c1, c2,
+c3, description, options) -> Transform via `registry.schema.json` -> Output
+`.agent/climpt/registry.json`
 
 ### Generation Commands
 
@@ -216,43 +142,11 @@ deno run jsr:@aidevtool/climpt/reg \
 MCP (Model Context Protocol) is a standard protocol for AI assistants to
 interact with external tools.
 
-### Climpt MCP Server Structure
+### Climpt MCP Server
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    MCP Server Operation                      │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │                  Claude / AI Assistant               │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                            │                                │
-│                     MCP Protocol                            │
-│                            │                                │
-│                            ▼                                │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │                  Climpt MCP Server                    │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │                    Tools                        │ │ │
-│  │  │  - search: Command search                       │ │ │
-│  │  │  - describe: Get command details                │ │ │
-│  │  │  - execute: Execute command                     │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  │                         │                            │ │
-│  │                         ▼                            │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │              Registry Manager                   │ │ │
-│  │  │  Loads from registry_config.json               │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                            │                                │
-│                            ▼                                │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │              .agent/climpt/registry.json              │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+The MCP server exposes Climpt commands to AI assistants via MCP protocol. It
+loads commands from `registry_config.json` through its Registry Manager and
+provides three tools:
 
 ### MCP Tools List
 
@@ -313,41 +207,9 @@ search({ query: "analyze", agent: "inspector" });
 
 ## 7.5 Claude Code Plugin Integration
 
-### Integration Structure
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 Claude Code Plugin Integration               │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │                    Claude Code                        │ │
-│  │  ┌─────────────────────────────────────────────────┐ │ │
-│  │  │            climpt-agent plugin                  │ │ │
-│  │  │  - delegate-climpt-agent Skill                  │ │ │
-│  │  │  - /climpt command                              │ │ │
-│  │  └─────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                            │                                │
-│            ┌───────────────┼───────────────┐               │
-│            │               │               │               │
-│            ▼               ▼               ▼               │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Skill     │  │    MCP      │  │  Iterate    │        │
-│  │   Call      │  │   Server    │  │   Agent     │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘        │
-│            │               │               │               │
-│            └───────────────┼───────────────┘               │
-│                            ▼                                │
-│  ┌───────────────────────────────────────────────────────┐ │
-│  │              Climpt Core Features                     │ │
-│  │  - Command execution                                  │ │
-│  │  - Prompt generation                                  │ │
-│  │  - Registry management                                │ │
-│  └───────────────────────────────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+The climpt-agent plugin integrates Climpt into Claude Code, connecting to Climpt
+core features (command execution, prompt generation, registry management)
+through three paths: Skill calls, MCP server, and Iterate Agent.
 
 ### Plugin Features
 
@@ -369,47 +231,6 @@ Use Climpt to commit the current changes.
 
 ## Overall Data Flow
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Data Flow                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  [User/AI]                                                  │
-│       │                                                     │
-│       ▼                                                     │
-│  ┌─────────────────┐                                       │
-│  │ CLI / MCP /     │                                       │
-│  │ Plugin          │                                       │
-│  └────────┬────────┘                                       │
-│           │                                                 │
-│           ▼                                                 │
-│  ┌─────────────────┐     ┌─────────────────┐              │
-│  │ registry.json   │────▶│ Identify Command│              │
-│  └─────────────────┘     └────────┬────────┘              │
-│                                   │                         │
-│                                   ▼                         │
-│  ┌─────────────────┐     ┌─────────────────┐              │
-│  │ app.yml         │────▶│ Resolve Path    │              │
-│  └─────────────────┘     └────────┬────────┘              │
-│                                   │                         │
-│                                   ▼                         │
-│  ┌─────────────────┐     ┌─────────────────┐              │
-│  │ f_default.md    │────▶│ Template        │              │
-│  │ (prompt)        │     │ Replacement     │              │
-│  └─────────────────┘     └────────┬────────┘              │
-│                                   │                         │
-│                                   ▼                         │
-│                          ┌─────────────────┐              │
-│                          │ Prompt Output   │              │
-│                          └─────────────────┘              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Related Guides
-
-- [05-architecture.md](./05-architecture.md) - Architecture Overview
-- [06-config-files.md](./06-config-files.md) - Config Files
-- [08-prompt-structure.md](./08-prompt-structure.md) - Prompt Structure
+User/AI input flows through CLI/MCP/Plugin -> `registry.json` identifies the
+command -> `app.yml` resolves the prompt path -> prompt template
+(`f_default.md`) undergoes template replacement -> final prompt is output.

@@ -4,38 +4,6 @@
 
 Explains Climpt's directory structure and configuration file details.
 
-## When to Customize Each File
-
-Before diving into details, understand **when** you need to modify each file:
-
-| File                   | Customize When...                                                                | Leave Default When...                      |
-| ---------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| `app.yml`              | Prompts are in a non-standard location; sharing prompts across projects          | Using standard `.agent/` structure         |
-| `user.yml`             | Enforcing naming conventions; restricting command options; per-user output paths | No validation or path customization needed |
-| `registry_config.json` | Managing multiple agents; sharing agents across projects                         | Single agent in standard location          |
-
-### Common Scenarios
-
-**Scenario 1: Team sharing prompts** → Customize `app.yml` to point to shared
-directory
-
-**Scenario 2: Enforce branch naming** → Add validation pattern in `user.yml`
-
-**Scenario 3: Multiple agents (iterator + reviewer)** → Add entries to
-`registry_config.json`
-
-**Scenario 4: First-time setup** → Use defaults, customize later as needed
-
-## Contents
-
-1. [Directory Structure](#61-directory-structure)
-2. [app.yml (Application Configuration)](#62-appyml-application-configuration)
-3. [user.yml (User Configuration)](#63-useryml-user-configuration)
-4. [registry_config.json (Registry Configuration)](#64-registry_configjson-registry-configuration)
-5. [Configuration Priority](#65-configuration-priority)
-
----
-
 ## 6.1 Directory Structure
 
 ### Overall Structure
@@ -48,41 +16,16 @@ your-project/
 │       │   ├── registry_config.json   # Registry configuration
 │       │   ├── default-app.yml        # Default configuration
 │       │   ├── default-user.yml       # User configuration (optional)
-│       │   ├── git-app.yml            # git domain configuration
-│       │   ├── git-user.yml           # git user configuration
-│       │   ├── code-app.yml           # code domain configuration
-│       │   └── ...
-│       │
+│       │   └── {domain}-app.yml       # Per-domain configuration
 │       ├── prompts/                   # Prompt templates
-│       │   ├── git/                   # git domain
-│       │   │   ├── decide-branch/     # c2: decide-branch
-│       │   │   │   └── working-branch/# c3: working-branch
-│       │   │   │       └── f_default.md
-│       │   │   └── ...
-│       │   │
-│       │   ├── meta/                  # meta domain
-│       │   │   └── ...
-│       │   │
-│       │   └── code/                  # code domain
-│       │       └── ...
-│       │
+│       │   └── {c1}/{c2}/{c3}/f_{edition}.md
 │       ├── schema/                    # Schema definitions (optional)
-│       │   └── ...
-│       │
 │       └── registry.json              # Command registry
-│
-├── .deno/
-│   └── bin/                           # Executables (for CLI use)
-│       ├── climpt                     # Main command
-│       ├── climpt-git                 # git domain
-│       ├── climpt-meta                # meta domain
-│       └── climpt-code                # code domain
-│
+├── .deno/bin/                         # CLI executables
+│   ├── climpt, climpt-git, climpt-meta, climpt-code
 └── agents/                            # Agents (optional)
-    ├── iterator/                      # Iterate Agent
-    │   └── config.json
-    └── reviewer/                      # Review Agent
-        └── config.json
+    ├── iterator/config.json
+    └── reviewer/config.json
 ```
 
 ### Directory Roles
@@ -118,11 +61,8 @@ Defines prompt and schema placement directories for each domain.
 .agent/climpt/config/{domain}-app.yml
 ```
 
-Examples:
-
-- `git-app.yml` → For `climpt-git` command
-- `code-app.yml` → For `climpt-code` command
-- `default-app.yml` → Default (when `--config` not specified)
+Examples: `git-app.yml` (for `climpt-git`), `code-app.yml` (for `climpt-code`),
+`default-app.yml` (when `--config` not specified).
 
 ### Configuration Items
 
@@ -288,9 +228,10 @@ search({ query: "analyze", agent: "inspector" })
 
 ## Setting Up a New Domain
 
-### Step 1: Create app.yml
+### Step 1: Create config files
 
 ```bash
+# app.yml (required)
 cat > .agent/climpt/config/myapp-app.yml << 'EOF'
 working_dir: ".agent/climpt"
 app_prompt:
@@ -298,11 +239,8 @@ app_prompt:
 app_schema:
   base_dir: "schema/myapp"
 EOF
-```
 
-### Step 2: Create user.yml (Optional)
-
-```bash
+# user.yml (optional)
 cat > .agent/climpt/config/myapp-user.yml << 'EOF'
 options:
   destination:
@@ -316,15 +254,11 @@ params:
 EOF
 ```
 
-### Step 3: Create Prompt Directory
+### Step 2: Create prompt directory and CLI executable
 
 ```bash
 mkdir -p .agent/climpt/prompts/myapp/create/item
-```
 
-### Step 4: Create Executable (For CLI Use)
-
-```bash
 cat > .deno/bin/climpt-myapp << 'EOF'
 #!/bin/sh
 case "$1" in
@@ -339,11 +273,3 @@ EOF
 
 chmod +x .deno/bin/climpt-myapp
 ```
-
----
-
-## Related Guides
-
-- [05-architecture.md](./05-architecture.md) - Architecture Overview
-- [07-dependencies.md](./07-dependencies.md) - Dependencies (Registry, MCP)
-- [08-prompt-structure.md](./08-prompt-structure.md) - Prompt Structure
