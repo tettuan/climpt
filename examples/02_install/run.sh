@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# 01_install.sh - Install Climpt from JSR
-#
-# Installs the Climpt CLI tool globally so it is available as `climpt`
-# and config-specific commands like `climpt-code`, `climpt-spec`, etc.
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/../common_functions.sh"
 
 main() {

@@ -28,12 +28,15 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included.
 Run the [`examples/`](../../../examples/) scripts to verify end-to-end
 functionality before each release:
 
-- [Setup](../../../examples/01_setup/) - Installation and initialization
-- [CLI Basic](../../../examples/02_cli_basic/) - Core CLI commands
-- [MCP](../../../examples/03_mcp/) - MCP server and IDE integration
-- [Docs](../../../examples/04_docs/) - Documentation installer
-- [Agents](../../../examples/05_agents/) - Agent framework
-- [Registry](../../../examples/06_registry/) - Registry generation
+- [01-04 Setup](../../../examples/01_check_prerequisites/) - Installation and
+  initialization
+- [05-09 CLI Basic](../../../examples/05_echo_test/) - Core CLI commands
+- [10-12 Docs](../../../examples/10_docs_list/) - Documentation installer
+- [13-23 Agents](../../../examples/13_list_agents/) - Agent framework
+- [27-28 Registry](../../../examples/27_generate_registry/) - Registry
+  generation
+- [29-30 MCP](../../../examples/29_mcp_start_server/) - MCP server and IDE
+  integration
 
 ## Links
 

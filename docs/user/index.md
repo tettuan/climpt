@@ -107,9 +107,8 @@ The [`examples/`](../../examples/) directory contains executable shell scripts
 for verifying end-to-end functionality. Run these before each release:
 
 ```bash
-chmod +x examples/**/*.sh examples/*.sh
-./examples/01_setup/01_install.sh
-./examples/02_cli_basic/01_decompose.sh
+bash examples/01_check_prerequisites/run.sh
+bash examples/02_install/run.sh
 ```
 
 See [`examples/README.md`](../../examples/README.md) for the full list.

@@ -35,7 +35,7 @@ Deno.test("MCP tool names match availableConfigs", async () => {
 
 // Test registry template matches expected structure
 Deno.test("Registry template has correct structure", async () => {
-  const templatePath = "examples/mcp/registry.template.json";
+  const templatePath = "examples/30_mcp_show_config/registry.template.json";
 
   try {
     const templateText = await Deno.readTextFile(templatePath);
