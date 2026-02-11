@@ -43,10 +43,15 @@
     ".git",
     ".github/",
     ".vscode/",
+    ".claude/",
     ".gitignore",
     "CLAUDE.md",
     "deno.lock",
-    "tmp/"
+    "tmp/",
+    "plugins/",
+    "tests/",
+    "examples/",
+    "scripts/"
   ],
   "test": {
     "exclude": [
