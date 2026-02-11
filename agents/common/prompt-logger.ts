@@ -12,7 +12,7 @@
 import type { Logger } from "./logger.ts";
 // Support both resolver implementations
 import type { PromptResolutionResult as CommonPromptResolutionResult } from "./prompt-resolver.ts";
-import type { PromptResolutionResult as PromptsPromptResolutionResult } from "../prompts/resolver.ts";
+import type { PromptResolutionResult as PromptsPromptResolutionResult } from "../prompts/resolver-adapter.ts";
 
 /**
  * Unified prompt resolution result type that supports both resolvers.

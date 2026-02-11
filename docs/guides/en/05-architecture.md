@@ -17,7 +17,8 @@ Explains Climpt's basic concepts, architecture, and command execution flow.
 
 ### Basic Concept
 
-As the name "CLI + Prompt = Climpt" suggests, Climpt is a **tool for invoking prompts via CLI**.
+As the name "CLI + Prompt = Climpt" suggests, Climpt is a **tool for invoking
+prompts via CLI**.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -41,29 +42,31 @@ As the name "CLI + Prompt = Climpt" suggests, Climpt is a **tool for invoking pr
 
 ### What It Does
 
-| Function | Description |
-|----------|-------------|
-| Centralized prompt management | Organize and store pre-configured prompts |
-| One-line invocation | Instantly retrieve with commands like `climpt-git create branch` |
-| Dynamic value insertion | Replace variables with arguments or stdin |
-| AI integration | AI selects and executes prompts via MCP server |
+| Function                      | Description                                                      |
+| ----------------------------- | ---------------------------------------------------------------- |
+| Centralized prompt management | Organize and store pre-configured prompts                        |
+| One-line invocation           | Instantly retrieve with commands like `climpt-git create branch` |
+| Dynamic value insertion       | Replace variables with arguments or stdin                        |
+| AI integration                | AI selects and executes prompts via MCP server                   |
 
 ### C3L (Climpt 3-word Language)
 
 Climpt commands consist of three elements:
 
-| Element | Role | Examples |
-|---------|------|----------|
-| c1 (Domain) | Target area | `git`, `code`, `meta` |
-| c2 (Action) | Action to execute | `create`, `analyze`, `review` |
-| c3 (Target) | Target object | `branch`, `pull-request`, `instruction` |
+| Element     | Role              | Examples                                |
+| ----------- | ----------------- | --------------------------------------- |
+| c1 (Domain) | Target area       | `git`, `code`, `meta`                   |
+| c2 (Action) | Action to execute | `create`, `analyze`, `review`           |
+| c3 (Target) | Target object     | `branch`, `pull-request`, `instruction` |
 
 Command format:
+
 ```
 climpt-<c1> <c2> <c3> [options]
 ```
 
 Examples:
+
 ```bash
 climpt-git decide-branch working-branch
 climpt-meta create instruction
@@ -116,14 +119,14 @@ climpt-code review pull-request
 
 ### Component Roles
 
-| Component | Role |
-|-----------|------|
-| CLI Interface | Parse command-line args, invoke Core Engine |
-| MCP Server | Handle tool calls from AI assistants |
-| Plugin | Integration with Claude Code |
-| Config Loader | Load config files (app.yml, user.yml) |
-| Prompt Loader | Load prompt files (.md) |
-| Template Engine | Replace template variables |
+| Component       | Role                                        |
+| --------------- | ------------------------------------------- |
+| CLI Interface   | Parse command-line args, invoke Core Engine |
+| MCP Server      | Handle tool calls from AI assistants        |
+| Plugin          | Integration with Claude Code                |
+| Config Loader   | Load config files (app.yml, user.yml)       |
+| Prompt Loader   | Load prompt files (.md)                     |
+| Template Engine | Replace template variables                  |
 
 ### Relationship with breakdown Package
 
@@ -149,6 +152,7 @@ Climpt uses the `@tettuan/breakdown` package internally:
 ```
 
 Features provided by breakdown package:
+
 - YAML config file parsing
 - Markdown prompt file loading
 - Template variable (`{input_text}` etc.) replacement
@@ -186,17 +190,18 @@ Climpt has evolved incrementally and now consists of five layers.
 
 ### Layer Roles
 
-| Layer | Role | Context | Implementation |
-|-------|------|---------|----------------|
-| Top Layer | GitHub integration, iteration control | SDK Session #1 | `agents/iterator/scripts/agent.ts` |
-| Middle Layer | Parameter conversion, command resolution | Plugin Context | `plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md` |
-| Execution Layer | Prompt retrieval, autonomous execution | SDK Session #2 | `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` |
-| Tool Layer | CLI/MCP invocation | CLI/MCP Process | `cli.ts`, `mcp.ts` |
-| Config Layer | Prompt templates | File System | `.agent/climpt/` |
+| Layer           | Role                                     | Context         | Implementation                                                              |
+| --------------- | ---------------------------------------- | --------------- | --------------------------------------------------------------------------- |
+| Top Layer       | GitHub integration, iteration control    | SDK Session #1  | `agents/iterator/scripts/agent.ts`                                          |
+| Middle Layer    | Parameter conversion, command resolution | Plugin Context  | `plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md`                |
+| Execution Layer | Prompt retrieval, autonomous execution   | SDK Session #2  | `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` |
+| Tool Layer      | CLI/MCP invocation                       | CLI/MCP Process | `cli.ts`, `mcp.ts`                                                          |
+| Config Layer    | Prompt templates                         | File System     | `.agent/climpt/`                                                            |
 
 ### Three-Layer Chain (Within Agent Layer)
 
-The Agent layer chains three layers together, achieving flexible autonomous operation through **context separation**.
+The Agent layer chains three layers together, achieving flexible autonomous
+operation through **context separation**.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -223,16 +228,17 @@ The Agent layer chains three layers together, achieving flexible autonomous oper
 ```
 
 **Key Points**:
+
 - Top and Execution layers run in **separate SDK sessions**
 - Middle layer acts as a **bridge**, handling parameter conversion and search
 - Each layer's context is isolated, making responsibilities clear
 
 ### Entry Points
 
-| Purpose | Entry Point |
-|---------|-------------|
-| CLI execution | `jsr:@aidevtool/climpt/cli` |
-| MCP server | `jsr:@aidevtool/climpt/mcp` |
+| Purpose        | Entry Point                             |
+| -------------- | --------------------------------------- |
+| CLI execution  | `jsr:@aidevtool/climpt/cli`             |
+| MCP server     | `jsr:@aidevtool/climpt/mcp`             |
 | Iterator Agent | `jsr:@aidevtool/climpt/agents/iterator` |
 | Reviewer Agent | `jsr:@aidevtool/climpt/agents/reviewer` |
 

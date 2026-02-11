@@ -159,9 +159,12 @@ async function main() {
   // stdin から JSON を読み取り
   const decoder = new TextDecoder();
   const chunks: Uint8Array[] = [];
+  const reader = Deno.stdin.readable.getReader();
 
-  for await (const chunk of Deno.stdin.readable) {
-    chunks.push(chunk);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
   }
 
   const input = decoder.decode(new Uint8Array(chunks.flatMap((c) => [...c])));

@@ -149,21 +149,29 @@ export class PromptResolver {
    */
   async resolve(
     stepId: string,
-    variables: PromptVariables = {},
+    variables?: PromptVariables,
+    overrides?: { adaptation?: string },
   ): Promise<PromptResolutionResult> {
+    // Default variables if not provided
+    variables = variables ?? {};
     const step = this.registry.steps[stepId];
     if (!step) {
       throw new Error(`Unknown step ID: "${stepId}"`);
     }
 
+    // Apply adaptation override if provided
+    const effectiveStep = overrides?.adaptation
+      ? { ...step, adaptation: overrides.adaptation }
+      : step;
+
     // Try breakdown first
-    const breakdownResult = await this.tryBreakdown(step, variables);
+    const breakdownResult = await this.tryBreakdown(effectiveStep, variables);
     if (breakdownResult) {
       return breakdownResult;
     }
 
     // Fall back to embedded prompt
-    return this.useFallback(step, variables);
+    return this.useFallback(effectiveStep, variables);
   }
 
   /**

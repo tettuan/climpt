@@ -19,6 +19,7 @@ Set up Climpt in your project using direct JSR execution.
 - **Internet connection**: Required for JSR package resolution
 
 Verify Deno installation:
+
 ```bash
 deno --version
 ```
@@ -42,6 +43,7 @@ deno run -A jsr:@aidevtool/climpt init
 ```
 
 Example output:
+
 ```
 Climpt initialized successfully!
 Created configuration files in .agent/climpt/
@@ -113,11 +115,13 @@ Execute the following command in Claude Code:
 
 ### Verify Installation
 
-When the plugin is successfully installed, the following Skill becomes available:
+When the plugin is successfully installed, the following Skill becomes
+available:
 
 - `delegate-climpt-agent`: Delegate tasks to Climpt agent
 
 Verification method:
+
 ```
 /plugin list
 ```
@@ -177,8 +181,10 @@ You have two paths:
 
 ### A. Using Existing Instructions
 
-→ Proceed to [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) to set up Iterate Agent
+→ Proceed to [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) to set up
+Iterate Agent
 
 ### B. Creating Custom Instructions
 
-→ Proceed to [03-instruction-creation.md](./03-instruction-creation.md) to learn how to create instructions
+→ Proceed to [03-instruction-creation.md](./03-instruction-creation.md) to learn
+how to create instructions

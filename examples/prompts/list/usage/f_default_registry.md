@@ -6,11 +6,14 @@ usage: climpt list usage --adaptation=registry
 
 # Implementation Tasks
 
-Generate a complete `.agent/climpt/registry.json` file for MCP server configuration.
+Generate a complete `.agent/climpt/registry.json` file for MCP server
+configuration.
 
 ## What is Registry.json
 
-The registry.json file is the central configuration for Climpt's MCP (Model Context Protocol) server. It defines:
+The registry.json file is the central configuration for Climpt's MCP (Model
+Context Protocol) server. It defines:
+
 - Available tools that can be invoked through MCP
 - Command mappings following the C3L specification
 - Tool descriptions and usage examples for AI assistants
@@ -18,11 +21,13 @@ The registry.json file is the central configuration for Climpt's MCP (Model Cont
 ## C3L (Climpt 3-word Language) Structure
 
 Commands follow the pattern:
+
 ```
 climpt-<c1> <c2> <c3>
 ```
 
 Where:
+
 - **c1**: Domain/category (git, spec, test, code, docs, meta)
 - **c2**: Action/directive (create, analyze, execute, validate, generate, etc.)
 - **c3**: Target/layer (refinement-issue, quality-metrics, implementation, etc.)
@@ -42,6 +47,7 @@ Prompts follow the structure:
 `.agent/climpt/prompts/<c1>/<c2>/<c3>/f_<input>_<adaptation>.md`
 
 From this structure, derive:
+
 - Tool name from directory: `<c1>`
 - Command from path: `<c1>/<c2>/<c3>`
 - Description from frontmatter
@@ -49,11 +55,14 @@ From this structure, derive:
 ## Generation Steps
 
 ### Step 1: Tool Discovery
+
 1. Scan `.agent/climpt/prompts/*/` for available tools
-2. Extract tool names from directory names (e.g., `git` directory → tool name: `git`)
+2. Extract tool names from directory names (e.g., `git` directory → tool name:
+   `git`)
 3. Read configuration files for tool descriptions
 
 ### Step 2: Command Mapping
+
 1. Traverse `.agent/climpt/prompts/` directory structure
 2. For each prompt file found:
    - Extract c1/c2/c3 from path
@@ -61,11 +70,13 @@ From this structure, derive:
    - Create command entry
 
 ### Step 3: Build Registry Structure
+
 1. Create `availableConfigs` array with discovered tools
 2. Create `commands` array with all c1/c2/c3 combinations
 3. Generate appropriate descriptions and usage examples
 
 ### Step 4: Validate and Output
+
 1. Ensure all commands have valid C3L structure
 2. Verify tool references are consistent
 3. Output formatted JSON to `.agent/climpt/registry.json`
@@ -79,16 +90,16 @@ Generate the following structure:
   "tools": {
     "availableConfigs": [
       {
-        "name": "string",        // Tool identifier (e.g., "git")
+        "name": "string", // Tool identifier (e.g., "git")
         "description": "string", // Human-readable description
-        "usage": "string"       // Example usage with options
+        "usage": "string" // Example usage with options
       }
     ],
     "commands": [
       {
-        "c1": "string",         // Domain (git, spec, test, etc.)
-        "c2": "string",         // Action (create, analyze, etc.)
-        "c3": "string",         // Target (refinement-issue, etc.)
+        "c1": "string", // Domain (git, spec, test, etc.)
+        "c2": "string", // Action (create, analyze, etc.)
+        "c3": "string", // Target (refinement-issue, etc.)
         "description": "string" // Command description
       }
     ]
@@ -100,20 +111,22 @@ Generate the following structure:
 
 Standard tool categories to include:
 
-| Tool | Description | Primary Actions |
-|------|-------------|-----------------|
-| git | Git operations and repository management | create, analyze, merge |
-| spec | Specification analysis and management | analyze, validate, define |
-| test | Testing and verification operations | execute, generate, validate |
-| code | Code generation and development tasks | create, refactor, optimize |
-| docs | Documentation generation and management | generate, update, validate |
-| meta | Meta operations and command management | list, resolve, inspect |
+| Tool | Description                              | Primary Actions             |
+| ---- | ---------------------------------------- | --------------------------- |
+| git  | Git operations and repository management | create, analyze, merge      |
+| spec | Specification analysis and management    | analyze, validate, define   |
+| test | Testing and verification operations      | execute, generate, validate |
+| code | Code generation and development tasks    | create, refactor, optimize  |
+| docs | Documentation generation and management  | generate, update, validate  |
+| meta | Meta operations and command management   | list, resolve, inspect      |
 
 ## Example Registry Entry
 
-For a prompt at `.agent/climpt/prompts/git/create/refinement-issue/f_default.md`:
+For a prompt at
+`.agent/climpt/prompts/git/create/refinement-issue/f_default.md`:
 
 Tool entry:
+
 ```json
 {
   "name": "git",
@@ -123,6 +136,7 @@ Tool entry:
 ```
 
 Command entry:
+
 ```json
 {
   "c1": "git",
@@ -136,7 +150,8 @@ Command entry:
 
 1. **Tool Uniqueness**: Each tool name in `availableConfigs` must be unique
 2. **Command Completeness**: Every command must have all c1/c2/c3 fields
-3. **Reference Consistency**: All c1 values in commands must have corresponding tool in `availableConfigs`
+3. **Reference Consistency**: All c1 values in commands must have corresponding
+   tool in `availableConfigs`
 4. **Description Requirements**: All entries must have non-empty descriptions
 
 ## Output Destination
@@ -225,7 +240,9 @@ The following schema defines the structure of the registry.json output:
 
 ## Additional Notes
 
-- When frontmatter is missing, generate descriptions based on directory structure and file naming
-- Prioritize commands that have actual prompt files over theoretical combinations
+- When frontmatter is missing, generate descriptions based on directory
+  structure and file naming
+- Prioritize commands that have actual prompt files over theoretical
+  combinations
 - Include usage examples that demonstrate real-world scenarios
 - Ensure descriptions are clear and actionable for AI assistants

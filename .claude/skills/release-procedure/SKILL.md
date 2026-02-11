@@ -6,9 +6,12 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob]
 
 # リリース手順ガイド
 
-## 目的
+## 責務
 
-バージョンアップとリリースが正しい手順で行われることを担保する。
+リリースフロー全体を管理する（version bump → tag → PR → merge の手順）。
+
+- ブランチ戦略・命名規則の詳細は `/branch-management` skill を参照
+- CI 実行方法・エラー対処の詳細は `/local-ci` skill を参照
 
 ## リリースブランチ作成時のチェックリスト
 
@@ -194,13 +197,11 @@ grep 'export const CLIMPT_VERSION' src/version.ts
 
 #### ステップ 2: ローカルCI確認
 
-**重要**: プッシュ前に必ずローカルでCIを通すこと
+**重要**: プッシュ前に必ずローカルでCIを通すこと。実行方法の詳細は `/local-ci` skill を参照。
 
 ```bash
 deno task ci
 ```
-
-全てのステージがパスすることを確認してから次のステップへ進む。
 
 #### ステップ 3: コミット & プッシュ
 
@@ -210,7 +211,7 @@ git commit -m "chore: bump version to x.y.z"
 git push -u origin release/x.y.z
 ```
 
-**注意**: `dangerouslyDisableSandbox: true` が必要
+**注意**: サンドボックス制限については `/git-gh-sandbox` skill を参照
 
 #### ステップ 4: release/* → develop PR
 
@@ -273,62 +274,12 @@ git push origin vx.y.z
 
 #### ステップ 9: クリーンアップ（ブランチ削除）
 
-**重要**: このリポジトリは `deleteBranchOnMerge` が無効のため、マージ後の手動削除が必要。
-
-##### ブランチ削除判断基準
-
-| ブランチ | 削除タイミング | 削除可否 |
-|---------|---------------|---------|
-| `feature/*`, `fix/*`, `refactor/*`, `docs/*` | release/* へマージ後 | ✓ 削除する |
-| `release/*` | develop へマージ後（かつ vtag 作成後） | ✓ 削除する |
-| `develop` | - | ✗ 削除禁止（長期ブランチ） |
-| `main` | - | ✗ 削除禁止（長期ブランチ） |
-
-##### マージ済み確認方法
+マージ後のブランチ削除を行う。削除判断基準・手順の詳細は `/branch-management` skill を参照。
 
 ```bash
-# ブランチが特定ブランチにマージ済みか確認
-git fetch origin
-git merge-base --is-ancestor origin/<source-branch> origin/<target-branch> && echo "マージ済み" || echo "未マージ"
-
-# 例: feature/xxx が release/1.10.2 にマージ済みか
-git merge-base --is-ancestor origin/feature/xxx origin/release/1.10.2 && echo "マージ済み"
-
-# 例: release/1.10.2 が develop にマージ済みか
-git merge-base --is-ancestor origin/release/1.10.2 origin/develop && echo "マージ済み"
-```
-
-##### 削除実行
-
-```bash
-# develop に戻る
-git checkout develop
-git pull origin develop
-
-# ローカル + リモート両方を削除
-git branch -D <branch-name>
-git push origin --delete <branch-name>
-
 # release ブランチ削除例
 git branch -D release/x.y.z
 git push origin --delete release/x.y.z
-
-# feature ブランチ削除例
-git branch -D feature/xxx
-git push origin --delete feature/xxx
-```
-
-##### 削除漏れチェック
-
-```bash
-# マージ済みなのに残っているブランチを検出
-git fetch --prune origin
-git branch -r | grep -E "feature/|fix/|refactor/|docs/|release/" | while read branch; do
-  branch_name=${branch#origin/}
-  if git merge-base --is-ancestor "$branch" origin/develop 2>/dev/null; then
-    echo "削除可能: $branch_name (develop にマージ済み)"
-  fi
-done
 ```
 
 ## CI バージョンチェック
@@ -398,16 +349,12 @@ git push origin release/1.9.15
   5. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
   6. gh pr merge <PR番号> --merge (JSR publish 自動)
   7. vtag作成: git tag vx.y.z origin/main && git push origin vx.y.z
-  8. クリーンアップ: release/*, 作業ブランチ削除（ローカル+リモート）
+  8. クリーンアップ: ブランチ削除（/branch-management 参照）
 
-ブランチ削除判断:
-  - feature/*, fix/*, refactor/*, docs/*  → release/* マージ後に削除
-  - release/*  → develop マージ後（vtag作成後）に削除
-  - develop/main → 削除禁止（長期ブランチ）
-  - 確認: git merge-base --is-ancestor origin/<branch> origin/develop
-
-サンドボックス注意:
-  git push, gh コマンドは dangerouslyDisableSandbox: true が必要
+関連Skill:
+  - CI実行・エラー対処 → /local-ci, /ci-troubleshooting
+  - ブランチ戦略・削除判断 → /branch-management
+  - サンドボックス制限 → /git-gh-sandbox
 ```
 
 ## トラブルシューティング

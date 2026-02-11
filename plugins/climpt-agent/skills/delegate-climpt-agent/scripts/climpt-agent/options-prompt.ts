@@ -33,7 +33,8 @@ export function buildOptionsPrompt(
   context: PromptContext,
 ): string {
   const lines: string[] = [];
-  const { options, uv, description, usage } = command;
+  const { options, description, usage } = command;
+  const uv = options?.uv;
 
   // Intent section - detailed user intent
   lines.push("# Build CLI Options");
@@ -85,11 +86,9 @@ export function buildOptionsPrompt(
   if (options?.stdin === true) {
     generate.push("- stdin: <generate input content based on intent>");
   }
-  if (uv && Array.isArray(uv)) {
-    for (const uvItem of uv) {
-      for (const [key, desc] of Object.entries(uvItem)) {
-        generate.push(`- uv-${key}: ${desc}`);
-      }
+  if (uv) {
+    for (const [key, desc] of Object.entries(uv)) {
+      generate.push(`- uv-${key}: ${desc}`);
     }
   }
   if (generate.length > 0) {
@@ -119,11 +118,9 @@ export function buildOptionsPrompt(
   if (options?.stdin === true) {
     jsonExample["stdin"] = "<content>";
   }
-  if (uv && Array.isArray(uv)) {
-    for (const uvItem of uv) {
-      for (const key of Object.keys(uvItem)) {
-        jsonExample[`uv-${key}`] = "<generated value>";
-      }
+  if (uv) {
+    for (const key of Object.keys(uv)) {
+      jsonExample[`uv-${key}`] = "<generated value>";
     }
   }
   lines.push(JSON.stringify(jsonExample, null, 2));
@@ -135,7 +132,7 @@ export function buildOptionsPrompt(
  * Check if command has options that need LLM resolution
  */
 export function needsOptionResolution(command: CommandWithUV): boolean {
-  const { options, uv } = command;
+  const { options } = command;
 
   // Check Tier 1: Selection arrays
   if (options?.edition && Array.isArray(options.edition)) return true;
@@ -145,7 +142,7 @@ export function needsOptionResolution(command: CommandWithUV): boolean {
 
   // Check Tier 3: Generate from context
   if (options?.stdin === true) return true;
-  if (uv && Array.isArray(uv) && uv.length > 0) return true;
+  if (options?.uv && Object.keys(options.uv).length > 0) return true;
 
   return false;
 }

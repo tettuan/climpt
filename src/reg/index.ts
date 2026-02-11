@@ -5,6 +5,7 @@
  */
 
 import { FRONTMATTER_TO_SCHEMA_VERSION } from "../version.ts";
+import { logger } from "../utils/logger.ts";
 
 // deno-lint-ignore no-explicit-any
 let transformFiles: any;
@@ -131,10 +132,8 @@ async function resolveWithFallback(
     return { path: localPath, isTemp: false };
   }
 
-  // deno-lint-ignore no-console
-  console.log(`  Local file not found: ${localPath}`);
-  // deno-lint-ignore no-console
-  console.log(`  Fetching from JSR package...`);
+  logger.info(`Local file not found: ${localPath}`);
+  logger.info(`Fetching from JSR package...`);
 
   const tempPath = await fetchFromJsr(jsrPath, filename);
   return { path: tempPath, isTemp: true };
@@ -324,8 +323,7 @@ export async function main(args: string[] = Deno.args): Promise<void> {
     // deno-lint-ignore no-console
     console.log(`  Time: ${executionTime}ms`);
   } catch (error) {
-    // deno-lint-ignore no-console
-    console.error(`\nError:`, error);
+    logger.error("Error:", error);
     Deno.exit(1);
   }
 }

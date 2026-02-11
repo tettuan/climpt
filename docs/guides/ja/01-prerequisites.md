@@ -6,10 +6,10 @@ Iterate Agent を使用するために必要なツールをインストールし
 
 ## 必要なツール一覧
 
-| ツール | バージョン | 確認コマンド | 用途 |
-|--------|-----------|-------------|------|
-| Deno | 2.x 以上 | `deno --version` | Climpt 実行環境 |
-| GitHub CLI (gh) | 2.x 以上 | `gh --version` | GitHub API アクセス |
+| ツール          | バージョン | 確認コマンド     | 用途                |
+| --------------- | ---------- | ---------------- | ------------------- |
+| Deno            | 2.x 以上   | `deno --version` | Climpt 実行環境     |
+| GitHub CLI (gh) | 2.x 以上   | `gh --version`   | GitHub API アクセス |
 
 ---
 
@@ -42,6 +42,7 @@ deno --version
 ```
 
 出力例：
+
 ```
 deno 2.1.4 (stable, release, aarch64-apple-darwin)
 v8 13.0.245.12-rusty
@@ -59,6 +60,7 @@ export PATH="$DENO_INSTALL/bin:$PATH"
 ```
 
 設定を反映：
+
 ```bash
 source ~/.zshrc  # または source ~/.bashrc
 ```
@@ -67,8 +69,8 @@ source ~/.zshrc  # または source ~/.bashrc
 
 ## 1.2 GitHub CLI (gh) のインストール
 
-GitHub CLI は GitHub との対話を行うコマンドラインツールです。
-Iterate Agent は `gh` を通じて Issue/Project の情報を取得します。
+GitHub CLI は GitHub との対話を行うコマンドラインツールです。 Iterate Agent は
+`gh` を通じて Issue/Project の情報を取得します。
 
 ### macOS (Homebrew)
 
@@ -117,6 +119,7 @@ gh --version
 ```
 
 出力例：
+
 ```
 gh version 2.62.0 (2024-11-14)
 ```
@@ -135,17 +138,15 @@ gh auth login
 
 対話形式で以下を選択：
 
-1. **Where do you use GitHub?**
-   → `GitHub.com` を選択
+1. **Where do you use GitHub?** → `GitHub.com` を選択
 
-2. **What is your preferred protocol for Git operations on this host?**
-   → `HTTPS` を選択（推奨）
+2. **What is your preferred protocol for Git operations on this host?** →
+   `HTTPS` を選択（推奨）
 
-3. **Authenticate Git with your GitHub credentials?**
-   → `Yes` を選択
+3. **Authenticate Git with your GitHub credentials?** → `Yes` を選択
 
-4. **How would you like to authenticate GitHub CLI?**
-   → `Login with a web browser` を選択
+4. **How would you like to authenticate GitHub CLI?** →
+   `Login with a web browser` を選択
 
 5. ブラウザが開くので、表示されたコードを入力して認証
 
@@ -156,6 +157,7 @@ gh auth status
 ```
 
 成功時の出力例：
+
 ```
 github.com
   ✓ Logged in to github.com account your-username
@@ -198,4 +200,5 @@ gh auth status
 
 ## 次のステップ
 
-[02-climpt-setup.md](./02-climpt-setup.md) へ進んで、Climpt をインストールします。
+[02-climpt-setup.md](./02-climpt-setup.md) へ進んで、Climpt
+をインストールします。

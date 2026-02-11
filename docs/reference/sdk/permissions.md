@@ -6,29 +6,39 @@ Control tool usage and permissions in the Claude Agent SDK
 
 # SDK Permissions
 
-The Claude Agent SDK provides powerful permission controls that allow you to manage how Claude uses tools in your application.
+The Claude Agent SDK provides powerful permission controls that allow you to
+manage how Claude uses tools in your application.
 
-This guide covers how to implement permission systems using the `canUseTool` callback, hooks, and settings.json permission rules. For complete API documentation, see the [TypeScript SDK reference](/docs/en/agent-sdk/typescript).
+This guide covers how to implement permission systems using the `canUseTool`
+callback, hooks, and settings.json permission rules. For complete API
+documentation, see the
+[TypeScript SDK reference](/docs/en/agent-sdk/typescript).
 
 ## Overview
 
 The Claude Agent SDK provides four complementary ways to control tool usage:
 
-1. **[Permission Modes](#permission-modes)** - Global permission behavior settings that affect all tools
-2. **[canUseTool callback](/docs/en/agent-sdk/typescript#canusetool)** - Runtime permission handler for cases not covered by other rules
-3. **[Hooks](/docs/en/agent-sdk/hooks)** - Fine-grained control over every tool execution with custom logic
-4. **[Permission rules (settings.json)](https://code.claude.com/docs/en/settings#permission-settings)** - Declarative allow/deny rules with integrated bash command parsing
+1. **[Permission Modes](#permission-modes)** - Global permission behavior
+   settings that affect all tools
+2. **[canUseTool callback](/docs/en/agent-sdk/typescript#canusetool)** - Runtime
+   permission handler for cases not covered by other rules
+3. **[Hooks](/docs/en/agent-sdk/hooks)** - Fine-grained control over every tool
+   execution with custom logic
+4. **[Permission rules (settings.json)](https://code.claude.com/docs/en/settings#permission-settings)** -
+   Declarative allow/deny rules with integrated bash command parsing
 
 Use cases for each approach:
-- Permission modes - Set overall permission behavior (planning, auto-accepting edits, bypassing checks)
-- `canUseTool` - Dynamic approval for uncovered cases, prompts user for permission
+
+- Permission modes - Set overall permission behavior (planning, auto-accepting
+  edits, bypassing checks)
+- `canUseTool` - Dynamic approval for uncovered cases, prompts user for
+  permission
 - Hooks - Programmatic control over all tool executions
 - Permission rules - Static policies with intelligent bash command parsing
 
 ## Permission Flow Diagram
 
 ```mermaid
-
 flowchart TD
     Start([Tool request]) --> PreHook(PreToolUse Hook)
 
@@ -56,26 +66,27 @@ flowchart TD
 
     Execute --> PostHook(PostToolUse Hook)
     PostHook --> Done([Tool Response])
-
-
 ```
 
-**Processing Order:** PreToolUse Hook → Deny Rules → Allow Rules → Ask Rules → Permission Mode Check → canUseTool Callback → PostToolUse Hook
+**Processing Order:** PreToolUse Hook → Deny Rules → Allow Rules → Ask Rules →
+Permission Mode Check → canUseTool Callback → PostToolUse Hook
 
 ## Permission Modes
 
-Permission modes provide global control over how Claude uses tools. You can set the permission mode when calling `query()` or change it dynamically during streaming sessions.
+Permission modes provide global control over how Claude uses tools. You can set
+the permission mode when calling `query()` or change it dynamically during
+streaming sessions.
 
 ### Available Modes
 
 The SDK supports four permission modes, each with different behavior:
 
-| Mode | Description | Tool Behavior |
-| :--- | :---------- | :------------ |
-| `default` | Standard permission behavior | Normal permission checks apply |
-| `plan` | Planning mode - no execution | Claude can only use read-only tools; presents a plan before execution **(Not currently supported in SDK)** |
-| `acceptEdits` | Auto-accept file edits | File edits and filesystem operations are automatically approved |
-| `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution) |
+| Mode                | Description                  | Tool Behavior                                                                                              |
+| :------------------ | :--------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `default`           | Standard permission behavior | Normal permission checks apply                                                                             |
+| `plan`              | Planning mode - no execution | Claude can only use read-only tools; presents a plan before execution **(Not currently supported in SDK)** |
+| `acceptEdits`       | Auto-accept file edits       | File edits and filesystem operations are automatically approved                                            |
+| `bypassPermissions` | Bypass all permission checks | All tools run without permission prompts (use with caution)                                                |
 
 ### Setting Permission Mode
 
@@ -93,8 +104,8 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 const result = await query({
   prompt: "Help me refactor this code",
   options: {
-    permissionMode: 'default'  // Standard permission mode
-  }
+    permissionMode: "default", // Standard permission mode
+  },
 });
 ```
 
@@ -123,32 +134,32 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 // Create an async generator for streaming input
 async function* streamInput() {
   yield {
-    type: 'user',
+    type: "user",
     message: {
-      role: 'user',
-      content: "Let's start with default permissions"
-    }
+      role: "user",
+      content: "Let's start with default permissions",
+    },
   };
 
   // Later in the conversation...
   yield {
-    type: 'user',
+    type: "user",
     message: {
-      role: 'user',
-      content: "Now let's speed up development"
-    }
+      role: "user",
+      content: "Now let's speed up development",
+    },
   };
 }
 
 const q = query({
   prompt: streamInput(),
   options: {
-    permissionMode: 'default'  // Start in default mode
-  }
+    permissionMode: "default", // Start in default mode
+  },
 });
 
 // Change mode dynamically
-await q.setPermissionMode('acceptEdits');
+await q.setPermissionMode("acceptEdits");
 
 // Process messages
 for await (const message of q) {
@@ -200,6 +211,7 @@ async for message in q:
 #### Accept Edits Mode (`acceptEdits`)
 
 In accept edits mode:
+
 - All file edits are automatically approved
 - Filesystem operations (mkdir, touch, rm, etc.) are auto-approved
 - Other tools still require normal permissions
@@ -207,6 +219,7 @@ In accept edits mode:
 - Useful for rapid prototyping and iterations
 
 Auto-approved operations:
+
 - File edits (Edit, Write tools)
 - Bash filesystem commands (mkdir, touch, rm, mv, cp)
 - File creation and deletion
@@ -214,6 +227,7 @@ Auto-approved operations:
 #### Bypass Permissions Mode (`bypassPermissions`)
 
 In bypass permissions mode:
+
 - **ALL tool uses are automatically approved**
 - No permission prompts appear
 - Hooks still execute (can still block operations)
@@ -234,10 +248,12 @@ Permission modes are evaluated at a specific point in the permission flow:
 6. **`canUseTool` callback** - Handles remaining cases
 
 This means:
+
 - Hooks can always control tool use, even in `bypassPermissions` mode
 - Explicit deny rules override all permission modes
 - Ask rules are evaluated before permission modes
-- `bypassPermissions` mode overrides the `canUseTool` callback for unmatched tools
+- `bypassPermissions` mode overrides the `canUseTool` callback for unmatched
+  tools
 
 ### Best Practices
 
@@ -248,19 +264,24 @@ This means:
 5. **Switch modes dynamically** based on task progress and confidence
 
 Example of mode progression:
+
 ```typescript
 // Start in default mode for controlled execution
-permissionMode: 'default'
+permissionMode: "default";
 
 // Switch to acceptEdits for rapid iteration
-await q.setPermissionMode('acceptEdits')
+await q.setPermissionMode("acceptEdits");
 ```
 
 ## canUseTool
 
-The `canUseTool` callback is passed as an option when calling the `query` function. It receives the tool name and input parameters, and must return a decision- either allow or deny.
+The `canUseTool` callback is passed as an option when calling the `query`
+function. It receives the tool name and input parameters, and must return a
+decision- either allow or deny.
 
-canUseTool fires whenever Claude Code would show a permission prompt to a user, e.g. hooks and permission rules do not cover it and it is not in acceptEdits mode.
+canUseTool fires whenever Claude Code would show a permission prompt to a user,
+e.g. hooks and permission rules do not cover it and it is not in acceptEdits
+mode.
 
 Here's a complete example showing how to implement interactive tool approval:
 
@@ -278,9 +299,9 @@ async function promptForToolApproval(toolName: string, input: any) {
     console.log("   Parameters:");
     for (const [key, value] of Object.entries(input)) {
       let displayValue = value;
-      if (typeof value === 'string' && value.length > 100) {
+      if (typeof value === "string" && value.length > 100) {
         displayValue = value.substring(0, 100) + "...";
-      } else if (typeof value === 'object') {
+      } else if (typeof value === "object") {
         displayValue = JSON.stringify(value, null, 2);
       }
       console.log(`     ${key}: ${displayValue}`);
@@ -294,13 +315,13 @@ async function promptForToolApproval(toolName: string, input: any) {
     console.log("   ✅ Approved\n");
     return {
       behavior: "allow",
-      updatedInput: input
+      updatedInput: input,
     };
   } else {
     console.log("   ❌ Denied\n");
     return {
       behavior: "deny",
-      message: "User denied permission for this tool"
+      message: "User denied permission for this tool",
     };
   }
 }
@@ -311,8 +332,8 @@ const result = await query({
   options: {
     canUseTool: async (toolName, input) => {
       return promptForToolApproval(toolName, input);
-    }
-  }
+    },
+  },
 });
 ```
 
@@ -363,11 +384,14 @@ result = await query(
 
 ## Handling the AskUserQuestion Tool
 
-The `AskUserQuestion` tool allows Claude to ask the user clarifying questions during a conversation. When this tool is called, your `canUseTool` callback receives the questions and must return the user's answers.
+The `AskUserQuestion` tool allows Claude to ask the user clarifying questions
+during a conversation. When this tool is called, your `canUseTool` callback
+receives the questions and must return the user's answers.
 
 ### Input Structure
 
-When `canUseTool` is called with `toolName: "AskUserQuestion"`, the input contains:
+When `canUseTool` is called with `toolName: "AskUserQuestion"`, the input
+contains:
 
 ```typescript
 {
@@ -377,9 +401,9 @@ When `canUseTool` is called with `toolName: "AskUserQuestion"`, the input contai
       header: "Database",
       options: [
         { label: "PostgreSQL", description: "Relational, ACID compliant" },
-        { label: "MongoDB", description: "Document-based, flexible schema" }
+        { label: "MongoDB", description: "Document-based, flexible schema" },
       ],
-      multiSelect: false
+      multiSelect: false,
     },
     {
       question: "Which features should we enable?",
@@ -387,29 +411,30 @@ When `canUseTool` is called with `toolName: "AskUserQuestion"`, the input contai
       options: [
         { label: "Authentication", description: "User login and sessions" },
         { label: "Logging", description: "Request and error logging" },
-        { label: "Caching", description: "Redis-based response caching" }
+        { label: "Caching", description: "Redis-based response caching" },
       ],
-      multiSelect: true
-    }
-  ]
+      multiSelect: true,
+    },
+  ];
 }
 ```
 
 ### Returning Answers
 
-Return the answers in `updatedInput.answers` as a record mapping question text to the selected option label(s):
+Return the answers in `updatedInput.answers` as a record mapping question text
+to the selected option label(s):
 
 ```typescript
 return {
   behavior: "allow",
   updatedInput: {
-    questions: input.questions,  // Pass through original questions
+    questions: input.questions, // Pass through original questions
     answers: {
       "Which database should we use?": "PostgreSQL",
-      "Which features should we enable?": "Authentication, Caching"
-    }
-  }
-}
+      "Which features should we enable?": "Authentication, Caching",
+    },
+  },
+};
 ```
 
 <Note>
@@ -418,5 +443,7 @@ Multi-select answers are comma-separated strings (e.g., `"Authentication, Cachin
 
 ## Related Resources
 
-- [Hooks Guide](/docs/en/agent-sdk/hooks) - Learn how to implement hooks for fine-grained control over tool execution
-- [Settings: Permission Rules](https://code.claude.com/docs/en/settings#permission-settings) - Configure declarative allow/deny rules with bash command parsing
+- [Hooks Guide](/docs/en/agent-sdk/hooks) - Learn how to implement hooks for
+  fine-grained control over tool execution
+- [Settings: Permission Rules](https://code.claude.com/docs/en/settings#permission-settings) -
+  Configure declarative allow/deny rules with bash command parsing

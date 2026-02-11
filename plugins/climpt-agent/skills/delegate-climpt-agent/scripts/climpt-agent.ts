@@ -237,7 +237,6 @@ async function main(): Promise<void> {
     if (matchedCommand.options) {
       await logger.write("Available options", {
         options: matchedCommand.options,
-        uv: matchedCommand.uv,
       });
     }
 

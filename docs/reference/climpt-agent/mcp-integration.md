@@ -1,10 +1,12 @@
 # MCP Integration Specification
 
-This document explains the integration specification between Climpt Agent and Climpt MCP server.
+This document explains the integration specification between Climpt Agent and
+Climpt MCP server.
 
 ## Overview
 
-Climpt Agent performs command search, detail retrieval, and execution through the Climpt MCP server.
+Climpt Agent performs command search, detail retrieval, and execution through
+the Climpt MCP server.
 
 ## MCP Server Configuration
 
@@ -33,8 +35,8 @@ Climpt Agent performs command search, detail retrieval, and execution through th
 
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
+| Variable                | Description                       |
+| ----------------------- | --------------------------------- |
 | `${CLAUDE_PLUGIN_ROOT}` | Absolute path to plugin directory |
 
 ## MCP Tools
@@ -47,20 +49,20 @@ Searches for similar commands from natural language query.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `query` | string | Yes | - | Search query |
-| `agent` | string | No | `"climpt"` | Agent name |
+| Parameter | Type   | Required | Default    | Description  |
+| --------- | ------ | -------- | ---------- | ------------ |
+| `query`   | string | Yes      | -          | Search query |
+| `agent`   | string | No       | `"climpt"` | Agent name   |
 
 **Response:**
 
 ```typescript
 interface SearchResult {
-  c1: string;           // Domain identifier
-  c2: string;           // Action identifier
-  c3: string;           // Target identifier
-  description: string;  // Command description
-  score: number;        // Similarity score (0-1)
+  c1: string; // Domain identifier
+  c2: string; // Action identifier
+  c3: string; // Target identifier
+  description: string; // Command description
+  score: number; // Similarity score (0-1)
 }
 ```
 
@@ -102,12 +104,12 @@ Retrieves detailed command information from C3L identifiers.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `agent` | string | No | `"climpt"` | Agent name |
-| `c1` | string | Yes | - | Domain identifier |
-| `c2` | string | Yes | - | Action identifier |
-| `c3` | string | Yes | - | Target identifier |
+| Parameter | Type   | Required | Default    | Description       |
+| --------- | ------ | -------- | ---------- | ----------------- |
+| `agent`   | string | No       | `"climpt"` | Agent name        |
+| `c1`      | string | Yes      | -          | Domain identifier |
+| `c2`      | string | Yes      | -          | Action identifier |
+| `c3`      | string | Yes      | -          | Target identifier |
 
 **Response:**
 
@@ -147,13 +149,13 @@ Executes a command and retrieves the instruction prompt.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `agent` | string | Yes | - | Agent name (`"climpt"`) |
-| `c1` | string | Yes | - | Domain identifier (e.g., `"git"`, `"meta"`) |
-| `c2` | string | Yes | - | Action identifier |
-| `c3` | string | Yes | - | Target identifier |
-| `options` | object | No | `{}` | Command options |
+| Parameter | Type   | Required | Default | Description                                 |
+| --------- | ------ | -------- | ------- | ------------------------------------------- |
+| `agent`   | string | Yes      | -       | Agent name (`"climpt"`)                     |
+| `c1`      | string | Yes      | -       | Domain identifier (e.g., `"git"`, `"meta"`) |
+| `c2`      | string | Yes      | -       | Action identifier                           |
+| `c3`      | string | Yes      | -       | Target identifier                           |
+| `options` | object | No       | `{}`    | Command options                             |
 
 **Response:**
 
@@ -179,9 +181,9 @@ Reloads the registry cache.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `agent` | string | No | `"climpt"` | Agent name |
+| Parameter | Type   | Required | Default    | Description |
+| --------- | ------ | -------- | ---------- | ----------- |
+| `agent`   | string | No       | `"climpt"` | Agent name  |
 
 **Usage example:**
 
@@ -212,11 +214,11 @@ interface Registry {
 }
 
 interface Command {
-  c1: string;           // Domain identifier
-  c2: string;           // Action identifier
-  c3: string;           // Target identifier
-  description: string;  // Command description
-  usage?: string;       // Usage
+  c1: string; // Domain identifier
+  c2: string; // Action identifier
+  c3: string; // Target identifier
+  description: string; // Command description
+  usage?: string; // Usage
   options?: {
     edition?: string[];
     adaptation?: string[];
@@ -231,20 +233,20 @@ interface Command {
 
 #### c1: git
 
-| c2 | c3 | Description |
-|----|-----|-------------|
-| `decide-branch` | `working-branch` | Decide whether to create branch based on task content |
-| `find-oldest` | `descendant-branch` | Search and merge oldest related branch |
-| `group-commit` | `unstaged-changes` | Commit changes in semantic units |
-| `list-select` | `pr-branch` | Select next target from PR-attached branch list |
-| `merge-up` | `base-branch` | Merge derived branch to parent branch |
+| c2              | c3                  | Description                                           |
+| --------------- | ------------------- | ----------------------------------------------------- |
+| `decide-branch` | `working-branch`    | Decide whether to create branch based on task content |
+| `find-oldest`   | `descendant-branch` | Search and merge oldest related branch                |
+| `group-commit`  | `unstaged-changes`  | Commit changes in semantic units                      |
+| `list-select`   | `pr-branch`         | Select next target from PR-attached branch list       |
+| `merge-up`      | `base-branch`       | Merge derived branch to parent branch                 |
 
 #### c1: meta
 
-| c2 | c3 | Description |
-|----|-----|-------------|
-| `build` | `frontmatter` | Generate C3L v0.5 compliant frontmatter |
-| `create` | `instruction` | Create new instruction file |
+| c2       | c3            | Description                             |
+| -------- | ------------- | --------------------------------------- |
+| `build`  | `frontmatter` | Generate C3L v0.5 compliant frontmatter |
+| `create` | `instruction` | Create new instruction file             |
 
 ## Command Execution Flow
 
@@ -287,12 +289,12 @@ The `search` tool uses TF-IDF based cosine similarity to search commands.
 
 ### Score Interpretation
 
-| Score Range | Interpretation |
-|-------------|----------------|
-| 0.8 - 1.0 | Very high match |
-| 0.5 - 0.8 | Moderate match |
-| 0.2 - 0.5 | Low match |
-| 0.0 - 0.2 | Almost unrelated |
+| Score Range | Interpretation   |
+| ----------- | ---------------- |
+| 0.8 - 1.0   | Very high match  |
+| 0.5 - 0.8   | Moderate match   |
+| 0.2 - 0.5   | Low match        |
+| 0.0 - 0.2   | Almost unrelated |
 
 ## Error Handling
 
@@ -330,6 +332,7 @@ The `search` tool uses TF-IDF based cosine similarity to search commands.
 ## Best Practices
 
 1. Call in order of **search → describe → execute**
-2. When there are multiple search results, check `score` and `description` to select
+2. When there are multiple search results, check `score` and `description` to
+   select
 3. Execute `reload` after updating registry.json
 4. Always use `"climpt"` for the `agent` parameter

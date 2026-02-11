@@ -1,21 +1,25 @@
 # User Documentation
 
-This section is for users who want to use Climpt for prompt management and CLI-based development workflows.
+This section is for users who want to use Climpt for prompt management and
+CLI-based development workflows.
 
 ## Getting Started
 
 ### English Guides
 
 - [Overview](../guides/en/00-overview.md) - What is Climpt?
-- [Key Concepts](../guides/en/00-1-concepts.md) - Understanding C3L and core concepts
+- [Key Concepts](../guides/en/00-1-concepts.md) - Understanding C3L and core
+  concepts
 - [Prerequisites](../guides/en/01-prerequisites.md) - System requirements
 - [Installation](../guides/en/02-installation.md) - How to install
-- [Configuration](../guides/en/03-configuration.md) - Setting up your environment
+- [Configuration](../guides/en/03-configuration.md) - Setting up your
+  environment
 - [Basic Usage](../guides/en/04-basic-usage.md) - Common commands
 - [Advanced Usage](../guides/en/05-advanced-usage.md) - Power user features
 - [Troubleshooting](../guides/en/06-troubleshooting.md) - Common issues
 - [CLI Reference](../guides/en/07-cli-reference.md) - Full command reference
-- [Prompt Structure](../guides/en/08-prompt-structure.md) - Understanding prompts
+- [Prompt Structure](../guides/en/08-prompt-structure.md) - Understanding
+  prompts
 
 ### Japanese Guides (日本語ガイド)
 
@@ -32,11 +36,13 @@ This section is for users who want to use Climpt for prompt management and CLI-b
 
 ## MCP Server Integration
 
-- [MCP Setup Guide](../mcp-setup.md) - Integrating Climpt with Claude Code via MCP
+- [MCP Setup Guide](../mcp-setup.md) - Integrating Climpt with Claude Code via
+  MCP
 
 ## Prompt Customization
 
-- [Prompt Customization Guide](../prompt-customization-guide.md) - Creating and modifying prompts
+- [Prompt Customization Guide](../prompt-customization-guide.md) - Creating and
+  modifying prompts
 
 ## C3L Specification
 
@@ -88,14 +94,15 @@ deno run --allow-read --allow-write --allow-net --allow-env --allow-run --allow-
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Run a prompt | `climpt <directive> <layer>` |
-| With edition | `climpt -e=detailed <directive> <layer>` |
+| Task            | Command                                  |
+| --------------- | ---------------------------------------- |
+| Run a prompt    | `climpt <directive> <layer>`             |
+| With edition    | `climpt -e=detailed <directive> <layer>` |
 | With input file | `climpt -f=input.md <directive> <layer>` |
-| List commands | Use MCP `search` tool |
+| List commands   | Use MCP `search` tool                    |
 
 ## Related Documentation
 
-- [Developer Documentation](../developer/index.md) - For developers building agents
+- [Developer Documentation](../developer/index.md) - For developers building
+  agents
 - [Internal Specifications](../internal/index.md) - Technical specifications

@@ -8,25 +8,23 @@ Explains Climpt's directory structure and configuration file details.
 
 Before diving into details, understand **when** you need to modify each file:
 
-| File | Customize When... | Leave Default When... |
-|------|-------------------|----------------------|
-| `app.yml` | Prompts are in a non-standard location; sharing prompts across projects | Using standard `.agent/` structure |
-| `user.yml` | Enforcing naming conventions; restricting command options; per-user output paths | No validation or path customization needed |
-| `registry_config.json` | Managing multiple agents; sharing agents across projects | Single agent in standard location |
+| File                   | Customize When...                                                                | Leave Default When...                      |
+| ---------------------- | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| `app.yml`              | Prompts are in a non-standard location; sharing prompts across projects          | Using standard `.agent/` structure         |
+| `user.yml`             | Enforcing naming conventions; restricting command options; per-user output paths | No validation or path customization needed |
+| `registry_config.json` | Managing multiple agents; sharing agents across projects                         | Single agent in standard location          |
 
 ### Common Scenarios
 
-**Scenario 1: Team sharing prompts**
-→ Customize `app.yml` to point to shared directory
+**Scenario 1: Team sharing prompts** → Customize `app.yml` to point to shared
+directory
 
-**Scenario 2: Enforce branch naming**
-→ Add validation pattern in `user.yml`
+**Scenario 2: Enforce branch naming** → Add validation pattern in `user.yml`
 
-**Scenario 3: Multiple agents (iterator + reviewer)**
-→ Add entries to `registry_config.json`
+**Scenario 3: Multiple agents (iterator + reviewer)** → Add entries to
+`registry_config.json`
 
-**Scenario 4: First-time setup**
-→ Use defaults, customize later as needed
+**Scenario 4: First-time setup** → Use defaults, customize later as needed
 
 ## Contents
 
@@ -89,12 +87,12 @@ your-project/
 
 ### Directory Roles
 
-| Directory | Role | Required |
-|-----------|------|----------|
-| `.agent/climpt/config/` | Config file storage | Yes |
-| `.agent/climpt/prompts/` | Prompt templates | Yes |
-| `.agent/climpt/schema/` | JSON Schema definitions | No |
-| `.deno/bin/` | CLI executables | Not needed for MCP only |
+| Directory                | Role                    | Required                |
+| ------------------------ | ----------------------- | ----------------------- |
+| `.agent/climpt/config/`  | Config file storage     | Yes                     |
+| `.agent/climpt/prompts/` | Prompt templates        | Yes                     |
+| `.agent/climpt/schema/`  | JSON Schema definitions | No                      |
+| `.deno/bin/`             | CLI executables         | Not needed for MCP only |
 
 ### Prompt Directory Structure
 
@@ -121,6 +119,7 @@ Defines prompt and schema placement directories for each domain.
 ```
 
 Examples:
+
 - `git-app.yml` → For `climpt-git` command
 - `code-app.yml` → For `climpt-code` command
 - `default-app.yml` → Default (when `--config` not specified)
@@ -135,7 +134,7 @@ working_dir: ".agent/climpt"
 
 # Prompt file location
 app_prompt:
-  base_dir: "prompts/git"    # Relative path from working_dir
+  base_dir: "prompts/git" # Relative path from working_dir
 
 # Schema file location (optional)
 app_schema:
@@ -144,11 +143,11 @@ app_schema:
 
 ### Configuration Item Descriptions
 
-| Item | Description | Required |
-|------|-------------|----------|
-| `working_dir` | Base directory for prompt search | Yes |
-| `app_prompt.base_dir` | Base directory for prompt files | Yes |
-| `app_schema.base_dir` | Base directory for schema files | No |
+| Item                  | Description                      | Required |
+| --------------------- | -------------------------------- | -------- |
+| `working_dir`         | Base directory for prompt search | Yes      |
+| `app_prompt.base_dir` | Base directory for prompt files  | Yes      |
+| `app_schema.base_dir` | Base directory for schema files  | No       |
 
 ### Path Resolution Mechanism
 
@@ -186,7 +185,7 @@ Customize option default values and behavior.
 # Output destination prefix setting
 options:
   destination:
-    prefix: "output/git"    # Prepended to paths specified with -o
+    prefix: "output/git" # Prepended to paths specified with -o
 
 # Parameter validation patterns (optional)
 params:
@@ -199,11 +198,11 @@ params:
 
 ### Configuration Item Descriptions
 
-| Item | Description |
-|------|-------------|
-| `options.destination.prefix` | Prefix prepended to output destination paths |
-| `params.two.directiveType.pattern` | Regex validation for c2 (action) |
-| `params.two.layerType.pattern` | Regex validation for c3 (target) |
+| Item                               | Description                                  |
+| ---------------------------------- | -------------------------------------------- |
+| `options.destination.prefix`       | Prefix prepended to output destination paths |
+| `params.two.directiveType.pattern` | Regex validation for c2 (action)             |
+| `params.two.layerType.pattern`     | Regex validation for c3 (target)             |
 
 ### Destination Prefix Behavior
 
@@ -226,6 +225,7 @@ Manage registries for multiple agents.
 ### File Location
 
 Priority order (searched top to bottom):
+
 1. `.agent/climpt/config/registry_config.json` (project)
 2. `~/.agent/climpt/config/registry_config.json` (home)
 3. Default configuration (auto-generated)

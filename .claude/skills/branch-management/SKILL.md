@@ -1,14 +1,17 @@
 ---
 name: branch-management
-description: main, develop, release ブランチに関するPR作成、マージ、ブランチ作成時にブランチ戦略を確認・案内する
+description: Review and guide branch strategy when creating PRs, merging, or creating branches involving main, develop, and release branches
 allowed-tools: [Bash, Read, Grep, Glob]
 ---
 
 # ブランチ管理ガイド
 
-## 目的
+## 責務
 
-main, develop, release ブランチの操作が正しいフローで行われることを担保する。
+ブランチ戦略・命名規則・PR作成ルールを管理する。
+
+- リリースフロー全体（version bump → tag → merge）は `/release-procedure` skill を参照
+- CI 実行方法・エラー対処は `/local-ci` skill を参照
 
 ## トリガー条件
 
@@ -184,26 +187,7 @@ git pull origin develop
 
 ### 3. リリースフロー
 
-```mermaid
-sequenceDiagram
-    participant W as 作業ブランチ
-    participant R as release/x.y.z
-    participant D as develop
-    participant M as main
-
-    W->>R: PR作成・マージ
-    Note over W,R: 機能完成
-
-    R->>R: バージョン番号更新
-    R->>D: PR作成・マージ
-    Note over R,D: CI確認
-
-    D->>M: PR作成・マージ
-    Note over D,M: 最終確認
-
-    M->>M: vタグ付与
-    Note over M: git tag vx.y.z
-```
+リリース手順（version bump → PR → merge → vtag）の詳細は `/release-procedure` skill を参照。
 
 ## 警告パターン
 
@@ -243,8 +227,5 @@ PRマージ:
   git pull origin <マージ先ブランチ>
 
 完全リリースフロー:
-  1. 作業ブランチ → release/* (PR作成 → マージ)
-  2. release/* → develop (PR作成 → マージ)
-  3. develop → main (PR作成 → マージ)
-  4. main に vタグ付与: git tag vx.y.z && git push origin vx.y.z
+  /release-procedure skill を参照
 ```

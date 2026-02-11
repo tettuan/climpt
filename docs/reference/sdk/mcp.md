@@ -6,7 +6,9 @@ Extend Claude Code with custom tools using Model Context Protocol servers
 
 ## Overview
 
-Model Context Protocol (MCP) servers extend Claude Code with custom tools and capabilities. MCPs can run as external processes, connect via HTTP/SSE, or execute directly within your SDK application.
+Model Context Protocol (MCP) servers extend Claude Code with custom tools and
+capabilities. MCPs can run as external processes, connect via HTTP/SSE, or
+execute directly within your SDK application.
 
 ## Configuration
 
@@ -53,21 +55,23 @@ Configure MCP servers in `.mcp.json` at your project root:
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "List files in my project",
-  options: {
-    mcpServers: {
-      "filesystem": {
-        command: "npx",
-        args: ["@modelcontextprotocol/server-filesystem"],
-        env: {
-          ALLOWED_PATHS: "/Users/me/projects"
-        }
-      }
+for await (
+  const message of query({
+    prompt: "List files in my project",
+    options: {
+      mcpServers: {
+        "filesystem": {
+          command: "npx",
+          args: ["@modelcontextprotocol/server-filesystem"],
+          env: {
+            ALLOWED_PATHS: "/Users/me/projects",
+          },
+        },
+      },
+      allowedTools: ["mcp__filesystem__list_files"],
     },
-    allowedTools: ["mcp__filesystem__list_files"]
-  }
-})) {
+  })
+) {
   if (message.type === "result" && message.subtype === "success") {
     console.log(message.result);
   }
@@ -204,7 +208,9 @@ Remote servers with network communication:
 
 ### SDK MCP Servers
 
-In-process servers running within your application. For detailed information on creating custom tools, see the [Custom Tools guide](/docs/en/agent-sdk/custom-tools):
+In-process servers running within your application. For detailed information on
+creating custom tools, see the
+[Custom Tools guide](/docs/en/agent-sdk/custom-tools):
 
 ## Resource Management
 
@@ -216,18 +222,20 @@ MCP servers can expose resources that Claude can list and read:
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // List available resources
-for await (const message of query({
-  prompt: "What resources are available from the database server?",
-  options: {
-    mcpServers: {
-      "database": {
-        command: "npx",
-        args: ["@modelcontextprotocol/server-database"]
-      }
+for await (
+  const message of query({
+    prompt: "What resources are available from the database server?",
+    options: {
+      mcpServers: {
+        "database": {
+          command: "npx",
+          args: ["@modelcontextprotocol/server-database"],
+        },
+      },
+      allowedTools: ["mcp__list_resources", "mcp__read_resource"],
     },
-    allowedTools: ["mcp__list_resources", "mcp__read_resource"]
-  }
-})) {
+  })
+) {
   if (message.type === "result") console.log(message.result);
 }
 ```
@@ -316,18 +324,20 @@ Handle MCP connection failures gracefully:
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "Process data",
-  options: {
-    mcpServers: {
-      "data-processor": dataServer
-    }
-  }
-})) {
+for await (
+  const message of query({
+    prompt: "Process data",
+    options: {
+      mcpServers: {
+        "data-processor": dataServer,
+      },
+    },
+  })
+) {
   if (message.type === "system" && message.subtype === "init") {
     // Check MCP server status
     const failedServers = message.mcp_servers.filter(
-      s => s.status !== "connected"
+      (s) => s.status !== "connected",
     );
 
     if (failedServers.length > 0) {
@@ -335,7 +345,9 @@ for await (const message of query({
     }
   }
 
-  if (message.type === "result" && message.subtype === "error_during_execution") {
+  if (
+    message.type === "result" && message.subtype === "error_during_execution"
+  ) {
     console.error("Execution failed");
   }
 }
@@ -370,7 +382,8 @@ async for message in query(
 
 ## Related Resources
 
-- [Custom Tools Guide](/docs/en/agent-sdk/custom-tools) - Detailed guide on creating SDK MCP servers
+- [Custom Tools Guide](/docs/en/agent-sdk/custom-tools) - Detailed guide on
+  creating SDK MCP servers
 - [TypeScript SDK Reference](/docs/en/agent-sdk/typescript)
 - [Python SDK Reference](/docs/en/agent-sdk/python)
 - [SDK Permissions](/docs/en/agent-sdk/permissions)

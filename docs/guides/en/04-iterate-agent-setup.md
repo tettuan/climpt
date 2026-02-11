@@ -1,8 +1,10 @@
-[English](../en/04-iterate-agent-setup.md) | [日本語](../ja/04-iterate-agent-setup.md)
+[English](../en/04-iterate-agent-setup.md) |
+[日本語](../ja/04-iterate-agent-setup.md)
 
 # 4. Iterate Agent Setup and Execution
 
-Set up and run Iterate Agent to automatically process GitHub Issues and Projects.
+Set up and run Iterate Agent to automatically process GitHub Issues and
+Projects.
 
 ## Contents
 
@@ -19,8 +21,8 @@ Set up and run Iterate Agent to automatically process GitHub Issues and Projects
 
 ## 4.1 What is Iterate Agent
 
-Iterate Agent is an autonomous development agent using the Claude Agent SDK.
-It automatically repeats the following cycle:
+Iterate Agent is an autonomous development agent using the Claude Agent SDK. It
+automatically repeats the following cycle:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -57,13 +59,13 @@ It automatically repeats the following cycle:
 
 ### Required
 
-| Requirement | Description | Verification |
-|-------------|-------------|--------------|
-| **GitHub CLI (`gh`)** | Must be installed and authenticated | `gh auth status` |
-| **Git repository** | Project must be a Git repository | `git status` |
-| **GitHub remote** | Repository must be pushed to GitHub | `git remote -v` |
-| **Target Issue/Project** | Must exist on GitHub | `gh issue list` |
-| **Claude Code Plugin** | climpt-agent plugin installed | Check `.claude/settings.json` |
+| Requirement              | Description                         | Verification                  |
+| ------------------------ | ----------------------------------- | ----------------------------- |
+| **GitHub CLI (`gh`)**    | Must be installed and authenticated | `gh auth status`              |
+| **Git repository**       | Project must be a Git repository    | `git status`                  |
+| **GitHub remote**        | Repository must be pushed to GitHub | `git remote -v`               |
+| **Target Issue/Project** | Must exist on GitHub                | `gh issue list`               |
+| **Claude Code Plugin**   | climpt-agent plugin installed       | Check `.claude/settings.json` |
 
 ### Claude Code Plugin Setup
 
@@ -86,7 +88,8 @@ After installation, your `.claude/settings.json` should include:
 }
 ```
 
-> **Note**: The agent will display a warning if the plugin is not installed but will continue to run with limited functionality.
+> **Note**: The agent will display a warning if the plugin is not installed but
+> will continue to run with limited functionality.
 
 ### GitHub CLI Setup
 
@@ -125,7 +128,8 @@ Before running Iterate Agent, you **must** run the initialization command:
 deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
-This creates the required configuration files. See [Initialization](#43-initialization) for details.
+This creates the required configuration files. See
+[Initialization](#43-initialization) for details.
 
 ---
 
@@ -144,6 +148,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
 Example output:
+
 ```
 Iterate Agent initialized successfully!
 
@@ -187,6 +192,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
 Short form:
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -i 123
 ```
@@ -200,6 +206,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 ```
 
 Short form:
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -p 5
 ```
@@ -213,6 +220,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
 ```
 
 Short form:
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -m 10
 ```
@@ -227,26 +235,26 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 
 ### Options List
 
-| Option | Short | Default | Description |
-|--------|-------|---------|-------------|
-| `--init` | - | - | Initialize config files |
-| `--issue` | `-i` | - | Target GitHub Issue number |
-| `--project` | `-p` | - | Target GitHub Project number |
-| `--iterate-max` | `-m` | Infinity | Maximum iterations |
-| `--name` | `-n` | `climpt` | Agent name |
-| `--project-owner` | `-o` | Repository owner | Project owner (only with --project) |
-| `--resume` | `-r` | false | Resume previous session |
-| `--help` | `-h` | - | Display help |
+| Option            | Short | Default          | Description                         |
+| ----------------- | ----- | ---------------- | ----------------------------------- |
+| `--init`          | -     | -                | Initialize config files             |
+| `--issue`         | `-i`  | -                | Target GitHub Issue number          |
+| `--project`       | `-p`  | -                | Target GitHub Project number        |
+| `--iterate-max`   | `-m`  | Infinity         | Maximum iterations                  |
+| `--name`          | `-n`  | `climpt`         | Agent name                          |
+| `--project-owner` | `-o`  | Repository owner | Project owner (only with --project) |
+| `--resume`        | `-r`  | false            | Resume previous session             |
+| `--help`          | `-h`  | -                | Display help                        |
 
 ---
 
 ## 4.5 Completion Criteria
 
-| Mode | Completion Condition | Check Method |
-|------|---------------------|--------------|
-| `--issue` | Issue is closed (`label-only` setting: phase complete) | `gh issue view --json state` |
-| `--project` | All items complete | `gh project view --format json` |
-| `--iterate-max` | Reached specified count | Internal counter |
+| Mode            | Completion Condition                                   | Check Method                    |
+| --------------- | ------------------------------------------------------ | ------------------------------- |
+| `--issue`       | Issue is closed (`label-only` setting: phase complete) | `gh issue view --json state`    |
+| `--project`     | All items complete                                     | `gh project view --format json` |
+| `--iterate-max` | Reached specified count                                | Internal counter                |
 
 ### Combination
 
@@ -262,9 +270,9 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my
 
 ### About --project-owner
 
-Project numbers are scoped per project owner (user or organization).
-By default, the repository owner's projects are used, but you can specify
-a different owner with `--project-owner`:
+Project numbers are scoped per project owner (user or organization). By default,
+the repository owner's projects are used, but you can specify a different owner
+with `--project-owner`:
 
 ```bash
 # Your own projects (@me = authenticated user)
@@ -313,40 +321,45 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 ### Configuration Item Descriptions
 
-| Item | Description |
-|------|-------------|
-| `allowedTools` | List of available tools |
-| `permissionMode` | Permission mode |
-| `logging.directory` | Log output destination |
-| `logging.maxFiles` | Maximum log files (rotation) |
+| Item                | Description                  |
+| ------------------- | ---------------------------- |
+| `allowedTools`      | List of available tools      |
+| `permissionMode`    | Permission mode              |
+| `logging.directory` | Log output destination       |
+| `logging.maxFiles`  | Maximum log files (rotation) |
 
 ### permissionMode Types
 
-| Mode | Description | Recommended Use |
-|------|-------------|-----------------|
-| `default` | Confirmation required for all operations | Initial testing |
-| `plan` | Only planning allowed | Plan review |
-| `acceptEdits` | Auto-approve file edits | **Normal operation (recommended)** |
-| `bypassPermissions` | Auto-approve all operations | Full automation |
+| Mode                | Description                              | Recommended Use                    |
+| ------------------- | ---------------------------------------- | ---------------------------------- |
+| `default`           | Confirmation required for all operations | Initial testing                    |
+| `plan`              | Only planning allowed                    | Plan review                        |
+| `acceptEdits`       | Auto-approve file edits                  | **Normal operation (recommended)** |
+| `bypassPermissions` | Auto-approve all operations              | Full automation                    |
 
 ### System Prompt Customization
 
 System prompts are located in `.agent/iterator/prompts/dev/` using C3L format:
 
-| File | Purpose |
-|------|---------|
-| `start/default/f_default.md` | Iteration-count based mode |
-| `start/issue/f_default.md` | Single GitHub Issue mode |
-| `start/project/f_default.md` | GitHub Project preparation mode |
-| `review/project/f_default.md` | Project completion review mode |
+| File                          | Purpose                         |
+| ----------------------------- | ------------------------------- |
+| `start/default/f_default.md`  | Iteration-count based mode      |
+| `start/issue/f_default.md`    | Single GitHub Issue mode        |
+| `start/project/f_default.md`  | GitHub Project preparation mode |
+| `review/project/f_default.md` | Project completion review mode  |
 
-These prompts use UV variables for dynamic content injection (e.g., `{uv-agent_name}`, `{uv-completion_criteria}`).
+These prompts use UV variables for dynamic content injection (e.g.,
+`{uv-agent_name}`, `{uv-completion_criteria}`).
 
-The default system.md template includes `{uv-completion_criteria}`, which is automatically populated by the completion handler at runtime. If you want to define custom completion criteria, replace `{uv-completion_criteria}` with your own text directly in system.md.
+The default system.md template includes `{uv-completion_criteria}`, which is
+automatically populated by the completion handler at runtime. If you want to
+define custom completion criteria, replace `{uv-completion_criteria}` with your
+own text directly in system.md.
 
 ### About the --agent Option
 
-The `--agent` option specifies a registry name defined in `registry_config.json`:
+The `--agent` option specifies a registry name defined in
+`registry_config.json`:
 
 ```json
 // .agent/climpt/config/registry_config.json
@@ -358,10 +371,10 @@ The `--agent` option specifies a registry name defined in `registry_config.json`
 }
 ```
 
-| --agent value | Registry used |
-|---------------|---------------|
-| `climpt` | `.agent/climpt/registry.json` |
-| `iterator` | `.agent/iterator/registry.json` |
+| --agent value | Registry used                   |
+| ------------- | ------------------------------- |
+| `climpt`      | `.agent/climpt/registry.json`   |
+| `iterator`    | `.agent/iterator/registry.json` |
 
 ---
 
@@ -414,7 +427,9 @@ tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
 
 #### Log Output in Worktree Mode
 
-When running agents in worktree mode (`forceWorktree: true`), logs are always written to the **main repository's** `tmp/logs/` directory, not within the worktree directory.
+When running agents in worktree mode (`forceWorktree: true`), logs are always
+written to the **main repository's** `tmp/logs/` directory, not within the
+worktree directory.
 
 ```
 # Main repository (where you started the agent)
@@ -432,11 +447,14 @@ your-project/
 ```
 
 This ensures:
-- **Centralized logging**: All logs are in one location regardless of execution mode
+
+- **Centralized logging**: All logs are in one location regardless of execution
+  mode
 - **No git pollution**: Worktree directories remain clean for commits
 - **Easy access**: Logs are accessible even after worktree cleanup
 
-> **Note**: The `tmp/` directory is included in `.gitignore`, so logs are never committed.
+> **Note**: The `tmp/` directory is included in `.gitignore`, so logs are never
+> committed.
 
 Viewing logs:
 

@@ -1,15 +1,18 @@
 # C3L (Climpt 3-word Language) Specification v0.3
 
-> **Official Name**: C3L - Climpt 3-word Language  
-> **Version**: 0.3  
-> **Status**: Draft (stabilizing)  
-> **Purpose**: Define the standard 3-word command language for Climpt AI invocation system
+> **Official Name**: C3L - Climpt 3-word Language\
+> **Version**: 0.3\
+> **Status**: Draft (stabilizing)\
+> **Purpose**: Define the standard 3-word command language for Climpt AI
+> invocation system
 
 ---
 
 ## 0. About C3L
 
-**C3L** (Climpt 3-word Language) is a command language specification designed to balance:
+**C3L** (Climpt 3-word Language) is a command language specification designed to
+balance:
+
 - Strict 3-word constraint for CLI parsing
 - Natural English readability
 - Systematic AI agent integration
@@ -73,6 +76,7 @@ CompoundTarget := Object "-" TargetModifier ;
 ## 3. C3L Patterns
 
 ### Pattern A: Simple C3L
+
 ```bash
 climpt-code create api
 climpt-data fetch prices
@@ -80,6 +84,7 @@ climpt-git merge branch
 ```
 
 ### Pattern B: Action-Modified C3L
+
 ```bash
 climpt-code create-secure api
 climpt-code build-robust service
@@ -87,6 +92,7 @@ climpt-data fetch-latest prices
 ```
 
 ### Pattern C: Target-Modified C3L
+
 ```bash
 climpt-code create api-service
 climpt-infra deploy staging-app
@@ -94,6 +100,7 @@ climpt-data analyze price-trends
 ```
 
 ### Pattern D: Full-Compound C3L (Recommended)
+
 ```bash
 climpt-code create-secure api-service
 climpt-infra deploy-safe staging-env
@@ -106,15 +113,15 @@ climpt-data fetch-historical stock-prices
 
 Standard C3L domains:
 
-| Domain | Purpose | Example |
-|--------|---------|---------|
-| `code` | Code operations | `climpt-code build-robust api-service` |
-| `data` | Data processing | `climpt-data analyze-deep price-trends` |
-| `infra` | Infrastructure | `climpt-infra deploy-safe production-app` |
-| `docs` | Documentation | `climpt-docs generate-full api-spec` |
-| `git` | Version control | `climpt-git create-feature branch` |
-| `test` | Testing/QA | `climpt-test validate-strict design-spec` |
-| `meta` | Meta operations | `climpt-meta list-all commands` |
+| Domain  | Purpose         | Example                                   |
+| ------- | --------------- | ----------------------------------------- |
+| `code`  | Code operations | `climpt-code build-robust api-service`    |
+| `data`  | Data processing | `climpt-data analyze-deep price-trends`   |
+| `infra` | Infrastructure  | `climpt-infra deploy-safe production-app` |
+| `docs`  | Documentation   | `climpt-docs generate-full api-spec`      |
+| `git`   | Version control | `climpt-git create-feature branch`        |
+| `test`  | Testing/QA      | `climpt-test validate-strict design-spec` |
+| `meta`  | Meta operations | `climpt-meta list-all commands`           |
 
 ---
 
@@ -122,14 +129,14 @@ Standard C3L domains:
 
 Core C3L verbs and their modifiers:
 
-| Base Verb | Modifiers | C3L Examples |
-|-----------|-----------|--------------|
-| `create` | `-new`, `-secure`, `-empty` | `create-secure` |
-| `build` | `-robust`, `-fast`, `-minimal` | `build-robust` |
-| `analyze` | `-deep`, `-quick`, `-full` | `analyze-deep` |
-| `deploy` | `-safe`, `-rolling`, `-canary` | `deploy-safe` |
-| `fetch` | `-latest`, `-all`, `-cached` | `fetch-latest` |
-| `validate` | `-strict`, `-basic`, `-full` | `validate-strict` |
+| Base Verb  | Modifiers                      | C3L Examples      |
+| ---------- | ------------------------------ | ----------------- |
+| `create`   | `-new`, `-secure`, `-empty`    | `create-secure`   |
+| `build`    | `-robust`, `-fast`, `-minimal` | `build-robust`    |
+| `analyze`  | `-deep`, `-quick`, `-full`     | `analyze-deep`    |
+| `deploy`   | `-safe`, `-rolling`, `-canary` | `deploy-safe`     |
+| `fetch`    | `-latest`, `-all`, `-cached`   | `fetch-latest`    |
+| `validate` | `-strict`, `-basic`, `-full`   | `validate-strict` |
 
 ---
 
@@ -137,13 +144,13 @@ Core C3L verbs and their modifiers:
 
 Common C3L target patterns:
 
-| Base Object | Modifiers | C3L Examples |
-|-------------|-----------|--------------|
-| `api` | `-service`, `-gateway`, `-spec` | `api-gateway` |
-| `data` | `-model`, `-pipeline`, `-schema` | `data-pipeline` |
-| `env` | `-staging`, `-production`, `-local` | `staging-env` |
-| `test` | `-suite`, `-coverage`, `-report` | `test-suite` |
-| `branch` | `-feature`, `-hotfix`, `-release` | `feature-branch` |
+| Base Object | Modifiers                           | C3L Examples     |
+| ----------- | ----------------------------------- | ---------------- |
+| `api`       | `-service`, `-gateway`, `-spec`     | `api-gateway`    |
+| `data`      | `-model`, `-pipeline`, `-schema`    | `data-pipeline`  |
+| `env`       | `-staging`, `-production`, `-local` | `staging-env`    |
+| `test`      | `-suite`, `-coverage`, `-report`    | `test-suite`     |
+| `branch`    | `-feature`, `-hotfix`, `-release`   | `feature-branch` |
 
 ---
 
@@ -215,11 +222,11 @@ def validate_c3l(cmd: C3LCommand) -> bool:
 
 ### 9.1 From Pre-C3L to C3L v0.3
 
-| Pre-C3L | C3L v0.3 | Improvement |
-|---------|----------|-------------|
-| `climpt-diagnose diagnose stack` | `climpt-debug analyze stack-trace` | No repetition |
-| `climpt-setup list climpt` | `climpt-meta list commands` | Natural reading |
-| `climpt-verify verify design` | `climpt-test validate design-spec` | Clear action |
+| Pre-C3L                          | C3L v0.3                           | Improvement     |
+| -------------------------------- | ---------------------------------- | --------------- |
+| `climpt-diagnose diagnose stack` | `climpt-debug analyze stack-trace` | No repetition   |
+| `climpt-setup list climpt`       | `climpt-meta list commands`        | Natural reading |
+| `climpt-verify verify design`    | `climpt-test validate design-spec` | Clear action    |
 
 ### 9.2 C3L Conversion Tool
 
@@ -247,11 +254,13 @@ climpt-meta validate-c3l "climpt-code create-secure api-gateway"
 ### 10.2 Compound Word Guidelines
 
 ✅ **Good C3L compounds**:
+
 - 2-3 parts maximum
 - Clear semantic relationship
 - Common English phrases
 
 ❌ **Avoid over-compounding**:
+
 ```bash
 # Bad: Too complex
 climpt-code create-super-secure-scalable api-gateway-service-v2
@@ -263,6 +272,7 @@ climpt-code create-secure api-gateway --version=2 --scalable
 ### 10.3 Semantic Clarity
 
 Each C3L word should have one clear role:
+
 - **Word 1**: WHO (which agent/domain)
 - **Word 2**: WHAT (what action to take)
 - **Word 3**: WHERE (what to act upon)
@@ -272,16 +282,19 @@ Each C3L word should have one clear role:
 ## 11. C3L Roadmap
 
 ### v0.3 (Current)
+
 - ✅ 3-word structure with compounds
 - ✅ Natural English patterns
 - ✅ Migration from legacy format
 
 ### v0.4 (Planned)
+
 - [ ] C3L validation library
 - [ ] Auto-completion support
 - [ ] IDE integration
 
 ### v1.0 (Future)
+
 - [ ] C3L certification program
 - [ ] Multi-language support
 - [ ] Extended C3L for complex workflows
@@ -290,12 +303,13 @@ Each C3L word should have one clear role:
 
 ## 12. C3L License & Governance
 
-C3L is an open specification designed for the Climpt ecosystem. Contributions and extensions are welcome following the C3L principles.
+C3L is an open specification designed for the Climpt ecosystem. Contributions
+and extensions are welcome following the C3L principles.
 
-**Specification Maintainer**: Climpt Project Team  
-**License**: MIT  
+**Specification Maintainer**: Climpt Project Team\
+**License**: MIT\
 **Repository**: github.com/[org]/climpt-c3l-spec
 
 ---
 
-*End of C3L Specification v0.3*
+_End of C3L Specification v0.3_

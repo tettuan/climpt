@@ -1,4 +1,5 @@
-[English](../en/03-instruction-creation.md) | [日本語](../ja/03-instruction-creation.md)
+[English](../en/03-instruction-creation.md) |
+[日本語](../ja/03-instruction-creation.md)
 
 # 3. Creating Instructions (Prompts)
 
@@ -18,21 +19,23 @@ This explains how to create instruction files (prompt files) used with Climpt.
 
 ## 3.1 What are Instructions
 
-Instructions are markdown files that define directives for AI.
-Following the C3L (Climpt 3-word Language) specification, they consist of three elements:
+Instructions are markdown files that define directives for AI. Following the C3L
+(Climpt 3-word Language) specification, they consist of three elements:
 
-| Element | Role | Examples |
-|---------|------|----------|
-| c1 (Domain) | Target area | `git`, `code`, `meta`, `test` |
-| c2 (Action) | Action to execute | `create`, `analyze`, `review` |
-| c3 (Target) | Target object | `branch`, `pull-request`, `instruction` |
+| Element     | Role              | Examples                                |
+| ----------- | ----------------- | --------------------------------------- |
+| c1 (Domain) | Target area       | `git`, `code`, `meta`, `test`           |
+| c2 (Action) | Action to execute | `create`, `analyze`, `review`           |
+| c3 (Target) | Target object     | `branch`, `pull-request`, `instruction` |
 
 Command format:
+
 ```bash
 climpt-<c1> <c2> <c3> [options]
 ```
 
 Examples:
+
 ```bash
 climpt-git decide-branch working-branch
 climpt-meta create instruction
@@ -245,22 +248,22 @@ Success if the new command is registered.
 
 ### File Naming Convention
 
-| Filename | Description | Usage Condition |
-|----------|-------------|-----------------|
-| `f_default.md` | Default | When `--edition` not specified |
-| `f_<edition>.md` | Specific edition | When `--edition=<edition>` specified |
-| `f_<edition>_<adaptation>.md` | Combination | When both specified |
+| Filename                      | Description      | Usage Condition                      |
+| ----------------------------- | ---------------- | ------------------------------------ |
+| `f_default.md`                | Default          | When `--edition` not specified       |
+| `f_<edition>.md`              | Specific edition | When `--edition=<edition>` specified |
+| `f_<edition>_<adaptation>.md` | Combination      | When both specified                  |
 
 ### Template Variables
 
 Variables available in prompts:
 
-| Variable | CLI Option | Description |
-|----------|------------|-------------|
-| `{input_text}` | STDIN | Text from standard input |
-| `{input_text_file}` | `-f`, `--from` | Input file path |
-| `{destination_path}` | `-o`, `--destination` | Output destination path |
-| `{uv-*}` | `--uv-*` | Custom variables |
+| Variable             | CLI Option            | Description              |
+| -------------------- | --------------------- | ------------------------ |
+| `{input_text}`       | STDIN                 | Text from standard input |
+| `{input_text_file}`  | `-f`, `--from`        | Input file path          |
+| `{destination_path}` | `-o`, `--destination` | Output destination path  |
+| `{uv-*}`             | `--uv-*`              | Custom variables         |
 
 ### Example: Using Template Variables
 
@@ -365,4 +368,5 @@ After creating instructions, verify the following:
 
 ## Next Step
 
-Proceed to [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) to set up Iterate Agent.
+Proceed to [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) to set up
+Iterate Agent.

@@ -24,6 +24,7 @@
 ```
 
 例：
+
 ```
 .agent/climpt/prompts/git/decide-branch/working-branch/f_default.md
 .agent/climpt/prompts/code/review/pull-request/f_detailed.md
@@ -42,24 +43,24 @@ c2: decide-branch
 c3: working-branch
 title: Decide Working Branch
 description: Decide branch strategy based on task content
-...
+---
+
 ---
 
 # プロンプト本文（Markdown）
+
 ここにAIへの指示を記述します。
 
-テンプレート変数を使用できます：
-{input_text}
-{destination_path}
+テンプレート変数を使用できます： {input_text} {destination_path}
 ```
 
 ### ファイル命名規則
 
-| ファイル名 | 説明 | 選択条件 |
-|-----------|------|---------|
-| `f_default.md` | デフォルト | オプション未指定時 |
-| `f_{edition}.md` | エディション指定 | `--edition={edition}` |
-| `f_{edition}_{adaptation}.md` | 両方指定 | 両オプション指定時 |
+| ファイル名                    | 説明             | 選択条件              |
+| ----------------------------- | ---------------- | --------------------- |
+| `f_default.md`                | デフォルト       | オプション未指定時    |
+| `f_{edition}.md`              | エディション指定 | `--edition={edition}` |
+| `f_{edition}_{adaptation}.md` | 両方指定         | 両オプション指定時    |
 
 ---
 
@@ -102,21 +103,21 @@ options:
 
 ### フィールド説明
 
-| フィールド | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| `c1` | string | はい | ドメイン |
-| `c2` | string | はい | アクション |
-| `c3` | string | はい | ターゲット |
-| `title` | string | はい | タイトル（英語） |
-| `description` | string | いいえ | 説明（英語） |
-| `usage` | string | いいえ | 使用例 |
-| `c3l_version` | string | いいえ | C3L バージョン |
-| `options.edition` | string[] | いいえ | エディション一覧 |
-| `options.adaptation` | string[] | いいえ | 処理モード一覧 |
-| `options.file` | boolean | いいえ | ファイル入力対応 |
-| `options.stdin` | boolean | いいえ | STDIN 対応 |
-| `options.destination` | boolean | いいえ | 出力先対応 |
-| `uv` | array | いいえ | ユーザー変数定義 |
+| フィールド            | 型       | 必須   | 説明             |
+| --------------------- | -------- | ------ | ---------------- |
+| `c1`                  | string   | はい   | ドメイン         |
+| `c2`                  | string   | はい   | アクション       |
+| `c3`                  | string   | はい   | ターゲット       |
+| `title`               | string   | はい   | タイトル（英語） |
+| `description`         | string   | いいえ | 説明（英語）     |
+| `usage`               | string   | いいえ | 使用例           |
+| `c3l_version`         | string   | いいえ | C3L バージョン   |
+| `options.edition`     | string[] | いいえ | エディション一覧 |
+| `options.adaptation`  | string[] | いいえ | 処理モード一覧   |
+| `options.file`        | boolean  | いいえ | ファイル入力対応 |
+| `options.stdin`       | boolean  | いいえ | STDIN 対応       |
+| `options.destination` | boolean  | いいえ | 出力先対応       |
+| `uv`                  | array    | いいえ | ユーザー変数定義 |
 
 ### 重要なルール
 
@@ -130,32 +131,36 @@ options:
 
 ### 利用可能な変数
 
-| 変数 | CLI オプション | 説明 |
-|------|--------------|------|
-| `{input_text}` | STDIN | 標準入力からのテキスト |
-| `{input_text_file}` | `-f`, `--from` | 入力ファイルのパス |
-| `{destination_path}` | `-o`, `--destination` | 出力先パス |
-| `{uv-*}` | `--uv-*` | ユーザー定義変数 |
+| 変数                 | CLI オプション        | 説明                   |
+| -------------------- | --------------------- | ---------------------- |
+| `{input_text}`       | STDIN                 | 標準入力からのテキスト |
+| `{input_text_file}`  | `-f`, `--from`        | 入力ファイルのパス     |
+| `{destination_path}` | `-o`, `--destination` | 出力先パス             |
+| `{uv-*}`             | `--uv-*`              | ユーザー定義変数       |
 
 ### 使用例
 
 プロンプトファイル：
+
 ```markdown
 # コード分析
 
 ## 対象ファイル
+
 {input_text_file}
 
 ## 入力内容
 ```
-{input_text}
-```
 
+{input_text}
+
+```
 ## 出力先
 {destination_path}
 ```
 
 CLI 実行：
+
 ```bash
 echo "function test() { return 1; }" | \
   climpt-code analyze complexity \
@@ -164,17 +169,20 @@ echo "function test() { return 1; }" | \
 ```
 
 置換後の出力：
+
 ```markdown
 # コード分析
 
 ## 対象ファイル
+
 ./src/main.ts
 
 ## 入力内容
 ```
-function test() { return 1; }
-```
 
+function test() { return 1; }
+
+```
 ## 出力先
 ./output/result.md
 ```
@@ -240,11 +248,14 @@ uv:
 入力コードを **{uv-target_language}** に変換してください。
 
 ## スタイルガイド
+
 {uv-style_guide}
 
 ## 入力コード
 ```
+
 {input_text}
+
 ```
 ```
 
@@ -320,13 +331,15 @@ options:
 以下のコードの複雑度を分析してください。
 
 ### 入力ファイル
+
 {input_text_file}
 
 ### 入力内容
 ```
-{input_text}
-```
 
+{input_text}
+
+```
 ## 分析項目
 
 1. サイクロマティック複雑度
@@ -402,10 +415,10 @@ echo "function test() { if(a) { if(b) { } } }" | \
 
 ### 概念
 
-| 概念 | 説明 | 例 |
-|------|------|-----|
-| edition | 入力の種類・用途 | `default`, `bug`, `feature`, `refactor` |
-| adaptation | 処理の詳細度 | `default`, `detailed`, `strict`, `minimal` |
+| 概念       | 説明             | 例                                         |
+| ---------- | ---------------- | ------------------------------------------ |
+| edition    | 入力の種類・用途 | `default`, `bug`, `feature`, `refactor`    |
+| adaptation | 処理の詳細度     | `default`, `detailed`, `strict`, `minimal` |
 
 ### ファイル選択の優先順位
 
@@ -478,7 +491,8 @@ prompts/code/review/pull-request/
 
 ## 関連ガイド
 
-- [03-instruction-creation.md](./03-instruction-creation.md) - 自動生成による指示書作成
+- [03-instruction-creation.md](./03-instruction-creation.md) -
+  自動生成による指示書作成
 - [05-architecture.md](./05-architecture.md) - 全体像編
 - [06-config-files.md](./06-config-files.md) - 設定ファイル編
 - [07-dependencies.md](./07-dependencies.md) - 依存構造編

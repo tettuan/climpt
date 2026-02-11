@@ -15,6 +15,7 @@ import {
   tokenize,
 } from "../src/mcp/similarity.ts";
 import type { Command } from "../src/mcp/types.ts";
+import { bm25TestCommands, sampleCommands } from "./test-utils.ts";
 
 // ============================================================================
 // tokenize() Tests
@@ -73,68 +74,6 @@ Deno.test("tokenize: handles empty string", () => {
 // ============================================================================
 // searchCommands() Tests (BM25 algorithm)
 // ============================================================================
-
-const sampleCommands: Command[] = [
-  {
-    c1: "git",
-    c2: "group-commit",
-    c3: "unstaged-changes",
-    description:
-      "Group file changes by semantic proximity and execute multiple commits sequentially",
-    usage: "climpt-git group-commit unstaged-changes",
-    options: {
-      edition: ["default"],
-      adaptation: ["default", "detailed"],
-      file: true,
-      stdin: false,
-      destination: true,
-    },
-  },
-  {
-    c1: "git",
-    c2: "decide-branch",
-    c3: "working-branch",
-    description:
-      "Decide whether to create a new branch or continue on the current branch",
-    usage: "climpt-git decide-branch working-branch",
-    options: {
-      edition: ["default"],
-      adaptation: ["default"],
-      file: false,
-      stdin: true,
-      destination: false,
-    },
-  },
-  {
-    c1: "meta",
-    c2: "build",
-    c3: "frontmatter",
-    description:
-      "Generate C3L v0.5 compliant frontmatter for instruction files",
-    usage: "climpt-meta build frontmatter",
-    options: {
-      edition: ["default"],
-      adaptation: ["default", "detailed"],
-      file: false,
-      stdin: true,
-      destination: true,
-    },
-  },
-  {
-    c1: "meta",
-    c2: "create",
-    c3: "instruction",
-    description: "Create a new Climpt instruction file from stdin input",
-    usage: "climpt-meta create instruction",
-    options: {
-      edition: ["default"],
-      adaptation: ["default", "detailed"],
-      file: false,
-      stdin: true,
-      destination: true,
-    },
-  },
-];
 
 Deno.test("searchCommands: returns correct number of results", () => {
   const results = searchCommands(sampleCommands, "commit changes", 3);
@@ -352,36 +291,6 @@ Deno.test("describeCommand: case sensitive matching", () => {
 // Test data simulating the original problem:
 // Query "create specification" was incorrectly matching "meta create instruction"
 // instead of "requirements draft entry"
-const bm25TestCommands: Command[] = [
-  {
-    c1: "meta",
-    c2: "create",
-    c3: "instruction",
-    description: "Create a new Climpt instruction file from stdin input",
-    usage: "climpt-meta create instruction",
-  },
-  {
-    c1: "workflows",
-    c2: "create",
-    c3: "verification-issue",
-    description: "Create verification issue for workflow validation",
-    usage: "climpt-workflows create verification-issue",
-  },
-  {
-    c1: "requirements",
-    c2: "draft",
-    c3: "entry",
-    description: "Draft a new requirements specification document",
-    usage: "climpt-requirements draft entry",
-  },
-  {
-    c1: "spec",
-    c2: "analyze",
-    c3: "coverage",
-    description: "Analyze specification coverage and gaps",
-    usage: "climpt-spec analyze coverage",
-  },
-];
 
 Deno.test("BM25: common term 'create' has lower weight due to IDF", () => {
   // "create" appears in multiple commands, so its IDF should be low

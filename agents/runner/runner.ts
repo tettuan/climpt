@@ -76,6 +76,10 @@ import { type RoutingResult, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
 import { PromptLogger } from "../common/prompt-logger.ts";
+import {
+  createFallbackProvider,
+  PromptResolver as StepPromptResolver,
+} from "../common/prompt-resolver.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -126,6 +130,9 @@ export class AgentRunner {
 
   // Verbose logging for SDK I/O debugging
   private verboseLogger: VerboseLogger | null = null;
+
+  // Step-level prompt resolver (new resolver for closure adaptation)
+  private stepPromptResolver: StepPromptResolver | null = null;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -288,13 +295,22 @@ export class AgentRunner {
           promptSource = "user";
           promptType = "initial";
         } else {
+          // Try closure adaptation for closure steps
           // deno-lint-ignore no-await-in-loop
-          prompt = await ctx.completionHandler.buildContinuationPrompt(
-            iteration - 1,
-            lastSummary,
-          );
-          promptSource = "user";
-          promptType = "continuation";
+          const closurePrompt = await this.tryClosureAdaptation(stepId, ctx);
+          if (closurePrompt) {
+            prompt = closurePrompt.content;
+            promptSource = closurePrompt.source;
+            promptType = "continuation";
+          } else {
+            // deno-lint-ignore no-await-in-loop
+            prompt = await ctx.completionHandler.buildContinuationPrompt(
+              iteration - 1,
+              lastSummary,
+            );
+            promptSource = "user";
+            promptType = "continuation";
+          }
         }
 
         const promptTimeMs = performance.now() - promptStartTime;
@@ -1032,6 +1048,14 @@ export class AgentRunner {
           stepsRegistry as unknown as StepRegistry,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
+
+        // Initialize step prompt resolver for closure adaptation
+        this.stepPromptResolver = new StepPromptResolver(
+          stepsRegistry as unknown as StepRegistry,
+          createFallbackProvider({}),
+          { workingDir: cwd, configSuffix: "steps" },
+        );
+        logger.debug("StepPromptResolver initialized for closure adaptation");
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
@@ -1273,6 +1297,77 @@ export class AgentRunner {
       `[StepFlow] No entry step configured for completionType "${completionType}". ` +
         `Define either "entryStepMapping.${completionType}" or "entryStep" in steps_registry.json.`,
     );
+  }
+
+  /**
+   * Try to resolve a closure step prompt with adaptation override.
+   *
+   * When the current step is a closure step and the new step prompt resolver
+   * is available, resolves the closure prompt with the appropriate adaptation
+   * (e.g., "label-only", "label-and-close") based on agent config.
+   *
+   * @returns Resolved prompt or null if not a closure step or resolver unavailable
+   */
+  private async tryClosureAdaptation(
+    stepId: string,
+    ctx: RuntimeContext,
+  ): Promise<{ content: string; source: "user" | "fallback" } | null> {
+    // Skip if no step prompt resolver or no registry
+    if (!this.stepPromptResolver || !this.stepsRegistry) {
+      return null;
+    }
+
+    // Get step definition and check if it's a closure step
+    const stepDef = (this.stepsRegistry as unknown as StepRegistry).steps?.[
+      stepId
+    ];
+    if (!stepDef) {
+      return null;
+    }
+
+    const stepKind = inferStepKind(stepDef);
+    if (stepKind !== "closure") {
+      return null;
+    }
+
+    // Determine closure action from config
+    const closureAction = this.definition.github?.defaultClosureAction;
+
+    // Only use adaptation override for non-default actions
+    const overrides = closureAction && closureAction !== "close"
+      ? { adaptation: closureAction }
+      : undefined;
+
+    try {
+      const result = await this.stepPromptResolver.resolve(
+        stepId,
+        {
+          uv: {
+            issue_number: String(this.args.issue ?? ""),
+          },
+        },
+        overrides,
+      );
+
+      ctx.logger.info(
+        `[ClosureAdaptation] Resolved closure prompt for step "${stepId}"`,
+        {
+          adaptation: closureAction ?? "close",
+          source: result.source,
+          promptPath: result.promptPath,
+        },
+      );
+
+      return {
+        content: result.content,
+        source: result.source,
+      };
+    } catch (error) {
+      ctx.logger.debug(
+        `[ClosureAdaptation] Failed to resolve closure prompt, falling back to completionHandler: ${error}`,
+      );
+      return null;
+    }
   }
 
   /**

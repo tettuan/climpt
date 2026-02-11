@@ -48,9 +48,17 @@
     "deno.lock",
     "tmp/"
   ],
+  "test": {
+    "exclude": [
+      "tests/docs/install_test.ts",
+      "tests/docs/jsr_source_test.ts"
+    ]
+  },
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
+    "fmt:check": "deno fmt --check",
+    "lint": "deno lint",
     "check": "deno check agents/**/*.ts src/**/*.ts",
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
     "test:common": "deno test --allow-all agents/common/",
@@ -82,12 +90,30 @@
     "skipLibCheck": true
   },
   "fmt": {
-    "include": ["src/", "*.ts", "*.json", "agents/"],
-    "exclude": ["dist/", "node_modules/"]
+    "include": [
+      "src/",
+      "agents/",
+      "docs/",
+      "scripts/",
+      "plugins/",
+      "examples/",
+      "tests/",
+      "*.ts",
+      "*.json"
+    ],
+    "exclude": ["dist/", "node_modules/", "tmp/"]
   },
   "lint": {
-    "include": ["src/", "*.ts", "agents/"],
-    "exclude": ["dist/", "node_modules/", "**/*_test.ts", "tests/"],
+    "include": [
+      "src/",
+      "agents/",
+      "docs/",
+      "scripts/",
+      "plugins/",
+      "examples/",
+      "*.ts"
+    ],
+    "exclude": ["dist/", "node_modules/", "tmp/", "**/*_test.ts", "tests/"],
     "rules": {
       "tags": ["recommended"],
       "include": [

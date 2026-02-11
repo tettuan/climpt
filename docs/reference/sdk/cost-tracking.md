@@ -6,25 +6,33 @@ Understand and track token usage for billing in the Claude Agent SDK
 
 # SDK Cost Tracking
 
-The Claude Agent SDK provides detailed token usage information for each interaction with Claude. This guide explains how to properly track costs and understand usage reporting, especially when dealing with parallel tool uses and multi-step conversations.
+The Claude Agent SDK provides detailed token usage information for each
+interaction with Claude. This guide explains how to properly track costs and
+understand usage reporting, especially when dealing with parallel tool uses and
+multi-step conversations.
 
-For complete API documentation, see the [TypeScript SDK reference](/docs/en/agent-sdk/typescript).
+For complete API documentation, see the
+[TypeScript SDK reference](/docs/en/agent-sdk/typescript).
 
 ## Understanding Token Usage
 
-When Claude processes requests, it reports token usage at the message level. This usage data is essential for tracking costs and billing users appropriately.
+When Claude processes requests, it reports token usage at the message level.
+This usage data is essential for tracking costs and billing users appropriately.
 
 ### Key Concepts
 
-1. **Steps**: A step is a single request/response pair between your application and Claude
-2. **Messages**: Individual messages within a step (text, tool uses, tool results)
+1. **Steps**: A step is a single request/response pair between your application
+   and Claude
+2. **Messages**: Individual messages within a step (text, tool uses, tool
+   results)
 3. **Usage**: Token consumption data attached to assistant messages
 
 ## Usage Reporting Structure
 
 ### Single vs Parallel Tool Use
 
-When Claude executes tools, the usage reporting differs based on whether tools are executed sequentially or in parallel:
+When Claude executes tools, the usage reporting differs based on whether tools
+are executed sequentially or in parallel:
 
 <CodeGroup>
 
@@ -36,12 +44,12 @@ const result = await query({
   prompt: "Analyze this codebase and run tests",
   options: {
     onMessage: (message) => {
-      if (message.type === 'assistant' && message.usage) {
+      if (message.type === "assistant" && message.usage) {
         console.log(`Message ID: ${message.id}`);
         console.log(`Usage:`, message.usage);
       }
-    }
-  }
+    },
+  },
 });
 ```
 
@@ -86,14 +94,16 @@ assistant (text)      { id: "msg_2", usage: { output_tokens: 98, ... } }
 
 ### 1. Same ID = Same Usage
 
-**All messages with the same `id` field report identical usage**. When Claude sends multiple messages in the same turn (e.g., text + tool uses), they share the same message ID and usage data.
+**All messages with the same `id` field report identical usage**. When Claude
+sends multiple messages in the same turn (e.g., text + tool uses), they share
+the same message ID and usage data.
 
 ```typescript
 // All these messages have the same ID and usage
 const messages = [
-  { type: 'assistant', id: 'msg_123', usage: { output_tokens: 100 } },
-  { type: 'assistant', id: 'msg_123', usage: { output_tokens: 100 } },
-  { type: 'assistant', id: 'msg_123', usage: { output_tokens: 100 } }
+  { type: "assistant", id: "msg_123", usage: { output_tokens: 100 } },
+  { type: "assistant", id: "msg_123", usage: { output_tokens: 100 } },
+  { type: "assistant", id: "msg_123", usage: { output_tokens: 100 } },
 ];
 
 // Charge only once per unique message ID
@@ -102,17 +112,20 @@ const uniqueUsage = messages[0].usage; // Same for all messages with this ID
 
 ### 2. Charge Once Per Step
 
-**You should only charge users once per step**, not for each individual message. When you see multiple assistant messages with the same ID, use the usage from any one of them.
+**You should only charge users once per step**, not for each individual message.
+When you see multiple assistant messages with the same ID, use the usage from
+any one of them.
 
 ### 3. Result Message Contains Cumulative Usage
 
-The final `result` message contains the total cumulative usage from all steps in the conversation:
+The final `result` message contains the total cumulative usage from all steps in
+the conversation:
 
 ```typescript
 // Final result includes total usage
 const result = await query({
   prompt: "Multi-step task",
-  options: { /* ... */ }
+  options: {/* ... */},
 });
 
 console.log("Total usage:", result.usage);
@@ -138,20 +151,20 @@ class CostTracker {
       options: {
         onMessage: (message) => {
           this.processMessage(message);
-        }
-      }
+        },
+      },
     });
 
     return {
       result,
       stepUsages: this.stepUsages,
-      totalCost: result.usage?.total_cost_usd || 0
+      totalCost: result.usage?.total_cost_usd || 0,
     };
   }
 
   private processMessage(message: any) {
     // Only process assistant messages with usage
-    if (message.type !== 'assistant' || !message.usage) {
+    if (message.type !== "assistant" || !message.usage) {
       return;
     }
 
@@ -166,7 +179,7 @@ class CostTracker {
       messageId: message.id,
       timestamp: new Date().toISOString(),
       usage: message.usage,
-      costUSD: this.calculateCost(message.usage)
+      costUSD: this.calculateCost(message.usage),
     });
   }
 
@@ -184,7 +197,7 @@ class CostTracker {
 // Usage
 const tracker = new CostTracker();
 const { result, stepUsages, totalCost } = await tracker.trackConversation(
-  "Analyze and refactor this code"
+  "Analyze and refactor this code",
 );
 
 console.log(`Steps processed: ${stepUsages.length}`);
@@ -262,11 +275,15 @@ asyncio.run(main())
 
 ### Output Token Discrepancies
 
-In rare cases, you might observe different `output_tokens` values for messages with the same ID. When this occurs:
+In rare cases, you might observe different `output_tokens` values for messages
+with the same ID. When this occurs:
 
-1. **Use the highest value** - The final message in a group typically contains the accurate total
-2. **Verify against total cost** - The `total_cost_usd` in the result message is authoritative
-3. **Report inconsistencies** - File issues at the [Claude Code GitHub repository](https://github.com/anthropics/claude-code/issues)
+1. **Use the highest value** - The final message in a group typically contains
+   the accurate total
+2. **Verify against total cost** - The `total_cost_usd` in the result message is
+   authoritative
+3. **Report inconsistencies** - File issues at the
+   [Claude Code GitHub repository](https://github.com/anthropics/claude-code/issues)
 
 ### Cache Token Tracking
 
@@ -285,11 +302,15 @@ interface CacheUsage {
 
 ## Best Practices
 
-1. **Use Message IDs for Deduplication**: Always track processed message IDs to avoid double-charging
-2. **Monitor the Result Message**: The final result contains authoritative cumulative usage
+1. **Use Message IDs for Deduplication**: Always track processed message IDs to
+   avoid double-charging
+2. **Monitor the Result Message**: The final result contains authoritative
+   cumulative usage
 3. **Implement Logging**: Log all usage data for auditing and debugging
-4. **Handle Failures Gracefully**: Track partial usage even if a conversation fails
-5. **Consider Streaming**: For streaming responses, accumulate usage as messages arrive
+4. **Handle Failures Gracefully**: Track partial usage even if a conversation
+   fails
+5. **Consider Streaming**: For streaming responses, accumulate usage as messages
+   arrive
 
 ## Usage Fields Reference
 
@@ -316,23 +337,26 @@ class BillingAggregator {
 
   async processUserRequest(userId: string, prompt: string) {
     const tracker = new CostTracker();
-    const { result, stepUsages, totalCost } = await tracker.trackConversation(prompt);
+    const { result, stepUsages, totalCost } = await tracker.trackConversation(
+      prompt,
+    );
 
     // Update user totals
     const current = this.userUsage.get(userId) || {
       totalTokens: 0,
       totalCost: 0,
-      conversations: 0
+      conversations: 0,
     };
 
-    const totalTokens = stepUsages.reduce((sum, step) =>
-      sum + step.usage.input_tokens + step.usage.output_tokens, 0
+    const totalTokens = stepUsages.reduce(
+      (sum, step) => sum + step.usage.input_tokens + step.usage.output_tokens,
+      0,
     );
 
     this.userUsage.set(userId, {
       totalTokens: current.totalTokens + totalTokens,
       totalCost: current.totalCost + totalCost,
-      conversations: current.conversations + 1
+      conversations: current.conversations + 1,
     });
 
     return result;
@@ -342,7 +366,7 @@ class BillingAggregator {
     return this.userUsage.get(userId) || {
       totalTokens: 0,
       totalCost: 0,
-      conversations: 0
+      conversations: 0,
     };
   }
 }
@@ -350,6 +374,7 @@ class BillingAggregator {
 
 ## Related Documentation
 
-- [TypeScript SDK Reference](/docs/en/agent-sdk/typescript) - Complete API documentation
+- [TypeScript SDK Reference](/docs/en/agent-sdk/typescript) - Complete API
+  documentation
 - [SDK Overview](/docs/en/agent-sdk/overview) - Getting started with the SDK
 - [SDK Permissions](/docs/en/agent-sdk/permissions) - Managing tool permissions

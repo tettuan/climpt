@@ -38,14 +38,10 @@ export type {
 export {
   ClimptAdapter,
   FilePromptAdapter,
-  PromptResolverV2,
+  PromptResolverAdapter,
   substituteVariables,
 } from "../prompts/mod.ts";
-export type {
-  PromptAdapter,
-  PromptReferenceV2,
-  ResolverOptions,
-} from "../prompts/mod.ts";
+export type { PromptAdapter } from "../prompts/mod.ts";
 
 // Contracts
 export type {

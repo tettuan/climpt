@@ -19,33 +19,14 @@ import { initMetaDomain } from "../src/init/meta-init.ts";
 import { initRegistryAndSchema } from "../src/init/registry-init.ts";
 import type { DetectionResult } from "../src/init/types.ts";
 
-// =============================================================================
-// Test Utilities
-// =============================================================================
-
-/**
- * Create a temporary directory for testing
- */
-async function createTempDir(): Promise<string> {
-  return await Deno.makeTempDir({ prefix: "climpt_init_test_" });
-}
-
-/**
- * Clean up temporary directory
- */
-async function cleanupTempDir(dir: string): Promise<void> {
-  try {
-    await Deno.remove(dir, { recursive: true });
-  } catch {
-    // Ignore cleanup errors
-  }
-}
+// Import test utilities
+import { cleanupTempDir, createTempDir } from "./test-utils.ts";
 
 // =============================================================================
 // Design Invariant: Default Paths
 // =============================================================================
 
-Deno.test("Design Invariant: Default working directory is .agent/climpt", () => {
+Deno.test("init: default working directory is .agent/climpt", () => {
   // This is the expected default - changing it would break existing installations
   const expectedDefault = ".agent/climpt";
 
@@ -54,7 +35,7 @@ Deno.test("Design Invariant: Default working directory is .agent/climpt", () => 
   assertEquals(expectedDefault, ".agent/climpt");
 });
 
-Deno.test("Design Invariant: Basic init creates exactly 3 directories", async () => {
+Deno.test("initBasic: creates exactly 3 directories", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
 
@@ -78,7 +59,7 @@ Deno.test("Design Invariant: Basic init creates exactly 3 directories", async ()
 // Design Invariant: Detection Logic
 // =============================================================================
 
-Deno.test("Design Invariant: hasExistingFiles checks 3 specific files", () => {
+Deno.test("hasExistingFiles: checks 3 specific files", () => {
   // hasExistingFiles should return true if ANY of these exist:
   // - meta-app.yml
   // - registry_config.json
@@ -114,7 +95,7 @@ Deno.test("Design Invariant: hasExistingFiles checks 3 specific files", () => {
   assertEquals(hasExistingFiles({ ...noFiles, hasPromptsDir: true }), false);
 });
 
-Deno.test("Design Invariant: detectExisting checks all 8 locations", async () => {
+Deno.test("detectExisting: checks all 8 locations", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
 
@@ -154,7 +135,7 @@ Deno.test("Design Invariant: detectExisting checks all 8 locations", async () =>
 // Design Invariant: Force Flag Behavior
 // =============================================================================
 
-Deno.test("Design Invariant: Without force, existing files are skipped", async () => {
+Deno.test("initMetaDomain: without force, existing files are skipped", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
   const configDir = join(workingDir, "config");
@@ -180,7 +161,7 @@ Deno.test("Design Invariant: Without force, existing files are skipped", async (
   }
 });
 
-Deno.test("Design Invariant: With force, existing files are overwritten", async () => {
+Deno.test("initMetaDomain: with force, existing files are overwritten", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
   const configDir = join(workingDir, "config");
@@ -210,7 +191,7 @@ Deno.test("Design Invariant: With force, existing files are overwritten", async 
 // Design Invariant: Generated File Structures
 // =============================================================================
 
-Deno.test("Design Invariant: registry.json has required structure", async () => {
+Deno.test("initRegistryAndSchema: registry.json has required structure", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
   const fullWorkingDir = join(tempDir, workingDir);
@@ -240,7 +221,7 @@ Deno.test("Design Invariant: registry.json has required structure", async () => 
   }
 });
 
-Deno.test("Design Invariant: registry_config.json has required structure", async () => {
+Deno.test("initRegistryAndSchema: registry_config.json has required structure", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
   const fullWorkingDir = join(tempDir, workingDir);
@@ -265,7 +246,7 @@ Deno.test("Design Invariant: registry_config.json has required structure", async
   }
 });
 
-Deno.test("Design Invariant: frontmatter-to-schema contains 4 schema files", async () => {
+Deno.test("initRegistryAndSchema: frontmatter-to-schema contains 4 schema files", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
   const fullWorkingDir = join(tempDir, workingDir);
@@ -301,7 +282,7 @@ Deno.test("Design Invariant: frontmatter-to-schema contains 4 schema files", asy
 // Design Invariant: Meta Domain Prompts
 // =============================================================================
 
-Deno.test("Design Invariant: Meta domain creates 2 prompts", async () => {
+Deno.test("initMetaDomain: creates 2 prompts", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
 
@@ -327,7 +308,7 @@ Deno.test("Design Invariant: Meta domain creates 2 prompts", async () => {
   }
 });
 
-Deno.test("Design Invariant: Meta prompts have C3L frontmatter", async () => {
+Deno.test("initMetaDomain: meta prompts have C3L frontmatter", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
 
@@ -368,7 +349,7 @@ Deno.test("Design Invariant: Meta prompts have C3L frontmatter", async () => {
 // Design Invariant: Meta Config Files
 // =============================================================================
 
-Deno.test("Design Invariant: meta-app.yml has required structure", async () => {
+Deno.test("initMetaDomain: meta-app.yml has required structure", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
 
@@ -390,7 +371,7 @@ Deno.test("Design Invariant: meta-app.yml has required structure", async () => {
   }
 });
 
-Deno.test("Design Invariant: meta-user.yml has C3L patterns", async () => {
+Deno.test("initMetaDomain: meta-user.yml has C3L patterns", async () => {
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
 
@@ -425,7 +406,7 @@ Deno.test("Design Invariant: meta-user.yml has C3L patterns", async () => {
 // Design Invariant: Result Structure
 // =============================================================================
 
-Deno.test("Design Invariant: Init result has created/skipped/errors arrays", async () => {
+Deno.test("initBasic: result has created/skipped/errors arrays", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
 

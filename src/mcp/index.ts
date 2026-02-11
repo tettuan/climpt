@@ -25,11 +25,138 @@ import {
   loadRegistryForAgent as loadRegistryBase,
 } from "./registry.ts";
 import { getPromptLogger, type PromptLogger } from "./prompt-logger.ts";
+import { logger } from "../utils/logger.ts";
 
-// deno-lint-ignore no-console
-console.error("[START] MCP Server starting...");
-// deno-lint-ignore no-console
-console.error(`[INFO] Climpt version: ${CLIMPT_VERSION}`);
+/**
+ * Type alias for the execution tracker returned by PromptLogger.startExecution()
+ */
+type ExecutionTracker = Awaited<ReturnType<PromptLogger["startExecution"]>>;
+
+/**
+ * Log the execute command invocation to stderr for debugging.
+ *
+ * @param configParam - The resolved config parameter (e.g., 'git' or 'inspector-git')
+ * @param c2 - Action identifier
+ * @param c3 - Target identifier
+ * @param options - Optional command-line options
+ *
+ * @internal
+ */
+function logExecuteCommand(
+  configParam: string,
+  c2: string,
+  c3: string,
+  options?: string[],
+): void {
+  const optionsStr = options && options.length > 0
+    ? ` ${options.join(" ")}`
+    : "";
+  logger.info(
+    `[EXEC] Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
+  );
+}
+
+/**
+ * Parse edition and adaptation values from command options.
+ *
+ * @param options - Array of command-line option strings
+ * @returns Object with optional edition and adaptation values
+ *
+ * @internal
+ */
+function parseExecuteOptions(
+  options?: string[],
+): { edition?: string; adaptation?: string } {
+  let edition: string | undefined;
+  let adaptation: string | undefined;
+  if (options && Array.isArray(options)) {
+    for (const opt of options) {
+      if (opt.startsWith("-e=") || opt.startsWith("--edition=")) {
+        edition = opt.split("=")[1];
+      } else if (
+        opt.startsWith("-a=") || opt.startsWith("--adaptation=")
+      ) {
+        adaptation = opt.split("=")[1];
+      }
+    }
+  }
+  return { edition, adaptation };
+}
+
+/**
+ * Start execution tracking for structured logging via PromptLogger.
+ *
+ * @param c1 - Domain identifier
+ * @param c2 - Action identifier
+ * @param c3 - Target identifier
+ * @param agent - Agent name
+ * @param edition - Optional edition value
+ * @param adaptation - Optional adaptation value
+ * @param options - Optional command-line options
+ * @returns Execution tracker, or null if logging initialization fails
+ *
+ * @internal
+ */
+async function startExecuteTracking(
+  c1: string,
+  c2: string,
+  c3: string,
+  agent: string,
+  edition?: string,
+  adaptation?: string,
+  options?: string[],
+): Promise<ExecutionTracker | null> {
+  try {
+    const promptLogger = await getPromptLogger();
+    return promptLogger.startExecution(
+      { c1, c2, c3 },
+      {
+        agent,
+        edition,
+        adaptation,
+        options: options && options.length > 0 ? options : undefined,
+      },
+      "mcp",
+    );
+  } catch (logError) {
+    // Log errors should not block execution
+    logger.warn(
+      "Failed to start execution logging:",
+      logError,
+    );
+    return null;
+  }
+}
+
+/**
+ * Complete execution tracking by logging the result.
+ *
+ * @param tracker - The execution tracker (or null if tracking was not started)
+ * @param code - Process exit code
+ * @param stderrText - Stderr output from the process
+ *
+ * @internal
+ */
+async function completeExecuteTracking(
+  tracker: ExecutionTracker | null,
+  code: number,
+  stderrText: string,
+): Promise<void> {
+  if (tracker) {
+    try {
+      await tracker.complete({
+        success: code === 0,
+        exitCode: code,
+        errorMessage: code !== 0 ? stderrText : undefined,
+      });
+    } catch {
+      // Logging errors should not block response
+    }
+  }
+}
+
+logger.info("[START] MCP Server starting...");
+logger.info(`Climpt version: ${CLIMPT_VERSION}`);
 
 /**
  * MCP configuration loaded from config.json
@@ -77,8 +204,7 @@ MCP_CONFIG = await loadMCPConfig();
 
 // Load default registry for climpt
 const defaultCommands = await loadRegistryForAgent("climpt");
-// deno-lint-ignore no-console
-console.error(
+logger.info(
   `[OK] Initialized with ${defaultCommands.length} default commands`,
 );
 
@@ -110,8 +236,7 @@ const server = new Server(
 server.setRequestHandler(
   ListToolsRequestSchema,
   (_request: ListToolsRequest) => {
-    // deno-lint-ignore no-console
-    console.error("[TOOLS] ListToolsRequest received");
+    logger.info("[TOOLS] ListToolsRequest received");
 
     const tools = [
       {
@@ -246,8 +371,7 @@ server.setRequestHandler(
   CallToolRequestSchema,
   async (request: CallToolRequest) => {
     const { name, arguments: args } = request.params;
-    // deno-lint-ignore no-console
-    console.error(`[CALL] CallToolRequest received for: ${name}`);
+    logger.info(`[CALL] CallToolRequest received for: ${name}`);
 
     try {
       if (name === "search") {
@@ -382,72 +506,28 @@ server.setRequestHandler(
           stderr: "piped",
         });
 
-        const optionsStr = options && options.length > 0
-          ? ` ${options.join(" ")}`
-          : "";
-        // deno-lint-ignore no-console
-        console.error(
-          `[EXEC] Executing: deno run jsr:@aidevtool/climpt --config=${configParam} ${c2} ${c3}${optionsStr}`,
-        );
+        logExecuteCommand(configParam, c2, c3, options);
 
-        // Parse edition and adaptation from options
-        let edition: string | undefined;
-        let adaptation: string | undefined;
-        if (options && Array.isArray(options)) {
-          for (const opt of options) {
-            if (opt.startsWith("-e=") || opt.startsWith("--edition=")) {
-              edition = opt.split("=")[1];
-            } else if (
-              opt.startsWith("-a=") || opt.startsWith("--adaptation=")
-            ) {
-              adaptation = opt.split("=")[1];
-            }
-          }
-        }
+        // Parse edition and adaptation from options for logging context
+        const { edition, adaptation } = parseExecuteOptions(options);
 
         // Start execution tracking for structured logging
-        let tracker:
-          | Awaited<
-            ReturnType<PromptLogger["startExecution"]>
-          >
-          | null = null;
-        try {
-          const logger = await getPromptLogger();
-          tracker = logger.startExecution(
-            { c1, c2, c3 },
-            {
-              agent,
-              edition,
-              adaptation,
-              options: options && options.length > 0 ? options : undefined,
-            },
-            "mcp",
-          );
-        } catch (logError) {
-          // Log errors should not block execution
-          // deno-lint-ignore no-console
-          console.error(
-            "[WARN] Failed to start execution logging:",
-            logError,
-          );
-        }
+        const tracker = await startExecuteTracking(
+          c1,
+          c2,
+          c3,
+          agent,
+          edition,
+          adaptation,
+          options,
+        );
 
         const { code, stdout, stderr } = await command.output();
         const stdoutText = new TextDecoder().decode(stdout);
         const stderrText = new TextDecoder().decode(stderr);
 
         // Log execution result
-        if (tracker) {
-          try {
-            await tracker.complete({
-              success: code === 0,
-              exitCode: code,
-              errorMessage: code !== 0 ? stderrText : undefined,
-            });
-          } catch {
-            // Logging errors should not block response
-          }
-        }
+        await completeExecuteTracking(tracker, code, stderrText);
 
         // MCP specification: Return clean output to users, hiding internal implementation details
         // On success: return stdout content directly
@@ -478,16 +558,14 @@ server.setRequestHandler(
         if (agent) {
           // Reload specific agent
           REGISTRY_CACHE.delete(agent);
-          // deno-lint-ignore no-console
-          console.error(`[RELOAD] Cleared cache for agent: ${agent}`);
+          logger.info(`[RELOAD] Cleared cache for agent: ${agent}`);
 
           const commands = await loadRegistryForAgent(agent);
           const message = commands.length > 0
             ? `Successfully reloaded ${commands.length} commands for agent '${agent}'`
             : `No commands found for agent '${agent}' - please check the registry path in MCP config`;
 
-          // deno-lint-ignore no-console
-          console.error(`[OK] ${message}`);
+          logger.info(`[OK] ${message}`);
 
           return {
             content: [
@@ -506,8 +584,7 @@ server.setRequestHandler(
           // Clear all caches and reload all configured agents
           const cacheSize = REGISTRY_CACHE.size;
           REGISTRY_CACHE.clear();
-          // deno-lint-ignore no-console
-          console.error(
+          logger.info(
             `[RELOAD] Cleared cache for all agents (${cacheSize} agents)`,
           );
 
@@ -517,8 +594,7 @@ server.setRequestHandler(
           const reloadResults = await Promise.all(
             configuredAgents.map(async (agentName) => {
               const commands = await loadRegistryForAgent(agentName);
-              // deno-lint-ignore no-console
-              console.error(
+              logger.info(
                 `[OK] Reloaded ${commands.length} commands for agent '${agentName}'`,
               );
               return {
@@ -536,8 +612,7 @@ server.setRequestHandler(
           const message =
             `Cleared cache for all agents and reloaded ${configuredAgents.length} agents with ${totalCommands} total commands`;
 
-          // deno-lint-ignore no-console
-          console.error(`[OK] ${message}`);
+          logger.info(`[OK] ${message}`);
 
           return {
             content: [
@@ -558,8 +633,7 @@ server.setRequestHandler(
         throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      // deno-lint-ignore no-console
-      console.error(`[ERROR] Error executing tool ${name}:`, error);
+      logger.error(`Error executing tool ${name}:`, error);
       return {
         content: [
           {
@@ -604,25 +678,20 @@ server.setRequestHandler(
  * ```
  */
 async function main(): Promise<void> {
-  // deno-lint-ignore no-console
-  console.error("[+] Connecting to StdioServerTransport...");
+  logger.info("[+] Connecting to StdioServerTransport...");
   const transport = new StdioServerTransport();
-  // deno-lint-ignore no-console
-  console.error("[OK] Transport created, connecting server...");
+  logger.info("[OK] Transport created, connecting server...");
   await server.connect(transport);
-  // deno-lint-ignore no-console
-  console.error("[OK] MCP Server connected and ready!");
+  logger.info("[OK] MCP Server connected and ready!");
 }
 
 // Export main function for programmatic use
 export default main;
 
 if (import.meta.main) {
-  // deno-lint-ignore no-console
-  console.error("[*] Script is main module, starting server...");
+  logger.info("[*] Script is main module, starting server...");
   main().catch((error) => {
-    // deno-lint-ignore no-console
-    console.error("[ERROR] Server error:", error);
+    logger.error("Server error:", error);
     Deno.exit(1);
   });
 }

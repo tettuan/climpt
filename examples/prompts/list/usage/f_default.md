@@ -10,57 +10,60 @@ Create a list of available Climpt commands.
 
 ## What is Climpt
 
-Deno JSR @https://jsr.io/@aidevtool/climpt.
-A tool designed to output prompts via CLI.
-Replaces variables in prompt templates based on values passed as parameters.
+Deno JSR @https://jsr.io/@aidevtool/climpt. A tool designed to output prompts
+via CLI. Replaces variables in prompt templates based on values passed as
+parameters.
 
 Normal usage:
+
 ```zsh
 climpt-* <Directive> <Layer> --*
 ```
 
 STDIN usage:
+
 ```zsh
 echo "something" | climpt-* <Directive> <Layer> --*
 ```
 
-Available prompts are specified by configuration directories.
-Therefore, by examining command files, configuration files, and prompt files, we can create a list of available commands.
+Available prompts are specified by configuration directories. Therefore, by
+examining command files, configuration files, and prompt files, we can create a
+list of available commands.
 
-Executable commands: `.deno/bin/climpt-*`
-Configuration: `.agent/climpt/config/*.yml`
-Prompts: `.agent/climpt/prompts/**/f_*.md`
+Executable commands: `.deno/bin/climpt-*` Configuration:
+`.agent/climpt/config/*.yml` Prompts: `.agent/climpt/prompts/**/f_*.md`
 
 ## Prompt Placement Rules
 
 `.agent/climpt/prompts/<command_name>/<Directive>/<Layer>/f_<input>_<adaptation>.md`
 
-
 ## Options List
 
-input_text : STDIN
-input_text_file : --from, -f
-destination_path : --destination, -o
-uv-* : --uv-* (user-defined variables, e.g., --uv-scope=feature, --uv-threshold=80)
+input_text : STDIN input_text_file : --from, -f destination_path :
+--destination, -o uv-* : --uv-* (user-defined variables, e.g.,
+--uv-scope=feature, --uv-threshold=80)
 
 ## Steps
 
 ### Section Creation
+
 1. Read `.agent/climpt/tools-list.md`
 2. Get "executable commands" from `.deno/bin/climpt-*`
-3. Record in the sections of `.agent/climpt/tools-list.md`
-3-1. If already exists, no need to record; if not, create new section
+3. Record in the sections of `.agent/climpt/tools-list.md` 3-1. If already
+   exists, no need to record; if not, create new section
 
 ### Executable Commands List Creation
+
 4. Get file list from prompt directories
-5. Record commands in sections following "Prompt Placement Rules"
-5-1. One line per prompt
-6. Read prompt template contents and identify options
-6-1. Extract {variable} patterns from template contents
-6-2. Determine options from available variables based on "Options List"
+5. Record commands in sections following "Prompt Placement Rules" 5-1. One line
+   per prompt
+6. Read prompt template contents and identify options 6-1. Extract {variable}
+   patterns from template contents 6-2. Determine options from available
+   variables based on "Options List"
 7. Record availability in command columns
 
 ### Detailed Description Creation
+
 8. If frontmatter exists, extract title, description, usage, options
 9. Record detailed description for each executable command below the list table.
 
@@ -68,7 +71,7 @@ uv-* : --uv-* (user-defined variables, e.g., --uv-scope=feature, --uv-threshold=
 
 The format is as follows. Refer to "JSON Schema" for structure.
 
-`````
+```
 ## climpt-design
 
 |directive| layer | input(-i) | adaptation(-a) | input_text_file(-f) | input_text (STDIN) |destination(-o) | 
@@ -86,7 +89,7 @@ destination_path: Specify output destination with multiple files
 uv-subdomain: Specify subdomain prefix
 uv-scope: Scope of changes (e.g., 'feature', 'bugfix')
 uv-threshold: Quality threshold percentage (e.g., '80')
-`````
+```
 
 ```:NG, 2 prompt files in one line.
 | domain | architecture | | detail, core | ok | ok | |
@@ -96,10 +99,10 @@ uv-threshold: Quality threshold percentage (e.g., '80')
 
 `.agent/climpt/tools-list.md`
 
-
 # JSON Schema
 
-The following is a JSON schema that defines the structure of the output to be created.
+The following is a JSON schema that defines the structure of the output to be
+created.
 
 ```json
 {
@@ -153,7 +156,15 @@ The following is a JSON schema that defines the structure of the output to be cr
                   "description": "Availability of destination(-o) option"
                 }
               },
-              "required": ["directive", "layer", "inputOption", "adaptationOption", "inputTextFileOption", "inputTextStdin", "destinationOption"]
+              "required": [
+                "directive",
+                "layer",
+                "inputOption",
+                "adaptationOption",
+                "inputTextFileOption",
+                "inputTextStdin",
+                "destinationOption"
+              ]
             }
           },
           "promptDetails": {

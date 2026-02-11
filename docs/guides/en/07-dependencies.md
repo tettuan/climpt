@@ -56,11 +56,11 @@ Explains Climpt's registry, MCP server, and external package dependencies.
 
 ### Main Packages
 
-| Package | Role | JSR URL |
-|---------|------|---------|
-| `@aidevtool/climpt` | Main package | `jsr:@aidevtool/climpt` |
-| `@tettuan/breakdown` | Core features (template processing) | `jsr:@tettuan/breakdown` |
-| `@aidevtool/frontmatter-to-schema` | Registry generation | `jsr:@aidevtool/frontmatter-to-schema` |
+| Package                            | Role                                | JSR URL                                |
+| ---------------------------------- | ----------------------------------- | -------------------------------------- |
+| `@aidevtool/climpt`                | Main package                        | `jsr:@aidevtool/climpt`                |
+| `@tettuan/breakdown`               | Core features (template processing) | `jsr:@tettuan/breakdown`               |
+| `@aidevtool/frontmatter-to-schema` | Registry generation                 | `jsr:@aidevtool/frontmatter-to-schema` |
 
 ---
 
@@ -98,39 +98,39 @@ The registry is a file that holds all available commands and their metadata.
 
 ### Registry Uses
 
-| Use | Description |
-|-----|-------------|
-| MCP Server | Notify AI of available tools |
-| CLI Help | Display option info with `--help` |
-| Validation | Detect invalid commands |
-| Command Search | Keyword-based command search |
+| Use            | Description                       |
+| -------------- | --------------------------------- |
+| MCP Server     | Notify AI of available tools      |
+| CLI Help       | Display option info with `--help` |
+| Validation     | Detect invalid commands           |
+| Command Search | Keyword-based command search      |
 
 ### Registry Schema
 
 ```typescript
 interface Registry {
-  version: string;           // Registry version
-  description: string;       // Description
+  version: string; // Registry version
+  description: string; // Description
   tools: {
-    availableConfigs: string[];  // Available domains
-    commands: Command[];         // Command definitions
+    availableConfigs: string[]; // Available domains
+    commands: Command[]; // Command definitions
   };
 }
 
 interface Command {
-  c1: string;          // Domain
-  c2: string;          // Action
-  c3: string;          // Target
+  c1: string; // Domain
+  c2: string; // Action
+  c3: string; // Target
   description: string; // Command description
-  usage: string;       // Usage example
+  usage: string; // Usage example
   options: {
-    edition: string[];     // Edition list
-    adaptation: string[];  // Processing mode list
-    file: boolean;         // File input support
-    stdin: boolean;        // STDIN support
-    destination: boolean;  // Output destination support
+    edition: string[]; // Edition list
+    adaptation: string[]; // Processing mode list
+    file: boolean; // File input support
+    stdin: boolean; // STDIN support
+    destination: boolean; // Output destination support
   };
-  uv?: Array<{[key: string]: string}>;  // User variables
+  uv?: Array<{ [key: string]: string }>; // User variables
 }
 ```
 
@@ -200,12 +200,12 @@ deno run jsr:@aidevtool/climpt/reg \
   --template=registry.schema.json
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--base` | Base directory | `.agent/climpt` |
-| `--input` | Input glob pattern | `prompts/**/*.md` |
-| `--output` | Output file | `registry.json` |
-| `--template` | Schema file | (built-in) |
+| Option       | Description        | Default           |
+| ------------ | ------------------ | ----------------- |
+| `--base`     | Base directory     | `.agent/climpt`   |
+| `--input`    | Input glob pattern | `prompts/**/*.md` |
+| `--output`   | Output file        | `registry.json`   |
+| `--template` | Schema file        | (built-in)        |
 
 ---
 
@@ -213,7 +213,8 @@ deno run jsr:@aidevtool/climpt/reg \
 
 ### What is MCP
 
-MCP (Model Context Protocol) is a standard protocol for AI assistants to interact with external tools.
+MCP (Model Context Protocol) is a standard protocol for AI assistants to
+interact with external tools.
 
 ### Climpt MCP Server Structure
 
@@ -255,35 +256,35 @@ MCP (Model Context Protocol) is a standard protocol for AI assistants to interac
 
 ### MCP Tools List
 
-| Tool | Function | Parameters |
-|------|----------|------------|
-| `search` | Search commands by keyword | `query`, `agent?` |
-| `describe` | Get command details | `c1`, `c2`, `c3`, `agent?` |
-| `execute` | Execute command | `c1`, `c2`, `c3`, `stdin?`, `options?` |
+| Tool       | Function                   | Parameters                             |
+| ---------- | -------------------------- | -------------------------------------- |
+| `search`   | Search commands by keyword | `query`, `agent?`                      |
+| `describe` | Get command details        | `c1`, `c2`, `c3`, `agent?`             |
+| `execute`  | Execute command            | `c1`, `c2`, `c3`, `stdin?`, `options?` |
 
 ### Usage Examples
 
 ```javascript
 // Command search
-search({ query: "branch" })
+search({ query: "branch" });
 
 // Get command details
 describe({
   c1: "git",
   c2: "decide-branch",
-  c3: "working-branch"
-})
+  c3: "working-branch",
+});
 
 // Execute command
 execute({
   c1: "git",
   c2: "decide-branch",
   c3: "working-branch",
-  stdin: "Bug fix implementation"
-})
+  stdin: "Bug fix implementation",
+});
 
 // Search in different agent
-search({ query: "analyze", agent: "inspector" })
+search({ query: "analyze", agent: "inspector" });
 ```
 
 ### MCP Configuration
@@ -350,11 +351,11 @@ search({ query: "analyze", agent: "inspector" })
 
 ### Plugin Features
 
-| Feature | Description |
-|---------|-------------|
-| `delegate-climpt-agent` Skill | Delegate tasks to Climpt agent |
-| Natural language commands | Search and execute appropriate commands from natural language |
-| Git workflows | Commit grouping, branch management |
+| Feature                       | Description                                                   |
+| ----------------------------- | ------------------------------------------------------------- |
+| `delegate-climpt-agent` Skill | Delegate tasks to Climpt agent                                |
+| Natural language commands     | Search and execute appropriate commands from natural language |
+| Git workflows                 | Commit grouping, branch management                            |
 
 ### Skill Invocation Example
 

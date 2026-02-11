@@ -3,24 +3,27 @@ title: Climpt Available Commands List Generation (Claude Code Version)
 description: Generates available commands list using Claude Code with shell scripting. Lists prompt files mechanically with sh, then analyzes each file content using claude -p in a loop.
 usage: climpt list usage --adaptation=claude-code
 ---
+
 # 指示書: 実行可能なClimptコマンドの登録
 
 以下の指示に従い「Execution Plan」を遂行しなさい。
 
-
-Create a list of available Climpt commands using Claude Code with shell automation.
+Create a list of available Climpt commands using Claude Code with shell
+automation.
 
 ## What is Climpt
 
-A tool designed to output prompts via CLI.
-Replaces variables in prompt templates based on values passed as parameters.
+A tool designed to output prompts via CLI. Replaces variables in prompt
+templates based on values passed as parameters.
 
 Normal usage:
+
 ```zsh
 climpt-* <Directive> <Layer> --*
 ```
 
 STDIN usage:
+
 ```zsh
 echo "something" | climpt-* <Directive> <Layer> --*
 ```
@@ -28,6 +31,7 @@ echo "something" | climpt-* <Directive> <Layer> --*
 ## Execution Plan
 
 This implementation uses Claude Code's shell capabilities to:
+
 1. Mechanically list prompt files using shell commands
 2. Loop through files and analyze content using `claude -p`
 3. Generate structured output
@@ -233,12 +237,13 @@ rm -f /tmp/details_*.txt
 
 出力先: `.agent/climpt/tools-list.md`
 
-作成後に `.agent/climpt/registry.json` へ変換する。(変換形式は「Registry File」を見ること。)
-
+作成後に `.agent/climpt/registry.json` へ変換する。(変換形式は「Registry
+File」を見ること。)
 
 ## Execution Summary
 
 This Claude Code version:
+
 1. Uses shell commands (`ls`, `find`, `while`, `for`) to mechanically list files
 2. Processes each file in a loop using `claude -p` for content analysis
 3. Claude analyzes frontmatter and variables in each prompt file
@@ -247,11 +252,11 @@ This Claude Code version:
 ## Benefits of this Approach
 
 - **Mechanical file discovery**: Shell handles all file system operations
-- **Parallel processing possible**: Can be modified to run multiple claude -p in parallel
+- **Parallel processing possible**: Can be modified to run multiple claude -p in
+  parallel
 - **Incremental updates**: Can process only changed files
 - **Clear separation**: Shell for file operations, Claude for content analysis
 - **Debugging friendly**: Intermediate results in /tmp for inspection
-
 
 # Registry File
 
@@ -283,7 +288,6 @@ This Claude Code version:
   }
 }
 ```
-
 
 ```json:Template
 {
@@ -394,4 +398,5 @@ This Claude Code version:
   }
 }
 ```
+
 (JSONにコメントは入れられないので除去すること。)

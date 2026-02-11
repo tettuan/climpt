@@ -78,12 +78,12 @@ your-project/
 
 ### 各ディレクトリの役割
 
-| ディレクトリ | 役割 | 必須 |
-|-------------|------|------|
-| `.agent/climpt/config/` | 設定ファイル格納 | はい |
-| `.agent/climpt/prompts/` | プロンプトテンプレート | はい |
-| `.agent/climpt/schema/` | JSON Schema 定義 | いいえ |
-| `.deno/bin/` | CLI 実行ファイル | MCP のみなら不要 |
+| ディレクトリ             | 役割                   | 必須             |
+| ------------------------ | ---------------------- | ---------------- |
+| `.agent/climpt/config/`  | 設定ファイル格納       | はい             |
+| `.agent/climpt/prompts/` | プロンプトテンプレート | はい             |
+| `.agent/climpt/schema/`  | JSON Schema 定義       | いいえ           |
+| `.deno/bin/`             | CLI 実行ファイル       | MCP のみなら不要 |
 
 ### プロンプトディレクトリの構造
 
@@ -110,6 +110,7 @@ prompts/{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
 ```
 
 例：
+
 - `git-app.yml` → `climpt-git` コマンド用
 - `code-app.yml` → `climpt-code` コマンド用
 - `default-app.yml` → デフォルト（`--config` 未指定時）
@@ -124,7 +125,7 @@ working_dir: ".agent/climpt"
 
 # プロンプトファイルの配置場所
 app_prompt:
-  base_dir: "prompts/git"    # working_dir からの相対パス
+  base_dir: "prompts/git" # working_dir からの相対パス
 
 # スキーマファイルの配置場所（オプション）
 app_schema:
@@ -133,11 +134,11 @@ app_schema:
 
 ### 設定項目の説明
 
-| 項目 | 説明 | 必須 |
-|------|------|------|
-| `working_dir` | プロンプト検索の基点ディレクトリ | はい |
-| `app_prompt.base_dir` | プロンプトファイルのベースディレクトリ | はい |
-| `app_schema.base_dir` | スキーマファイルのベースディレクトリ | いいえ |
+| 項目                  | 説明                                   | 必須   |
+| --------------------- | -------------------------------------- | ------ |
+| `working_dir`         | プロンプト検索の基点ディレクトリ       | はい   |
+| `app_prompt.base_dir` | プロンプトファイルのベースディレクトリ | はい   |
+| `app_schema.base_dir` | スキーマファイルのベースディレクトリ   | いいえ |
 
 ### パス解決の仕組み
 
@@ -194,7 +195,7 @@ app_prompt:
 # 出力先のプレフィックス設定
 options:
   destination:
-    prefix: "output/git"    # -o で指定したパスの前に付加
+    prefix: "output/git" # -o で指定したパスの前に付加
 
 # パラメータ検証パターン（オプション）
 params:
@@ -207,11 +208,11 @@ params:
 
 ### 設定項目の説明
 
-| 項目 | 説明 |
-|------|------|
-| `options.destination.prefix` | 出力先パスの前に付加するプレフィックス |
-| `params.two.directiveType.pattern` | c2（アクション）の検証正規表現 |
-| `params.two.layerType.pattern` | c3（ターゲット）の検証正規表現 |
+| 項目                               | 説明                                   |
+| ---------------------------------- | -------------------------------------- |
+| `options.destination.prefix`       | 出力先パスの前に付加するプレフィックス |
+| `params.two.directiveType.pattern` | c2（アクション）の検証正規表現         |
+| `params.two.layerType.pattern`     | c3（ターゲット）の検証正規表現         |
 
 ### destination プレフィックスの動作
 
@@ -244,6 +245,7 @@ climpt-git invalid-action target         # エラー
 ### ファイルの場所
 
 優先順位（上から順に検索）：
+
 1. `.agent/climpt/config/registry_config.json`（プロジェクト）
 2. `~/.agent/climpt/config/registry_config.json`（ホーム）
 3. デフォルト設定（自動生成）
@@ -262,10 +264,10 @@ climpt-git invalid-action target         # エラー
 
 ### 設定項目の説明
 
-| 項目 | 説明 |
-|------|------|
-| `registries` | エージェント名とレジストリパスのマッピング |
-| `registries.{name}` | 各エージェントのレジストリファイルパス |
+| 項目                | 説明                                       |
+| ------------------- | ------------------------------------------ |
+| `registries`        | エージェント名とレジストリパスのマッピング |
+| `registries.{name}` | 各エージェントのレジストリファイルパス     |
 
 ### 複数エージェントの使い分け
 

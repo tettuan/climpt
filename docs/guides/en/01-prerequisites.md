@@ -6,10 +6,10 @@ Install the required tools for using Iterate Agent.
 
 ## Required Tools
 
-| Tool | Version | Check Command | Purpose |
-|------|---------|---------------|---------|
-| Deno | 2.x or later | `deno --version` | Climpt runtime |
-| GitHub CLI (gh) | 2.x or later | `gh --version` | GitHub API access |
+| Tool            | Version      | Check Command    | Purpose           |
+| --------------- | ------------ | ---------------- | ----------------- |
+| Deno            | 2.x or later | `deno --version` | Climpt runtime    |
+| GitHub CLI (gh) | 2.x or later | `gh --version`   | GitHub API access |
 
 ---
 
@@ -42,6 +42,7 @@ deno --version
 ```
 
 Example output:
+
 ```
 deno 2.1.4 (stable, release, aarch64-apple-darwin)
 v8 13.0.245.12-rusty
@@ -59,6 +60,7 @@ export PATH="$DENO_INSTALL/bin:$PATH"
 ```
 
 Apply settings:
+
 ```bash
 source ~/.zshrc  # or source ~/.bashrc
 ```
@@ -67,8 +69,8 @@ source ~/.zshrc  # or source ~/.bashrc
 
 ## 1.2 Installing GitHub CLI (gh)
 
-GitHub CLI is a command-line tool for interacting with GitHub.
-Iterate Agent uses `gh` to retrieve Issue/Project information.
+GitHub CLI is a command-line tool for interacting with GitHub. Iterate Agent
+uses `gh` to retrieve Issue/Project information.
 
 ### macOS (Homebrew)
 
@@ -117,6 +119,7 @@ gh --version
 ```
 
 Example output:
+
 ```
 gh version 2.62.0 (2024-11-14)
 ```
@@ -135,17 +138,15 @@ gh auth login
 
 Interactive prompts:
 
-1. **Where do you use GitHub?**
-   → Select `GitHub.com`
+1. **Where do you use GitHub?** → Select `GitHub.com`
 
-2. **What is your preferred protocol for Git operations on this host?**
-   → Select `HTTPS` (recommended)
+2. **What is your preferred protocol for Git operations on this host?** → Select
+   `HTTPS` (recommended)
 
-3. **Authenticate Git with your GitHub credentials?**
-   → Select `Yes`
+3. **Authenticate Git with your GitHub credentials?** → Select `Yes`
 
-4. **How would you like to authenticate GitHub CLI?**
-   → Select `Login with a web browser`
+4. **How would you like to authenticate GitHub CLI?** → Select
+   `Login with a web browser`
 
 5. A browser will open - enter the displayed code to authenticate
 
@@ -156,6 +157,7 @@ gh auth status
 ```
 
 Example successful output:
+
 ```
 github.com
   ✓ Logged in to github.com account your-username

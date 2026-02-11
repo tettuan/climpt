@@ -4,21 +4,27 @@ Learn how to use slash commands to control Claude Code sessions through the SDK
 
 ---
 
-Slash commands provide a way to control Claude Code sessions with special commands that start with `/`. These commands can be sent through the SDK to perform actions like clearing conversation history, compacting messages, or getting help.
+Slash commands provide a way to control Claude Code sessions with special
+commands that start with `/`. These commands can be sent through the SDK to
+perform actions like clearing conversation history, compacting messages, or
+getting help.
 
 ## Discovering Available Slash Commands
 
-The Claude Agent SDK provides information about available slash commands in the system initialization message. Access this information when your session starts:
+The Claude Agent SDK provides information about available slash commands in the
+system initialization message. Access this information when your session starts:
 
 <CodeGroup>
 
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "Hello Claude",
-  options: { maxTurns: 1 }
-})) {
+for await (
+  const message of query({
+    prompt: "Hello Claude",
+    options: { maxTurns: 1 },
+  })
+) {
   if (message.type === "system" && message.subtype === "init") {
     console.log("Available slash commands:", message.slash_commands);
     // Example output: ["/compact", "/clear", "/help"]
@@ -46,7 +52,8 @@ asyncio.run(main())
 
 ## Sending Slash Commands
 
-Send slash commands by including them in your prompt string, just like regular text:
+Send slash commands by including them in your prompt string, just like regular
+text:
 
 <CodeGroup>
 
@@ -54,10 +61,12 @@ Send slash commands by including them in your prompt string, just like regular t
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Send a slash command
-for await (const message of query({
-  prompt: "/compact",
-  options: { maxTurns: 1 }
-})) {
+for await (
+  const message of query({
+    prompt: "/compact",
+    options: { maxTurns: 1 },
+  })
+) {
   if (message.type === "result") {
     console.log("Command executed:", message.result);
   }
@@ -86,17 +95,20 @@ asyncio.run(main())
 
 ### `/compact` - Compact Conversation History
 
-The `/compact` command reduces the size of your conversation history by summarizing older messages while preserving important context:
+The `/compact` command reduces the size of your conversation history by
+summarizing older messages while preserving important context:
 
 <CodeGroup>
 
 ```typescript TypeScript
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
-for await (const message of query({
-  prompt: "/compact",
-  options: { maxTurns: 1 }
-})) {
+for await (
+  const message of query({
+    prompt: "/compact",
+    options: { maxTurns: 1 },
+  })
+) {
   if (message.type === "system" && message.subtype === "compact_boundary") {
     console.log("Compaction completed");
     console.log("Pre-compaction tokens:", message.compact_metadata.pre_tokens);
@@ -128,7 +140,8 @@ asyncio.run(main())
 
 ### `/clear` - Clear Conversation
 
-The `/clear` command starts a fresh conversation by clearing all previous history:
+The `/clear` command starts a fresh conversation by clearing all previous
+history:
 
 <CodeGroup>
 
@@ -136,10 +149,12 @@ The `/clear` command starts a fresh conversation by clearing all previous histor
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Clear conversation and start fresh
-for await (const message of query({
-  prompt: "/clear",
-  options: { maxTurns: 1 }
-})) {
+for await (
+  const message of query({
+    prompt: "/clear",
+    options: { maxTurns: 1 },
+  })
+) {
   if (message.type === "system" && message.subtype === "init") {
     console.log("Conversation cleared, new session started");
     console.log("Session ID:", message.session_id);
@@ -168,18 +183,23 @@ asyncio.run(main())
 
 ## Creating Custom Slash Commands
 
-In addition to using built-in slash commands, you can create your own custom commands that are available through the SDK. Custom commands are defined as markdown files in specific directories, similar to how subagents are configured.
+In addition to using built-in slash commands, you can create your own custom
+commands that are available through the SDK. Custom commands are defined as
+markdown files in specific directories, similar to how subagents are configured.
 
 ### File Locations
 
 Custom slash commands are stored in designated directories based on their scope:
 
-- **Project commands**: `.claude/commands/` - Available only in the current project
-- **Personal commands**: `~/.claude/commands/` - Available across all your projects
+- **Project commands**: `.claude/commands/` - Available only in the current
+  project
+- **Personal commands**: `~/.claude/commands/` - Available across all your
+  projects
 
 ### File Format
 
 Each custom command is a markdown file where:
+
 - The filename (without `.md` extension) becomes the command name
 - The file content defines what the command does
 - Optional YAML frontmatter provides configuration
@@ -189,8 +209,8 @@ Each custom command is a markdown file where:
 Create `.claude/commands/refactor.md`:
 
 ```markdown
-Refactor the selected code to improve readability and maintainability.
-Focus on clean code principles and best practices.
+Refactor the selected code to improve readability and maintainability. Focus on
+clean code principles and best practices.
 ```
 
 This creates the `/refactor` command that you can use through the SDK.
@@ -207,6 +227,7 @@ model: claude-sonnet-4-5-20250929
 ---
 
 Analyze the codebase for security vulnerabilities including:
+
 - SQL injection risks
 - XSS vulnerabilities
 - Exposed credentials
@@ -215,7 +236,8 @@ Analyze the codebase for security vulnerabilities including:
 
 ### Using Custom Commands in the SDK
 
-Once defined in the filesystem, custom commands are automatically available through the SDK:
+Once defined in the filesystem, custom commands are automatically available
+through the SDK:
 
 <CodeGroup>
 
@@ -223,20 +245,24 @@ Once defined in the filesystem, custom commands are automatically available thro
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Use a custom command
-for await (const message of query({
-  prompt: "/refactor src/auth/login.ts",
-  options: { maxTurns: 3 }
-})) {
+for await (
+  const message of query({
+    prompt: "/refactor src/auth/login.ts",
+    options: { maxTurns: 3 },
+  })
+) {
   if (message.type === "assistant") {
     console.log("Refactoring suggestions:", message.message);
   }
 }
 
 // Custom commands appear in the slash_commands list
-for await (const message of query({
-  prompt: "Hello",
-  options: { maxTurns: 1 }
-})) {
+for await (
+  const message of query({
+    prompt: "Hello",
+    options: { maxTurns: 1 },
+  })
+) {
   if (message.type === "system" && message.subtype === "init") {
     // Will include both built-in and custom commands
     console.log("Available commands:", message.slash_commands);
@@ -287,8 +313,8 @@ argument-hint: [issue-number] [priority]
 description: Fix a GitHub issue
 ---
 
-Fix issue #$1 with priority $2.
-Check the issue description and implement the necessary changes.
+Fix issue #$1 with priority $2. Check the issue description and implement the
+necessary changes.
 ```
 
 Use in SDK:
@@ -299,10 +325,12 @@ Use in SDK:
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Pass arguments to custom command
-for await (const message of query({
-  prompt: "/fix-issue 123 high",
-  options: { maxTurns: 5 }
-})) {
+for await (
+  const message of query({
+    prompt: "/fix-issue 123 high",
+    options: { maxTurns: 5 },
+  })
+) {
   // Command will process with $1="123" and $2="high"
   if (message.type === "result") {
     console.log("Issue fixed:", message.result);
@@ -363,6 +391,7 @@ description: Review configuration files
 ---
 
 Review the following configuration files for issues:
+
 - Package config: @package.json
 - TypeScript config: @tsconfig.json
 - Environment config: @.env
@@ -385,7 +414,8 @@ Organize commands in subdirectories for better structure:
 └── review.md              # Creates /review (project)
 ```
 
-The subdirectory appears in the command description but doesn't affect the command name itself.
+The subdirectory appears in the command description but doesn't affect the
+command name itself.
 
 ### Practical Examples
 
@@ -400,14 +430,17 @@ description: Comprehensive code review
 ---
 
 ## Changed Files
+
 !`git diff --name-only HEAD~1`
 
 ## Detailed Changes
+
 !`git diff HEAD~1`
 
 ## Review Checklist
 
 Review the above changes for:
+
 1. Code quality and readability
 2. Security vulnerabilities
 3. Performance implications
@@ -444,18 +477,22 @@ Use these commands through the SDK:
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Run code review
-for await (const message of query({
-  prompt: "/code-review",
-  options: { maxTurns: 3 }
-})) {
+for await (
+  const message of query({
+    prompt: "/code-review",
+    options: { maxTurns: 3 },
+  })
+) {
   // Process review feedback
 }
 
 // Run specific tests
-for await (const message of query({
-  prompt: "/test auth",
-  options: { maxTurns: 5 }
-})) {
+for await (
+  const message of query({
+    prompt: "/test auth",
+    options: { maxTurns: 5 },
+  })
+) {
   // Handle test results
 }
 ```
@@ -488,8 +525,12 @@ asyncio.run(main())
 
 ## See Also
 
-- [Slash Commands](https://code.claude.com/docs/en/slash-commands) - Complete slash command documentation
-- [Subagents in the SDK](/docs/en/agent-sdk/subagents) - Similar filesystem-based configuration for subagents
-- [TypeScript SDK reference](/docs/en/agent-sdk/typescript) - Complete API documentation
+- [Slash Commands](https://code.claude.com/docs/en/slash-commands) - Complete
+  slash command documentation
+- [Subagents in the SDK](/docs/en/agent-sdk/subagents) - Similar
+  filesystem-based configuration for subagents
+- [TypeScript SDK reference](/docs/en/agent-sdk/typescript) - Complete API
+  documentation
 - [SDK overview](/docs/en/agent-sdk/overview) - General SDK concepts
-- [CLI reference](https://code.claude.com/docs/en/cli-reference) - Command-line interface
+- [CLI reference](https://code.claude.com/docs/en/cli-reference) - Command-line
+  interface

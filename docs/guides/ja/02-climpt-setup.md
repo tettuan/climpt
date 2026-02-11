@@ -19,6 +19,7 @@ JSR直接実行を使用して、プロジェクトでClimptを設定します�
 - **インターネット接続**: JSRパッケージ解決に必要
 
 Denoのインストール確認:
+
 ```bash
 deno --version
 ```
@@ -42,6 +43,7 @@ deno run -A jsr:@aidevtool/climpt init
 ```
 
 出力例：
+
 ```
 Climpt initialized successfully!
 Created configuration files in .agent/climpt/
@@ -118,6 +120,7 @@ Claude Code で以下のコマンドを実行：
 - `delegate-climpt-agent`: Climpt エージェントにタスクを委任
 
 確認方法：
+
 ```
 /plugin list
 ```
@@ -177,8 +180,10 @@ ls -la
 
 ### A. 既存の指示書を使う場合
 
-→ [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) へ進んで Iterate Agent を設定
+→ [04-iterate-agent-setup.md](./04-iterate-agent-setup.md) へ進んで Iterate
+Agent を設定
 
 ### B. カスタム指示書を作成する場合
 
-→ [03-instruction-creation.md](./03-instruction-creation.md) へ進んで指示書の作成方法を学ぶ
+→ [03-instruction-creation.md](./03-instruction-creation.md)
+へ進んで指示書の作成方法を学ぶ

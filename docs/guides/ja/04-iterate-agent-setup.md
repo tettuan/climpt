@@ -1,4 +1,5 @@
-[English](../en/04-iterate-agent-setup.md) | [日本語](../ja/04-iterate-agent-setup.md)
+[English](../en/04-iterate-agent-setup.md) |
+[日本語](../ja/04-iterate-agent-setup.md)
 
 # 4. Iterate Agent の設定と実行
 
@@ -57,17 +58,18 @@ Iterate Agent は Claude Agent SDK を使用した自律型開発エージェン
 
 ### 必須要件
 
-| 要件 | 説明 | 確認方法 |
-|------|------|----------|
-| **GitHub CLI (`gh`)** | インストールと認証が必要 | `gh auth status` |
-| **Git リポジトリ** | プロジェクトが Git リポジトリであること | `git status` |
-| **GitHub リモート** | リポジトリが GitHub にプッシュされていること | `git remote -v` |
-| **対象 Issue/Project** | GitHub 上に存在すること | `gh issue list` |
-| **Claude Code Plugin** | climpt-agent プラグインがインストール済み | `.claude/settings.json` を確認 |
+| 要件                   | 説明                                         | 確認方法                       |
+| ---------------------- | -------------------------------------------- | ------------------------------ |
+| **GitHub CLI (`gh`)**  | インストールと認証が必要                     | `gh auth status`               |
+| **Git リポジトリ**     | プロジェクトが Git リポジトリであること      | `git status`                   |
+| **GitHub リモート**    | リポジトリが GitHub にプッシュされていること | `git remote -v`                |
+| **対象 Issue/Project** | GitHub 上に存在すること                      | `gh issue list`                |
+| **Claude Code Plugin** | climpt-agent プラグインがインストール済み    | `.claude/settings.json` を確認 |
 
 ### Claude Code プラグインのセットアップ
 
-`delegate-climpt-agent` Skill を使用するには、climpt-agent プラグインが必要です：
+`delegate-climpt-agent` Skill を使用するには、climpt-agent
+プラグインが必要です：
 
 ```bash
 # Claude Code で以下のスラッシュコマンドを実行：
@@ -86,7 +88,8 @@ Iterate Agent は Claude Agent SDK を使用した自律型開発エージェン
 }
 ```
 
-> **注意**: プラグインがインストールされていない場合、エージェントは警告を表示しますが、制限された機能で動作を続けます。
+> **注意**:
+> プラグインがインストールされていない場合、エージェントは警告を表示しますが、制限された機能で動作を続けます。
 
 ### GitHub CLI のセットアップ
 
@@ -144,6 +147,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 ```
 
 出力例：
+
 ```
 Iterate Agent initialized successfully!
 
@@ -187,6 +191,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
 ```
 
 短縮形：
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -i 123
 ```
@@ -200,6 +205,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5
 ```
 
 短縮形：
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -p 5
 ```
@@ -213,6 +219,7 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --iterate-max 10
 ```
 
 短縮形：
+
 ```bash
 deno run -A jsr:@aidevtool/climpt/agents/iterator -m 10
 ```
@@ -227,26 +234,26 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123 --resume
 
 ### オプション一覧
 
-| オプション | 短縮形 | デフォルト | 説明 |
-|-----------|--------|-----------|------|
-| `--init` | - | - | 設定ファイルを初期化 |
-| `--issue` | `-i` | - | 対象の GitHub Issue 番号 |
-| `--project` | `-p` | - | 対象の GitHub Project 番号 |
-| `--iterate-max` | `-m` | Infinity | 最大イテレーション数 |
-| `--name` | `-n` | `climpt` | エージェント名 |
-| `--project-owner` | `-o` | リポジトリ所有者 | プロジェクト所有者（--project 使用時のみ） |
-| `--resume` | `-r` | false | 前回セッションを再開 |
-| `--help` | `-h` | - | ヘルプを表示 |
+| オプション        | 短縮形 | デフォルト       | 説明                                       |
+| ----------------- | ------ | ---------------- | ------------------------------------------ |
+| `--init`          | -      | -                | 設定ファイルを初期化                       |
+| `--issue`         | `-i`   | -                | 対象の GitHub Issue 番号                   |
+| `--project`       | `-p`   | -                | 対象の GitHub Project 番号                 |
+| `--iterate-max`   | `-m`   | Infinity         | 最大イテレーション数                       |
+| `--name`          | `-n`   | `climpt`         | エージェント名                             |
+| `--project-owner` | `-o`   | リポジトリ所有者 | プロジェクト所有者（--project 使用時のみ） |
+| `--resume`        | `-r`   | false            | 前回セッションを再開                       |
+| `--help`          | `-h`   | -                | ヘルプを表示                               |
 
 ---
 
 ## 4.5 完了条件
 
-| モード | 完了条件 | チェック方法 |
-|--------|---------|-------------|
-| `--issue` | Issue がクローズ（`label-only` 設定時はフェーズ完了） | `gh issue view --json state` |
-| `--project` | 全アイテムが完了 | `gh project view --format json` |
-| `--iterate-max` | 指定回数に到達 | 内部カウンター |
+| モード          | 完了条件                                              | チェック方法                    |
+| --------------- | ----------------------------------------------------- | ------------------------------- |
+| `--issue`       | Issue がクローズ（`label-only` 設定時はフェーズ完了） | `gh issue view --json state`    |
+| `--project`     | 全アイテムが完了                                      | `gh project view --format json` |
+| `--iterate-max` | 指定回数に到達                                        | 内部カウンター                  |
 
 ### 組み合わせ
 
@@ -263,8 +270,8 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my
 ### --project-owner について
 
 プロジェクト番号はプロジェクト所有者ごとに独立しています。
-デフォルトではリポジトリ所有者のプロジェクトを参照しますが、
-`--project-owner` で明示的に指定することで異なる所有者のプロジェクトを操作できます：
+デフォルトではリポジトリ所有者のプロジェクトを参照しますが、 `--project-owner`
+で明示的に指定することで異なる所有者のプロジェクトを操作できます：
 
 ```bash
 # 自分のプロジェクト（@me = 認証ユーザー）
@@ -313,36 +320,41 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 
 ### 設定項目の説明
 
-| 項目 | 説明 |
-|------|------|
-| `allowedTools` | 使用可能なツールのリスト |
-| `permissionMode` | 権限モード |
-| `logging.directory` | ログ出力先 |
-| `logging.maxFiles` | ログファイル最大数（ローテーション） |
+| 項目                | 説明                                 |
+| ------------------- | ------------------------------------ |
+| `allowedTools`      | 使用可能なツールのリスト             |
+| `permissionMode`    | 権限モード                           |
+| `logging.directory` | ログ出力先                           |
+| `logging.maxFiles`  | ログファイル最大数（ローテーション） |
 
 ### permissionMode の種類
 
-| モード | 説明 | 推奨用途 |
-|--------|------|---------|
-| `default` | すべての操作に確認が必要 | 初回テスト |
-| `plan` | プランニングのみ許可 | 計画確認 |
-| `acceptEdits` | ファイル編集を自動承認 | **通常運用（推奨）** |
-| `bypassPermissions` | すべての操作を自動承認 | 完全自動化 |
+| モード              | 説明                     | 推奨用途             |
+| ------------------- | ------------------------ | -------------------- |
+| `default`           | すべての操作に確認が必要 | 初回テスト           |
+| `plan`              | プランニングのみ許可     | 計画確認             |
+| `acceptEdits`       | ファイル編集を自動承認   | **通常運用（推奨）** |
+| `bypassPermissions` | すべての操作を自動承認   | 完全自動化           |
 
 ### システムプロンプトのカスタマイズ
 
-システムプロンプトは `.agent/iterator/prompts/dev/` にC3L形式で配置されています：
+システムプロンプトは `.agent/iterator/prompts/dev/`
+にC3L形式で配置されています：
 
-| ファイル | 用途 |
-|---------|------|
-| `start/default/f_default.md` | イテレーション回数ベースモード |
-| `start/issue/f_default.md` | 単一GitHub Issueモード |
-| `start/project/f_default.md` | GitHub Project準備モード |
+| ファイル                      | 用途                           |
+| ----------------------------- | ------------------------------ |
+| `start/default/f_default.md`  | イテレーション回数ベースモード |
+| `start/issue/f_default.md`    | 単一GitHub Issueモード         |
+| `start/project/f_default.md`  | GitHub Project準備モード       |
 | `review/project/f_default.md` | プロジェクト完了レビューモード |
 
-これらのプロンプトはUV変数を使用して動的にコンテンツを挿入します（例：`{uv-agent_name}`, `{uv-completion_criteria}`）。
+これらのプロンプトはUV変数を使用して動的にコンテンツを挿入します（例：`{uv-agent_name}`,
+`{uv-completion_criteria}`）。
 
-デフォルトの system.md テンプレートには `{uv-completion_criteria}` が含まれており、実行時に CompletionHandler の値で自動的に展開されます。独自の完了条件を定義したい場合は、`{uv-completion_criteria}` を使わずに system.md に直接記述してください。
+デフォルトの system.md テンプレートには `{uv-completion_criteria}`
+が含まれており、実行時に CompletionHandler
+の値で自動的に展開されます。独自の完了条件を定義したい場合は、`{uv-completion_criteria}`
+を使わずに system.md に直接記述してください。
 
 ### --agent オプションについて
 
@@ -358,9 +370,9 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner te
 }
 ```
 
-| --agent 値 | 使用されるレジストリ |
-|-----------|---------------------|
-| `climpt` | `.agent/climpt/registry.json` |
+| --agent 値 | 使用されるレジストリ            |
+| ---------- | ------------------------------- |
+| `climpt`   | `.agent/climpt/registry.json`   |
 | `iterator` | `.agent/iterator/registry.json` |
 
 ---
@@ -414,7 +426,9 @@ tmp/logs/agents/climpt/session-2025-12-31T10-00-00-000Z.jsonl
 
 #### Worktree モードでのログ出力
 
-Worktree モード（`forceWorktree: true`）で agent を実行した場合、ログは常に**メインリポジトリ**の `tmp/logs/` ディレクトリに出力されます。worktree ディレクトリ内には出力されません。
+Worktree モード（`forceWorktree: true`）で agent
+を実行した場合、ログは常に**メインリポジトリ**の `tmp/logs/`
+ディレクトリに出力されます。worktree ディレクトリ内には出力されません。
 
 ```
 # メインリポジトリ（agent を起動した場所）
@@ -432,11 +446,13 @@ your-project/
 ```
 
 この設計により：
+
 - **ログの一元管理**: 実行モードに関わらず、すべてのログが同一場所に保存
 - **git 汚染の防止**: worktree ディレクトリがクリーンな状態でコミット可能
 - **アクセスの容易さ**: worktree クリーンアップ後もログにアクセス可能
 
-> **注意**: `tmp/` ディレクトリは `.gitignore` に含まれているため、ログがコミットされることはありません。
+> **注意**: `tmp/` ディレクトリは `.gitignore`
+> に含まれているため、ログがコミットされることはありません。
 
 ログの確認：
 
