@@ -3,6 +3,23 @@
 Practical examples for [Climpt](https://jsr.io/@aidevtool/climpt) (CLI +
 Prompt).
 
+## When to Run
+
+These examples serve as **E2E verification** of CLI, MCP, agents, and registry
+features. Run them at the following point in the release flow:
+
+```
+deno task ci (unit tests)
+       ↓  pass
+examples/ E2E verification   ← HERE
+       ↓  pass
+PR creation (release/* → develop)
+```
+
+In short: **after `deno task ci` passes, before creating the release PR**.
+Categories `01_setup` through `06_registry` cover the full surface;
+`07_clean.sh` resets generated artifacts.
+
 ## Prerequisites
 
 - [Deno 2.x](https://deno.land/) installed
@@ -10,15 +27,15 @@ Prompt).
 
 ## Directory Structure
 
-| Folder                           | Description                                   |
-| -------------------------------- | --------------------------------------------- |
-| [01_setup/](./01_setup/)         | Installation and initialization               |
-| [02_cli_basic/](./02_cli_basic/) | Core CLI commands: decompose, summary, defect |
-| [03_mcp/](./03_mcp/)             | MCP server setup and IDE integration          |
-| [04_docs/](./04_docs/)           | Documentation installer                       |
-| [05_agents/](./05_agents/)       | Agent framework (iterator, reviewer)          |
-| [06_registry/](./06_registry/)   | Registry generation and structure             |
-| [07_clean.sh](./07_clean.sh)     | Cleanup generated files                       |
+| Folder                           | Description                               |
+| -------------------------------- | ----------------------------------------- |
+| [01_setup/](./01_setup/)         | Installation and initialization           |
+| [02_cli_basic/](./02_cli_basic/) | Core CLI commands: echo, meta, git, stdin |
+| [03_mcp/](./03_mcp/)             | MCP server setup and IDE integration      |
+| [04_docs/](./04_docs/)           | Documentation installer                   |
+| [05_agents/](./05_agents/)       | Agent framework (iterator, reviewer)      |
+| [06_registry/](./06_registry/)   | Registry generation and structure         |
+| [07_clean.sh](./07_clean.sh)     | Cleanup generated files                   |
 
 ## How to Run
 

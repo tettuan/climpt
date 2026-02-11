@@ -85,12 +85,20 @@ For implementation details and technical specifications, see
 ## Examples (E2E Verification)
 
 Run [`examples/`](../../examples/) scripts to verify functionality before
-releases. Particularly useful for developers:
+releases. **Timing: after `deno task ci` passes, before creating the release
+PR.**
 
-- [Agent examples](../../examples/05_agents/) - Iterator, reviewer, and config
-- [Registry examples](../../examples/06_registry/) - Registry generation
+| Category                                     | What it verifies                                 |
+| -------------------------------------------- | ------------------------------------------------ |
+| [01_setup](../../examples/01_setup/)         | Installation and `climpt init`                   |
+| [02_cli_basic](../../examples/02_cli_basic/) | CLI invocation: echo, meta, git, stdin, `--uv-*` |
+| [03_mcp](../../examples/03_mcp/)             | MCP server start and IDE integration             |
+| [04_docs](../../examples/04_docs/)           | Documentation installer and filtering            |
+| [05_agents](../../examples/05_agents/)       | Iterator, reviewer, config, prompt resolution    |
+| [06_registry](../../examples/06_registry/)   | Registry generation and structure                |
 
-See [`examples/README.md`](../../examples/README.md) for the full list.
+See [`examples/README.md`](../../examples/README.md) for prerequisites and run
+instructions.
 
 ## Quick Links
 

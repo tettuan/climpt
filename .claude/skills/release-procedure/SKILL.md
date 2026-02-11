@@ -84,6 +84,7 @@ wc -c docs/*.md docs/guides/en/*.md docs/guides/ja/*.md
   □ version をリリースバージョンに更新
   □ ファイル追加・削除を反映
   □ bytes を実サイズに更新
+□ examples/ E2E 検証を実行（CI通過後、PR作成前）
 ```
 
 **重要**: `deno task bump-version` は release/* ブランチ名からバージョンを自動検出する。
@@ -225,6 +226,20 @@ grep 'export const CLIMPT_VERSION' src/version.ts
 deno task ci
 ```
 
+#### ステップ 2.5: Examples E2E 検証
+
+**重要**: CI通過後、PR作成前に `examples/` スクリプトで E2E 検証を行うこと。
+
+```bash
+chmod +x examples/**/*.sh examples/*.sh
+./examples/01_setup/01_install.sh
+./examples/02_cli_basic/01_echo_test.sh
+# ... 各カテゴリを実行
+./examples/07_clean.sh
+```
+
+対象: `01_setup` ～ `06_registry` の各カテゴリ。詳細は [`examples/README.md`](../../examples/README.md) を参照。
+
 #### ステップ 3: コミット & プッシュ
 
 ```bash
@@ -363,6 +378,11 @@ git push origin release/1.9.15
   1. /update-changelog → CHANGELOG.md に変更を記載
   2. /update-docs → README, --help 等を必要に応じて更新
   3. docs/manifest.json → version, entries, bytes を最新化
+
+E2E 検証（CI通過後、PR作成前）:
+  chmod +x examples/**/*.sh examples/*.sh
+  ./examples/01_setup/01_install.sh ～ ./examples/06_registry/
+  ./examples/07_clean.sh
 
 リリースフロー:
   1. release/* → develop PR作成
