@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/climpt",
-  "version": "1.11.16",
+  "version": "1.11.17",
   "description": "A CLI wrapper around @tettuan/breakdown for AI-assisted development instruction tools. Provides unified interface for creating, managing, and executing development instructions using TypeScript and JSON Schema for AI system interpretation.",
   "license": "MIT",
   "author": "tettuan",
@@ -43,17 +43,22 @@
     ".git",
     ".github/",
     ".vscode/",
+    ".claude/",
     ".gitignore",
     "CLAUDE.md",
     "deno.lock",
     "tmp/"
   ],
-  "test": {
+  "publish": {
     "exclude": [
-      "tests/docs/install_test.ts",
-      "tests/docs/jsr_source_test.ts"
+      ".claude/",
+      "plugins/",
+      "tests/",
+      "examples/",
+      "scripts/"
     ]
   },
+  "test": {},
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
