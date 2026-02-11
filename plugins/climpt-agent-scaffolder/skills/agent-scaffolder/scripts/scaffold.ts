@@ -13,9 +13,9 @@
  *     --completion-type externalState
  */
 
-import { parse } from "jsr:@std/flags";
-import { ensureDir } from "jsr:@std/fs";
-import { dirname, fromFileUrl, join } from "jsr:@std/path";
+import { parse } from "jsr:@std/flags@^0.224.0";
+import { ensureDir } from "jsr:@std/fs@^1.0.8";
+import { dirname, fromFileUrl, join } from "jsr:@std/path@^1.1.3";
 
 interface ScaffoldOptions {
   name: string;

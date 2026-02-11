@@ -14,7 +14,7 @@
  *   - Skip: Options with false value
  */
 
-import { query } from "npm:@anthropic-ai/claude-agent-sdk";
+import { query } from "npm:@anthropic-ai/claude-agent-sdk@^0.2.37";
 
 import type { CommandWithUV, PromptContext, ResolvedOptions } from "./types.ts";
 import type { Logger } from "./logger.ts";
