@@ -7,7 +7,7 @@
  * Based on: agents/docs/design/01_runner.md and Issue #258
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type { StepContext, StepResult } from "../src_common/contracts.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";

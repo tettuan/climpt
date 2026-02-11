@@ -52,6 +52,13 @@ export interface InitResult {
 }
 
 /**
+ * Factory function to create an empty InitResult
+ */
+export function createInitResult(): Pick<InitResult, "created" | "skipped"> {
+  return { created: [], skipped: [] };
+}
+
+/**
  * Registry Config structure
  */
 export interface RegistryConfig {

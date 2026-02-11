@@ -46,7 +46,12 @@ sequenceDiagram
 {
   "version": "1.11.6",
   "entries": [
-    { "id": "overview-ja", "path": "guides/ja/00-overview.md", "category": "guides", "lang": "ja" }
+    {
+      "id": "overview-ja",
+      "path": "guides/ja/00-overview.md",
+      "category": "guides",
+      "lang": "ja"
+    }
   ]
 }
 ```
@@ -86,9 +91,9 @@ const { entries } = await list();
 
 ## 特徴
 
-| 特徴 | 説明 |
-|------|------|
-| オンデマンド | cli.tsのみDL → 実行時にfetch |
-| バージョン自動 | meta.jsonから最新取得 |
-| マニフェスト自動 | docsから自動生成 |
-| 3モード | preserve / flatten / single |
+| 特徴             | 説明                         |
+| ---------------- | ---------------------------- |
+| オンデマンド     | cli.tsのみDL → 実行時にfetch |
+| バージョン自動   | meta.jsonから最新取得        |
+| マニフェスト自動 | docsから自動生成             |
+| 3モード          | preserve / flatten / single  |

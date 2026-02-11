@@ -5,7 +5,7 @@
  * a specific action block type with optional required field values.
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
   BaseCompletionHandler,
   type CompletionCriteria,

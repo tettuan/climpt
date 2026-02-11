@@ -6,6 +6,14 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob, Task]
 
 # Local CI Execution
 
+## 責務
+
+CI 実行方法と事前検証を管理する（`deno task ci` の使い方、パイプラインステージ）。
+
+- CI エラーの対処方法は `/ci-troubleshooting` skill を参照
+- リリースフロー全体は `/release-procedure` skill を参照
+- ブランチ戦略は `/branch-management` skill を参照
+
 ## Overview
 
 Run CI locally to verify code quality before pushing.

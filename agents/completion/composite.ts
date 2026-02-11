@@ -7,7 +7,7 @@
  * - FIRST: First condition to complete wins
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type {
   AgentDefinition,
   CompletionConfigUnion,

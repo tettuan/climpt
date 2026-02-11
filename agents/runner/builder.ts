@@ -8,7 +8,7 @@
 import type { AgentDefinition, LoggingConfig } from "../src_common/types.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { Logger } from "../src_common/logger.ts";
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type { CompletionValidator } from "../validators/completion/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
@@ -175,8 +175,10 @@ export class DefaultCompletionHandlerFactory
  */
 export class DefaultPromptResolverFactory implements PromptResolverFactory {
   async create(options: PromptResolverFactoryOptions): Promise<PromptResolver> {
-    const { PromptResolver } = await import("../prompts/resolver.ts");
-    return PromptResolver.create(options);
+    const { PromptResolverAdapter } = await import(
+      "../prompts/resolver-adapter.ts"
+    );
+    return PromptResolverAdapter.create(options);
   }
 }
 

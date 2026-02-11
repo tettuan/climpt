@@ -19,7 +19,7 @@
 
 ```
 docs-consistency/
-├── skill.md              # メイン指示（概要、チェックリスト）
+├── SKILL.md              # メイン指示（概要、チェックリスト）
 ├── IMPLEMENTATION-CHECK.md  # 詳細検証ガイド
 ├── README.md             # このファイル
 └── scripts/
@@ -43,7 +43,7 @@ deno task verify-docs agents
 
 ### 手動確認
 
-1. skill.mdのチェックリストをコピー
+1. SKILL.mdのチェックリストをコピー
 2. 各項目を順番に確認
 3. 問題があれば修正
 

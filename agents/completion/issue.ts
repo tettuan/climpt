@@ -8,7 +8,7 @@
  * @refactored Phase 6 - External state checking separated to ExternalStateChecker
  */
 
-import type { PromptResolver } from "../prompts/resolver.ts";
+import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
   BaseCompletionHandler,
   type CheckContext,

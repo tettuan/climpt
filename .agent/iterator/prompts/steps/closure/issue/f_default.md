@@ -1,7 +1,7 @@
 ---
 stepId: closure.issue
-name: Issue Closure Prompt
-description: Terminal step for issue completion (hands off to reviewer)
+name: Issue Closure Prompt (Close)
+description: Terminal step for issue completion - closes the issue
 uvVariables:
   - issue_number
 customVariables:
@@ -23,22 +23,15 @@ customVariables:
 
 {summary_section}
 
-## Your Role: Implementation Complete, Hand Off to Reviewer
+## Your Role: Implementation Complete, Close Issue
 
 You are an **implementation agent**. Your work is done when:
 
 1. All code changes are committed
 2. Tests pass
-3. You add the `done` label to signal completion
-
-**The Reviewer Agent will:**
-
-- Verify your implementation
-- Close the issue when approved
+3. The issue is closed
 
 ## Closure Verification
-
-The issue work has been handed off for closure verification.
 
 ### Final Checklist
 
@@ -57,20 +50,9 @@ If any of the above are not satisfied:
 - Fix the issue (commit changes, fix type errors, etc.)
 - Report `next_action.action = "repeat"` to retry closure validation
 
-### Closure Options
+### Closure Action
 
-Choose the appropriate closure action:
-
-- `action`: Complete action type
-  - `"close"`: Close the Issue (default)
-  - `"label-only"`: Change labels only, keep Issue OPEN
-  - `"label-and-close"`: Change labels then close
-
-- `issue.labels`: Label changes (optional, overrides config defaults)
-  - `add`: ["done"] - Labels to add
-  - `remove`: ["in-progress"] - Labels to remove
-
-If default labels are configured in agent.json, you don't need to specify them.
+This step will **close** Issue #{uv-issue_number}.
 
 ### Closure Report
 
@@ -78,7 +60,7 @@ When all conditions are met, report in structured output:
 
 - `status`: "completed"
 - `next_action.action`: "closing" (signals workflow completion)
-- `action`: "close" | "label-only" | "label-and-close"
+- `action`: "close"
 - `summary`: Brief closure summary describing what was accomplished
 - `issue.labels`: { add: [...], remove: [...] } (optional, to override defaults)
 - `validation`: { git_clean, type_check_passed, tests_passed, ... }
@@ -93,15 +75,8 @@ When all conditions are met, report in structured output:
 
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
-- Apply label changes based on `action` field and config
-  (`github.labels.completion`)
-- Close or keep open Issue #{uv-issue_number} based on `action` field
-
-The `action` field in your structured output controls the behavior:
-
-- `"close"`: Close the issue (default)
-- `"label-only"`: Add/remove labels only, keep issue **OPEN**
-- `"label-and-close"`: Add/remove labels, then close
+- Apply label changes based on config (`github.labels.completion`)
+- Close Issue #{uv-issue_number}
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

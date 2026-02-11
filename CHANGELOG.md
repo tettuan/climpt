@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `examples/` directory with E2E verification scripts organized by use case (setup, CLI, MCP, docs, agents, registry)
+- 15-task codebase refactoring: uv type unification, skill English translation, fs-utils extraction, logger introduction, test consolidation, MCP test separation, prompt externalization, and more
+
+### Changed
+- CI workflow aligned with deno.json task definitions
+- deno.json scopes cleaned up (fmt, lint, test, include)
+- Test naming conventions unified
+- InitResult type standardized across init subsystem
+
 ## [1.11.13] - 2026-02-08
 
 ### Added

@@ -15,16 +15,18 @@ description: Delegates development tasks to Climpt Agent. Use when user asks to 
 
 #### フィールド
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Skill 識別子 (最大64文字、小文字・数字・ハイフンのみ) |
-| `description` | string | Yes | Skill の発動条件を記述 (最大1024文字) |
+| Field         | Type   | Required | Description                                           |
+| ------------- | ------ | -------- | ----------------------------------------------------- |
+| `name`        | string | Yes      | Skill 識別子 (最大64文字、小文字・数字・ハイフンのみ) |
+| `description` | string | Yes      | Skill の発動条件を記述 (最大1024文字)                 |
 
 ### Description の設計指針
 
-`description` は Claude が Skill を発動するかどうかを判断する重要なフィールドです：
+`description` は Claude が Skill
+を発動するかどうかを判断する重要なフィールドです：
 
-1. **具体的なユースケースを列挙**: git operations, branch management, frontmatter generation など
+1. **具体的なユースケースを列挙**: git operations, branch management,
+   frontmatter generation など
 2. **アクション動詞を使用**: "delegates", "use when user asks" など
 3. **ドメイン固有の用語を含める**: Climpt, git commits, PR workflows など
 
@@ -41,10 +43,10 @@ mcp__climpt__search({
 
 **パラメータ:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | 自然言語での検索クエリ |
-| `agent` | string | Yes | 常に `"climpt"` |
+| Parameter | Type   | Required | Description            |
+| --------- | ------ | -------- | ---------------------- |
+| `query`   | string | Yes      | 自然言語での検索クエリ |
+| `agent`   | string | Yes      | 常に `"climpt"`        |
 
 **レスポンス:**
 
@@ -73,12 +75,12 @@ mcp__climpt__describe({
 
 **パラメータ:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `agent` | string | Yes | 常に `"climpt"` |
-| `c1` | string | Yes | ドメイン識別子 |
-| `c2` | string | Yes | アクション識別子 |
-| `c3` | string | Yes | ターゲット識別子 |
+| Parameter | Type   | Required | Description      |
+| --------- | ------ | -------- | ---------------- |
+| `agent`   | string | Yes      | 常に `"climpt"`  |
+| `c1`      | string | Yes      | ドメイン識別子   |
+| `c2`      | string | Yes      | アクション識別子 |
+| `c3`      | string | Yes      | ターゲット識別子 |
 
 **レスポンス:**
 
@@ -113,13 +115,13 @@ mcp__climpt__execute({
 
 **パラメータ:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `agent` | string | Yes | 常に `"climpt"` |
-| `c1` | string | Yes | ドメイン識別子 |
-| `c2` | string | Yes | アクション識別子 |
-| `c3` | string | Yes | ターゲット識別子 |
-| `options` | object | No | コマンドオプション |
+| Parameter | Type   | Required | Description        |
+| --------- | ------ | -------- | ------------------ |
+| `agent`   | string | Yes      | 常に `"climpt"`    |
+| `c1`      | string | Yes      | ドメイン識別子     |
+| `c2`      | string | Yes      | アクション識別子   |
+| `c3`      | string | Yes      | ターゲット識別子   |
+| `options` | object | No       | コマンドオプション |
 
 **レスポンス:**
 
@@ -131,12 +133,12 @@ Commands follow the C3L (Command 3-Level) naming convention:
 
 ### レベル定義
 
-| Level | Description | Pattern | Examples |
-|-------|-------------|---------|----------|
-| `agent` | MCP サーバー識別子 | - | `climpt`, `inspector` |
-| `c1` | ドメイン識別子 | `<domain>` | `git`, `meta`, `spec` |
-| `c2` | アクション識別子 | `<verb>-<modifier>?` | `group-commit`, `build`, `create` |
-| `c3` | ターゲット識別子 | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
+| Level   | Description        | Pattern               | Examples                          |
+| ------- | ------------------ | --------------------- | --------------------------------- |
+| `agent` | MCP サーバー識別子 | -                     | `climpt`, `inspector`             |
+| `c1`    | ドメイン識別子     | `<domain>`            | `git`, `meta`, `spec`             |
+| `c2`    | アクション識別子   | `<verb>-<modifier>?`  | `group-commit`, `build`, `create` |
+| `c3`    | ターゲット識別子   | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
 
 ### 命名パターン
 
@@ -148,11 +150,11 @@ Commands follow the C3L (Command 3-Level) naming convention:
 
 **例:**
 
-| agent | c1 | c2 | c3 | Sub-agent Name |
-|-------|----|----|-----|----------------|
-| `climpt` | `git` | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
-| `climpt` | `meta` | `build` | `frontmatter` | `climpt-meta-build-frontmatter` |
-| `climpt` | `meta` | `create` | `instruction` | `climpt-meta-create-instruction` |
+| agent    | c1     | c2             | c3                 | Sub-agent Name                             |
+| -------- | ------ | -------------- | ------------------ | ------------------------------------------ |
+| `climpt` | `git`  | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
+| `climpt` | `meta` | `build`        | `frontmatter`      | `climpt-meta-build-frontmatter`            |
+| `climpt` | `meta` | `create`       | `instruction`      | `climpt-meta-create-instruction`           |
 
 ## 発動条件
 
@@ -177,6 +179,7 @@ Skill は以下の条件で自動発動します：
 
 ```markdown
 Climpt コマンドが見つかりませんでした。
+
 - クエリを別の表現で試してください
 - `mcp__climpt__reload` でレジストリを更新してください
 ```
@@ -185,12 +188,14 @@ Climpt コマンドが見つかりませんでした。
 
 ```markdown
 コマンド実行に失敗しました: <error message>
+
 - コマンドパラメータを確認してください
 - Climpt CLI が正しくインストールされているか確認してください
 ```
 
 ## ベストプラクティス
 
-1. **検索クエリは具体的に**: 「変更をコミット」より「意味的に近いファイルをグループ化してコミット」が精度向上
+1. **検索クエリは具体的に**:
+   「変更をコミット」より「意味的に近いファイルをグループ化してコミット」が精度向上
 2. **複数候補がある場合**: スコアと description を比較して最適なコマンドを選択
 3. **オプションの活用**: edition, adaptation などを適切に設定してカスタマイズ

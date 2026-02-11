@@ -3,35 +3,10 @@
  * @module init/basic-init
  */
 
+import { ensureDir } from "@std/fs/ensure-dir";
+import { exists } from "@std/fs/exists";
 import { resolve } from "@std/path";
-
-/**
- * Check if a path exists
- */
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
- * Ensure directory exists, creating it if necessary
- */
-async function ensureDir(path: string): Promise<void> {
-  try {
-    await Deno.mkdir(path, { recursive: true });
-  } catch (error) {
-    if (!(error instanceof Deno.errors.AlreadyExists)) {
-      throw error;
-    }
-  }
-}
+import { createInitResult } from "./types.ts";
 
 /**
  * Execute basic configuration initialization
@@ -41,7 +16,7 @@ export async function initBasic(
   projectRoot: string,
   workingDir: string,
 ): Promise<{ created: string[]; skipped: string[] }> {
-  const result = { created: [] as string[], skipped: [] as string[] };
+  const result = createInitResult();
   const fullWorkingDir = resolve(projectRoot, workingDir);
 
   // Create working directories (config/, prompts/, schema/ only)

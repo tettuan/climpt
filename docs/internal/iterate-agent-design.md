@@ -1,17 +1,19 @@
 # Iterate Agent - Design Specification
 
-**Version**: 1.0.0
-**Date**: 2025-12-20
-**Status**: Draft
+**Version**: 1.0.0 **Date**: 2025-12-20 **Status**: Draft
 
 ---
 
 ## 1. Executive Summary
 
 ### 1.1 Purpose
-イテレーションを繰り返しながら開発サイクルを自律的に実行するエージェントシステムの設計。GitHub の Issue/Project から要件を取得し、Climpt Skills を活用して開発タスクを継続的に実行する。
+
+イテレーションを繰り返しながら開発サイクルを自律的に実行するエージェントシステムの設計。GitHub
+の Issue/Project から要件を取得し、Climpt Skills
+を活用して開発タスクを継続的に実行する。
 
 ### 1.2 Key Features
+
 - CLI 起動による永続実行モード
 - GitHub Issue/Project ベースの要件駆動開発
 - Climpt Skills を介した開発サイクルの自動化
@@ -25,31 +27,40 @@
 ### 2.1 Functional Requirements
 
 #### FR-1: CLI Based Execution
+
 - **Requirement**: Terminal から Deno で起動し、Claude Agent SDK を呼び出す
-- **Rationale**: Claude Code CLI からの指示ではなく、独立した自律エージェントとして動作
+- **Rationale**: Claude Code CLI
+  からの指示ではなく、独立した自律エージェントとして動作
 - **Priority**: Critical
 
 #### FR-2: Requirement Acquisition
+
 - **Requirement**: GitHub から Issue/Project を取得し、作業要件を抽出
 - **Rationale**: 外部システムとの連携による要件駆動開発の実現
 - **Priority**: High
 
 #### FR-3: Climpt Skills Integration
+
 - **Requirement**: delegate-climpt-agent スキルを使用してタスクを実行
 - **Rationale**: 既存の Climpt インフラストラクチャを活用
 - **Priority**: Critical
 
 #### FR-4: Perpetual Execution Cycle
-- **Requirement**: 1つのイテレーション（= 1つの完全な query() セッション）完了後、新しいセッションを開始して継続実行
-- **Rationale**: 人間の介入なしに開発サイクルを継続。各イテレーションで Main Claude が複数のタスクを実行可能
+
+- **Requirement**: 1つのイテレーション（= 1つの完全な query()
+  セッション）完了後、新しいセッションを開始して継続実行
+- **Rationale**: 人間の介入なしに開発サイクルを継続。各イテレーションで Main
+  Claude が複数のタスクを実行可能
 - **Priority**: Critical
 
 #### FR-5: Completion Criteria
+
 - **Requirement**: Issue 番号、Project 番号、イテレーション回数による完了判定
 - **Rationale**: 実行範囲の明確な制御
 - **Priority**: High
 
 #### FR-6: Role-based System Prompts
+
 - **Requirement**: `--agent-role` パラメータによるシステムプロンプト切り替え
 - **Rationale**: QA、開発者、アーキテクトなど役割に応じた振る舞いの変更
 - **Priority**: Medium
@@ -57,16 +68,20 @@
 ### 2.2 Non-Functional Requirements
 
 #### NFR-1: Logging
-- **Requirement**: tmp/logs/agents/{name}/*.jsonl 形式でログ保存、最大 100 ファイル自動ローテーション
+
+- **Requirement**: tmp/logs/agents/{name}/*.jsonl 形式でログ保存、最大 100
+  ファイル自動ローテーション
 - **Rationale**: デバッグ性とストレージ管理の両立
 - **Priority**: High
 
 #### NFR-2: Error Handling
+
 - **Requirement**: Sub-agent エラー時の適切なリトライとログ記録
 - **Rationale**: 長時間実行における堅牢性
 - **Priority**: High
 
 #### NFR-3: Context Management
+
 - **Requirement**: Main Claude と Sub-agent のコンテキスト分離
 - **Rationale**: メモリ効率とタスク集中度の向上
 - **Priority**: High
@@ -175,24 +190,24 @@ deno task iterate-agent run [OPTIONS]
 
 ### 4.2 Options
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `--issue` | number | No | - | GitHub Issue 番号を指定。完了条件: Issue がクローズされたら終了 |
-| `--project` | number | No | - | GitHub Project 番号を指定。完了条件: Project のすべてのタスク完了で終了 |
-| `--iterate-max` | number | No | Infinity | Skill 呼び出し回数の上限。この回数に達したら終了 |
-| `--agent-role` | string | No | `product-developer` | エージェントの役割。システムプロンプトとログ名に影響 |
+| Option          | Type   | Required | Default             | Description                                                             |
+| --------------- | ------ | -------- | ------------------- | ----------------------------------------------------------------------- |
+| `--issue`       | number | No       | -                   | GitHub Issue 番号を指定。完了条件: Issue がクローズされたら終了         |
+| `--project`     | number | No       | -                   | GitHub Project 番号を指定。完了条件: Project のすべてのタスク完了で終了 |
+| `--iterate-max` | number | No       | Infinity            | Skill 呼び出し回数の上限。この回数に達したら終了                        |
+| `--agent-role`  | string | No       | `product-developer` | エージェントの役割。システムプロンプトとログ名に影響                    |
 
 ### 4.3 Agent Roles
 
 #### Predefined Roles
 
-| Role | Description | System Prompt Focus |
-|------|-------------|---------------------|
-| `product-developer` | プロダクト開発者 (デフォルト) | 機能実装、バグ修正、コード品質 |
-| `qa-engineer` | QA エンジニア | テスト作成、品質検証、バグ検出 |
-| `architect` | アーキテクト | 設計レビュー、技術選定、リファクタリング |
-| `devops-engineer` | DevOps エンジニア | CI/CD、デプロイ、インフラ管理 |
-| `tech-writer` | テクニカルライター | ドキュメント作成、README 更新 |
+| Role                | Description                   | System Prompt Focus                      |
+| ------------------- | ----------------------------- | ---------------------------------------- |
+| `product-developer` | プロダクト開発者 (デフォルト) | 機能実装、バグ修正、コード品質           |
+| `qa-engineer`       | QA エンジニア                 | テスト作成、品質検証、バグ検出           |
+| `architect`         | アーキテクト                  | 設計レビュー、技術選定、リファクタリング |
+| `devops-engineer`   | DevOps エンジニア             | CI/CD、デプロイ、インフラ管理            |
+| `tech-writer`       | テクニカルライター            | ドキュメント作成、README 更新            |
 
 ### 4.4 Usage Examples
 
@@ -220,18 +235,22 @@ deno task iterate-agent run --issue 456 --agent-role architect
 
 ```markdown
 # Role
+
 You are an autonomous ${ROLE_NAME} working on continuous product development.
 
 # Objective
+
 ${ROLE_OBJECTIVE}
 
 # Working Mode
+
 - You are running in a perpetual execution cycle
 - Use the **delegate-climpt-agent** Skill to execute development tasks
 - After each task completion, ask Climpt for the next logical task via the Skill
 - Your goal is to make continuous progress on ${COMPLETION_CRITERIA}
 
 # Task Execution Workflow
+
 1. Receive current requirements/context
 2. Invoke **delegate-climpt-agent** Skill with task description
 3. Review the AI-generated summary from the sub-agent
@@ -240,14 +259,16 @@ ${ROLE_OBJECTIVE}
 6. Repeat the cycle
 
 # Completion Criteria
+
 ${COMPLETION_CRITERIA_DETAIL}
 
 # Guidelines
+
 - Be autonomous: Make decisions without waiting for human approval
 - Be thorough: Ensure each task is properly completed before moving on
 - Be organized: Maintain clear context of what has been done
 - Be communicative: Provide clear status updates in your responses
-${ROLE_SPECIFIC_GUIDELINES}
+  ${ROLE_SPECIFIC_GUIDELINES}
 ```
 
 ### 5.2 Role-Specific Prompts
@@ -260,9 +281,11 @@ ${ROLE_SPECIFIC_GUIDELINES}
 
 ```markdown
 ## Role Objective
+
 Implement features, fix bugs, and maintain code quality for the product.
 
 ## Role-Specific Guidelines
+
 - Prioritize functionality and code maintainability
 - Follow the project's coding standards and patterns
 - Write clear commit messages
@@ -274,9 +297,11 @@ Implement features, fix bugs, and maintain code quality for the product.
 
 ```markdown
 ## Role Objective
+
 Ensure product quality through comprehensive testing and validation.
 
 ## Role-Specific Guidelines
+
 - Create thorough test cases covering happy paths and edge cases
 - Validate bug fixes with appropriate test coverage
 - Review code changes from a quality perspective
@@ -288,9 +313,11 @@ Ensure product quality through comprehensive testing and validation.
 
 ```markdown
 ## Role Objective
+
 Maintain architectural integrity, design systems, and guide technical decisions.
 
 ## Role-Specific Guidelines
+
 - Evaluate architectural implications of changes
 - Ensure consistency with existing design patterns
 - Identify opportunities for refactoring and improvement
@@ -302,9 +329,11 @@ Maintain architectural integrity, design systems, and guide technical decisions.
 
 ```markdown
 ## Role Objective
+
 Maintain deployment pipelines, infrastructure, and operational excellence.
 
 ## Role-Specific Guidelines
+
 - Focus on automation, reliability, and monitoring
 - Ensure CI/CD pipelines are robust and efficient
 - Optimize build and deployment processes
@@ -316,9 +345,11 @@ Maintain deployment pipelines, infrastructure, and operational excellence.
 
 ```markdown
 ## Role Objective
+
 Create and maintain clear, comprehensive documentation for the project.
 
 ## Role-Specific Guidelines
+
 - Ensure documentation is accurate and up-to-date
 - Write for the target audience (developers, users, etc.)
 - Include code examples where appropriate
@@ -339,7 +370,15 @@ Location: `agents/iterator/config.json` (プロジェクトルート直下)
   "version": "1.0.0",
   "roles": {
     "product-developer": {
-      "allowedTools": ["Skill", "Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep"
+      ],
       "permissionMode": "acceptEdits"
     },
     "qa-engineer": {
@@ -371,7 +410,9 @@ Location: `agents/iterator/config.json` (プロジェクトルート直下)
 }
 ```
 
-**Permission Mode 設定値**: `permissionMode` は Claude Agent SDK の値と同じものを指定可能です。有効な値:
+**Permission Mode 設定値**: `permissionMode` は Claude Agent SDK
+の値と同じものを指定可能です。有効な値:
+
 - `"default"`: 標準の権限チェック
 - `"plan"`: プランニングモード（読み取り専用ツールのみ）
 - `"acceptEdits"`: ファイル編集を自動承認（自律エージェント推奨）
@@ -379,7 +420,8 @@ Location: `agents/iterator/config.json` (プロジェクトルート直下)
 
 ### 6.2 Registry Configuration
 
-Iterate Agent は、レジストリ設定 (`.agent/climpt/config/registry_config.json`) を使用:
+Iterate Agent は、レジストリ設定 (`.agent/climpt/config/registry_config.json`)
+を使用:
 
 ```json
 {
@@ -390,10 +432,10 @@ Iterate Agent は、レジストリ設定 (`.agent/climpt/config/registry_config
 }
 ```
 
-| Agent | 用途 | Registry Path |
-|-------|------|---------------|
-| `climpt` | delegate-climpt-agent によるタスク実行 | `.agent/climpt/registry.json` |
-| `iterator` | iterate-agent のシステムプロンプト | `.agent/iterator/registry.json` |
+| Agent      | 用途                                   | Registry Path                   |
+| ---------- | -------------------------------------- | ------------------------------- |
+| `climpt`   | delegate-climpt-agent によるタスク実行 | `.agent/climpt/registry.json`   |
+| `iterator` | iterate-agent のシステムプロンプト     | `.agent/iterator/registry.json` |
 
 詳細は [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) を参照。
 
@@ -407,30 +449,37 @@ Iterate Agent は、レジストリ設定 (`.agent/climpt/config/registry_config
 
 ```typescript
 interface LogEntry {
-  timestamp: string;           // ISO 8601 format
-  level: "info" | "error" | "debug" | "assistant" | "user" | "system" | "result";
+  timestamp: string; // ISO 8601 format
+  level:
+    | "info"
+    | "error"
+    | "debug"
+    | "assistant"
+    | "user"
+    | "system"
+    | "result";
   message: string;
   metadata?: {
-    role?: string;             // Agent role
-    iterationCount?: number;   // Current iteration
-    taskId?: string;           // Current task ID
-    skillInvocation?: {        // Skill call details
+    role?: string; // Agent role
+    iterationCount?: number; // Current iteration
+    taskId?: string; // Current task ID
+    skillInvocation?: { // Skill call details
       skillName: string;
       taskDescription: string;
       result: string;
     };
-    completionCheck?: {        // Completion criteria check
+    completionCheck?: { // Completion criteria check
       type: "issue" | "project" | "iterate";
       current: number;
       target: number;
       complete: boolean;
     };
-    error?: {                  // Error details
+    error?: { // Error details
       name: string;
       message: string;
       stack?: string;
     };
-    [key: string]: unknown;    // Additional metadata
+    [key: string]: unknown; // Additional metadata
   };
 }
 ```
@@ -442,6 +491,7 @@ tmp/logs/agents/{agent-role}/session-{timestamp}.jsonl
 ```
 
 Examples:
+
 - `tmp/logs/agents/product-developer/session-2025-12-20T10-30-00-000Z.jsonl`
 - `tmp/logs/agents/qa-engineer/session-2025-12-20T11-15-30-500Z.jsonl`
 
@@ -453,15 +503,15 @@ Examples:
 
 ### 7.4 Log Levels
 
-| Level | Usage |
-|-------|-------|
-| `info` | General execution flow (startup, iteration start/end, etc.) |
-| `debug` | Detailed execution info (GitHub API calls, config loading, etc.) |
-| `assistant` | Main Claude's assistant messages |
-| `user` | Messages sent to Main Claude |
-| `system` | SDK system messages (session init, errors, etc.) |
-| `result` | Task completion results, iteration summaries |
-| `error` | Errors and exceptions |
+| Level       | Usage                                                            |
+| ----------- | ---------------------------------------------------------------- |
+| `info`      | General execution flow (startup, iteration start/end, etc.)      |
+| `debug`     | Detailed execution info (GitHub API calls, config loading, etc.) |
+| `assistant` | Main Claude's assistant messages                                 |
+| `user`      | Messages sent to Main Claude                                     |
+| `system`    | SDK system messages (session init, errors, etc.)                 |
+| `result`    | Task completion results, iteration summaries                     |
+| `error`     | Errors and exceptions                                            |
 
 ---
 
@@ -477,7 +527,11 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
   const logger = await initializeLogger(agentName);
   const config = await loadConfig();
   const agentConfig = await getAgentConfig(config, agentName);
-  const systemPrompt = await buildSystemPrompt(agentConfig, { issue, project, iterateMax });
+  const systemPrompt = await buildSystemPrompt(agentConfig, {
+    issue,
+    project,
+    iterateMax,
+  });
 
   let iterationCount = 0;
   let isComplete = false;
@@ -498,8 +552,8 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
         settingSources: ["project", "user"],
         allowedTools: agentConfig.allowedTools,
         permissionMode: agentConfig.permissionMode,
-        systemPrompt: systemPrompt
-      }
+        systemPrompt: systemPrompt,
+      },
     });
 
     // 5. Process all SDK messages in this session
@@ -521,12 +575,12 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
       issue,
       project,
       iterateMax,
-      iterationCount
+      iterationCount,
     });
 
     if (isComplete) {
       await logger.write("result", "Completion criteria met", {
-        completionCheck: { type: getCompletionType(), complete: true }
+        completionCheck: { type: getCompletionType(), complete: true },
       });
       break;
     }
@@ -544,7 +598,7 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
   // 10. Cleanup
   await logger.write("info", "Iterate agent loop completed", {
     totalIterations: iterationCount,
-    completionReason: isComplete ? "criteria_met" : "max_iterations"
+    completionReason: isComplete ? "criteria_met" : "max_iterations",
   });
   await logger.close();
 }
@@ -555,12 +609,14 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
 **Definition**: 1 iteration = 1 complete `query()` session from start to finish
 
 **Key Points**:
+
 - Each iteration starts a new `query()` session with a fresh prompt
 - Multiple Skill invocations can occur within a single iteration
 - Iteration count increments only when the entire session completes
 - Next iteration begins with a continuation prompt
 
 **Example**:
+
 ```
 Iteration 1:
   - Start new query() session
@@ -599,10 +655,11 @@ async function fetchIssueRequirements(issueNumber: number): Promise<string> {
       "issue",
       "view",
       issueNumber.toString(),
-      "--json", "number,title,body,labels,state,comments"
+      "--json",
+      "number,title,body,labels,state,comments",
     ],
     stdout: "piped",
-    stderr: "piped"
+    stderr: "piped",
   });
 
   const { code, stdout, stderr } = await command.output();
@@ -633,17 +690,20 @@ Comments: ${issue.comments?.length || 0}
 #### 9.1.2 Project-based
 
 ```typescript
-async function fetchProjectRequirements(projectNumber: number): Promise<string> {
+async function fetchProjectRequirements(
+  projectNumber: number,
+): Promise<string> {
   // gh project view コマンドでプロジェクト情報を取得
   const command = new Deno.Command("gh", {
     args: [
       "project",
       "view",
       projectNumber.toString(),
-      "--format", "json"
+      "--format",
+      "json",
     ],
     stdout: "piped",
-    stderr: "piped"
+    stderr: "piped",
   });
 
   const { code, stdout, stderr } = await command.output();
@@ -658,7 +718,9 @@ async function fetchProjectRequirements(projectNumber: number): Promise<string> 
   // プロジェクトのアイテムをフォーマット
   const items = project.items || [];
   const itemsList = items.map((item: any) =>
-    `- [${item.status || "No status"}] #${item.content?.number || "N/A"}: ${item.content?.title || "Untitled"}`
+    `- [${item.status || "No status"}] #${item.content?.number || "N/A"}: ${
+      item.content?.title || "Untitled"
+    }`
   ).join("\n");
 
   return `
@@ -687,10 +749,11 @@ async function isIssueComplete(issueNumber: number): Promise<boolean> {
       "issue",
       "view",
       issueNumber.toString(),
-      "--json", "state"
+      "--json",
+      "state",
     ],
     stdout: "piped",
-    stderr: "piped"
+    stderr: "piped",
   });
 
   const { code, stdout, stderr } = await command.output();
@@ -714,10 +777,11 @@ async function isProjectComplete(projectNumber: number): Promise<boolean> {
       "project",
       "view",
       projectNumber.toString(),
-      "--format", "json"
+      "--format",
+      "json",
     ],
     stdout: "piped",
-    stderr: "piped"
+    stderr: "piped",
   });
 
   const { code, stdout, stderr } = await command.output();
@@ -743,12 +807,12 @@ async function isProjectComplete(projectNumber: number): Promise<boolean> {
 
 ### 10.1 Error Categories
 
-| Category | Examples | Handling Strategy |
-|----------|----------|-------------------|
-| SDK Errors | Network timeout, API rate limit | Retry with exponential backoff |
-| Skill Errors | Sub-agent failure, invalid response | Log error, ask Main Claude for alternative approach |
-| GitHub API Errors | 404, 401, rate limit | Log error, exit gracefully with error message |
-| Configuration Errors | Missing role config, invalid JSON | Exit immediately with clear error message |
+| Category             | Examples                            | Handling Strategy                                   |
+| -------------------- | ----------------------------------- | --------------------------------------------------- |
+| SDK Errors           | Network timeout, API rate limit     | Retry with exponential backoff                      |
+| Skill Errors         | Sub-agent failure, invalid response | Log error, ask Main Claude for alternative approach |
+| GitHub API Errors    | 404, 401, rate limit                | Log error, exit gracefully with error message       |
+| Configuration Errors | Missing role config, invalid JSON   | Exit immediately with clear error message           |
 
 ### 10.2 Retry Logic
 
@@ -756,7 +820,7 @@ async function isProjectComplete(projectNumber: number): Promise<boolean> {
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 1000,
 ): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -765,8 +829,11 @@ async function retryWithBackoff<T>(
       if (attempt === maxRetries - 1) throw error;
 
       const delay = baseDelay * Math.pow(2, attempt);
-      await logger.write("debug", `Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await logger.write(
+        "debug",
+        `Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   throw new Error("Unreachable");
@@ -800,8 +867,8 @@ agents/iterator/                         # プロジェクトルート直下に�
 
 ### 11.2 C3L プロンプト構造（.agent/iterator/）
 
-モード別システムプロンプトは `.agent/iterator/` で管理。
-詳細は [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) を参照。
+モード別システムプロンプトは `.agent/iterator/` で管理。 詳細は
+[Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) を参照。
 
 ```
 .agent/climpt/config/
@@ -828,15 +895,16 @@ agents/iterator/                         # プロジェクトルート直下に�
 
 ### 11.2.1 Project Mode Phase Templates
 
-| Phase | Template | Edition | UV Variables |
-|-------|----------|---------|--------------|
-| preparation | `start/project/f_default.md` | default | agent_name, completion_criteria, target_label |
-| processing | `start/project/f_processing.md` | processing | + recommended_skills |
-| review | `review/project/f_default.md` | default | agent_name, target_label |
-| again | `start/project/f_again.md` | again | agent_name, completion_criteria, target_label |
+| Phase       | Template                        | Edition    | UV Variables                                  |
+| ----------- | ------------------------------- | ---------- | --------------------------------------------- |
+| preparation | `start/project/f_default.md`    | default    | agent_name, completion_criteria, target_label |
+| processing  | `start/project/f_processing.md` | processing | + recommended_skills                          |
+| review      | `review/project/f_default.md`   | default    | agent_name, target_label                      |
+| again       | `start/project/f_again.md`      | again      | agent_name, completion_criteria, target_label |
 
-The `recommended_skills` variable is populated from the `skillsNeeded` array in the project-plan JSON
-output from the preparation phase. If empty, the value is "指定なし" (none specified).
+The `recommended_skills` variable is populated from the `skillsNeeded` array in
+the project-plan JSON output from the preparation phase. If empty, the value is
+"指定なし" (none specified).
 
 ### 11.3 ログディレクトリ
 
@@ -854,30 +922,35 @@ tmp/logs/agents/
 ## 12. Implementation Plan
 
 ### Phase 1: Core Infrastructure (Week 1)
+
 - [ ] CLI argument parsing (cli.ts)
 - [ ] Configuration management (config.ts)
 - [ ] JSONL logger with rotation (logger.ts)
 - [ ] Basic agent.ts skeleton
 
 ### Phase 2: SDK Integration (Week 1-2)
+
 - [ ] SDK session management
 - [ ] System prompt generation
 - [ ] Iteration tracking
 - [ ] Message handling
 
 ### Phase 3: GitHub Integration (Week 2)
+
 - [ ] Issue fetching
 - [ ] Project fetching
 - [ ] Completion criteria checking
 - [ ] API error handling
 
 ### Phase 4: Role System (Week 2-3)
+
 - [ ] Role configuration loading
 - [ ] System prompt templates
 - [ ] Role-specific prompts for all 5 roles
 - [ ] Role validation
 
 ### Phase 5: Testing & Documentation (Week 3)
+
 - [ ] Unit tests for core modules
 - [ ] Integration tests
 - [ ] User documentation
@@ -889,13 +962,13 @@ tmp/logs/agents/
 
 ### 13.1 Unit Tests
 
-| Module | Test Cases |
-|--------|------------|
-| `cli.ts` | Argument parsing, validation, defaults |
-| `config.ts` | Config loading, role lookup, template resolution |
-| `logger.ts` | Log writing, JSONL format, rotation |
-| `prompts.ts` | Prompt building, variable substitution |
-| `github.ts` | Issue fetching (mocked), project fetching (mocked) |
+| Module       | Test Cases                                         |
+| ------------ | -------------------------------------------------- |
+| `cli.ts`     | Argument parsing, validation, defaults             |
+| `config.ts`  | Config loading, role lookup, template resolution   |
+| `logger.ts`  | Log writing, JSONL format, rotation                |
+| `prompts.ts` | Prompt building, variable substitution             |
+| `github.ts`  | Issue fetching (mocked), project fetching (mocked) |
 
 ### 13.2 Integration Tests
 
@@ -921,16 +994,20 @@ tmp/logs/agents/
 ## 14. Security Considerations
 
 ### 14.1 GitHub Token Management
+
 - **Requirement**: GITHUB_TOKEN 環境変数から取得
 - **Validation**: 起動時にトークンの存在を確認
 - **Scope**: `repo`, `project` スコープが必要
 
 ### 14.2 Permission Mode
+
 - **Default**: `acceptEdits` (file edits auto-approved)
 - **Risk**: 自律エージェントは人間の承認なしでファイルを変更可能
-- **Mitigation**: 重要な操作（git push, npm publish など）は Climpt Skills で明示的に制御
+- **Mitigation**: 重要な操作（git push, npm publish など）は Climpt Skills
+  で明示的に制御
 
 ### 14.3 Tool Restrictions by Role
+
 - **Architect**: Read-only tools (no Write, Edit)
 - **Others**: Full access with `acceptEdits` mode
 
@@ -938,19 +1015,20 @@ tmp/logs/agents/
 
 ## 15. Success Metrics
 
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Iteration Success Rate | > 90% | (Successful iterations / Total iterations) × 100 |
+| Metric                       | Target      | Measurement                                      |
+| ---------------------------- | ----------- | ------------------------------------------------ |
+| Iteration Success Rate       | > 90%       | (Successful iterations / Total iterations) × 100 |
 | Mean Time to Task Completion | < 5 minutes | Average time from skill invocation to completion |
-| Error Recovery Rate | > 95% | (Recovered errors / Total errors) × 100 |
-| Log Completeness | 100% | All iterations logged without data loss |
+| Error Recovery Rate          | > 95%       | (Recovered errors / Total errors) × 100          |
+| Log Completeness             | 100%        | All iterations logged without data loss          |
 
 ---
 
 ## 16. Future Enhancements
 
 1. **Multi-agent Collaboration**: 複数のロールを同時実行し、協調作業を実現
-2. **Learning from History**: 過去のログを分析して、効率的なタスク実行パターンを学習
+2. **Learning from History**:
+   過去のログを分析して、効率的なタスク実行パターンを学習
 3. **Human-in-the-Loop**: 重要な決定ポイントで人間の承認を求めるモード
 4. **Dashboard**: Web UI でエージェントの実行状態をリアルタイム監視
 5. **Cost Tracking**: API コストの追跡と予算管理
@@ -960,7 +1038,9 @@ tmp/logs/agents/
 ## 17. References
 
 ### 17.1 Internal Documentation
-- [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) - C3L プロンプト管理の詳細設計
+
+- [Iterate Agent C3L 統合設計](./iterate-agent-c3l-integration.md) - C3L
+  プロンプト管理の詳細設計
 - [Claude Agent SDK Overview](../reference/claude-agent-sdk-overview.md)
 - [Subagents in the SDK](../reference/sdk/subagents.md)
 - [Agent Skills in the SDK](../reference/sdk/skills.md)
@@ -968,6 +1048,7 @@ tmp/logs/agents/
 - [Handling Permissions](../reference/sdk/permissions.md)
 
 ### 17.2 External Resources
+
 - [Claude Agent SDK TypeScript](https://github.com/anthropics/claude-agent-sdk-typescript)
 - [GitHub CLI (`gh`) Documentation](https://cli.github.com/manual/)
 - [GitHub CLI (`gh`) API Reference](https://cli.github.com/manual/gh)
@@ -982,9 +1063,11 @@ tmp/logs/agents/
 You are starting work on GitHub Issue #${ISSUE_NUMBER}.
 
 ## Issue Details
+
 ${ISSUE_CONTENT}
 
 ## Your Mission
+
 1. Use the **delegate-climpt-agent** Skill to implement the required changes
 2. After each task, evaluate progress toward closing this issue
 3. Continue until the issue requirements are fully satisfied
@@ -993,8 +1076,9 @@ ${ISSUE_CONTENT}
 Start by analyzing the issue requirements and planning your first task.
 ```
 
-> **Note**: `defaultClosureAction: "label-only"` の場合、プロンプトは "close" ではなく
-> "complete your phase" に切り替わる。詳細は `agents/docs/builder/02_agent_definition.md` 参照。
+> **Note**: `defaultClosureAction: "label-only"` の場合、プロンプトは "close"
+> ではなく "complete your phase" に切り替わる。詳細は
+> `agents/docs/builder/02_agent_definition.md` 参照。
 
 ### A.2 Project-based Initial Prompt
 
@@ -1002,9 +1086,11 @@ Start by analyzing the issue requirements and planning your first task.
 You are working on GitHub Project #${PROJECT_NUMBER}.
 
 ## Project Overview
+
 ${PROJECT_CONTENT}
 
 ## Your Mission
+
 1. Use the **delegate-climpt-agent** Skill to work through project tasks
 2. Focus on making continuous progress across all project items
 3. After each task, ask Climpt what to do next
@@ -1019,13 +1105,14 @@ Start by reviewing the project board and selecting the first task to tackle.
 You are running in autonomous development mode for ${ITERATE_MAX} iterations.
 
 ## Your Mission
+
 1. Use the **delegate-climpt-agent** Skill to execute development tasks
 2. After each task, ask Climpt for the next logical task via the Skill
 3. Focus on ${ROLE_OBJECTIVE}
 4. Make continuous progress on improving the codebase
 
-You have ${ITERATE_MAX} iterations to make meaningful contributions.
-Start by assessing the current state of the project and identifying high-value tasks.
+You have ${ITERATE_MAX} iterations to make meaningful contributions. Start by
+assessing the current state of the project and identifying high-value tasks.
 ```
 
 ### A.4 Continuation Prompt (Issue-based)
@@ -1034,6 +1121,7 @@ Start by assessing the current state of the project and identifying high-value t
 You have completed ${N} iteration(s) working on GitHub Issue #${ISSUE_NUMBER}.
 
 ## Next Steps
+
 1. Continue working toward closing Issue #${ISSUE_NUMBER}
 2. Use the **delegate-climpt-agent** Skill to implement the next required task
 3. When complete, the issue will be checked; if closed, you're done
@@ -1041,17 +1129,21 @@ You have completed ${N} iteration(s) working on GitHub Issue #${ISSUE_NUMBER}.
 Continue making progress on the issue requirements.
 ```
 
-> **Note**: `defaultClosureAction: "label-only"` 時は "closing" が "complete your phase" に変わる。
+> **Note**: `defaultClosureAction: "label-only"` 時は "closing" が "complete
+> your phase" に変わる。
 
 ### A.5 Continuation Prompt (Project-based)
 
 ```markdown
-You have completed ${N} iteration(s) working on GitHub Project #${PROJECT_NUMBER}.
+You have completed
+${N} iteration(s) working on GitHub Project #${PROJECT_NUMBER}.
 
 ## Next Steps
+
 1. Continue working on completing Project #${PROJECT_NUMBER}
 2. Use the **delegate-climpt-agent** Skill to tackle the next project task
-3. When complete, the project status will be checked; if all items are done, you're done
+3. When complete, the project status will be checked; if all items are done,
+   you're done
 
 Continue making progress across project items.
 ```
@@ -1059,9 +1151,11 @@ Continue making progress across project items.
 ### A.6 Continuation Prompt (Iterate-only)
 
 ```markdown
-You have completed ${N} iteration(s). You have ${REMAINING} iteration(s) remaining.
+You have completed ${N} iteration(s). You have ${REMAINING} iteration(s)
+remaining.
 
 ## Next Steps
+
 1. Use the **delegate-climpt-agent** Skill to execute the next development task
 2. Continue making meaningful contributions to the codebase
 
@@ -1089,5 +1183,5 @@ Assess the current state and identify the next high-value task to tackle.
 
 ---
 
-**Document Status**: Ready for Implementation Review
-**Next Steps**: Review with stakeholders, refine based on feedback, begin Phase 1 implementation
+**Document Status**: Ready for Implementation Review **Next Steps**: Review with
+stakeholders, refine based on feedback, begin Phase 1 implementation

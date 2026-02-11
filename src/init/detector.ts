@@ -3,23 +3,9 @@
  * @module init/detector
  */
 
+import { exists } from "@std/fs/exists";
 import { resolve } from "@std/path";
 import type { DetectionResult } from "./types.ts";
-
-/**
- * Check if a path exists
- */
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return false;
-    }
-    throw error;
-  }
-}
 
 /**
  * Detect existing climpt configuration

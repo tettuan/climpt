@@ -2,26 +2,28 @@
 
 ## Overview
 
-Add common worktree functionality to agent/iterator and agent/reviewer. Execute agents in an independent working directory using Git worktree, then integrate into the source branch upon completion.
+Add common worktree functionality to agent/iterator and agent/reviewer. Execute
+agents in an independent working directory using Git worktree, then integrate
+into the source branch upon completion.
 
 ## Requirements List
 
-| #  | Requirement              | Details                                                       |
-| -- | ------------------------ | ------------------------------------------------------------- |
-| 1  | Branch name argument     | Enable git branch name specification with `--branch` option   |
-| 2  | force worktree setting   | Add `forceWorktree: boolean` to config                        |
-| 3  | Argument validity        | `--branch` argument only valid when `forceWorktree: true`     |
-| 4  | worktree expansion timing| Expand worktree first, before issue retrieval etc.            |
-| 5  | worktree branch name     | Use branch name passed as argument                            |
-| 6  | worktree root            | Specified in settings. Default: `../worktree` (relative path) |
-| 7  | Actual path              | `<worktreeRoot>/<branch-name>/`                               |
-| 8  | Auto branch name         | Without argument: `<current-branch>-yyyymmdd-hhmmss`          |
-| 9  | Completion integration   | Integrate into source branch after agent completion           |
-| 10 | Source branch            | Current branch at execution time                              |
-| 11 | Source branch option     | Can be explicitly specified with `--base-branch`              |
-| 12 | Integration prompt       | Each agent has its own via C3L (not shared)                   |
-| 13 | Merge order              | iterator: squash → ff → merge / reviewer: ff → squash → merge |
-| 14 | Integration failure      | Decision procedure described in prompt                        |
+| #  | Requirement               | Details                                                       |
+| -- | ------------------------- | ------------------------------------------------------------- |
+| 1  | Branch name argument      | Enable git branch name specification with `--branch` option   |
+| 2  | force worktree setting    | Add `forceWorktree: boolean` to config                        |
+| 3  | Argument validity         | `--branch` argument only valid when `forceWorktree: true`     |
+| 4  | worktree expansion timing | Expand worktree first, before issue retrieval etc.            |
+| 5  | worktree branch name      | Use branch name passed as argument                            |
+| 6  | worktree root             | Specified in settings. Default: `../worktree` (relative path) |
+| 7  | Actual path               | `<worktreeRoot>/<branch-name>/`                               |
+| 8  | Auto branch name          | Without argument: `<current-branch>-yyyymmdd-hhmmss`          |
+| 9  | Completion integration    | Integrate into source branch after agent completion           |
+| 10 | Source branch             | Current branch at execution time                              |
+| 11 | Source branch option      | Can be explicitly specified with `--base-branch`              |
+| 12 | Integration prompt        | Each agent has its own via C3L (not shared)                   |
+| 13 | Merge order               | iterator: squash → ff → merge / reviewer: ff → squash → merge |
+| 14 | Integration failure       | Decision procedure described in prompt                        |
 
 ---
 
@@ -108,10 +110,10 @@ interface MergeResult {
 
 ## CLI Options
 
-| Option          | Short | Type   | Description                  |
-| --------------- | ----- | ------ | ---------------------------- |
-| `--branch`      | `-b`  | string | Working branch name          |
-| `--base-branch` | none  | string | Source (integration) branch  |
+| Option          | Short | Type   | Description                 |
+| --------------- | ----- | ------ | --------------------------- |
+| `--branch`      | `-b`  | string | Working branch name         |
+| `--base-branch` | none  | string | Source (integration) branch |
 
 ---
 
@@ -177,7 +179,8 @@ flowchart TD
 
 ### Log Location
 
-Agent logs are always written to the **main repository's** `tmp/logs/` directory, regardless of worktree mode.
+Agent logs are always written to the **main repository's** `tmp/logs/`
+directory, regardless of worktree mode.
 
 ```
 # Main repository
@@ -192,12 +195,12 @@ your-project/
 
 ### Rationale
 
-| Concern | Solution |
-|---------|----------|
-| Centralized access | Logs in one location for all execution modes |
-| Git cleanliness | Worktree stays clean for commits |
-| Post-cleanup access | Logs persist after worktree removal |
-| No duplication | Single log per session |
+| Concern             | Solution                                     |
+| ------------------- | -------------------------------------------- |
+| Centralized access  | Logs in one location for all execution modes |
+| Git cleanliness     | Worktree stays clean for commits             |
+| Post-cleanup access | Logs persist after worktree removal          |
+| No duplication      | Single log per session                       |
 
 ### gitignore Configuration
 
@@ -256,17 +259,17 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator \
 
 ### Planned New Files
 
-| File                        | Description                    |
-| --------------------------- | ------------------------------ |
-| `agents/common/worktree.ts` | Worktree operation utilities   |
-| `agents/common/merge.ts`    | Merge operation utilities      |
+| File                        | Description                  |
+| --------------------------- | ---------------------------- |
+| `agents/common/worktree.ts` | Worktree operation utilities |
+| `agents/common/merge.ts`    | Merge operation utilities    |
 
 ### Planned Modifications
 
-| File                               | Change Content                   |
-| ---------------------------------- | -------------------------------- |
-| `agents/common/types.ts`           | Add `WorktreeConfig` type        |
-| `agents/iterator/scripts/cli.ts`   | Add `--branch`, `--base-branch`  |
-| `agents/iterator/scripts/agent.ts` | Add Worktree integration logic   |
-| `agents/reviewer/scripts/cli.ts`   | Add `--branch`, `--base-branch`  |
-| `agents/reviewer/scripts/agent.ts` | Add Worktree integration logic   |
+| File                               | Change Content                  |
+| ---------------------------------- | ------------------------------- |
+| `agents/common/types.ts`           | Add `WorktreeConfig` type       |
+| `agents/iterator/scripts/cli.ts`   | Add `--branch`, `--base-branch` |
+| `agents/iterator/scripts/agent.ts` | Add Worktree integration logic  |
+| `agents/reviewer/scripts/cli.ts`   | Add `--branch`, `--base-branch` |
+| `agents/reviewer/scripts/agent.ts` | Add Worktree integration logic  |

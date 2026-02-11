@@ -126,17 +126,17 @@ export type {
   IssueState,
 } from "./completion/mod.ts";
 
-// Prompt Layer (v2)
+// Prompt Layer
 export {
   ClimptAdapter,
   FilePromptAdapter,
-  PromptResolverV2,
+  PromptResolverAdapter,
   substituteVariables,
 } from "./prompts/mod.ts";
 export type {
   PromptAdapter,
-  PromptReferenceV2,
-  ResolverOptions,
+  PromptResolutionResult,
+  PromptResolverOptions,
 } from "./prompts/mod.ts";
 
 // Errors
@@ -208,7 +208,7 @@ export {
   StructuredSignalCompletionHandler,
 } from "./completion/mod.ts";
 
-// === Prompts (v1 - backward compatibility) ===
+// === Prompts (backward compatibility) ===
 export {
   checkVariables,
   type ClimptReference,
@@ -217,10 +217,6 @@ export {
   type FallbackPromptProvider,
   FallbackResolver,
   PromptNotFoundError,
-  PromptResolver,
-  type PromptResolverOptions,
-  type PromptStepDefinition,
-  type StepRegistry,
   toClimptPath,
 } from "./prompts/mod.ts";
 

@@ -1,17 +1,18 @@
 # Registry Specification
 
-Climpt コマンドレジストリの仕様書。MCP サーバーおよび Plugin 実装の両方がこの仕様に準拠する。
+Climpt コマンドレジストリの仕様書。MCP サーバーおよび Plugin
+実装の両方がこの仕様に準拠する。
 
 ## 参照元
 
 この仕様は以下のファイルから参照されている:
 
-| ファイル | 用途 |
-|----------|------|
-| `src/mcp/types.ts` | MCP Server の型定義 |
-| `src/mcp/registry.ts` | MCP Server のレジストリ読み込み |
-| `climpt-plugins/plugins/climpt-agent/lib/types.ts` | Plugin の型定義 |
-| `climpt-plugins/plugins/climpt-agent/lib/registry.ts` | Plugin のレジストリ読み込み |
+| ファイル                                              | 用途                            |
+| ----------------------------------------------------- | ------------------------------- |
+| `src/mcp/types.ts`                                    | MCP Server の型定義             |
+| `src/mcp/registry.ts`                                 | MCP Server のレジストリ読み込み |
+| `climpt-plugins/plugins/climpt-agent/lib/types.ts`    | Plugin の型定義                 |
+| `climpt-plugins/plugins/climpt-agent/lib/registry.ts` | Plugin のレジストリ読み込み     |
 
 ## Registry ファイル構造
 
@@ -22,6 +23,7 @@ Climpt コマンドレジストリの仕様書。MCP サーバーおよび Plugi
 ```
 
 例:
+
 - `.agent/climpt/registry.json` - climpt エージェントのレジストリ
 - `.agent/inspector/registry.json` - inspector エージェントのレジストリ
 
@@ -30,20 +32,23 @@ Climpt コマンドレジストリの仕様書。MCP サーバーおよび Plugi
 レジストリパスを管理する設定ファイル。
 
 **ファイルパス:**
+
 ```
 .agent/climpt/config/registry_config.json
 ```
 
 **スキーマ:**
+
 ```typescript
 interface MCPConfig {
   registries: {
-    [agentName: string]: string;  // パス: ".agent/<agent>/registry.json"
+    [agentName: string]: string; // パス: ".agent/<agent>/registry.json"
   };
 }
 ```
 
 **例:**
+
 ```json
 {
   "registries": {
@@ -159,11 +164,11 @@ interface Command {
 
 C3L (Command 3-Level) は、コマンドを3階層で識別する命名規則。
 
-| Level | Name | Description | Examples |
-|-------|------|-------------|----------|
-| c1 | Domain | 機能ドメイン | `git`, `meta`, `spec`, `test` |
-| c2 | Action | 実行アクション | `create`, `analyze`, `group-commit` |
-| c3 | Target | 対象ターゲット | `unstaged-changes`, `frontmatter` |
+| Level | Name   | Description    | Examples                            |
+| ----- | ------ | -------------- | ----------------------------------- |
+| c1    | Domain | 機能ドメイン   | `git`, `meta`, `spec`, `test`       |
+| c2    | Action | 実行アクション | `create`, `analyze`, `group-commit` |
+| c3    | Target | 対象ターゲット | `unstaged-changes`, `frontmatter`   |
 
 **完全識別子:** `<agent>-<c1>-<c2>-<c3>`
 

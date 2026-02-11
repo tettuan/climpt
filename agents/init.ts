@@ -139,7 +139,7 @@ You are operating as the **${agentName}** agent.
 
 ## Completion Criteria
 
-{{uv-completion_criteria}}
+{uv-completion_criteria}
 
 ## Guidelines
 
@@ -158,11 +158,11 @@ You are operating as the **${agentName}** agent.
   const initialPrompt = `# Session Start
 
 ## Topic
-{{uv-topic}}
+{uv-topic}
 
 ---
 
-Begin the session. When complete, output \`{{uv-completion_keyword}}\`.
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
 `;
 
   await Deno.writeTextFile(
@@ -171,11 +171,11 @@ Begin the session. When complete, output \`{{uv-completion_keyword}}\`.
   );
 
   // Create continuation prompt
-  const continuationPrompt = `# Continuation (Iteration {{uv-iteration}})
+  const continuationPrompt = `# Continuation (Iteration {uv-iteration})
 
 Continue working on the task.
 
-When complete, output \`{{uv-completion_keyword}}\`.
+When complete, output \`{uv-completion_keyword}\`.
 `;
 
   await Deno.writeTextFile(

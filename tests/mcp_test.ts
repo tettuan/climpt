@@ -1,5 +1,6 @@
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { resolve } from "@std/path";
+import { cleanupTempDir, createTempDir } from "./test-utils.ts";
 
 // Test registry.json loading and structure
 Deno.test("registry.json exists and has valid structure", async () => {
@@ -99,7 +100,7 @@ Deno.test("MCP server configuration loading", async () => {
   };
 
   // Create temporary registry file for testing
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await createTempDir();
   const tempRegistry = `${tempDir}/registry.json`;
   await Deno.writeTextFile(tempRegistry, JSON.stringify(testRegistry, null, 2));
 
@@ -109,7 +110,7 @@ Deno.test("MCP server configuration loading", async () => {
   assertEquals(loadedRegistry.tools.commands[0].c1, "test");
 
   // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
+  await cleanupTempDir(tempDir);
 });
 
 // Test URL handling in config loading (regression test for pathname fix)
@@ -124,7 +125,7 @@ Deno.test("MCP config loading handles URL objects correctly", async () => {
   };
 
   // Create temporary config file
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await createTempDir();
   const tempConfigPath = `${tempDir}/registry.json`;
   await Deno.writeTextFile(tempConfigPath, JSON.stringify(testConfig, null, 2));
 
@@ -151,7 +152,7 @@ Deno.test("MCP config loading handles URL objects correctly", async () => {
   );
 
   // Cleanup
-  await Deno.remove(tempDir, { recursive: true });
+  await cleanupTempDir(tempDir);
 });
 
 // Test fallback behavior when config file URL is invalid
@@ -198,7 +199,7 @@ Deno.test("MCP config loading falls back to defaults on URL errors", async () =>
 // Test local config file discovery (regression test for JSR package support)
 Deno.test("MCP config loading discovers local files correctly", async () => {
   // Create temporary working directory with config
-  const tempDir = await Deno.makeTempDir();
+  const tempDir = await createTempDir();
   const originalCwd = Deno.cwd();
 
   try {
@@ -233,14 +234,14 @@ Deno.test("MCP config loading discovers local files correctly", async () => {
     // Restore original working directory
     Deno.chdir(originalCwd);
     // Cleanup
-    await Deno.remove(tempDir, { recursive: true });
+    await cleanupTempDir(tempDir);
   }
 });
 
 // Test home directory config fallback
 Deno.test("MCP config loading falls back to home directory", async () => {
   // Create temporary home directory with config
-  const tempHomeDir = await Deno.makeTempDir();
+  const tempHomeDir = await createTempDir();
   const originalHome = Deno.env.get("HOME");
 
   try {
@@ -280,14 +281,14 @@ Deno.test("MCP config loading falls back to home directory", async () => {
       Deno.env.delete("HOME");
     }
     // Cleanup
-    await Deno.remove(tempHomeDir, { recursive: true });
+    await cleanupTempDir(tempHomeDir);
   }
 });
 
 // Test config loading priority: current dir > home dir > defaults
 Deno.test("MCP config loading follows correct priority order", async () => {
-  const tempWorkDir = await Deno.makeTempDir();
-  const tempHomeDir = await Deno.makeTempDir();
+  const tempWorkDir = await createTempDir();
+  const tempHomeDir = await createTempDir();
   const originalCwd = Deno.cwd();
   const originalHome = Deno.env.get("HOME");
 
@@ -339,8 +340,8 @@ Deno.test("MCP config loading follows correct priority order", async () => {
       Deno.env.delete("HOME");
     }
     // Cleanup
-    await Deno.remove(tempWorkDir, { recursive: true });
-    await Deno.remove(tempHomeDir, { recursive: true });
+    await cleanupTempDir(tempWorkDir);
+    await cleanupTempDir(tempHomeDir);
   }
 });
 

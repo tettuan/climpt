@@ -9,14 +9,6 @@
  */
 
 /**
- * User variable definition from registry
- * Maps variable name to description
- */
-export interface UserVariable {
-  [key: string]: string;
-}
-
-/**
  * Command definition loaded from registry.json
  *
  * @see docs/internal/registry-specification.md#command-schema
@@ -44,14 +36,16 @@ export interface Command {
     file?: boolean;
     stdin?: boolean;
     destination?: boolean;
-  };
 
-  /**
-   * User variables (uv-*) array
-   * Each item maps a variable name to its description
-   * Used for {uv-*} template expansion in instructions
-   */
-  uv?: UserVariable[];
+    /**
+     * User-defined variables that can be passed via --uv-* options
+     * Maps variable name to description
+     * @example { "max-line-num": "Maximum lines per file", "storypoint": "Story point estimation" }
+     */
+    uv?: {
+      [name: string]: string;
+    };
+  };
 }
 
 /**

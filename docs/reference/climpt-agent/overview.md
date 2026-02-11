@@ -1,12 +1,14 @@
 # Climpt Agent Overview
 
-Climpt Agent は Claude Code の Skill として動作し、ユーザーのタスクを Climpt コマンドに委譲する自律エージェントです。
+Climpt Agent は Claude Code の Skill として動作し、ユーザーのタスクを Climpt
+コマンドに委譲する自律エージェントです。
 
 ## 概要
 
 Climpt Agent は以下の機能を提供します：
 
-1. **自然言語からのコマンド検索**: ユーザーの意図に基づいて最適な Climpt コマンドを自動検索
+1. **自然言語からのコマンド検索**: ユーザーの意図に基づいて最適な Climpt
+   コマンドを自動検索
 2. **動的 Sub-agent 生成**: C3L 命名規則に基づいて実行時に Sub-agent を動的生成
 3. **Climpt MCP 連携**: MCP サーバー経由で Climpt コマンドを検索・実行
 
@@ -55,7 +57,8 @@ Climpt Agent は以下の機能を提供します：
 
 ### 2. SKILL.md
 
-Claude が自動的に Skill を発動するための記述を含みます。`description` フィールドが発動条件を決定します。
+Claude が自動的に Skill を発動するための記述を含みます。`description`
+フィールドが発動条件を決定します。
 
 ### 3. climpt-agent.ts
 

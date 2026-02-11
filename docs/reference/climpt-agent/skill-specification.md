@@ -1,6 +1,7 @@
 # Skill Specification (delegate-climpt-agent)
 
-This document explains the technical specification of the `delegate-climpt-agent` Skill.
+This document explains the technical specification of the
+`delegate-climpt-agent` Skill.
 
 ## SKILL.md Structure
 
@@ -15,16 +16,18 @@ description: Delegates development tasks to Climpt Agent. Use when user asks to 
 
 #### Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Skill identifier (max 64 chars, lowercase, numbers, hyphens only) |
-| `description` | string | Yes | Describes Skill triggering conditions (max 1024 chars) |
+| Field         | Type   | Required | Description                                                       |
+| ------------- | ------ | -------- | ----------------------------------------------------------------- |
+| `name`        | string | Yes      | Skill identifier (max 64 chars, lowercase, numbers, hyphens only) |
+| `description` | string | Yes      | Describes Skill triggering conditions (max 1024 chars)            |
 
 ### Description Design Guidelines
 
-The `description` is an important field that Claude uses to determine whether to trigger the Skill:
+The `description` is an important field that Claude uses to determine whether to
+trigger the Skill:
 
-1. **List specific use cases**: git operations, branch management, frontmatter generation, etc.
+1. **List specific use cases**: git operations, branch management, frontmatter
+   generation, etc.
 2. **Use action verbs**: "delegates", "use when user asks", etc.
 3. **Include domain-specific terms**: Climpt, git commits, PR workflows, etc.
 
@@ -41,10 +44,10 @@ mcp__climpt__search({
 
 **Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | Yes | Natural language search query |
-| `agent` | string | Yes | Always `"climpt"` |
+| Parameter | Type   | Required | Description                   |
+| --------- | ------ | -------- | ----------------------------- |
+| `query`   | string | Yes      | Natural language search query |
+| `agent`   | string | Yes      | Always `"climpt"`             |
 
 **Response:**
 
@@ -73,12 +76,12 @@ mcp__climpt__describe({
 
 **Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `agent` | string | Yes | Always `"climpt"` |
-| `c1` | string | Yes | Domain identifier |
-| `c2` | string | Yes | Action identifier |
-| `c3` | string | Yes | Target identifier |
+| Parameter | Type   | Required | Description       |
+| --------- | ------ | -------- | ----------------- |
+| `agent`   | string | Yes      | Always `"climpt"` |
+| `c1`      | string | Yes      | Domain identifier |
+| `c2`      | string | Yes      | Action identifier |
+| `c3`      | string | Yes      | Target identifier |
 
 **Response:**
 
@@ -113,13 +116,13 @@ mcp__climpt__execute({
 
 **Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `agent` | string | Yes | Always `"climpt"` |
-| `c1` | string | Yes | Domain identifier |
-| `c2` | string | Yes | Action identifier |
-| `c3` | string | Yes | Target identifier |
-| `options` | object | No | Command options |
+| Parameter | Type   | Required | Description       |
+| --------- | ------ | -------- | ----------------- |
+| `agent`   | string | Yes      | Always `"climpt"` |
+| `c1`      | string | Yes      | Domain identifier |
+| `c2`      | string | Yes      | Action identifier |
+| `c3`      | string | Yes      | Target identifier |
+| `options` | object | No       | Command options   |
 
 **Response:**
 
@@ -131,12 +134,12 @@ Commands follow the C3L (Command 3-Level) naming convention:
 
 ### Level Definitions
 
-| Level | Description | Pattern | Examples |
-|-------|-------------|---------|----------|
-| `agent` | MCP server identifier | - | `climpt`, `inspector` |
-| `c1` | Domain identifier | `<domain>` | `git`, `meta`, `spec` |
-| `c2` | Action identifier | `<verb>-<modifier>?` | `group-commit`, `build`, `create` |
-| `c3` | Target identifier | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
+| Level   | Description           | Pattern               | Examples                          |
+| ------- | --------------------- | --------------------- | --------------------------------- |
+| `agent` | MCP server identifier | -                     | `climpt`, `inspector`             |
+| `c1`    | Domain identifier     | `<domain>`            | `git`, `meta`, `spec`             |
+| `c2`    | Action identifier     | `<verb>-<modifier>?`  | `group-commit`, `build`, `create` |
+| `c3`    | Target identifier     | `<noun>-<qualifier>?` | `unstaged-changes`, `frontmatter` |
 
 ### Naming Pattern
 
@@ -148,11 +151,11 @@ Commands follow the C3L (Command 3-Level) naming convention:
 
 **Examples:**
 
-| agent | c1 | c2 | c3 | Sub-agent Name |
-|-------|----|----|-----|----------------|
-| `climpt` | `git` | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
-| `climpt` | `meta` | `build` | `frontmatter` | `climpt-meta-build-frontmatter` |
-| `climpt` | `meta` | `create` | `instruction` | `climpt-meta-create-instruction` |
+| agent    | c1     | c2             | c3                 | Sub-agent Name                             |
+| -------- | ------ | -------------- | ------------------ | ------------------------------------------ |
+| `climpt` | `git`  | `group-commit` | `unstaged-changes` | `climpt-git-group-commit-unstaged-changes` |
+| `climpt` | `meta` | `build`        | `frontmatter`      | `climpt-meta-build-frontmatter`            |
+| `climpt` | `meta` | `create`       | `instruction`      | `climpt-meta-create-instruction`           |
 
 ## Triggering Conditions
 
@@ -177,6 +180,7 @@ The Skill auto-triggers under the following conditions:
 
 ```markdown
 Climpt command not found.
+
 - Try rephrasing the query
 - Run `mcp__climpt__reload` to update the registry
 ```
@@ -185,12 +189,16 @@ Climpt command not found.
 
 ```markdown
 Command execution failed: <error message>
+
 - Check command parameters
 - Verify Climpt CLI is properly installed
 ```
 
 ## Best Practices
 
-1. **Be specific with search queries**: "commit changes" → "group semantically related files and commit" improves accuracy
-2. **When there are multiple candidates**: Compare score and description to select the optimal command
-3. **Use options**: Appropriately configure edition, adaptation, etc. for customization
+1. **Be specific with search queries**: "commit changes" → "group semantically
+   related files and commit" improves accuracy
+2. **When there are multiple candidates**: Compare score and description to
+   select the optimal command
+3. **Use options**: Appropriately configure edition, adaptation, etc. for
+   customization
