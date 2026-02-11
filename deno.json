@@ -47,18 +47,18 @@
     ".gitignore",
     "CLAUDE.md",
     "deno.lock",
-    "tmp/",
-    "plugins/",
-    "tests/",
-    "examples/",
-    "scripts/"
+    "tmp/"
   ],
-  "test": {
+  "publish": {
     "exclude": [
-      "tests/docs/install_test.ts",
-      "tests/docs/jsr_source_test.ts"
+      ".claude/",
+      "plugins/",
+      "tests/",
+      "examples/",
+      "scripts/"
     ]
   },
+  "test": {},
   "tasks": {
     "dev": "deno run --allow-read --allow-write --allow-net --allow-env --watch cli.ts",
     "build": "deno compile --allow-read --allow-write --allow-net --allow-env --output ./dist/climpt cli.ts",
