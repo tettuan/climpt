@@ -298,11 +298,10 @@ options:
 
 ### 7.2 Template Variables
 
-| Variable                         | Replacement Timing | Description                    |
-| -------------------------------- | ------------------ | ------------------------------ |
-| `{{AGENT}}`                      | iterate-agent      | Agent name                     |
-| `{{COMPLETION_CRITERIA}}`        | iterate-agent      | Completion criteria (short)    |
-| `{{COMPLETION_CRITERIA_DETAIL}}` | iterate-agent      | Completion criteria (detailed) |
+| Variable                   | Replacement Timing | Description                    |
+| -------------------------- | ------------------ | ------------------------------ |
+| `{uv-agent_name}`          | iterate-agent      | Agent name                     |
+| `{uv-completion_criteria}` | iterate-agent      | Completion criteria (detailed) |
 
 ### 7.3 Mode Differences
 

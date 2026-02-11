@@ -297,11 +297,10 @@ options:
 
 ### 7.2 テンプレート変数
 
-| 変数                             | 置換タイミング | 説明             |
-| -------------------------------- | -------------- | ---------------- |
-| `{{AGENT}}`                      | iterate-agent  | エージェント名   |
-| `{{COMPLETION_CRITERIA}}`        | iterate-agent  | 完了条件（短）   |
-| `{{COMPLETION_CRITERIA_DETAIL}}` | iterate-agent  | 完了条件（詳細） |
+| 変数                       | 置換タイミング | 説明             |
+| -------------------------- | -------------- | ---------------- |
+| `{uv-agent_name}`          | iterate-agent  | エージェント名   |
+| `{uv-completion_criteria}` | iterate-agent  | 完了条件（詳細） |
 
 ### 7.3 モード別差分
 
