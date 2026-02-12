@@ -38,7 +38,7 @@ export const BOUNDARY_TOOLS = [
  * boundary actions from being executed directly via bash in ANY step kind
  * (including closure steps). The Boundary Hook is the only execution path.
  *
- * Classification criteria — blocked vs allowed:
+ * Classification criteria --blocked vs allowed:
  *   Blocked: Termination actions (close, merge, delete) and state mutations
  *            that are irreversible or require structured decision-making.
  *            These MUST go through the Boundary Hook.
@@ -48,7 +48,7 @@ export const BOUNDARY_TOOLS = [
  *            layer, not a closure/termination action.
  */
 export const BOUNDARY_BASH_PATTERNS = [
-  // Termination actions — close/delete/merge end a workflow
+  // Termination actions --close/delete/merge end a workflow
   /\bgh\s+issue\s+close\b/,
   /\bgh\s+issue\s+delete\b/,
   /\bgh\s+issue\s+transfer\b/,
@@ -58,7 +58,7 @@ export const BOUNDARY_BASH_PATTERNS = [
   /\bgh\s+pr\s+close\b/,
   /\bgh\s+pr\s+merge\b/,
   /\bgh\s+pr\s+ready\b/,
-  // Release operations — public-facing and irreversible
+  // Release operations --public-facing and irreversible
   /\bgh\s+release\s+create\b/,
   /\bgh\s+release\s+edit\b/,
   // GitHub API - block all direct API calls (can bypass other restrictions)
