@@ -23,6 +23,7 @@ import type {
   ExternalStateChecker,
   IssueState,
 } from "./external-state-checker.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
 
 /**
  * Project context for when Issue is part of a Project
@@ -735,8 +736,8 @@ export class IssueContractHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  transition(_result: StepResult): "closure" {
-    return "closure";
+  transition(_result: StepResult): typeof STEP_PHASE.CLOSURE {
+    return STEP_PHASE.CLOSURE;
   }
 
   /**
@@ -744,8 +745,11 @@ export class IssueContractHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  buildPrompt(phase: "initial" | "continuation", iteration: number): string {
-    if (phase === "initial") {
+  buildPrompt(
+    phase: typeof STEP_PHASE.INITIAL | typeof STEP_PHASE.CONTINUATION,
+    iteration: number,
+  ): string {
+    if (phase === STEP_PHASE.INITIAL) {
       return `Work on Issue #${this.config.issueNumber}. Check if the issue is resolved.`;
     }
     return `Continue working on Issue #${this.config.issueNumber}. Iteration ${iteration}.`;

@@ -12,6 +12,7 @@ import type {
   StepResult,
 } from "../src_common/contracts.ts";
 import { TRUNCATION } from "../shared/constants.ts";
+import type { STEP_PHASE } from "../shared/step-phases.ts";
 
 // Re-export for convenience
 export type { CompletionType, IterationSummary };
@@ -233,9 +234,9 @@ export interface ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    * @param result - Step execution result
-   * @returns Next step ID or "closure" to finish
+   * @returns Next step ID or STEP_PHASE.CLOSURE to finish
    */
-  transition(result: StepResult): string | "closure";
+  transition(result: StepResult): string | typeof STEP_PHASE.CLOSURE;
 
   /**
    * Build prompt for the given phase.
@@ -245,7 +246,10 @@ export interface ContractCompletionHandler {
    * @param iteration - Current iteration number
    * @returns Prompt string
    */
-  buildPrompt(phase: "initial" | "continuation", iteration: number): string;
+  buildPrompt(
+    phase: typeof STEP_PHASE.INITIAL | typeof STEP_PHASE.CONTINUATION,
+    iteration: number,
+  ): string;
 
   /**
    * Get completion criteria description.

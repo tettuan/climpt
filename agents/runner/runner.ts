@@ -54,6 +54,7 @@ import {
   type CompletionValidationResult,
 } from "./completion-chain.ts";
 import { join } from "@std/path";
+import { PATHS } from "../shared/paths.ts";
 import {
   SchemaPointerError,
   SchemaResolver,
@@ -81,6 +82,7 @@ import {
   PromptResolver as StepPromptResolver,
 } from "../common/prompt-resolver.ts";
 import { AGENT_LIMITS, TRUNCATION } from "../shared/constants.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -283,7 +285,10 @@ export class AgentRunner {
           : undefined;
         let prompt: string;
         let promptSource: "user" | "fallback";
-        let promptType: "retry" | "initial" | "continuation";
+        let promptType:
+          | "retry"
+          | typeof STEP_PHASE.INITIAL
+          | typeof STEP_PHASE.CONTINUATION;
         const promptStartTime = performance.now();
 
         if (this.pendingRetryPrompt) {
@@ -296,7 +301,7 @@ export class AgentRunner {
           // deno-lint-ignore no-await-in-loop
           prompt = await ctx.completionHandler.buildInitialPrompt();
           promptSource = "user";
-          promptType = "initial";
+          promptType = STEP_PHASE.INITIAL;
         } else {
           // Try closure adaptation for closure steps
           // deno-lint-ignore no-await-in-loop
@@ -304,7 +309,7 @@ export class AgentRunner {
           if (closurePrompt) {
             prompt = closurePrompt.content;
             promptSource = closurePrompt.source;
-            promptType = "continuation";
+            promptType = STEP_PHASE.CONTINUATION;
           } else {
             // deno-lint-ignore no-await-in-loop
             prompt = await ctx.completionHandler.buildContinuationPrompt(
@@ -312,7 +317,7 @@ export class AgentRunner {
               lastSummary,
             );
             promptSource = "user";
-            promptType = "continuation";
+            promptType = STEP_PHASE.CONTINUATION;
           }
         }
 
@@ -928,7 +933,7 @@ export class AgentRunner {
     cwd: string,
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<void> {
-    const registryPath = join(agentDir, "steps_registry.json");
+    const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
 
     try {
       // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
@@ -1276,7 +1281,7 @@ export class AgentRunner {
         throw new Error(
           `[StepFlow] No routed step ID for iteration ${iteration}. ` +
             `All Flow steps must define structuredGate with transitions. ` +
-            `Check steps_registry.json for missing gate configuration.`,
+            `Check ${PATHS.STEPS_REGISTRY} for missing gate configuration.`,
         );
       }
       return this.currentStepId;
@@ -1298,7 +1303,7 @@ export class AgentRunner {
     // No implicit fallback - entry step must be explicitly configured
     throw new Error(
       `[StepFlow] No entry step configured for completionType "${completionType}". ` +
-        `Define either "entryStepMapping.${completionType}" or "entryStep" in steps_registry.json.`,
+        `Define either "entryStepMapping.${completionType}" or "entryStep" in ${PATHS.STEPS_REGISTRY}.`,
     );
   }
 

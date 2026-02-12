@@ -23,6 +23,7 @@ import { CheckBudgetCompletionHandler } from "./check-budget.ts";
 import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
+import { PATHS } from "../shared/paths.ts";
 
 /**
  * Type guard helpers for args validation
@@ -146,7 +147,7 @@ registerHandler(
 
     // Load steps registry for step machine
     const registryPath = completionConfig.registryPath ??
-      `${agentDir}/steps_registry.json`;
+      `${agentDir}/${PATHS.STEPS_REGISTRY}`;
 
     try {
       const content = await Deno.readTextFile(registryPath);

@@ -11,6 +11,7 @@
  */
 
 import { join } from "@std/path";
+import { PATHS } from "../shared/paths.ts";
 import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
 import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
@@ -22,8 +23,8 @@ export async function loadAgentDefinition(
   agentName: string,
   cwd: string = Deno.cwd(),
 ): Promise<AgentDefinition> {
-  const agentDir = join(cwd, ".agent", agentName);
-  const definitionPath = join(agentDir, "agent.json");
+  const agentDir = join(cwd, PATHS.AGENT_DIR_PREFIX, agentName);
+  const definitionPath = join(agentDir, PATHS.AGENT_JSON);
 
   // Check if file exists
   try {
@@ -287,7 +288,7 @@ export function getAgentDir(
   agentName: string,
   cwd: string = Deno.cwd(),
 ): string {
-  return join(cwd, ".agent", agentName);
+  return join(cwd, PATHS.AGENT_DIR_PREFIX, agentName);
 }
 
 /**
@@ -312,13 +313,13 @@ export async function agentExists(
  * List all available agents
  */
 export async function listAgents(cwd: string = Deno.cwd()): Promise<string[]> {
-  const agentsDir = join(cwd, ".agent");
+  const agentsDir = join(cwd, PATHS.AGENT_DIR_PREFIX);
   const agents: string[] = [];
 
   try {
     for await (const entry of Deno.readDir(agentsDir)) {
       if (entry.isDirectory) {
-        const definitionPath = join(agentsDir, entry.name, "agent.json");
+        const definitionPath = join(agentsDir, entry.name, PATHS.AGENT_JSON);
         try {
           await Deno.stat(definitionPath);
           agents.push(entry.name);

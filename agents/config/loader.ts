@@ -9,6 +9,7 @@
  */
 
 import { join } from "@std/path";
+import { PATHS } from "../shared/paths.ts";
 
 /**
  * Error thrown when configuration loading fails.
@@ -66,7 +67,7 @@ export async function loadRaw(agentDir: string): Promise<unknown> {
  * @throws ConfigurationLoadError if file exists but cannot be read/parsed
  */
 export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
-  const registryPath = join(agentDir, "steps_registry.json");
+  const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
 
   try {
     const content = await Deno.readTextFile(registryPath);
@@ -90,5 +91,5 @@ export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
  * @returns Full path to agent directory
  */
 export function getAgentDir(agentName: string, baseDir: string): string {
-  return join(baseDir, ".agent", agentName);
+  return join(baseDir, PATHS.AGENT_DIR_PREFIX, agentName);
 }

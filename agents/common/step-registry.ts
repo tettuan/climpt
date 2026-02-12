@@ -12,6 +12,9 @@
 import { join } from "@std/path";
 import type { InputSpec } from "../src_common/contracts.ts";
 import { SchemaResolver } from "./schema-resolver.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
+import type { StepPhase } from "../shared/step-phases.ts";
+import { PATHS } from "../shared/paths.ts";
 
 /**
  * Step type for categorization
@@ -321,7 +324,7 @@ export async function loadStepRegistry(
   options: RegistryLoaderOptions = {},
 ): Promise<StepRegistry> {
   const registryPath = options.registryPath ??
-    join(agentsDir, agentId, "registry.json");
+    join(agentsDir, agentId, PATHS.REGISTRY_JSON);
 
   try {
     const content = await Deno.readTextFile(registryPath);
@@ -913,13 +916,13 @@ export function inferStepKind(
   }
 
   // Infer from c2
-  switch (step.c2) {
-    case "initial":
-    case "continuation":
+  switch (step.c2 as StepPhase) {
+    case STEP_PHASE.INITIAL:
+    case STEP_PHASE.CONTINUATION:
       return "work";
-    case "verification":
+    case STEP_PHASE.VERIFICATION:
       return "verification";
-    case "closure":
+    case STEP_PHASE.CLOSURE:
       return "closure";
     default:
       // section and other non-flow steps don't have a kind
