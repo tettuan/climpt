@@ -35,20 +35,30 @@ export const BOUNDARY_TOOLS = [
  * Bash command patterns that are considered boundary actions.
  *
  * These patterns are checked when Bash tool is used to prevent
- * boundary actions from Work/Verification steps.
+ * boundary actions from being executed directly via bash in ANY step kind
+ * (including closure steps). The Boundary Hook is the only execution path.
+ *
+ * Classification criteria — blocked vs allowed:
+ *   Blocked: Termination actions (close, merge, delete) and state mutations
+ *            that are irreversible or require structured decision-making.
+ *            These MUST go through the Boundary Hook.
+ *   Allowed: Workflow continuation actions (e.g. `gh pr create`) and
+ *            read-only queries (e.g. `gh issue view`). PR creation is a
+ *            non-destructive continuation action handled by the finalize
+ *            layer, not a closure/termination action.
  */
 export const BOUNDARY_BASH_PATTERNS = [
-  // GitHub CLI issue operations
+  // Termination actions — close/delete/merge end a workflow
   /\bgh\s+issue\s+close\b/,
   /\bgh\s+issue\s+delete\b/,
   /\bgh\s+issue\s+transfer\b/,
   /\bgh\s+issue\s+edit\s+.*--state\s+closed/,
   /\bgh\s+issue\s+reopen\b/,
-  // GitHub CLI PR operations
+  // PR termination/state mutations
   /\bgh\s+pr\s+close\b/,
   /\bgh\s+pr\s+merge\b/,
   /\bgh\s+pr\s+ready\b/,
-  // GitHub CLI release operations
+  // Release operations — public-facing and irreversible
   /\bgh\s+release\s+create\b/,
   /\bgh\s+release\s+edit\b/,
   // GitHub API - block all direct API calls (can bypass other restrictions)
@@ -146,7 +156,7 @@ export function isToolAllowed(
       allowed: false,
       reason:
         `Tool "${tool}" is a boundary tool and not allowed in ${stepKind} steps. ` +
-        `Boundary actions are only permitted in closure steps.`,
+        `Boundary actions are handled by the Boundary Hook in closure steps.`,
     };
   }
 
@@ -185,14 +195,16 @@ export function isBashCommandAllowed(
   // Check against boundary patterns
   for (const pattern of BOUNDARY_BASH_PATTERNS) {
     if (pattern.test(command)) {
+      const matched = command.match(pattern)?.[0] ?? "unknown";
       return {
         allowed: false,
-        reason:
-          `Bash command contains boundary action "${
-            command.match(pattern)?.[0] ?? "unknown"
-          }" ` +
-          `which is not allowed in ${stepKind} steps. ` +
-          `Boundary actions are only permitted in closure steps.`,
+        reason: stepKind === "closure"
+          ? `Bash command contains boundary action "${matched}" ` +
+            `which cannot be executed directly. ` +
+            `Use the closing intent to trigger the Boundary Hook instead.`
+          : `Bash command contains boundary action "${matched}" ` +
+            `which is not allowed in ${stepKind} steps. ` +
+            `Boundary actions are handled by the Boundary Hook in closure steps.`,
       };
     }
   }
