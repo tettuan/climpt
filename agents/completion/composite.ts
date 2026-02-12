@@ -24,6 +24,7 @@ import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
 import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
+import { AGENT_LIMITS } from "../shared/constants.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
 
@@ -69,7 +70,8 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
 
         case "iterationBudget": {
           handler = new IterateCompletionHandler(
-            config.maxIterations ?? 100,
+            config.maxIterations ??
+              AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
           );
           break;
         }

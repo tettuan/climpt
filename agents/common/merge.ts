@@ -5,7 +5,15 @@
  */
 
 import type { MergeResult, MergeStrategy } from "./types.ts";
-import { runGitSafe } from "./git-utils.ts";
+import { checkoutBranch, runGitSafe } from "./git-utils.ts";
+
+// Re-export git utilities from canonical source (git-utils.ts)
+export {
+  checkoutBranch,
+  getCurrentBranch,
+  hasUncommittedChanges,
+  pushBranch,
+} from "./git-utils.ts";
 
 /**
  * Merge strategy order for Iterator agent
@@ -46,17 +54,6 @@ async function getConflictFiles(cwd?: string): Promise<string[]> {
  */
 export async function abortMerge(cwd?: string): Promise<void> {
   await runGitSafe(["merge", "--abort"], cwd);
-}
-
-/**
- * Checkout a branch
- */
-export async function checkoutBranch(
-  branchName: string,
-  cwd?: string,
-): Promise<boolean> {
-  const result = await runGitSafe(["checkout", branchName], cwd);
-  return result.success;
 }
 
 /**
@@ -234,14 +231,6 @@ export async function mergeBranch(
 }
 
 /**
- * Check if there are uncommitted changes
- */
-export async function hasUncommittedChanges(cwd?: string): Promise<boolean> {
-  const result = await runGitSafe(["status", "--porcelain"], cwd);
-  return result.output.length > 0;
-}
-
-/**
  * Auto-commit all changes with the given message
  *
  * This is used to ensure worktree changes are preserved before cleanup.
@@ -271,25 +260,6 @@ export async function autoCommitChanges(
   }
 
   return { success: true };
-}
-
-/**
- * Get the current branch name
- */
-export async function getCurrentBranch(cwd?: string): Promise<string> {
-  const result = await runGitSafe(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
-  return result.output;
-}
-
-/**
- * Push the current branch to remote
- */
-export async function pushBranch(
-  branchName: string,
-  cwd?: string,
-): Promise<boolean> {
-  const result = await runGitSafe(["push", "-u", "origin", branchName], cwd);
-  return result.success;
 }
 
 /**

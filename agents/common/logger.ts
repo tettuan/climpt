@@ -12,6 +12,7 @@ import type {
   ToolResultInfo,
   ToolUseInfo,
 } from "./types.ts";
+import { TRUNCATION } from "../shared/constants.ts";
 
 /**
  * JSONL Logger for agents
@@ -226,8 +227,10 @@ export async function createLogger(
  */
 export function summarizeToolInput(
   toolName: string,
-  input: Record<string, unknown>,
+  input?: Record<string, unknown>,
 ): string {
+  if (!input) return "";
+
   switch (toolName) {
     case "Read":
       return `file_path: ${input.file_path}`;
@@ -238,7 +241,9 @@ export function summarizeToolInput(
     case "Edit":
       return `file_path: ${input.file_path}`;
     case "Bash":
-      return `command: ${String(input.command || "").substring(0, 100)}...`;
+      return `command: ${
+        String(input.command || "").substring(0, TRUNCATION.BASH_COMMAND)
+      }...`;
     case "Glob":
       return `pattern: ${input.pattern}`;
     case "Grep":
@@ -247,7 +252,9 @@ export function summarizeToolInput(
       return `skill: ${input.skill}${
         input.args ? `, args: ${input.args}` : ""
       }`;
+    case "Task":
+      return `subagent: ${input.subagent_type}, desc: ${input.description}`;
     default:
-      return JSON.stringify(input).substring(0, 200);
+      return JSON.stringify(input).substring(0, TRUNCATION.JSON_SUMMARY);
   }
 }

@@ -39,13 +39,9 @@ export {
 // Merge utilities
 export {
   abortMerge,
-  checkoutBranch,
   createPullRequest,
-  getCurrentBranch as getMergeBranch,
-  hasUncommittedChanges,
   ITERATOR_MERGE_ORDER,
   mergeBranch,
-  pushBranch,
   REVIEWER_MERGE_ORDER,
 } from "./merge.ts";
 

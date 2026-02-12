@@ -10,6 +10,7 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
+import { AGENT_LIMITS } from "../shared/constants.ts";
 
 /**
  * Default values for agent definition.
@@ -19,7 +20,7 @@ const DEFAULTS = {
   behavior: {
     completionType: "iterationBudget" as const,
     completionConfig: {
-      maxIterations: 10,
+      maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
     },
     permissionMode: "plan" as const,
     allowedTools: ["*"],

@@ -80,6 +80,7 @@ import {
   createFallbackProvider,
   PromptResolver as StepPromptResolver,
 } from "../common/prompt-resolver.ts";
+import { AGENT_LIMITS, TRUNCATION } from "../shared/constants.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -112,7 +113,8 @@ export class AgentRunner {
 
   // Rate limit handling
   private rateLimitRetryCount = 0;
-  private static readonly MAX_RATE_LIMIT_RETRIES = 5;
+  private static readonly MAX_RATE_LIMIT_RETRIES =
+    AGENT_LIMITS.MAX_RATE_LIMIT_RETRIES;
 
   // Step flow orchestration
   private stepContext: StepContextImpl | null = null;
@@ -126,7 +128,8 @@ export class AgentRunner {
   // Flag to skip StepGate when schema resolution failed
   private schemaResolutionFailed = false;
   // Maximum consecutive schema failures before aborting
-  private static readonly MAX_SCHEMA_FAILURES = 2;
+  private static readonly MAX_SCHEMA_FAILURES =
+    AGENT_LIMITS.MAX_SCHEMA_FAILURES;
 
   // Verbose logging for SDK I/O debugging
   private verboseLogger: VerboseLogger | null = null;
@@ -905,10 +908,10 @@ export class AgentRunner {
           this.definition.behavior.completionConfig as {
             maxIterations?: number;
           }
-        ).maxIterations ?? 20
+        ).maxIterations ?? AGENT_LIMITS.FALLBACK_MAX_ITERATIONS
       );
     }
-    return 20;
+    return AGENT_LIMITS.FALLBACK_MAX_ITERATIONS;
   }
 
   /**
@@ -1830,7 +1833,7 @@ export class AgentRunner {
         ctx.logger.warn(
           `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
           {
-            command: command.substring(0, 100),
+            command: command.substring(0, TRUNCATION.BASH_COMMAND),
             reason: result.reason,
           },
         );

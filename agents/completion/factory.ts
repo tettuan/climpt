@@ -22,6 +22,7 @@ import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
 import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
+import { AGENT_LIMITS } from "../shared/constants.ts";
 
 /**
  * Type guard helpers for args validation
@@ -78,7 +79,8 @@ registerHandler("externalState", () => {
 // iterationBudget (was: iterate) - Complete after N iterations
 registerHandler("iterationBudget", (_args, promptResolver, definition) => {
   const iterateHandler = new IterateCompletionHandler(
-    definition.behavior.completionConfig.maxIterations ?? 100,
+    definition.behavior.completionConfig.maxIterations ??
+      AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
   );
   iterateHandler.setPromptResolver(promptResolver);
   return iterateHandler;
@@ -169,7 +171,8 @@ registerHandler(
           `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
         );
         const iterateHandler = new IterateCompletionHandler(
-          completionConfig.maxIterations ?? 100,
+          completionConfig.maxIterations ??
+            AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
         );
         iterateHandler.setPromptResolver(promptResolver);
         return iterateHandler;
@@ -289,8 +292,10 @@ export function createCompletionHandlerFromOptions(
     }
     handler = manualHandler;
   } else {
-    // Default to iterate with 100 iterations
-    handler = new IterateCompletionHandler(100);
+    // Default to iterate with fallback iterations
+    handler = new IterateCompletionHandler(
+      AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
+    );
   }
 
   return handler;

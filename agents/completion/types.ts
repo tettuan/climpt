@@ -11,6 +11,7 @@ import type {
   CompletionResult,
   StepResult,
 } from "../src_common/contracts.ts";
+import { TRUNCATION } from "../shared/constants.ts";
 
 // Re-export for convenience
 export type { CompletionType, IterationSummary };
@@ -70,8 +71,8 @@ export function formatIterationSummary(summary: IterationSummary): string {
     const lastResponse =
       summary.assistantResponses[summary.assistantResponses.length - 1];
     // Truncate if too long (keep it concise for context efficiency)
-    const truncated = lastResponse.length > 1000
-      ? lastResponse.substring(0, 1000) + "..."
+    const truncated = lastResponse.length > TRUNCATION.ASSISTANT_RESPONSE
+      ? lastResponse.substring(0, TRUNCATION.ASSISTANT_RESPONSE) + "..."
       : lastResponse;
     parts.push(`### What was done:\n${truncated}`);
   }
@@ -189,9 +190,9 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
     return summaries
       .map((s) => {
         const lastResponse = s.assistantResponses.slice(-1)[0] ?? "";
-        const summary = lastResponse.substring(0, 200);
+        const summary = lastResponse.substring(0, TRUNCATION.JSON_SUMMARY);
         return `Iteration ${s.iteration}: ${summary}${
-          lastResponse.length > 200 ? "..." : ""
+          lastResponse.length > TRUNCATION.JSON_SUMMARY ? "..." : ""
         }`;
       })
       .join("\n");
