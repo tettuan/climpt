@@ -299,6 +299,8 @@ flowchart LR
 
 - **What**: Closure Step が `closing` intent を返した瞬間にだけ起動し、Issue
   close / Issue ラベル管理 / Release 作成などの副作用を実行するシンプルな関数。
+  AI は `closing` intent を返すだけであり、`gh` コマンドの実行は Runner の
+  Boundary Hook が担う。
 - **Why**: Work / Verification Step が誤って Issue
   操作を行うことを物理的に防ぎ、Flow の鎖を壊さない。
 - **Implication**: Schema / Gate が `closing` intent
@@ -309,6 +311,12 @@ flowchart LR
   - Issue ラベル変更（`github.labels.completion` 設定または AI structured
     output）
   - `label-only` モードでは Issue を OPEN のまま残し、ラベルのみ変更
+- **実行フロー**:
+  1. Closure Step の AI が `closing` intent を structured output で返す
+  2. Gate Interpreter が intent を認識し Router に渡す
+  3. Router が `signalCompletion: true` で `invokeBoundaryHook()` を呼び出す
+  4. `completionHandler.onBoundaryHook()` が `gh` コマンドを Runner プロセス
+     内で実行（AI の bash ツール経由ではない）
 
 ### 7.2 Step kind とツール許可
 
@@ -316,19 +324,28 @@ flowchart LR
 flowchart LR
   Work[work step] -->|allowedTools: shell,edit| SDK
   Verify[verification step] -->|allowedTools: shell,edit| SDK
-  Closure[closure step] -->|allowedTools: shell,edit,github-actions| SDK
+  Closure[closure step] -->|"allowedTools: shell,edit,boundary-tools<br/>(※ bash経由のghコマンドはブロック)"| SDK
   SDK --> Boundary[[Boundary Hook]]
 ```
 
 - **What**: Runner は `stepKind` ごとに許可ツールを再構成し、Work / Verification
   では GitHub などの副作用ツールを自動的に無効化する。Closure Step に遷移した
-  時だけ Issue close 等の権限が注入され、boundary hook が単一の出口となる。
+  時だけ Issue close 等のツール型 API（`BOUNDARY_TOOLS`）が許可されるが、 bash
+  経由の `gh` コマンドは **全 stepKind で一律ブロック** される
+  （`blockBoundaryBash: true`）。外部副作用の実行は boundary hook が単一の
+  出口となる。
 - **Why**: 「手順中に Issue を閉じないで」とプロンプトで言う代わりに、物理的に
   呼び出せない状態にすることで AI 複雑性を排除する。Flow の実装は stepKind を
-  見るだけで十分で、追加の条件分岐を必要としない。
+  見るだけで十分で、追加の条件分岐を必要としない。closure step でも bash 経由の
+  `gh` コマンドをブロックするのは、AI が `label-only` モードをバイパスして 直接
+  Issue を close することを防ぐため。
 - **Implication**: ユーザーが `.agent/<agent>/steps_registry.json` で stepKind
   を 定義すれば、それだけで安全な許可セットが適用される。設定忘れは loader が
   エラーにするため、ワークフロー全体で一貫した境界管理が維持される。
+- **2 層の安全境界**:
+  1. **Schema + ToolPolicy 層**: AI が直接 `gh` コマンドを実行できない
+  2. **Boundary Hook 層**: Runner プロセスが `closing` intent に基づき
+     `completionHandler.onBoundaryHook()` 経由で唯一の正規パスとして実行
 
 ### 7.3 Sequential Step Enforcement
 
