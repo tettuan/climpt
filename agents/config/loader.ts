@@ -12,23 +12,10 @@ import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 
 /**
- * Error thrown when configuration loading fails.
+ * Error thrown when configuration loading fails - canonical source: shared/errors/env-errors.ts
  */
-export class ConfigurationLoadError extends Error {
-  public readonly path: string;
-  public readonly originalCause?: Error;
-
-  constructor(
-    path: string,
-    message: string,
-    cause?: Error,
-  ) {
-    super(`Configuration load failed at ${path}: ${message}`, { cause });
-    this.name = "ConfigurationLoadError";
-    this.path = path;
-    this.originalCause = cause;
-  }
-}
+import { ConfigurationLoadError } from "../shared/errors/env-errors.ts";
+export { ConfigurationLoadError };
 
 /**
  * Load agent definition from a directory.

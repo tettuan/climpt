@@ -16,21 +16,10 @@ export interface GitCommandResult {
 }
 
 /**
- * Git command error
+ * Git command error - canonical source: shared/errors/git-errors.ts
  */
-export class GitCommandError extends Error {
-  readonly args: string[];
-  readonly exitCode: number;
-  readonly stderr: string;
-
-  constructor(args: string[], stderr: string, exitCode = 1) {
-    super(`Git command failed: git ${args.join(" ")}\n${stderr}`);
-    this.name = "GitCommandError";
-    this.args = args;
-    this.exitCode = exitCode;
-    this.stderr = stderr;
-  }
-}
+import { GitCommandError } from "../shared/errors/git-errors.ts";
+export { GitCommandError };
 
 /**
  * Run git command and return result object (safe, no throw)

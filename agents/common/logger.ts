@@ -2,6 +2,7 @@
  * Common Agent Logger
  *
  * JSONL logger with automatic rotation, shared by all agents.
+ * Now backed by shared AgentLogger + JsonlWriter + rotateLogFiles.
  */
 
 import { join } from "@std/path";
@@ -13,26 +14,23 @@ import type {
   ToolUseInfo,
 } from "./types.ts";
 import { TRUNCATION } from "../shared/constants.ts";
+import { AgentLogger } from "../shared/logging/agent-logger.ts";
+import { JsonlWriter } from "../shared/logging/log-writer.ts";
+import { rotateLogFiles } from "../shared/logging/log-rotation.ts";
 
 /**
  * JSONL Logger for agents
+ *
+ * Thin wrapper around AgentLogger + JsonlWriter, preserving the original API.
  */
 export class Logger {
-  private file: Deno.FsFile | null = null;
+  private agentLogger: AgentLogger | null = null;
+  private writer: JsonlWriter;
   private logPath: string;
   private maxFiles: number;
   private logDir: string;
-  private stepCounter = 0;
   private correlationId?: string;
 
-  /**
-   * Create a new Logger instance
-   *
-   * @param logDir - Directory to store log files
-   * @param _agentName - Agent name (used in directory path)
-   * @param correlationId - Optional correlation ID for tracing
-   * @param maxFiles - Maximum number of log files to keep
-   */
   constructor(
     logDir: string,
     _agentName: AgentName,
@@ -43,87 +41,43 @@ export class Logger {
     this.correlationId = correlationId;
     this.maxFiles = maxFiles;
 
-    // Generate log file path with ISO timestamp
     const timestamp = new Date().toISOString().replace(/:/g, "-").replace(
       /\./g,
       "-",
     );
     this.logPath = join(logDir, `session-${timestamp}.jsonl`);
+    this.writer = new JsonlWriter(this.logPath);
   }
 
-  /**
-   * Initialize the logger (open file, rotate old files)
-   */
   async initialize(): Promise<void> {
-    // Ensure log directory exists
     await Deno.mkdir(this.logDir, { recursive: true });
+    await rotateLogFiles(this.logDir, this.maxFiles);
+    await this.writer.initialize();
+    this.agentLogger = new AgentLogger(this.writer, this.correlationId);
 
-    // Rotate old log files if needed
-    await this.rotateLogFiles();
-
-    // Open log file for writing
-    this.file = await Deno.open(this.logPath, {
-      write: true,
-      create: true,
-      append: true,
-    });
-
-    // Write initial log entry
     await this.write("info", "Logger initialized", {
       logPath: this.logPath,
       maxFiles: this.maxFiles,
     });
   }
 
-  /**
-   * Write a log entry
-   *
-   * @param level - Log level
-   * @param message - Log message
-   * @param metadata - Optional metadata
-   */
   async write(
     level: LogLevel,
     message: string,
     metadata?: LogEntry["metadata"],
   ): Promise<void> {
-    if (!this.file) {
+    if (!this.agentLogger) {
       throw new Error("Logger not initialized. Call initialize() first.");
     }
-
-    // Increment step counter (starts at 0, first log will be step 1)
-    this.stepCounter++;
-
-    const entry: LogEntry = {
-      step: this.stepCounter,
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      correlationId: this.correlationId,
-      metadata,
-    };
-
-    const line = JSON.stringify(entry) + "\n";
-    const encoder = new TextEncoder();
-    await this.file.write(encoder.encode(line));
+    await this.agentLogger.write(level, message, metadata);
   }
 
-  /**
-   * Log a tool use event
-   *
-   * @param toolUse - Tool use information
-   */
   async logToolUse(toolUse: ToolUseInfo): Promise<void> {
     await this.write("tool_use", `Tool invoked: ${toolUse.toolName}`, {
       toolUse,
     });
   }
 
-  /**
-   * Log a tool result event
-   *
-   * @param toolResult - Tool result information
-   */
   async logToolResult(toolResult: ToolResultInfo): Promise<void> {
     const status = toolResult.success ? "completed" : "failed";
     await this.write("tool_result", `Tool ${status}`, {
@@ -131,68 +85,14 @@ export class Logger {
     });
   }
 
-  /**
-   * Close the log file
-   */
   async close(): Promise<void> {
-    if (this.file) {
+    if (this.agentLogger) {
       await this.write("info", "Logger closing");
-      this.file.close();
-      this.file = null;
+      await this.agentLogger.close();
+      this.agentLogger = null;
     }
   }
 
-  /**
-   * Rotate log files (delete oldest if count exceeds maxFiles)
-   */
-  private async rotateLogFiles(): Promise<void> {
-    const files: Array<{ name: string; mtime: Date | null }> = [];
-
-    // List all .jsonl files in log directory
-    try {
-      for await (const entry of Deno.readDir(this.logDir)) {
-        if (entry.isFile && entry.name.endsWith(".jsonl")) {
-          const filePath = join(this.logDir, entry.name);
-          const stat = await Deno.stat(filePath);
-          files.push({
-            name: entry.name,
-            mtime: stat.mtime,
-          });
-        }
-      }
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        // Directory doesn't exist yet, no rotation needed
-        return;
-      }
-      throw error;
-    }
-
-    // Sort by modification time (oldest first)
-    files.sort((a, b) => {
-      if (!a.mtime || !b.mtime) return 0;
-      return a.mtime.getTime() - b.mtime.getTime();
-    });
-
-    // Delete oldest files if count exceeds maxFiles
-    const filesToDelete = files.length - this.maxFiles + 1; // +1 for new file
-    if (filesToDelete > 0) {
-      const deletePromises = files.slice(0, filesToDelete).map(async (file) => {
-        const filePath = join(this.logDir, file.name);
-        try {
-          await Deno.remove(filePath);
-        } catch (error) {
-          // deno-lint-ignore no-console
-          console.warn(`Failed to delete old log file ${filePath}:`, error);
-        }
-      });
-      await Promise.all(deletePromises);
-    }
-  }
-
-  /**
-   * Get the current log file path
-   */
   getLogPath(): string {
     return this.logPath;
   }
@@ -200,12 +100,6 @@ export class Logger {
 
 /**
  * Create and initialize a logger
- *
- * @param logDir - Log directory
- * @param agentName - Agent name
- * @param correlationId - Optional correlation ID for tracing
- * @param maxFiles - Maximum log files to keep
- * @returns Initialized logger instance
  */
 export async function createLogger(
   logDir: string,
@@ -220,10 +114,6 @@ export async function createLogger(
 
 /**
  * Summarize tool input for logging (privacy-aware)
- *
- * @param toolName - Name of the tool
- * @param input - Tool input object
- * @returns Summarized string
  */
 export function summarizeToolInput(
   toolName: string,

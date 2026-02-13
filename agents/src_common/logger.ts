@@ -1,5 +1,8 @@
 /**
  * Logger for agent execution
+ *
+ * Sync-style logger backed by shared SyncJsonlWriter/SyncTextWriter.
+ * Preserves the original sync API (debug/info/warn/error).
  */
 
 import { ensureDir } from "@std/fs";
@@ -7,6 +10,11 @@ import { join } from "@std/path";
 import { isRecord, isString } from "./type-guards.ts";
 import { summarizeToolInput } from "../common/logger.ts";
 import { TRUNCATION } from "../shared/constants.ts";
+import {
+  type LogEntry as SharedLogEntry,
+  SyncJsonlWriter,
+  SyncTextWriter,
+} from "../shared/logging/log-writer.ts";
 
 export interface LoggerOptions {
   agentName: string;
@@ -25,7 +33,7 @@ export class Logger {
   private agentName: string;
   private directory: string;
   private format: "jsonl" | "text";
-  private file?: Deno.FsFile;
+  private writer?: SyncJsonlWriter | SyncTextWriter;
   private filePath?: string;
   private currentToolContext?: string;
 
@@ -51,11 +59,15 @@ export class Logger {
       `${this.agentName}-${timestamp}.${extension}`,
     );
 
-    this.file = await Deno.open(this.filePath, {
-      write: true,
-      create: true,
-      append: true,
-    });
+    if (this.format === "jsonl") {
+      const writer = new SyncJsonlWriter(this.filePath);
+      await writer.initialize();
+      this.writer = writer;
+    } else {
+      const writer = new SyncTextWriter(this.filePath);
+      await writer.initialize();
+      this.writer = writer;
+    }
   }
 
   debug(message: string, data?: Record<string, unknown>): void {
@@ -87,15 +99,9 @@ export class Logger {
     message: string,
     data?: Record<string, unknown>,
   ): void {
-    const entry: LogEntry = {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ...(data && { data }),
-    };
-
     // Console output
-    const prefix = `[${entry.timestamp}] [${level.toUpperCase()}]`;
+    const ts = new Date().toISOString();
+    const prefix = `[${ts}] [${level.toUpperCase()}]`;
     const consoleMessage = data
       ? `${prefix} ${message} ${JSON.stringify(data)}`
       : `${prefix} ${message}`;
@@ -119,26 +125,25 @@ export class Logger {
         break;
     }
 
-    // File output
-    this.writeToFile(entry);
+    // File output via shared writer
+    this.writeToFile(level, message, data);
   }
 
-  private writeToFile(entry: LogEntry): void {
-    if (!this.file) return;
+  private writeToFile(
+    level: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
+    if (!this.writer) return;
 
-    let line: string;
+    const entry: SharedLogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      ...(data && { metadata: data }),
+    };
 
-    if (this.format === "jsonl") {
-      line = JSON.stringify(entry) + "\n";
-    } else {
-      const prefix = `[${entry.timestamp}] [${entry.level.toUpperCase()}]`;
-      line = entry.data
-        ? `${prefix} ${entry.message} ${JSON.stringify(entry.data)}\n`
-        : `${prefix} ${entry.message}\n`;
-    }
-
-    const encoder = new TextEncoder();
-    this.file.writeSync(encoder.encode(line));
+    this.writer.writeSync(entry);
   }
 
   logSdkMessage(message: unknown): void {
@@ -162,7 +167,6 @@ export class Logger {
             tool: this.currentToolContext,
           });
         }
-        // Empty content without tool context is skipped
         break;
       }
       case "tool_use": {
@@ -245,9 +249,9 @@ export class Logger {
   }
 
   async close(): Promise<void> {
-    if (this.file) {
-      await this.file.close();
-      this.file = undefined;
+    if (this.writer) {
+      await this.writer.close();
+      this.writer = undefined;
     }
   }
 

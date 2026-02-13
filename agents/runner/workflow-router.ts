@@ -38,26 +38,10 @@ export interface RoutingResult {
 }
 
 /**
- * Error thrown when routing fails.
+ * Error thrown when routing fails - canonical source: shared/errors/flow-errors.ts
  */
-export class RoutingError extends Error {
-  public readonly stepId: string;
-  public readonly intent: string;
-  override readonly cause?: Error;
-
-  constructor(
-    message: string,
-    stepId: string,
-    intent: string,
-    cause?: Error,
-  ) {
-    super(message, { cause });
-    this.name = "RoutingError";
-    this.stepId = stepId;
-    this.intent = intent;
-    this.cause = cause;
-  }
-}
+import { RoutingError } from "../shared/errors/flow-errors.ts";
+export { RoutingError };
 
 /**
  * WorkflowRouter resolves next step from intent and transitions config.
