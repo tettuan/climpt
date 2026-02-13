@@ -19,7 +19,6 @@ import {
   type CompletionHandler,
   type IterationSummary,
 } from "./types.ts";
-import { IssueCompletionHandler } from "./issue.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
@@ -60,14 +59,6 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
       let handler: CompletionHandler;
 
       switch (condition.type) {
-        case "externalState": {
-          handler = new IssueCompletionHandler(
-            this.args.issue as number,
-            this.args.repository as string | undefined,
-          );
-          break;
-        }
-
         case "iterationBudget": {
           handler = new IterateCompletionHandler(
             config.maxIterations ??

@@ -10,20 +10,27 @@
  * - getAgentDir() -> use getAgentDir() from agents/config/loader.ts
  */
 
+// deno-lint-ignore-file no-console
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
 import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
+import { ConfigService } from "../shared/config-service.ts";
+
+/** Shared ConfigService instance */
+const configService = new ConfigService();
 
 /**
  * Load agent definition from .agent/{name}/agent.json
+ *
+ * @deprecated Use loadConfiguration() from agents/config/mod.ts instead.
  */
 export async function loadAgentDefinition(
   agentName: string,
   cwd: string = Deno.cwd(),
 ): Promise<AgentDefinition> {
-  const agentDir = join(cwd, PATHS.AGENT_DIR_PREFIX, agentName);
+  const agentDir = configService.getAgentDir(agentName, cwd);
   const definitionPath = join(agentDir, PATHS.AGENT_JSON);
 
   // Check if file exists
@@ -33,12 +40,10 @@ export async function loadAgentDefinition(
     throw new Error(`Agent definition not found: ${definitionPath}`);
   }
 
-  // Load and parse
-  const content = await Deno.readTextFile(definitionPath);
-  let definition: AgentDefinition;
-
+  // Load and parse via ConfigService
+  let raw: unknown;
   try {
-    definition = JSON.parse(content) as AgentDefinition;
+    raw = await configService.loadAgentDefinitionRaw(agentDir);
   } catch (error) {
     throw new Error(
       `Failed to parse agent definition: ${
@@ -48,7 +53,7 @@ export async function loadAgentDefinition(
   }
 
   // Apply defaults
-  definition = applyDefaults(definition);
+  const definition = applyDefaults(raw as AgentDefinition);
 
   // Validate
   const validation = validateAgentDefinition(definition);
@@ -60,7 +65,6 @@ export async function loadAgentDefinition(
 
   // Log warnings
   for (const warning of validation.warnings) {
-    // deno-lint-ignore no-console
     console.warn(`Warning: ${warning}`);
   }
 

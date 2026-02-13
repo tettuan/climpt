@@ -165,8 +165,10 @@ export class DefaultCompletionHandlerFactory
     args: Record<string, unknown>,
     agentDir: string,
   ): Promise<CompletionHandler> {
-    const { createCompletionHandler } = await import("../completion/mod.ts");
-    return createCompletionHandler(definition, args, agentDir);
+    const { createRegistryCompletionHandler } = await import(
+      "../completion/mod.ts"
+    );
+    return createRegistryCompletionHandler(definition, args, agentDir);
   }
 }
 

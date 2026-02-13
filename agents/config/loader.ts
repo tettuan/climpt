@@ -4,18 +4,22 @@
  * Responsibility: Load and parse agent.json only
  * Side effects: File reads
  *
+ * Delegates to ConfigService for actual file operations.
+ *
  * @pre path is an existing directory
  * @post return value is an unvalidated AgentDefinition
  */
 
-import { join } from "@std/path";
-import { PATHS } from "../shared/paths.ts";
+import { ConfigService } from "../shared/config-service.ts";
 
 /**
  * Error thrown when configuration loading fails - canonical source: shared/errors/env-errors.ts
  */
 import { ConfigurationLoadError } from "../shared/errors/env-errors.ts";
 export { ConfigurationLoadError };
+
+/** Shared ConfigService instance */
+const configService = new ConfigService();
 
 /**
  * Load agent definition from a directory.
@@ -26,24 +30,7 @@ export { ConfigurationLoadError };
  * @throws ConfigurationLoadError if file not found, invalid JSON, or read error
  */
 export async function loadRaw(agentDir: string): Promise<unknown> {
-  const configPath = join(agentDir, "agent.json");
-
-  try {
-    const content = await Deno.readTextFile(configPath);
-    return JSON.parse(content);
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      throw new ConfigurationLoadError(configPath, "File not found");
-    }
-    if (error instanceof SyntaxError) {
-      throw new ConfigurationLoadError(configPath, "Invalid JSON", error);
-    }
-    throw new ConfigurationLoadError(
-      configPath,
-      error instanceof Error ? error.message : String(error),
-      error instanceof Error ? error : undefined,
-    );
-  }
+  return await configService.loadAgentDefinitionRaw(agentDir);
 }
 
 /**
@@ -54,20 +41,7 @@ export async function loadRaw(agentDir: string): Promise<unknown> {
  * @throws ConfigurationLoadError if file exists but cannot be read/parsed
  */
 export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
-  const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
-
-  try {
-    const content = await Deno.readTextFile(registryPath);
-    return JSON.parse(content);
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return null; // Registry is optional
-    }
-    throw new ConfigurationLoadError(
-      registryPath,
-      error instanceof Error ? error.message : String(error),
-    );
-  }
+  return await configService.loadStepsRegistry(agentDir);
 }
 
 /**
@@ -78,5 +52,5 @@ export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
  * @returns Full path to agent directory
  */
 export function getAgentDir(agentName: string, baseDir: string): string {
-  return join(baseDir, PATHS.AGENT_DIR_PREFIX, agentName);
+  return configService.getAgentDir(agentName, baseDir);
 }

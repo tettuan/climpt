@@ -3,7 +3,7 @@
  *
  * Tests for the completion module including:
  * - Factory functions
- * - IssueCompletionHandler and IssueContractHandler
+ * - IssueCompletionHandler (contract-compliant)
  * - CompositeCompletionHandler (AND/OR logic)
  * - IterateCompletionHandler
  * - ManualCompletionHandler
@@ -13,11 +13,8 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import {
-  createCompletionHandlerFromOptions,
-  createCompletionHandlerV2,
-} from "./factory.ts";
-import { IssueCompletionHandler, IssueContractHandler } from "./issue.ts";
+import { createCompletionHandler } from "./factory.ts";
+import { IssueCompletionHandler } from "./issue.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
@@ -86,71 +83,21 @@ function createMockAgentDefinition(
 // Factory Tests
 // =============================================================================
 
-Deno.test("createCompletionHandlerFromOptions - creates IssueCompletionHandler", () => {
-  const handler = createCompletionHandlerFromOptions({
-    issue: 123,
-    repository: "owner/repo",
-  });
-
-  assertExists(handler);
-  assertEquals(handler.type, "externalState");
-  assertEquals((handler as IssueCompletionHandler).getIssueNumber(), 123);
-});
-
-Deno.test("createCompletionHandlerFromOptions - creates IterateCompletionHandler", () => {
-  const handler = createCompletionHandlerFromOptions({
-    maxIterations: 50,
-  });
-
-  assertExists(handler);
-  assertEquals(handler.type, "iterationBudget");
-});
-
-Deno.test("createCompletionHandlerFromOptions - creates ManualCompletionHandler", () => {
-  const handler = createCompletionHandlerFromOptions({
-    completionKeyword: "DONE",
-  });
-
-  assertExists(handler);
-  assertEquals(handler.type, "keywordSignal");
-});
-
-Deno.test("createCompletionHandlerFromOptions - defaults to IterateCompletionHandler", () => {
-  const handler = createCompletionHandlerFromOptions({});
-
-  assertExists(handler);
-  assertEquals(handler.type, "iterationBudget");
-});
-
-Deno.test("createCompletionHandlerFromOptions - issue takes priority over maxIterations", () => {
-  const handler = createCompletionHandlerFromOptions({
-    issue: 456,
-    maxIterations: 100,
-  });
-
-  assertExists(handler);
-  assertEquals(handler.type, "externalState");
-});
-
-// =============================================================================
-// Factory V2 Tests
-// =============================================================================
-
-Deno.test("createCompletionHandlerV2 - creates IssueContractHandler", () => {
-  const handler = createCompletionHandlerV2({
+Deno.test("createCompletionHandler - creates IssueCompletionHandler", () => {
+  const handler = createCompletionHandler({
     issue: { issueNumber: 789, repo: "test/repo" },
   });
 
   assertExists(handler);
   assertEquals(handler.type, "externalState");
-  assertEquals((handler as IssueContractHandler).getIssueNumber(), 789);
+  assertEquals((handler as IssueCompletionHandler).getIssueNumber(), 789);
 });
 
-Deno.test("createCompletionHandlerV2 - uses custom state checker", () => {
+Deno.test("createCompletionHandler - uses custom state checker", () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, true);
 
-  const handler = createCompletionHandlerV2({
+  const handler = createCompletionHandler({
     issue: { issueNumber: 123 },
     stateChecker: mockChecker,
   });
@@ -158,9 +105,9 @@ Deno.test("createCompletionHandlerV2 - uses custom state checker", () => {
   assertExists(handler);
 });
 
-Deno.test("createCompletionHandlerV2 - throws without valid type", () => {
+Deno.test("createCompletionHandler - throws without valid type", () => {
   try {
-    createCompletionHandlerV2({});
+    createCompletionHandler({});
     throw new Error("Should have thrown");
   } catch (error) {
     assertEquals(
@@ -174,135 +121,9 @@ Deno.test("createCompletionHandlerV2 - throws without valid type", () => {
 // IssueCompletionHandler Tests
 // =============================================================================
 
-Deno.test("IssueCompletionHandler - initialization", () => {
-  const handler = new IssueCompletionHandler(42);
-
-  assertEquals(handler.type, "externalState");
-  assertEquals(handler.getIssueNumber(), 42);
-});
-
-Deno.test("IssueCompletionHandler - initialization with repository", () => {
-  const handler = new IssueCompletionHandler(42, "owner/repo");
-
-  assertEquals(handler.getIssueNumber(), 42);
-});
-
-Deno.test("IssueCompletionHandler - buildCompletionCriteria", () => {
-  const handler = new IssueCompletionHandler(123);
-  const criteria = handler.buildCompletionCriteria();
-
-  assertEquals(criteria.short, "Close Issue #123");
-  assertEquals(criteria.detailed.includes("123"), true);
-});
-
-Deno.test("IssueCompletionHandler - buildCompletionCriteria with label-only", () => {
-  const handler = new IssueCompletionHandler(123);
-  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
-  const criteria = handler.buildCompletionCriteria();
-
-  assertEquals(criteria.short, "Complete phase for Issue #123");
-  assertEquals(criteria.detailed.includes("Do NOT close"), true);
-  assertEquals(criteria.detailed.includes("close it when done"), false);
-  assertEquals(criteria.detailed.includes("123"), true);
-});
-
-Deno.test("IssueCompletionHandler - buildCompletionCriteria with label-and-close", () => {
-  const handler = new IssueCompletionHandler(123);
-  handler.setGitHubConfig({ defaultClosureAction: "label-and-close" });
-  const criteria = handler.buildCompletionCriteria();
-
-  assertEquals(criteria.short, "Close Issue #123");
-  assertEquals(criteria.detailed.includes("close it when done"), true);
-});
-
-Deno.test("IssueCompletionHandler - buildCompletionCriteria with close (explicit)", () => {
-  const handler = new IssueCompletionHandler(123);
-  handler.setGitHubConfig({ defaultClosureAction: "close" });
-  const criteria = handler.buildCompletionCriteria();
-
-  assertEquals(criteria.short, "Close Issue #123");
-  assertEquals(criteria.detailed.includes("close it when done"), true);
-});
-
-Deno.test("IssueCompletionHandler - buildInitialPrompt with label-only", async () => {
-  const handler = new IssueCompletionHandler(999);
-  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
-  const prompt = await handler.buildInitialPrompt();
-
-  assertEquals(prompt.includes("your assigned phase only"), true);
-  assertEquals(prompt.includes("Do NOT close"), true);
-  assertEquals(prompt.includes('"action":"close"'), false);
-  assertEquals(prompt.includes('"action":"complete"'), true);
-});
-
-Deno.test("IssueCompletionHandler - buildContinuationPrompt with label-only", async () => {
-  const handler = new IssueCompletionHandler(555);
-  handler.setGitHubConfig({ defaultClosureAction: "label-only" });
-  const prompt = await handler.buildContinuationPrompt(3);
-
-  assertEquals(prompt.includes("Do NOT close"), true);
-  assertEquals(prompt.includes('"action":"close"'), false);
-  assertEquals(prompt.includes('"action":"complete"'), true);
-});
-
-Deno.test("IssueCompletionHandler - buildInitialPrompt without resolver", async () => {
-  const handler = new IssueCompletionHandler(999);
-  const prompt = await handler.buildInitialPrompt();
-
-  assertEquals(prompt.includes("999"), true);
-  assertEquals(prompt.includes("Issue"), true);
-});
-
-Deno.test("IssueCompletionHandler - buildContinuationPrompt", async () => {
-  const handler = new IssueCompletionHandler(555);
-  const prompt = await handler.buildContinuationPrompt(3);
-
-  assertEquals(prompt.includes("555"), true);
-  assertEquals(prompt.includes("3"), true);
-});
-
-Deno.test("IssueCompletionHandler - setCurrentSummary stores summary", () => {
-  const handler = new IssueCompletionHandler(100);
-
-  const summary = createMockIterationSummary({
-    structuredOutput: { status: "completed" },
-  });
-  handler.setCurrentSummary(summary);
-
-  const status = handler.getStructuredOutputStatus();
-  assertEquals(status.status, "completed");
-});
-
-Deno.test("IssueCompletionHandler - getStructuredOutputStatus extracts status", () => {
-  const handler = new IssueCompletionHandler(100);
-
-  // Without summary
-  let status = handler.getStructuredOutputStatus();
-  assertEquals(status.status, undefined);
-  assertEquals(status.nextAction, undefined);
-
-  // With summary containing status and next_action
-  const summary = createMockIterationSummary({
-    structuredOutput: {
-      status: "in_progress",
-      next_action: { action: "continue", reason: "more work needed" },
-    },
-  });
-  handler.setCurrentSummary(summary);
-
-  status = handler.getStructuredOutputStatus();
-  assertEquals(status.status, "in_progress");
-  assertEquals(status.nextAction, "continue");
-  assertEquals(status.nextActionReason, "more work needed");
-});
-
-// =============================================================================
-// IssueContractHandler Tests
-// =============================================================================
-
-Deno.test("IssueContractHandler - check without cached state returns incomplete", () => {
+Deno.test("IssueCompletionHandler - check without cached state returns incomplete", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -311,11 +132,11 @@ Deno.test("IssueContractHandler - check without cached state returns incomplete"
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueContractHandler - check with cached open state returns incomplete", async () => {
+Deno.test("IssueCompletionHandler - check with cached open state returns incomplete", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -325,11 +146,11 @@ Deno.test("IssueContractHandler - check with cached open state returns incomplet
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueContractHandler - check with cached closed state returns complete", async () => {
+Deno.test("IssueCompletionHandler - check with cached closed state returns complete", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, true);
 
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -340,11 +161,11 @@ Deno.test("IssueContractHandler - check with cached closed state returns complet
   assertEquals(result.reason?.includes("123"), true);
 });
 
-Deno.test("IssueContractHandler - refreshState respects interval", async () => {
+Deno.test("IssueCompletionHandler - refreshState respects interval", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123, checkInterval: 60000 },
     mockChecker,
   );
@@ -361,11 +182,11 @@ Deno.test("IssueContractHandler - refreshState respects interval", async () => {
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueContractHandler - forceRefreshState ignores interval", async () => {
+Deno.test("IssueCompletionHandler - forceRefreshState ignores interval", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123, checkInterval: 60000 },
     mockChecker,
   );
@@ -379,9 +200,9 @@ Deno.test("IssueContractHandler - forceRefreshState ignores interval", async () 
   assertEquals(result.complete, true);
 });
 
-Deno.test("IssueContractHandler - buildPrompt initial phase", () => {
+Deno.test("IssueCompletionHandler - buildPrompt initial phase", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 456 },
     mockChecker,
   );
@@ -390,9 +211,9 @@ Deno.test("IssueContractHandler - buildPrompt initial phase", () => {
   assertEquals(prompt.includes("456"), true);
 });
 
-Deno.test("IssueContractHandler - buildPrompt continuation phase", () => {
+Deno.test("IssueCompletionHandler - buildPrompt continuation phase", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 456 },
     mockChecker,
   );
@@ -402,9 +223,9 @@ Deno.test("IssueContractHandler - buildPrompt continuation phase", () => {
   assertEquals(prompt.includes("5"), true);
 });
 
-Deno.test("IssueContractHandler - getCompletionCriteria", () => {
+Deno.test("IssueCompletionHandler - getCompletionCriteria", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 789, repo: "test/repo" },
     mockChecker,
   );
@@ -414,9 +235,9 @@ Deno.test("IssueContractHandler - getCompletionCriteria", () => {
   assertEquals(criteria.detailed.includes("test/repo"), true);
 });
 
-Deno.test("IssueContractHandler - transition always returns complete", () => {
+Deno.test("IssueCompletionHandler - transition always returns closure", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -432,9 +253,9 @@ Deno.test("IssueContractHandler - transition always returns complete", () => {
   );
 });
 
-Deno.test("IssueContractHandler - getCachedState returns undefined initially", () => {
+Deno.test("IssueCompletionHandler - getCachedState returns undefined initially", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueContractHandler(
+  const handler = new IssueCompletionHandler(
     { issueNumber: 123 },
     mockChecker,
   );

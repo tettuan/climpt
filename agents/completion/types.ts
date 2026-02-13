@@ -259,6 +259,3 @@ export interface ContractCompletionHandler {
    */
   getCompletionCriteria(): { summary: string; detailed: string };
 }
-
-/** Alias for backwards compatibility */
-export type CompletionHandlerV2 = ContractCompletionHandler;

@@ -24,8 +24,8 @@
  * - **Types**: AgentDefinition, AgentResult, CompletionType, etc.
  */
 
-// === V2 Architecture (Recommended) ===
-// Main v2 exports from runner/mod.ts
+// === Architecture ===
+// Main exports from runner/mod.ts
 export * from "./runner/mod.ts";
 
 // Common types
@@ -68,7 +68,7 @@ export type {
   SandboxConfig,
   SandboxFilesystemConfig,
   SandboxNetworkConfig,
-  StepDefinition, // @deprecated: use FlowStepDefinition
+  StepDefinition,
   StepFlowResult,
   StepFlowState,
   StepHistoryEntry,
@@ -87,23 +87,24 @@ export {
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
 
-// === Completion (V1 - backward compatibility) ===
+// === Completion ===
 export {
   BaseCompletionHandler,
   type CompletionCriteria,
   type CompletionHandler,
   type CompletionHandlerOptions,
   createCompletionHandler,
-  createCompletionHandlerFromOptions,
+  createRegistryCompletionHandler,
   getRegisteredHandler,
   IssueCompletionHandler,
   IterateCompletionHandler,
   ManualCompletionHandler,
   registerCompletionHandler,
-} from "./src_mod.ts";
+} from "./completion/mod.ts";
 
 // === Init and Runtime ===
-export { initAgent, run } from "./src_mod.ts";
+export { initAgent } from "./init.ts";
+export { run } from "./cli.ts";
 
 // To run agents, use the unified runner:
 //   deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
