@@ -333,3 +333,4 @@ Phase 6: メモの後処理
 - [SEMANTIC-CHECK.md](SEMANTIC-CHECK.md) - 意味的整合性の詳細
 - [IMPLEMENTATION-CHECK.md](IMPLEMENTATION-CHECK.md) - 形式的チェック（補助）
 - `scripts/verify-docs.ts` - 自動チェック（補助）
+- `refactoring` skill - 構造的コード変更時の docs grep (Phase 4 Step 12)

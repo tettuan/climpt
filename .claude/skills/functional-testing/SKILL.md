@@ -133,3 +133,4 @@ Deno.test("tool isolation matches design", ...);
 - [ ] Flow paths match diagrams
 - [ ] Alignments reported (what works correctly)
 - [ ] No absolute paths in test code
+- [ ] After refactoring: Before/After contracts verified per `refactoring` skill Phase 2

@@ -83,6 +83,7 @@ flowchart LR
 | 9 | 技術的に明確→自分で判断し聞かない。方針判断→選択肢+推奨を提示（「どうしますか？」禁止） |
 | 10 | 分析・依存関係は Mermaid で analysis.md に図示。ToDo全体もMermaidでプロットし現在地を色分け |
 | 11 | 詳細手順は専門skillに委譲。方向不明時は `thinking-method` skill |
+| 12 | 構造的コード変更（モジュール移動・リネーム・旧パス削除）は `refactoring` skill を先に読む |
 
 ---
 
