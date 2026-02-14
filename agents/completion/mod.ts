@@ -33,13 +33,7 @@ export type {
 } from "./types.ts";
 
 // Factory functions
-export {
-  type CompletionHandlerOptions,
-  createCompletionHandler,
-  createRegistryCompletionHandler,
-  getRegisteredHandler,
-  registerCompletionHandler,
-} from "./factory.ts";
+export { createRegistryCompletionHandler } from "./factory.ts";
 
 // External State Checker
 export {
@@ -51,6 +45,12 @@ export {
 
 // Issue completion handler (contract-compliant)
 export { IssueCompletionHandler, type IssueContractConfig } from "./issue.ts";
+
+// External state adapter (bridges ContractCompletionHandler -> CompletionHandler)
+export {
+  type ExternalStateAdapterConfig,
+  ExternalStateCompletionAdapter,
+} from "./external-state-adapter.ts";
 
 // iterationBudget (was: iterate) - Complete after N iterations
 export { IterateCompletionHandler } from "./iterate.ts";

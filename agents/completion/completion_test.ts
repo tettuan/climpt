@@ -13,7 +13,8 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import { createCompletionHandler } from "./factory.ts";
+import { createRegistryCompletionHandler } from "./factory.ts";
+import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
 import { IssueCompletionHandler } from "./issue.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
@@ -78,44 +79,6 @@ function createMockAgentDefinition(
     },
   } as AgentDefinition;
 }
-
-// =============================================================================
-// Factory Tests
-// =============================================================================
-
-Deno.test("createCompletionHandler - creates IssueCompletionHandler", () => {
-  const handler = createCompletionHandler({
-    issue: { issueNumber: 789, repo: "test/repo" },
-  });
-
-  assertExists(handler);
-  assertEquals(handler.type, "externalState");
-  assertEquals((handler as IssueCompletionHandler).getIssueNumber(), 789);
-});
-
-Deno.test("createCompletionHandler - uses custom state checker", () => {
-  const mockChecker = new MockStateChecker();
-  mockChecker.setIssueState(123, true);
-
-  const handler = createCompletionHandler({
-    issue: { issueNumber: 123 },
-    stateChecker: mockChecker,
-  });
-
-  assertExists(handler);
-});
-
-Deno.test("createCompletionHandler - throws without valid type", () => {
-  try {
-    createCompletionHandler({});
-    throw new Error("Should have thrown");
-  } catch (error) {
-    assertEquals(
-      (error as Error).message.includes("No valid completion type"),
-      true,
-    );
-  }
-});
 
 // =============================================================================
 // IssueCompletionHandler Tests
@@ -1212,4 +1175,311 @@ Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", (
 
   assertEquals(uvVars["uv-result"], "success");
   assertEquals(uvVars["uv-count"], "10");
+});
+
+// =============================================================================
+// createRegistryCompletionHandler Tests
+// =============================================================================
+
+Deno.test("createRegistryCompletionHandler - externalState with args.issue returns adapter", async () => {
+  const definition: AgentDefinition = {
+    name: "test-agent",
+    displayName: "Test",
+    description: "Test",
+    version: "1.0.0",
+    prompts: {
+      registry: "steps_registry.json",
+      fallbackDir: "prompts/",
+    },
+    parameters: {},
+    logging: {
+      directory: "/tmp/claude/test-logs",
+      format: "jsonl",
+    },
+    github: {
+      enabled: true,
+      labels: {},
+      defaultClosureAction: "label-only",
+    },
+    behavior: {
+      systemPromptPath: "prompts/system.md",
+      completionType: "externalState",
+      completionConfig: {
+        maxIterations: 10,
+      },
+      allowedTools: ["Bash", "Read"],
+      permissionMode: "default",
+    },
+  };
+
+  const result = await createRegistryCompletionHandler(
+    definition,
+    { issue: 123, repository: "owner/repo" },
+    "/tmp/claude/test-agent",
+  );
+
+  assertExists(result);
+  assertEquals(result.type, "externalState");
+  // Verify it's an ExternalStateCompletionAdapter by checking adapter-specific method
+  assertEquals(
+    typeof (result as ExternalStateCompletionAdapter).buildInitialPrompt,
+    "function",
+  );
+  assertEquals(result instanceof ExternalStateCompletionAdapter, true);
+});
+
+Deno.test("createRegistryCompletionHandler - externalState without args.issue throws", async () => {
+  const definition: AgentDefinition = {
+    name: "test-agent",
+    displayName: "Test",
+    description: "Test",
+    version: "1.0.0",
+    prompts: {
+      registry: "steps_registry.json",
+      fallbackDir: "prompts/",
+    },
+    parameters: {},
+    logging: {
+      directory: "/tmp/claude/test-logs",
+      format: "jsonl",
+    },
+    github: {
+      enabled: true,
+      labels: {},
+      defaultClosureAction: "label-only",
+    },
+    behavior: {
+      systemPromptPath: "prompts/system.md",
+      completionType: "externalState",
+      completionConfig: {
+        maxIterations: 10,
+      },
+      allowedTools: ["Bash", "Read"],
+      permissionMode: "default",
+    },
+  };
+
+  try {
+    await createRegistryCompletionHandler(
+      definition,
+      {},
+      "/tmp/claude/test-agent",
+    );
+    throw new Error("Should have thrown");
+  } catch (error) {
+    assertEquals(
+      (error as Error).message.includes("requires --issue"),
+      true,
+    );
+  }
+});
+
+Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", async () => {
+  const definition: AgentDefinition = {
+    name: "test-agent",
+    displayName: "Test",
+    description: "Test",
+    version: "1.0.0",
+    prompts: {
+      registry: "steps_registry.json",
+      fallbackDir: "prompts/",
+    },
+    parameters: {},
+    logging: {
+      directory: "/tmp/claude/test-logs",
+      format: "jsonl",
+    },
+    github: {
+      enabled: true,
+      labels: {},
+      defaultClosureAction: "label-only",
+    },
+    behavior: {
+      systemPromptPath: "prompts/system.md",
+      completionType: "iterationBudget",
+      completionConfig: {
+        maxIterations: 5,
+      },
+      allowedTools: ["Bash", "Read"],
+      permissionMode: "default",
+    },
+  };
+
+  const result = await createRegistryCompletionHandler(
+    definition,
+    {},
+    "/tmp/claude/test-agent",
+  );
+
+  assertExists(result);
+  assertEquals(result.type, "iterationBudget");
+});
+
+// =============================================================================
+// ExternalStateCompletionAdapter Tests
+// =============================================================================
+
+Deno.test("ExternalStateCompletionAdapter - isComplete bridges refreshState and check", async () => {
+  const mockChecker = new MockStateChecker();
+  mockChecker.setIssueState(42, true);
+
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 42 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 42,
+  });
+
+  const complete = await adapter.isComplete();
+  assertEquals(complete, true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - isComplete returns false for open issue", async () => {
+  const mockChecker = new MockStateChecker();
+  // Issue 42 defaults to open (closed: false)
+
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 42 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 42,
+  });
+
+  const complete = await adapter.isComplete();
+  assertEquals(complete, false);
+});
+
+Deno.test("ExternalStateCompletionAdapter - buildCompletionCriteria maps fields", () => {
+  const mockChecker = new MockStateChecker();
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 77 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 77,
+  });
+
+  const criteria = adapter.buildCompletionCriteria();
+  assertExists(criteria.short);
+  assertExists(criteria.detailed);
+  assertEquals(criteria.short.includes("77"), true);
+  assertEquals(criteria.detailed.includes("77"), true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - getCompletionDescription when complete", async () => {
+  const mockChecker = new MockStateChecker();
+  mockChecker.setIssueState(99, true);
+
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 99 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 99,
+  });
+
+  // Populate cached state via isComplete (which calls refreshState + check)
+  await adapter.isComplete();
+
+  const desc = await adapter.getCompletionDescription();
+  assertEquals(desc.includes("99"), true);
+  assertEquals(desc.includes("closed"), true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - getCompletionDescription when not complete", async () => {
+  const mockChecker = new MockStateChecker();
+  // Issue 99 defaults to open
+
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 99 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 99,
+  });
+
+  const desc = await adapter.getCompletionDescription();
+  assertEquals(desc.includes("Waiting"), true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - buildInitialPrompt fallback", async () => {
+  const mockChecker = new MockStateChecker();
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 55 },
+    mockChecker,
+  );
+  // No promptResolver set - should fall back to handler.buildPrompt
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 55,
+  });
+
+  const prompt = await adapter.buildInitialPrompt();
+  assertEquals(prompt.includes("55"), true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - buildContinuationPrompt fallback", async () => {
+  const mockChecker = new MockStateChecker();
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 55 },
+    mockChecker,
+  );
+  // No promptResolver set - should fall back to handler.buildPrompt
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 55,
+  });
+
+  const prompt = await adapter.buildContinuationPrompt(3);
+  assertEquals(prompt.includes("55"), true);
+});
+
+Deno.test("ExternalStateCompletionAdapter - type is externalState", () => {
+  const mockChecker = new MockStateChecker();
+  const issueHandler = new IssueCompletionHandler(
+    { issueNumber: 1 },
+    mockChecker,
+  );
+  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+    issueNumber: 1,
+  });
+
+  assertEquals(adapter.type, "externalState");
+});
+
+// =============================================================================
+// Composite with externalState Tests
+// =============================================================================
+
+Deno.test("CompositeCompletionHandler - externalState condition with issue", async () => {
+  const definition = createMockAgentDefinition({
+    behavior: {
+      completionType: "composite",
+      completionConfig: {
+        operator: "or",
+        conditions: [
+          { type: "externalState", config: { maxIterations: 10 } },
+          { type: "iterationBudget", config: { maxIterations: 1 } },
+        ],
+      },
+    },
+  });
+
+  const handler = new CompositeCompletionHandler(
+    "or",
+    definition.behavior.completionConfig.conditions ?? [],
+    { issue: 42 },
+    "/test",
+    definition,
+  );
+
+  // The externalState handler uses GitHubStateChecker which will fail gracefully
+  // (returns closed: false). Set the iterationBudget handler's iteration to 1
+  // to make it complete.
+  // @ts-ignore - accessing private for testing
+  const iterateHandler = handler.handlers[1] as IterateCompletionHandler;
+  iterateHandler.setCurrentIteration(1);
+
+  const complete = await handler.isComplete();
+  assertEquals(complete, true);
 });

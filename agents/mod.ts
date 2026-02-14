@@ -92,14 +92,10 @@ export {
   BaseCompletionHandler,
   type CompletionCriteria,
   type CompletionHandler,
-  type CompletionHandlerOptions,
-  createCompletionHandler,
   createRegistryCompletionHandler,
-  getRegisteredHandler,
   IssueCompletionHandler,
   IterateCompletionHandler,
   ManualCompletionHandler,
-  registerCompletionHandler,
 } from "./completion/mod.ts";
 
 // === Init and Runtime ===
