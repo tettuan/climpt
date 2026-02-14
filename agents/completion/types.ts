@@ -11,6 +11,8 @@ import type {
   CompletionResult,
   StepResult,
 } from "../src_common/contracts.ts";
+import { TRUNCATION } from "../shared/constants.ts";
+import type { STEP_PHASE } from "../shared/step-phases.ts";
 
 // Re-export for convenience
 export type { CompletionType, IterationSummary };
@@ -70,8 +72,8 @@ export function formatIterationSummary(summary: IterationSummary): string {
     const lastResponse =
       summary.assistantResponses[summary.assistantResponses.length - 1];
     // Truncate if too long (keep it concise for context efficiency)
-    const truncated = lastResponse.length > 1000
-      ? lastResponse.substring(0, 1000) + "..."
+    const truncated = lastResponse.length > TRUNCATION.ASSISTANT_RESPONSE
+      ? lastResponse.substring(0, TRUNCATION.ASSISTANT_RESPONSE) + "..."
       : lastResponse;
     parts.push(`### What was done:\n${truncated}`);
   }
@@ -189,9 +191,9 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
     return summaries
       .map((s) => {
         const lastResponse = s.assistantResponses.slice(-1)[0] ?? "";
-        const summary = lastResponse.substring(0, 200);
+        const summary = lastResponse.substring(0, TRUNCATION.JSON_SUMMARY);
         return `Iteration ${s.iteration}: ${summary}${
-          lastResponse.length > 200 ? "..." : ""
+          lastResponse.length > TRUNCATION.JSON_SUMMARY ? "..." : ""
         }`;
       })
       .join("\n");
@@ -232,9 +234,9 @@ export interface ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    * @param result - Step execution result
-   * @returns Next step ID or "closure" to finish
+   * @returns Next step ID or STEP_PHASE.CLOSURE to finish
    */
-  transition(result: StepResult): string | "closure";
+  transition(result: StepResult): string | typeof STEP_PHASE.CLOSURE;
 
   /**
    * Build prompt for the given phase.
@@ -244,7 +246,10 @@ export interface ContractCompletionHandler {
    * @param iteration - Current iteration number
    * @returns Prompt string
    */
-  buildPrompt(phase: "initial" | "continuation", iteration: number): string;
+  buildPrompt(
+    phase: typeof STEP_PHASE.INITIAL | typeof STEP_PHASE.CONTINUATION,
+    iteration: number,
+  ): string;
 
   /**
    * Get completion criteria description.
@@ -254,6 +259,3 @@ export interface ContractCompletionHandler {
    */
   getCompletionCriteria(): { summary: string; detailed: string };
 }
-
-/** Alias for backwards compatibility */
-export type CompletionHandlerV2 = ContractCompletionHandler;

@@ -21,7 +21,10 @@ main() {
   if [[ -z "$output" ]]; then
     error "FAIL: decide-branch produced empty output"; return 1
   fi
-  success "PASS: decide-branch produced non-empty output"
+  if ! echo "$output" | grep -qiE "(branch|fix/|feature/|bugfix/|working)"; then
+    error "FAIL: decide-branch output missing branch-related content"; return 1
+  fi
+  success "PASS: decide-branch output contains branch-related content"
 }
 
 main "$@"

@@ -6,23 +6,28 @@
   "type": "object",
   "x-template": "registry.template.json",
   "x-template-items": "command.template.json",
-  "required": ["c1", "c2", "c3", "title"],
+  "required": [
+    "c1",
+    "c2",
+    "c3",
+    "title"
+  ],
   "additionalProperties": false,
   "properties": {
     "c1": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
+      "pattern": "^[a-z]+(-[a-z]+)?$",
       "description": "Domain: What domain this acts on (e.g., git, meta, test)"
     },
     "c2": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
+      "pattern": "^[a-z]+(-[a-z]+)?$",
       "description": "Action: What is done (e.g., group-commit, review)"
     },
     "c3": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(-[a-z0-9]+)?$",
-      "description": "Target: What is acted upon (e.g., unstaged-changes, c3l-command)"
+      "pattern": "^[a-z]+(-[a-z]+)?$",
+      "description": "Target: What is acted upon (e.g., unstaged-changes, pull-request)"
     },
     "title": {
       "type": "string",
@@ -38,7 +43,9 @@
     },
     "c3l_version": {
       "type": "string",
-      "enum": ["0.5"],
+      "enum": [
+        "0.5"
+      ],
       "default": "0.5",
       "description": "C3L specification version"
     },
@@ -48,14 +55,22 @@
       "properties": {
         "edition": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["default"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "default"
+          ],
           "description": "Available edition variants"
         },
         "adaptation": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["default"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "default"
+          ],
           "description": "Available adaptation levels"
         },
         "file": {

@@ -1,17 +1,17 @@
 /**
  * Configuration loading utilities
+ *
+ * Delegates file I/O to ConfigService for centralized config loading.
  */
 
-import { join } from "@std/path";
 import { deepMerge } from "./deep-merge.ts";
 import type { AgentDefinition } from "./types.ts";
+import { ConfigService, type RuntimeConfig } from "../shared/config-service.ts";
 
-export interface RuntimeConfig {
-  cwd?: string;
-  debug?: boolean;
-  plugins?: string[];
-  environment?: Record<string, string>;
-}
+export type { RuntimeConfig };
+
+/** Shared ConfigService instance */
+const configService = new ConfigService();
 
 /**
  * Load runtime configuration from config.json in agent directory
@@ -19,15 +19,7 @@ export interface RuntimeConfig {
 export async function loadRuntimeConfig(
   agentDir: string,
 ): Promise<RuntimeConfig> {
-  const configPath = join(agentDir, "config.json");
-
-  try {
-    const content = await Deno.readTextFile(configPath);
-    return JSON.parse(content) as RuntimeConfig;
-  } catch {
-    // Config file is optional
-    return {};
-  }
+  return await configService.loadRuntimeConfig(agentDir);
 }
 
 /**
@@ -75,22 +67,5 @@ export function resolveAgentPaths(
   definition: AgentDefinition,
   agentDir: string,
 ): AgentDefinition {
-  return {
-    ...definition,
-    behavior: {
-      ...definition.behavior,
-      systemPromptPath: join(agentDir, definition.behavior.systemPromptPath),
-    },
-    prompts: {
-      ...definition.prompts,
-      registry: join(agentDir, definition.prompts.registry),
-      fallbackDir: join(agentDir, definition.prompts.fallbackDir),
-    },
-    logging: {
-      ...definition.logging,
-      directory: definition.logging.directory.startsWith("/")
-        ? definition.logging.directory
-        : join(agentDir, definition.logging.directory),
-    },
-  };
+  return configService.resolveAgentPaths(definition, agentDir);
 }

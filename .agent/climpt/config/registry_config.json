@@ -1,7 +1,5 @@
 {
   "registries": {
-    "climpt": ".agent/climpt/registry.json",
-    "iterator": ".agent/iterator/registry.json",
-    "reviewer": ".agent/reviewer/registry.json"
+    "climpt": ".agent/climpt/registry.json"
   }
 }

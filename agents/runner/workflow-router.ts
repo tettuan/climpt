@@ -21,6 +21,7 @@ import {
   STEP_KIND_ALLOWED_INTENTS,
 } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
 
 /**
  * Result of routing decision.
@@ -37,26 +38,10 @@ export interface RoutingResult {
 }
 
 /**
- * Error thrown when routing fails.
+ * Error thrown when routing fails - canonical source: shared/errors/flow-errors.ts
  */
-export class RoutingError extends Error {
-  public readonly stepId: string;
-  public readonly intent: string;
-  override readonly cause?: Error;
-
-  constructor(
-    message: string,
-    stepId: string,
-    intent: string,
-    cause?: Error,
-  ) {
-    super(message, { cause });
-    this.name = "RoutingError";
-    this.stepId = stepId;
-    this.intent = intent;
-    this.cause = cause;
-  }
-}
+import { RoutingError } from "../shared/errors/flow-errors.ts";
+export { RoutingError };
 
 /**
  * WorkflowRouter resolves next step from intent and transitions config.
@@ -112,7 +97,7 @@ export class WorkflowRouter {
     // Handle repeat - stay on current step, except for closure steps
     // Per design 08_step_flow_design.md Section 3.2: closure repeat routes to work step via transitions
     if (intent === "repeat") {
-      if (stepDef?.c2 === "closure" && stepDef.transitions?.repeat) {
+      if (stepDef?.c2 === STEP_PHASE.CLOSURE && stepDef.transitions?.repeat) {
         const transitionRule = stepDef.transitions.repeat;
         const resolved = this.resolveTransitionRule(
           transitionRule,
@@ -288,8 +273,10 @@ export class WorkflowRouter {
     const parts = currentStepId.split(".");
 
     // Default: initial.* -> continuation.*
-    if (parts[0] === "initial" && parts.length >= 2) {
-      const continuationStep = `continuation.${parts.slice(1).join(".")}`;
+    if (parts[0] === STEP_PHASE.INITIAL && parts.length >= 2) {
+      const continuationStep = `${STEP_PHASE.CONTINUATION}.${
+        parts.slice(1).join(".")
+      }`;
       if (this.validateStepExists(continuationStep)) {
         return {
           nextStepId: continuationStep,
@@ -375,7 +362,7 @@ export class WorkflowRouter {
     // Warn (but allow) handoff from initial steps per 08_step_flow_design.md Section 7.3:
     // "Runtime logs will warn when handoff is emitted from initial.* step"
     let initialStepWarning: string | undefined;
-    if (stepDef?.c2 === "initial") {
+    if (stepDef?.c2 === STEP_PHASE.INITIAL) {
       initialStepWarning = `Handoff from initial step '${currentStepId}'. ` +
         `Consider using 'next' to proceed to continuation steps first. ` +
         `See design/08_step_flow_design.md Section 7.3.`;

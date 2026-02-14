@@ -1,10 +1,20 @@
 /**
  * Logger for agent execution
+ *
+ * Sync-style logger backed by shared SyncJsonlWriter/SyncTextWriter.
+ * Preserves the original sync API (debug/info/warn/error).
  */
 
 import { ensureDir } from "@std/fs";
 import { join } from "@std/path";
 import { isRecord, isString } from "./type-guards.ts";
+import { summarizeToolInput } from "../common/logger.ts";
+import { TRUNCATION } from "../shared/constants.ts";
+import {
+  type LogEntry as SharedLogEntry,
+  SyncJsonlWriter,
+  SyncTextWriter,
+} from "../shared/logging/log-writer.ts";
 
 export interface LoggerOptions {
   agentName: string;
@@ -23,7 +33,7 @@ export class Logger {
   private agentName: string;
   private directory: string;
   private format: "jsonl" | "text";
-  private file?: Deno.FsFile;
+  private writer?: SyncJsonlWriter | SyncTextWriter;
   private filePath?: string;
   private currentToolContext?: string;
 
@@ -49,11 +59,15 @@ export class Logger {
       `${this.agentName}-${timestamp}.${extension}`,
     );
 
-    this.file = await Deno.open(this.filePath, {
-      write: true,
-      create: true,
-      append: true,
-    });
+    if (this.format === "jsonl") {
+      const writer = new SyncJsonlWriter(this.filePath);
+      await writer.initialize();
+      this.writer = writer;
+    } else {
+      const writer = new SyncTextWriter(this.filePath);
+      await writer.initialize();
+      this.writer = writer;
+    }
   }
 
   debug(message: string, data?: Record<string, unknown>): void {
@@ -85,15 +99,9 @@ export class Logger {
     message: string,
     data?: Record<string, unknown>,
   ): void {
-    const entry: LogEntry = {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ...(data && { data }),
-    };
-
     // Console output
-    const prefix = `[${entry.timestamp}] [${level.toUpperCase()}]`;
+    const ts = new Date().toISOString();
+    const prefix = `[${ts}] [${level.toUpperCase()}]`;
     const consoleMessage = data
       ? `${prefix} ${message} ${JSON.stringify(data)}`
       : `${prefix} ${message}`;
@@ -117,26 +125,25 @@ export class Logger {
         break;
     }
 
-    // File output
-    this.writeToFile(entry);
+    // File output via shared writer
+    this.writeToFile(level, message, data);
   }
 
-  private writeToFile(entry: LogEntry): void {
-    if (!this.file) return;
+  private writeToFile(
+    level: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
+    if (!this.writer) return;
 
-    let line: string;
+    const entry: SharedLogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      ...(data && { metadata: data }),
+    };
 
-    if (this.format === "jsonl") {
-      line = JSON.stringify(entry) + "\n";
-    } else {
-      const prefix = `[${entry.timestamp}] [${entry.level.toUpperCase()}]`;
-      line = entry.data
-        ? `${prefix} ${entry.message} ${JSON.stringify(entry.data)}\n`
-        : `${prefix} ${entry.message}\n`;
-    }
-
-    const encoder = new TextEncoder();
-    this.file.writeSync(encoder.encode(line));
+    this.writer.writeSync(entry);
   }
 
   logSdkMessage(message: unknown): void {
@@ -153,14 +160,13 @@ export class Logger {
         const content = this.extractTextContent(msg.message);
         if (content.length > 0) {
           this.debug("Assistant response", {
-            content: content.substring(0, 200),
+            content: content.substring(0, TRUNCATION.JSON_SUMMARY),
           });
         } else if (this.currentToolContext) {
           this.debug("Assistant streaming (tool)", {
             tool: this.currentToolContext,
           });
         }
-        // Empty content without tool context is skipped
         break;
       }
       case "tool_use": {
@@ -171,7 +177,7 @@ export class Logger {
         this.info("Tool use", {
           tool: toolName,
           toolUseId,
-          inputSummary: this.summarizeToolInput(toolName, input),
+          inputSummary: summarizeToolInput(toolName, input),
         });
         break;
       }
@@ -212,7 +218,7 @@ export class Logger {
         const userContent = this.extractTextContent(msg.message);
         if (userContent.length > 0) {
           this.debug("User prompt", {
-            content: userContent.substring(0, 500),
+            content: userContent.substring(0, TRUNCATION.USER_CONTENT),
           });
         }
         break;
@@ -242,45 +248,10 @@ export class Logger {
     return JSON.stringify(message);
   }
 
-  /**
-   * Summarize tool input for logging (privacy-aware)
-   */
-  private summarizeToolInput(
-    toolName: string,
-    input?: Record<string, unknown>,
-  ): string {
-    if (!input) return "";
-
-    switch (toolName) {
-      case "Read":
-        return `file_path: ${input.file_path}`;
-      case "Write":
-        return `file_path: ${input.file_path}, content: ${
-          String(input.content || "").length
-        } chars`;
-      case "Edit":
-        return `file_path: ${input.file_path}`;
-      case "Bash":
-        return `command: ${String(input.command || "").substring(0, 100)}...`;
-      case "Glob":
-        return `pattern: ${input.pattern}`;
-      case "Grep":
-        return `pattern: ${input.pattern}, path: ${input.path || "."}`;
-      case "Skill":
-        return `skill: ${input.skill}${
-          input.args ? `, args: ${input.args}` : ""
-        }`;
-      case "Task":
-        return `subagent: ${input.subagent_type}, desc: ${input.description}`;
-      default:
-        return JSON.stringify(input).substring(0, 200);
-    }
-  }
-
   async close(): Promise<void> {
-    if (this.file) {
-      await this.file.close();
-      this.file = undefined;
+    if (this.writer) {
+      await this.writer.close();
+      this.writer = undefined;
     }
   }
 

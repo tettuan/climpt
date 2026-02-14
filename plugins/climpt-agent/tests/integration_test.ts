@@ -7,7 +7,7 @@
  * @module climpt-plugins/tests/integration_test
  */
 
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 
 import { handleMessage } from "../skills/delegate-climpt-agent/scripts/climpt-agent/sub-agent.ts";
 import type { Logger } from "../skills/delegate-climpt-agent/scripts/climpt-agent/logger.ts";

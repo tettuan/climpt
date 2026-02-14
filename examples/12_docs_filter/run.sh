@@ -27,14 +27,52 @@ main() {
   fi
   success "PASS: --category=guides installed ${file_count} files"
 
-  # Show other filter options (display only)
-  info "2. Other filter options (display only):"
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs install ./docs --lang=ja
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs install ./docs --mode=flatten
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs install ./docs --mode=single
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs install ./docs --mode=preserve
+  # 2. Filter by language
+  info "2. Install docs with --lang=ja"
+  local tmpdir_lang
+  tmpdir_lang=$(mktemp -d)
+  show_cmd "deno run -A jsr:@aidevtool/climpt/docs install ${tmpdir_lang} --lang=ja"
+  deno run -A jsr:@aidevtool/climpt/docs install "$tmpdir_lang" --lang=ja 2>&1 \
+    || { error "FAIL: docs install --lang=ja failed"; rm -rf "$tmpdir_lang"; return 1; }
+  local lang_count
+  lang_count=$(find "$tmpdir_lang" -type f | wc -l | tr -d ' ')
+  rm -rf "$tmpdir_lang"
+  if [[ "$lang_count" -eq 0 ]]; then
+    error "FAIL: --lang=ja produced no files"; return 1
+  fi
+  success "PASS: --lang=ja installed ${lang_count} files"
 
-  success "PASS: filter documentation verification complete"
+  # 3. Install docs with --mode=flatten
+  info "3. Install docs with --mode=flatten"
+  local tmpdir_flatten
+  tmpdir_flatten=$(mktemp -d)
+  show_cmd "deno run -A jsr:@aidevtool/climpt/docs install ${tmpdir_flatten} --mode=flatten"
+  deno run -A jsr:@aidevtool/climpt/docs install "$tmpdir_flatten" --mode=flatten 2>&1 \
+    || { error "FAIL: docs install --mode=flatten failed"; rm -rf "$tmpdir_flatten"; return 1; }
+  local flatten_count
+  flatten_count=$(find "$tmpdir_flatten" -type f | wc -l | tr -d ' ')
+  rm -rf "$tmpdir_flatten"
+  if [[ "$flatten_count" -eq 0 ]]; then
+    error "FAIL: --mode=flatten produced no files"; return 1
+  fi
+  success "PASS: --mode=flatten installed ${flatten_count} files"
+
+  # 4. Install docs with --mode=single
+  info "4. Install docs with --mode=single"
+  local tmpdir_single
+  tmpdir_single=$(mktemp -d)
+  show_cmd "deno run -A jsr:@aidevtool/climpt/docs install ${tmpdir_single} --mode=single"
+  deno run -A jsr:@aidevtool/climpt/docs install "$tmpdir_single" --mode=single 2>&1 \
+    || { error "FAIL: docs install --mode=single failed"; rm -rf "$tmpdir_single"; return 1; }
+  local single_count
+  single_count=$(find "$tmpdir_single" -type f | wc -l | tr -d ' ')
+  rm -rf "$tmpdir_single"
+  if [[ "$single_count" -eq 0 ]]; then
+    error "FAIL: --mode=single produced no files"; return 1
+  fi
+  success "PASS: --mode=single installed ${single_count} files"
+
+  success "PASS: all doc filter modes verified"
 }
 
 main "$@"

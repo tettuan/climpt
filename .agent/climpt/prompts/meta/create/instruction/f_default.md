@@ -54,37 +54,55 @@ EOF
 
 The stdin input is used to determine c1 (domain), c2 (action), c3 (target) and generate the appropriate instruction file structure.
 
-## Received Input
+## Step 1: Find and Review C3L Specification
 
-{input_text}
+Before creating a new instruction, locate the latest C3L specification:
 
-## Step 1: Name the Command (C3L Compliant)
-
-**Use a Sub-Agent** to derive C3L-compliant naming in a separate context:
-
-```
-Task tool with subagent_type="general-purpose":
-  prompt: |
-    Execute `climpt-meta name c3l-command` with the following input:
-
-    {input_text}
-
-    Return the c1, c2, c3 naming result with rationale.
+```bash
+# Find the latest C3L specification document
+find docs -name "c3l_specification*.md" -o -name "c3l*.md" | head -1
+# Or search for C3L documentation
+grep -rl "C3L.*Specification" docs/
 ```
 
-The Sub-Agent executes `climpt-meta name c3l-command` which:
-1. Analyzes the input requirements
-2. References C3L specification v0.5
-3. Validates pattern matching (`^[a-z0-9]+$`, `^[a-z0-9]+(-[a-z0-9]+)?$`)
-4. Validates natural English phrasing
-5. Outputs the appropriate c1, c2, c3 naming with rationale
+Review the specification to understand:
+- c1: Domain identifier (e.g., `git`, `meta`, `code`)
+- c2: Action format (verb or verb-modifier)
+- c3: Target format (object or object-context)
 
-The output provides:
-- **c1 (Domain)**: Where the command operates (e.g., `git`, `meta`, `code`)
-- **c2 (Action)**: What is done (e.g., `build`, `review`, `group-commit`)
-- **c3 (Target)**: What is acted upon (e.g., `frontmatter`, `pull-request`)
+## Step 2: Naming Convention (C3L Compliant)
 
-## Step 2: Create Prompt File
+### c1 (Domain)
+
+Format: `<domain>`
+
+Common domains: `git`, `meta`, `code`, `data`, `infra`, `sec`, `test`, `docs`
+
+The agent is specified separately in registry and MCP calls (e.g., `agent: climpt`).
+
+Pattern: `^[a-z]+$`
+
+### c2 (Action)
+
+Format: `<verb>` or `<verb>-<modifier>`
+
+Examples:
+- Single: `build`, `review`, `merge`, `fetch`, `analyze`, `create`
+- Compound: `group-commit`, `find-oldest`, `build-robust`
+
+Pattern: `^[a-z]+(-[a-z]+)?$`
+
+### c3 (Target)
+
+Format: `<object>` or `<object>-<context>`
+
+Examples:
+- Single: `frontmatter`, `branch`, `service`, `instruction`
+- Compound: `pull-request`, `unstaged-changes`, `api-service`
+
+Pattern: `^[a-z]+(-[a-z]+)?$`
+
+## Step 3: Create Prompt File
 
 ### Directory Structure
 
@@ -133,7 +151,7 @@ mkdir -p .agent/climpt/prompts/<domain>/<c2>/<c3>/
 # Write the instruction content in markdown format
 ```
 
-## Step 3: Verify/Create Executable
+## Step 4: Verify/Create Executable
 
 Check if executable exists for the domain:
 
@@ -161,7 +179,7 @@ EOF
 chmod +x .deno/bin/climpt-<domain>
 ```
 
-## Step 4: Verify/Update Configuration Files
+## Step 5: Verify/Update Configuration Files
 
 ### App Configuration (.agent/climpt/config/<domain>-app.yml)
 
@@ -209,7 +227,7 @@ params:
       pattern: "^(<c3>)$"
 ```
 
-## Step 5: Regenerate Registry
+## Step 6: Regenerate Registry
 
 After creating all files, regenerate the registry:
 
@@ -219,7 +237,7 @@ deno task generate-registry
 
 This updates `.agent/climpt/registry.json` with the new command.
 
-## Step 6: Verify Tests
+## Step 7: Verify Tests
 
 Run tests to ensure the new instruction is properly configured:
 

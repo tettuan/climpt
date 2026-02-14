@@ -11,21 +11,36 @@ main() {
   check_climpt_init
 
   # Verify review-agent task exists in deno.json
-  if ! (cd "$REPO_ROOT" && deno task 2>&1) | grep -q "review-agent"; then
+  local task_list
+  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
+  if ! echo "$task_list" | grep -q "review-agent"; then
     error "FAIL: 'review-agent' task not found in deno.json"; return 1
   fi
   success "PASS: review-agent task exists"
 
-  # Run reviewer agent on a project
-  info "Starting reviewer agent for project #5..."
+  # Run reviewer agent on a synthetic project (no API key needed)
+  info "Starting reviewer agent for project #5 (synthetic pipeline test)..."
   show_cmd deno task review-agent --project 5
+  local exit_code=0
   output=$( (cd "$REPO_ROOT" && deno task review-agent --project 5) 2>&1) \
-    || warn "review-agent exited with non-zero (may be expected)"
+    || exit_code=$?
+
+  # Crash detection: import/startup errors are always fatal
+  if echo "$output" | grep -qE "error: (Module not found|Cannot resolve|Uncaught)"; then
+    error "FAIL: review-agent crashed with import/startup error"
+    echo "$output" | grep -E "error:" | head -5 >&2
+    return 1
+  fi
 
   if [[ -z "$output" ]]; then
     error "FAIL: review-agent produced no output"; return 1
   fi
-  success "PASS: review-agent produced non-empty output"
+
+  # Content validation: output should mention agent-related terms
+  if ! echo "$output" | grep -qiE "(reviewer|agent|project|step|running|anthropic|api)"; then
+    error "FAIL: output lacks agent-related content"; return 1
+  fi
+  success "PASS: review-agent ran without crash (exit_code=${exit_code})"
 }
 
 main "$@"

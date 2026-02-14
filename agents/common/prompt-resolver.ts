@@ -10,6 +10,7 @@
  */
 
 import { join } from "@std/path";
+import { PATHS } from "../shared/paths.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 
@@ -124,7 +125,7 @@ export class PromptResolver {
     this.workingDir = options.workingDir ?? Deno.cwd();
     this.userPromptsBase = options.userPromptsBase ??
       registry.userPromptsBase ??
-      `.agent/${registry.agentId}/prompts`;
+      `${PATHS.AGENT_DIR_PREFIX}/${registry.agentId}/${PATHS.PROMPTS_DIR}`;
     this.stripFrontmatter = options.stripFrontmatter ?? true;
     this.allowMissingVariables = options.allowMissingVariables ?? false;
 

@@ -9,16 +9,20 @@ main() {
 
   local schema_file="${REPO_ROOT}/agents/schemas/agent.schema.json"
 
-  if [[ -f "$schema_file" ]]; then
-    info "Schema file: agents/schemas/agent.schema.json"
-    show_cmd cat "$schema_file"
-    cat "$schema_file"
-  else
-    warn "Schema file not found at ${schema_file}"
-    info "Expected schema location: agents/schemas/agent.schema.json"
+  if [[ ! -f "$schema_file" ]]; then
+    error "FAIL: schema file not found at ${schema_file}"; return 1
   fi
 
-  success "Agent schema display complete."
+  info "Schema file: agents/schemas/agent.schema.json"
+  show_cmd cat "$schema_file"
+  cat "$schema_file"
+
+  jq empty "$schema_file" || { error "FAIL: schema is not valid JSON"; return 1; }
+  if ! grep -q '"behavior"' "$schema_file"; then
+    error "FAIL: schema missing 'behavior' property"; return 1
+  fi
+
+  success "PASS: agent schema is valid JSON with expected properties"
 }
 
 main "$@"

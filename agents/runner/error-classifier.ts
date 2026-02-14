@@ -5,6 +5,8 @@
  * Used to provide appropriate error handling and user feedback.
  */
 
+import { RETRY_DELAYS } from "../shared/constants.ts";
+
 /**
  * Error categories for SDK errors
  */
@@ -228,8 +230,8 @@ export function isRateLimitError(error: Error | string): boolean {
  */
 export function calculateBackoff(
   attempt: number,
-  baseMs = 5000,
-  maxMs = 60000,
+  baseMs = RETRY_DELAYS.BACKOFF_BASE_DELAY_MS,
+  maxMs = RETRY_DELAYS.BACKOFF_MAX_DELAY_MS,
 ): number {
   const delay = baseMs * Math.pow(2, attempt);
   return Math.min(delay, maxMs);

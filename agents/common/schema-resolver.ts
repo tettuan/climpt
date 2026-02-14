@@ -20,41 +20,13 @@ import type { PromptStepDefinition, StepKind } from "./step-registry.ts";
 import { inferStepKind } from "./step-registry.ts";
 
 /**
- * Error thrown when a JSON Pointer path cannot be resolved in a schema.
- * This is a fatal error that should halt the Flow loop.
+ * Schema errors - canonical source: shared/errors/flow-errors.ts
  */
-export class SchemaPointerError extends Error {
-  readonly pointer: string;
-  readonly file: string;
-
-  constructor(pointer: string, file: string) {
-    super(
-      `No schema pointer "${pointer}" found in ${file}. ` +
-        `Ensure the pointer uses JSON Pointer format (e.g., "#/definitions/stepId") ` +
-        `and that the referenced definition exists in the schema file.`,
-    );
-    this.name = "SchemaPointerError";
-    this.pointer = pointer;
-    this.file = file;
-  }
-}
-
-/**
- * Error thrown when a schema identifier is malformed.
- * Examples: "##/definitions/foo" (double hash), "//" (empty path segment)
- */
-export class MalformedSchemaIdentifierError extends Error {
-  readonly identifier: string;
-
-  constructor(identifier: string, reason: string) {
-    super(
-      `Malformed schema identifier "${identifier}": ${reason}. ` +
-        `Use standard JSON Pointer format (e.g., "#/definitions/stepId").`,
-    );
-    this.name = "MalformedSchemaIdentifierError";
-    this.identifier = identifier;
-  }
-}
+import {
+  MalformedSchemaIdentifierError,
+  SchemaPointerError,
+} from "../shared/errors/flow-errors.ts";
+export { MalformedSchemaIdentifierError, SchemaPointerError };
 
 /**
  * Schema resolver with file caching

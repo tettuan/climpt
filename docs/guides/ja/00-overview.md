@@ -15,12 +15,13 @@ Climpt と Iterate Agent を使って、GitHub Issue や Project
 
 本ガイドは段階的に環境を構築できるよう、以下のファイルに分かれています：
 
-| 章 | ファイル                                                   | 内容                           |
-| -- | ---------------------------------------------------------- | ------------------------------ |
-| 1  | [01-prerequisites.md](./01-prerequisites.md)               | 前提条件（Deno、gh CLI）       |
-| 2  | [02-climpt-setup.md](./02-climpt-setup.md)                 | Climpt のインストールと設定    |
-| 3  | [03-instruction-creation.md](./03-instruction-creation.md) | 指示書（プロンプト）の作成方法 |
-| 4  | [04-iterate-agent-setup.md](./04-iterate-agent-setup.md)   | Iterate Agent の設定と実行     |
+| 章  | ファイル                                                   | 内容                              |
+| --- | ---------------------------------------------------------- | --------------------------------- |
+| 0.1 | [00-1-concepts.md](./00-1-concepts.md)                     | **Agent の基本概念（何を/なぜ）** |
+| 1   | [01-prerequisites.md](./01-prerequisites.md)               | 前提条件（Deno、gh CLI）          |
+| 2   | [02-climpt-setup.md](./02-climpt-setup.md)                 | Climpt のインストールと設定       |
+| 3   | [03-instruction-creation.md](./03-instruction-creation.md) | 指示書（プロンプト）の作成方法    |
+| 4   | [04-iterate-agent-setup.md](./04-iterate-agent-setup.md)   | Iterate Agent の設定と実行        |
 
 ### 詳細解説（上級者向け）
 

@@ -4,6 +4,8 @@
 
 import { join } from "@std/path";
 import { ensureDir } from "@std/fs";
+import { PATHS } from "./shared/paths.ts";
+import { STEP_PHASE } from "./shared/step-phases.ts";
 
 /**
  * Initialize a new agent with template files
@@ -23,11 +25,11 @@ export async function initAgent(
     );
   }
 
-  const agentDir = join(cwd, ".agent", agentName);
+  const agentDir = join(cwd, PATHS.AGENT_DIR_PREFIX, agentName);
 
   // Check if agent already exists
   try {
-    await Deno.stat(join(agentDir, "agent.json"));
+    await Deno.stat(join(agentDir, PATHS.AGENT_JSON));
     throw new Error(`Agent '${agentName}' already exists at ${agentDir}`);
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) {
@@ -37,9 +39,19 @@ export async function initAgent(
 
   // Create directory structure
   await ensureDir(agentDir);
-  await ensureDir(join(agentDir, "prompts"));
-  await ensureDir(join(agentDir, "prompts", "steps", "initial", "manual"));
-  await ensureDir(join(agentDir, "prompts", "steps", "continuation", "manual"));
+  await ensureDir(join(agentDir, PATHS.PROMPTS_DIR));
+  await ensureDir(
+    join(agentDir, PATHS.PROMPTS_DIR, "steps", STEP_PHASE.INITIAL, "manual"),
+  );
+  await ensureDir(
+    join(
+      agentDir,
+      PATHS.PROMPTS_DIR,
+      "steps",
+      STEP_PHASE.CONTINUATION,
+      "manual",
+    ),
+  );
 
   // Create agent.json
   // Note: $schema uses relative path from .agent/{name}/ to project root
@@ -50,7 +62,7 @@ export async function initAgent(
     displayName: formatDisplayName(agentName),
     description: `${formatDisplayName(agentName)} agent`,
     behavior: {
-      systemPromptPath: "prompts/system.md",
+      systemPromptPath: `${PATHS.PROMPTS_DIR}/system.md`,
       completionType: "keywordSignal",
       completionConfig: {
         completionKeyword: "TASK_COMPLETE",
@@ -67,8 +79,8 @@ export async function initAgent(
       },
     },
     prompts: {
-      registry: "steps_registry.json",
-      fallbackDir: "prompts/",
+      registry: PATHS.STEPS_REGISTRY,
+      fallbackDir: `${PATHS.PROMPTS_DIR}/`,
     },
     actions: {
       enabled: false,
@@ -89,7 +101,7 @@ export async function initAgent(
   };
 
   await Deno.writeTextFile(
-    join(agentDir, "agent.json"),
+    join(agentDir, PATHS.AGENT_JSON),
     JSON.stringify(agentJson, null, 2),
   );
 
@@ -98,7 +110,7 @@ export async function initAgent(
   // For stepMachine completion type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
     version: "1.0.0",
-    basePath: "prompts",
+    basePath: PATHS.PROMPTS_DIR,
     steps: {
       // System prompt: uses direct path
       system: {
@@ -110,7 +122,7 @@ export async function initAgent(
       initial_manual: {
         name: "Manual Initial Prompt",
         c1: "steps",
-        c2: "initial",
+        c2: STEP_PHASE.INITIAL,
         c3: "manual",
         edition: "default",
         variables: ["uv-topic", "uv-completion_keyword"],
@@ -119,7 +131,7 @@ export async function initAgent(
       continuation_manual: {
         name: "Manual Continuation Prompt",
         c1: "steps",
-        c2: "continuation",
+        c2: STEP_PHASE.CONTINUATION,
         c3: "manual",
         edition: "default",
         variables: ["uv-iteration", "uv-completion_keyword"],
@@ -128,7 +140,7 @@ export async function initAgent(
   };
 
   await Deno.writeTextFile(
-    join(agentDir, "steps_registry.json"),
+    join(agentDir, PATHS.STEPS_REGISTRY),
     JSON.stringify(stepsRegistry, null, 2),
   );
 
@@ -150,7 +162,7 @@ You are operating as the **${agentName}** agent.
 `;
 
   await Deno.writeTextFile(
-    join(agentDir, "prompts", "system.md"),
+    join(agentDir, PATHS.PROMPTS_DIR, "system.md"),
     systemPrompt,
   );
 
@@ -166,7 +178,14 @@ Begin the session. When complete, output \`{uv-completion_keyword}\`.
 `;
 
   await Deno.writeTextFile(
-    join(agentDir, "prompts", "steps", "initial", "manual", "f_default.md"),
+    join(
+      agentDir,
+      PATHS.PROMPTS_DIR,
+      "steps",
+      STEP_PHASE.INITIAL,
+      "manual",
+      "f_default.md",
+    ),
     initialPrompt,
   );
 
@@ -181,9 +200,9 @@ When complete, output \`{uv-completion_keyword}\`.
   await Deno.writeTextFile(
     join(
       agentDir,
-      "prompts",
+      PATHS.PROMPTS_DIR,
       "steps",
-      "continuation",
+      STEP_PHASE.CONTINUATION,
       "manual",
       "f_default.md",
     ),
@@ -195,15 +214,22 @@ When complete, output \`{uv-completion_keyword}\`.
   // deno-lint-ignore no-console
   console.log("\nFiles created:");
   // deno-lint-ignore no-console
-  console.log(`  - ${join(agentDir, "agent.json")}`);
+  console.log(`  - ${join(agentDir, PATHS.AGENT_JSON)}`);
   // deno-lint-ignore no-console
-  console.log(`  - ${join(agentDir, "steps_registry.json")}`);
+  console.log(`  - ${join(agentDir, PATHS.STEPS_REGISTRY)}`);
   // deno-lint-ignore no-console
-  console.log(`  - ${join(agentDir, "prompts", "system.md")}`);
+  console.log(`  - ${join(agentDir, PATHS.PROMPTS_DIR, "system.md")}`);
   // deno-lint-ignore no-console
   console.log(
     `  - ${
-      join(agentDir, "prompts", "steps", "initial", "manual", "f_default.md")
+      join(
+        agentDir,
+        PATHS.PROMPTS_DIR,
+        "steps",
+        STEP_PHASE.INITIAL,
+        "manual",
+        "f_default.md",
+      )
     }`,
   );
   // deno-lint-ignore no-console
@@ -211,9 +237,9 @@ When complete, output \`{uv-completion_keyword}\`.
     `  - ${
       join(
         agentDir,
-        "prompts",
+        PATHS.PROMPTS_DIR,
         "steps",
-        "continuation",
+        STEP_PHASE.CONTINUATION,
         "manual",
         "f_default.md",
       )
