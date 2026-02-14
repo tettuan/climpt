@@ -446,6 +446,19 @@ export class AgentRunner {
           ctx,
         );
 
+        // Warn if structured output was expected but not returned (all iterations)
+        if (
+          routingResult === null &&
+          !summary.schemaResolutionFailed &&
+          !summary.structuredOutput &&
+          this.completionManager.hasFlowRoutingEnabled()
+        ) {
+          ctx.logger.warn(
+            `[StructuredOutput] No structured output returned for iteration ${iteration} on step "${stepId}". ` +
+              `LLM may have returned natural language instead of JSON.`,
+          );
+        }
+
         // R4: Fail-fast if iteration > 1 and no intent produced (no routing)
         if (
           iteration > 1 &&

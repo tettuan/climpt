@@ -144,6 +144,9 @@ export class SchemaManager {
     this._schemaResolutionFailed = false;
 
     if (!stepsRegistry) {
+      logger.warn(
+        `[SchemaResolution] Steps registry not available, cannot load schema for step "${stepId}"`,
+      );
       return undefined;
     }
 
@@ -151,7 +154,9 @@ export class SchemaManager {
       | PromptStepDefinition
       | undefined;
     if (!stepDef?.outputSchemaRef) {
-      logger.debug(`No outputSchemaRef for step: ${stepId}`);
+      logger.warn(
+        `[SchemaResolution] No outputSchemaRef for step "${stepId}" - structured output will not be enforced`,
+      );
       return undefined;
     }
 
@@ -253,7 +258,11 @@ export class SchemaManager {
       return schema;
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        logger.debug(`Schema file not found: ${join(schemasDir, ref.file)}`);
+        logger.warn(
+          `[SchemaResolution] Schema file not found: ${
+            join(schemasDir, ref.file)
+          } - structured output will not be enforced`,
+        );
         return undefined;
       }
       // Re-throw SchemaPointerError to trigger fail-fast behavior

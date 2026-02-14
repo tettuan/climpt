@@ -236,6 +236,15 @@ export class QueryExecutor {
 
         this.processMessage(message, summary);
       }
+
+      // Detect missing structuredOutput when outputFormat was configured
+      if (queryOptions.outputFormat && !summary.structuredOutput) {
+        ctx.logger.warn(
+          `[StructuredOutput] outputFormat was set but no structured_output received from SDK. ` +
+            `The LLM may have returned natural language instead of JSON. ` +
+            `Step: ${stepId ?? "unknown"}`,
+        );
+      }
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message

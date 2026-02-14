@@ -81,6 +81,10 @@ When you return `closing` intent, the **Boundary Hook** will automatically:
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.
 
+## CRITICAL: Return Structured JSON
+
+Your response MUST be valid JSON matching the closure step's schema. DO NOT return natural language text or summaries. Return the structured JSON with `status`, `next_action`, `summary`, `validation`, and `evidence` fields.
+
 ---
 
 **This is a closure step.** Return `"closing"` to complete, or `"repeat"` to
