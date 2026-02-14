@@ -53,7 +53,9 @@ registerHandler(
     const issueNumber = args.issue as number | undefined;
     if (issueNumber === undefined || issueNumber === null) {
       throw new Error(
-        "externalState completion type requires --issue parameter",
+        "externalState completion type requires --issue parameter. " +
+          'Ensure agent.json declares issue in "parameters": ' +
+          '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
       );
     }
 
