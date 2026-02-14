@@ -54,11 +54,15 @@ async function setupTempAgent(agentName: string): Promise<string> {
   // Minimal steps_registry.json
   const registry = {
     agentId: agentName,
+    version: "1.0.0",
     c1: "steps",
     userPromptsBase: `.agent/${agentName}/prompts`,
+    entryStep: "initial.issue",
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
+        name: "Issue Initial Prompt",
+        stepKind: "work",
         c2: "initial",
         c3: "issue",
         edition: "default",
@@ -186,21 +190,18 @@ You are beginning work on Issue #{uv-issue_number}.
 `,
   );
 
-  // When step prompt file exists, the resolver tries breakdown (C3L) first.
-  // Since breakdown requires the full CLI, we demonstrate the concept by
-  // showing the file content with manual variable substitution.
-  const content = await Deno.readTextFile(join(stepDir, "f_default.md"));
+  const resolver3 = await PromptResolverAdapter.create({
+    agentName: "example-agent",
+    agentDir,
+    registryPath: "steps_registry.json",
+    systemPromptPath: "prompts/system.md",
+  });
 
-  // Simulate what the resolver does: strip frontmatter, substitute variables
-  const stripped = content.replace(/^---[\s\S]*?---\n/, "").trim();
-  const substituted = stripped.replace(/\{uv-issue_number\}/g, "42");
+  const result3 = await resolver3.resolveWithMetadata("initial.issue", {
+    "uv-issue_number": "42",
+  });
 
-  console.log(`  source     : user (from file)`);
-  console.log(`  promptPath : steps/initial/issue/f_default.md`);
-  console.log(`  content    :`);
-  for (const line of substituted.split("\n").slice(0, 8)) {
-    console.log(`    ${line}`);
-  }
+  printResult(result3);
 
   // --- Scenario 4: Step prompt file MISSING ---
   header("Scenario 4: Step prompt file MISSING (fallback)");
@@ -208,31 +209,28 @@ You are beginning work on Issue #{uv-issue_number}.
 
   await Deno.remove(join(stepDir, "f_default.md"));
 
-  // Show what the fallback template looks like
-  const fallbackTemplate = `# GitHub Issue #42
+  const resolver4 = await PromptResolverAdapter.create({
+    agentName: "example-agent",
+    agentDir,
+    registryPath: "steps_registry.json",
+    systemPromptPath: "prompts/system.md",
+  });
 
-Work on completing the requirements in Issue #42.
+  const result4 = await resolver4.resolveWithMetadata("initial.issue", {
+    "uv-issue_number": "42",
+  });
 
-Review the issue, understand the requirements, and begin implementation.
-
-When all requirements are satisfied, close the issue using \`gh issue close 42\`.`;
-
-  console.log(`  source     : fallback (embedded template)`);
-  console.log(`  promptPath : (none)`);
-  console.log(`  content    :`);
-  for (const line of fallbackTemplate.split("\n").slice(0, 8)) {
-    console.log(`    ${line}`);
-  }
+  printResult(result4);
 
   // --- Comparison ---
   header("Comparison: Step prompt present vs absent");
   console.log(
-    '  With file    -> source="user", custom workflow (TDD, branch naming)',
+    `  With file    -> source="${result3.source}", has custom workflow`,
   );
-  console.log('  Without file -> source="fallback", generic issue template');
   console.log(
-    "  The user file controls agent behavior via prompt instructions.",
+    `  Without file -> source="${result4.source}", fallback template`,
   );
+  console.log(`  Content differs: ${result3.content !== result4.content}`);
 }
 
 // ---------------------------------------------------------------------------

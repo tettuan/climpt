@@ -12,16 +12,19 @@ main() {
   check_deno
   check_climpt_init
 
-  # 1. Name a C3L command from requirements
-  info "1. Derive C3L command naming (meta name c3l-command)"
-  show_cmd 'echo "Create a command to analyze code complexity" | deno run -A jsr:@aidevtool/climpt name c3l-command --config=meta'
+  # 1. Create instruction from requirements
+  info "1. Create instruction from requirements (meta create instruction)"
+  show_cmd 'echo "Create a command to analyze code complexity" | deno run -A jsr:@aidevtool/climpt create instruction --config=meta'
   output=$(echo "Create a command to analyze code complexity" \
-    | ${CLIMPT} name c3l-command --config=meta 2>&1) \
-    || { error "FAIL: name c3l-command failed"; return 1; }
+    | ${CLIMPT} create instruction --config=meta 2>&1) \
+    || { error "FAIL: create instruction failed"; return 1; }
   if [[ -z "$output" ]]; then
-    error "FAIL: name c3l-command produced empty output"; return 1
+    error "FAIL: create instruction produced empty output"; return 1
   fi
-  success "PASS: name c3l-command produced non-empty output"
+  if ! echo "$output" | grep -qiE "(#|instruction|command|analyze)"; then
+    error "FAIL: create instruction output missing content marker"; return 1
+  fi
+  success "PASS: create instruction output contains expected content"
 
   # 2. Build frontmatter from a description
   info "2. Build prompt frontmatter (meta build frontmatter)"
@@ -32,7 +35,10 @@ main() {
   if [[ -z "$output" ]]; then
     error "FAIL: build frontmatter produced empty output"; return 1
   fi
-  success "PASS: build frontmatter produced non-empty output"
+  if ! echo "$output" | grep -q "\-\-\-"; then
+    error "FAIL: build frontmatter output missing YAML delimiter '---'"; return 1
+  fi
+  success "PASS: build frontmatter output contains YAML delimiter"
 
   # 3. Create an instruction file
   info "3. Create instruction (meta create instruction)"
@@ -43,7 +49,10 @@ main() {
   if [[ -z "$output" ]]; then
     error "FAIL: create instruction produced empty output"; return 1
   fi
-  success "PASS: create instruction produced non-empty output"
+  if ! echo "$output" | grep -qiE "(#|instruction|schema)"; then
+    error "FAIL: create instruction output missing content marker"; return 1
+  fi
+  success "PASS: create instruction output contains expected content"
 }
 
 main "$@"

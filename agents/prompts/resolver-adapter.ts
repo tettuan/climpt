@@ -60,6 +60,7 @@ export interface PromptResolverOptions {
 export class PromptResolverAdapter {
   private inner: NewPromptResolver;
   private fallbackProvider: DefaultFallbackProvider;
+  private registry: StepRegistry;
   private promptLogger?: PromptLogger;
   private systemPromptPath?: string;
   private agentDir: string;
@@ -67,11 +68,13 @@ export class PromptResolverAdapter {
   private constructor(
     inner: NewPromptResolver,
     fallbackProvider: DefaultFallbackProvider,
+    registry: StepRegistry,
     agentDir: string,
     systemPromptPath?: string,
   ) {
     this.inner = inner;
     this.fallbackProvider = fallbackProvider;
+    this.registry = registry;
     this.agentDir = agentDir;
     this.systemPromptPath = systemPromptPath;
   }
@@ -110,6 +113,7 @@ export class PromptResolverAdapter {
     return new PromptResolverAdapter(
       inner,
       fallbackProvider,
+      registry,
       options.agentDir,
       options.systemPromptPath,
     );
@@ -165,8 +169,11 @@ export class PromptResolverAdapter {
       return result;
     } catch {
       // Fall back to old DefaultFallbackProvider for known step IDs
+      // Use fallbackKey from registry (underscore format) instead of stepId (dot format)
       try {
-        const content = this.fallbackProvider.get(stepId, variables);
+        const step = this.registry.steps[stepId];
+        const fallbackKey = step?.fallbackKey ?? stepId;
+        const content = this.fallbackProvider.get(fallbackKey, variables);
         const result: PromptResolutionResult = {
           content,
           stepId,

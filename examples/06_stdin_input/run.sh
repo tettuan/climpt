@@ -24,19 +24,21 @@ main() {
 
   # 2. Multi-line here-document
   info "2. Multi-line input via here-document"
-  show_cmd 'deno run -A jsr:@aidevtool/climpt name c3l-command --config=meta <<EOF'
-  output=$(${CLIMPT} name c3l-command --config=meta 2>&1 <<'EOF'
+  show_cmd 'deno run -A jsr:@aidevtool/climpt build frontmatter --config=meta <<EOF'
+  output=$(${CLIMPT} build frontmatter --config=meta 2>&1 <<'EOF'
 Build a feature to validate user email addresses.
-Requirements:
-- Check format with regex
-- Verify domain exists
-- Return validation result
+Domain: code
+Action: validate
+Target: email-format
 EOF
   ) || { error "FAIL: here-document command failed"; return 1; }
   if [[ -z "$output" ]]; then
     error "FAIL: here-document produced empty output"; return 1
   fi
-  success "PASS: here-document produced non-empty output"
+  if ! echo "$output" | grep -q "\-\-\-"; then
+    error "FAIL: here-document output missing YAML delimiter '---'"; return 1
+  fi
+  success "PASS: here-document produced YAML frontmatter output"
 
   # 3. Pipe from a command output
   info "3. Pipe command output (git log) into a prompt"
