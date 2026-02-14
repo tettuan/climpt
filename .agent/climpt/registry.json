@@ -171,7 +171,7 @@
       {
         "c1": "meta",
         "c2": "name",
-        "c3": "c3l-command",
+        "c3": "",
         "description": "Derive C3L-compliant command naming (c1, c2, c3) from requirements using C3L specification v0.5",
         "usage": "climpt-meta name c3l-command",
         "options": {

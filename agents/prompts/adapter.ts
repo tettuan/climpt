@@ -26,14 +26,10 @@ export interface PromptAdapter {
 }
 
 /**
- * Error thrown when a prompt is not found.
+ * Error thrown when a prompt is not found - canonical source: shared/errors/env-errors.ts
  */
-export class PromptNotFoundError extends Error {
-  constructor(public readonly path: string) {
-    super(`Prompt not found: ${path}`);
-    this.name = "PromptNotFoundError";
-  }
-}
+import { PromptNotFoundError } from "../shared/errors/env-errors.ts";
+export { PromptNotFoundError };
 
 /**
  * File-based prompt adapter.

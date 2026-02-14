@@ -2,7 +2,6 @@
  * Completion handlers module exports
  *
  * This module provides completion handlers for different completion strategies.
- * Handlers use behavior-based naming with aliases for legacy names.
  *
  * Completion types:
  * - externalState: Complete when external resource reaches target state
@@ -16,7 +15,7 @@
  *
  * Contract-compliant Interfaces:
  * - ContractCompletionHandler: Interface with no side effects in check()
- * - IssueContractHandler: Issue handler using external state checker
+ * - IssueCompletionHandler: Issue handler using external state checker
  * - ExternalStateChecker: Interface for external state retrieval
  */
 
@@ -28,7 +27,6 @@ export type { CompletionType, IterationSummary } from "./types.ts";
 // Contract-compliant types
 export type {
   CheckContext,
-  CompletionHandlerV2,
   CompletionResult,
   ContractCompletionHandler,
   StepResult,
@@ -38,15 +36,9 @@ export type {
 export {
   type CompletionHandlerOptions,
   createCompletionHandler,
-  createCompletionHandlerFromOptions,
+  createRegistryCompletionHandler,
   getRegisteredHandler,
   registerCompletionHandler,
-} from "./factory.ts";
-
-// Contract-compliant factory
-export {
-  type CompletionHandlerV2Options,
-  createCompletionHandlerV2,
 } from "./factory.ts";
 
 // External State Checker
@@ -57,16 +49,8 @@ export {
   MockStateChecker,
 } from "./external-state-checker.ts";
 
-// Issue completion handlers
-export { IssueCompletionHandler, type ProjectContext } from "./issue.ts";
-
-// Contract-compliant issue handler
-export {
-  type IssueCompletionConfigV2,
-  IssueCompletionHandlerV2,
-  type IssueContractConfig,
-  IssueContractHandler,
-} from "./issue.ts";
+// Issue completion handler (contract-compliant)
+export { IssueCompletionHandler, type IssueContractConfig } from "./issue.ts";
 
 // iterationBudget (was: iterate) - Complete after N iterations
 export { IterateCompletionHandler } from "./iterate.ts";

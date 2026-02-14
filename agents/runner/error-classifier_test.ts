@@ -2,7 +2,7 @@
  * Tests for error-classifier.ts
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert@1";
+import { assertEquals, assertExists } from "@std/assert";
 import {
   classifySdkError,
   isApiError,

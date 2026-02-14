@@ -19,10 +19,21 @@ main() {
   fi
   success "PASS: MCP package resolved successfully"
 
-  # The actual server is interactive (stdio transport), so we skip starting it
-  info "The server communicates over stdio (used by Claude Desktop, Cursor, etc.)."
-  info "To start: deno run -A jsr:@aidevtool/climpt/mcp"
-  info "Skipping interactive server start in E2E mode."
+  # 2. Verify server starts without crash (stdin EOF causes clean exit)
+  info "Verifying MCP server starts without crash..."
+  show_cmd 'deno run -A jsr:@aidevtool/climpt/mcp < /dev/null'
+  local mcp_exit=0
+  local mcp_output
+  mcp_output=$(deno run -A jsr:@aidevtool/climpt/mcp < /dev/null 2>&1) \
+    || mcp_exit=$?
+
+  # Import/startup errors are fatal regardless of exit code
+  if echo "$mcp_output" | grep -qE "error: (Module not found|Cannot resolve|Uncaught)"; then
+    error "FAIL: MCP server crashed with import/startup error"
+    echo "$mcp_output" | grep -E "error:" | head -5 >&2
+    return 1
+  fi
+  success "PASS: MCP server started and exited cleanly (exit_code=${mcp_exit})"
 }
 
 main "$@"

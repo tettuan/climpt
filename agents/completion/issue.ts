@@ -1,664 +1,27 @@
 /**
  * Issue completion handler - completes when a GitHub Issue is closed
  *
- * This module provides two implementations:
- * - IssueCompletionHandler: Original implementation (external calls in isComplete)
- * - IssueContractHandler: Contract-compliant (external calls separated)
+ * Contract-compliant implementation that separates external state checking
+ * from completion judgment logic.
  *
  * @refactored Phase 6 - External state checking separated to ExternalStateChecker
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import {
-  BaseCompletionHandler,
-  type CheckContext,
-  type CompletionCriteria,
-  type CompletionResult,
-  type CompletionType,
-  type ContractCompletionHandler,
-  type IterationSummary,
-  type StepResult,
+import type {
+  CheckContext,
+  CompletionResult,
+  CompletionType,
+  ContractCompletionHandler,
+  StepResult,
 } from "./types.ts";
 import type {
   ExternalStateChecker,
   IssueState,
 } from "./external-state-checker.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
 
 /**
- * Project context for when Issue is part of a Project
- */
-export interface ProjectContext {
-  projectNumber: number;
-  projectTitle: string;
-  projectDescription: string | null;
-  projectReadme: string | null;
-  totalIssues: number;
-  currentIndex: number;
-  remainingIssueTitles: string[];
-  labelFilter?: string;
-}
-
-/**
- * Label configuration for issue completion
- */
-export interface LabelConfig {
-  add?: string[];
-  remove?: string[];
-}
-
-/**
- * GitHub configuration for issue handler
- */
-export interface GitHubLabelConfig {
-  labels?: {
-    completion?: LabelConfig;
-  };
-  defaultClosureAction?: "close" | "label-only" | "label-and-close";
-}
-
-export class IssueCompletionHandler extends BaseCompletionHandler {
-  readonly type = "externalState" as const;
-  private promptResolver?: PromptResolver;
-  private projectContext?: ProjectContext;
-  private repository?: string;
-  private cwd?: string;
-  private lastSummary?: IterationSummary;
-  private githubConfig?: GitHubLabelConfig;
-
-  constructor(
-    private readonly issueNumber: number,
-    repository?: string,
-  ) {
-    super();
-    this.repository = repository;
-  }
-
-  /**
-   * Set working directory for command execution.
-   * Required for correct behavior in worktree mode.
-   */
-  setCwd(cwd: string): void {
-    this.cwd = cwd;
-  }
-
-  /**
-   * Set prompt resolver for externalized prompts
-   */
-  setPromptResolver(resolver: PromptResolver): void {
-    this.promptResolver = resolver;
-  }
-
-  /**
-   * Set project context (for Project mode delegation)
-   */
-  setProjectContext(context: ProjectContext): void {
-    this.projectContext = context;
-  }
-
-  /**
-   * Set GitHub configuration for labels and closure action
-   */
-  setGitHubConfig(config: GitHubLabelConfig): void {
-    this.githubConfig = config;
-  }
-
-  /**
-   * Get the issue number
-   */
-  getIssueNumber(): number {
-    return this.issueNumber;
-  }
-
-  async buildInitialPrompt(): Promise<string> {
-    if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial_issue", {
-        "uv-issue_number": String(this.issueNumber),
-      });
-    }
-
-    // Fallback inline prompt
-    const projectSection = this.projectContext
-      ? this.buildProjectContextSection()
-      : "";
-
-    const action = this.getClosureAction();
-    const issueActionsSection = action === "label-only"
-      ? `## Issue Actions
-
-### Report Progress
-\`\`\`issue-action
-{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- What was done"}
-\`\`\`
-
-### Complete Your Phase
-\`\`\`issue-action
-{"action":"complete","issue":${this.issueNumber},"body":"## Phase Complete\\n- What was analyzed/produced"}
-\`\`\`
-
-**Important**: Do NOT close this issue. Only complete your assigned phase.
-The next agent in the pipeline will continue the work.`
-      : `## Issue Actions
-
-### Report Progress
-\`\`\`issue-action
-{"action":"progress","issue":${this.issueNumber},"body":"## Progress\\n- What was done"}
-\`\`\`
-
-### Complete Issue
-\`\`\`issue-action
-{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented"}
-\`\`\``;
-
-    return `
-${projectSection}## Current Task: Issue #${this.issueNumber}
-
-Work on GitHub Issue #${this.issueNumber}${
-      action === "label-only"
-        ? " (your assigned phase only)"
-        : " until it is closed"
-    }.
-
-## Working Style
-
-1. **Use TodoWrite** to track tasks
-2. **Delegate complex work** to sub-agents
-3. **Report progress** via issue-action blocks
-
-${issueActionsSection}
-
-Start by analyzing the issue requirements and creating a task breakdown.
-    `.trim();
-  }
-
-  private buildProjectContextSection(): string {
-    if (!this.projectContext) return "";
-
-    const ctx = this.projectContext;
-    const labelInfo = ctx.labelFilter
-      ? ` (filtered by: "${ctx.labelFilter}")`
-      : "";
-
-    return `## Project Overview
-
-**Project #${ctx.projectNumber}**: ${ctx.projectTitle}${labelInfo}
-**Progress**: Issue ${ctx.currentIndex} of ${ctx.totalIssues}
-
----
-
-`;
-  }
-
-  async buildContinuationPrompt(
-    completedIterations: number,
-    previousSummary?: IterationSummary,
-  ): Promise<string> {
-    // Store the summary for use in isComplete()
-    if (previousSummary) {
-      this.lastSummary = previousSummary;
-    }
-
-    if (this.promptResolver) {
-      const summaryText = previousSummary
-        ? this.formatIterationSummary(previousSummary)
-        : "";
-      return await this.promptResolver.resolve("continuation_issue", {
-        "uv-iteration": String(completedIterations),
-        "uv-issue_number": String(this.issueNumber),
-        "uv-previous_summary": summaryText,
-      });
-    }
-
-    // Fallback inline prompt
-    const summarySection = previousSummary
-      ? this.formatIterationSummary(previousSummary)
-      : "";
-
-    const action = this.getClosureAction();
-    const completionInstruction = action === "label-only"
-      ? `4. Use issue-action to report progress or mark phase complete when done
-
-\`\`\`issue-action
-{"action":"complete","issue":${this.issueNumber},"body":"## Phase Complete\\n- What was analyzed/produced"}
-\`\`\`
-
-**Important**: Do NOT close this issue. Only complete your assigned phase.`
-      : `4. Use issue-action to report progress or close when done
-
-\`\`\`issue-action
-{"action":"close","issue":${this.issueNumber},"body":"## Resolution\\n- What was implemented"}
-\`\`\``;
-
-    return `
-Continue working on Issue #${this.issueNumber}.
-Iterations completed: ${completedIterations}
-
-${summarySection}
-
-## Continue
-
-1. Check TodoWrite for pending tasks
-2. Execute next task
-3. Mark completed and move forward
-${completionInstruction}
-    `.trim();
-  }
-
-  private getClosureAction(): "close" | "label-only" | "label-and-close" {
-    return this.githubConfig?.defaultClosureAction ?? "close";
-  }
-
-  buildCompletionCriteria(): CompletionCriteria {
-    const action = this.getClosureAction();
-
-    if (action === "label-only") {
-      return {
-        short: `Complete phase for Issue #${this.issueNumber}`,
-        detailed:
-          `Complete your assigned phase for GitHub Issue #${this.issueNumber}. ` +
-          `Do NOT close the issue -- only update labels when your phase is done. ` +
-          `The next agent in the pipeline will continue the work. ` +
-          `Use issue-action blocks to report progress.`,
-      };
-    }
-
-    // "close" and "label-and-close" both instruct closure
-    return {
-      short: `Close Issue #${this.issueNumber}`,
-      detailed:
-        `Complete the requirements in GitHub Issue #${this.issueNumber} and close it when done. ` +
-        `Use issue-action blocks to report progress and close the issue.`,
-    };
-  }
-
-  /**
-   * Get the declared status and next_action from structured output
-   */
-  getStructuredOutputStatus(): {
-    status?: string;
-    nextAction?: string;
-    nextActionReason?: string;
-  } {
-    if (!this.lastSummary?.structuredOutput) {
-      return {};
-    }
-
-    const so = this.lastSummary.structuredOutput as Record<string, unknown>;
-    const result: {
-      status?: string;
-      nextAction?: string;
-      nextActionReason?: string;
-    } = {};
-
-    if (typeof so.status === "string") {
-      result.status = so.status;
-    }
-
-    if (so.next_action) {
-      const nextAction = so.next_action as Record<string, unknown>;
-      if (typeof nextAction === "string") {
-        result.nextAction = nextAction;
-      } else if (typeof nextAction.action === "string") {
-        result.nextAction = nextAction.action;
-        if (typeof nextAction.reason === "string") {
-          result.nextActionReason = nextAction.reason;
-        }
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Set the current iteration summary before completion check.
-   * Implements CompletionHandler.setCurrentSummary interface method.
-   */
-  setCurrentSummary(summary: IterationSummary): void {
-    this.lastSummary = summary;
-  }
-
-  async isComplete(): Promise<boolean> {
-    try {
-      // Check structured output declaration first
-      const soStatus = this.getStructuredOutputStatus();
-      const aiDeclaredComplete = soStatus.status === "completed" ||
-        soStatus.nextAction === "complete";
-
-      // Check 1: Is the issue closed on GitHub?
-      const args = this.repository
-        ? [
-          "issue",
-          "view",
-          String(this.issueNumber),
-          "-R",
-          this.repository,
-          "--json",
-          "state",
-        ]
-        : ["issue", "view", String(this.issueNumber), "--json", "state"];
-
-      const result = await new Deno.Command("gh", {
-        args,
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      if (!result.success) {
-        return false;
-      }
-
-      const output = new TextDecoder().decode(result.stdout);
-      const data = JSON.parse(output);
-      const isIssueClosed = data.state === "CLOSED";
-
-      // Check 2: Is the git working directory clean?
-      // This prevents completion when agent closes issue via direct gh command
-      // without committing changes (bypassing pre-close validation)
-      const gitResult = await new Deno.Command("git", {
-        args: ["status", "--porcelain"],
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      if (!gitResult.success) {
-        // If git status fails, assume not clean (conservative approach)
-        return false;
-      }
-
-      const gitOutput = new TextDecoder().decode(gitResult.stdout).trim();
-      const isGitClean = gitOutput === "";
-
-      const externalConditionsMet = isIssueClosed && isGitClean;
-
-      // Integration: Use both AI declaration AND external validation
-      // - If AI declared complete but external conditions not met: NOT complete
-      //   (prevents premature completion, agent should fix issues first)
-      // - If external conditions met but AI didn't declare complete: complete
-      //   (handles cases where structured output isn't used)
-      // - If both agree: complete
-      if (aiDeclaredComplete && !externalConditionsMet) {
-        // AI thinks it's done but conditions not met
-        // This will trigger retry with the discrepancy visible in next prompt
-        return false;
-      }
-
-      return externalConditionsMet;
-    } catch {
-      return false;
-    }
-  }
-
-  async getCompletionDescription(): Promise<string> {
-    try {
-      // Get AI's declared status
-      const soStatus = this.getStructuredOutputStatus();
-      const aiStatusPart = soStatus.status
-        ? ` | AI declared: ${soStatus.status}`
-        : "";
-      const aiNextActionPart = soStatus.nextAction
-        ? ` (next: ${soStatus.nextAction})`
-        : "";
-
-      // Check issue state
-      const args = this.repository
-        ? [
-          "issue",
-          "view",
-          String(this.issueNumber),
-          "-R",
-          this.repository,
-          "--json",
-          "state",
-        ]
-        : ["issue", "view", String(this.issueNumber), "--json", "state"];
-
-      const result = await new Deno.Command("gh", {
-        args,
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      const isIssueClosed = result.success &&
-        JSON.parse(new TextDecoder().decode(result.stdout)).state === "CLOSED";
-
-      // Check git status
-      const gitResult = await new Deno.Command("git", {
-        args: ["status", "--porcelain"],
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      const gitOutput = gitResult.success
-        ? new TextDecoder().decode(gitResult.stdout).trim()
-        : "";
-      const isGitClean = gitOutput === "";
-
-      // Provide informative description including AI declaration
-      const aiInfo = aiStatusPart + aiNextActionPart;
-      if (isIssueClosed && isGitClean) {
-        return `Issue #${this.issueNumber} is CLOSED and git is clean${aiInfo}`;
-      } else if (isIssueClosed && !isGitClean) {
-        return `Issue #${this.issueNumber} is CLOSED but git has uncommitted changes${aiInfo}`;
-      } else {
-        return `Issue #${this.issueNumber} is still OPEN${aiInfo}`;
-      }
-    } catch {
-      return `Issue #${this.issueNumber} status unknown`;
-    }
-  }
-
-  /**
-   * Execute boundary actions when closing intent is received.
-   *
-   * This is the single surface for external side effects.
-   * Called by Runner when a closure step emits `closing` intent.
-   *
-   * Actions depend on `action` field (or defaultClosureAction config):
-   * - "close": Close the GitHub Issue with a completion comment
-   * - "label-only": Update labels only, keep issue open
-   * - "label-and-close": Update labels then close
-   *
-   * @see agents/docs/design/08_step_flow_design.md Section 7.1
-   */
-  async onBoundaryHook(payload: {
-    stepId: string;
-    stepKind: "closure";
-    structuredOutput?: Record<string, unknown>;
-  }): Promise<void> {
-    // Extract data from structured output
-    const so = payload.structuredOutput ?? {};
-    const summary = typeof so.summary === "string"
-      ? so.summary
-      : "Issue completed by iterator agent.";
-
-    // Resolve labels (AI override > config defaults)
-    const labels = this.resolveLabels(so);
-
-    // Determine action (AI override > config default > "close")
-    const action =
-      (typeof so.action === "string"
-        ? so.action
-        : this.githubConfig?.defaultClosureAction) ?? "close";
-
-    // Execute based on action type
-    if (action === "label-only") {
-      await this.updateLabels(labels);
-    } else if (action === "close") {
-      await this.closeIssue(summary, payload.stepId);
-    } else if (action === "label-and-close") {
-      await this.updateLabels(labels);
-      await this.closeIssue(summary, payload.stepId);
-    }
-  }
-
-  /**
-   * Resolve label configuration with priority:
-   * 1. AI structured output (highest)
-   * 2. agent.json github.labels.completion
-   * 3. Empty (no label changes)
-   */
-  private resolveLabels(so: Record<string, unknown>): LabelConfig {
-    // Check for AI-specified labels in structured output
-    const issueObj = so.issue as Record<string, unknown> | undefined;
-    const aiLabels = issueObj?.labels as LabelConfig | undefined;
-
-    if (aiLabels && (aiLabels.add?.length || aiLabels.remove?.length)) {
-      return aiLabels;
-    }
-
-    // Fall back to config defaults
-    return this.githubConfig?.labels?.completion ?? {};
-  }
-
-  /**
-   * Update issue labels using gh CLI
-   *
-   * Handles missing labels gracefully:
-   * - Only removes labels that exist on the issue
-   * - Runs add and remove operations separately to prevent partial failures
-   */
-  private async updateLabels(labels: LabelConfig): Promise<void> {
-    // Skip if no label changes
-    if (!labels.add?.length && !labels.remove?.length) {
-      return;
-    }
-
-    // Get current labels on the issue to filter remove operations
-    const currentLabels = await this.getCurrentLabels();
-
-    // Filter remove list to only labels that exist
-    const labelsToRemove = (labels.remove ?? []).filter((label) =>
-      currentLabels.includes(label)
-    );
-
-    // Build args for add operation
-    if (labels.add?.length) {
-      const addArgs: string[] = ["issue", "edit", String(this.issueNumber)];
-      for (const label of labels.add) {
-        addArgs.push("--add-label", label);
-      }
-      if (this.repository) {
-        addArgs.push("-R", this.repository);
-      }
-
-      const addResult = await new Deno.Command("gh", {
-        args: addArgs,
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      if (!addResult.success) {
-        const stderr = new TextDecoder().decode(addResult.stderr);
-        throw new Error(
-          `[BoundaryHook] Failed to add labels on issue #${this.issueNumber}: ${stderr}`,
-        );
-      }
-    }
-
-    // Build args for remove operation (only for existing labels)
-    if (labelsToRemove.length) {
-      const removeArgs: string[] = ["issue", "edit", String(this.issueNumber)];
-      for (const label of labelsToRemove) {
-        removeArgs.push("--remove-label", label);
-      }
-      if (this.repository) {
-        removeArgs.push("-R", this.repository);
-      }
-
-      const removeResult = await new Deno.Command("gh", {
-        args: removeArgs,
-        stdout: "piped",
-        stderr: "piped",
-        cwd: this.cwd,
-      }).output();
-
-      if (!removeResult.success) {
-        const stderr = new TextDecoder().decode(removeResult.stderr);
-        throw new Error(
-          `[BoundaryHook] Failed to remove labels on issue #${this.issueNumber}: ${stderr}`,
-        );
-      }
-    }
-  }
-
-  /**
-   * Get current labels on the issue
-   */
-  private async getCurrentLabels(): Promise<string[]> {
-    const args = [
-      "issue",
-      "view",
-      String(this.issueNumber),
-      "--json",
-      "labels",
-    ];
-    if (this.repository) {
-      args.push("-R", this.repository);
-    }
-
-    const result = await new Deno.Command("gh", {
-      args,
-      stdout: "piped",
-      stderr: "piped",
-      cwd: this.cwd,
-    }).output();
-
-    if (!result.success) {
-      // If we can't get labels, return empty array to skip remove operations
-      return [];
-    }
-
-    try {
-      const output = new TextDecoder().decode(result.stdout);
-      const data = JSON.parse(output) as { labels: { name: string }[] };
-      return data.labels.map((l) => l.name);
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Close the issue with a completion comment
-   */
-  private async closeIssue(summary: string, stepId: string): Promise<void> {
-    const comment = `## Completed
-
-${summary}
-
----
-*Closed by Boundary Hook (closing intent from ${stepId})*`;
-
-    const args = ["issue", "close", String(this.issueNumber), "-c", comment];
-    if (this.repository) {
-      args.push("-R", this.repository);
-    }
-
-    const result = await new Deno.Command("gh", {
-      args,
-      stdout: "piped",
-      stderr: "piped",
-      cwd: this.cwd,
-    }).output();
-
-    if (!result.success) {
-      const stderr = new TextDecoder().decode(result.stderr);
-      throw new Error(
-        `[BoundaryHook] Failed to close issue #${this.issueNumber}: ${stderr}`,
-      );
-    }
-  }
-}
-
-// ============================================================================
-// Contract-compliant Implementation
-// ============================================================================
-
-/**
- * Configuration for IssueContractHandler.
+ * Configuration for IssueCompletionHandler.
  */
 export interface IssueContractConfig {
   /** Issue number to track */
@@ -668,9 +31,6 @@ export interface IssueContractConfig {
   /** Minimum interval between state checks in ms (default: 60000) */
   checkInterval?: number;
 }
-
-/** Alias for backwards compatibility */
-export type IssueCompletionConfigV2 = IssueContractConfig;
 
 /**
  * Issue-based completion handler with contract compliance.
@@ -686,7 +46,7 @@ export type IssueCompletionConfigV2 = IssueContractConfig;
  * Usage:
  * ```typescript
  * const checker = new GitHubStateChecker();
- * const handler = new IssueContractHandler(
+ * const handler = new IssueCompletionHandler(
  *   { issueNumber: 123, repo: "owner/repo" },
  *   checker
  * );
@@ -698,7 +58,7 @@ export type IssueCompletionConfigV2 = IssueContractConfig;
  * const result = handler.check({ iteration: 1 });
  * ```
  */
-export class IssueContractHandler implements ContractCompletionHandler {
+export class IssueCompletionHandler implements ContractCompletionHandler {
   readonly type: CompletionType = "externalState";
 
   private cachedState?: IssueState;
@@ -735,8 +95,8 @@ export class IssueContractHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  transition(_result: StepResult): "closure" {
-    return "closure";
+  transition(_result: StepResult): typeof STEP_PHASE.CLOSURE {
+    return STEP_PHASE.CLOSURE;
   }
 
   /**
@@ -744,8 +104,11 @@ export class IssueContractHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  buildPrompt(phase: "initial" | "continuation", iteration: number): string {
-    if (phase === "initial") {
+  buildPrompt(
+    phase: typeof STEP_PHASE.INITIAL | typeof STEP_PHASE.CONTINUATION,
+    iteration: number,
+  ): string {
+    if (phase === STEP_PHASE.INITIAL) {
       return `Work on Issue #${this.config.issueNumber}. Check if the issue is resolved.`;
     }
     return `Continue working on Issue #${this.config.issueNumber}. Iteration ${iteration}.`;
@@ -831,6 +194,3 @@ export class IssueContractHandler implements ContractCompletionHandler {
     return now - this.lastCheckTime >= interval;
   }
 }
-
-/** Alias for backwards compatibility */
-export const IssueCompletionHandlerV2 = IssueContractHandler;

@@ -31,10 +31,6 @@ Provide the following information via stdin:
 - Action verb (what the command does)
 - Target object (what the command acts upon)
 
-## Received Input
-
-{input_text}
-
 ## Output
 
 A complete YAML frontmatter block ready to be placed at the top of a markdown instruction file.
@@ -98,7 +94,7 @@ uv:
 climpt-code convert source-file --uv-target_language=python --uv-output_format=json
 ```
 
-**Template Expansion**: `{uv-target_language}` → `python`, `{uv-output_format}` → `json`
+**Template Expansion**: `{uv-target_language}` -> `python`, `{uv-output_format}` -> `json`
 
 ## Naming Conventions
 
@@ -109,7 +105,7 @@ Format: `<domain>`
 - Domain examples: `git`, `meta`, `code`, `data`, `infra`, `sec`, `test`, `docs`
 - The agent is specified separately (e.g., `agent: climpt`)
 
-Pattern: `^[a-z0-9]+$`
+Pattern: `^[a-z]+$`
 
 ### c2 (Action)
 
@@ -119,7 +115,7 @@ Examples:
 - Single verb: `build`, `review`, `merge`, `fetch`, `analyze`
 - With modifier: `group-commit`, `find-oldest`, `build-robust`
 
-Pattern: `^[a-z0-9]+(-[a-z0-9]+)?$`
+Pattern: `^[a-z]+(-[a-z]+)?$`
 
 ### c3 (Target)
 
@@ -129,7 +125,7 @@ Examples:
 - Single object: `frontmatter`, `branch`, `service`
 - With context: `pull-request`, `unstaged-changes`, `api-service`
 
-Pattern: `^[a-z0-9]+(-[a-z0-9]+)?$`
+Pattern: `^[a-z]+(-[a-z]+)?$`
 
 ## Example Output
 

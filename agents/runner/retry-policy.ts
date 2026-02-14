@@ -7,6 +7,7 @@
 
 import type { ClassifiedError } from "./error-classifier.ts";
 import { SdkErrorCategory } from "./error-classifier.ts";
+import { RETRY_DELAYS } from "../shared/constants.ts";
 
 /**
  * Retry policy configuration
@@ -40,9 +41,9 @@ export interface RetryDecision {
  * Default retry policy
  */
 export const DEFAULT_RETRY_POLICY: RetryPolicy = {
-  maxRetries: 3,
-  initialDelayMs: 1000,
-  maxDelayMs: 30000,
+  maxRetries: RETRY_DELAYS.DEFAULT_MAX_RETRIES,
+  initialDelayMs: RETRY_DELAYS.DEFAULT_INITIAL_DELAY_MS,
+  maxDelayMs: RETRY_DELAYS.DEFAULT_MAX_DELAY_MS,
   backoffMultiplier: 2,
   retryableCategories: [
     SdkErrorCategory.NETWORK,
@@ -66,9 +67,9 @@ export const NO_RETRY_POLICY: RetryPolicy = {
  * Aggressive retry policy (for critical operations)
  */
 export const AGGRESSIVE_RETRY_POLICY: RetryPolicy = {
-  maxRetries: 5,
-  initialDelayMs: 500,
-  maxDelayMs: 60000,
+  maxRetries: RETRY_DELAYS.AGGRESSIVE_MAX_RETRIES,
+  initialDelayMs: RETRY_DELAYS.AGGRESSIVE_INITIAL_DELAY_MS,
+  maxDelayMs: RETRY_DELAYS.AGGRESSIVE_MAX_DELAY_MS,
   backoffMultiplier: 2,
   retryableCategories: [
     SdkErrorCategory.NETWORK,

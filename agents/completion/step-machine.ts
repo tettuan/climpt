@@ -17,6 +17,8 @@ import {
   type IterationSummary,
 } from "./types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
+import { PATHS } from "../shared/paths.ts";
+import { STEP_PHASE } from "../shared/step-phases.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
@@ -43,8 +45,8 @@ export interface StepState {
  * Step transition result
  */
 export interface StepTransition {
-  /** Next step ID or "closure" */
-  nextStep: string | "closure";
+  /** Next step ID or STEP_PHASE.CLOSURE */
+  nextStep: string | typeof STEP_PHASE.CLOSURE;
   /** Whether current step passed */
   passed: boolean;
   /** Reason for transition */
@@ -132,7 +134,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
     // No implicit fallback - entry step must be configured
     throw new Error(
       `[StepMachine] No entry step configured in registry. ` +
-        `Add "entryStep" or "entryStepMapping" to steps_registry.json.`,
+        `Add "entryStep" or "entryStepMapping" to ${PATHS.STEPS_REGISTRY}.`,
     );
   }
 
@@ -156,7 +158,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
     if (!stepDef) {
       throw new Error(
         `[StepMachine] Step "${stepId}" not found in registry. ` +
-          `Check steps_registry.json for missing step definition.`,
+          `Check ${PATHS.STEPS_REGISTRY} for missing step definition.`,
       );
     }
 
@@ -164,7 +166,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
       throw new Error(
         `[StepMachine] Step "${stepId}" has no transitions defined. ` +
           `All Flow steps must define transitions. ` +
-          `Add a "transitions" object to the step definition in steps_registry.json.`,
+          `Add a "transitions" object to the step definition in ${PATHS.STEPS_REGISTRY}.`,
       );
     }
 
@@ -174,7 +176,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
     if (!rule) {
       throw new Error(
         `[StepMachine] Step "${stepId}" has no transition for intent "${intent}". ` +
-          `Add "${intent}" to the transitions object in steps_registry.json.`,
+          `Add "${intent}" to the transitions object in ${PATHS.STEPS_REGISTRY}.`,
       );
     }
 
@@ -185,15 +187,15 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
       );
     }
 
-    // target: null, "complete", or "closure" all signal completion
-    // "closure" is the canonical name; "complete" kept for backward compatibility
+    // target: null, "complete", or STEP_PHASE.CLOSURE all signal completion
+    // STEP_PHASE.CLOSURE is the canonical name; "complete" kept for backward compatibility
     let nextStep: string;
     if (
       rule.target === null ||
       rule.target === "complete" ||
-      rule.target === "closure"
+      rule.target === STEP_PHASE.CLOSURE
     ) {
-      nextStep = "closure";
+      nextStep = STEP_PHASE.CLOSURE;
     } else {
       nextStep = rule.target;
     }
@@ -208,14 +210,14 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
   /**
    * Transition to next step
    */
-  transition(result: StepResult): string | "closure" {
+  transition(result: StepResult): string | typeof STEP_PHASE.CLOSURE {
     const nextStep = this.getNextStep(result);
 
-    if (nextStep.nextStep === "closure") {
+    if (nextStep.nextStep === STEP_PHASE.CLOSURE) {
       this.state.isComplete = true;
       this.state.completionReason = nextStep.reason ??
         "Step machine reached terminal state";
-      return "closure";
+      return STEP_PHASE.CLOSURE;
     }
 
     // Update state for transition
@@ -301,8 +303,8 @@ ${this.buildStepInstructions(stepDef)}
 
       try {
         const continuationKey = stepDef.fallbackKey.replace(
-          "initial",
-          "continuation",
+          STEP_PHASE.INITIAL,
+          STEP_PHASE.CONTINUATION,
         );
         return await this.promptResolver.resolve(continuationKey, uvVars);
       } catch {

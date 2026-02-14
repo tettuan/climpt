@@ -1,3 +1,5 @@
+[English](../en/00-1-concepts.md) | [日本語](../ja/00-1-concepts.md)
+
 # Agent Configuration Concepts
 
 Before setting up an Agent, understand **what** you are configuring and **why**.
@@ -14,6 +16,44 @@ Agent = Configuration + Prompts
 
 No code is required to define an Agent. Configuration files control behavior,
 and prompts guide the AI.
+
+## What is a Workflow?
+
+**Define Agents based on the roles and processes your project needs.** An Agent
+represents a distinct responsibility — not a step in a sequence. A Workflow
+emerges when multiple Agents with different roles collaborate.
+
+```mermaid
+graph LR
+  subgraph "❌ Not a Workflow"
+    A1[my-agent] --> S1[step1] --> S2[step2] --> S3[step3] --> S4[step4]
+  end
+```
+
+```mermaid
+graph LR
+  subgraph "✅ Workflow"
+    I[Iterator] -- output --> R[Reviewer]
+    R -- feedback --> I
+  end
+```
+
+The Iterator does the work. The Reviewer checks the work. The **loop between
+independent roles** is what creates quality — just as a writer cannot
+effectively proofread their own text.
+
+### Minimum Viable Workflow
+
+At least **two Agents** with complementary roles:
+
+```json
+{
+  "registries": {
+    "iterator": ".agent/iterator/registry.json",
+    "reviewer": ".agent/reviewer/registry.json"
+  }
+}
+```
 
 ## File Structure Overview
 

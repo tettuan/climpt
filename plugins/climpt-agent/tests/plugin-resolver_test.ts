@@ -6,8 +6,8 @@
  * @module climpt-plugins/tests/plugin-resolver_test
  */
 
-import { assertEquals } from "jsr:@std/assert";
-import { join } from "jsr:@std/path@^1";
+import { assertEquals } from "@std/assert";
+import { join } from "@std/path";
 
 import {
   resolvePluginPaths,

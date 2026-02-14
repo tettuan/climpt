@@ -2,7 +2,7 @@
  * Tests for git-clean validator
  */
 
-import { assertEquals, assertExists } from "jsr:@std/assert@1";
+import { assertEquals, assertExists } from "@std/assert";
 import { gitCleanValidator } from "./git-clean.ts";
 import type { ValidatorContext } from "../types.ts";
 import type { Logger } from "../../src_common/logger.ts";
