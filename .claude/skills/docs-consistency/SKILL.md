@@ -99,3 +99,4 @@ Memo:    - [ ] tmp/docs-review/ deleted or promoted
 - [IMPLEMENTATION-CHECK.md](IMPLEMENTATION-CHECK.md) — Formal checks (supplementary)
 - `scripts/verify-docs.ts` — Automated checks (supplementary)
 - `refactoring` skill — Docs grep after structural code changes (Phase 4 Step 12)
+- `operational-guide.md` in this skill's directory — Concrete example (docs-distribution), bash commands, distribution scope, memo lifecycle, language rules

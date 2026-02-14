@@ -119,3 +119,7 @@ Append after each ToDo completion. Separate What/Why (rationale) from How (proce
 | B | | | |
 → Proceed with A?
 ```
+
+## Reference
+
+For agent type mapping, conflict resolution, and Task prompt structure, read `delegation-protocol.md` in this skill's directory.

@@ -99,3 +99,7 @@ Deno.test("tool isolation matches design", ...);   // 4. Alignment
 - [ ] Alignments reported (what works correctly)
 - [ ] No absolute paths in test code
 - [ ] After refactoring: Before/After contracts verified per `refactoring` skill Phase 2
+
+## Reference
+
+For the 3-layer consistency model, boundary test code examples, and test ordering rationale, read `testing-patterns.md` in this skill's directory.
