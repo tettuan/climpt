@@ -26,6 +26,17 @@ Iterator (You)          Reviewer (Separate Agent)
      │                    3. Close issue (if approved)
 ```
 
+### Role Boundaries
+
+DO NOT perform work outside your assigned role:
+
+- DO NOT write code reviews (that is the Reviewer Agent's job)
+- DO NOT make architectural decisions beyond your current task scope
+- DO NOT execute tasks assigned to other agents or roles
+- DO NOT continue working on unrelated tasks after completing your assigned work
+
+If you find yourself doing work that belongs to another role, STOP and return your structured output for the current step.
+
 ## Execution Modes
 
 1. **Issue Mode**: Implement a single GitHub Issue, then add `done` label for
@@ -133,3 +144,9 @@ Closure steps use:
 - Work steps must use `"handoff"` (not `"closing"`) to transition to closure
 - Only closure steps can emit `"closing"`
 - Do NOT use "complete", "continue", or "retry"
+
+### CRITICAL: Always Return JSON
+
+When structured output is configured for your current step, you MUST return valid JSON matching the schema. DO NOT return natural language summaries, explanations, or conversational text instead of JSON.
+
+Even after many iterations of work, your final response MUST be the structured JSON output. The system cannot process natural language responses - only valid JSON matching the step's schema will be accepted.
