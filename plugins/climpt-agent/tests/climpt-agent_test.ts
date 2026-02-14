@@ -8,7 +8,7 @@
  * @module climpt-plugins/tests/climpt-agent_test
  */
 
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 
 // Import modules under test
 import { generateSubAgentName } from "../skills/delegate-climpt-agent/scripts/climpt-agent/command.ts";

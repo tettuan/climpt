@@ -3,8 +3,8 @@
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/logger
  */
 
-import { ensureDir } from "jsr:@std/fs@^1.0.8";
-import { join } from "jsr:@std/path@^1.1.3";
+import { ensureDir } from "@std/fs";
+import { join } from "@std/path";
 
 import type {
   LogEntry,
