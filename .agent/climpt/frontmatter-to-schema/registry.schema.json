@@ -6,7 +6,11 @@
   "type": "object",
   "x-template": "registry.template.json",
   "x-template-items": "command.template.json",
-  "required": ["version", "description", "tools"],
+  "required": [
+    "version",
+    "description",
+    "tools"
+  ],
   "additionalProperties": false,
   "properties": {
     "version": {
@@ -20,11 +24,16 @@
     "tools": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["availableConfigs", "commands"],
+      "required": [
+        "availableConfigs",
+        "commands"
+      ],
       "properties": {
         "availableConfigs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "x-derived-from": "tools.commands[].c1",
           "x-derived-unique": true,
           "description": "Unique list of domains derived from c1 values"

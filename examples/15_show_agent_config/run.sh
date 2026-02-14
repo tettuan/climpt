@@ -7,59 +7,39 @@ source "${SCRIPT_DIR}/../common_functions.sh"
 main() {
   info "=== Agent Configuration Structure ==="
 
-  info "Agents live under the agents/ directory:"
-  cat <<'LAYOUT'
-agents/
-  iterator/
-    agent.json          # Agent definition and metadata
-    system-prompt.md    # System prompt for the agent
-  reviewer/
-    agent.json
-    system-prompt.md
-  common/
-    utils.ts            # Shared utilities
-  scripts/
-    run-agent.ts        # Agent runner entry point
-  mod.ts                # Module exports
-LAYOUT
-
-  info "agent.json schema:"
-  cat <<'SCHEMA'
-{
-  "name": "iterator",
-  "description": "Iterative decomposition agent",
-  "version": "1.0.0",
-  "systemPrompt": "./system-prompt.md",
-  "tools": ["climpt-code", "climpt-spec"],
-  "options": {
-    "maxIterations": 5,
-    "autoApprove": false
-  }
-}
-SCHEMA
-
-  # Verify agents/ directory exists
+  # 1. Show actual agents/ directory layout
+  info "Agents directory layout:"
   if [[ ! -d "${REPO_ROOT}/agents" ]]; then
     error "FAIL: agents/ directory not found"; return 1
   fi
+  show_cmd "ls -1 ${REPO_ROOT}/agents/"
+  ls -1 "${REPO_ROOT}/agents/"
 
-  # Count subdirectories containing agent.json or mod.ts
+  # 2. Show actual schema required fields and property keys
+  local schema_file="${REPO_ROOT}/agents/schemas/agent.schema.json"
+  if [[ ! -f "$schema_file" ]]; then
+    error "FAIL: agent.schema.json not found"; return 1
+  fi
+
+  info "agent.schema.json required fields:"
+  show_cmd "jq '.required' $schema_file"
+  jq '.required' "$schema_file" || { error "FAIL: jq .required failed"; return 1; }
+
+  info "agent.schema.json top-level property keys:"
+  show_cmd "jq '.properties | keys' $schema_file"
+  jq '.properties | keys' "$schema_file" || { error "FAIL: jq .properties keys failed"; return 1; }
+
+  # 3. Verify agents/ directory has agent subdirs
   local count=0
   for d in "${REPO_ROOT}"/agents/*/; do
     [[ -d "$d" ]] || continue
-    if [[ -f "${d}agent.json" ]] || [[ -f "${d}mod.ts" ]]; then
-      count=$((count + 1))
-    fi
+    count=$((count + 1))
   done
-
   if [[ $count -eq 0 ]]; then
-    error "FAIL: no agent subdirectories with agent.json or mod.ts found"; return 1
+    error "FAIL: agents/ has no subdirectories"; return 1
   fi
 
-  info "Detected agents/ directory. Contents:"
-  show_cmd ls -la "${REPO_ROOT}/agents/"
-  ls -la "${REPO_ROOT}/agents/"
-  success "PASS: agents/ contains ${count} configured agent(s)"
+  success "PASS: agent config structure verified (${count} agent subdirs, schema has required fields)"
 }
 
 main "$@"

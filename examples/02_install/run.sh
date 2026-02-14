@@ -10,9 +10,12 @@ main() {
   # Verify Deno is available
   check_deno
 
-  # Install Climpt globally with all permissions
+  # Install Climpt globally with all permissions (-f to overwrite existing)
   info "Installing @aidevtool/climpt/cli globally..."
-  run_example deno install -g -A jsr:@aidevtool/climpt/cli
+  run_example deno install -g -f -A jsr:@aidevtool/climpt/cli
+
+  # Add .deno/bin to PATH for verification (Deno installs binaries there)
+  export PATH="${REPO_ROOT}/.deno/bin:${HOME}/.deno/bin:${PATH}"
 
   # Verify installation
   info "Verifying installation..."
