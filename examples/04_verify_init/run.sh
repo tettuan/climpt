@@ -19,17 +19,18 @@ main() {
   if [[ -d "${CLIMPT_CONFIG_DIR}" ]]; then
     success "Config directory found: ${CLIMPT_CONFIG_DIR}"
   else
-    warn "Config directory not found: ${CLIMPT_CONFIG_DIR}"
+    error "FAIL: Config directory not found: ${CLIMPT_CONFIG_DIR}"; return 1
   fi
 
   if [[ -d "${CLIMPT_PROMPTS_DIR}" ]]; then
     success "Prompts directory found: ${CLIMPT_PROMPTS_DIR}"
   else
-    warn "Prompts directory not found: ${CLIMPT_PROMPTS_DIR}"
+    error "FAIL: Prompts directory not found: ${CLIMPT_PROMPTS_DIR}"; return 1
   fi
 
-  # Show available init options
-  info "--- Available init options ---"
+  success "PASS: init directories verified"
+
+  # --- Reference: available init options (not executed) ---
 
   info "Option: --force (overwrites existing config)"
   show_cmd climpt init --force

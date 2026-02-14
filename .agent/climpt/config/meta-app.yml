@@ -1,4 +1,4 @@
-# Build Configuration
+# Build Configuration for meta domain
 working_dir: ".agent/climpt"
 app_prompt:
   base_dir: "prompts/meta"

@@ -7,31 +7,37 @@ source "${SCRIPT_DIR}/../common_functions.sh"
 main() {
   info "=== List Available Agents ==="
 
-  # Show agents directory structure
-  if [[ -d "${REPO_ROOT}/agents" ]]; then
-    info "Agents directory: ${REPO_ROOT}/agents/"
-    show_cmd ls -la "${REPO_ROOT}/agents/"
-    ls -la "${REPO_ROOT}/agents/"
+  # 1. Verify iterate-agent/review-agent tasks exist in deno.json
+  local task_list
+  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
+  for task_name in iterate-agent review-agent; do
+    if ! echo "$task_list" | grep -q "$task_name"; then
+      error "FAIL: '${task_name}' task not found in deno.json"; return 1
+    fi
+  done
+  success "PASS: iterate-agent and review-agent tasks exist"
 
-    # List agent directories (those containing agent.json or mod.ts)
-    info "Agent modules:"
-    for agent_dir in "${REPO_ROOT}"/agents/*/; do
-      local name
-      name="$(basename "$agent_dir")"
-      if [[ -f "${agent_dir}/agent.json" ]] || [[ -f "${agent_dir}/mod.ts" ]]; then
-        success "  ${name}/"
-      fi
-    done
-  else
-    warn "No agents/ directory found at ${REPO_ROOT}/agents/"
+  # 2. List .agent/*/agent.json excluding climpt/
+  info "User-defined agent configs (.agent/*/agent.json):"
+  local found_agents=0
+  for agent_json in "${REPO_ROOT}"/.agent/*/agent.json; do
+    [[ -f "$agent_json" ]] || continue
+    local agent_name
+    agent_name="$(basename "$(dirname "$agent_json")")"
+    [[ "$agent_name" == "climpt" ]] && continue
+    success "  ${agent_name}/agent.json"
+    found_agents=$((found_agents + 1))
+  done
+  if [[ $found_agents -eq 0 ]]; then
+    error "FAIL: no user-defined agent configs found"; return 1
   fi
+  success "PASS: found ${found_agents} user-defined agent config(s)"
 
-  # Show agent runner if available
-  if [[ -f "${REPO_ROOT}/agents/scripts/run-agent.ts" ]]; then
-    info "Agent runner: agents/scripts/run-agent.ts"
+  # 3. Verify agents/scripts/run-agent.ts exists
+  if [[ ! -f "${REPO_ROOT}/agents/scripts/run-agent.ts" ]]; then
+    error "FAIL: agents/scripts/run-agent.ts not found"; return 1
   fi
-
-  success "Agent listing complete."
+  success "PASS: agent runner script exists"
 }
 
 main "$@"

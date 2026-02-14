@@ -1,7 +1,7 @@
-# Breakdown Configuration
+# Breakdown Configuration for meta domain
 params:
   two:
     directiveType:
-      pattern: "^(build|convert-skill|create|migrate|name)$"
+      pattern: "^(build|create)$"
     layerType:
-      pattern: "^(c3l-command|frontmatter|instruction|skill|to-plugin)$"
+      pattern: "^(frontmatter|instruction)$"

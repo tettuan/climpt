@@ -28,26 +28,10 @@ export interface GateInterpretation {
 }
 
 /**
- * Error thrown when gate interpretation fails.
+ * Error thrown when gate interpretation fails - canonical source: shared/errors/flow-errors.ts
  */
-export class GateInterpretationError extends Error {
-  public readonly stepId: string;
-  public readonly extractedValue?: unknown;
-  override readonly cause?: Error;
-
-  constructor(
-    message: string,
-    stepId: string,
-    extractedValue?: unknown,
-    cause?: Error,
-  ) {
-    super(message, { cause });
-    this.name = "GateInterpretationError";
-    this.stepId = stepId;
-    this.extractedValue = extractedValue;
-    this.cause = cause;
-  }
-}
+import { GateInterpretationError } from "../shared/errors/flow-errors.ts";
+export { GateInterpretationError };
 
 /**
  * Mapping from common AI response action values to GateIntent.

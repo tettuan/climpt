@@ -9,9 +9,10 @@ main() {
 
   check_deno
 
-  # Run climpt init to scaffold the project
+  # Run climpt init to scaffold the project (use deno run to avoid global install dependency)
+  # --force allows idempotent re-runs when .agent/climpt already exists
   info "Running climpt init..."
-  run_example climpt init
+  run_example deno run -A jsr:@aidevtool/climpt init --force
 
   # Verify created directories
   local fail=0
