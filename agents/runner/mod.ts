@@ -23,7 +23,6 @@ export type { FormatValidationResult } from "../loop/mod.ts";
 
 // Completion Layer
 export {
-  createCompletionHandler,
   GitHubStateChecker,
   IssueCompletionHandler,
   MockStateChecker,

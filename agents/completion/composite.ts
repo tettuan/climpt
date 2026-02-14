@@ -23,6 +23,9 @@ import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
 import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
+import { IssueCompletionHandler } from "./issue.ts";
+import { GitHubStateChecker } from "./external-state-checker.ts";
+import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
@@ -91,6 +94,30 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
             config.signalType,
             config.requiredFields,
           );
+          break;
+        }
+
+        case "externalState": {
+          const issueNumber = this.args.issue as number | undefined;
+          if (issueNumber === undefined || issueNumber === null) {
+            throw new Error(
+              "externalState condition in composite requires --issue parameter",
+            );
+          }
+          const repo = this.args.repository as string | undefined;
+          const stateChecker = new GitHubStateChecker(repo);
+          const issueHandler = new IssueCompletionHandler(
+            { issueNumber, repo },
+            stateChecker,
+          );
+          handler = new ExternalStateCompletionAdapter(issueHandler, {
+            issueNumber,
+            repo,
+            github: this._definition.github as {
+              labels?: { completion?: { add?: string[]; remove?: string[] } };
+              defaultClosureAction?: string;
+            },
+          });
           break;
         }
 

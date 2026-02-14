@@ -7,12 +7,13 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import type { CompletionHandler, ContractCompletionHandler } from "./types.ts";
+import type { CompletionHandler } from "./types.ts";
 import { IssueCompletionHandler, type IssueContractConfig } from "./issue.ts";
+import { GitHubStateChecker } from "./external-state-checker.ts";
 import {
-  type ExternalStateChecker,
-  GitHubStateChecker,
-} from "./external-state-checker.ts";
+  type ExternalStateAdapterConfig,
+  ExternalStateCompletionAdapter,
+} from "./external-state-adapter.ts";
 import { IterateCompletionHandler } from "./iterate.ts";
 import { ManualCompletionHandler } from "./manual.ts";
 import { CheckBudgetCompletionHandler } from "./check-budget.ts";
@@ -46,11 +47,37 @@ function registerHandler(type: string, factory: HandlerFactory): void {
 // Register standard handlers
 
 // externalState (was: issue) - Complete when external resource reaches target state
-registerHandler("externalState", () => {
-  throw new Error(
-    "externalState/issue completion type requires --issue parameter",
-  );
-});
+registerHandler(
+  "externalState",
+  (args, promptResolver, definition) => {
+    const issueNumber = args.issue as number | undefined;
+    if (issueNumber === undefined || issueNumber === null) {
+      throw new Error(
+        "externalState completion type requires --issue parameter",
+      );
+    }
+
+    const repo = args.repository as string | undefined;
+    const stateChecker = new GitHubStateChecker(repo);
+    const issueConfig: IssueContractConfig = {
+      issueNumber,
+      repo,
+    };
+    const issueHandler = new IssueCompletionHandler(issueConfig, stateChecker);
+
+    const adapterConfig: ExternalStateAdapterConfig = {
+      issueNumber,
+      repo,
+      github: definition.github as ExternalStateAdapterConfig["github"],
+    };
+    const adapter = new ExternalStateCompletionAdapter(
+      issueHandler,
+      adapterConfig,
+    );
+    adapter.setPromptResolver(promptResolver);
+    return adapter;
+  },
+);
 
 // iterationBudget (was: iterate) - Complete after N iterations
 registerHandler("iterationBudget", (_args, promptResolver, definition) => {
@@ -210,61 +237,6 @@ export async function createRegistryCompletionHandler(
   return await factory(args, promptResolver, definition, agentDir);
 }
 
-// ============================================================================
-// Contract-compliant Factory
-// ============================================================================
-
-/**
- * Options for creating a contract-compliant completion handler.
- */
-export interface CompletionHandlerOptions {
-  /** Issue configuration (for issue completion) */
-  issue?: IssueContractConfig;
-  /** External state checker (optional, defaults to GitHubStateChecker) */
-  stateChecker?: ExternalStateChecker;
-  /** Default repository for GitHub operations */
-  defaultRepo?: string;
-}
-
-/**
- * Create a contract-compliant completion handler.
- *
- * Unlike createRegistryCompletionHandler, this factory:
- * - Returns handlers that have no side effects in check()
- * - Requires explicit external state management via refreshState()
- * - Uses dependency injection for external state checkers
- *
- * Currently supports:
- * - Issue completion (IssueCompletionHandler)
- *
- * @example
- * ```typescript
- * // Create issue completion handler
- * const handler = createCompletionHandler({
- *   issue: { issueNumber: 123, repo: "owner/repo" },
- * });
- *
- * // In the loop layer
- * await handler.refreshState?.();
- * const result = handler.check({ iteration: 1 });
- * ```
- */
-export function createCompletionHandler(
-  options: CompletionHandlerOptions,
-): ContractCompletionHandler {
-  if (options.issue) {
-    const stateChecker = options.stateChecker ??
-      new GitHubStateChecker(options.defaultRepo);
-
-    return new IssueCompletionHandler(options.issue, stateChecker);
-  }
-
-  throw new Error(
-    "createCompletionHandler: No valid completion type specified. " +
-      "Currently supported: issue",
-  );
-}
-
 /**
  * Load a custom completion handler from file
  */
@@ -296,42 +268,4 @@ async function loadCustomHandler(
       }`,
     );
   }
-}
-
-/**
- * Registry for custom completion handlers
- */
-const customHandlers = new Map<
-  string,
-  (
-    definition: AgentDefinition,
-    args: Record<string, unknown>,
-  ) => CompletionHandler
->();
-
-/**
- * Register a custom completion handler factory
- */
-export function registerCompletionHandler(
-  type: string,
-  factory: (
-    definition: AgentDefinition,
-    args: Record<string, unknown>,
-  ) => CompletionHandler,
-): void {
-  customHandlers.set(type, factory);
-}
-
-/**
- * Get a registered custom handler factory
- */
-export function getRegisteredHandler(
-  type: string,
-):
-  | ((
-    definition: AgentDefinition,
-    args: Record<string, unknown>,
-  ) => CompletionHandler)
-  | undefined {
-  return customHandlers.get(type);
 }
