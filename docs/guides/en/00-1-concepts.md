@@ -1,3 +1,5 @@
+[English](../en/00-1-concepts.md) | [日本語](../ja/00-1-concepts.md)
+
 # Agent Configuration Concepts
 
 Before setting up an Agent, understand **what** you are configuring and **why**.
