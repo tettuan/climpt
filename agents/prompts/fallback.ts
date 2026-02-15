@@ -80,6 +80,27 @@ Continue working on Issue #{uv-issue_number}.
 When all requirements are satisfied, close the issue.
 `,
 
+    // Issue completion type - label-only variant
+    initial_issue_label_only:
+      `# GitHub Issue #{uv-issue_number} (Label-Only Phase)
+
+Work on completing your assigned phase for Issue #{uv-issue_number}.
+
+Review the issue, understand the requirements, and begin your phase of implementation.
+
+When your phase is complete, update labels via Boundary Hook. Do NOT close this issue -- the next agent in the pipeline will continue.
+`,
+
+    continuation_issue_label_only:
+      `# Continuation - Issue #{uv-issue_number} (Iteration {uv-iteration})
+
+Continue working on your phase for Issue #{uv-issue_number}.
+
+{uv-previous_summary}
+
+Complete your assigned phase. Do NOT close this issue.
+`,
+
     // Project completion type
     initial_project: `# GitHub Project #{uv-project_number}
 

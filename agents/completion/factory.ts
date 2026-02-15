@@ -61,16 +61,24 @@ registerHandler(
 
     const repo = args.repository as string | undefined;
     const stateChecker = new GitHubStateChecker(repo);
+    const githubConfig = definition.github as
+      | { defaultClosureAction?: string; labels?: Record<string, unknown> }
+      | undefined;
     const issueConfig: IssueContractConfig = {
       issueNumber,
       repo,
+      closureAction: (githubConfig?.defaultClosureAction as
+        | "close"
+        | "label-only"
+        | "label-and-close"
+        | undefined) ?? "close",
     };
     const issueHandler = new IssueCompletionHandler(issueConfig, stateChecker);
 
     const adapterConfig: ExternalStateAdapterConfig = {
       issueNumber,
       repo,
-      github: definition.github as ExternalStateAdapterConfig["github"],
+      github: githubConfig as ExternalStateAdapterConfig["github"],
     };
     const adapter = new ExternalStateCompletionAdapter(
       issueHandler,

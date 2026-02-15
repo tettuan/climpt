@@ -12,7 +12,7 @@
  * - MockStateChecker
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { createRegistryCompletionHandler } from "./factory.ts";
 import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
 import { IssueCompletionHandler } from "./issue.ts";
@@ -196,6 +196,47 @@ Deno.test("IssueCompletionHandler - getCompletionCriteria", () => {
   const criteria = handler.getCompletionCriteria();
   assertEquals(criteria.summary.includes("789"), true);
   assertEquals(criteria.detailed.includes("test/repo"), true);
+});
+
+Deno.test("IssueCompletionHandler - getCompletionCriteria with label-only", () => {
+  const handler = new IssueCompletionHandler(
+    { issueNumber: 42, closureAction: "label-only" },
+    new MockStateChecker(),
+  );
+  const criteria = handler.getCompletionCriteria();
+  assertEquals(criteria.summary, "Phase complete for Issue #42");
+  assertStringIncludes(criteria.detailed, "Do NOT close");
+  assertStringIncludes(criteria.detailed, "#42");
+});
+
+Deno.test("IssueCompletionHandler - getCompletionCriteria with label-and-close", () => {
+  const handler = new IssueCompletionHandler(
+    { issueNumber: 42, closureAction: "label-and-close" },
+    new MockStateChecker(),
+  );
+  const criteria = handler.getCompletionCriteria();
+  assertEquals(criteria.summary, "Issue #42 labeled and closed");
+  assertStringIncludes(criteria.detailed, "close");
+});
+
+Deno.test("IssueCompletionHandler - getCompletionCriteria with close (explicit)", () => {
+  const handler = new IssueCompletionHandler(
+    { issueNumber: 42, closureAction: "close" },
+    new MockStateChecker(),
+  );
+  const criteria = handler.getCompletionCriteria();
+  assertEquals(criteria.summary, "Issue #42 closed");
+  assertStringIncludes(criteria.detailed, "closed");
+});
+
+Deno.test("IssueCompletionHandler - getCompletionCriteria default (no closureAction)", () => {
+  const handler = new IssueCompletionHandler(
+    { issueNumber: 42 },
+    new MockStateChecker(),
+  );
+  const criteria = handler.getCompletionCriteria();
+  assertEquals(criteria.summary, "Issue #42 closed");
+  assertStringIncludes(criteria.detailed, "closed");
 });
 
 Deno.test("IssueCompletionHandler - transition always returns closure", () => {
