@@ -3,9 +3,12 @@
  */
 
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
+
+const logger = new BreakdownLogger("workflow-router");
 
 // Helper to create minimal registry
 function createRegistry(
@@ -226,6 +229,10 @@ Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
       handoff: { testResult: "pass" },
     }),
   );
+  logger.debug("conditional routing", {
+    condition: "pass",
+    nextStepId: resultPass.nextStepId,
+  });
   assertEquals(resultPass.nextStepId, "s_review");
 
   // Test "fail" condition
@@ -236,6 +243,10 @@ Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
       handoff: { testResult: "fail" },
     }),
   );
+  logger.debug("conditional routing", {
+    condition: "fail",
+    nextStepId: resultFail.nextStepId,
+  });
   assertEquals(resultFail.nextStepId, "s_fix");
 
   // Test unknown value uses default
@@ -246,6 +257,10 @@ Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
       handoff: { testResult: "unknown" },
     }),
   );
+  logger.debug("conditional routing", {
+    condition: "unknown",
+    nextStepId: resultUnknown.nextStepId,
+  });
   assertEquals(resultUnknown.nextStepId, "continuation.issue");
 });
 
@@ -600,6 +615,11 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
     "initial.externalState",
     createInterpretation({ intent: "next", reason: "Analysis complete" }),
   );
+  logger.debug("full flow step1", {
+    from: "initial.externalState",
+    intent: "next",
+    nextStepId: step1.nextStepId,
+  });
   assertEquals(step1.nextStepId, "continuation.externalState");
   assertEquals(step1.signalCompletion, false);
 
@@ -608,6 +628,11 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
     "continuation.externalState",
     createInterpretation({ intent: "handoff", reason: "All work done" }),
   );
+  logger.debug("full flow step2", {
+    from: "continuation.externalState",
+    intent: "handoff",
+    nextStepId: step2.nextStepId,
+  });
   assertEquals(step2.nextStepId, "closure.externalState");
   assertEquals(step2.signalCompletion, false);
 
@@ -616,6 +641,11 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
     "closure.externalState",
     createInterpretation({ intent: "closing", reason: "Closure verified" }),
   );
+  logger.debug("full flow step3", {
+    from: "closure.externalState",
+    intent: "closing",
+    signalCompletion: step3.signalCompletion,
+  });
   assertEquals(step3.signalCompletion, true);
   assertEquals(step3.reason, "Closure verified");
 });

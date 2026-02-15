@@ -6,6 +6,7 @@
  */
 
 import { assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   AgentCompletionError,
   AgentError,
@@ -20,6 +21,8 @@ import {
 import { AgentRunner } from "./runner.ts";
 import { AgentEventEmitter } from "./events.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
+
+const logger = new BreakdownLogger("agent-runner");
 
 // =============================================================================
 // Error Hierarchy Tests
@@ -639,7 +642,9 @@ Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from struct
     },
   };
 
+  logger.debug("interpret input", { stepId: stepDef.stepId, structuredOutput });
   const interpretation = interpreter.interpret(structuredOutput, stepDef);
+  logger.debug("interpret result", interpretation);
 
   assertEquals(interpretation.intent, "next"); // "continue" maps to "next"
   assertEquals(interpretation.usedFallback, false);
@@ -816,13 +821,23 @@ Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => 
 
   // Step 1: Interpreter extracts intent
   const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  logger.debug("e2e: interpret input", {
+    stepId: stepDef.stepId,
+    structuredOutput,
+  });
   const interpretation = interpreter.interpret(structuredOutput, stepDef);
+  logger.debug("e2e: interpretation", interpretation);
 
   assertEquals(interpretation.intent, "next");
   assertEquals(interpretation.handoff?.data, "partial result");
 
   // Step 2: Router determines next step
   const routing = router.route("initial.test", interpretation);
+  logger.debug("e2e: routing result", {
+    nextStepId: routing.nextStepId,
+    signalCompletion: routing.signalCompletion,
+    reason: routing.reason,
+  });
 
   assertEquals(routing.nextStepId, "continuation.test");
   assertEquals(routing.signalCompletion, false);
@@ -846,15 +861,24 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
 
   // Interpreter extracts closing intent from closure step
   const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+  logger.debug("e2e completion: interpret input", {
+    stepId: closureStepDef.stepId,
+    structuredOutput,
+  });
   const interpretation = interpreter.interpret(
     structuredOutput,
     closureStepDef,
   );
+  logger.debug("e2e completion: interpretation", interpretation);
 
   assertEquals(interpretation.intent, "closing");
 
   // Closure step signals completion
   const closureRouting = router.route("closure.test", interpretation);
+  logger.debug("e2e completion: routing result", {
+    signalCompletion: closureRouting.signalCompletion,
+    reason: closureRouting.reason,
+  });
   assertEquals(closureRouting.signalCompletion, true);
   assertEquals(closureRouting.reason, "All tasks finished");
 });
