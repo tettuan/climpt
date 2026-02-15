@@ -23,6 +23,7 @@ const config: SchemaValidationConfig = {
     "project.schema.json",
   ],
   stepsToValidate: [
+    // --- iterate path ---
     {
       stepId: "initial.iterate",
       schemaFile: "iterate.schema.json",
@@ -39,6 +40,44 @@ const config: SchemaValidationConfig = {
       stepId: "closure.iterate",
       schemaFile: "iterate.schema.json",
       schemaName: "closure.iterate",
+      expectedIntents: ["closing", "repeat"],
+    },
+    // --- issue path ---
+    {
+      stepId: "initial.issue",
+      schemaFile: "issue.schema.json",
+      schemaName: "initial.issue",
+      expectedIntents: ["next", "repeat"],
+    },
+    {
+      stepId: "continuation.issue",
+      schemaFile: "issue.schema.json",
+      schemaName: "continuation.issue",
+      expectedIntents: ["next", "repeat", "handoff"],
+    },
+    {
+      stepId: "closure.issue",
+      schemaFile: "issue.schema.json",
+      schemaName: "closure.issue",
+      expectedIntents: ["closing", "repeat"],
+    },
+    // --- externalState path ---
+    {
+      stepId: "initial.externalState",
+      schemaFile: "externalState.schema.json",
+      schemaName: "initial.externalState",
+      expectedIntents: ["next", "repeat"],
+    },
+    {
+      stepId: "continuation.externalState",
+      schemaFile: "externalState.schema.json",
+      schemaName: "continuation.externalState",
+      expectedIntents: ["next", "repeat", "handoff"],
+    },
+    {
+      stepId: "closure.externalState",
+      schemaFile: "externalState.schema.json",
+      schemaName: "closure.externalState",
       expectedIntents: ["closing", "repeat"],
     },
   ],
