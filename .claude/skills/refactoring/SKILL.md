@@ -30,11 +30,78 @@ Prove the new path inherits every contract from the old path before deleting it.
 
 ---
 
-## Phase 1: Inventory
+## Phase 1: Scope & Inventory
 
 Map everything being removed or changed before writing any code.
 
-**1. Removal Inventory** — List what is being removed, who consumes it, and what parameters it receives.
+### Step 1-A: Identify Refactoring Targets
+
+Before deciding what to change, enumerate all candidates. Grep, glob, and read to build a complete target list.
+
+```markdown
+| # | Target | File:Line | Type | Reason |
+|---|--------|-----------|------|--------|
+| 1 | createCompletionHandler | factory.ts:42 | function | Replaced by registry |
+| 2 | legacyAlias | types.ts:15 | type alias | Dead after V2 migration |
+```
+
+### Step 1-B: Git History Investigation
+
+For each target identified in 1-A, run `git log` to understand its history and assess risk.
+
+```bash
+git log --oneline --follow -n 20 -- <file>
+git log --oneline -n 10 -S "<function_name>"
+```
+
+Record findings per target:
+
+```markdown
+| Target | Last changed | Author | Recent commits | Risk |
+|--------|-------------|--------|----------------|------|
+| createCompletionHandler | 2/14 | user | 4b91032, bcc85a8 | High — changed recently |
+```
+
+### Step 1-C: Deletion Plan Report (required when removing functionality)
+
+If any target is being deleted, produce a dedicated **Refactoring Plan Report** before proceeding. The report MUST include a Mermaid dependency diagram.
+
+````markdown
+## Refactoring Plan Report: <Target Name>
+
+### Summary
+What is being deleted and why.
+
+### Dependency Graph
+
+```mermaid
+graph TD
+    A[CLI entry: run-agent.ts] --> B[Runner]
+    B --> C[factory.ts: createCompletionHandler]
+    C --> D[issue.ts: IssueHandler]
+    C --> E[externalState.ts: ExternalStateHandler]
+    B -.-> F[NEW: registry-based dispatch]
+    style C fill:#f66,stroke:#333
+    style F fill:#6f6,stroke:#333
+```
+
+### Deletion Items
+
+| Item | File:Line | Consumers | Migration target | Status |
+|------|-----------|-----------|-----------------|--------|
+| createCompletionHandler | factory.ts:42 | runner.ts, builder.ts | registryDispatch | Ready |
+
+### Risk Assessment
+
+| Risk | Likelihood | Mitigation |
+|------|-----------|------------|
+| Parameter lost at gate | High | Before/After table + test |
+| Cache serves stale module | Medium | --reload after change |
+````
+
+### Step 1-D: Removal Inventory
+
+List what is being removed, who consumes it, and what parameters it receives.
 
 ```markdown
 | Item | File | Consumers | Parameters |
@@ -42,14 +109,18 @@ Map everything being removed or changed before writing any code.
 | createCompletionHandler | factory.ts:42 | builder.ts, runner.ts | args.issue, args.repo |
 ```
 
-**2. Gateway Audit** — Trace every value from entry point to consumer, identifying filters and gates in between. Confirm the new path passes every parameter the old path consumed.
+### Step 1-E: Gateway Audit
+
+Trace every value from entry point to consumer, identifying filters and gates in between. Confirm the new path passes every parameter the old path consumed.
 
 ```
 Entry (CLI) → Filter (run-agent.ts:196) → Runner → Factory → Handler
                  ↑ blocked if not declared in definition.parameters
 ```
 
-**3. Consumer Audit** — Grep imports and call sites to identify every consumer. Determine the migration target for each. If any consumer has no migration target, deletion is not allowed.
+### Step 1-F: Consumer Audit
+
+Grep imports and call sites to identify every consumer. Determine the migration target for each. If any consumer has no migration target, deletion is not allowed.
 
 ## Phase 2: Contract & Verification Design
 
@@ -92,19 +163,108 @@ Define what contracts to preserve and how to prove preservation before writing a
 
 **8.** Delete dead code in the same PR. "Cleanup later" never comes.
 
+**9. Delete fallback locations** — When planning, explicitly list all fallback code paths (try/catch stubs, default branches, compatibility shims) tied to the deleted functionality. Include them in the deletion plan. Fallbacks that silently swallow errors are more dangerous than missing code.
+
+```markdown
+| Fallback | File:Line | Purpose | Action |
+|----------|-----------|---------|--------|
+| catch → return defaultHandler | factory.ts:58 | Masked missing handler | Delete |
+| fallback prompt template | fallback.ts:12 | V1 compatibility | Delete after migration |
+```
+
+**10. Error Remediation List** — If any step induces errors (test failures, import errors, runtime exceptions), do NOT fix inline. Instead, append to a remediation list and continue the current plan. Fix items from the list after the main refactoring is complete.
+
+```markdown
+## Remediation List
+
+| # | Error | Caused by step | File:Line | Status |
+|---|-------|---------------|-----------|--------|
+| 1 | ImportError: no export 'createHandler' | Step 6: delete old path | runner.ts:23 | Pending |
+| 2 | TypeError: handler is undefined | Step 6: delete old path | builder.ts:45 | Pending |
+```
+
+This prevents context-switching mid-refactor and keeps the commit sequence clean.
+
+## Phase 3-B: Test Creation
+
+Create tests that prove the refactoring preserves contracts. Organize by use case and responsibility, not by file.
+
+### Step T-1: Use Case Enumeration
+
+Before writing tests, list all use cases affected by the refactoring.
+
+```markdown
+| Use case | Responsibility | Boundary | Priority |
+|----------|---------------|----------|----------|
+| Issue completion triggers state change | CompletionHandler | factory → handler | High |
+| Missing issue param returns error | ParameterValidation | CLI → runner | High |
+| Unknown completionType falls back | FallbackDispatch | factory → fallback | Medium |
+```
+
+### Step T-2: Test Per Responsibility
+
+Create one test file per responsibility, not per source file. Each test file covers a single contract boundary.
+
+```typescript
+import { BreakdownLogger } from "jsr:@tettuan/breakdownlogger";
+import { assertEquals, assertRejects } from "jsr:@std/assert";
+
+const logger = new BreakdownLogger("refactor:completion-handler");
+
+Deno.test("CompletionHandler — issue param reaches handler", () => {
+  logger.debug("Testing issue parameter reachability", { param: "issue" });
+  // Arrange → Act → Assert on boundary input/output
+});
+
+Deno.test("CompletionHandler — missing issue returns error", async () => {
+  logger.debug("Testing missing issue rejection");
+  await assertRejects(
+    () => createHandler({ /* no issue */ }),
+    Error,
+    "issue is required",
+  );
+});
+```
+
+### Step T-3: Logger Convention
+
+Every refactoring test MUST use `@tettuan/breakdownlogger` for traceability.
+
+| Convention | Example |
+|-----------|---------|
+| Logger name | `"refactor:<responsibility>"` |
+| Log at Arrange | `logger.debug("setup", { input })` |
+| Log at Assert failure | `logger.error("contract broken", { expected, actual })` |
+| Log boundary crossing | `logger.info("param reached handler", { param })` |
+
+Import:
+```typescript
+import { BreakdownLogger } from "jsr:@tettuan/breakdownlogger";
+```
+
+### Step T-4: Verification Matrix
+
+After tests are written, fill the verification matrix linking use cases back to Before/After table rows.
+
+```markdown
+| Before/After row | Use case | Test file | Test name | Pass |
+|-----------------|----------|-----------|-----------|------|
+| args.issue reaches handler | Issue completion | completion_handler_test.ts | issue param reaches handler | [ ] |
+```
+
 ## Phase 4: Verify
 
-**9. Cache clear** — On macOS, DENO_DIR can split across `~/.cache/deno` and `~/Library/Caches/deno`. Clear both.
+**11. Cache clear** — On macOS, DENO_DIR can split across `~/.cache/deno` and `~/Library/Caches/deno`. Clear both.
 
 ```bash
 deno cache --reload <entry-point>
 ```
 
-**10. E2E parameter trace** — Confirm changed parameters reach the endpoint by running the actual command.
+**12. E2E parameter trace** — Confirm changed parameters reach the endpoint by running the actual command.
 
-**11. Consumer grep** — Ensure zero remaining references. `grep -r "OldName" --include='*.ts' | grep -v test` must return empty.
+**13. Consumer grep** — Ensure zero remaining references. `grep -r "OldName" --include='*.ts' | grep -v test` must return empty.
 
-**12. Docs grep** — Ensure zero stale references in docs. `grep -r "OldName" --include='*.md'` must return empty. See `docs-consistency` skill for full procedure.
+**14. Docs grep** — Ensure zero stale references in docs. `grep -r "OldName" --include='*.md'` must return empty. See `docs-consistency` skill for full procedure.
 
 ---
 
