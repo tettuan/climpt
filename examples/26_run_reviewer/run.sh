@@ -18,11 +18,11 @@ main() {
   fi
   success "PASS: review-agent task exists"
 
-  # Run reviewer agent on a synthetic project (no API key needed)
-  info "Starting reviewer agent for project #5 (synthetic pipeline test)..."
-  show_cmd deno task review-agent --project 5
+  # Run reviewer agent on a synthetic issue (no API key needed)
+  info "Starting reviewer agent for issue #1 (synthetic pipeline test)..."
+  show_cmd deno task review-agent --issue 1
   local exit_code=0
-  output=$( (cd "$REPO_ROOT" && deno task review-agent --project 5) 2>&1) \
+  output=$( (cd "$REPO_ROOT" && deno task review-agent --issue 1) 2>&1) \
     || exit_code=$?
 
   # Crash detection: import/startup errors are always fatal
@@ -37,7 +37,7 @@ main() {
   fi
 
   # Content validation: output should mention agent-related terms
-  if ! echo "$output" | grep -qiE "(reviewer|agent|project|step|running|anthropic|api)"; then
+  if ! echo "$output" | grep -qiE "(reviewer|agent|issue|step|running|anthropic|api)"; then
     error "FAIL: output lacks agent-related content"; return 1
   fi
   success "PASS: review-agent ran without crash (exit_code=${exit_code})"

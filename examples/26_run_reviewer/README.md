@@ -1,6 +1,6 @@
 # 26: Run Reviewer Agent
 
-**What:** Runs the reviewer agent with a synthetic project (no API key needed).
+**What:** Runs the reviewer agent with a synthetic issue (no API key needed).
 **Why:** Catches import errors, missing modules, and startup crashes in the
 agent pipeline.
 
