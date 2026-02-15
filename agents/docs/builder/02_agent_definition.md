@@ -241,7 +241,7 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 | ----------------- | --------------------------------- | -------------------------- |
 | `close`           | `Close Issue #N`                  | `"close it when done"`     |
 | `label-only`      | `Complete phase for Issue #N`     | `"Do NOT close the issue"` |
-| `label-and-close` | `Close Issue #N`                  | `"close it when done"`     |
+| `label-and-close` | `Issue #N labeled and closed`     | `"close it when done"`     |
 
 `label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
