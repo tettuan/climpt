@@ -5,145 +5,121 @@ description: How to approach work. Applies to all tasks including implementation
 
 # Workflow
 
+Main Agent acts as conductor: plan, delegate, judge, integrate. Never do hands-on work yourself.
+
 ```mermaid
 flowchart LR
-    subgraph 準備
-        A[Plan] --> B[Done Criteria] --> C[Team組成] --> D[ToDo分解]
-    end
-    subgraph 実行
-        D --> E[委譲/実行] --> F[記録]
-        F --> G{次?}
-        G -->|Y| E
-    end
-    G -->|N| H[完了確認]
+    A[Plan] --> B[Done Criteria] --> C[Team] --> D[ToDo]
+    D --> E[Delegate] --> F[Record] --> G{Next?}
+    G -->|Y| E
+    G -->|N| H[Done]
 ```
 
-## Conductor（指揮者）パターン
+## Conductor Pattern
 
-メインAgentは**指揮者**として振る舞う。自ら手を動かすのではなく、計画・委譲・判断・統合に専念する。
+Delegate all investigation and implementation to Sub Agents to preserve context for decision-making.
 
-### 指揮者の責務
+| Do | Do NOT |
+|----|--------|
+| Plan, delegate, judge, integrate | Explore files, write code, run tests |
+| Record progress after each ToDo | Work on multiple ToDos simultaneously |
+| Launch parallel Sub Agents for independent tasks | Hold context that Sub Agents should hold |
 
-| 責務 | 内容 |
-|------|------|
-| 計画 | Goal → Done Criteria → Team → ToDo の設計 |
-| 委譲 | 各ToDoを適切なSub Agentに割り当て、Task toolで起動 |
-| 判断 | Sub Agent成果物の採否、方針変更、ユーザーへの確認 |
-| 統合 | Sub Agent結果を合流させ、最終成果物にまとめる |
-| 記録 | progress.mdへの記録、ToDo進捗の更新 |
+### Delegation criteria
 
-### 指揮者がやらないこと
+| Condition | Action |
+|-----------|--------|
+| Trivial fix (typo, 3 lines) or single known-location edit | Self |
+| Investigation, multi-file change, or insufficient info | Delegate |
 
-- ファイル探索・コード調査（→ Explore Agent）
-- 設計案の比較検討（→ Plan Agent）
-- 実装・テスト実行（→ general-purpose Agent）
-- 上記をSubAgentに委譲せず自分で行うこと
+When in doubt, delegate. Conductor loses sight of the goal when immersed in hands-on work.
 
-### 委譲の判断基準
+### Sub Agent types
 
-| 条件 | 判断 |
-|------|------|
-| 3行以内の即時修正（typo等） | 自分で実行 |
-| 単一ファイルの既知箇所への変更 | 自分で実行 |
-| 調査・探索が必要 | Sub Agentへ委譲 |
-| 複数ファイルの横断的変更 | Sub Agentへ委譲 |
-| 判断材料が不足 | Sub Agentで調査→結果を元に判断 |
+| Purpose | Agent Type |
+|---------|-----------|
+| Search, explore | Explore |
+| Design comparison | Plan |
+| Implement, test, verify | general-purpose |
 
-原則: **迷ったら委譲する**。指揮者が実作業に没入するとゴール全体の見通しを失う。
+### Coordination protocol
 
-### Agent間調整プロトコル
-
-```
-指揮者 ──prompt──→ Sub Agent A ──result──→ 指揮者（統合）
-   │                                          │
-   └──prompt──→ Sub Agent B ──result──→────────┘
-```
-
-| フェーズ | 指揮者の行動 |
-|----------|-------------|
-| 起動 | Task toolでpromptに「目的・入力・期待出力・出力先」を明記 |
-| 並列実行 | 独立タスクはTask toolを同一メッセージで複数呼び出し |
-| 成果物受領 | Sub Agent結果を読み、Done Criteriaと照合 |
-| コンフリクト | 同一ファイルへの変更が競合→指揮者が手動マージ判断 |
-| 不足・失敗 | 追加のSub Agentを起動、またはpromptを修正して再委譲 |
-| 合流 | 全Sub Agent完了後、統合結果をprogress.mdに記録 |
+| Phase | Conductor action |
+|-------|-----------------|
+| Launch | Specify goal, input, expected output, and output path in Task prompt |
+| Parallel | Call multiple Task tools in one message for independent tasks |
+| Receive | Read result, compare against Done Criteria |
+| Conflict | Judge manual merge when Sub Agents edit the same file |
+| Failure | Re-launch with revised prompt, or launch additional Sub Agent |
+| Merge | Record integrated results in progress.md |
 
 ## Rules
 
-| # | 指示 |
+| # | Rule |
 |---|------|
-| 1 | **メインAgentは指揮者**。計画・委譲・判断・統合に専念し、実作業はSub Agentに委譲する |
-| 2 | `tmp/<task>/`に plan.md, progress.md, analysis.md を書き出す（思考の外部化） |
-| 3 | 1つ完了→記録→次。指揮者自身は同時並行しない（Sub Agentの並列起動は可） |
-| 4 | Plan(全体像)を TaskCreate で ToDo(実行単位)に分解 |
-| 5 | plan.md に Team テーブル記載。先頭行は必ず指揮者(Conductor)。1Role=1目的、混合禁止 |
-| 6 | 調査はSubAgentへ委譲: 探索=Explore / 設計=Plan / 実行・検証=general-purpose |
-| 7 | Done Criteria を先に定義。全項目達成まで未完了 |
-| 8 | 完了即 progress.md に記録（形式は後述） |
-| 9 | 技術的に明確→自分で判断し聞かない。方針判断→選択肢+推奨を提示（「どうしますか？」禁止） |
-| 10 | 分析・依存関係は Mermaid で analysis.md に図示。ToDo全体もMermaidでプロットし現在地を色分け |
-| 11 | 詳細手順は専門skillに委譲。方向不明時は `thinking-method` skill |
+| 1 | Conductor delegates all hands-on work to Sub Agents |
+| 2 | Externalize thinking to `tmp/<task>/` (plan.md, progress.md, analysis.md) |
+| 3 | Complete one → record → next. No self-parallelism (Sub Agent parallelism is fine) |
+| 4 | Decompose Plan into ToDos via TaskCreate |
+| 5 | Team table in plan.md. First row is always Conductor. 1 role = 1 purpose |
+| 6 | Delegate by type: explore=Explore / design=Plan / implement+verify=general-purpose |
+| 7 | Define Done Criteria first. Incomplete until all items pass |
+| 8 | Record to progress.md immediately on completion |
+| 9 | Technical decisions: decide without asking. Policy decisions: present options with recommendation |
+| 10 | Visualize dependencies and ToDo map in analysis.md with Mermaid |
+| 11 | Delegate detailed procedures to specialized skills. When direction is unclear, use `thinking-method` skill |
+| 12 | Structural code changes (module moves, renames, old path deletions) require `refactoring` skill first |
 
 ---
 
-## tmp/構造
+## tmp/ structure
 
 ```
 tmp/<task>/
 ├── plan.md        # Goal, Done Criteria, Team, Approach, Scope
-├── progress.md    # 記録蓄積
-├── analysis.md    # Mermaid図
-└── investigation/ # SubAgent結果
+├── progress.md    # Incremental records
+├── analysis.md    # Mermaid diagrams
+└── investigation/ # Sub Agent results
 ```
 
-## Planテンプレート
+## Plan template
 
 ```markdown
-# Plan: <タスク名>
+# Plan: <task name>
 ## Goal
 ## Done Criteria
-- [ ] <チェック可能な条件>
+- [ ] <checkable condition>
 ## Team
-| Role | 目的 | Agent Type | 担当ToDo |
-|------|------|-----------|---------|
-| Conductor | 計画・委譲・判断・統合 | メインAgent | 全体管理 |
+| Role | Purpose | Agent Type | ToDo |
+|------|---------|-----------|------|
+| Conductor | Plan, delegate, judge, integrate | Main Agent | Overall |
 ## Approach
 ## Scope
-やること: / やらないこと:
+Do: / Do not:
 ```
 
-## skill文書の作成・改善
+## progress.md format
 
-→ token圧縮は `prompt-compression` skill
-
-## progress.md 記録
-
-ToDo完了ごとに追記。What/Why(判断根拠)とHow(手順)は分離する。
+Append after each ToDo completion. Separate What/Why (rationale) from How (procedure).
 
 ```markdown
-### T1: <タスク名>
-**What/Why** - <目的・理由>
-**How** - <手順・ツール・出力先>
-**Result** - [x] YYYY-MM-DD HH:MM <事実>
+### T1: <task name>
+**What/Why** - <purpose and rationale>
+**How** - <procedure, tools, output path>
+**Result** - [x] YYYY-MM-DD HH:MM <fact>
 ```
 
-## ToDoマッピング例
-
-```mermaid
-flowchart TD
-    T1:::done --> T2:::cur --> T3:::todo --> T4:::todo
-    classDef done fill:#9f9
-    classDef cur fill:#ff9
-    classDef todo fill:#fff
-```
-
-## 質問テンプレート
+## Question template
 
 ```markdown
-## 確認: <テーマ>
-| 案 | 概要 | メリット | デメリット |
-|----|------|---------|-----------|
-| A（推奨）| | | |
+## Decision: <topic>
+| Option | Summary | Pro | Con |
+|--------|---------|-----|-----|
+| A (recommended) | | | |
 | B | | | |
-→ A案で進めてよいですか？
+→ Proceed with A?
 ```
+
+## Reference
+
+For agent type mapping, conflict resolution, and Task prompt structure, read `delegation-protocol.md` in this skill's directory.

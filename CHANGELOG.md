@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test naming conventions unified
 - InitResult type standardized across init subsystem
 
+## [1.11.23] - 2026-02-15
+
+### Fixed
+- `getCompletionCriteria()` now branches on `closureAction` setting (`close` / `label-only` / `label-and-close`) instead of always returning "Issue closed"
+- `factory.ts` threads `definition.github.defaultClosureAction` to `IssueCompletionHandler`
+- Fallback templates added for `label-only` variant (`initial_issue_label_only`, `continuation_issue_label_only`)
+- Root cause: V2 rewrite (commit 4170695) dropped branching logic from 35ad2cf; tests deleted simultaneously prevented regression detection
+
 ## [1.11.13] - 2026-02-08
 
 ### Added
@@ -29,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `buildCompletionCriteria()` now reflects `defaultClosureAction` setting — prompt layer generates "complete your phase" instead of "close" when `label-only` is configured
+  > Note: This fix was inadvertently lost in the V2 rewrite (4170695, Feb 9) and restored in v1.11.23.
 - `buildInitialPrompt()` and `buildContinuationPrompt()` select label-only fallback templates when applicable
 - JSR-distributed docs updated: `externalState` completion type, iterate-agent setup guides, and design notes now reference `defaultClosureAction` behavior
 

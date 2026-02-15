@@ -4,22 +4,15 @@ description: Use when implementing tests, writing test cases, discussing test st
 allowed-tools: [Read, Glob, Grep, Write, Edit, Bash]
 ---
 
-# Functional Testing Skill
+# Functional Testing
 
-## Core: Three-Layer Consistency
+Tests verify three-layer consistency (Design Doc ↔ Scaffold ↔ Runtime) by checking boundary contracts, not implementation details.
 
-```
-Design Doc  →  Scaffold/Template  →  Runtime
-   (約束)         (生成物)           (実行)
-        ↘          ↓          ↙
-              TEST (検証)
-```
+## Test Categories
 
-テストは単一層でなく**3つの真実の源**を突き合わせる。2つが一致しても残り1つが乖離すれば契約違反。
+### A. Contract Tests
 
-## 1. Test Categories
-
-### A. Contract Tests (設計契約)
+Verify design constraints hold at runtime by referencing the design document.
 
 ```typescript
 /** @design_ref agents/docs/design/08_step_flow.md */
@@ -28,102 +21,74 @@ Deno.test("stepId follows c2.c3 pattern", () => {
 });
 ```
 
-### B. Enforcement Tests (強制検証)
+### B. Enforcement Tests
 
-契約の「存在」と「強制」は別問題。違反時に**警告で終わるか、エラーで止まるか**をテスト:
+Verify violations produce errors, not warnings. Existence of a constraint and enforcement of it are separate concerns.
 
 ```typescript
-// Design says: "initial steps must not emit handoff"
 Deno.test("initial step handoff is rejected, not just warned", async () => {
   await assertRejects(
     () => processStep("initial.start", { handoff: true }),
-    HandoffNotAllowedError,  // not just console.warn
+    HandoffNotAllowedError,
   );
 });
 ```
 
-### C. Drift Detection (乖離検出)
+### C. Drift Detection
 
-| Layer Pair | What to Check |
+Detect divergence between any two layers before it becomes a silent bug.
+
+| Layer Pair | What to check |
 |------------|---------------|
-| Spec ↔ Scaffold | 生成物が仕様のフィールドを含むか |
-| Spec ↔ Runtime | 実行時が仕様の制約を守るか |
-| Scaffold ↔ Runtime | 生成物が実行時に尊重されるか |
-| Doc A ↔ Doc B | 複数ドキュメント間の矛盾 |
+| Spec ↔ Scaffold | Generated output includes all spec-required fields |
+| Spec ↔ Runtime | Runtime respects spec constraints |
+| Scaffold ↔ Runtime | Generated output is honored at runtime |
+| Doc A ↔ Doc B | No contradictions across documents |
 
-```typescript
-Deno.test("scaffold includes intentSchemaRef as spec requires", () => {
-  const scaffold = generateScaffold("step");
-  assertExists(scaffold.structuredGate?.intentSchemaRef);
-});
-```
+### D. Dead Reference Detection
 
-### D. Dead Reference Detection (陳腐化検出)
-
-ドキュメントが参照するAPIやクラスが「生きているか」を検証:
+Verify documented APIs and classes still exist in code, catching stale docs after refactoring.
 
 ```typescript
 Deno.test("documented FlowController is actually used", () => {
-  // If docs reference FlowController but code uses WorkflowRouter,
-  // either docs or code needs updating
   assertExists(mod.FlowController);
   assert(isUsedInRunner(mod.FlowController));
 });
 ```
 
-### E. Flow Path Verification (経路検証)
+### E. Flow Path Verification
 
-設計図のフロー（状態遷移）が実際のコードパスと一致するか:
+Verify design diagram transitions match actual code paths.
 
 ```typescript
 Deno.test("repeat routes back to work step, not closure", async () => {
   const result = await router.handleRepeat("closure.verify");
-  assertEquals(result.nextStep, "work.implement");  // not "closure.default"
+  assertEquals(result.nextStep, "work.implement");
 });
 ```
 
-## 2. Boundary Testing Quick Ref
+## Boundary Testing
 
-| Boundary | Test Focus |
-|----------|------------|
+| Boundary | Test focus |
+|----------|-----------|
 | API | Input/output shape, error types |
 | Config | Schema validation, defaults |
 | FileSystem | Required files exist |
 | Value Pass | Variables substituted correctly |
 
-```typescript
-// API boundary
-Deno.test("returns PromptResult shape", async () => {
-  const result = await resolveStepPrompt(stepId, vars);
-  assertExists(result.content);
-  assertExists(result.path);
-});
+## Test Structure
 
-// Error boundary
-Deno.test("invalid input throws typed error", async () => {
-  await assertRejects(() => fn("invalid"), SpecificError);
-});
-```
-
-## 3. Test Structure
+Order tests by increasing specificity: existence → contract → enforcement → alignment.
 
 ```typescript
 /** @design_ref path/to/design.md */
-
-// 1. Existence (files, exports, config keys)
-Deno.test("required components exist", ...);
-
-// 2. Contract (input/output shapes)
-Deno.test("function returns expected shape", ...);
-
-// 3. Enforcement (violations are blocked, not warned)
-Deno.test("constraint violation throws error", ...);
-
-// 4. Alignment (confirm what IS working)
-Deno.test("tool isolation matches design", ...);
+Deno.test("required components exist", ...);      // 1. Existence
+Deno.test("function returns expected shape", ...); // 2. Contract
+Deno.test("constraint violation throws error", ...); // 3. Enforcement
+Deno.test("tool isolation matches design", ...);   // 4. Alignment
 ```
 
-## 4. Checklist
+## Checklist
 
 - [ ] Design document referenced (`@design_ref`)
 - [ ] Tests verify contracts, not implementation details
@@ -133,3 +98,8 @@ Deno.test("tool isolation matches design", ...);
 - [ ] Flow paths match diagrams
 - [ ] Alignments reported (what works correctly)
 - [ ] No absolute paths in test code
+- [ ] After refactoring: Before/After contracts verified per `refactoring` skill Phase 2
+
+## Reference
+
+For the 3-layer consistency model, boundary test code examples, and test ordering rationale, read `testing-patterns.md` in this skill's directory.
