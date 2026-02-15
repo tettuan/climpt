@@ -30,6 +30,8 @@ export interface IssueContractConfig {
   repo?: string;
   /** Minimum interval between state checks in ms (default: 60000) */
   checkInterval?: number;
+  /** How to handle issue closure: close, label-only, or label-and-close (default: "close") */
+  closureAction?: "close" | "label-only" | "label-and-close";
 }
 
 /**
@@ -120,6 +122,29 @@ export class IssueCompletionHandler implements ContractCompletionHandler {
    * @post No side effects (Query method)
    */
   getCompletionCriteria(): { summary: string; detailed: string } {
+    const action = this.config.closureAction ?? "close";
+
+    if (action === "label-only") {
+      return {
+        summary: `Phase complete for Issue #${this.config.issueNumber}`,
+        detailed:
+          `Complete your assigned phase for GitHub Issue #${this.config.issueNumber}. ` +
+          `Do NOT close the issue -- only update labels when your phase is done. ` +
+          `The next agent in the pipeline will continue the work.`,
+      };
+    }
+
+    if (action === "label-and-close") {
+      return {
+        summary: `Issue #${this.config.issueNumber} labeled and closed`,
+        detailed:
+          `Complete the requirements in GitHub Issue #${this.config.issueNumber}. ` +
+          `Update labels and close the issue when done${
+            this.config.repo ? ` in ${this.config.repo}` : ""
+          }.`,
+      };
+    }
+
     return {
       summary: `Issue #${this.config.issueNumber} closed`,
       detailed:

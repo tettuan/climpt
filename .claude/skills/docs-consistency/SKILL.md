@@ -4,332 +4,99 @@ description: Verify and fix documentation to match implementation. Use when upda
 allowed-tools: [Read, Edit, Grep, Glob, Bash, Write]
 ---
 
-# Docs Consistency - Design-Driven Documentation
+# Docs Consistency
 
-## Core Principle
+Docs explain implementation; they do not rewrite design. Flow: design intent (What/Why) → implementation survey (How) → docs update (explanation).
 
-```
-設計意図(What/Why) → 実装調査(How) → docs修正(説明)
-```
+## Phase 1: Extract Design Intent
 
-docsは実装の説明であり、設計を書き換えるものではない。
+Read design docs (`docs/internal/`) and write `tmp/docs-review/{feature}-intent.md` capturing What, Why, constraints, and what users need to know.
 
----
+## Phase 2: Survey Implementation
 
-## Phase 1: 設計意図の明確化
+Identify implementation files, public API, defaults, and edge cases. Write `tmp/docs-review/{feature}-implementation.md`.
 
-### 1.1 設計ドキュメントを読む
+## Phase 3: Diff Against Current Docs
 
-```bash
-# 設計ドキュメントの特定
-ls docs/internal/
-```
+Compare intent + implementation memos against current docs. Build a diff table:
 
-### 1.2 What/Whyを抽出してtmp/に書き出す
+| Item | Design/Implementation | Current docs | Gap |
+|------|----------------------|-------------|-----|
+| Install command | `dx jsr:...` | Documented | None |
+| 3 output modes | preserve/flatten/single | Missing | Add |
+| Default output dir | ./climpt-docs | Missing | Add |
 
-```bash
-mkdir -p tmp/docs-review
-```
+## Phase 4: Fix Docs
 
-対象機能ごとにメモを作成：
+Do not change design docs — only update implementation-facing docs.
 
-```markdown
-# tmp/docs-review/{feature}-intent.md
+| Priority | Target |
+|----------|--------|
+| 1 | README.md |
+| 2 | README.ja.md (sync required) |
+| 3 | docs/guides/ |
+| 4 | --help output |
 
-## What（何を実現するか）
-- ...
+Use intent/implementation memos as source material for writing.
 
-## Why（なぜそうするか）
-- ...
+### Memo disposition after fix
 
-## 設計上の制約・決定事項
-- ...
+| Situation | Action |
+|-----------|--------|
+| Low value (simple fix) | Delete `tmp/docs-review/` |
+| Useful for PR description | Quote in PR |
+| Worth preserving as design record | Promote to `docs/internal/changes/` |
 
-## ユーザーが知るべきこと
-- ...
-```
-
-**例: docs distribution**
-
-```markdown
-# tmp/docs-review/docs-distribution-intent.md
-
-## What
-- JSRからdocsをローカルにインストールする機能
-
-## Why
-- ユーザーがオフラインでドキュメント参照できる
-- AI context windowにdocsを含められる
-- バージョン管理されたdocsを取得できる
-
-## 設計上の決定
-- manifest.jsonで全docsを管理
-- 3モード: preserve/flatten/single
-- バージョンは自動検出（meta.json）
-
-## ユーザーが知るべきこと
-- インストールコマンド
-- フィルタオプション（category, lang）
-- 出力モードの違い
-```
-
----
-
-## Phase 2: 実装の調査
-
-### 2.1 対応する実装コードを特定
+## Phase 5: Format Check
 
 ```bash
-# 設計と実装のマッピング
-grep -r "install\|list" src/docs/ --include="*.ts" -l
+deno task verify-docs          # all checks
+deno task verify-docs readme   # README.md/ja sync
+deno task verify-docs manifest # manifest.json version
 ```
 
-### 2.2 実現方法を把握してメモに追記
+When docs files are added or removed: `deno task generate-docs-manifest`.
 
-```markdown
-# tmp/docs-review/{feature}-implementation.md
+## Phase 6: Language
 
-## 実装ファイル
-- src/docs/mod.ts
-- src/docs/cli.ts
-- ...
+| Pattern | Language |
+|---------|---------|
+| `*.md` | English (required) |
+| `*.ja.md` | Japanese (optional, not distributed via JSR) |
 
-## 公開API
-- install(options): Promise<Result>
-- list(): Promise<Manifest>
+Japanese-only files: rename to `.ja.md`, create English `.md` translation, then regenerate manifest.
 
-## 実際の動作
-- JSRからmeta.json取得 → 最新バージョン特定
-- manifest.json取得 → エントリ一覧
-- 各markdownファイルをfetch → ローカル保存
+## Distribution Scope
 
-## デフォルト値
-- output: "./climpt-docs"
-- mode: "preserve"
+| Included | Excluded |
+|----------|----------|
+| `docs/guides/en/`, `docs/internal/`, top-level `docs/*.md` | `docs/guides/ja/`, `docs/reference/`, `*.ja.md` |
 
-## エッジケース
-- ネットワークエラー時: ...
-- 既存ファイル上書き: ...
-```
+## File Classification
 
----
+| File type | Role | Editable? |
+|-----------|------|-----------|
+| docs/internal/ | Design intent record | No (read only) |
+| docs/reference/ | External reference | No (not distributed) |
+| README.md, docs/guides/, --help | Implementation explanation | Yes |
+| tmp/docs-review/ | Working memo | Delete or promote after use |
 
-## Phase 3: docs との照合
-
-### 3.0 メモを開き差分表を準備
-
-Phase 1/2で作成したメモを参照しながら差分表を作成する：
-
-```bash
-# 作成したメモを確認
-cat tmp/docs-review/{feature}-intent.md
-cat tmp/docs-review/{feature}-implementation.md
-```
-
-これらのメモから「設計/実装」列の値を差分表へ転記していく。
-
-### 3.1 現在のdocsを確認
-
-```bash
-# 対象機能のdocs確認
-grep -A 20 "Documentation" README.md
-cat docs/internal/docs-distribution-design.md
-```
-
-### 3.2 差分を特定
-
-設計意図メモ + 実装メモ と 現在のdocs を比較：
-
-| 項目 | 設計/実装 | 現在のdocs | 差分 |
-|------|-----------|------------|------|
-| インストールコマンド | `dx jsr:...` | 記載あり | ✓ |
-| 3モードの説明 | preserve/flatten/single | 未記載 | 要追記 |
-| デフォルト出力先 | ./climpt-docs | 未記載 | 要追記 |
-
----
-
-## Phase 4: docs の修正
-
-### 4.1 修正方針
-
-- **設計は書き換えない** - docs/internal/は設計意図の記録
-- **実装の説明を更新** - README, docs/guides/は実装の説明
-- **ユーザー視点で記述** - 何ができるか、どう使うか
-
-### 4.2 修正対象の優先順位
-
-1. **README.md** - 最初に読まれる、必須
-2. **README.ja.md** - 同期必須
-3. **docs/guides/** - 詳細な使い方
-4. **--help** - CLI使用時に参照
-
-### 4.3 修正実行
-
-```bash
-# 実装の説明を追記/修正
-# 設計意図(Why)を反映した説明文
-```
-
-メモ（intent.md / implementation.md）は文案の素材として活用する：
-- 差分表の「設計/実装」列からdocs修正文を起草
-- PR descriptionの背景説明に流用
-
-### 4.4 メモの保存方針
-
-修正完了後のtmp/docs-review/の扱い：
-
-| 状況 | 対処 |
-|------|------|
-| 単純な修正で価値が低い | `rm -rf tmp/docs-review/` で削除 |
-| PR説明の補足に有用 | PRにリンク or 内容を引用 |
-| 設計判断の記録として残す | `docs/internal/changes/` へ昇格 |
-
----
-
-## Phase 5: 形式チェック
-
-修正後、形式的な整合性を確認：
-
-```bash
-# 全体チェック
-deno task verify-docs
-
-# 個別チェック
-deno task verify-docs readme   # README.md/ja 同期
-deno task verify-docs manifest # manifest.json バージョン
-```
-
-### 必須確認項目
-
-| 項目 | コマンド/確認方法 |
-|------|-------------------|
-| README sections一致 | `verify-docs readme` |
-| コードブロック数一致 | 自動 |
-| manifest.jsonバージョン | `verify-docs manifest` |
-| 多言語ガイド同期 | `verify-docs` (all) |
-
-### manifest.json 更新
-
-docsファイル追加/削除時：
-
-```bash
-deno task generate-docs-manifest
-```
-
----
-
-## Phase 6: 英語版の確保
-
-### 命名規則
-
-| パターン | 言語 |
-|----------|------|
-| `*.md` | 英語版（必須） |
-| `*.ja.md` | 日本語版（任意） |
-
-### 日本語タイトルのファイル検出
-
-```bash
-deno task verify-docs
-# "Naming Convention" チェックで検出
-```
-
-### 対処フロー
-
-1. **リネーム**: 日本語のみのファイルを `.ja.md` に変更
-   ```bash
-   mv docs/foo.md docs/foo.ja.md
-   ```
-
-2. **英語版作成**: `.ja.md` を翻訳して `.md` を作成
-   - タイトル（H1）を英訳
-   - セクション見出しを英訳
-   - 本文を英訳（コード例はそのまま）
-
-3. **manifest再生成**:
-   ```bash
-   deno task generate-docs-manifest
-   ```
-
-### 翻訳のポイント
-
-- 技術用語・コード・コマンドは原文維持
-- 説明文のみ自然な英語に
-- 構造（見出しレベル、リスト形式）は維持
-
----
-
-## Docs Distribution (配布対象)
-
-manifest.json に含まれる = JSR経由でインストール可能なドキュメント。
-
-### 配布対象
-
-| ディレクトリ | 内容 |
-|--------------|------|
-| `docs/guides/en/` | 英語ガイド |
-| `docs/internal/` | 設計ドキュメント |
-| `docs/*.md` | トップレベルのドキュメント |
-
-### 配布除外
-
-| ディレクトリ | 理由 |
-|--------------|------|
-| `docs/guides/ja/` | 日本語版は任意 |
-| `docs/reference/` | 外部参照資料（SDK docs等） |
-| `*.ja.md` | 日本語版は配布対象外 |
-
----
-
-## Quick Reference
-
-### ファイル分類
-
-| ファイル種別 | 役割 | 修正対象？ |
-|--------------|------|-----------|
-| docs/internal/ | 設計意図の記録 | No（読むだけ） |
-| docs/reference/ | 外部参照資料 | No（配布対象外） |
-| README.md | 実装の説明 | Yes |
-| docs/guides/ | 詳細な使い方 | Yes |
-| --help | CLI説明 | Yes |
-| tmp/docs-review/ | 作業用メモ | 完了後削除 or PR添付 |
-
-### チェックリスト
+## Checklist
 
 ```
-Phase 1: 設計意図
-- [ ] docs/internal/ を読んだ
-- [ ] tmp/docs-review/{feature}-intent.md 作成
-- [ ] What/Why 明確化
-
-Phase 2: 実装調査
-- [ ] 実装ファイル特定
-- [ ] tmp/docs-review/{feature}-implementation.md 作成
-- [ ] 公開API、デフォルト値、動作把握
-
-Phase 3: 照合
-- [ ] 現在のdocs確認
-- [ ] 差分リスト作成
-
-Phase 4: 修正
-- [ ] README.md 更新
-- [ ] README.ja.md 同期
-- [ ] 必要に応じてdocs/guides/更新
-
-Phase 5: 形式チェック
-- [ ] deno task verify-docs 実行
-- [ ] 全チェック pass
-- [ ] manifest.json 更新（必要時）
-
-Phase 6: メモの後処理
-- [ ] intent/implementation メモの内容をdocs修正に反映した
-- [ ] tmp/docs-review/ を削除 or docs/internal/changes/ へ昇格
+Phase 1: - [ ] Read docs/internal/, wrote {feature}-intent.md
+Phase 2: - [ ] Identified impl files, wrote {feature}-implementation.md
+Phase 3: - [ ] Built diff table against current docs
+Phase 4: - [ ] Updated README.md, synced README.ja.md
+Phase 5: - [ ] deno task verify-docs passed, manifest updated if needed
+Phase 6: - [ ] No Japanese-only .md files remain
+Memo:    - [ ] tmp/docs-review/ deleted or promoted
 ```
-
----
 
 ## References
 
-- [SEMANTIC-CHECK.md](SEMANTIC-CHECK.md) - 意味的整合性の詳細
-- [IMPLEMENTATION-CHECK.md](IMPLEMENTATION-CHECK.md) - 形式的チェック（補助）
-- `scripts/verify-docs.ts` - 自動チェック（補助）
+- [SEMANTIC-CHECK.md](SEMANTIC-CHECK.md) — Semantic consistency details
+- [IMPLEMENTATION-CHECK.md](IMPLEMENTATION-CHECK.md) — Formal checks (supplementary)
+- `scripts/verify-docs.ts` — Automated checks (supplementary)
+- `refactoring` skill — Docs grep after structural code changes (Phase 4 Step 12)
+- `operational-guide.md` in this skill's directory — Concrete example (docs-distribution), bash commands, distribution scope, memo lifecycle, language rules

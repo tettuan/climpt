@@ -60,16 +60,16 @@ Agent の振る舞い。
 
 ### completionType
 
-| タイプ             | What                                      | Why                                                       | 主な設定                                   |
-| ------------------ | ----------------------------------------- | --------------------------------------------------------- | ------------------------------------------ |
-| `externalState`    | Issue や git 等の外部状態と同期           | 1 Issue = 1 Branch = 1 Worktree の境界を守るため          | `validators`, `github`, `worktree`         |
-| `iterationBudget`  | 所定回数の iteration で終了               | ループを有限に保ち暴走を防ぐ                              | `maxIterations`                            |
-| `checkBudget`      | Status check の回数で終了                 | 監視用途で「回数 = コスト」を明示し、作業計画を単純化     | `maxChecks`                                |
-| `keywordSignal`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                        |
-| `structuredSignal` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`           |
-| `stepMachine`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                      |
-| `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `completionConditions`, `mode`             |
-| `custom`           | 外部 CompletionHandler で任意判定         | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `completionHandler` 設定 |
+| タイプ             | What                                      | Why                                                       | 主な設定                                                           |
+| ------------------ | ----------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ |
+| `externalState`    | Issue や git 等の外部状態と同期           | 1 Issue = 1 Branch = 1 Worktree の境界を守るため          | `validators`, `github`, `worktree`, **parameters に `issue` 必須** |
+| `iterationBudget`  | 所定回数の iteration で終了               | ループを有限に保ち暴走を防ぐ                              | `maxIterations`                                                    |
+| `checkBudget`      | Status check の回数で終了                 | 監視用途で「回数 = コスト」を明示し、作業計画を単純化     | `maxChecks`                                                        |
+| `keywordSignal`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                                                |
+| `structuredSignal` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
+| `stepMachine`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
+| `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `completionConditions`, `mode`                                     |
+| `custom`           | 外部 CompletionHandler で任意判定         | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `completionHandler` 設定                         |
 
 ### completionConditions
 
@@ -95,7 +95,9 @@ steps_registry.json で完了条件を定義する。詳細は
 
 ## parameters
 
-CLI 引数の定義。
+CLI 引数の定義。`run-agent.ts`
+はここに宣言されたパラメータのみをランナーに転送する。 **宣言されていない CLI
+引数は無視される。**
 
 ```json
 {
@@ -110,6 +112,27 @@ CLI 引数の定義。
       "type": "number",
       "default": 10,
       "cli": "--max-iterations"
+    }
+  }
+}
+```
+
+### completionType 別の必須パラメータ
+
+| completionType  | 必須パラメータ | 説明                                      |
+| --------------- | -------------- | ----------------------------------------- |
+| `externalState` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
+
+`externalState` を使う場合、以下を `parameters` に含めること:
+
+```json
+{
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number",
+      "required": true,
+      "cli": "--issue"
     }
   }
 }
@@ -218,7 +241,7 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 | ----------------- | --------------------------------- | -------------------------- |
 | `close`           | `Close Issue #N`                  | `"close it when done"`     |
 | `label-only`      | `Complete phase for Issue #N`     | `"Do NOT close the issue"` |
-| `label-and-close` | `Close Issue #N`                  | `"close it when done"`     |
+| `label-and-close` | `Issue #N labeled and closed`     | `"close it when done"`     |
 
 `label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
