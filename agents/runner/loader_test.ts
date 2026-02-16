@@ -130,7 +130,14 @@ Deno.test("validateAgentDefinition - missing runner fails", () => {
   // @ts-ignore - intentionally testing invalid state
   def.runner = undefined;
 
+  logger.debug("validateAgentDefinition input", {
+    hasRunner: def.runner !== undefined,
+  });
   const result = validateAgentDefinition(def);
+  logger.debug("validateAgentDefinition result", {
+    valid: result.valid,
+    errorCount: result.errors.length,
+  });
 
   assertEquals(result.valid, false);
   assertEquals(result.errors.some((e) => e.includes("runner")), true);
@@ -153,7 +160,12 @@ Deno.test("validateAgentDefinition - uppercase name fails", () => {
   const def = createValidDefinition();
   def.name = "TestAgent";
 
+  logger.debug("validateAgentDefinition input", { name: def.name });
   const result = validateAgentDefinition(def);
+  logger.debug("validateAgentDefinition result", {
+    valid: result.valid,
+    errors: result.errors,
+  });
 
   assertEquals(result.valid, false);
   assertEquals(result.errors.some((e) => e.includes("kebab-case")), true);
@@ -486,7 +498,12 @@ Deno.test("validateAgentDefinition - required param with default generates warni
 // =============================================================================
 
 Deno.test("getAgentDir - returns correct path", () => {
+  logger.debug("getAgentDir input", {
+    agentName: "test-agent",
+    baseDir: "/home/user/project",
+  });
   const result = getAgentDir("test-agent", "/home/user/project");
+  logger.debug("getAgentDir result", { result });
   assertEquals(result, "/home/user/project/.agent/test-agent");
 });
 

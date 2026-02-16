@@ -122,7 +122,12 @@ Deno.test("isInitializable - returns true for objects with initialize method", (
   const initializableObject = {
     initialize: async () => {},
   };
-  assertEquals(isInitializable(initializableObject), true);
+  logger.debug("isInitializable input", {
+    hasInitialize: typeof initializableObject.initialize,
+  });
+  const result = isInitializable(initializableObject);
+  logger.debug("isInitializable result", { result });
+  assertEquals(result, true);
 });
 
 Deno.test("isInitializable - returns false for objects without initialize method", () => {
@@ -147,7 +152,13 @@ Deno.test("isInitializable - returns false for non-objects", () => {
 // =============================================================================
 
 Deno.test("createDefaultDependencies - returns all required factories", () => {
+  logger.debug("createDefaultDependencies input", {});
   const deps = createDefaultDependencies();
+  logger.debug("createDefaultDependencies result", {
+    hasLogger: !!deps.loggerFactory,
+    hasCompletion: !!deps.completionHandlerFactory,
+    hasPrompt: !!deps.promptResolverFactory,
+  });
 
   assertEquals(typeof deps.loggerFactory, "object");
   assertEquals(typeof deps.loggerFactory.create, "function");

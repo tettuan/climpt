@@ -170,7 +170,15 @@ Deno.test("normalizeToAgentError - returns AgentError as-is", () => {
 
 Deno.test("normalizeToAgentError - wraps Error as AgentQueryError", () => {
   const original = new Error("Regular error");
+  logger.debug("normalizeToAgentError input", {
+    type: original.constructor.name,
+    message: original.message,
+  });
   const normalized = normalizeToAgentError(original);
+  logger.debug("normalizeToAgentError result", {
+    type: normalized.constructor.name,
+    code: normalized.code,
+  });
   assertInstanceOf(normalized, AgentQueryError);
   assertEquals(normalized.message, "Regular error");
   assertEquals(normalized.cause, original);
@@ -472,7 +480,12 @@ Deno.test("Completion Validation - hasAICompletionDeclaration detects status=com
       summary: "Task done",
     },
   });
-  assertEquals(hasAICompletionDeclaration(summary), true);
+  logger.debug("hasAICompletionDeclaration input", {
+    status: summary.structuredOutput?.status,
+  });
+  const result = hasAICompletionDeclaration(summary);
+  logger.debug("hasAICompletionDeclaration result", { result });
+  assertEquals(result, true);
 });
 
 Deno.test("Completion Validation - hasAICompletionDeclaration detects next_action.action=complete", () => {
@@ -516,7 +529,15 @@ Deno.test("Completion Validation - FormatValidator validates JSON in assistant r
     },
   };
 
+  logger.debug("FormatValidator input", {
+    formatType: format.type,
+    responseCount: summary.assistantResponses.length,
+  });
   const result = validator.validate(summary, format);
+  logger.debug("FormatValidator result", {
+    valid: result.valid,
+    hasExtracted: result.extracted !== undefined,
+  });
 
   assertEquals(result.valid, true);
   assertEquals((result.extracted as Record<string, unknown>).status, "success");

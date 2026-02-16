@@ -690,6 +690,7 @@ Deno.test("StructuredOutput - schema loading path simulation", async () => {
 
   // 2. Get step definition
   const stepId = "initial.issue";
+  logger.debug("schema loading path input", { stepId, registryPath });
   const stepDef = registry.steps[stepId];
   assertExists(stepDef, "Step definition should exist");
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
@@ -706,6 +707,11 @@ Deno.test("StructuredOutput - schema loading path simulation", async () => {
   const schema = schemas[stepDef.outputSchemaRef.schema];
   assertExists(schema, "Target schema should exist");
   assertEquals(schema.type, "object", "Schema should be object type");
+  logger.debug("schema loading path result", {
+    stepId,
+    schemaKeys: Object.keys(schema.properties ?? {}),
+    required: schema.required,
+  });
 
   // 6. Verify schema would be valid for outputFormat
   const outputFormat = {
