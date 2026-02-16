@@ -6,6 +6,7 @@
  */
 
 import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   type AgentDependencies,
   AgentRunnerBuilder,
@@ -26,6 +27,8 @@ import type { AgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+
+const logger = new BreakdownLogger("builder");
 
 // =============================================================================
 // Test Fixtures
@@ -302,7 +305,9 @@ Deno.test("AgentRunnerBuilder - custom factories override defaults", async () =>
     .withPromptResolverFactory(mockPromptFactory);
 
   // Build creates the runner which uses the factories
+  logger.debug("building runner with custom factories");
   const runner = await builder.build();
+  logger.debug("runner built", { hasOn: typeof runner.on });
 
   // Verify runner was created
   assertEquals(typeof runner, "object");

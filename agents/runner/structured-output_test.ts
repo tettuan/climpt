@@ -10,9 +10,12 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 import { join } from "@std/path";
+
+const logger = new BreakdownLogger("structured-output");
 
 // =============================================================================
 // Schema Loading Tests
@@ -619,6 +622,11 @@ Deno.test("StructuredOutput - externalState schema loading path simulation", asy
   const schema = schemas[stepDef.outputSchemaRef.schema];
   assertExists(schema, "Target schema should exist");
   assertEquals(schema.type, "object", "Schema should be object type");
+  logger.debug("schema loading path", {
+    stepId,
+    schemaPath,
+    schemaKeys: Object.keys(schema.properties ?? {}),
+  });
 
   // 6. Verify schema would be valid for outputFormat
   const outputFormat = {

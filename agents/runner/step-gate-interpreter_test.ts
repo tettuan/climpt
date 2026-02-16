@@ -3,12 +3,15 @@
  */
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   GateInterpretationError,
   getValueAtPath,
   StepGateInterpreter,
 } from "./step-gate-interpreter.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
+
+const logger = new BreakdownLogger("step-gate-interpreter");
 
 Deno.test("getValueAtPath - extracts simple path", () => {
   const obj = { a: "value" };
@@ -111,22 +114,28 @@ Deno.test("StepGateInterpreter - maps common aliases", () => {
   });
 
   // Test continue -> next
-  assertEquals(
-    interpreter.interpret({ action: "continue" }, stepDef).intent,
-    "next",
-  );
+  const nextResult = interpreter.interpret({ action: "continue" }, stepDef);
+  logger.debug("alias mapping", {
+    input: "continue",
+    output: nextResult.intent,
+  });
+  assertEquals(nextResult.intent, "next");
 
   // Test retry -> repeat
-  assertEquals(
-    interpreter.interpret({ action: "retry" }, stepDef).intent,
-    "repeat",
-  );
+  const repeatResult = interpreter.interpret({ action: "retry" }, stepDef);
+  logger.debug("alias mapping", {
+    input: "retry",
+    output: repeatResult.intent,
+  });
+  assertEquals(repeatResult.intent, "repeat");
 
   // Test done -> closing
-  assertEquals(
-    interpreter.interpret({ action: "done" }, stepDef).intent,
-    "closing",
-  );
+  const closingResult = interpreter.interpret({ action: "done" }, stepDef);
+  logger.debug("alias mapping", {
+    input: "done",
+    output: closingResult.intent,
+  });
+  assertEquals(closingResult.intent, "closing");
 
   // Test escalate -> escalate (now a first-class intent for verification steps)
   const verificationDef = createStepDef({
@@ -220,6 +229,10 @@ Deno.test("StepGateInterpreter - extracts handoff fields", () => {
   };
 
   const result = interpreter.interpret(output, stepDef);
+  logger.debug("handoff extraction", {
+    handoffFields: stepDef.structuredGate?.handoffFields,
+    result: result.handoff,
+  });
 
   assertEquals(result.intent, "next");
   assertEquals(result.handoff, {

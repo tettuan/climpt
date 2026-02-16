@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/climpt",
-  "version": "1.11.23",
+  "version": "1.11.24",
   "description": "A CLI wrapper around @tettuan/breakdown for AI-assisted development instruction tools. Provides unified interface for creating, managing, and executing development instructions using TypeScript and JSON Schema for AI system interpretation.",
   "license": "MIT",
   "author": "tettuan",
@@ -88,7 +88,8 @@
     "@std/cli": "jsr:@std/cli@^1.0.27",
     "@std/flags": "jsr:@std/flags@^0.224.0",
     "@std/fs": "jsr:@std/fs@^1.0.22",
-    "@std/path": "jsr:@std/path@^1.1.4"
+    "@std/path": "jsr:@std/path@^1.1.4",
+    "@tettuan/breakdownlogger": "jsr:@tettuan/breakdownlogger@^1.1.2"
   },
   "compilerOptions": {
     "lib": ["deno.ns", "dom", "es2022"],

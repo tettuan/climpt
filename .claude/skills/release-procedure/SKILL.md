@@ -4,437 +4,80 @@ description: Use when user says 'release', 'リリース', 'deploy', 'publish', 
 allowed-tools: [Bash, Read, Edit, Grep, Glob]
 ---
 
-# リリース手順ガイド
+# リリース手順
 
-## 責務
+version bump → CI → docs → PR → merge → vtag の順で release/* から main へ段階的にリリースする。各マージはユーザーの明示的指示を待ってから実行する。
 
-リリースフロー全体を管理する（version bump → tag → PR → merge の手順）。
+関連skill: ブランチ戦略→`/branch-management`、CI実行→`/local-ci`、サンドボックス→`/git-gh-sandbox`
 
-- ブランチ戦略・命名規則の詳細は `/branch-management` skill を参照
-- CI 実行方法・エラー対処の詳細は `/local-ci` skill を参照
+## バージョン管理
 
-## リリースブランチ作成時のチェックリスト
-
-**release/* ブランチを作成したら、必ず以下を実行:**
-
-```bash
-# 1. バージョン自動更新（ブランチ名から検出）
-deno task bump-version
-
-# 2. 確認
-grep '"version"' deno.json
-grep 'CLIMPT_VERSION' src/version.ts
-
-# 3. ローカルCI
-deno task ci
-
-# 4. コミット & プッシュ
-git add deno.json src/version.ts
-git commit -m "chore: bump version to x.y.z"
-git push -u origin release/x.y.z
-```
-
-## ドキュメント更新（リリース前必須）
-
-**重要**: リリース前に以下の2つのスキルを使用してドキュメントを更新すること。
-
-### 1. CHANGELOG 更新
-
-`/update-changelog` スキルを使用:
-- 変更内容を [Unreleased] セクションに記載
-- 検索可能なキーワードを含める（コマンド名、オプション名、設定名）
-- リリース時に [x.y.z] - YYYY-MM-DD へ移動
-
-### 2. ドキュメント更新
-
-`/update-docs` スキルを使用:
-- 変更の種類に応じて適切な場所を更新
-- CLI オプション変更 → `--help` 必須、README 推奨
-- 新機能 → README に簡潔な説明とサンプル
-- 設定変更 → スキーマ説明、README/docs
-
-### 3. docs/manifest.json 更新
-
-リリース前に `docs/manifest.json` を最新状態に更新する:
-
-- `version` フィールドをリリースバージョンに更新
-- エントリの追加・削除: `docs/` 配下のファイル増減を反映
-- `bytes` フィールド: 各ファイルの実サイズと一致させる
-- `lang` フィールド: en/ja ガイドには必ず指定
-
-```bash
-# 確認: manifest のエントリと実ファイルの突き合わせ
-ls docs/*.md docs/guides/en/*.md docs/guides/ja/*.md
-# manifest に無いファイル、または manifest にあるが存在しないファイルがないか確認
-
-# bytes 確認
-wc -c docs/*.md docs/guides/en/*.md docs/guides/ja/*.md
-```
-
-### チェックリスト
+CIが `deno.json` と `src/version.ts` の一致を自動検証するので、`deno task bump-version` でブランチ名から両ファイルを同時更新する（手動指定も可: `deno task bump-version x.y.z`）。
 
 ```
-□ CHANGELOG.md に変更を記載（/update-changelog）
-□ 必要なドキュメントを更新（/update-docs）
-  □ CLI変更 → --help 出力確認
-  □ 新機能 → README.md / README.ja.md
-  □ Agent変更 → agents/README.md
-  □ 設定変更 → スキーマ説明
-□ docs/manifest.json を更新
-  □ version をリリースバージョンに更新
-  □ ファイル追加・削除を反映
-  □ bytes を実サイズに更新
-□ examples/ E2E 検証を実行（CI通過後、PR作成前）
-```
-
-**重要**: `deno task bump-version` は release/* ブランチ名からバージョンを自動検出する。
-手動指定も可能: `deno task bump-version 1.10.2`
-
-## 重要: 連続マージの禁止事項
-
-**release/* → develop → main への連続マージは、必ずユーザーの明示的な指示を受けてから実行すること。**
-
-禁止事項:
-- ユーザーの指示なしに連続マージを実行
-- 「リリースして」等の曖昧な指示で main まで一気にマージ
-- 独自判断での develop → main マージ
-
-正しい手順:
-1. 各 PR 作成後、ユーザーに報告して次の指示を待つ
-2. 「develop まで」「main まで」等の明示的な指示を確認
-3. vtag 作成もユーザーの指示を待つ
-
-## トリガー条件
-
-以下の操作について議論・作業する際に自動的に実行:
-
-- `release/*` ブランチへの push
-- `release/*` → `develop` への PR 作成・マージ
-- `develop` → `main` への PR 作成・マージ
-- バージョンアップ・リリースに関する議論
-- vtag の作成
-
-## バージョン管理ファイル
-
-このプロジェクトでは以下の2ファイルでバージョンを管理:
-
-| ファイル | 用途 |
-|---------|------|
-| `deno.json` | JSR パッケージバージョン（`"version": "x.y.z"`） |
-| `src/version.ts` | CLI バージョン定数（`CLIMPT_VERSION = "x.y.z"`） |
-
-**重要**: 両ファイルのバージョンは必ず一致させること。CIで自動チェックされる。
-
-## バージョンアップ手順
-
-### 1. バージョン番号の決定
-
-```
-パッチ (x.y.Z): バグ修正、ドキュメント改善
-マイナー (x.Y.0): 新機能追加（後方互換あり）
-メジャー (X.0.0): 破壊的変更
-```
-
-### 2. ファイル更新
-
-```bash
-# deno.json
-# "version": "1.9.13" → "version": "1.9.14"
-
-# src/version.ts
-# export const CLIMPT_VERSION = "1.9.13"; → "1.9.14";
-```
-
-### 3. 確認コマンド
-
-```bash
-# バージョン一致確認
-grep '"version"' deno.json | head -1
-grep 'CLIMPT_VERSION' src/version.ts | grep export
+パッチ(x.y.Z): バグ修正  マイナー(x.Y.0): 新機能(後方互換)  メジャー(X.0.0): 破壊的変更
 ```
 
 ## リリースフロー
 
-### フロー図
-
-```mermaid
-sequenceDiagram
-    participant R as release/x.y.z
-    participant D as develop
-    participant M as main
-    participant T as vtag
-
-    Note over R: 1. バージョンアップ
-    R->>R: deno.json, version.ts 更新
-    Note over R: 2. ローカルCI確認
-    R->>R: deno task ci
-    R->>R: 3. git commit & push
-
-    R->>D: 4. PR作成 (release → develop)
-    Note over D: 5. CI確認（全てpass）
-    D->>D: PRマージ
-
-    D->>M: 6. PR作成 (develop → main)
-    Note over M: 7. CI確認（全てpass）
-    M->>M: PRマージ
-    Note over M: JSR publish 自動実行
-
-    M->>T: 8. vtag作成
-    Note over T: git tag vx.y.z
-```
-
-### 手順詳細
-
-#### ステップ 0: 準備
+### 1. release/* ブランチでバージョンアップ
 
 ```bash
-# 作業ブランチを release/* に統合済みか確認
-git checkout release/x.y.z
-git log --oneline -10
-```
-
-#### ステップ 1: release/* ブランチでバージョンアップ
-
-```bash
-# develop から新規作成する場合
-git checkout develop
-git checkout -b release/x.y.z
-
-# または既存 release/* で作業
-git checkout release/x.y.z
-```
-
-バージョン更新（自動スクリプト使用）:
-
-```bash
-# ブランチ名から自動検出してバージョン更新
 deno task bump-version
-
-# または明示的に指定
-deno task bump-version x.y.z
-
-# 確認
-grep '"version"' deno.json
-grep 'export const CLIMPT_VERSION' src/version.ts
-```
-
-#### ステップ 2: ローカルCI確認
-
-**重要**: プッシュ前に必ずローカルでCIを通すこと。実行方法の詳細は `/local-ci` skill を参照。
-
-```bash
+grep '"version"' deno.json && grep 'CLIMPT_VERSION' src/version.ts  # 一致確認
 deno task ci
-```
-
-#### ステップ 2.5: Examples E2E 検証
-
-**重要**: CI通過後、PR作成前に `examples/` スクリプトで E2E 検証を行うこと。
-
-```bash
-chmod +x examples/**/*.sh examples/*.sh
-./examples/01_setup/01_install.sh
-./examples/02_cli_basic/01_echo_test.sh
-# ... 各カテゴリを実行
-./examples/07_clean.sh
-```
-
-対象: `01_setup` ～ `06_registry` の各カテゴリ。詳細は [`examples/README.md`](../../examples/README.md) を参照。
-
-#### ステップ 3: コミット & プッシュ
-
-```bash
-git add deno.json src/version.ts
-git commit -m "chore: bump version to x.y.z"
+git add deno.json src/version.ts && git commit -m "chore: bump version to x.y.z"
 git push -u origin release/x.y.z
 ```
 
-**注意**: サンドボックス制限については `/git-gh-sandbox` skill を参照
+### 2. ドキュメント更新（PR作成前必須）
 
-#### ステップ 4: release/* → develop PR
+| 対象 | 方法 |
+|:--|:--|
+| CHANGELOG.md | `/update-changelog` で変更記載、リリース時に [x.y.z] - YYYY-MM-DD へ移動 |
+| README・--help等 | `/update-docs` で変更種別に応じた箇所を更新 |
+| docs/manifest.json | version・entries・bytes を実ファイルと一致させる |
+
+### 3. E2E検証（CI通過後、PR作成前）
 
 ```bash
-gh pr create --base develop --head release/x.y.z \
-  --title "Release x.y.z: <変更概要>" \
-  --body "## Summary
-- <変更点>
-
-## Version
-- x.y.z"
+chmod +x examples/**/*.sh examples/*.sh
+./examples/01_setup/01_install.sh  # ～ 06_registry の各カテゴリを実行
+./examples/07_clean.sh
 ```
 
-#### ステップ 5: CI確認 & develop へマージ
-
-**重要**: マージ前にPRのCIが全てパスすることを確認
+### 4. release/* → develop
 
 ```bash
-# CI確認（全てpassになるまで待機）
+gh pr create --base develop --head release/x.y.z --title "Release x.y.z: <概要>" --body "..."
+gh pr checks <PR番号> --watch  # CI全pass確認
+gh pr merge <PR番号> --merge   # ← ユーザー指示を待つ
+```
+
+### 5. develop → main
+
+```bash
+gh pr create --base main --head develop --title "Release x.y.z" --body "..."
 gh pr checks <PR番号> --watch
-
-# CIがpassしたらマージ
-gh pr merge <PR番号> --merge
+gh pr merge <PR番号> --merge   # ← ユーザー指示を待つ。mainマージでJSR publish自動実行
 ```
 
-#### ステップ 6: develop → main PR
+### 6. vtag作成 & クリーンアップ
 
 ```bash
-gh pr create --base main --head develop \
-  --title "Release x.y.z" \
-  --body "Release version x.y.z to production"
-```
-
-#### ステップ 7: CI確認 & main へマージ
-
-**重要**: マージ前にPRのCIが全てパスすることを確認
-
-```bash
-# CI確認（全てpassになるまで待機）
-gh pr checks <PR番号> --watch
-
-# CIがpassしたらマージ
-gh pr merge <PR番号> --merge
-```
-
-**自動処理**: main マージ時に JSR publish が自動実行される
-
-#### ステップ 8: vtag 作成
-
-```bash
-# main の最新コミットを取得
 git fetch origin main
-
-# vtag 作成 & push
-git tag vx.y.z origin/main
-git push origin vx.y.z
+git tag vx.y.z origin/main && git push origin vx.y.z  # 必ずmainのコミットに付与
+# ブランチ削除は /branch-management 参照
 ```
 
-**重要**: vtag は必ず main ブランチのコミットに付与する
+## 連続マージ禁止
 
-#### ステップ 9: クリーンアップ（ブランチ削除）
-
-マージ後のブランチ削除を行う。削除判断基準・手順の詳細は `/branch-management` skill を参照。
-
-```bash
-# release ブランチ削除例
-git branch -D release/x.y.z
-git push origin --delete release/x.y.z
-```
-
-## CI バージョンチェック
-
-`.github/workflows/test.yml` で以下を自動チェック:
-
-### チェック内容
-
-| チェック項目 | 対象ブランチ | 失敗時のエラー |
-|-------------|-------------|---------------|
-| deno.json と version.ts の一致 | 全ブランチ | `Version mismatch: deno.json=X, version.ts=Y` |
-| ブランチ名とバージョンの一致 | release/* のみ | `Branch version mismatch: branch=X, deno.json=Y` |
-
-### release/* ブランチでの追加チェック
-
-```
-release/1.9.15 ブランチでは:
-- deno.json の version が "1.9.15" であること
-- src/version.ts の CLIMPT_VERSION が "1.9.15" であること
-```
-
-### チェックを通すための確認コマンド
-
-```bash
-# 現在のブランチ名からバージョンを確認
-git branch --show-current | sed 's|release/||'
-
-# deno.json のバージョン
-grep '"version"' deno.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/'
-
-# version.ts のバージョン
-grep 'export const CLIMPT_VERSION' src/version.ts | sed 's/.*"\([0-9.]*\)".*/\1/'
-
-# 3つが全て一致することを確認
-```
-
-### チェック失敗時の対処
-
-```bash
-# release/1.9.15 でバージョンが 1.9.14 のままだった場合
-# 1. deno.json を編集: "version": "1.9.15"
-# 2. version.ts を編集: CLIMPT_VERSION = "1.9.15"
-# 3. コミット & push
-git add deno.json src/version.ts
-git commit -m "fix: correct version to 1.9.15"
-git push origin release/1.9.15
-```
-
-## クイックリファレンス
-
-```
-バージョンアップ:
-  1. deno.json の version を更新
-  2. src/version.ts の CLIMPT_VERSION を更新
-  3. deno task ci  ← ローカルCIを通す（重要）
-  4. git commit -m "chore: bump version to x.y.z"
-
-ドキュメント更新（リリース前必須）:
-  1. /update-changelog → CHANGELOG.md に変更を記載
-  2. /update-docs → README, --help 等を必要に応じて更新
-  3. docs/manifest.json → version, entries, bytes を最新化
-
-E2E 検証（CI通過後、PR作成前）:
-  chmod +x examples/**/*.sh examples/*.sh
-  ./examples/01_setup/01_install.sh ～ ./examples/06_registry/
-  ./examples/07_clean.sh
-
-リリースフロー:
-  1. release/* → develop PR作成
-  2. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
-  3. gh pr merge <PR番号> --merge
-  4. develop → main PR作成
-  5. gh pr checks <PR番号> --watch  ← CIがpassするまで待機
-  6. gh pr merge <PR番号> --merge (JSR publish 自動)
-  7. vtag作成: git tag vx.y.z origin/main && git push origin vx.y.z
-  8. クリーンアップ: ブランチ削除（/branch-management 参照）
-
-関連Skill:
-  - CI実行・エラー対処 → /local-ci, /ci-troubleshooting
-  - ブランチ戦略・削除判断 → /branch-management
-  - サンドボックス制限 → /git-gh-sandbox
-```
+誤操作防止のため、release→develop→mainを一気にマージせず、各PR作成後にユーザーへ報告して次の指示（「developまで」「mainまで」等）を待つ。vtag作成も同様。
 
 ## トラブルシューティング
 
-### JSR publish がスキップされた
-
-原因: deno.json のバージョンが既存と同じ
-
-```bash
-# 確認
-gh run view <run-id> --log | grep -i "skip"
-
-# 対処: バージョンを上げて再リリース
-```
-
-### CI バージョンチェック失敗
-
-原因: deno.json と version.ts の不一致、またはブランチ名との不一致
-
-```bash
-# 確認
-grep '"version"' deno.json
-grep 'export const CLIMPT_VERSION' src/version.ts
-git branch --show-current
-
-# 対処: 全て同じバージョンに統一
-```
-
-### vtag が古いコミットを指している
-
-```bash
-# 確認
-git show vx.y.z --oneline
-
-# 対処: タグ削除 & 再作成
-git tag -d vx.y.z
-git push origin :refs/tags/vx.y.z
-git tag vx.y.z origin/main
-git push origin vx.y.z
-```
+| 症状 | 原因 | 対処 |
+|:--|:--|:--|
+| JSR publishスキップ | deno.jsonバージョンが既存と同一 | バージョンを上げて再リリース |
+| CIバージョンチェック失敗 | deno.json・version.ts・ブランチ名の不一致 | 全て同じバージョンに統一してcommit & push |
+| vtagが古いコミット | タグが旧コミットを参照 | `git tag -d vx.y.z && git push origin :refs/tags/vx.y.z` で削除後、`git tag vx.y.z origin/main && git push origin vx.y.z` で再作成 |

@@ -63,6 +63,23 @@ export const BOUNDARY_BASH_PATTERNS = [
   /\bgh\s+release\s+edit\b/,
   // GitHub API - block all direct API calls (can bypass other restrictions)
   /\bgh\s+api\b/,
+
+  // --- Bypass prevention: network tools targeting GitHub API ---
+  // LLM agents discovered they can bypass gh-command restrictions by using
+  // curl/wget/python/etc. to call the GitHub REST API directly, e.g. closing
+  // issues despite defaultClosureAction: "label-only". These patterns block
+  // any HTTP client tool that targets api.github.com.
+  /\bcurl\b.*api\.github\.com/,
+  /\bwget\b.*api\.github\.com/,
+  // Script-based HTTP clients targeting GitHub API
+  /\bpython[23]?\b.*api\.github\.com/,
+  /\bnode\b.*api\.github\.com/,
+  /\bruby\b.*api\.github\.com/,
+  /\bperl\b.*api\.github\.com/,
+  /\bdeno\b.*api\.github\.com/,
+  // GitHub API state mutation payloads (catch obfuscated URLs or piped input)
+  /"state"\s*:\s*"closed"/,
+  /'state'\s*:\s*'closed'/,
 ] as const;
 
 export type BoundaryTool = (typeof BOUNDARY_TOOLS)[number];
