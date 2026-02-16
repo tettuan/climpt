@@ -22,9 +22,9 @@
 ### 解決優先順位
 
 ```
-1. step.model             (ステップ固有の指定)
-2. behavior.defaultModel  (エージェントのデフォルト)
-3. "opus"                 (システムデフォルト)
+1. step.model                        (ステップ固有の指定)
+2. runner.boundaries.defaultModel    (エージェントのデフォルト)
+3. "opus"                            (システムデフォルト)
 ```
 
 Runner は上から順に評価し、最初に見つかった値を使用する。
@@ -38,8 +38,10 @@ Runner は上から順に評価し、最初に見つかった値を使用する�
 
 ```json
 {
-  "behavior": {
-    "defaultModel": "sonnet"
+  "runner": {
+    "boundaries": {
+      "defaultModel": "sonnet"
+    }
   }
 }
 ```
@@ -84,8 +86,8 @@ private resolveModelForStep(stepId?: string): ModelName {
   }
 
   // 2. エージェントのデフォルト
-  if (this.definition.behavior.defaultModel) {
-    return this.definition.behavior.defaultModel;
+  if (this.definition.runner.boundaries.defaultModel) {
+    return this.definition.runner.boundaries.defaultModel;
   }
 
   // 3. システムデフォルト
@@ -144,7 +146,7 @@ const queryIterator = query({ prompt, options: queryOptions });
 
 ```json
 // agent.json
-{ "behavior": { "defaultModel": "sonnet" } }
+{ "runner": { "boundaries": { "defaultModel": "sonnet" } } }
 
 // steps_registry.json
 {
@@ -169,7 +171,7 @@ const queryIterator = query({ prompt, options: queryOptions });
 // src_common/types.ts
 export type ModelName = "sonnet" | "opus" | "haiku";
 
-export interface AgentBehavior {
+export interface RunnerBoundariesConfig {
   defaultModel?: ModelName;
   // ...
 }

@@ -1,32 +1,9 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.10.0",
+  "version": "1.12.0",
   "name": "facilitator",
   "displayName": "Facilitator Agent",
   "description": "Autonomous facilitator agent that monitors project status and ensures smooth progress through field management rather than direct control",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "structuredSignal",
-    "completionConfig": {
-      "signalType": "facilitator_decision",
-      "requiredFields": ["recommendations", "reasoning"],
-      "maxIterations": 50
-    },
-    "allowedTools": [
-      "Skill",
-      "Read",
-      "Glob",
-      "Grep",
-      "Bash",
-      "Task",
-      "WebFetch"
-    ],
-    "permissionMode": "bypassPermissions",
-    "preCloseValidation": {
-      "enabled": false,
-      "validators": []
-    }
-  },
   "parameters": {
     "issue": {
       "type": "number",
@@ -61,34 +38,63 @@
       "cli": "--base-branch"
     }
   },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "actions": {
-    "enabled": true,
-    "types": ["facilitate-action", "status-report", "project-plan", "review-result"],
-    "outputFormat": "json",
-    "handlers": {
-      "project-plan": "builtin:completion-signal",
-      "review-result": "builtin:completion-signal"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "structuredSignal",
+      "config": {
+        "signalType": "facilitator_decision",
+        "requiredFields": ["recommendations", "reasoning"],
+        "maxIterations": 50
+      }
+    },
+    "boundaries": {
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task",
+        "WebFetch"
+      ],
+      "permissionMode": "bypassPermissions",
+      "github": {
+        "enabled": true,
+        "labels": {
+          "blocked": "need clearance",
+          "attention": "needs-attention",
+          "stale": "stale"
+        }
+      },
+      "actions": {
+        "enabled": true,
+        "types": ["facilitate-action", "status-report", "project-plan", "review-result"],
+        "outputFormat": "json",
+        "handlers": {
+          "project-plan": "builtin:completion-signal",
+          "review-result": "builtin:completion-signal"
+        }
+      }
+    },
+    "execution": {
+      "worktree": {
+        "enabled": true,
+        "root": "../worktree"
+      }
+    },
+    "telemetry": {
+      "logging": {
+        "directory": "tmp/logs/agents/facilitator",
+        "format": "jsonl",
+        "maxFiles": 100
+      }
     }
-  },
-  "github": {
-    "enabled": true,
-    "labels": {
-      "blocked": "need clearance",
-      "attention": "needs-attention",
-      "stale": "stale"
-    }
-  },
-  "worktree": {
-    "enabled": true,
-    "root": "../worktree"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/facilitator",
-    "format": "jsonl",
-    "maxFiles": 100
   }
 }

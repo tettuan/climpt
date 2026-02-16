@@ -61,7 +61,7 @@ export async function loadConfiguration(
   }
 
   // Load steps registry if referenced
-  if (definition.prompts.registry) {
+  if (definition.runner.flow.prompts.registry) {
     const registry = await loadStepsRegistry(agentDir);
     if (registry) {
       // Attach registry to definition (if needed by other components)

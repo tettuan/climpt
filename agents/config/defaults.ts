@@ -18,27 +18,37 @@ import { PATHS } from "../shared/paths.ts";
  * These are applied when fields are missing.
  */
 const DEFAULTS = {
-  behavior: {
-    completionType: "iterationBudget" as const,
-    completionConfig: {
-      maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
+  runner: {
+    flow: {
+      prompts: {
+        registry: PATHS.STEPS_REGISTRY,
+        fallbackDir: PATHS.PROMPTS_DIR,
+      },
     },
-    permissionMode: "plan" as const,
-    allowedTools: ["*"],
-  },
-  prompts: {
-    registry: PATHS.STEPS_REGISTRY,
-    fallbackDir: PATHS.PROMPTS_DIR,
-  },
-  logging: {
-    directory: PATHS.LOGS_DIR,
-    format: "jsonl" as const,
-  },
-  github: {
-    enabled: false,
-  },
-  worktree: {
-    enabled: false,
+    completion: {
+      type: "iterationBudget" as const,
+      config: {
+        maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
+      },
+    },
+    boundaries: {
+      permissionMode: "plan" as const,
+      allowedTools: ["*"],
+      github: {
+        enabled: false,
+      },
+    },
+    execution: {
+      worktree: {
+        enabled: false,
+      },
+    },
+    telemetry: {
+      logging: {
+        directory: PATHS.LOGS_DIR,
+        format: "jsonl" as const,
+      },
+    },
   },
   parameters: {} as Record<string, unknown>,
 };
@@ -55,12 +65,22 @@ export function applyDefaults(raw: unknown): AgentDefinition {
     throw new Error("applyDefaults: input must be an object");
   }
   const def = raw;
-  const rawBehavior = isRecord(def.behavior) ? def.behavior : {};
-  const rawPrompts = isRecord(def.prompts) ? def.prompts : {};
-  const rawLogging = isRecord(def.logging) ? def.logging : {};
-  const rawCompletionConfig = isRecord(rawBehavior.completionConfig)
-    ? rawBehavior.completionConfig
+  const rawRunner = isRecord(def.runner) ? def.runner : {};
+  const rawFlow = isRecord(rawRunner.flow) ? rawRunner.flow : {};
+  const rawCompletion = isRecord(rawRunner.completion)
+    ? rawRunner.completion
     : {};
+  const rawBoundaries = isRecord(rawRunner.boundaries)
+    ? rawRunner.boundaries
+    : {};
+  const rawExecution = isRecord(rawRunner.execution) ? rawRunner.execution : {};
+  const rawTelemetry = isRecord(rawRunner.telemetry) ? rawRunner.telemetry : {};
+
+  const rawPrompts = isRecord(rawFlow.prompts) ? rawFlow.prompts : {};
+  const rawCompletionConfig = isRecord(rawCompletion.config)
+    ? rawCompletion.config
+    : {};
+  const rawLogging = isRecord(rawTelemetry.logging) ? rawTelemetry.logging : {};
 
   // Deep merge with defaults
   return {
@@ -69,39 +89,67 @@ export function applyDefaults(raw: unknown): AgentDefinition {
     name: def.name as string,
     displayName: (def.displayName as string) ?? (def.name as string),
     description: (def.description as string) ?? "",
-    behavior: {
-      systemPromptPath: rawBehavior.systemPromptPath as string,
-      completionType: (rawBehavior
-        .completionType as AgentDefinition["behavior"]["completionType"]) ??
-        DEFAULTS.behavior.completionType,
-      completionConfig: {
-        ...DEFAULTS.behavior.completionConfig,
-        ...rawCompletionConfig,
-      },
-      allowedTools: (rawBehavior.allowedTools as string[]) ??
-        DEFAULTS.behavior.allowedTools,
-      permissionMode: (rawBehavior
-        .permissionMode as AgentDefinition["behavior"]["permissionMode"]) ??
-        DEFAULTS.behavior.permissionMode,
-      sandboxConfig: rawBehavior
-        .sandboxConfig as AgentDefinition["behavior"]["sandboxConfig"],
-    },
     parameters: (def.parameters as AgentDefinition["parameters"]) ??
       DEFAULTS.parameters,
-    prompts: {
-      registry: (rawPrompts.registry as string) ?? DEFAULTS.prompts.registry,
-      fallbackDir: (rawPrompts.fallbackDir as string) ??
-        DEFAULTS.prompts.fallbackDir,
-    },
-    github: (def.github as AgentDefinition["github"]) ?? DEFAULTS.github,
-    worktree: (def.worktree as AgentDefinition["worktree"]) ??
-      DEFAULTS.worktree,
-    logging: {
-      directory: (rawLogging.directory as string) ??
-        DEFAULTS.logging.directory,
-      format: (rawLogging.format as AgentDefinition["logging"]["format"]) ??
-        DEFAULTS.logging.format,
-      maxFiles: rawLogging.maxFiles as number | undefined,
+    runner: {
+      flow: {
+        systemPromptPath: rawFlow.systemPromptPath as string,
+        prompts: {
+          registry: (rawPrompts.registry as string) ??
+            DEFAULTS.runner.flow.prompts.registry,
+          fallbackDir: (rawPrompts.fallbackDir as string) ??
+            DEFAULTS.runner.flow.prompts.fallbackDir,
+        },
+        schemas: rawFlow
+          .schemas as AgentDefinition["runner"]["flow"]["schemas"],
+      },
+      completion: {
+        type: (rawCompletion
+          .type as AgentDefinition["runner"]["completion"]["type"]) ??
+          DEFAULTS.runner.completion.type,
+        config: {
+          ...DEFAULTS.runner.completion.config,
+          ...rawCompletionConfig,
+        },
+      },
+      boundaries: {
+        allowedTools: (rawBoundaries.allowedTools as string[]) ??
+          DEFAULTS.runner.boundaries.allowedTools,
+        permissionMode: (rawBoundaries
+          .permissionMode as AgentDefinition["runner"]["boundaries"][
+            "permissionMode"
+          ]) ??
+          DEFAULTS.runner.boundaries.permissionMode,
+        sandbox: rawBoundaries
+          .sandbox as AgentDefinition["runner"]["boundaries"]["sandbox"],
+        askUserAutoResponse: rawBoundaries
+          .askUserAutoResponse as string | undefined,
+        defaultModel: rawBoundaries.defaultModel as string | undefined,
+        github: (rawBoundaries
+          .github as AgentDefinition["runner"]["boundaries"]["github"]) ??
+          DEFAULTS.runner.boundaries.github,
+        actions: rawBoundaries
+          .actions as AgentDefinition["runner"]["boundaries"]["actions"],
+      },
+      execution: {
+        worktree: (rawExecution
+          .worktree as AgentDefinition["runner"]["execution"]["worktree"]) ??
+          DEFAULTS.runner.execution.worktree,
+        finalize: rawExecution
+          .finalize as AgentDefinition["runner"]["execution"]["finalize"],
+      },
+      telemetry: {
+        logging: {
+          directory: (rawLogging.directory as string) ??
+            DEFAULTS.runner.telemetry.logging.directory,
+          format: (rawLogging
+            .format as AgentDefinition["runner"]["telemetry"]["logging"][
+              "format"
+            ]) ??
+            DEFAULTS.runner.telemetry.logging.format,
+          maxFiles: rawLogging.maxFiles as number | undefined,
+        },
+      },
     },
   };
 }

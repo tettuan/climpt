@@ -30,21 +30,30 @@ function createValidDefinition(): AgentDefinition {
     displayName: "Test Agent",
     description: "Test agent for unit tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType: "iterationBudget",
-      completionConfig: { maxIterations: 10 },
-      allowedTools: ["Read", "Write"],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: {
-      registry: "./prompts/registry.json",
-      fallbackDir: "./prompts",
-    },
-    logging: {
-      directory: "./logs",
-      format: "jsonl",
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: {
+          registry: "./prompts/registry.json",
+          fallbackDir: "./prompts",
+        },
+      },
+      completion: {
+        type: "iterationBudget",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: ["Read", "Write"],
+        permissionMode: "plan",
+      },
+      execution: {},
+      telemetry: {
+        logging: {
+          directory: "./logs",
+          format: "jsonl",
+        },
+      },
     },
   };
 }
@@ -56,7 +65,7 @@ function createValidDefinition(): AgentDefinition {
 function _createInvalidDefinition(): Partial<AgentDefinition> {
   return {
     name: "test",
-    // Missing required fields: version, displayName, description, behavior, prompts, logging
+    // Missing required fields: version, displayName, description, runner
   };
 }
 
@@ -116,37 +125,15 @@ Deno.test("validateAgentDefinition - missing description fails", () => {
   assertEquals(result.errors.some((e) => e.includes("description")), true);
 });
 
-Deno.test("validateAgentDefinition - missing behavior fails", () => {
+Deno.test("validateAgentDefinition - missing runner fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.behavior = undefined;
+  def.runner = undefined;
 
   const result = validateAgentDefinition(def);
 
   assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("behavior")), true);
-});
-
-Deno.test("validateAgentDefinition - missing prompts fails", () => {
-  const def = createValidDefinition();
-  // @ts-ignore - intentionally testing invalid state
-  def.prompts = undefined;
-
-  const result = validateAgentDefinition(def);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("prompts")), true);
-});
-
-Deno.test("validateAgentDefinition - missing logging fails", () => {
-  const def = createValidDefinition();
-  // @ts-ignore - intentionally testing invalid state
-  def.logging = undefined;
-
-  const result = validateAgentDefinition(def);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("logging")), true);
+  assertEquals(result.errors.some((e) => e.includes("runner")), true);
 });
 
 // =============================================================================
@@ -226,12 +213,12 @@ Deno.test("validateAgentDefinition - semver with v prefix fails", () => {
 });
 
 // =============================================================================
-// validateAgentDefinition Tests - Behavior Validation
+// validateAgentDefinition Tests - Runner Validation
 // =============================================================================
 
 Deno.test("validateAgentDefinition - missing systemPromptPath fails", () => {
   const def = createValidDefinition();
-  def.behavior.systemPromptPath = "";
+  def.runner.flow.systemPromptPath = "";
 
   const result = validateAgentDefinition(def);
 
@@ -242,32 +229,38 @@ Deno.test("validateAgentDefinition - missing systemPromptPath fails", () => {
   );
 });
 
-Deno.test("validateAgentDefinition - missing completionType fails", () => {
+Deno.test("validateAgentDefinition - missing completion type fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.behavior.completionType = "";
+  def.runner.completion.type = "";
 
   const result = validateAgentDefinition(def);
 
   assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("completionType")), true);
+  assertEquals(
+    result.errors.some((e) => e.includes("completion.type")),
+    true,
+  );
 });
 
-Deno.test("validateAgentDefinition - invalid completionType fails", () => {
+Deno.test("validateAgentDefinition - invalid completion type fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.behavior.completionType = "invalid-type";
+  def.runner.completion.type = "invalid-type";
 
   const result = validateAgentDefinition(def);
 
   assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("completionType")), true);
+  assertEquals(
+    result.errors.some((e) => e.includes("completion.type")),
+    true,
+  );
 });
 
 Deno.test("validateAgentDefinition - missing permissionMode fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.behavior.permissionMode = "";
+  def.runner.boundaries.permissionMode = "";
 
   const result = validateAgentDefinition(def);
 
@@ -278,7 +271,7 @@ Deno.test("validateAgentDefinition - missing permissionMode fails", () => {
 Deno.test("validateAgentDefinition - invalid permissionMode fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.behavior.permissionMode = "invalid-mode";
+  def.runner.boundaries.permissionMode = "invalid-mode";
 
   const result = validateAgentDefinition(def);
 
@@ -292,8 +285,8 @@ Deno.test("validateAgentDefinition - invalid permissionMode fails", () => {
 
 Deno.test("validateAgentDefinition - iterationBudget type requires maxIterations", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "iterationBudget";
-  def.behavior.completionConfig = {}; // Missing maxIterations
+  def.runner.completion.type = "iterationBudget";
+  def.runner.completion.config = {}; // Missing maxIterations
 
   const result = validateAgentDefinition(def);
 
@@ -303,8 +296,8 @@ Deno.test("validateAgentDefinition - iterationBudget type requires maxIterations
 
 Deno.test("validateAgentDefinition - iterationBudget with negative maxIterations fails", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "iterationBudget";
-  def.behavior.completionConfig = { maxIterations: -1 };
+  def.runner.completion.type = "iterationBudget";
+  def.runner.completion.config = { maxIterations: -1 };
 
   const result = validateAgentDefinition(def);
 
@@ -314,8 +307,8 @@ Deno.test("validateAgentDefinition - iterationBudget with negative maxIterations
 
 Deno.test("validateAgentDefinition - keywordSignal type requires completionKeyword", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "keywordSignal";
-  def.behavior.completionConfig = {}; // Missing completionKeyword
+  def.runner.completion.type = "keywordSignal";
+  def.runner.completion.config = {}; // Missing completionKeyword
 
   const result = validateAgentDefinition(def);
 
@@ -328,8 +321,8 @@ Deno.test("validateAgentDefinition - keywordSignal type requires completionKeywo
 
 Deno.test("validateAgentDefinition - custom type requires handlerPath", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "custom";
-  def.behavior.completionConfig = {}; // Missing handlerPath
+  def.runner.completion.type = "custom";
+  def.runner.completion.config = {}; // Missing handlerPath
 
   const result = validateAgentDefinition(def);
 
@@ -339,8 +332,8 @@ Deno.test("validateAgentDefinition - custom type requires handlerPath", () => {
 
 Deno.test("validateAgentDefinition - composite type requires conditions", () => {
   const def = createValidDefinition();
-  def.behavior.completionType = "composite";
-  def.behavior.completionConfig = {
+  def.runner.completion.type = "composite";
+  def.runner.completion.config = {
     operator: "and",
     conditions: [{ type: "iterationBudget", config: { maxIterations: 5 } }],
   };
@@ -356,7 +349,7 @@ Deno.test("validateAgentDefinition - composite type requires conditions", () => 
 
 Deno.test("validateAgentDefinition - missing prompts.registry fails", () => {
   const def = createValidDefinition();
-  def.prompts.registry = "";
+  def.runner.flow.prompts.registry = "";
 
   const result = validateAgentDefinition(def);
 
@@ -366,7 +359,7 @@ Deno.test("validateAgentDefinition - missing prompts.registry fails", () => {
 
 Deno.test("validateAgentDefinition - missing prompts.fallbackDir fails", () => {
   const def = createValidDefinition();
-  def.prompts.fallbackDir = "";
+  def.runner.flow.prompts.fallbackDir = "";
 
   const result = validateAgentDefinition(def);
 
@@ -376,7 +369,7 @@ Deno.test("validateAgentDefinition - missing prompts.fallbackDir fails", () => {
 
 Deno.test("validateAgentDefinition - missing logging.directory fails", () => {
   const def = createValidDefinition();
-  def.logging.directory = "";
+  def.runner.telemetry.logging.directory = "";
 
   const result = validateAgentDefinition(def);
 
@@ -387,7 +380,7 @@ Deno.test("validateAgentDefinition - missing logging.directory fails", () => {
 Deno.test("validateAgentDefinition - invalid logging.format fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.logging.format = "xml";
+  def.runner.telemetry.logging.format = "xml";
 
   const result = validateAgentDefinition(def);
 

@@ -85,9 +85,7 @@ export function validateAgentDefinition(
   if (!def.name) errors.push("name is required");
   if (!def.displayName) errors.push("displayName is required");
   if (!def.description) errors.push("description is required");
-  if (!def.behavior) errors.push("behavior is required");
-  if (!def.prompts) errors.push("prompts is required");
-  if (!def.logging) errors.push("logging is required");
+  if (!def.runner) errors.push("runner is required");
 
   // Name format validation
   if (def.name && !/^[a-z][a-z0-9-]*$/.test(def.name)) {
@@ -99,28 +97,33 @@ export function validateAgentDefinition(
     errors.push("version must be semver format (e.g., '1.0.0')");
   }
 
-  // Behavior validation
-  if (def.behavior) {
-    if (!def.behavior.systemPromptPath) {
-      errors.push("behavior.systemPromptPath is required");
+  // Runner validation
+  if (def.runner) {
+    // Flow validation
+    if (!def.runner.flow?.systemPromptPath) {
+      errors.push("runner.flow.systemPromptPath is required");
     }
-    if (!def.behavior.completionType) {
-      errors.push("behavior.completionType is required");
+
+    // Completion validation
+    if (!def.runner.completion?.type) {
+      errors.push("runner.completion.type is required");
     }
-    if (!def.behavior.allowedTools) {
-      errors.push("behavior.allowedTools is required");
+
+    // Boundaries validation
+    if (!def.runner.boundaries?.allowedTools) {
+      errors.push("runner.boundaries.allowedTools is required");
     }
-    if (!def.behavior.permissionMode) {
-      errors.push("behavior.permissionMode is required");
+    if (!def.runner.boundaries?.permissionMode) {
+      errors.push("runner.boundaries.permissionMode is required");
     }
 
     // Validate completion type
     if (
-      def.behavior.completionType &&
-      !ALL_COMPLETION_TYPES.includes(def.behavior.completionType)
+      def.runner.completion?.type &&
+      !ALL_COMPLETION_TYPES.includes(def.runner.completion.type)
     ) {
       errors.push(
-        `behavior.completionType must be one of: ${
+        `runner.completion.type must be one of: ${
           ALL_COMPLETION_TYPES.join(", ")
         }`,
       );
@@ -134,11 +137,11 @@ export function validateAgentDefinition(
       "bypassPermissions",
     ];
     if (
-      def.behavior.permissionMode &&
-      !validPermissionModes.includes(def.behavior.permissionMode)
+      def.runner.boundaries?.permissionMode &&
+      !validPermissionModes.includes(def.runner.boundaries.permissionMode)
     ) {
       errors.push(
-        `behavior.permissionMode must be one of: ${
+        `runner.boundaries.permissionMode must be one of: ${
           validPermissionModes.join(", ")
         }`,
       );
@@ -146,29 +149,36 @@ export function validateAgentDefinition(
 
     // Completion config validation based on type
     validateCompletionConfig(def, errors);
-  }
 
-  // Prompts validation
-  if (def.prompts) {
-    if (!def.prompts.registry) {
-      errors.push("prompts.registry is required");
+    // Prompts validation
+    if (!def.runner.flow?.prompts?.registry) {
+      errors.push("runner.flow.prompts.registry is required");
     }
-    if (!def.prompts.fallbackDir) {
-      errors.push("prompts.fallbackDir is required");
+    if (!def.runner.flow?.prompts?.fallbackDir) {
+      errors.push("runner.flow.prompts.fallbackDir is required");
     }
-  }
 
-  // Logging validation
-  if (def.logging) {
-    if (!def.logging.directory) {
-      errors.push("logging.directory is required");
-    }
-    if (!def.logging.format) {
-      errors.push("logging.format is required");
-    }
-    const validFormats = ["jsonl", "text"];
-    if (def.logging.format && !validFormats.includes(def.logging.format)) {
-      errors.push(`logging.format must be one of: ${validFormats.join(", ")}`);
+    // Logging validation
+    if (def.runner.telemetry?.logging) {
+      if (!def.runner.telemetry.logging.directory) {
+        errors.push("runner.telemetry.logging.directory is required");
+      }
+      if (!def.runner.telemetry.logging.format) {
+        errors.push("runner.telemetry.logging.format is required");
+      }
+      const validFormats = ["jsonl", "text"];
+      if (
+        def.runner.telemetry.logging.format &&
+        !validFormats.includes(def.runner.telemetry.logging.format)
+      ) {
+        errors.push(
+          `runner.telemetry.logging.format must be one of: ${
+            validFormats.join(", ")
+          }`,
+        );
+      }
+    } else {
+      errors.push("runner.telemetry.logging is required");
     }
   }
 
@@ -201,20 +211,21 @@ function validateCompletionConfig(
   def: AgentDefinition,
   errors: string[],
 ): void {
-  const { completionType, completionConfig } = def.behavior;
+  const completionType = def.runner.completion?.type;
+  const completionConfig = def.runner.completion?.config;
 
   switch (completionType) {
     case "iterationBudget":
       if (!completionConfig?.maxIterations) {
         errors.push(
-          "behavior.completionConfig.maxIterations is required for iterationBudget completion type",
+          "runner.completion.config.maxIterations is required for iterationBudget completion type",
         );
       } else if (
         typeof completionConfig.maxIterations !== "number" ||
         completionConfig.maxIterations < 1
       ) {
         errors.push(
-          "behavior.completionConfig.maxIterations must be a positive number",
+          "runner.completion.config.maxIterations must be a positive number",
         );
       }
       break;
@@ -222,7 +233,7 @@ function validateCompletionConfig(
     case "keywordSignal":
       if (!completionConfig?.completionKeyword) {
         errors.push(
-          "behavior.completionConfig.completionKeyword is required for keywordSignal completion type",
+          "runner.completion.config.completionKeyword is required for keywordSignal completion type",
         );
       }
       break;
@@ -230,7 +241,7 @@ function validateCompletionConfig(
     case "custom":
       if (!completionConfig?.handlerPath) {
         errors.push(
-          "behavior.completionConfig.handlerPath is required for custom completion type",
+          "runner.completion.config.handlerPath is required for custom completion type",
         );
       }
       break;
@@ -238,14 +249,14 @@ function validateCompletionConfig(
     case "checkBudget":
       if (!completionConfig?.maxChecks) {
         errors.push(
-          "behavior.completionConfig.maxChecks is required for checkBudget completion type",
+          "runner.completion.config.maxChecks is required for checkBudget completion type",
         );
       } else if (
         typeof completionConfig.maxChecks !== "number" ||
         completionConfig.maxChecks < 1
       ) {
         errors.push(
-          "behavior.completionConfig.maxChecks must be a positive number",
+          "runner.completion.config.maxChecks must be a positive number",
         );
       }
       break;
@@ -253,7 +264,7 @@ function validateCompletionConfig(
     case "structuredSignal":
       if (!completionConfig?.signalType) {
         errors.push(
-          "behavior.completionConfig.signalType is required for structuredSignal completion type",
+          "runner.completion.config.signalType is required for structuredSignal completion type",
         );
       }
       break;
@@ -261,7 +272,7 @@ function validateCompletionConfig(
     case "composite":
       if (!completionConfig?.operator) {
         errors.push(
-          "behavior.completionConfig.operator is required for composite completion type",
+          "runner.completion.config.operator is required for composite completion type",
         );
       }
       if (
@@ -270,13 +281,13 @@ function validateCompletionConfig(
         completionConfig.conditions.length === 0
       ) {
         errors.push(
-          "behavior.completionConfig.conditions is required for composite completion type",
+          "runner.completion.config.conditions is required for composite completion type",
         );
       }
       break;
 
     case "stepMachine":
-      // registryPath is optional, uses default from prompts.registry if not specified
+      // registryPath is optional, uses default from runner.flow.prompts.registry if not specified
       break;
 
     case "externalState":

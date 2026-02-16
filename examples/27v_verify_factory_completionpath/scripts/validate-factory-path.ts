@@ -93,18 +93,30 @@ function createTestDefinition(
     name: "test-agent",
     displayName: "Test Agent",
     description: "Factory path verification test agent",
-    behavior: {
-      systemPromptPath: "prompts/system.md",
-      completionType:
-        completionType as AgentDefinition["behavior"]["completionType"],
-      completionConfig,
-      allowedTools: ["Read"],
-      permissionMode: "default",
-    },
     parameters: {},
-    prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
-    github: { enabled: true, labels: {}, defaultClosureAction: "label-only" },
-    logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    runner: {
+      flow: {
+        systemPromptPath: "prompts/system.md",
+        prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
+      },
+      completion: {
+        type: completionType as AgentDefinition["runner"]["completion"]["type"],
+        config: completionConfig,
+      },
+      boundaries: {
+        allowedTools: ["Read"],
+        permissionMode: "default",
+        github: {
+          enabled: true,
+          labels: {},
+          defaultClosureAction: "label-only",
+        },
+      },
+      execution: {},
+      telemetry: {
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    },
   } as AgentDefinition;
 }
 

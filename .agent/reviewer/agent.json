@@ -1,24 +1,9 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.10.0",
+  "version": "1.12.0",
   "name": "reviewer",
   "displayName": "Reviewer Agent",
   "description": "Autonomous review agent that verifies implementation against requirements for a GitHub Issue",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "externalState",
-    "completionConfig": {
-      "type": "issueClose",
-      "issueParam": "issue",
-      "maxIterations": 300
-    },
-    "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-    "permissionMode": "acceptEdits",
-    "preCloseValidation": {
-      "enabled": false,
-      "validators": []
-    }
-  },
   "parameters": {
     "issue": {
       "type": "number",
@@ -46,30 +31,51 @@
       "cli": "--base-branch"
     }
   },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "actions": {
-    "enabled": true,
-    "types": ["review-action"],
-    "outputFormat": "json"
-  },
-  "github": {
-    "enabled": true,
-    "labels": {
-      "requirements": "docs",
-      "review": "review",
-      "gap": "implementation-gap"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "externalState",
+      "config": {
+        "type": "issueClose",
+        "issueParam": "issue",
+        "maxIterations": 300
+      }
+    },
+    "boundaries": {
+      "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
+      "permissionMode": "acceptEdits",
+      "github": {
+        "enabled": true,
+        "labels": {
+          "requirements": "docs",
+          "review": "review",
+          "gap": "implementation-gap"
+        }
+      },
+      "actions": {
+        "enabled": true,
+        "types": ["review-action"],
+        "outputFormat": "json"
+      }
+    },
+    "execution": {
+      "worktree": {
+        "enabled": true,
+        "root": "../worktree"
+      }
+    },
+    "telemetry": {
+      "logging": {
+        "directory": "tmp/logs/agents/reviewer",
+        "format": "jsonl",
+        "maxFiles": 100
+      }
     }
-  },
-  "worktree": {
-    "enabled": true,
-    "root": "../worktree"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/reviewer",
-    "format": "jsonl",
-    "maxFiles": 100
   }
 }

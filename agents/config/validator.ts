@@ -27,9 +27,7 @@ function isValidCompletionType(value: string): value is CompletionType {
 const REQUIRED_FIELDS = [
   "name",
   "displayName",
-  "behavior",
-  "prompts",
-  "logging",
+  "runner",
 ] as const;
 
 /**
@@ -91,73 +89,88 @@ export function validate(definition: unknown): ValidationResult {
     }
   }
 
-  // Validate behavior
-  if (def.behavior && typeof def.behavior === "object") {
-    const behavior = def.behavior as Record<string, unknown>;
+  // Validate runner
+  if (def.runner && typeof def.runner === "object") {
+    const runner = def.runner as Record<string, unknown>;
 
-    // Check for completion type
-    if (behavior.completionType) {
-      const completionTypeStr = String(behavior.completionType);
+    // Validate runner.completion
+    if (runner.completion && typeof runner.completion === "object") {
+      const completion = runner.completion as Record<string, unknown>;
+
+      if (completion.type) {
+        const completionTypeStr = String(completion.type);
+        if (
+          typeof completion.type !== "string" ||
+          !isValidCompletionType(completionTypeStr)
+        ) {
+          errors.push(
+            `Invalid completion type: ${completion.type}. Must be one of: ${
+              ALL_COMPLETION_TYPES.join(", ")
+            }`,
+          );
+        }
+      }
+
+      // Validate completion config based on type
+      if (completion.type && completion.config) {
+        validateCompletionConfig(
+          completion.type as string,
+          completion.config as Record<string, unknown>,
+          errors,
+        );
+      }
+    }
+
+    // Validate runner.boundaries
+    if (runner.boundaries && typeof runner.boundaries === "object") {
+      const boundaries = runner.boundaries as Record<string, unknown>;
+
       if (
-        typeof behavior.completionType !== "string" ||
-        !isValidCompletionType(completionTypeStr)
+        boundaries.permissionMode &&
+        !VALID_PERMISSION_MODES.includes(boundaries.permissionMode as string)
       ) {
         errors.push(
-          `Invalid completion type: ${behavior.completionType}. Must be one of: ${
-            ALL_COMPLETION_TYPES.join(", ")
+          `runner.boundaries.permissionMode must be one of: ${
+            VALID_PERMISSION_MODES.join(", ")
           }`,
         );
       }
     }
 
-    // Validate permission mode
-    if (
-      behavior.permissionMode &&
-      !VALID_PERMISSION_MODES.includes(behavior.permissionMode as string)
-    ) {
-      errors.push(
-        `behavior.permissionMode must be one of: ${
-          VALID_PERMISSION_MODES.join(", ")
-        }`,
-      );
+    // Validate runner.flow.prompts
+    if (runner.flow && typeof runner.flow === "object") {
+      const flow = runner.flow as Record<string, unknown>;
+      if (flow.prompts && typeof flow.prompts === "object") {
+        const prompts = flow.prompts as Record<string, unknown>;
+        if (prompts.registry && typeof prompts.registry !== "string") {
+          errors.push("runner.flow.prompts.registry must be a string path");
+        }
+        if (prompts.fallbackDir && typeof prompts.fallbackDir !== "string") {
+          errors.push("runner.flow.prompts.fallbackDir must be a string path");
+        }
+      }
     }
 
-    // Validate completion config based on type
-    if (behavior.completionType && behavior.completionConfig) {
-      validateCompletionConfig(
-        behavior.completionType as string,
-        behavior.completionConfig as Record<string, unknown>,
-        errors,
-      );
-    }
-  }
+    // Validate runner.telemetry.logging
+    if (runner.telemetry && typeof runner.telemetry === "object") {
+      const telemetry = runner.telemetry as Record<string, unknown>;
+      if (telemetry.logging && typeof telemetry.logging === "object") {
+        const logging = telemetry.logging as Record<string, unknown>;
 
-  // Validate prompts
-  if (def.prompts && typeof def.prompts === "object") {
-    const prompts = def.prompts as Record<string, unknown>;
-
-    if (prompts.registry && typeof prompts.registry !== "string") {
-      errors.push("prompts.registry must be a string path");
-    }
-    if (prompts.fallbackDir && typeof prompts.fallbackDir !== "string") {
-      errors.push("prompts.fallbackDir must be a string path");
-    }
-  }
-
-  // Validate logging
-  if (def.logging && typeof def.logging === "object") {
-    const logging = def.logging as Record<string, unknown>;
-
-    if (
-      logging.format &&
-      !VALID_LOGGING_FORMATS.includes(logging.format as string)
-    ) {
-      errors.push(
-        `logging.format must be one of: ${VALID_LOGGING_FORMATS.join(", ")}`,
-      );
-    }
-    if (logging.directory && typeof logging.directory !== "string") {
-      errors.push("logging.directory must be a string");
+        if (
+          logging.format &&
+          !VALID_LOGGING_FORMATS.includes(logging.format as string)
+        ) {
+          errors.push(
+            `runner.telemetry.logging.format must be one of: ${
+              VALID_LOGGING_FORMATS.join(", ")
+            }`,
+          );
+        }
+        if (logging.directory && typeof logging.directory !== "string") {
+          errors.push("runner.telemetry.logging.directory must be a string");
+        }
+      }
     }
   }
 
@@ -210,14 +223,14 @@ function validateCompletionConfig(
     case "iterationBudget":
       if (!config.maxIterations) {
         errors.push(
-          "behavior.completionConfig.maxIterations is required for iterationBudget completion type",
+          "runner.completion.config.maxIterations is required for iterationBudget completion type",
         );
       } else if (
         typeof config.maxIterations !== "number" ||
         config.maxIterations < 1
       ) {
         errors.push(
-          "behavior.completionConfig.maxIterations must be a positive number",
+          "runner.completion.config.maxIterations must be a positive number",
         );
       }
       break;
@@ -225,7 +238,7 @@ function validateCompletionConfig(
     case "keywordSignal":
       if (!config.completionKeyword) {
         errors.push(
-          "behavior.completionConfig.completionKeyword is required for keywordSignal completion type",
+          "runner.completion.config.completionKeyword is required for keywordSignal completion type",
         );
       }
       break;
@@ -233,7 +246,7 @@ function validateCompletionConfig(
     case "custom":
       if (!config.handlerPath) {
         errors.push(
-          "behavior.completionConfig.handlerPath is required for custom completion type",
+          "runner.completion.config.handlerPath is required for custom completion type",
         );
       }
       break;
@@ -241,14 +254,14 @@ function validateCompletionConfig(
     case "checkBudget":
       if (!config.maxChecks) {
         errors.push(
-          "behavior.completionConfig.maxChecks is required for checkBudget completion type",
+          "runner.completion.config.maxChecks is required for checkBudget completion type",
         );
       } else if (
         typeof config.maxChecks !== "number" ||
         config.maxChecks < 1
       ) {
         errors.push(
-          "behavior.completionConfig.maxChecks must be a positive number",
+          "runner.completion.config.maxChecks must be a positive number",
         );
       }
       break;
@@ -256,7 +269,7 @@ function validateCompletionConfig(
     case "structuredSignal":
       if (!config.signalType) {
         errors.push(
-          "behavior.completionConfig.signalType is required for structuredSignal completion type",
+          "runner.completion.config.signalType is required for structuredSignal completion type",
         );
       }
       break;
@@ -264,7 +277,7 @@ function validateCompletionConfig(
     case "composite":
       if (!config.operator) {
         errors.push(
-          "behavior.completionConfig.operator is required for composite completion type",
+          "runner.completion.config.operator is required for composite completion type",
         );
       }
       if (
@@ -273,7 +286,7 @@ function validateCompletionConfig(
         config.conditions.length === 0
       ) {
         errors.push(
-          "behavior.completionConfig.conditions is required for composite completion type",
+          "runner.completion.config.conditions is required for composite completion type",
         );
       }
       break;
@@ -297,43 +310,43 @@ export function validateComplete(
   const result = validate(definition);
 
   // Additional checks for complete definition
-  if (!definition.behavior?.completionType) {
-    result.errors.push("behavior.completionType is required");
+  if (!definition.runner?.completion?.type) {
+    result.errors.push("runner.completion.type is required");
     result.valid = false;
   }
 
-  if (!definition.behavior?.systemPromptPath) {
-    result.errors.push("behavior.systemPromptPath is required");
+  if (!definition.runner?.flow?.systemPromptPath) {
+    result.errors.push("runner.flow.systemPromptPath is required");
     result.valid = false;
   }
 
-  if (!definition.behavior?.allowedTools) {
-    result.errors.push("behavior.allowedTools is required");
+  if (!definition.runner?.boundaries?.allowedTools) {
+    result.errors.push("runner.boundaries.allowedTools is required");
     result.valid = false;
   }
 
-  if (!definition.behavior?.permissionMode) {
-    result.errors.push("behavior.permissionMode is required");
+  if (!definition.runner?.boundaries?.permissionMode) {
+    result.errors.push("runner.boundaries.permissionMode is required");
     result.valid = false;
   }
 
-  if (!definition.prompts?.registry) {
-    result.errors.push("prompts.registry is required");
+  if (!definition.runner?.flow?.prompts?.registry) {
+    result.errors.push("runner.flow.prompts.registry is required");
     result.valid = false;
   }
 
-  if (!definition.prompts?.fallbackDir) {
-    result.errors.push("prompts.fallbackDir is required");
+  if (!definition.runner?.flow?.prompts?.fallbackDir) {
+    result.errors.push("runner.flow.prompts.fallbackDir is required");
     result.valid = false;
   }
 
-  if (!definition.logging?.directory) {
-    result.errors.push("logging.directory is required");
+  if (!definition.runner?.telemetry?.logging?.directory) {
+    result.errors.push("runner.telemetry.logging.directory is required");
     result.valid = false;
   }
 
-  if (!definition.logging?.format) {
-    result.errors.push("logging.format is required");
+  if (!definition.runner?.telemetry?.logging?.format) {
+    result.errors.push("runner.telemetry.logging.format is required");
     result.valid = false;
   }
 

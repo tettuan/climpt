@@ -1,33 +1,9 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "name": "iterator",
   "displayName": "Iterator Agent",
   "description": "Autonomous development agent that works on GitHub Issues/Projects in iteration cycles",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "externalState",
-    "completionConfig": {
-      "maxIterations": 500
-    },
-    "allowedTools": [
-      "Skill",
-      "Read",
-      "Write",
-      "Edit",
-      "Bash",
-      "Glob",
-      "Grep",
-      "Task",
-      "TodoWrite"
-    ],
-    "permissionMode": "acceptEdits",
-    "preCloseValidation": {
-      "enabled": true,
-      "validators": ["git-clean"],
-      "onFailure": "block"
-    }
-  },
   "parameters": {
     "issue": {
       "type": "number",
@@ -62,35 +38,64 @@
       "cli": "--base-branch"
     }
   },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "actions": {
-    "enabled": true,
-    "types": ["issue-action", "project-plan", "review-result"],
-    "outputFormat": "json"
-  },
-  "github": {
-    "enabled": true,
-    "labels": {
-      "requirements": "docs",
-      "inProgress": "in-progress",
-      "blocked": "need clearance",
-      "completion": {
-        "add": ["done"],
-        "remove": ["in-progress"]
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
       }
     },
-    "defaultClosureAction": "label-only"
-  },
-  "worktree": {
-    "enabled": true,
-    "root": "../worktree"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/iterator",
-    "format": "jsonl",
-    "maxFiles": 100
+    "completion": {
+      "type": "externalState",
+      "config": {
+        "maxIterations": 500
+      }
+    },
+    "boundaries": {
+      "allowedTools": [
+        "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task",
+        "TodoWrite"
+      ],
+      "permissionMode": "acceptEdits",
+      "github": {
+        "enabled": true,
+        "labels": {
+          "requirements": "docs",
+          "inProgress": "in-progress",
+          "blocked": "need clearance",
+          "completion": {
+            "add": ["done"],
+            "remove": ["in-progress"]
+          }
+        },
+        "defaultClosureAction": "label-only"
+      },
+      "actions": {
+        "enabled": true,
+        "types": ["issue-action", "project-plan", "review-result"],
+        "outputFormat": "json"
+      }
+    },
+    "execution": {
+      "worktree": {
+        "enabled": true,
+        "root": "../worktree"
+      }
+    },
+    "telemetry": {
+      "logging": {
+        "directory": "tmp/logs/agents/iterator",
+        "format": "jsonl",
+        "maxFiles": 100
+      }
+    }
   }
 }

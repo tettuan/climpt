@@ -42,16 +42,25 @@ function createTestDefinition(
     displayName: "Test Completion Agent",
     description: "Fixture agent for CompletionManager tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType,
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
-    logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
+      },
+      completion: {
+        type: completionType,
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      telemetry: {
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    },
   };
 }
 

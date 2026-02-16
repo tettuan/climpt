@@ -333,27 +333,36 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
     displayName: "Test Agent",
     description: "Test",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType: "externalState",
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: {
-      registry: "./prompts/registry.json",
-      fallbackDir: "./prompts",
-    },
-    logging: {
-      directory: "./logs",
-      format: "jsonl",
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: {
+          registry: "./prompts/registry.json",
+          fallbackDir: "./prompts",
+        },
+      },
+      completion: {
+        type: "externalState",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      telemetry: {
+        logging: {
+          directory: "./logs",
+          format: "jsonl",
+        },
+      },
     },
   };
 
   // Use reflection to test private method behavior
   // We verify the expected stepId format based on the implementation
-  const completionType = definition.behavior.completionType;
+  const completionType = definition.runner.completion.type;
 
   // iteration 1 -> initial.{completionType}
   assertEquals(`initial.${completionType}`, "initial.externalState");

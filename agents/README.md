@@ -140,16 +140,6 @@ Agent configurations are located in `/.agent/<agent-name>/`:
   "displayName": "Code Reviewer",
   "description": "Agent that performs code reviews",
 
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "manual",
-    "completionConfig": {
-      "completionKeyword": "REVIEW_COMPLETE"
-    },
-    "allowedTools": ["Read", "Glob", "Grep", "Bash"],
-    "permissionMode": "acceptEdits"
-  },
-
   "parameters": {
     "target": {
       "type": "string",
@@ -159,44 +149,64 @@ Agent configurations are located in `/.agent/<agent-name>/`:
     }
   },
 
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-
-  "github": {
-    "enabled": true,
-    "labels": {
-      "completion": {
-        "add": ["done"],
-        "remove": ["in-progress"]
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
       }
     },
-    "defaultClosureAction": "close"
-  },
-
-  "logging": {
-    "directory": "tmp/logs/agents/code-reviewer",
-    "format": "jsonl"
+    "completion": {
+      "type": "keywordSignal",
+      "config": {
+        "completionKeyword": "REVIEW_COMPLETE"
+      }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Glob", "Grep", "Bash"],
+      "permissionMode": "acceptEdits",
+      "github": {
+        "enabled": true,
+        "labels": {
+          "completion": {
+            "add": ["done"],
+            "remove": ["in-progress"]
+          }
+        },
+        "defaultClosureAction": "close"
+      }
+    },
+    "execution": {},
+    "telemetry": {
+      "logging": {
+        "directory": "tmp/logs/agents/code-reviewer",
+        "format": "jsonl"
+      }
+    }
   }
 }
 ```
 
 ### GitHub Integration
 
-Configure Issue closure behavior with the `github` section:
+Configure Issue closure behavior in `runner.boundaries.github`:
 
 ```json
 {
-  "github": {
-    "enabled": true,
-    "labels": {
-      "completion": {
-        "add": ["done"],
-        "remove": ["in-progress"]
+  "runner": {
+    "boundaries": {
+      "github": {
+        "enabled": true,
+        "labels": {
+          "completion": {
+            "add": ["done"],
+            "remove": ["in-progress"]
+          }
+        },
+        "defaultClosureAction": "close"
       }
-    },
-    "defaultClosureAction": "close"
+    }
   }
 }
 ```
@@ -220,9 +230,11 @@ agent.
 
 ```json
 {
-  "completionType": "externalState",
-  "completionConfig": {
-    "maxIterations": 500
+  "runner": {
+    "completion": {
+      "type": "externalState",
+      "config": { "maxIterations": 500 }
+    }
   }
 }
 ```
@@ -233,9 +245,11 @@ Completes after specified number of iterations.
 
 ```json
 {
-  "completionType": "iterationBudget",
-  "completionConfig": {
-    "maxIterations": 5
+  "runner": {
+    "completion": {
+      "type": "iterationBudget",
+      "config": { "maxIterations": 5 }
+    }
   }
 }
 ```
@@ -246,9 +260,11 @@ Completes when agent outputs a specific keyword.
 
 ```json
 {
-  "completionType": "keywordSignal",
-  "completionConfig": {
-    "completionKeyword": "TASK_COMPLETE"
+  "runner": {
+    "completion": {
+      "type": "keywordSignal",
+      "config": { "completionKeyword": "TASK_COMPLETE" }
+    }
   }
 }
 ```
@@ -259,8 +275,12 @@ Completes through state machine-like step transitions.
 
 ```json
 {
-  "completionType": "stepMachine",
-  "completionConfig": {}
+  "runner": {
+    "completion": {
+      "type": "stepMachine",
+      "config": {}
+    }
+  }
 }
 ```
 
@@ -357,7 +377,8 @@ JSONL log entries for each iteration.
 
 ## Logs
 
-Logs are saved in JSONL format at the configured `logging.directory`:
+Logs are saved in JSONL format at the configured
+`runner.telemetry.logging.directory`:
 
 ```
 tmp/logs/agents/my-agent/
@@ -406,15 +427,7 @@ Builder/Guides:
 ### Sandbox Error
 
 In environments where Claude Code sandbox is enabled, some operations may be
-restricted:
-
-```json
-{
-  "behavior": {
-    "disableSandbox": true
-  }
-}
-```
+restricted. Configure sandbox settings in `runner.boundaries.sandbox`.
 
 ### Module Resolution Error
 

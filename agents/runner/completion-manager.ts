@@ -119,7 +119,7 @@ export class CompletionManager {
 
       // Fail-fast: stepMachine completion requires structuredGate on at least one step
       if (
-        this.deps.definition.behavior.completionType === "stepMachine" &&
+        this.deps.definition.runner.completion.type === "stepMachine" &&
         !hasFlowRouting
       ) {
         throw new Error(
@@ -312,7 +312,7 @@ export class CompletionManager {
   getCompletionStepId(): string {
     if (this.completionChain) {
       return this.completionChain.getCompletionStepId(
-        this.deps.definition.behavior.completionType,
+        this.deps.definition.runner.completion.type,
       );
     }
     return "closure.issue";

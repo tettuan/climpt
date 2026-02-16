@@ -39,11 +39,21 @@ export function mergeConfigurations<T extends Record<string, unknown>>(
  */
 export function getDefaults(): Partial<AgentDefinition> {
   return {
-    github: {
-      enabled: false,
-    },
-    worktree: {
-      enabled: false,
+    runner: {
+      flow: {
+        systemPromptPath: "",
+        prompts: { registry: "", fallbackDir: "" },
+      },
+      completion: { type: "iterationBudget", config: {} },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+        github: { enabled: false },
+      },
+      execution: {
+        worktree: { enabled: false },
+      },
+      telemetry: { logging: { directory: "", format: "jsonl" } },
     },
   };
 }
@@ -55,8 +65,19 @@ export function applyDefaults(definition: AgentDefinition): AgentDefinition {
   const defaults = getDefaults();
   return {
     ...definition,
-    github: definition.github ?? defaults.github,
-    worktree: definition.worktree ?? defaults.worktree,
+    runner: {
+      ...definition.runner,
+      boundaries: {
+        ...definition.runner.boundaries,
+        github: definition.runner.boundaries.github ??
+          defaults.runner?.boundaries?.github,
+      },
+      execution: {
+        ...definition.runner.execution,
+        worktree: definition.runner.execution.worktree ??
+          defaults.runner?.execution?.worktree,
+      },
+    },
   };
 }
 

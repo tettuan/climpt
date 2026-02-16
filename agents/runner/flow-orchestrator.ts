@@ -92,7 +92,7 @@ export class FlowOrchestrator {
     const stepsRegistry = this.deps.getStepsRegistry();
 
     // For iteration 1: Use registry-based lookup
-    const completionType = this.deps.definition.behavior.completionType;
+    const completionType = this.deps.definition.runner.completion.type;
 
     // Try entryStepMapping first
     if (stepsRegistry?.entryStepMapping?.[completionType]) {

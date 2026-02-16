@@ -115,7 +115,7 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
           handler = new ExternalStateCompletionAdapter(issueHandler, {
             issueNumber,
             repo,
-            github: this._definition.github as {
+            github: this._definition.runner.boundaries.github as {
               labels?: { completion?: { add?: string[]; remove?: string[] } };
               defaultClosureAction?: string;
             },

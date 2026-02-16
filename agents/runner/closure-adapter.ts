@@ -57,7 +57,8 @@ export class ClosureAdapter {
     }
 
     // Determine closure action from config
-    const closureAction = this.deps.definition.github?.defaultClosureAction;
+    const closureAction = this.deps.definition.runner.boundaries.github
+      ?.defaultClosureAction;
 
     // Only use adaptation override for non-default actions
     const overrides = closureAction && closureAction !== "close"

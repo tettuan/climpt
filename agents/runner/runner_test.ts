@@ -320,21 +320,30 @@ function createMinimalDefinition(): AgentDefinition {
     displayName: "Test Agent",
     description: "Test agent for unit tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType: "iterationBudget",
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: {
-      registry: "./prompts/registry.json",
-      fallbackDir: "./prompts",
-    },
-    logging: {
-      directory: "./logs",
-      format: "jsonl",
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: {
+          registry: "./prompts/registry.json",
+          fallbackDir: "./prompts",
+        },
+      },
+      completion: {
+        type: "iterationBudget",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      telemetry: {
+        logging: {
+          directory: "./logs",
+          format: "jsonl",
+        },
+      },
     },
   };
 }
