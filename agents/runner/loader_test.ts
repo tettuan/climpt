@@ -5,6 +5,7 @@
  */
 
 import { assertEquals, assertRejects } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   agentExists,
   getAgentDir,
@@ -13,6 +14,8 @@ import {
   validateAgentDefinition,
 } from "./loader.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
+
+const logger = new BreakdownLogger("loader");
 
 // =============================================================================
 // Test Fixtures
@@ -64,6 +67,10 @@ function _createInvalidDefinition(): Partial<AgentDefinition> {
 Deno.test("validateAgentDefinition - valid definition passes", () => {
   const def = createValidDefinition();
   const result = validateAgentDefinition(def);
+  logger.debug("validation result", {
+    valid: result.valid,
+    errors: result.errors,
+  });
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);

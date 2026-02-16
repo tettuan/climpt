@@ -142,6 +142,173 @@ Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS matches expected commands", () =>
   assertEquals(patterns.some((p) => p.test("gh issue list")), false);
 });
 
+// --- Bypass prevention: network tools targeting GitHub API ---
+// These tests verify that LLM agents cannot bypass boundary restrictions
+// by using curl/wget/python/node/etc. to call the GitHub REST API directly.
+
+Deno.test("tool-policy: isBashCommandAllowed blocks curl targeting GitHub API", () => {
+  const result = isBashCommandAllowed(
+    `curl -X PATCH -H "Authorization: token xxx" https://api.github.com/repos/owner/repo/issues/135 -d '{"state":"closed"}'`,
+    "work",
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed blocks wget targeting GitHub API", () => {
+  const result = isBashCommandAllowed(
+    "wget --method=PATCH https://api.github.com/repos/owner/repo/issues/135",
+    "work",
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed blocks python3 targeting GitHub API", () => {
+  const result = isBashCommandAllowed(
+    `python3 -c "import requests; requests.patch('https://api.github.com/repos/owner/repo/issues/135', json={'state':'closed'})"`,
+    "work",
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed blocks node targeting GitHub API", () => {
+  const result = isBashCommandAllowed(
+    `node -e "fetch('https://api.github.com/repos/owner/repo/issues/135', {method:'PATCH', body:JSON.stringify({state:'closed'})})"`,
+    "work",
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed blocks state:closed payload via pipe", () => {
+  const result = isBashCommandAllowed(
+    `echo '{"state":"closed"}' | curl -X PATCH -d @- https://api.github.com/repos/owner/repo/issues/135`,
+    "work",
+  );
+  assertEquals(result.allowed, false);
+  assertEquals(result.reason?.includes("boundary action"), true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed allows legitimate curl to non-GitHub URLs", () => {
+  const result = isBashCommandAllowed("curl https://example.com", "work");
+  assertEquals(result.allowed, true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed allows legitimate python3 scripts", () => {
+  const result = isBashCommandAllowed("python3 script.py", "work");
+  assertEquals(result.allowed, true);
+});
+
+Deno.test("tool-policy: isBashCommandAllowed still allows gh issue view (read-only)", () => {
+  const result = isBashCommandAllowed("gh issue view 135", "work");
+  assertEquals(result.allowed, true);
+});
+
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS matches network bypass commands", () => {
+  const patterns = BOUNDARY_BASH_PATTERNS;
+
+  // curl/wget targeting GitHub API should match
+  assertEquals(
+    patterns.some((p) =>
+      p.test("curl -X PATCH https://api.github.com/repos/o/r/issues/1")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("wget https://api.github.com/repos/o/r/issues/1")
+    ),
+    true,
+  );
+
+  // Script interpreters targeting GitHub API should match
+  assertEquals(
+    patterns.some((p) =>
+      p.test("python3 -c 'requests.patch(\"https://api.github.com/...\")'")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("python -c 'requests.patch(\"https://api.github.com/...\")'")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("node -e \"fetch('https://api.github.com/...')\"")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("ruby -e 'Net::HTTP.get(\"https://api.github.com/...\")'")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("deno run script.ts https://api.github.com/repos/o/r")
+    ),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) =>
+      p.test("perl -e 'use LWP; get(\"https://api.github.com/...\")'")
+    ),
+    true,
+  );
+
+  // State mutation payloads should match
+  assertEquals(
+    patterns.some((p) => p.test('{"state":"closed"}')),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) => p.test("{'state':'closed'}")),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) => p.test('{ "state" : "closed" }')),
+    true,
+  );
+
+  // Legitimate commands should NOT match
+  assertEquals(
+    patterns.some((p) => p.test("curl https://example.com")),
+    false,
+  );
+  assertEquals(
+    patterns.some((p) => p.test("python3 script.py")),
+    false,
+  );
+  assertEquals(
+    patterns.some((p) => p.test("node server.js")),
+    false,
+  );
+  assertEquals(
+    patterns.some((p) => p.test("deno run app.ts")),
+    false,
+  );
+});
+
+Deno.test("tool-policy: bypass patterns blocked in closure step too", () => {
+  // Even in closure steps, direct API calls are blocked (boundary hook handles them)
+  const curlResult = isBashCommandAllowed(
+    "curl -X PATCH https://api.github.com/repos/o/r/issues/1",
+    "closure",
+  );
+  assertEquals(curlResult.allowed, false);
+
+  const stateResult = isBashCommandAllowed(
+    '{"state":"closed"}',
+    "closure",
+  );
+  assertEquals(stateResult.allowed, false);
+});
+
 Deno.test("tool-policy: allowsBoundaryActions returns correct values", () => {
   assertEquals(allowsBoundaryActions("work"), false);
   assertEquals(allowsBoundaryActions("verification"), false);

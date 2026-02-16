@@ -1,0 +1,130 @@
+{
+  "agentId": "test-flow",
+  "version": "3.0.0",
+  "c1": "steps",
+  "schemasBase": ".agent/test-flow/schemas",
+
+  "entryStepMapping": {
+    "externalState": "initial.test",
+    "iterationBudget": "initial.test",
+    "stepMachine": "initial.test"
+  },
+
+  "completionPatterns": {
+    "git-dirty": {
+      "description": "Uncommitted changes present",
+      "edition": "failed",
+      "adaptation": "git-dirty",
+      "params": ["changedFiles"]
+    }
+  },
+
+  "validators": {
+    "always-pass": {
+      "type": "command",
+      "command": "echo ok",
+      "successWhen": "exitCode:0",
+      "failurePattern": "git-dirty",
+      "extractParams": {}
+    }
+  },
+
+  "completionSteps": {
+    "closure.test": {
+      "stepId": "closure.test",
+      "name": "Test Completion Validation",
+      "c2": "retry",
+      "c3": "test",
+      "completionConditions": [
+        { "validator": "always-pass" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 2
+      }
+    },
+    "closure.externalState": {
+      "stepId": "closure.externalState",
+      "name": "External State Completion Validation",
+      "c2": "retry",
+      "c3": "externalState",
+      "completionConditions": [
+        { "validator": "always-pass" }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 2
+      }
+    }
+  },
+
+  "steps": {
+    "initial.test": {
+      "stepId": "initial.test",
+      "name": "Test Initial Step",
+      "stepKind": "work",
+      "c2": "initial",
+      "c3": "test",
+      "edition": "default",
+      "fallbackKey": "test_initial_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["analysis.summary"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.test" },
+        "repeat": { "target": "initial.test" }
+      }
+    },
+    "continuation.test": {
+      "stepId": "continuation.test",
+      "name": "Test Continuation Step",
+      "stepKind": "work",
+      "c2": "continuation",
+      "c3": "test",
+      "edition": "default",
+      "fallbackKey": "test_continuation_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "handoff"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": ["progress.files"]
+      },
+      "transitions": {
+        "next": { "target": "continuation.test" },
+        "repeat": { "target": "continuation.test" },
+        "handoff": { "target": "closure.test" }
+      }
+    },
+    "closure.test": {
+      "stepId": "closure.test",
+      "name": "Test Closure Step",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "test",
+      "edition": "default",
+      "fallbackKey": "test_closure_default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["closing", "repeat"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": { "target": null },
+        "repeat": { "target": "closure.test" }
+      }
+    }
+  }
+}

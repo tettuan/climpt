@@ -3,6 +3,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   classifySdkError,
   isApiError,
@@ -11,10 +12,17 @@ import {
   SdkErrorCategory,
 } from "./error-classifier.ts";
 
+const logger = new BreakdownLogger("error-classifier");
+
 Deno.test("error-classifier", async (t) => {
   await t.step("classifies double sandbox error", () => {
     const error = new Error("Claude Code process exited with code 1");
     const classified = classifySdkError(error);
+    logger.debug("classified error", {
+      message: error.message,
+      category: classified.category,
+      recoverable: classified.recoverable,
+    });
 
     assertEquals(classified.category, SdkErrorCategory.ENVIRONMENT);
     assertEquals(classified.recoverable, false);
