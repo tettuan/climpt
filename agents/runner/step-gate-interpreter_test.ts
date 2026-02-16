@@ -11,7 +11,7 @@ import {
 } from "./step-gate-interpreter.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 
-const logger = new BreakdownLogger("step-gate-interpreter");
+const logger = new BreakdownLogger("gate");
 
 Deno.test("getValueAtPath - extracts simple path", () => {
   const obj = { a: "value" };

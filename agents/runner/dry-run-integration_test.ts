@@ -14,7 +14,10 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
+
+const logger = new BreakdownLogger("integration");
 import { CompletionManager } from "./completion-manager.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
@@ -292,7 +295,16 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   const registry = await loadFixtureRegistry();
   const responses = createMockSdkResponses();
 
+  logger.debug("dry-run loop input", {
+    completionType: "externalState",
+    responseCount: responses.length,
+  });
   const result = await runDryLoop(registry, "externalState", responses);
+  logger.debug("dry-run loop result", {
+    iterations: result.iterations,
+    completed: result.completed,
+    stepSequence: result.stepSequence,
+  });
 
   assertEquals(result.iterations, 3);
   assertEquals(result.completed, true);

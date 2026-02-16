@@ -15,7 +15,7 @@ import {
 } from "./loader.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
 
-const logger = new BreakdownLogger("loader");
+const logger = new BreakdownLogger("config");
 
 // =============================================================================
 // Test Fixtures

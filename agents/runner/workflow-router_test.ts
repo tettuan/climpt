@@ -8,7 +8,7 @@ import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
-const logger = new BreakdownLogger("workflow-router");
+const logger = new BreakdownLogger("transition");
 
 // Helper to create minimal registry
 function createRegistry(

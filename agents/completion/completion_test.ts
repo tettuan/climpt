@@ -13,7 +13,10 @@
  */
 
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { createRegistryCompletionHandler } from "./factory.ts";
+
+const logger = new BreakdownLogger("handler");
 import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
 import { IssueCompletionHandler } from "./issue.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
@@ -131,7 +134,12 @@ Deno.test("IssueCompletionHandler - check with cached closed state returns compl
   );
 
   await handler.forceRefreshState();
+  logger.debug("handler check input", { iteration: 1, issueNumber: 123 });
   const result = handler.check({ iteration: 1 });
+  logger.debug("handler check result", {
+    complete: result.complete,
+    reason: result.reason,
+  });
   assertEquals(result.complete, true);
   assertEquals(result.reason?.includes("123"), true);
 });
@@ -1235,6 +1243,7 @@ Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", (
 // =============================================================================
 
 Deno.test("createRegistryCompletionHandler - externalState with args.issue returns adapter", async () => {
+  logger.debug("factory input", { type: "externalState", issue: 123 });
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",

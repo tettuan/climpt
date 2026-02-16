@@ -22,7 +22,7 @@ import { AgentRunner } from "./runner.ts";
 import { AgentEventEmitter } from "./events.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
 
-const logger = new BreakdownLogger("agent-runner");
+const logger = new BreakdownLogger("iteration");
 
 // =============================================================================
 // Error Hierarchy Tests

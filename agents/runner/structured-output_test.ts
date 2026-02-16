@@ -15,7 +15,7 @@ import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
 import { join } from "@std/path";
 
-const logger = new BreakdownLogger("structured-output");
+const logger = new BreakdownLogger("schema");
 
 // =============================================================================
 // Schema Loading Tests

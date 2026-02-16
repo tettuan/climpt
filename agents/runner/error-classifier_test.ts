@@ -12,7 +12,7 @@ import {
   SdkErrorCategory,
 } from "./error-classifier.ts";
 
-const logger = new BreakdownLogger("error-classifier");
+const logger = new BreakdownLogger("error");
 
 Deno.test("error-classifier", async (t) => {
   await t.step("classifies double sandbox error", () => {

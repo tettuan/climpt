@@ -9,10 +9,13 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   CompletionManager,
   type CompletionManagerDeps,
 } from "./completion-manager.ts";
+
+const logger = new BreakdownLogger("completion");
 import { CompletionChain } from "./completion-chain.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
@@ -119,7 +122,12 @@ Deno.test("CompletionManager - hasAICompletionDeclaration detects closing intent
     },
   });
 
-  assertEquals(manager.hasAICompletionDeclaration(summary), true);
+  logger.debug("hasAICompletionDeclaration input", {
+    structuredOutput: summary.structuredOutput,
+  });
+  const result = manager.hasAICompletionDeclaration(summary);
+  logger.debug("hasAICompletionDeclaration result", { result });
+  assertEquals(result, true);
 });
 
 Deno.test("CompletionManager - hasAICompletionDeclaration detects complete intent (backward compat)", () => {
@@ -218,12 +226,12 @@ Deno.test("CompletionManager - getCompletionStepId defaults to closure.issue wit
 Deno.test("CompletionManager - getCompletionStepId delegates to CompletionChain when available", async () => {
   const registry = await loadFixtureRegistry();
   const manager = new CompletionManager(createMockDeps("externalState"));
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   // Manually wire CompletionChain (simulating what initializeCompletionValidation does)
   manager.completionChain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null,
     retryHandler: null,
@@ -232,7 +240,11 @@ Deno.test("CompletionManager - getCompletionStepId delegates to CompletionChain 
   manager.stepsRegistry = registry;
 
   // CompletionChain looks up closure.{completionType} in registry's completionSteps
+  logger.debug("getCompletionStepId input", {
+    completionType: "externalState",
+  });
   const stepId = manager.getCompletionStepId();
+  logger.debug("getCompletionStepId result", { stepId });
   assertEquals(stepId, "closure.externalState");
 });
 
@@ -274,17 +286,21 @@ Deno.test("CompletionManager - hasFlowRoutingEnabled returns false if only inter
 
 Deno.test("CompletionManager - validateCompletionConditions returns valid when no registry", async () => {
   const manager = new CompletionManager(createMockDeps());
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const summary = createSummary({
     structuredOutput: { next_action: { action: "closing" } },
   });
 
+  logger.debug("validateCompletionConditions input", {
+    stepId: "closure.test",
+  });
   const result = await manager.validateCompletionConditions(
     "closure.test",
     summary,
-    logger,
+    mockLogger,
   );
+  logger.debug("validateCompletionConditions result", { valid: result.valid });
   assertEquals(result.valid, true);
 });
 
@@ -292,7 +308,7 @@ Deno.test("CompletionManager - validateCompletionConditions returns valid for un
   const registry = await loadFixtureRegistry();
   const manager = new CompletionManager(createMockDeps());
   manager.stepsRegistry = registry;
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const summary = createSummary();
 
@@ -300,7 +316,7 @@ Deno.test("CompletionManager - validateCompletionConditions returns valid for un
   const result = await manager.validateCompletionConditions(
     "nonexistent.step",
     summary,
-    logger,
+    mockLogger,
   );
   assertEquals(result.valid, true);
 });
@@ -308,14 +324,14 @@ Deno.test("CompletionManager - validateCompletionConditions returns valid for un
 Deno.test("CompletionManager - validateCompletionConditions delegates to CompletionChain", async () => {
   const registry = await loadFixtureRegistry();
   const manager = new CompletionManager(createMockDeps());
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   manager.stepsRegistry = registry;
 
   // Wire a CompletionChain with no validator (will return valid)
   manager.completionChain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null,
     retryHandler: null,
@@ -328,7 +344,7 @@ Deno.test("CompletionManager - validateCompletionConditions delegates to Complet
   const result = await manager.validateCompletionConditions(
     "closure.test",
     summary,
-    logger,
+    mockLogger,
   );
   assertEquals(result.valid, true);
 });
@@ -339,11 +355,11 @@ Deno.test("CompletionManager - validateCompletionConditions delegates to Complet
 
 Deno.test("CompletionChain - getCompletionStepId returns closure.{type} for known types", async () => {
   const registry = await loadFixtureRegistry();
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const chain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null,
     retryHandler: null,
@@ -378,11 +394,11 @@ Deno.test("CompletionChain - getCompletionStepId finds step from completionSteps
       },
     },
   };
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const chain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null,
     retryHandler: null,
@@ -398,11 +414,11 @@ Deno.test("CompletionChain - getCompletionStepId finds step from completionSteps
 
 Deno.test("CompletionChain - validate returns valid when no step config", async () => {
   const registry = await loadFixtureRegistry();
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const chain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null,
     retryHandler: null,
@@ -418,11 +434,11 @@ Deno.test("CompletionChain - validate returns valid when no step config", async 
 
 Deno.test("CompletionChain - validate returns valid when validator is null and conditions exist", async () => {
   const registry = await loadFixtureRegistry();
-  const logger = createMockLogger();
+  const mockLogger = createMockLogger();
 
   const chain = new CompletionChain({
     workingDir: "/tmp/claude/test",
-    logger,
+    logger: mockLogger,
     stepsRegistry: registry,
     completionValidator: null, // No validator
     retryHandler: null,

@@ -28,7 +28,7 @@ import type { Logger } from "../src_common/logger.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 
-const logger = new BreakdownLogger("builder");
+const logger = new BreakdownLogger("factory");
 
 // =============================================================================
 // Test Fixtures
