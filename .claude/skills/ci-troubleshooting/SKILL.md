@@ -8,14 +8,31 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob]
 
 ## CI Pipeline Stages
 
-`deno task ci` runs these stages in order:
+`@aidevtool/ci` runs these stages in order:
 
-1. **deps** - Cache dependencies (deno.lock)
-2. **check** - Type checking
-3. **jsr-check** - JSR publish dry-run
-4. **test** - Run tests
-5. **lint** - Deno lint
-6. **fmt** - Format check
+1. **Type Check** - `deno check`
+2. **JSR Check** - JSR publish dry-run
+3. **Test** - `deno test`
+4. **Lint** - `deno lint`
+5. **Format** - `deno fmt --check`
+
+## Isolating Failures
+
+### Run Specific Mode
+
+```bash
+# Single-file mode to isolate per-file errors
+deno task ci --mode single-file
+
+# Show only failing files
+deno task ci --log-mode error-files-only
+
+# Stop at first error
+deno task ci --stop-on-first-error
+
+# Check specific directory
+deno task ci --hierarchy src/
+```
 
 ## Network / Sandbox Issues
 
@@ -59,8 +76,6 @@ Add at top of file (after shebang if present):
 
 ### Line-Level Lint Ignore
 
-Add comment before the line:
-
 ```typescript
 // deno-lint-ignore no-console
 console.log("Debug output");
@@ -70,7 +85,7 @@ console.log("Debug output");
 
 Replace Japanese with English in:
 - Code comments
-- Doc references (e.g., `#command-schema` not `#command-スキーマ`)
+- Doc references (e.g., `#command-schema` not `#command-schema`)
 - Error messages in library code
 
 Exception: Japanese OK in test fixtures or user-facing CLI output.
@@ -78,8 +93,6 @@ Exception: Japanese OK in test fixtures or user-facing CLI output.
 ## Test Failures
 
 ### Flaky Tests (Timing Issues)
-
-Example: ID uniqueness test failing due to timestamp collision
 
 **Problem**: Parallel execution with small delays
 ```typescript
@@ -107,36 +120,23 @@ Check for:
 
 ## Format Errors
 
-### Check Without Fixing
-
 ```bash
+# Check without fixing
 deno fmt --check
-```
 
-### Fix All
-
-```bash
+# Fix all
 deno fmt
 ```
 
 ## Quick Debugging
 
-### Run Single Stage
-
 ```bash
-# Type check only
+# Run single stage individually
 deno check src/**/*.ts
-
-# Lint only
 deno lint
-
-# Single test file
 deno test path/to/test.ts
-```
 
-### Verbose Test Output
-
-```bash
+# Verbose test output
 deno test --allow-all 2>&1 | head -100
 ```
 
