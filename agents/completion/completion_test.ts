@@ -1280,6 +1280,7 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
     { issue: 123, repository: "owner/repo" },
     "/tmp/claude/test-agent",
   );
+  logger.debug("factory result", { type: result?.type });
 
   assertExists(result);
   assertEquals(result.type, "externalState");
