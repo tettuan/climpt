@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.24] - 2026-02-16
+
 ### Added
+- `implement-logger` skill with concern-based KEY naming guide
+- `test-investigation` skill for structured test debugging
+- Responsibility-aligned runner tests: FlowOrchestrator, CompletionManager, dry-run
+- BreakdownLogger integration in runner tests
 - `examples/` directory with E2E verification scripts organized by use case (setup, CLI, MCP, docs, agents, registry)
 - 15-task codebase refactoring: uv type unification, skill English translation, fs-utils extraction, logger introduction, test consolidation, MCP test separation, prompt externalization, and more
 
 ### Changed
+- BreakdownLogger dependency upgraded
+- API bypass prevention added to agent runner
+- Skills condensed for maintainability
 - CI workflow aligned with deno.json task definitions
 - deno.json scopes cleaned up (fmt, lint, test, include)
 - Test naming conventions unified
