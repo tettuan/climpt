@@ -27,9 +27,9 @@ File Path:
 
 ---
 
-## 2. Behavior Settings
+## 2. Boundaries Settings (`runner.boundaries`)
 
-### Tools Used
+### Tools Used (`runner.boundaries.allowedTools`)
 
 Check currently used tools:
 
@@ -44,36 +44,33 @@ Check currently used tools:
 - [ ] Task - Sub-agent
 - [ ] Other: _______________
 
-### Permission Mode
+### Permission Mode (`runner.boundaries.permissionMode`)
 
 - [ ] `plan` - Plan mode (no edits)
 - [ ] `acceptEdits` - Edit approval mode
 - [ ] `bypassPermissions` - Permission bypass
 
-### Sandbox
+### Sandbox (`runner.boundaries.sandbox`)
 
 - [ ] Can operate with Sandbox enabled
-- [ ] Requires Sandbox disabled (`disableSandbox: true`)
+- [ ] Requires Sandbox disabled
 
 ---
 
-## 3. Completion Conditions
+## 3. Completion Settings (`runner.completion`)
 
-### Completion Type (Select One)
+### Completion Type (`runner.completion.type`) (Select One)
 
-- [ ] **manual** - Complete on specific keyword
+- [ ] **keywordSignal** - Complete on specific keyword
   - Completion keyword: `_______________`
 
-- [ ] **iterate** - Complete after fixed iterations
+- [ ] **iterationBudget** - Complete after fixed iterations
   - Maximum iterations: `___`
 
-- [ ] **issue** - Complete when GitHub Issue closes
+- [ ] **externalState** - Complete when GitHub Issue closes
   - Issue number parameter name: `_______________`
 
-- [ ] **project** - Complete when GitHub Project task completes
-  - Project identification method: `_______________`
-
-- [ ] **stepFlow** - Complete via step-based state transitions
+- [ ] **stepMachine** - Complete via step-based state transitions
   - Number of steps: `___`
   - Step structure: `_______________`
   - (Example: analyze -> implement -> review)
