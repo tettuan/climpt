@@ -12,7 +12,13 @@ import {
   writeFile,
 } from "../../src/docs/writer.ts";
 import type { Entry } from "../../src/docs/types.ts";
-import { cleanupTempDir, createTempDir } from "../test-utils.ts";
+import {
+  cleanupTempDir,
+  createTempDir,
+  createTestLogger,
+} from "../test-utils.ts";
+
+const logger = createTestLogger("docs-writer");
 
 // ============================================================================
 // Test Data
@@ -39,6 +45,7 @@ const sampleEntryFlat: Entry = {
 
 Deno.test("getOutputPath: preserve mode keeps original path", () => {
   const result = getOutputPath(sampleEntry, "/docs", "preserve");
+  logger.debug("getOutputPath result", { mode: "preserve", output: result });
   assertEquals(result, "/docs/guides/git-basics.md");
 });
 
@@ -98,6 +105,7 @@ Deno.test("writeFile: creates nested directories automatically", async () => {
   const tempDir = await createTempDir();
   try {
     const path = `${tempDir}/a/b/c/nested.md`;
+    logger.debug("writeFile input", { path });
     await writeFile(path, "nested content");
 
     const content = await Deno.readTextFile(path);
@@ -177,6 +185,10 @@ Deno.test("writeCombined: combines multiple entries with separators", async () =
     await writeCombined(path, entries);
 
     const content = await Deno.readTextFile(path);
+    logger.debug("writeCombined result", {
+      path,
+      contentLength: content.length,
+    });
     assertEquals(
       content,
       "# Git Basics\n\nContent for git basics\n\n---\n\n# API Reference\n\nContent for API reference",

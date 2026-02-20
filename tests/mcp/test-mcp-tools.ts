@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-console prefer-ascii
 /**
  * @fileoverview Minimal test suite for MCP tools
  *
@@ -14,6 +13,9 @@
 import { assertEquals, assertExists } from "@std/assert";
 import type { Command } from "../../src/mcp/types.ts";
 import { describeCommand, searchCommands } from "../../src/mcp/similarity.ts";
+import { createTestLogger } from "../test-utils.ts";
+
+const logger = createTestLogger("mcp-tools");
 
 /**
  * Load registry for testing
@@ -45,11 +47,12 @@ Deno.test("search: returns top 3 results for git commit query", () => {
   assertEquals(results[0].score >= results[1].score, true);
   assertEquals(results[1].score >= results[2].score, true);
 
-  console.log("✅ Search results for git commit query:");
-  results.forEach((r, i) => {
-    console.log(
-      `  ${i + 1}. [${r.score.toFixed(3)}] ${r.c1} ${r.c2} ${r.c3}`,
-    );
+  logger.debug("searchCommands git-commit results", {
+    results: results.map((r, i) => ({
+      rank: i + 1,
+      score: r.score.toFixed(3),
+      command: `${r.c1} ${r.c2} ${r.c3}`,
+    })),
   });
 });
 
@@ -68,11 +71,12 @@ Deno.test("search: returns top 3 results for documentation query", () => {
     assertExists(result.score);
   }
 
-  console.log("✅ Search results for documentation query:");
-  results.forEach((r, i) => {
-    console.log(
-      `  ${i + 1}. [${r.score.toFixed(3)}] ${r.c1} ${r.c2} ${r.c3}`,
-    );
+  logger.debug("searchCommands documentation results", {
+    results: results.map((r, i) => ({
+      rank: i + 1,
+      score: r.score.toFixed(3),
+      command: `${r.c1} ${r.c2} ${r.c3}`,
+    })),
   });
 });
 
@@ -88,7 +92,9 @@ Deno.test("search: deduplicates commands by c1+c2+c3", () => {
     seen.add(key);
   }
 
-  console.log("✅ Search results are properly deduplicated");
+  logger.debug("searchCommands deduplication result", {
+    uniqueKeys: seen.size,
+  });
 });
 
 /**
@@ -111,12 +117,11 @@ Deno.test("describe: returns command details for valid c1/c2/c3", () => {
   assertEquals(cmd.c3, c3);
   assertExists(cmd.description);
 
-  console.log("✅ Describe result:");
-  console.log(`  ${cmd.c1} ${cmd.c2} ${cmd.c3}`);
-  console.log(`  Description: ${cmd.description}`);
-  if (cmd.options) {
-    console.log(`  Options: ${JSON.stringify(cmd.options)}`);
-  }
+  logger.debug("describeCommand result", {
+    command: `${cmd.c1} ${cmd.c2} ${cmd.c3}`,
+    description: cmd.description,
+    options: cmd.options ?? null,
+  });
 });
 
 Deno.test("describe: returns empty array for non-existent command", () => {
@@ -127,9 +132,9 @@ Deno.test("describe: returns empty array for non-existent command", () => {
   const results = describeCommand(commands, c1, c2, c3);
 
   assertEquals(results.length, 0);
-  console.log(
-    "✅ Describe correctly returns empty array for non-existent command",
-  );
+  logger.debug("describeCommand non-existent result", {
+    resultCount: results.length,
+  });
 });
 
 Deno.test("describe: returns all variants when multiple options exist", () => {
@@ -151,11 +156,14 @@ Deno.test("describe: returns all variants when multiple options exist", () => {
     const results = describeCommand(commands, c1, c2, c3);
 
     assertEquals(results.length, count);
-    console.log(
-      `✅ Describe returns all ${count} variants for ${c1} ${c2} ${c3}`,
-    );
+    logger.debug("describeCommand variants result", {
+      command: `${c1} ${c2} ${c3}`,
+      variantCount: count,
+    });
   } else {
-    console.log("✅ No duplicate commands found in registry (this is OK)");
+    logger.debug("describeCommand variants result", {
+      duplicatesFound: false,
+    });
   }
 });
 
@@ -168,18 +176,18 @@ Deno.test("use case: user searches then describes a command", () => {
   const searchResults = searchCommands(commands, query, 3);
 
   assertEquals(searchResults.length, 3);
-  console.log("\n🔍 User searches: 'run tests for my code'");
-  console.log("Top result:", searchResults[0]);
+  logger.debug("searchCommands workflow input", { query });
+  logger.debug("searchCommands workflow results", {
+    topResult: searchResults[0],
+  });
 
   // Step 2: User describes the top result
   const top = searchResults[0];
   const describeResults = describeCommand(commands, top.c1, top.c2, top.c3);
 
   assertEquals(describeResults.length >= 1, true);
-  console.log("\n📖 User describes the command:");
-  console.log(JSON.stringify(describeResults[0], null, 2));
-
-  console.log("✅ Complete search -> describe workflow successful");
+  logger.debug("describeCommand workflow result", {
+    described: describeResults[0],
+  });
+  logger.debug("workflow complete", { steps: ["search", "describe"] });
 });
-
-console.log("\n🎉 All tests completed!");

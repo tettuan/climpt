@@ -7,7 +7,13 @@
 
 import { assert, assertEquals } from "@std/assert";
 import { install, list } from "../../src/docs/mod.ts";
-import { cleanupTempDir, createTempDir } from "../test-utils.ts";
+import {
+  cleanupTempDir,
+  createTempDir,
+  createTestLogger,
+} from "../test-utils.ts";
+
+const logger = createTestLogger("docs-install");
 
 // Check if required permissions and connectivity are available
 const hasWritePermission =
@@ -37,6 +43,10 @@ Deno.test({
   ignore: !hasNetAccess,
   fn: async () => {
     const result = await list();
+    logger.debug("list result", {
+      version: result.version,
+      entryCount: result.entries.length,
+    });
 
     assert(typeof result.version === "string", "Should return version");
     assert(Array.isArray(result.entries), "Should return entries array");
@@ -125,6 +135,11 @@ Deno.test({
         mode: "preserve",
         category: "guides",
       });
+      logger.debug("install preserve result", {
+        output: tempDir,
+        installedCount: result.installed.length,
+        failedCount: result.failed.length,
+      });
 
       assert(typeof result.version === "string", "Result should have version");
       assert(
@@ -138,6 +153,10 @@ Deno.test({
         // Verify file exists
         const firstFile = result.installed[0];
         const stat = await Deno.stat(firstFile);
+        logger.debug("install file check", {
+          path: firstFile,
+          isFile: stat.isFile,
+        });
         assert(stat.isFile, "Installed path should be a file");
 
         // Verify content is not empty
@@ -202,6 +221,10 @@ Deno.test({
         output: tempDir,
         mode: "single",
         category: "guides",
+      });
+      logger.debug("install single result", {
+        output: tempDir,
+        installed: result.installed,
       });
 
       assertEquals(

@@ -8,6 +8,9 @@
 import { assertEquals } from "@std/assert";
 import { filterEntries } from "../../src/docs/resolver.ts";
 import type { Entry } from "../../src/docs/types.ts";
+import { createTestLogger } from "../test-utils.ts";
+
+const logger = createTestLogger("docs-resolver");
 
 // ============================================================================
 // Test Data
@@ -62,6 +65,10 @@ const sampleEntries: Entry[] = [
 
 Deno.test("filterEntries: returns all entries when no filters", () => {
   const result = filterEntries(sampleEntries);
+  logger.debug("filterEntries result", {
+    inputCount: sampleEntries.length,
+    resultCount: result.length,
+  });
   assertEquals(result.length, 6);
 });
 
@@ -110,6 +117,8 @@ Deno.test("filterEntries: includes entries with no lang when filtering by lang",
 
 Deno.test("filterEntries: filters by both category and lang", () => {
   const result = filterEntries(sampleEntries, "guides", "ja");
+  logger.debug("filterEntries input", { category: "guides", lang: "ja" });
+  logger.debug("filterEntries result", { resultIds: result.map((e) => e.id) });
   // Should include: git-basics-ja (guides+ja) and quick-start (guides+no-lang)
   assertEquals(result.length, 2);
   assertEquals(result.some((e) => e.id === "git-basics-ja"), true);
@@ -146,6 +155,10 @@ Deno.test("filterEntries: lang filter matches only specified lang or no-lang", (
     { id: "c", path: "c.md", category: "guides" }, // no lang
   ];
   const result = filterEntries(entries, undefined, "ja");
+  logger.debug("filterEntries lang-only result", {
+    lang: "ja",
+    matchedIds: result.map((e) => e.id),
+  });
   assertEquals(result.length, 2);
   assertEquals(result.some((e) => e.id === "b"), true); // ja match
   assertEquals(result.some((e) => e.id === "c"), true); // no lang

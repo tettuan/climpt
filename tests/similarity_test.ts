@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-console
 /**
  * @fileoverview Unit tests for similarity module functions
  * @module tests/similarity_test
@@ -15,7 +14,13 @@ import {
   tokenize,
 } from "../src/mcp/similarity.ts";
 import type { Command } from "../src/mcp/types.ts";
-import { bm25TestCommands, sampleCommands } from "./test-utils.ts";
+import {
+  bm25TestCommands,
+  createTestLogger,
+  sampleCommands,
+} from "./test-utils.ts";
+
+const logger = createTestLogger("similarity");
 
 // ============================================================================
 // tokenize() Tests
@@ -97,6 +102,11 @@ Deno.test("searchCommands: results are sorted by score descending", () => {
 
 Deno.test("searchCommands: finds commit-related command first", () => {
   const results = searchCommands(sampleCommands, "commit my changes", 3);
+  logger.debug("searchCommands input", { query: "commit my changes", topN: 3 });
+  logger.debug("searchCommands result", {
+    topMatch: results[0]?.c2,
+    score: results[0]?.score,
+  });
   assertEquals(results[0].c2, "group-commit");
 });
 
@@ -169,6 +179,10 @@ Deno.test("searchCommands: deduplicates commands by c1+c2+c3", () => {
     },
   ];
   const results = searchCommands(duplicateCommands, "commit", 10);
+  logger.debug("searchCommands dedup result", {
+    inputCount: duplicateCommands.length,
+    resultCount: results.length,
+  });
   // Should deduplicate: 4 unique commands, not 5
   assertEquals(results.length, 4);
 });
@@ -305,11 +319,12 @@ Deno.test("BM25: common term 'create' has lower weight due to IDF", () => {
     (r) => r.c1 === "meta" && r.c2 === "create",
   );
 
-  // Log scores for debugging (visible in test output with --allow-none)
-  console.log("Query: 'create specification'");
-  console.log("Results:");
-  results.forEach((r, i) => {
-    console.log(`  ${i + 1}. ${r.c1} ${r.c2} ${r.c3}: ${r.score.toFixed(4)}`);
+  logger.debug("searchCommands result", {
+    query: "create specification",
+    scores: results.map((r) => ({
+      command: `${r.c1} ${r.c2} ${r.c3}`,
+      score: r.score,
+    })),
   });
 
   // The requirements command with "specification" in description
@@ -439,16 +454,13 @@ Deno.test("RRF: C3L-aligned dual queries improve relevance", () => {
     4,
   );
 
-  console.log(
-    "RRF Query: action='draft create write', target='specification requirements document'",
-  );
-  console.log("Results:");
-  results.forEach((r, i) => {
-    console.log(
-      `  ${i + 1}. ${r.c1} ${r.c2} ${r.c3}: RRF=${r.score.toFixed(6)}, ranks=[${
-        r.ranks.join(", ")
-      }]`,
-    );
+  logger.debug("searchWithRRF result", {
+    queries: ["draft create write", "specification requirements document"],
+    scores: results.map((r) => ({
+      command: `${r.c1} ${r.c2} ${r.c3}`,
+      rrfScore: r.score,
+      ranks: r.ranks,
+    })),
   });
 
   // The "requirements draft entry" command should rank highly
@@ -514,5 +526,8 @@ Deno.test("RRF: command appearing in both queries gets boosted score", () => {
 
   // It should appear in both rankings (ranks[0] > 0 and ranks[1] > 0)
   // If it appears in both, it gets higher RRF score
-  console.log("group-commit ranks:", groupCommit.ranks);
+  logger.debug("searchWithRRF rank detail", {
+    command: "group-commit",
+    ranks: groupCommit.ranks,
+  });
 });
