@@ -13,7 +13,7 @@ import { logger } from "../utils/logger.ts";
  * C3L coordinates for prompt identification
  */
 export interface C3LCoordinates {
-  /** Domain (c1) - e.g., "git", "code", "test" */
+  /** Domain (c1) - e.g., "climpt-git", "climpt-code", "climpt-test" */
   c1: string;
   /** Action (c2) - e.g., "create", "review", "fix" */
   c2: string;
@@ -319,17 +319,25 @@ export function parseCliArgsForLogging(
   // Filter out option arguments to get positional args
   const positionalArgs = args.filter((arg) => !arg.startsWith("-"));
 
-  // Need at least 2 positional args: c2 (directive) and c3 (layer)
-  if (positionalArgs.length < 2) {
-    return null;
+  let c1: string;
+  let c2: string;
+  let c3: string;
+
+  if (configPrefix) {
+    // With configPrefix (e.g., "git"): c1 = "climpt-git", positional = [c2, c3]
+    if (positionalArgs.length < 2) return null;
+    c1 = `climpt-${configPrefix}`;
+    c2 = positionalArgs[0];
+    c3 = positionalArgs[1];
+  } else {
+    // Without configPrefix: positional = [domain, c2, c3]
+    if (positionalArgs.length < 3) return null;
+    c1 = `climpt-${positionalArgs[0]}`;
+    c2 = positionalArgs[1];
+    c3 = positionalArgs[2];
   }
 
-  const c2 = positionalArgs[0];
-  const c3 = positionalArgs[1];
-
-  // Determine c1 (domain) from config prefix or default
-  const agent = configPrefix || "climpt";
-  const c1 = configPrefix || "climpt";
+  const agent = "climpt";
 
   // Parse options
   const options: string[] = [];

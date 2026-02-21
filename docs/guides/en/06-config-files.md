@@ -22,10 +22,11 @@ your-project/
 │       ├── schema/                    # Schema definitions (optional)
 │       └── registry.json              # Command registry
 ├── .deno/bin/                         # CLI executables
-│   ├── climpt, climpt-git, climpt-meta, climpt-code
-└── agents/                            # Agents (optional)
-    ├── iterator/config.json
-    └── reviewer/config.json
+│   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test
+└── .agent/                            # Agents (optional)
+    ├── iterator/agent.json
+    ├── reviewer/agent.json
+    └── facilitator/agent.json
 ```
 
 ### Directory Roles

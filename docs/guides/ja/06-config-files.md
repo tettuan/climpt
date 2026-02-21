@@ -24,10 +24,11 @@ your-project/
 │   ├── schema/                    # JSON Schema（オプション）
 │   └── registry.json              # コマンドレジストリ
 ├── .deno/bin/                     # CLI 実行ファイル（MCP のみなら不要）
-│   ├── climpt, climpt-git, climpt-meta, climpt-code
-└── agents/                        # エージェント設定（オプション）
-    ├── iterator/config.json
-    └── reviewer/config.json
+│   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test
+└── .agent/                        # エージェント設定（オプション）
+    ├── iterator/agent.json
+    ├── reviewer/agent.json
+    └── facilitator/agent.json
 ```
 
 ### プロンプトディレクトリの構造
