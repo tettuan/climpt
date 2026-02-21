@@ -165,7 +165,9 @@ Agent configurations are located in `/.agent/<agent-name>/`:
     },
     "boundaries": {
       "allowedTools": ["Read", "Glob", "Grep", "Bash"],
-      "permissionMode": "acceptEdits",
+      "permissionMode": "acceptEdits"
+    },
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {

@@ -124,7 +124,9 @@ v1.12.0 で `behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize`
     },
     "boundaries": {
       "allowedTools": ["Read", "Write"],
-      "permissionMode": "plan",
+      "permissionMode": "plan"
+    },
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {},
@@ -318,7 +320,9 @@ gh issue view 42 --json body | claude --system-prompt "..."
     },
     "boundaries": {
       "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      "permissionMode": "acceptEdits",
+      "permissionMode": "acceptEdits"
+    },
+    "integrations": {
       "github": { "enabled": true }
     },
     "execution": {},

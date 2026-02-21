@@ -29,16 +29,29 @@ Agent の振る舞いを定義。変更頻度: 低。
   "version": "1.0.0",
   "name": "session-agent",
   "displayName": "Session Agent",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "keywordSignal",
-    "completionConfig": { "completionKeyword": "SESSION_COMPLETE" },
-    "allowedTools": ["Read", "Write", "Edit", "Bash"],
-    "permissionMode": "acceptEdits"
-  },
-  "parameters": { "..." },
-  "prompts": { "..." },
-  "logging": { "..." }
+  "description": "Session management agent",
+  "parameters": {},
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "keywordSignal",
+      "config": { "completionKeyword": "SESSION_COMPLETE" }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write", "Edit", "Bash"],
+      "permissionMode": "acceptEdits"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/session-agent",
+      "format": "jsonl"
+    }
+  }
 }
 ```
 
@@ -50,12 +63,13 @@ Agent の振る舞いを定義。変更頻度: 低。
 {
   "version": "1.0.0",
   "overrides": {
-    "permissionMode": "plan",
-    "allowedTools": ["Read", "Glob", "Grep"]
+    "runner.boundaries.permissionMode": "plan",
+    "runner.boundaries.allowedTools": ["Read", "Glob", "Grep"]
   },
-  "logging": {
-    "maxFiles": 50,
-    "verbose": true
+  "runner": {
+    "logging": {
+      "maxFiles": 50
+    }
   }
 }
 ```
@@ -87,7 +101,7 @@ load → parse → merge → validate → 起動 or エラー
 検証項目:
 - 必須フィールドの存在
 - 型の整合性
-- completionConfig と completionType の対応
+- runner.completion.config と runner.completion.type の対応
 ```
 
 ---
@@ -99,7 +113,7 @@ load → parse → merge → validate → 起動 or エラー
 | `config.local.json` | 必ず `.gitignore` に追加                    |
 | CLI 引数            | 常に最優先、他の設定を上書き                |
 | 配列のマージ        | 上位で完全に置換される（マージではない）    |
-| `overrides`         | agent.json の `behavior` 配下のみ上書き可能 |
+| `overrides`         | agent.json の `runner.*` 配下のみ上書き可能 |
 
 ---
 

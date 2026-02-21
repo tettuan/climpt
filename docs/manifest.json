@@ -1,5 +1,5 @@
 {
-  "version": "1.11.16",
+  "version": "1.12.0",
   "entries": [
     {
       "id": "c3l_specification_v0.1",
@@ -41,7 +41,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Agent Configuration Concepts",
-      "bytes": 7628
+      "bytes": 8154
     },
     {
       "id": "guides-en-00-overview",
@@ -49,7 +49,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Iterate Agent Introduction Guide",
-      "bytes": 8247
+      "bytes": 3899
     },
     {
       "id": "guides-en-01-prerequisites",
@@ -57,7 +57,7 @@
       "category": "guides",
       "lang": "en",
       "title": "1. Prerequisites",
-      "bytes": 3817
+      "bytes": 2459
     },
     {
       "id": "guides-en-02-climpt-setup",
@@ -65,7 +65,7 @@
       "category": "guides",
       "lang": "en",
       "title": "2. Climpt Setup",
-      "bytes": 3302
+      "bytes": 1979
     },
     {
       "id": "guides-en-03-instruction-creation",
@@ -73,7 +73,7 @@
       "category": "guides",
       "lang": "en",
       "title": "3. Creating Instructions (Prompts)",
-      "bytes": 10483
+      "bytes": 5123
     },
     {
       "id": "guides-en-04-iterate-agent-setup",
@@ -81,7 +81,7 @@
       "category": "guides",
       "lang": "en",
       "title": "4. Iterate Agent Setup and Execution",
-      "bytes": 16184
+      "bytes": 12882
     },
     {
       "id": "guides-en-05-architecture",
@@ -89,7 +89,7 @@
       "category": "guides",
       "lang": "en",
       "title": "5. Climpt Overview",
-      "bytes": 20336
+      "bytes": 7445
     },
     {
       "id": "guides-en-06-config-files",
@@ -97,7 +97,7 @@
       "category": "guides",
       "lang": "en",
       "title": "6. Config Files",
-      "bytes": 10106
+      "bytes": 7097
     },
     {
       "id": "guides-en-07-dependencies",
@@ -105,7 +105,7 @@
       "category": "guides",
       "lang": "en",
       "title": "7. Dependencies",
-      "bytes": 23684
+      "bytes": 6768
     },
     {
       "id": "guides-en-08-prompt-structure",
@@ -113,79 +113,15 @@
       "category": "guides",
       "lang": "en",
       "title": "8. Prompt Structure",
-      "bytes": 12589
+      "bytes": 7738
     },
     {
-      "id": "guides-ja-00-overview",
-      "path": "guides/ja/00-overview.md",
+      "id": "guides-en-09-migration-guide",
+      "path": "guides/en/09-migration-guide.md",
       "category": "guides",
-      "lang": "ja",
-      "title": "Iterate Agent 導入ガイド",
-      "bytes": 8605
-    },
-    {
-      "id": "guides-ja-01-prerequisites",
-      "path": "guides/ja/01-prerequisites.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "1. 前提条件",
-      "bytes": 4172
-    },
-    {
-      "id": "guides-ja-02-climpt-setup",
-      "path": "guides/ja/02-climpt-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "2. Climpt のセットアップ",
-      "bytes": 3901
-    },
-    {
-      "id": "guides-ja-03-instruction-creation",
-      "path": "guides/ja/03-instruction-creation.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "3. 指示書（プロンプト）の作成方法",
-      "bytes": 12249
-    },
-    {
-      "id": "guides-ja-04-iterate-agent-setup",
-      "path": "guides/ja/04-iterate-agent-setup.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "4. Iterate Agent の設定と実行",
-      "bytes": 18426
-    },
-    {
-      "id": "guides-ja-05-architecture",
-      "path": "guides/ja/05-architecture.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "5. Climpt 全体像",
-      "bytes": 21257
-    },
-    {
-      "id": "guides-ja-06-config-files",
-      "path": "guides/ja/06-config-files.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "6. 設定ファイル編",
-      "bytes": 11255
-    },
-    {
-      "id": "guides-ja-07-dependencies",
-      "path": "guides/ja/07-dependencies.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "7. 依存構造編",
-      "bytes": 24437
-    },
-    {
-      "id": "guides-ja-08-prompt-structure",
-      "path": "guides/ja/08-prompt-structure.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "8. プロンプト構造編",
-      "bytes": 13366
+      "lang": "en",
+      "title": "9. Migration Guide: v1.11.x → v1.12.0",
+      "bytes": 9488
     },
     {
       "id": "mcp-setup",

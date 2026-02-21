@@ -167,13 +167,17 @@ closure step → closing intent → Boundary Hook → Issue close (デフォル�
 
 ```json
 {
-  "github": {
-    "enabled": true,
-    "defaultClosureAction": "label-only",
-    "labels": {
-      "completion": {
-        "add": ["planning"],
-        "remove": ["backlog"]
+  "runner": {
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "defaultClosureAction": "label-only",
+        "labels": {
+          "completion": {
+            "add": ["planning"],
+            "remove": ["backlog"]
+          }
+        }
       }
     }
   }

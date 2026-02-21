@@ -39,7 +39,7 @@ Runner は上から順に評価し、最初に見つかった値を使用する�
 ```json
 {
   "runner": {
-    "boundaries": {
+    "flow": {
       "defaultModel": "sonnet"
     }
   }
@@ -146,7 +146,7 @@ const queryIterator = query({ prompt, options: queryOptions });
 
 ```json
 // agent.json
-{ "runner": { "boundaries": { "defaultModel": "sonnet" } } }
+{ "runner": { "flow": { "defaultModel": "sonnet" } } }
 
 // steps_registry.json
 {
@@ -171,7 +171,7 @@ const queryIterator = query({ prompt, options: queryOptions });
 // src_common/types.ts
 export type ModelName = "sonnet" | "opus" | "haiku";
 
-export interface RunnerBoundariesConfig {
+export interface RunnerFlowConfig {
   defaultModel?: ModelName;
   // ...
 }
