@@ -92,7 +92,7 @@ Climpt は段階的に進化し、現在は5つの層から構成されていま
 
 | 層       | 役割                         | コンテクスト    | 実体                                                                        |
 | -------- | ---------------------------- | --------------- | --------------------------------------------------------------------------- |
-| 最上位層 | GitHub連携、反復制御         | SDK Session #1  | `agents/iterator/scripts/agent.ts`                                          |
+| 最上位層 | GitHub連携、反復制御         | SDK Session #1  | `agents/scripts/run-agent.ts`                                               |
 | 中間層   | パラメータ変換、コマンド解決 | Plugin Context  | `plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md`                |
 | 実行層   | プロンプト取得、自律実行     | SDK Session #2  | `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` |
 | ツール層 | CLI/MCP による呼び出し       | CLI/MCP Process | `cli.ts`, `mcp.ts`                                                          |

@@ -18,9 +18,9 @@
  */
 
 import type {
-  AgentDefinition,
   AgentResult,
   IterationSummary,
+  ResolvedAgentDefinition,
   RuntimeContext,
 } from "../src_common/types.ts";
 import {
@@ -67,7 +67,7 @@ export interface RunnerOptions {
 export type { CompletionValidationResult } from "./completion-chain.ts";
 
 export class AgentRunner {
-  private readonly definition: AgentDefinition;
+  private readonly definition: ResolvedAgentDefinition;
   private readonly dependencies: AgentDependencies;
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
@@ -90,7 +90,10 @@ export class AgentRunner {
   /**
    * Create an AgentRunner with optional dependency injection.
    */
-  constructor(definition: AgentDefinition, dependencies?: AgentDependencies) {
+  constructor(
+    definition: ResolvedAgentDefinition,
+    dependencies?: AgentDependencies,
+  ) {
     this.definition = definition;
     this.dependencies = dependencies ?? createDefaultDependencies();
     this.eventEmitter = new AgentEventEmitter();
@@ -168,8 +171,8 @@ export class AgentRunner {
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
       agentName: this.definition.name,
-      directory: this.definition.logging.directory,
-      format: this.definition.logging.format,
+      directory: this.definition.runner.logging.directory,
+      format: this.definition.runner.logging.format,
     });
 
     // Initialize completion handler using injected factory
@@ -190,9 +193,9 @@ export class AgentRunner {
       {
         agentName: this.definition.name,
         agentDir,
-        registryPath: this.definition.prompts.registry,
-        fallbackDir: this.definition.prompts.fallbackDir,
-        systemPromptPath: this.definition.behavior.systemPromptPath,
+        registryPath: this.definition.runner.flow.prompts.registry,
+        fallbackDir: this.definition.runner.flow.prompts.fallbackDir,
+        systemPromptPath: this.definition.runner.flow.systemPromptPath,
       },
     );
 
@@ -207,7 +210,7 @@ export class AgentRunner {
     // Initialize verbose logger if enabled
     if (options.verbose) {
       this.verboseLogger = await createVerboseLogger(
-        this.definition.logging.directory,
+        this.definition.runner.logging.directory,
         this.definition.name,
       );
       logger.info("[Verbose] Verbose logging enabled", {
@@ -325,7 +328,7 @@ export class AgentRunner {
               source: promptSource,
               content: prompt,
               promptPath:
-                `${this.definition.behavior.completionType}/${promptType}`,
+                `${this.definition.runner.completion.type}/${promptType}`,
             },
             promptTimeMs,
           );
@@ -648,10 +651,10 @@ export class AgentRunner {
   }
 
   private getMaxIterations(): number {
-    if (this.definition.behavior.completionType === "iterationBudget") {
+    if (this.definition.runner.completion.type === "iterationBudget") {
       return (
         (
-          this.definition.behavior.completionConfig as {
+          this.definition.runner.completion.config as {
             maxIterations?: number;
           }
         ).maxIterations ?? AGENT_LIMITS.FALLBACK_MAX_ITERATIONS

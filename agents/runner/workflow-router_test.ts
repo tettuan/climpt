@@ -8,7 +8,7 @@ import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
-const logger = new BreakdownLogger("workflow-router");
+const logger = new BreakdownLogger("transition");
 
 // Helper to create minimal registry
 function createRegistry(
@@ -55,10 +55,15 @@ Deno.test("WorkflowRouter - closing intent signals completion", () => {
   });
   const router = new WorkflowRouter(registry);
 
+  logger.debug("route input", { stepId: "initial.issue", intent: "closing" });
   const result = router.route(
     "initial.issue",
     createInterpretation({ intent: "closing", reason: "Task done" }),
   );
+  logger.debug("route result", {
+    signalCompletion: result.signalCompletion,
+    nextStepId: result.nextStepId,
+  });
 
   assertEquals(result.signalCompletion, true);
   assertEquals(result.nextStepId, "initial.issue");
@@ -177,10 +182,19 @@ Deno.test("WorkflowRouter - default transition initial -> continuation", () => {
   });
   const router = new WorkflowRouter(registry);
 
+  logger.debug("default transition input", {
+    stepId: "initial.issue",
+    intent: "next",
+    hasTransitions: false,
+  });
   const result = router.route(
     "initial.issue",
     createInterpretation({ intent: "next" }),
   );
+  logger.debug("default transition result", {
+    nextStepId: result.nextStepId,
+    signalCompletion: result.signalCompletion,
+  });
 
   assertEquals(result.nextStepId, "continuation.issue");
   assertEquals(result.signalCompletion, false);
@@ -380,6 +394,11 @@ Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
   });
   const router = new WorkflowRouter(registry);
 
+  logger.debug("step kind validation", {
+    stepId: "initial.issue",
+    c2: "initial",
+    intent: "closing",
+  });
   assertThrows(
     () =>
       router.route(

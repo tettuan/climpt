@@ -1,6 +1,12 @@
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { resolve } from "@std/path";
-import { cleanupTempDir, createTempDir } from "./test-utils.ts";
+import {
+  cleanupTempDir,
+  createTempDir,
+  createTestLogger,
+} from "./test-utils.ts";
+
+const logger = createTestLogger("mcp");
 
 // Test registry.json loading and structure
 Deno.test("registry.json exists and has valid structure", async () => {
@@ -9,6 +15,11 @@ Deno.test("registry.json exists and has valid structure", async () => {
   try {
     const registryText = await Deno.readTextFile(registryPath);
     const registry = JSON.parse(registryText);
+    logger.debug("registry.json loaded", {
+      registryPath,
+      version: registry.version,
+      availableConfigs: registry.tools?.availableConfigs,
+    });
 
     // Check required fields exist
     assertExists(registry.version, "Registry should have version field");
@@ -62,10 +73,7 @@ Deno.test("registry.json exists and has valid structure", async () => {
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       // Registry file doesn't exist, which is OK (MCP will use defaults)
-      // deno-lint-ignore no-console
-      console.log(
-        "Registry file not found - MCP will use default configuration",
-      );
+      logger.debug("registry.json not found", { registryPath });
     } else {
       throw error;
     }
@@ -106,6 +114,10 @@ Deno.test("MCP server configuration loading", async () => {
 
   // Test that the registry can be parsed
   const loadedRegistry = JSON.parse(await Deno.readTextFile(tempRegistry));
+  logger.debug("config loading result", {
+    availableConfigs: loadedRegistry.tools.availableConfigs,
+    commandCount: loadedRegistry.tools.commands.length,
+  });
   assertEquals(loadedRegistry.tools.availableConfigs[0], "test-tool");
   assertEquals(loadedRegistry.tools.commands[0].c1, "test");
 
@@ -140,6 +152,10 @@ Deno.test("MCP config loading handles URL objects correctly", async () => {
   // Test that Deno.readTextFile works with pathname
   const configText = await Deno.readTextFile(configUrl.pathname);
   const loadedConfig = JSON.parse(configText);
+  logger.debug("URL config loading result", {
+    pathname: configUrl.pathname,
+    configCount: loadedConfig.tools.availableConfigs.length,
+  });
   assertEquals(
     loadedConfig.tools.availableConfigs.length,
     6,
@@ -420,8 +436,9 @@ Deno.test("Command structure follows C3L specification", async () => {
     }
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      // deno-lint-ignore no-console
-      console.log("Registry file not found - skipping command structure test");
+      logger.debug("registry.json not found for command structure test", {
+        registryPath,
+      });
     } else {
       throw error;
     }

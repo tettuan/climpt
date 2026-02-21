@@ -1,7 +1,13 @@
 import { assertEquals, assertExists } from "@std/assert";
 import type { MCPConfig } from "../../src/mcp/types.ts";
 import { DEFAULT_MCP_CONFIG } from "../../src/mcp/types.ts";
-import { cleanupTempDir, createTempDir } from "../test-utils.ts";
+import {
+  cleanupTempDir,
+  createTempDir,
+  createTestLogger,
+} from "../test-utils.ts";
+
+const logger = createTestLogger("mcp-config");
 
 // Test MCP config structure
 Deno.test("MCP config has correct default structure", () => {
@@ -15,6 +21,9 @@ Deno.test("MCP config has correct default structure", () => {
     ".agent/climpt/registry.json",
     "Climpt registry should point to correct path",
   );
+  logger.debug("default config validation result", {
+    registries: Object.keys(DEFAULT_MCP_CONFIG.registries),
+  });
 });
 
 // Test MCP config.json creation
@@ -45,6 +54,10 @@ Deno.test("MCP config.json can be created with default values", async () => {
       ".agent/climpt/registry.json",
       "Config should contain climpt registry path",
     );
+    logger.debug("config creation result", {
+      configPath,
+      registries: Object.keys(config.registries),
+    });
   } finally {
     Deno.chdir(originalCwd);
     await cleanupTempDir(tempDir);
@@ -88,6 +101,10 @@ Deno.test("MCP config.json supports multiple registries", async () => {
       config.registries["auditor"],
       ".agent/auditor/registry.json",
     );
+    logger.debug("multi-registry validation result", {
+      registryCount: Object.keys(config.registries).length,
+      registries: Object.keys(config.registries),
+    });
   } finally {
     await cleanupTempDir(tempDir);
   }
@@ -141,6 +158,10 @@ Deno.test("MCP config can be loaded from current or home directory", async () =>
 
     assertEquals(Object.keys(config.registries).length, 2);
     assertExists(config.registries["custom"]);
+    logger.debug("config loading priority result", {
+      registryCount: Object.keys(config.registries).length,
+      registries: Object.keys(config.registries),
+    });
   } finally {
     Deno.chdir(originalCwd);
     if (originalHome) {
@@ -182,4 +203,8 @@ Deno.test("MCP tools support agent parameter for registry selection", () => {
 
   assertEquals(searchArgs.agent, "climpt");
   assertEquals(describeArgs.agent, "inspector");
+  logger.debug("agent parameter validation result", {
+    searchAgent: searchArgs.agent,
+    describeAgent: describeArgs.agent,
+  });
 });

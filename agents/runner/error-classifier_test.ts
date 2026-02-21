@@ -12,7 +12,7 @@ import {
   SdkErrorCategory,
 } from "./error-classifier.ts";
 
-const logger = new BreakdownLogger("error-classifier");
+const logger = new BreakdownLogger("error");
 
 Deno.test("error-classifier", async (t) => {
   await t.step("classifies double sandbox error", () => {
@@ -46,7 +46,12 @@ Deno.test("error-classifier", async (t) => {
     ];
 
     for (const error of errors) {
+      logger.debug("classifySdkError input", { message: error.message });
       const classified = classifySdkError(error);
+      logger.debug("classifySdkError result", {
+        category: classified.category,
+        recoverable: classified.recoverable,
+      });
       assertEquals(classified.category, SdkErrorCategory.NETWORK);
       assertEquals(classified.recoverable, true);
     }
@@ -54,7 +59,12 @@ Deno.test("error-classifier", async (t) => {
 
   await t.step("classifies rate limit error", () => {
     const error = new Error("429 Too Many Requests");
+    logger.debug("classifySdkError input", { message: error.message });
     const classified = classifySdkError(error);
+    logger.debug("classifySdkError result", {
+      category: classified.category,
+      recoverable: classified.recoverable,
+    });
 
     assertEquals(classified.category, SdkErrorCategory.API);
     assertEquals(classified.recoverable, true);
@@ -62,7 +72,12 @@ Deno.test("error-classifier", async (t) => {
 
   await t.step("classifies authentication error as not recoverable", () => {
     const error = new Error("401 Unauthorized");
+    logger.debug("classifySdkError input", { message: error.message });
     const classified = classifySdkError(error);
+    logger.debug("classifySdkError result", {
+      category: classified.category,
+      recoverable: classified.recoverable,
+    });
 
     assertEquals(classified.category, SdkErrorCategory.API);
     assertEquals(classified.recoverable, false);

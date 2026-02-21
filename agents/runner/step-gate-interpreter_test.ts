@@ -11,7 +11,7 @@ import {
 } from "./step-gate-interpreter.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 
-const logger = new BreakdownLogger("step-gate-interpreter");
+const logger = new BreakdownLogger("gate");
 
 Deno.test("getValueAtPath - extracts simple path", () => {
   const obj = { a: "value" };
@@ -20,7 +20,10 @@ Deno.test("getValueAtPath - extracts simple path", () => {
 
 Deno.test("getValueAtPath - extracts nested path", () => {
   const obj = { a: { b: { c: "deep" } } };
-  assertEquals(getValueAtPath(obj, "a.b.c"), "deep");
+  logger.debug("getValueAtPath input", { path: "a.b.c" });
+  const result = getValueAtPath(obj, "a.b.c");
+  logger.debug("getValueAtPath result", { result });
+  assertEquals(result, "deep");
 });
 
 Deno.test("getValueAtPath - returns undefined for missing path", () => {
@@ -97,7 +100,15 @@ Deno.test("StepGateInterpreter - extracts intent from nested path", () => {
     },
   };
 
+  logger.debug("nested intent input", {
+    intentField: "next_action.action",
+    rawAction: output.next_action.action,
+  });
   const result = interpreter.interpret(output, stepDef);
+  logger.debug("nested intent result", {
+    intent: result.intent,
+    usedFallback: result.usedFallback,
+  });
 
   assertEquals(result.intent, "next");
   assertEquals(result.usedFallback, false);
@@ -182,7 +193,16 @@ Deno.test("StepGateInterpreter - uses fallbackIntent when extraction fails (with
     },
   });
 
+  logger.debug("fallback input", {
+    intentField: "missing.path",
+    failFast: false,
+    fallbackIntent: "repeat",
+  });
   const result = interpreter.interpret({ other: "data" }, stepDef);
+  logger.debug("fallback result", {
+    intent: result.intent,
+    usedFallback: result.usedFallback,
+  });
 
   assertEquals(result.intent, "repeat");
   assertEquals(result.usedFallback, true);
@@ -364,6 +384,11 @@ Deno.test("StepGateInterpreter - failFast throws when intent cannot be determine
     },
   });
 
+  logger.debug("failFast input", {
+    intentField: "missing.path",
+    failFast: true,
+    output: {},
+  });
   assertThrows(
     () => interpreter.interpret({}, stepDef),
     GateInterpretationError,

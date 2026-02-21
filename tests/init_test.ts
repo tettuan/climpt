@@ -20,7 +20,13 @@ import { initRegistryAndSchema } from "../src/init/registry-init.ts";
 import type { DetectionResult } from "../src/init/types.ts";
 
 // Import test utilities
-import { cleanupTempDir, createTempDir } from "./test-utils.ts";
+import {
+  cleanupTempDir,
+  createTempDir,
+  createTestLogger,
+} from "./test-utils.ts";
+
+const logger = createTestLogger("init");
 
 // =============================================================================
 // Design Invariant: Default Paths
@@ -38,9 +44,14 @@ Deno.test("init: default working directory is .agent/climpt", () => {
 Deno.test("initBasic: creates exactly 3 directories", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
+  logger.debug("initBasic setup", { tempDir, workingDir });
 
   try {
     const result = await initBasic(tempDir, workingDir);
+    logger.debug("initBasic result", {
+      created: result.created,
+      skipped: result.skipped,
+    });
 
     // Must create exactly: config/, prompts/, schema/
     const expectedDirs = ["config", "prompts", "schema"];
@@ -98,9 +109,11 @@ Deno.test("hasExistingFiles: checks 3 specific files", () => {
 Deno.test("detectExisting: checks all 8 locations", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
+  logger.debug("detectExisting setup", { tempDir, workingDir });
 
   try {
     const result = await detectExisting(tempDir, workingDir);
+    logger.debug("detectExisting result", { result });
 
     // Verify all 8 fields are present in result
     const expectedFields = [
@@ -139,6 +152,7 @@ Deno.test("initMetaDomain: without force, existing files are skipped", async () 
   const tempDir = await createTempDir();
   const workingDir = join(tempDir, ".agent/climpt");
   const configDir = join(workingDir, "config");
+  logger.debug("initMetaDomain no-force setup", { tempDir, workingDir });
 
   try {
     // Create directory structure and existing file
@@ -148,6 +162,10 @@ Deno.test("initMetaDomain: without force, existing files are skipped", async () 
 
     // Run meta init without force
     const result = await initMetaDomain(workingDir, false);
+    logger.debug("initMetaDomain no-force result", {
+      created: result.created,
+      skipped: result.skipped,
+    });
 
     // meta-app.yml should be skipped, not created
     assertEquals(result.skipped.some((p) => p.includes("meta-app.yml")), true);
@@ -195,6 +213,7 @@ Deno.test("initRegistryAndSchema: registry.json has required structure", async (
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
   const fullWorkingDir = join(tempDir, workingDir);
+  logger.debug("initRegistryAndSchema setup", { tempDir, fullWorkingDir });
 
   try {
     // Create required directories first
@@ -205,6 +224,10 @@ Deno.test("initRegistryAndSchema: registry.json has required structure", async (
     const registryPath = join(fullWorkingDir, "registry.json");
     const content = await Deno.readTextFile(registryPath);
     const registry = JSON.parse(content);
+    logger.debug("initRegistryAndSchema result", {
+      version: registry.version,
+      toolKeys: Object.keys(registry.tools),
+    });
 
     // Required top-level fields
     assertExists(registry.version);
@@ -412,6 +435,10 @@ Deno.test("initBasic: result has created/skipped/errors arrays", async () => {
 
   try {
     const result = await initBasic(tempDir, workingDir);
+    logger.debug("initBasic result structure", {
+      createdCount: result.created.length,
+      skippedCount: result.skipped.length,
+    });
 
     // Result must have these arrays
     assertEquals(Array.isArray(result.created), true);

@@ -81,7 +81,7 @@ PR creation (release/* → develop)
 | 11  | 11_docs_install/            | Install documentation files           | —                    | `docs/`                      |                                                 |
 | 12  | 12_docs_filter/             | Filter docs by category/language/mode | —                    | —                            | category, lang, flatten, single produce files   |
 | 13  | 13_list_agents/             | List available agents                 | —                    | —                            | deno tasks; agent.json configs; runner script   |
-| 14  | 14_show_agent_schema/       | Show agent.json schema                | —                    | —                            | valid JSON; contains "behavior" property        |
+| 14  | 14_show_agent_schema/       | Show agent.json schema                | —                    | —                            | valid JSON; contains "runner" property          |
 | 15  | 15_show_agent_config/       | Show agent configuration structure    | —                    | —                            | dynamic layout; schema required/properties      |
 | 16  | 16_init_agent/              | Initialize plan-scout agent           | —                    | `.agent/plan-scout/`         |                                                 |
 | 17  | 17_show_init_result/        | Show agent init result                | `.agent/plan-scout/` | —                            |                                                 |

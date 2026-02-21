@@ -23,12 +23,12 @@ import {
   type PromptResolverFactory,
   type PromptResolverFactoryOptions,
 } from "./builder.ts";
-import type { AgentDefinition } from "../src_common/types.ts";
+import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 
-const logger = new BreakdownLogger("builder");
+const logger = new BreakdownLogger("factory");
 
 // =============================================================================
 // Test Fixtures
@@ -37,27 +37,34 @@ const logger = new BreakdownLogger("builder");
 /**
  * Create minimal valid agent definition for testing
  */
-function createMinimalDefinition(): AgentDefinition {
+function createMinimalDefinition(): ResolvedAgentDefinition {
   return {
     name: "test-agent",
     displayName: "Test Agent",
     description: "Test agent for unit tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType: "iterationBudget",
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: {
-      registry: "./prompts/registry.json",
-      fallbackDir: "./prompts",
-    },
-    logging: {
-      directory: "./logs",
-      format: "jsonl",
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: {
+          registry: "./prompts/registry.json",
+          fallbackDir: "./prompts",
+        },
+      },
+      completion: {
+        type: "iterationBudget",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
+      },
     },
   };
 }
@@ -113,7 +120,12 @@ Deno.test("isInitializable - returns true for objects with initialize method", (
   const initializableObject = {
     initialize: async () => {},
   };
-  assertEquals(isInitializable(initializableObject), true);
+  logger.debug("isInitializable input", {
+    hasInitialize: typeof initializableObject.initialize,
+  });
+  const result = isInitializable(initializableObject);
+  logger.debug("isInitializable result", { result });
+  assertEquals(result, true);
 });
 
 Deno.test("isInitializable - returns false for objects without initialize method", () => {
@@ -138,7 +150,13 @@ Deno.test("isInitializable - returns false for non-objects", () => {
 // =============================================================================
 
 Deno.test("createDefaultDependencies - returns all required factories", () => {
+  logger.debug("createDefaultDependencies input", {});
   const deps = createDefaultDependencies();
+  logger.debug("createDefaultDependencies result", {
+    hasLogger: !!deps.loggerFactory,
+    hasCompletion: !!deps.completionHandlerFactory,
+    hasPrompt: !!deps.promptResolverFactory,
+  });
 
   assertEquals(typeof deps.loggerFactory, "object");
   assertEquals(typeof deps.loggerFactory.create, "function");

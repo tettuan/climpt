@@ -33,7 +33,6 @@ export * from "./common/mod.ts";
 
 // Types from src_common
 export type {
-  AgentBehavior,
   AgentDefinition,
   AgentResult,
   AgentResultDetail,
@@ -60,7 +59,6 @@ export type {
   PermissionMode,
   PhaseCompletionConfig,
   PromptC3LReference,
-  PromptConfig,
   PromptPathReference,
   PromptReference,
   ResponseFormat,

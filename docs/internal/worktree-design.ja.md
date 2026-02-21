@@ -266,10 +266,8 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator \
 
 ### 修正予定
 
-| ファイル                           | 変更内容                         |
-| ---------------------------------- | -------------------------------- |
-| `agents/common/types.ts`           | `WorktreeConfig` 型追加          |
-| `agents/iterator/scripts/cli.ts`   | `--branch`, `--base-branch` 追加 |
-| `agents/iterator/scripts/agent.ts` | Worktree 統合処理追加            |
-| `agents/reviewer/scripts/cli.ts`   | `--branch`, `--base-branch` 追加 |
-| `agents/reviewer/scripts/agent.ts` | Worktree 統合処理追加            |
+| ファイル                         | 変更内容                         |
+| -------------------------------- | -------------------------------- |
+| `agents/common/types.ts`         | `WorktreeConfig` 型追加          |
+| `agents/iterator/scripts/cli.ts` | `--branch`, `--base-branch` 追加 |
+| `agents/scripts/run-agent.ts`    | Worktree 統合処理追加            |

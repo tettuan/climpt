@@ -10,10 +10,13 @@
  */
 
 import { assertEquals, assertThrows } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   FlowOrchestrator,
   type FlowOrchestratorDeps,
 } from "./flow-orchestrator.ts";
+
+const logger = new BreakdownLogger("flow");
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
@@ -49,16 +52,23 @@ function createTestDefinition(
     displayName: "Test Flow Agent",
     description: "Fixture agent for FlowOrchestrator tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType,
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
-    logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
+      },
+      completion: {
+        type: completionType,
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    },
   };
 }
 
@@ -134,7 +144,12 @@ Deno.test("FlowOrchestrator - entry step via entryStepMapping for externalState"
   const deps = buildDeps(registry, { completionType: "externalState" });
   const orchestrator = new FlowOrchestrator(deps);
 
+  logger.debug("getStepIdForIteration input", {
+    iteration: 1,
+    completionType: "externalState",
+  });
   const stepId = orchestrator.getStepIdForIteration(1);
+  logger.debug("getStepIdForIteration result", { stepId });
   assertEquals(stepId, "initial.test");
 });
 
@@ -411,11 +426,13 @@ Deno.test("FlowOrchestrator - handleStepTransition returns null when schemaResol
     structuredOutput: { next_action: { action: "next" } },
   });
 
+  logger.debug("schema skip test input", { schemaResolutionFailed: true });
   const result = orchestrator.handleStepTransition(
     "initial.test",
     summary,
     ctx,
   );
+  logger.debug("schema skip test result", { result });
   assertEquals(result, null);
 });
 
@@ -469,11 +486,19 @@ Deno.test("FlowOrchestrator - handleStepTransition routes next intent to continu
     },
   });
 
+  logger.debug("handleStepTransition input", {
+    stepId: "initial.test",
+    structuredOutput: summary.structuredOutput,
+  });
   const result = orchestrator.handleStepTransition(
     "initial.test",
     summary,
     ctx,
   );
+  logger.debug("handleStepTransition result", {
+    nextStepId: result?.nextStepId,
+    signalCompletion: result?.signalCompletion,
+  });
 
   assertEquals(result !== null, true);
   assertEquals(result!.nextStepId, "continuation.test");

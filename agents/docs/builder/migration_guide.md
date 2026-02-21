@@ -20,23 +20,149 @@ Guide for migrating existing agents to the climpt-agents framework.
 
 ### Claude Code Options -> agent.json
 
-| Claude Code Option               | agent.json Path                 |
-| -------------------------------- | ------------------------------- |
-| `--system-prompt`                | `behavior.systemPromptPath`     |
-| `--allowed-tools`                | `behavior.allowedTools`         |
-| `--permission-mode`              | `behavior.permissionMode`       |
-| `--dangerously-skip-permissions` | `behavior.disableSandbox: true` |
-| `--resume`                       | Auto-managed (sessionId)        |
+| Claude Code Option               | agent.json Path                    |
+| -------------------------------- | ---------------------------------- |
+| `--system-prompt`                | `runner.flow.systemPromptPath`     |
+| `--allowed-tools`                | `runner.boundaries.allowedTools`   |
+| `--permission-mode`              | `runner.boundaries.permissionMode` |
+| `--dangerously-skip-permissions` | `runner.boundaries.sandbox`        |
+| `--resume`                       | Auto-managed (sessionId)           |
+
+### v1.12.0 Config Migration (behavior -> runner.*)
+
+v1.12.0 で `behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize`
+のフラット構造を `runner.*` 階層に置き換えた。全フィールドの対応表:
+
+| Old Path (v1.11.x)             | New Path (v1.12.0)                                |
+| ------------------------------ | ------------------------------------------------- |
+| `behavior.systemPromptPath`    | `runner.flow.systemPromptPath`                    |
+| `behavior.completionType`      | `runner.completion.type`                          |
+| `behavior.completionConfig`    | `runner.completion.config`                        |
+| `behavior.allowedTools`        | `runner.boundaries.allowedTools`                  |
+| `behavior.permissionMode`      | `runner.boundaries.permissionMode`                |
+| `behavior.sandboxConfig`       | `runner.boundaries.sandbox`                       |
+| `behavior.askUserAutoResponse` | `runner.flow.askUserAutoResponse`                 |
+| `behavior.defaultModel`        | `runner.flow.defaultModel`                        |
+| `prompts.registry`             | `runner.flow.prompts.registry`                    |
+| `prompts.fallbackDir`          | `runner.flow.prompts.fallbackDir`                 |
+| `github.enabled`               | `runner.integrations.github.enabled`              |
+| `github.labels`                | `runner.integrations.github.labels`               |
+| `github.defaultClosureAction`  | `runner.integrations.github.defaultClosureAction` |
+| `actions.enabled`              | `runner.actions.enabled`                          |
+| `actions.allowedTypes`         | `runner.actions.types`                            |
+| `worktree.enabled`             | `runner.execution.worktree.enabled`               |
+| `worktree.root`                | `runner.execution.worktree.root`                  |
+| `finalize.autoMerge`           | `runner.execution.finalize.autoMerge`             |
+| `finalize.push`                | `runner.execution.finalize.push`                  |
+| `finalize.remote`              | `runner.execution.finalize.remote`                |
+| `finalize.createPr`            | `runner.execution.finalize.createPr`              |
+| `finalize.prTarget`            | `runner.execution.finalize.prTarget`              |
+| `logging.directory`            | `runner.logging.directory`                        |
+| `logging.format`               | `runner.logging.format`                           |
+
+**削除されたフィールド:**
+
+| フィールド                    | 理由                               |
+| ----------------------------- | ---------------------------------- |
+| `behavior.preCloseValidation` | Dead config — TypeScript型に未定義 |
+| `behavior.disableSandbox`     | `runner.boundaries.sandbox` に統合 |
+
+### Before / After 比較
+
+**v1.11.x (Old):**
+
+```json
+{
+  "name": "my-agent",
+  "displayName": "My Agent",
+  "description": "...",
+  "version": "1.0.0",
+  "behavior": {
+    "systemPromptPath": "prompts/system.md",
+    "completionType": "iterationBudget",
+    "completionConfig": { "maxIterations": 10 },
+    "allowedTools": ["Read", "Write"],
+    "permissionMode": "plan"
+  },
+  "parameters": {},
+  "prompts": {
+    "registry": "steps_registry.json",
+    "fallbackDir": "prompts/"
+  },
+  "github": {
+    "enabled": true,
+    "labels": {},
+    "defaultClosureAction": "close"
+  },
+  "logging": {
+    "directory": "tmp/logs/agents/my-agent",
+    "format": "jsonl"
+  }
+}
+```
+
+**v1.12.0 (New):**
+
+```json
+{
+  "name": "my-agent",
+  "displayName": "My Agent",
+  "description": "...",
+  "version": "1.0.0",
+  "parameters": {},
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "iterationBudget",
+      "config": { "maxIterations": 10 }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write"],
+      "permissionMode": "plan"
+    },
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "labels": {},
+        "defaultClosureAction": "close"
+      }
+    },
+    "execution": {},
+    "logging": {
+      "directory": "tmp/logs/agents/my-agent",
+      "format": "jsonl"
+    }
+  }
+}
+```
+
+### runner.* 設計原則
+
+| runner サブキー       | 担当モジュール       | 管理対象                         |
+| --------------------- | -------------------- | -------------------------------- |
+| `runner.flow`         | FlowOrchestrator     | プロンプト解決、ステップ遷移     |
+| `runner.completion`   | CompletionManager    | 完了判定戦略と設定               |
+| `runner.boundaries`   | QueryExecutor, Hooks | ツール許可、権限、サンドボックス |
+| `runner.integrations` | CompletionManager    | 外部連携 (GitHub)                |
+| `runner.actions`      | ActionDetector       | アクション検出・タイプ           |
+| `runner.execution`    | run-agent.ts         | ワークツリー、ファイナライズ     |
+| `runner.logging`      | Logger               | ログ出力設定                     |
 
 ### Completion Condition Migration
 
-| Current Implementation                       | completionType    | completionConfig                    |
-| -------------------------------------------- | ----------------- | ----------------------------------- |
-| Complete when output contains "DONE"         | `keywordSignal`   | `{ "completionKeyword": "DONE" }`   |
-| Complete after 3 executions                  | `iterationBudget` | `{ "maxIterations": 3 }`            |
-| Complete when Issue #42 is resolved          | `externalState`   | `{}` + `--issue 42` parameter       |
-| Custom logic                                 | `custom`          | `{ "handlerPath": "./handler.ts" }` |
-| Multiple phases (analyze->implement->review) | `stepMachine`     | `{}` + `steps_registry.json`        |
+| Current Implementation                       | runner.completion.type | runner.completion.config            |
+| -------------------------------------------- | ---------------------- | ----------------------------------- |
+| Complete when output contains "DONE"         | `keywordSignal`        | `{ "completionKeyword": "DONE" }`   |
+| Complete after 3 executions                  | `iterationBudget`      | `{ "maxIterations": 3 }`            |
+| Complete when Issue #42 is resolved          | `externalState`        | `{}` + `--issue 42` parameter       |
+| Custom logic                                 | `custom`               | `{ "handlerPath": "./handler.ts" }` |
+| Multiple phases (analyze->implement->review) | `stepMachine`          | `{}` + `steps_registry.json`        |
 
 ### Prompt Structure Migration
 
@@ -111,18 +237,35 @@ const result = await query({
 {
   "name": "code-reviewer",
   "displayName": "Code Reviewer",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "keywordSignal",
-    "completionConfig": { "completionKeyword": "REVIEW_COMPLETE" },
-    "allowedTools": ["Read", "Glob", "Grep"],
-    "permissionMode": "plan"
-  },
+  "version": "1.0.0",
+  "description": "Code review agent",
   "parameters": {
     "target": {
       "type": "string",
       "required": true,
       "cli": "--target"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "keywordSignal",
+      "config": { "completionKeyword": "REVIEW_COMPLETE" }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Glob", "Grep"],
+      "permissionMode": "plan"
+    },
+    "execution": {},
+    "logging": {
+      "directory": "tmp/logs/agents/code-reviewer",
+      "format": "jsonl"
     }
   }
 }
@@ -153,11 +296,9 @@ gh issue view 42 --json body | claude --system-prompt "..."
 ```json
 {
   "name": "issue-resolver",
-  "behavior": {
-    "completionType": "externalState",
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "acceptEdits"
-  },
+  "displayName": "Issue Resolver",
+  "version": "1.0.0",
+  "description": "Resolves GitHub issues autonomously",
   "parameters": {
     "issue": {
       "type": "number",
@@ -165,8 +306,30 @@ gh issue view 42 --json body | claude --system-prompt "..."
       "cli": "--issue"
     }
   },
-  "github": {
-    "enabled": true
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "externalState",
+      "config": { "maxIterations": 500 }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "permissionMode": "acceptEdits"
+    },
+    "integrations": {
+      "github": { "enabled": true }
+    },
+    "execution": {},
+    "logging": {
+      "directory": "tmp/logs/agents/issue-resolver",
+      "format": "jsonl"
+    }
   }
 }
 ```
@@ -197,9 +360,31 @@ done
 ```json
 {
   "name": "iterative-task",
-  "behavior": {
-    "completionType": "iterationBudget",
-    "completionConfig": { "maxIterations": 5 }
+  "displayName": "Iterative Task",
+  "version": "1.0.0",
+  "description": "Fixed iteration agent",
+  "parameters": {},
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "iterationBudget",
+      "config": { "maxIterations": 5 }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write"],
+      "permissionMode": "plan"
+    },
+    "execution": {},
+    "logging": {
+      "directory": "tmp/logs/agents/iterative-task",
+      "format": "jsonl"
+    }
   }
 }
 ```
@@ -233,16 +418,30 @@ claude --prompt "Review fixes"
 {
   "name": "code-improver",
   "displayName": "Code Improver",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "stepMachine",
-    "completionConfig": {},
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "acceptEdits"
-  },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
+  "version": "1.0.0",
+  "description": "Multi-phase code improvement",
+  "parameters": {},
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "stepMachine",
+      "config": {}
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "permissionMode": "acceptEdits"
+    },
+    "execution": {},
+    "logging": {
+      "directory": "tmp/logs/agents/code-improver",
+      "format": "jsonl"
+    }
   }
 }
 ```
@@ -311,14 +510,14 @@ deno task agent --agent code-improver --topic "Improve authentication module"
   - [ ] name (kebab-case)
   - [ ] displayName
   - [ ] description
-  - [ ] behavior.systemPromptPath
-  - [ ] behavior.completionType
-  - [ ] behavior.allowedTools
-  - [ ] behavior.permissionMode
-  - [ ] prompts.registry
-  - [ ] prompts.fallbackDir
-  - [ ] logging.directory
-  - [ ] logging.format
+  - [ ] runner.flow.systemPromptPath
+  - [ ] runner.completion.type
+  - [ ] runner.boundaries.allowedTools
+  - [ ] runner.boundaries.permissionMode
+  - [ ] runner.flow.prompts.registry
+  - [ ] runner.flow.prompts.fallbackDir
+  - [ ] runner.logging.directory
+  - [ ] runner.logging.format
 
 - [ ] Create `steps_registry.json`
   - **For traditional model (iterate/manual):**
@@ -343,9 +542,10 @@ deno task agent --agent code-improver --topic "Improve authentication module"
 ### Optional Items
 
 - [ ] parameters definition (if CLI parameters needed)
-- [ ] actions settings (if action output needed)
-- [ ] github settings (if GitHub integration needed)
-- [ ] worktree settings (if Git worktree needed)
+- [ ] runner.actions settings (if action output needed)
+- [ ] runner.integrations.github settings (if GitHub integration needed)
+- [ ] runner.execution.worktree settings (if Git worktree needed)
+- [ ] runner.execution.finalize settings (if auto-merge/PR needed)
 
 ### Verification
 

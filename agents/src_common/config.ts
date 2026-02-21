@@ -5,7 +5,7 @@
  */
 
 import { deepMerge } from "./deep-merge.ts";
-import type { AgentDefinition } from "./types.ts";
+import type { AgentDefinition, ResolvedAgentDefinition } from "./types.ts";
 import { ConfigService, type RuntimeConfig } from "../shared/config-service.ts";
 
 export type { RuntimeConfig };
@@ -39,11 +39,23 @@ export function mergeConfigurations<T extends Record<string, unknown>>(
  */
 export function getDefaults(): Partial<AgentDefinition> {
   return {
-    github: {
-      enabled: false,
-    },
-    worktree: {
-      enabled: false,
+    runner: {
+      flow: {
+        systemPromptPath: "",
+        prompts: { registry: "", fallbackDir: "" },
+      },
+      completion: { type: "iterationBudget", config: {} },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      integrations: {
+        github: { enabled: false },
+      },
+      execution: {
+        worktree: { enabled: false },
+      },
+      logging: { directory: "", format: "jsonl" },
     },
   };
 }
@@ -51,12 +63,27 @@ export function getDefaults(): Partial<AgentDefinition> {
 /**
  * Apply default values to agent definition
  */
-export function applyDefaults(definition: AgentDefinition): AgentDefinition {
+export function applyDefaults(
+  definition: AgentDefinition,
+): ResolvedAgentDefinition {
   const defaults = getDefaults();
   return {
     ...definition,
-    github: definition.github ?? defaults.github,
-    worktree: definition.worktree ?? defaults.worktree,
+    runner: {
+      ...definition.runner,
+      integrations: {
+        ...definition.runner.integrations,
+        github: definition.runner.integrations?.github ??
+          defaults.runner?.integrations?.github,
+      },
+      execution: {
+        ...(definition.runner.execution ?? { worktree: { enabled: false } }),
+        worktree: definition.runner.execution?.worktree ??
+          defaults.runner?.execution?.worktree,
+      },
+      logging: definition.runner.logging ??
+        defaults.runner?.logging ?? { directory: "", format: "jsonl" as const },
+    },
   };
 }
 

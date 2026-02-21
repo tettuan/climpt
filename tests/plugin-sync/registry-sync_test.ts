@@ -11,11 +11,14 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { createTestLogger } from "../test-utils.ts";
 
 import {
   loadMCPConfig as mcpLoadMCPConfig,
   loadRegistryForAgent as mcpLoadRegistryForAgent,
 } from "../../src/mcp/registry.ts";
+
+const logger = createTestLogger("plugin-registry");
 
 import {
   loadMCPConfig as pluginLoadMCPConfig,
@@ -44,6 +47,10 @@ Deno.test("plugin-sync/registry: loadMCPConfig returns identical config from sam
   // We test this by running both in the same directory context.
   const mcpConfig = await mcpLoadMCPConfig();
   const pluginConfig = await pluginLoadMCPConfig();
+  logger.debug("loadMCPConfig result", {
+    mcpRegistries: mcpConfig.registries,
+    pluginRegistries: pluginConfig.registries,
+  });
 
   // Compare structure (ignoring logging side effects)
   assertEquals(mcpConfig.registries, pluginConfig.registries);
@@ -63,6 +70,11 @@ Deno.test("plugin-sync/registry: loadRegistryForAgent returns identical commands
 
   const mcpCommands = await mcpLoadRegistryForAgent(config, "climpt");
   const pluginCommands = await pluginLoadRegistryForAgent(config, "climpt");
+  logger.debug("loadRegistryForAgent result", {
+    agent: "climpt",
+    mcpCount: mcpCommands.length,
+    pluginCount: pluginCommands.length,
+  });
 
   // Both should return the same Command[] array
   assertEquals(mcpCommands, pluginCommands);
@@ -123,6 +135,10 @@ Deno.test("plugin-sync/registry: loadRegistryForAgent command objects have ident
   const mcpCommands = await mcpLoadRegistryForAgent(config, "climpt");
   const pluginCommands = await pluginLoadRegistryForAgent(config, "climpt");
 
+  logger.debug("loadRegistryForAgent structure check", {
+    mcpCommandCount: mcpCommands.length,
+    pluginCommandCount: pluginCommands.length,
+  });
   // If commands were loaded, verify each command has identical fields
   for (let i = 0; i < mcpCommands.length; i++) {
     const mcpCmd = mcpCommands[i];
