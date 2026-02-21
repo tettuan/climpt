@@ -31,6 +31,30 @@ const REQUIRED_FIELDS = [
 ] as const;
 
 /**
+ * Known top-level keys for AgentDefinition.
+ * Any key not in this set triggers an unknown-key warning.
+ */
+const KNOWN_TOP_LEVEL_KEYS = new Set([
+  "name",
+  "displayName",
+  "description",
+  "version",
+  "runner",
+  "parameters",
+  "labels",
+  "$schema",
+]);
+
+/**
+ * v1.11.x legacy top-level keys that were moved under runner.* in v1.12.0.
+ */
+const LEGACY_TOP_LEVEL_KEYS = new Set([
+  "behavior",
+  "prompts",
+  "logging",
+]);
+
+/**
  * Valid permission modes
  */
 const VALID_PERMISSION_MODES = [
@@ -67,6 +91,31 @@ export function validate(definition: unknown): ValidationResult {
     if (!(field in def)) {
       errors.push(`Missing required field: ${field}`);
     }
+  }
+
+  // DC1: Legacy v1.11.x format detection
+  if (!("runner" in def)) {
+    const hasLegacyKey = Object.keys(def).some((k) =>
+      LEGACY_TOP_LEVEL_KEYS.has(k)
+    );
+    if (hasLegacyKey) {
+      errors.push(
+        "Detected v1.11.x config format. The flat structure (behavior, prompts, logging) " +
+          "was replaced with the runner.* hierarchy in v1.12.0. " +
+          "See the migration guide: docs/guides/en/09-migration-guide.md",
+      );
+    }
+  }
+
+  // DC2: Unknown top-level key warnings
+  const unknownKeys = Object.keys(def).filter((k) =>
+    !KNOWN_TOP_LEVEL_KEYS.has(k)
+  );
+  if (unknownKeys.length > 0) {
+    warnings.push(
+      `Unknown top-level keys will be ignored: ${unknownKeys.join(", ")}. ` +
+        "These may be v1.11.x keys that need to be moved under runner.*",
+    );
   }
 
   // Validate name

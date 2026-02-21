@@ -45,6 +45,7 @@
       "$ref": "#/definitions/RunnerConfig"
     }
   },
+  "additionalProperties": false,
   "definitions": {
     "RunnerConfig": {
       "type": "object",
@@ -75,7 +76,8 @@
         "logging": {
           "$ref": "#/definitions/LoggingConfig"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "RunnerFlowConfig": {
       "type": "object",
@@ -121,7 +123,8 @@
           "type": "string",
           "description": "Auto-response message for AskUserQuestion tool. When set, the agent will automatically respond with this message instead of waiting for user input, enabling autonomous execution."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "RunnerCompletionConfig": {
       "type": "object",
@@ -212,7 +215,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "RunnerBoundariesConfig": {
       "type": "object",
@@ -234,7 +238,8 @@
           "$ref": "#/definitions/SandboxConfig",
           "description": "Fine-grained sandbox configuration"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "RunnerIntegrationsConfig": {
       "type": "object",
@@ -242,7 +247,8 @@
         "github": {
           "$ref": "#/definitions/GitHubConfig"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "RunnerExecutionConfig": {
       "type": "object",
@@ -253,7 +259,8 @@
         "finalize": {
           "$ref": "#/definitions/FinalizeConfig"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SandboxConfig": {
       "type": "object",

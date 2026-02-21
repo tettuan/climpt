@@ -1,4 +1,3 @@
-// deno-lint-ignore-file no-console
 /**
  * Configuration Module - Configuration Layer Entry Point
  *
@@ -14,6 +13,7 @@ import type { ConfigurationContract } from "../src_common/contracts.ts";
 import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { validate, validateComplete } from "./validator.ts";
 import { applyDefaults, freeze } from "./defaults.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 
 // Re-export for convenience
 export { ConfigurationLoadError } from "./loader.ts";
@@ -49,8 +49,11 @@ export async function loadConfiguration(
   }
 
   // Log warnings
-  for (const warning of rawValidation.warnings) {
-    console.warn(`[Config Warning] ${warning}`);
+  if (rawValidation.warnings.length > 0) {
+    const logger = new BreakdownLogger("config");
+    for (const warning of rawValidation.warnings) {
+      logger.warn(warning);
+    }
   }
 
   // Apply defaults
