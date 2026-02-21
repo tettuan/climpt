@@ -6,17 +6,13 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob, Task]
 
 # Local CI Execution
 
-## 責務
-
-CI 実行方法と事前検証を管理する（`deno task ci` の使い方、パイプラインステージ）。
-
-- CI エラーの対処方法は `/ci-troubleshooting` skill を参照
-- リリースフロー全体は `/release-procedure` skill を参照
-- ブランチ戦略は `/branch-management` skill を参照
-
 ## Overview
 
-Run CI locally to verify code quality before pushing.
+Local CI uses `@aidevtool/ci` (JSR package) to run the full pipeline.
+
+- CI error diagnosis: `/ci-troubleshooting` skill
+- Release flow: `/release-procedure` skill
+- Branch strategy: `/branch-management` skill
 
 **Recommendation**: Delegate to sub agent to save context.
 
@@ -45,30 +41,54 @@ Bash({
 
 ## CI Pipeline Stages
 
-`deno task ci` runs in order:
+`@aidevtool/ci` runs these stages in order:
 
-1. **deps** - Cache dependencies (`deno.lock`)
-2. **check** - Type checking
-3. **jsr-check** - JSR publish dry-run
-4. **test** - Run tests (216+ tests)
-5. **lint** - Deno lint
-6. **fmt** - Format check
+1. **Type Check** - `deno check`
+2. **JSR Check** - JSR publish dry-run
+3. **Test** - `deno test`
+4. **Lint** - `deno lint`
+5. **Format** - `deno fmt --check`
+
+## Execution Modes
+
+| Mode | Command | Use Case |
+|------|---------|----------|
+| all (default) | `deno task ci` | Fastest, checks all files at once |
+| batch | `deno task ci --mode batch --batch-size 10` | Large projects, controlled parallelism |
+| single-file | `deno task ci --mode single-file` | Safest, isolates per-file errors |
+
+## Hierarchy Targeting
+
+Check a specific directory only:
+
+```bash
+deno task ci src/
+deno task ci --hierarchy agents/ --mode batch
+```
+
+## Log Modes
+
+| Mode | Flag | Use Case |
+|------|------|----------|
+| normal (default) | | Standard output |
+| silent | `--log-mode silent` | CI/CD environments |
+| debug | `--log-mode debug --log-key CI_DEBUG` | Detailed investigation |
+| error-files-only | `--log-mode error-files-only` | Show only failing files |
+
+## Key Options
+
+| Option | Values | Default |
+|--------|--------|---------|
+| `--mode` | all, batch, single-file | all |
+| `--batch-size` | 1-100 | 25 |
+| `--allow-dirty` | flag | false |
+| `--stop-on-first-error` | flag | false |
+| `--filter` | pattern | none |
 
 ## Pre-Push Workflow
 
-Always pass local CI before pushing:
-
 ```bash
 deno task ci && git push origin branch-name
-```
-
-Or with sandbox bypass:
-
-```typescript
-Bash({
-  command: "deno task ci && git push origin branch-name",
-  dangerouslyDisableSandbox: true,
-})
 ```
 
 ## Error Handling
@@ -79,22 +99,3 @@ Bash({
 | Lint errors | `/ci-troubleshooting` |
 | Test failures | `/ci-troubleshooting` |
 | Network blocked | `/git-gh-sandbox` |
-
-## Quick Commands
-
-```bash
-# Full CI
-deno task ci
-
-# Type check only
-deno check src/**/*.ts
-
-# Lint only
-deno lint
-
-# Test only
-deno test --allow-all
-
-# Format only
-deno fmt --check
-```

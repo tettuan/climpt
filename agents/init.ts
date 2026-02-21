@@ -61,15 +61,6 @@ export async function initAgent(
     name: agentName,
     displayName: formatDisplayName(agentName),
     description: `${formatDisplayName(agentName)} agent`,
-    behavior: {
-      systemPromptPath: `${PATHS.PROMPTS_DIR}/system.md`,
-      completionType: "keywordSignal",
-      completionConfig: {
-        completionKeyword: "TASK_COMPLETE",
-      },
-      allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-      permissionMode: "acceptEdits",
-    },
     parameters: {
       topic: {
         type: "string",
@@ -78,25 +69,44 @@ export async function initAgent(
         cli: "--topic",
       },
     },
-    prompts: {
-      registry: PATHS.STEPS_REGISTRY,
-      fallbackDir: `${PATHS.PROMPTS_DIR}/`,
-    },
-    actions: {
-      enabled: false,
-      types: [],
-      outputFormat: "action",
-    },
-    github: {
-      enabled: false,
-    },
-    worktree: {
-      enabled: false,
-    },
-    logging: {
-      directory: `tmp/logs/agents/${agentName}`,
-      format: "jsonl",
-      maxFiles: 50,
+    runner: {
+      flow: {
+        systemPromptPath: `${PATHS.PROMPTS_DIR}/system.md`,
+        prompts: {
+          registry: PATHS.STEPS_REGISTRY,
+          fallbackDir: `${PATHS.PROMPTS_DIR}/`,
+        },
+      },
+      completion: {
+        type: "keywordSignal",
+        config: {
+          completionKeyword: "TASK_COMPLETE",
+        },
+      },
+      boundaries: {
+        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+        permissionMode: "acceptEdits",
+      },
+      integrations: {
+        github: {
+          enabled: false,
+        },
+      },
+      actions: {
+        enabled: false,
+        types: [],
+        outputFormat: "action",
+      },
+      execution: {
+        worktree: {
+          enabled: false,
+        },
+      },
+      logging: {
+        directory: `tmp/logs/agents/${agentName}`,
+        format: "jsonl",
+        maxFiles: 50,
+      },
     },
   };
 

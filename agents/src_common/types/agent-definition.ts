@@ -1,5 +1,14 @@
 /**
  * Agent definition type definitions for climpt-agents
+ *
+ * Runner config hierarchy mirrors runtime ownership:
+ * - flow: FlowOrchestrator (prompts, schemas, system prompt, defaultModel, askUserAutoResponse)
+ * - completion: CompletionManager (type, config)
+ * - boundaries: QueryExecutor (tools, permissions, sandbox)
+ * - integrations: external service configs (github)
+ * - actions: ActionDetector (detection, types, handlers)
+ * - execution: run-agent.ts (worktree, finalize)
+ * - logging: log output config
  */
 
 import type { CompletionConfigUnion, CompletionType } from "./completion.ts";
@@ -16,32 +25,79 @@ export interface AgentDefinition {
   displayName: string;
   description: string;
 
-  behavior: AgentBehavior;
   parameters: Record<string, ParameterDefinition>;
-  prompts: PromptConfig;
-  github?: GitHubConfig;
-  worktree?: WorktreeConfig;
-  /** Finalize configuration for worktree mode */
-  finalize?: FinalizeConfig;
+  runner: RunnerConfig;
+}
+
+// ============================================================================
+// Runner Config Hierarchy
+// ============================================================================
+
+export interface RunnerConfig {
+  flow: RunnerFlowConfig;
+  completion: RunnerCompletionConfig;
+  boundaries: RunnerBoundariesConfig;
+  integrations?: RunnerIntegrationsConfig;
+  actions?: ActionConfig;
+  execution?: RunnerExecutionConfig;
+  logging?: LoggingConfig;
+}
+
+/**
+ * RunnerConfig with execution and logging guaranteed present (after defaults applied).
+ */
+export interface ResolvedRunnerConfig extends RunnerConfig {
+  execution: RunnerExecutionConfig;
   logging: LoggingConfig;
 }
 
-export interface AgentBehavior {
+/**
+ * AgentDefinition with all optional runner fields resolved to concrete values.
+ * Produced by applyDefaults(); consumed by Runner and downstream code that
+ * needs guaranteed access to execution/logging.
+ */
+export interface ResolvedAgentDefinition
+  extends Omit<AgentDefinition, "runner"> {
+  runner: ResolvedRunnerConfig;
+}
+
+export interface RunnerFlowConfig {
   systemPromptPath: string;
-  completionType: CompletionType;
-  completionConfig: CompletionConfigUnion;
-  allowedTools: string[];
-  permissionMode: PermissionMode;
-  /** Fine-grained sandbox configuration (uses defaults if not specified) */
-  sandboxConfig?: SandboxConfig;
-  /**
-   * Auto-response message for AskUserQuestion tool.
-   * When set, the agent will automatically respond with this message
-   * instead of waiting for user input, enabling autonomous execution.
-   * Default: "Use your best judgment to choose the optimal approach. No need to confirm again."
-   */
+  prompts: {
+    registry: string;
+    fallbackDir: string;
+  };
+  schemas?: {
+    base?: string;
+    inspection?: boolean;
+  };
+  defaultModel?: string;
   askUserAutoResponse?: string;
 }
+
+export interface RunnerCompletionConfig {
+  type: CompletionType;
+  config: CompletionConfigUnion;
+}
+
+export interface RunnerBoundariesConfig {
+  allowedTools: string[];
+  permissionMode: PermissionMode;
+  sandbox?: SandboxConfig;
+}
+
+export interface RunnerIntegrationsConfig {
+  github?: GitHubConfig;
+}
+
+export interface RunnerExecutionConfig {
+  worktree?: WorktreeConfig;
+  finalize?: FinalizeConfig;
+}
+
+// ============================================================================
+// Sub-configuration Types
+// ============================================================================
 
 /**
  * Finalize configuration for worktree mode.
@@ -121,11 +177,6 @@ export interface ParameterValidation {
 // Configuration Types
 // ============================================================================
 
-export interface PromptConfig {
-  registry: string;
-  fallbackDir: string;
-}
-
 export interface GitHubConfig {
   enabled: boolean;
   labels?: Record<string, string>;
@@ -142,4 +193,14 @@ export interface LoggingConfig {
   directory: string;
   format: "jsonl" | "text";
   maxFiles?: number;
+}
+
+/**
+ * Action detection and execution configuration
+ */
+export interface ActionConfig {
+  enabled: boolean;
+  types?: string[];
+  outputFormat?: string;
+  handlers?: Record<string, string>;
 }

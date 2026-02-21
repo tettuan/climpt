@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Breaking**: agent.json config restructured from flat `behavior`/`prompts`/`logging`/`github`/`worktree` to `runner.*` hierarchy (`runner.flow`, `runner.completion`, `runner.boundaries`, `runner.execution`, `runner.logging`). See [migration guide](agents/docs/builder/migration_guide.md#v1120-config-migration-behavior---runner) for field mapping.
+
 ## [1.11.24] - 2026-02-16
 
 ### Added

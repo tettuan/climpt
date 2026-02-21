@@ -14,7 +14,10 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
+
+const logger = new BreakdownLogger("integration");
 import { CompletionManager } from "./completion-manager.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
@@ -48,16 +51,23 @@ function createTestDefinition(
     displayName: "Test Flow Agent",
     description: "Dry-run integration test agent",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType,
-      completionConfig: { maxIterations: 20 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
-    logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
+      },
+      completion: {
+        type: completionType,
+        config: { maxIterations: 20 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+    },
   };
 }
 
@@ -283,7 +293,16 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   const registry = await loadFixtureRegistry();
   const responses = createMockSdkResponses();
 
+  logger.debug("dry-run loop input", {
+    completionType: "externalState",
+    responseCount: responses.length,
+  });
   const result = await runDryLoop(registry, "externalState", responses);
+  logger.debug("dry-run loop result", {
+    iterations: result.iterations,
+    completed: result.completed,
+    stepSequence: result.stepSequence,
+  });
 
   assertEquals(result.iterations, 3);
   assertEquals(result.completed, true);

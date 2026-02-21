@@ -18,8 +18,8 @@ main() {
   cat "$schema_file"
 
   jq empty "$schema_file" || { error "FAIL: schema is not valid JSON"; return 1; }
-  if ! grep -q '"behavior"' "$schema_file"; then
-    error "FAIL: schema missing 'behavior' property"; return 1
+  if ! grep -q '"runner"' "$schema_file"; then
+    error "FAIL: schema missing 'runner' property"; return 1
   fi
 
   success "PASS: agent schema is valid JSON with expected properties"

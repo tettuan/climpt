@@ -69,7 +69,7 @@ export async function main(): Promise<void> {
     console.log(`\n  @aidevtool/climpt v${version} - ${entries.length} docs\n`);
     for (const e of entries) {
       // deno-lint-ignore no-console
-      console.log(`  ${e.id}${e.lang ? ` (${e.lang})` : ""}`);
+      console.log(`  ${e.id}  [${e.category}]${e.lang ? ` (${e.lang})` : ""}`);
     }
     return;
   }
@@ -86,6 +86,15 @@ export async function main(): Promise<void> {
 
   // deno-lint-ignore no-console
   console.log(`\n  Installed ${result.installed.length} docs to ${dir}\n`);
+
+  if (result.failed.length > 0) {
+    // deno-lint-ignore no-console
+    console.log(`  Failed (${result.failed.length}):`);
+    for (const id of result.failed) {
+      // deno-lint-ignore no-console
+      console.log(`    - ${id}`);
+    }
+  }
 }
 
 if (import.meta.main) main();

@@ -13,7 +13,10 @@
  */
 
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { createRegistryCompletionHandler } from "./factory.ts";
+
+const logger = new BreakdownLogger("handler");
 import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
 import { IssueCompletionHandler } from "./issue.ts";
 import { CompositeCompletionHandler } from "./composite.ts";
@@ -50,32 +53,42 @@ function createMockIterationSummary(
  * Create a minimal mock agent definition
  *
  * Uses type assertions for testing purposes - the tests only need
- * the behavior.completionConfig fields, not the full definition.
+ * the runner.completion fields, not the full definition.
  */
 function createMockAgentDefinition(
-  overrides: { behavior?: Partial<AgentDefinition["behavior"]> } = {},
+  overrides: {
+    completion?: Partial<AgentDefinition["runner"]["completion"]>;
+  } = {},
 ): AgentDefinition {
-  const baseBehavior = {
-    systemPromptPath: "prompts/system.md",
-    completionType: "iterationBudget" as const,
-    completionConfig: {
+  const baseCompletion = {
+    type: "iterationBudget" as const,
+    config: {
       maxIterations: 10,
     },
-    allowedTools: ["Bash", "Read", "Write"],
-    permissionMode: "auto" as const,
   };
 
-  const behavior = overrides.behavior
-    ? { ...baseBehavior, ...overrides.behavior }
-    : baseBehavior;
+  const completion = overrides.completion
+    ? { ...baseCompletion, ...overrides.completion }
+    : baseCompletion;
 
   return {
     name: "test-agent",
     description: "Test agent",
-    behavior,
-    prompts: {
-      registry: "prompts/registry.md",
-      fallbackDir: "prompts",
+    runner: {
+      flow: {
+        systemPromptPath: "prompts/system.md",
+        prompts: {
+          registry: "prompts/registry.md",
+          fallbackDir: "prompts",
+        },
+      },
+      completion,
+      boundaries: {
+        allowedTools: ["Bash", "Read", "Write"],
+        permissionMode: "plan",
+      },
+      execution: {},
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
   } as AgentDefinition;
 }
@@ -119,7 +132,12 @@ Deno.test("IssueCompletionHandler - check with cached closed state returns compl
   );
 
   await handler.forceRefreshState();
+  logger.debug("handler check input", { iteration: 1, issueNumber: 123 });
   const result = handler.check({ iteration: 1 });
+  logger.debug("handler check result", {
+    complete: result.complete,
+    reason: result.reason,
+  });
   assertEquals(result.complete, true);
   assertEquals(result.reason?.includes("123"), true);
 });
@@ -273,9 +291,9 @@ Deno.test("IssueCompletionHandler - getCachedState returns undefined initially",
 
 Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "and",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 10 } },
@@ -285,7 +303,7 @@ Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () =>
     },
   });
 
-  const conditions = definition.behavior.completionConfig.conditions ?? [];
+  const conditions = definition.runner.completion.config.conditions ?? [];
   const handler = new CompositeCompletionHandler(
     "and",
     conditions,
@@ -300,9 +318,9 @@ Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () =>
 
 Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "or",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 1 } },
@@ -314,7 +332,7 @@ Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
 
   const handler = new CompositeCompletionHandler(
     "or",
-    definition.behavior.completionConfig.conditions ?? [],
+    definition.runner.completion.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -331,9 +349,9 @@ Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
 
 Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", async () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "first",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 10 } },
@@ -345,7 +363,7 @@ Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", a
 
   const handler = new CompositeCompletionHandler(
     "first",
-    definition.behavior.completionConfig.conditions ?? [],
+    definition.runner.completion.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -365,9 +383,9 @@ Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", a
 
 Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handlers", () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "and",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 5 } },
@@ -379,7 +397,7 @@ Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handler
 
   const handler = new CompositeCompletionHandler(
     "and",
-    definition.behavior.completionConfig.conditions ?? [],
+    definition.runner.completion.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -391,9 +409,9 @@ Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handler
 
 Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", async () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "or",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 5 } },
@@ -404,7 +422,7 @@ Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", 
 
   const handler = new CompositeCompletionHandler(
     "or",
-    definition.behavior.completionConfig.conditions ?? [],
+    definition.runner.completion.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -1223,33 +1241,35 @@ Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", (
 // =============================================================================
 
 Deno.test("createRegistryCompletionHandler - externalState with args.issue returns adapter", async () => {
+  logger.debug("factory input", { type: "externalState", issue: 123 });
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
     description: "Test",
     version: "1.0.0",
-    prompts: {
-      registry: "steps_registry.json",
-      fallbackDir: "prompts/",
-    },
     parameters: {},
-    logging: {
-      directory: "/tmp/claude/test-logs",
-      format: "jsonl",
-    },
-    github: {
-      enabled: true,
-      labels: {},
-      defaultClosureAction: "label-only",
-    },
-    behavior: {
-      systemPromptPath: "prompts/system.md",
-      completionType: "externalState",
-      completionConfig: {
-        maxIterations: 10,
+    runner: {
+      flow: {
+        systemPromptPath: "prompts/system.md",
+        prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
       },
-      allowedTools: ["Bash", "Read"],
-      permissionMode: "default",
+      completion: {
+        type: "externalState",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: ["Bash", "Read"],
+        permissionMode: "default",
+      },
+      integrations: {
+        github: {
+          enabled: true,
+          labels: {},
+          defaultClosureAction: "label-only",
+        },
+      },
+      execution: {},
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
   };
 
@@ -1258,6 +1278,7 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
     { issue: 123, repository: "owner/repo" },
     "/tmp/claude/test-agent",
   );
+  logger.debug("factory result", { type: result?.type });
 
   assertExists(result);
   assertEquals(result.type, "externalState");
@@ -1275,28 +1296,37 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
     displayName: "Test",
     description: "Test",
     version: "1.0.0",
-    prompts: {
-      registry: "steps_registry.json",
-      fallbackDir: "prompts/",
-    },
     parameters: {},
-    logging: {
-      directory: "/tmp/claude/test-logs",
-      format: "jsonl",
-    },
-    github: {
-      enabled: true,
-      labels: {},
-      defaultClosureAction: "label-only",
-    },
-    behavior: {
-      systemPromptPath: "prompts/system.md",
-      completionType: "externalState",
-      completionConfig: {
-        maxIterations: 10,
+    runner: {
+      flow: {
+        systemPromptPath: "prompts/system.md",
+        prompts: {
+          registry: "steps_registry.json",
+          fallbackDir: "prompts/",
+        },
       },
-      allowedTools: ["Bash", "Read"],
-      permissionMode: "default",
+      completion: {
+        type: "externalState",
+        config: {
+          maxIterations: 10,
+        },
+      },
+      boundaries: {
+        allowedTools: ["Bash", "Read"],
+        permissionMode: "default",
+      },
+      integrations: {
+        github: {
+          enabled: true,
+          labels: {},
+          defaultClosureAction: "label-only",
+        },
+      },
+      execution: {},
+      logging: {
+        directory: "/tmp/claude/test-logs",
+        format: "jsonl",
+      },
     },
   };
 
@@ -1321,28 +1351,37 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
     displayName: "Test",
     description: "Test",
     version: "1.0.0",
-    prompts: {
-      registry: "steps_registry.json",
-      fallbackDir: "prompts/",
-    },
     parameters: {},
-    logging: {
-      directory: "/tmp/claude/test-logs",
-      format: "jsonl",
-    },
-    github: {
-      enabled: true,
-      labels: {},
-      defaultClosureAction: "label-only",
-    },
-    behavior: {
-      systemPromptPath: "prompts/system.md",
-      completionType: "iterationBudget",
-      completionConfig: {
-        maxIterations: 5,
+    runner: {
+      flow: {
+        systemPromptPath: "prompts/system.md",
+        prompts: {
+          registry: "steps_registry.json",
+          fallbackDir: "prompts/",
+        },
       },
-      allowedTools: ["Bash", "Read"],
-      permissionMode: "default",
+      completion: {
+        type: "iterationBudget",
+        config: {
+          maxIterations: 5,
+        },
+      },
+      boundaries: {
+        allowedTools: ["Bash", "Read"],
+        permissionMode: "default",
+      },
+      integrations: {
+        github: {
+          enabled: true,
+          labels: {},
+          defaultClosureAction: "label-only",
+        },
+      },
+      execution: {},
+      logging: {
+        directory: "/tmp/claude/test-logs",
+        format: "jsonl",
+      },
     },
   };
 
@@ -1494,9 +1533,9 @@ Deno.test("ExternalStateCompletionAdapter - type is externalState", () => {
 
 Deno.test("CompositeCompletionHandler - externalState condition with issue", async () => {
   const definition = createMockAgentDefinition({
-    behavior: {
-      completionType: "composite",
-      completionConfig: {
+    completion: {
+      type: "composite",
+      config: {
         operator: "or",
         conditions: [
           { type: "externalState", config: { maxIterations: 10 } },
@@ -1508,7 +1547,7 @@ Deno.test("CompositeCompletionHandler - externalState condition with issue", asy
 
   const handler = new CompositeCompletionHandler(
     "or",
-    definition.behavior.completionConfig.conditions ?? [],
+    definition.runner.completion.config.conditions ?? [],
     { issue: 42 },
     "/test",
     definition,

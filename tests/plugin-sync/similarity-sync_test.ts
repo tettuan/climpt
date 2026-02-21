@@ -7,6 +7,7 @@
  */
 
 import { assertEquals } from "@std/assert";
+import { createTestLogger } from "../test-utils.ts";
 
 import {
   describeCommand as mcpDescribeCommand,
@@ -14,6 +15,8 @@ import {
   searchWithRRF as mcpSearchWithRRF,
   tokenize as mcpTokenize,
 } from "../../src/mcp/similarity.ts";
+
+const logger = createTestLogger("plugin-similarity");
 
 import {
   describeCommand as pluginDescribeCommand,
@@ -121,7 +124,14 @@ Deno.test("plugin-sync/similarity: tokenize produces identical output for camelC
 
 Deno.test("plugin-sync/similarity: tokenize produces identical output for mixed text", () => {
   const input = "git group-commit unstaged_changes myFunc CamelCase";
-  assertEquals(mcpTokenize(input), pluginTokenize(input));
+  const mcpResult = mcpTokenize(input);
+  const pluginResult = pluginTokenize(input);
+  logger.debug("tokenize sync result", {
+    input,
+    mcpTokens: mcpResult,
+    pluginTokens: pluginResult,
+  });
+  assertEquals(mcpResult, pluginResult);
 });
 
 Deno.test("plugin-sync/similarity: tokenize produces identical output for empty string", () => {
@@ -143,6 +153,13 @@ Deno.test("plugin-sync/similarity: searchCommands returns identical results for 
   const query = "create specification";
   const mcpResults = mcpSearchCommands(testCommands, query, 3);
   const pluginResults = pluginSearchCommands(testCommands, query, 3);
+  logger.debug("searchCommands sync result", {
+    query,
+    mcpScores: mcpResults.map((r) => ({
+      cmd: `${r.c1} ${r.c2}`,
+      score: r.score,
+    })),
+  });
   assertEquals(mcpResults, pluginResults);
 });
 
@@ -208,6 +225,13 @@ Deno.test("plugin-sync/similarity: searchWithRRF returns identical results for C
   const queries = ["draft create write", "specification requirements document"];
   const mcpResults = mcpSearchWithRRF(testCommands, queries, 5);
   const pluginResults = pluginSearchWithRRF(testCommands, queries, 5);
+  logger.debug("searchWithRRF sync result", {
+    queries,
+    mcpScores: mcpResults.map((r) => ({
+      cmd: `${r.c1} ${r.c2}`,
+      score: r.score,
+    })),
+  });
   assertEquals(mcpResults, pluginResults);
 });
 
@@ -235,6 +259,12 @@ Deno.test("plugin-sync/similarity: describeCommand returns identical results for
     "group-commit",
     "unstaged-changes",
   );
+  logger.debug("describeCommand sync result", {
+    c1: "git",
+    c2: "group-commit",
+    c3: "unstaged-changes",
+    mcpCount: mcpResults.length,
+  });
   assertEquals(mcpResults, pluginResults);
 });
 

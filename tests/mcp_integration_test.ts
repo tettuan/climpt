@@ -1,4 +1,7 @@
 import { assertEquals, assertExists } from "@std/assert";
+import { createTestLogger } from "./test-utils.ts";
+
+const logger = createTestLogger("mcp-integration");
 
 // Test that MCP tool configurations match available configs
 Deno.test("MCP tool names match availableConfigs", async () => {
@@ -10,6 +13,10 @@ Deno.test("MCP tool names match availableConfigs", async () => {
 
     const availableConfigs = registry.tools?.availableConfigs || [];
     const commands = registry.tools?.commands || [];
+    logger.debug("toolNames match input", {
+      availableConfigs,
+      commandCount: commands.length,
+    });
 
     // Check that all c1 values in commands are in availableConfigs
     const c1Values = new Set(commands.map((cmd: { c1: string }) => cmd.c1));
@@ -25,8 +32,7 @@ Deno.test("MCP tool names match availableConfigs", async () => {
     if (error instanceof Deno.errors.NotFound) {
       // Registry doesn't exist - this is valid during development
       // The MCP server will use defaults from types.ts
-      // deno-lint-ignore no-console
-      console.log("Registry file not found - skipping command validation");
+      logger.debug("registry.json not found", { registryPath });
     } else {
       throw error;
     }
@@ -40,6 +46,11 @@ Deno.test("Registry template has correct structure", async () => {
   try {
     const templateText = await Deno.readTextFile(templatePath);
     const template = JSON.parse(templateText);
+    logger.debug("template loaded", {
+      templatePath,
+      version: template.version,
+      commandCount: template.tools?.commands?.length,
+    });
 
     // Check template has all required fields
     assertExists(template.version, "Template should have version");
@@ -83,6 +94,9 @@ Deno.test("Command options have valid values", async () => {
   try {
     const registryText = await Deno.readTextFile(registryPath);
     const registry = JSON.parse(registryText);
+    logger.debug("command options input", {
+      commandCount: registry.tools?.commands?.length,
+    });
 
     if (registry.tools?.commands) {
       for (const command of registry.tools.commands) {

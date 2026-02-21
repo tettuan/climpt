@@ -5,7 +5,11 @@
  * enabling easier testing through mock factories.
  */
 
-import type { AgentDefinition, LoggingConfig } from "../src_common/types.ts";
+import type {
+  AgentDefinition,
+  LoggingConfig,
+  ResolvedAgentDefinition,
+} from "../src_common/types.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
@@ -280,13 +284,13 @@ type AgentRunnerType = import("./runner.ts").AgentRunner;
  * Builder for creating AgentRunner instances with dependency injection.
  */
 export class AgentRunnerBuilder {
-  private definition?: AgentDefinition;
+  private definition?: ResolvedAgentDefinition;
   private dependencies: MutableAgentDependencies = {};
 
   /**
    * Set the agent definition.
    */
-  withDefinition(def: AgentDefinition): this {
+  withDefinition(def: ResolvedAgentDefinition): this {
     this.definition = def;
     return this;
   }

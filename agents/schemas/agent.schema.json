@@ -9,9 +9,7 @@
     "name",
     "displayName",
     "description",
-    "behavior",
-    "prompts",
-    "logging"
+    "runner"
   ],
   "properties": {
     "$schema": {
@@ -36,9 +34,6 @@
       "type": "string",
       "description": "Agent description"
     },
-    "behavior": {
-      "$ref": "#/definitions/AgentBehavior"
-    },
     "parameters": {
       "type": "object",
       "additionalProperties": {
@@ -46,37 +41,96 @@
       },
       "description": "CLI parameters the agent accepts"
     },
-    "prompts": {
-      "$ref": "#/definitions/PromptConfig"
-    },
-    "actions": {
-      "$ref": "#/definitions/ActionConfig"
-    },
-    "github": {
-      "$ref": "#/definitions/GitHubConfig"
-    },
-    "worktree": {
-      "$ref": "#/definitions/WorktreeConfig"
-    },
-    "logging": {
-      "$ref": "#/definitions/LoggingConfig"
+    "runner": {
+      "$ref": "#/definitions/RunnerConfig"
     }
   },
+  "additionalProperties": false,
   "definitions": {
-    "AgentBehavior": {
+    "RunnerConfig": {
       "type": "object",
       "required": [
-        "systemPromptPath",
-        "completionType",
-        "allowedTools",
-        "permissionMode"
+        "flow",
+        "completion",
+        "boundaries"
       ],
+      "properties": {
+        "flow": {
+          "$ref": "#/definitions/RunnerFlowConfig"
+        },
+        "completion": {
+          "$ref": "#/definitions/RunnerCompletionConfig"
+        },
+        "boundaries": {
+          "$ref": "#/definitions/RunnerBoundariesConfig"
+        },
+        "integrations": {
+          "$ref": "#/definitions/RunnerIntegrationsConfig"
+        },
+        "actions": {
+          "$ref": "#/definitions/ActionConfig"
+        },
+        "execution": {
+          "$ref": "#/definitions/RunnerExecutionConfig"
+        },
+        "logging": {
+          "$ref": "#/definitions/LoggingConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunnerFlowConfig": {
+      "type": "object",
+      "required": ["systemPromptPath", "prompts"],
       "properties": {
         "systemPromptPath": {
           "type": "string",
           "description": "Path to system prompt (relative to .agent/{name}/)"
         },
-        "completionType": {
+        "prompts": {
+          "type": "object",
+          "required": ["registry", "fallbackDir"],
+          "properties": {
+            "registry": {
+              "type": "string",
+              "description": "Path to steps registry JSON"
+            },
+            "fallbackDir": {
+              "type": "string",
+              "description": "Fallback directory for prompts"
+            }
+          }
+        },
+        "schemas": {
+          "type": "object",
+          "properties": {
+            "base": {
+              "type": "string",
+              "description": "Base directory for JSON schemas"
+            },
+            "inspection": {
+              "type": "boolean",
+              "description": "Enable schema inspection mode"
+            }
+          }
+        },
+        "defaultModel": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Default model for all steps. Resolution order: step.model > runner.flow.defaultModel > 'opus' (system default)."
+        },
+        "askUserAutoResponse": {
+          "type": "string",
+          "description": "Auto-response message for AskUserQuestion tool. When set, the agent will automatically respond with this message instead of waiting for user input, enabling autonomous execution."
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunnerCompletionConfig": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
           "type": "string",
           "enum": [
             "externalState",
@@ -90,18 +144,18 @@
           ],
           "description": "How the agent determines completion. Types: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler)."
         },
-        "completionConfig": {
+        "config": {
           "type": "object",
           "description": "Configuration for the completion type",
           "properties": {
             "maxIterations": {
               "type": "number",
               "minimum": 1,
-              "description": "Maximum iterations (for iterationBudget/iterate type)"
+              "description": "Maximum iterations (for iterationBudget type)"
             },
             "completionKeyword": {
               "type": "string",
-              "description": "Keyword to signal completion (for keywordSignal/manual type)"
+              "description": "Keyword to signal completion (for keywordSignal type)"
             },
             "handlerPath": {
               "type": "string",
@@ -160,7 +214,14 @@
               "description": "Entry step ID (for stepMachine type)"
             }
           }
-        },
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunnerBoundariesConfig": {
+      "type": "object",
+      "required": ["allowedTools", "permissionMode"],
+      "properties": {
         "allowedTools": {
           "type": "array",
           "items": {
@@ -173,20 +234,33 @@
           "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
           "description": "Claude permission mode"
         },
-        "sandboxConfig": {
+        "sandbox": {
           "$ref": "#/definitions/SandboxConfig",
           "description": "Fine-grained sandbox configuration"
-        },
-        "askUserAutoResponse": {
-          "type": "string",
-          "description": "Auto-response message for AskUserQuestion tool. When set, the agent will automatically respond with this message instead of waiting for user input, enabling autonomous execution. Default: 'Use your best judgment to choose the optimal approach. No need to confirm again.'"
-        },
-        "defaultModel": {
-          "type": "string",
-          "enum": ["sonnet", "opus", "haiku"],
-          "description": "Default model for all steps. Resolution order: step.model > behavior.defaultModel > 'opus' (system default). Usually not needed since system default is opus."
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "RunnerIntegrationsConfig": {
+      "type": "object",
+      "properties": {
+        "github": {
+          "$ref": "#/definitions/GitHubConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RunnerExecutionConfig": {
+      "type": "object",
+      "properties": {
+        "worktree": {
+          "$ref": "#/definitions/WorktreeConfig"
+        },
+        "finalize": {
+          "$ref": "#/definitions/FinalizeConfig"
+        }
+      },
+      "additionalProperties": false
     },
     "SandboxConfig": {
       "type": "object",
@@ -273,20 +347,6 @@
               "description": "Allowed values"
             }
           }
-        }
-      }
-    },
-    "PromptConfig": {
-      "type": "object",
-      "required": ["registry", "fallbackDir"],
-      "properties": {
-        "registry": {
-          "type": "string",
-          "description": "Path to steps registry JSON"
-        },
-        "fallbackDir": {
-          "type": "string",
-          "description": "Fallback directory for prompts"
         }
       }
     },
@@ -382,6 +442,35 @@
         "root": {
           "type": "string",
           "description": "Worktree root directory"
+        }
+      }
+    },
+    "FinalizeConfig": {
+      "type": "object",
+      "properties": {
+        "autoMerge": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to automatically merge worktree branch to base"
+        },
+        "push": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to push after merge"
+        },
+        "remote": {
+          "type": "string",
+          "default": "origin",
+          "description": "Remote to push to"
+        },
+        "createPr": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to create a PR instead of direct merge"
+        },
+        "prTarget": {
+          "type": "string",
+          "description": "Target branch for PR"
         }
       }
     },

@@ -12,51 +12,51 @@ agent.json で Agent
   "name": "識別子",
   "displayName": "表示名",
   "description": "説明",
-  "behavior": { "..." },
   "parameters": { "..." },
-  "prompts": { "..." },
-  "logging": { "..." }
-}
-```
-
-## behavior
-
-Agent の振る舞い。
-
-```json
-{
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "externalState | iterationBudget | keywordSignal | composite",
-    "completionConfig": { "..." },
-    "allowedTools": ["Read", "Write", "Edit", "Bash"],
-    "permissionMode": "plan | acceptEdits | bypassPermissions"
+  "runner": {
+    "flow": { "..." },
+    "completion": { "..." },
+    "boundaries": { "..." },
+    "integrations": { "..." },
+    "actions": { "..." },
+    "execution": { "..." },
+    "logging": { "..." }
   }
 }
 ```
 
-### defaultModel
+## runner.flow
 
-使用するモデルのデフォルト値。省略時は `opus`（システムデフォルト）。
+フロー制御（プロンプト解決、ステップ遷移）。
 
 ```json
 {
-  "behavior": {
-    "defaultModel": "sonnet"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    }
   }
 }
 ```
 
-| 値       | 説明                           |
-| -------- | ------------------------------ |
-| `opus`   | 最高性能（システムデフォルト） |
-| `sonnet` | 高性能・バランス               |
-| `haiku`  | 高速・低コスト                 |
+## runner.completion
 
-**通常は設定不要**。opus がデフォルトのため、エージェント全体で異なるモデルを
-使いたい場合のみ指定する。ステップごとの指定は `steps_registry.json` で行う。
+完了判定の戦略。
 
-詳細: [design/09_model_selection.md](../design/09_model_selection.md)
+```json
+{
+  "runner": {
+    "completion": {
+      "type": "externalState | iterationBudget | keywordSignal | composite",
+      "config": { "..." }
+    }
+  }
+}
+```
 
 ### completionType
 
@@ -93,103 +93,65 @@ steps_registry.json で完了条件を定義する。詳細は
 }
 ```
 
-## parameters
+## runner.boundaries
 
-CLI 引数の定義。`run-agent.ts`
-はここに宣言されたパラメータのみをランナーに転送する。 **宣言されていない CLI
-引数は無視される。**
+ツール許可、権限、サンドボックス（セキュリティポリシー）。
 
 ```json
 {
-  "parameters": {
-    "topic": {
-      "type": "string",
-      "description": "セッショントピック",
-      "required": true,
-      "cli": "--topic"
-    },
-    "maxIterations": {
-      "type": "number",
-      "default": 10,
-      "cli": "--max-iterations"
+  "runner": {
+    "boundaries": {
+      "allowedTools": ["Read", "Write", "Edit", "Bash"],
+      "permissionMode": "plan | acceptEdits | bypassPermissions"
     }
   }
 }
 ```
 
-### completionType 別の必須パラメータ
+### runner.flow.defaultModel
 
-| completionType  | 必須パラメータ | 説明                                      |
-| --------------- | -------------- | ----------------------------------------- |
-| `externalState` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
+使用するモデルのデフォルト値。省略時は `opus`（システムデフォルト）。
+`runner.flow` 内に配置する。
 
-`externalState` を使う場合、以下を `parameters` に含めること:
+| 値       | 説明                           |
+| -------- | ------------------------------ |
+| `opus`   | 最高性能（システムデフォルト） |
+| `sonnet` | 高性能・バランス               |
+| `haiku`  | 高速・低コスト                 |
 
-```json
-{
-  "parameters": {
-    "issue": {
-      "type": "number",
-      "description": "GitHub Issue number",
-      "required": true,
-      "cli": "--issue"
-    }
-  }
-}
-```
+**通常は設定不要**。opus がデフォルトのため、エージェント全体で異なるモデルを
+使いたい場合のみ指定する。ステップごとの指定は `steps_registry.json` で行う。
 
-## prompts
+詳細: [design/09_model_selection.md](../design/09_model_selection.md)
 
-プロンプト解決の設定。
+## runner.integrations
 
-```json
-{
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  }
-}
-```
+外部サービス連携設定（省略可）。
 
-## logging
+### github
 
-ログ設定。
-
-```json
-{
-  "logging": {
-    "directory": "tmp/logs/agents/{name}",
-    "format": "jsonl"
-  }
-}
-```
-
-## オプション
-
-### github / worktree
-
-外部連携（省略可）。`agents/scripts/run-agent.ts` が worktree の生成と
+GitHub 連携（省略可）。`agents/scripts/run-agent.ts` が worktree の生成と
 `--branch` / `--base-branch` を既に解決しており、Issue ごとに
 孤立した作業空間を用意できる。
 
 ```json
 {
-  "github": {
-    "enabled": true,
-    "labels": {
-      "requirements": "docs",
-      "inProgress": "in-progress",
-      "blocked": "need clearance",
-      "completion": {
-        "add": ["done"],
-        "remove": ["in-progress"]
+  "runner": {
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "labels": {
+          "requirements": "docs",
+          "inProgress": "in-progress",
+          "blocked": "need clearance",
+          "completion": {
+            "add": ["done"],
+            "remove": ["in-progress"]
+          }
+        },
+        "defaultClosureAction": "close"
       }
-    },
-    "defaultClosureAction": "close"
-  },
-  "worktree": {
-    "enabled": true,
-    "root": ".worktrees"
+    }
   }
 }
 ```
@@ -247,6 +209,51 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
 `"action":"complete"` を使用し、エージェントに phase 完了のみを指示する。
 
+## runner.actions
+
+アクション検出と実行設定（省略可）。
+
+```json
+{
+  "runner": {
+    "actions": {
+      "enabled": true,
+      "types": ["issue-action", "project-plan", "review-result"],
+      "outputFormat": "json",
+      "handlers": {
+        "project-plan": "builtin:completion-signal"
+      }
+    }
+  }
+}
+```
+
+| フィールド     | 説明                                   |
+| -------------- | -------------------------------------- |
+| `enabled`      | アクション検出を有効化                 |
+| `types`        | 許可するアクションタイプのリスト       |
+| `outputFormat` | Markdown コードブロックマーカー形式    |
+| `handlers`     | ハンドラーマッピング (type -> handler) |
+
+## runner.execution
+
+ワークツリーとファイナライズ設定。
+
+### worktree
+
+```json
+{
+  "runner": {
+    "execution": {
+      "worktree": {
+        "enabled": true,
+        "root": ".worktrees"
+      }
+    }
+  }
+}
+```
+
 ### finalize
 
 Flow ループ完了後のワークツリー処理を制御する。`finalizeWorktreeBranch`
@@ -254,12 +261,16 @@ Flow ループ完了後のワークツリー処理を制御する。`finalizeWor
 
 ```json
 {
-  "finalize": {
-    "autoMerge": true,
-    "push": false,
-    "remote": "origin",
-    "createPr": false,
-    "prTarget": "main"
+  "runner": {
+    "execution": {
+      "finalize": {
+        "autoMerge": true,
+        "push": false,
+        "remote": "origin",
+        "createPr": false,
+        "prTarget": "main"
+      }
+    }
   }
 }
 ```
@@ -279,6 +290,66 @@ CLI オプションでオーバーライド可能:
 - `--push-remote <name>`: リモート指定
 - `--create-pr`: PR 作成モード
 - `--pr-target <branch>`: PR ターゲット指定
+
+## runner.logging
+
+ログ設定。
+
+```json
+{
+  "runner": {
+    "logging": {
+      "directory": "tmp/logs/agents/{name}",
+      "format": "jsonl"
+    }
+  }
+}
+```
+
+## parameters
+
+CLI 引数の定義。`run-agent.ts`
+はここに宣言されたパラメータのみをランナーに転送する。 **宣言されていない CLI
+引数は無視される。**
+
+```json
+{
+  "parameters": {
+    "topic": {
+      "type": "string",
+      "description": "セッショントピック",
+      "required": true,
+      "cli": "--topic"
+    },
+    "maxIterations": {
+      "type": "number",
+      "default": 10,
+      "cli": "--max-iterations"
+    }
+  }
+}
+```
+
+### completionType 別の必須パラメータ
+
+| completionType  | 必須パラメータ | 説明                                      |
+| --------------- | -------------- | ----------------------------------------- |
+| `externalState` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
+
+`externalState` を使う場合、以下を `parameters` に含めること:
+
+```json
+{
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number",
+      "required": true,
+      "cli": "--issue"
+    }
+  }
+}
+```
 
 ## ディレクトリ構造
 
@@ -301,7 +372,7 @@ load(path) → parse → validate → 起動 or エラー
 
 検証項目:
 - 必須フィールドの存在
-- completionConfig と completionType の整合性
+- runner.completion.config と runner.completion.type の整合性
 - 参照ファイルの存在
 - completionConditions の validator 参照の妥当性
 ```
@@ -310,12 +381,12 @@ load(path) → parse → validate → 起動 or エラー
 
 ## 注意点
 
-| 項目               | 注意                                           |
-| ------------------ | ---------------------------------------------- |
-| `completionType`   | 8 種類のみ有効。レガシー名は廃止済み           |
-| `systemPromptPath` | agent.json からの相対パス                      |
-| `allowedTools`     | 許可されていないツールは実行時エラー           |
-| `permissionMode`   | `bypassPermissions` は信頼できる環境でのみ使用 |
+| 項目                               | 注意                                           |
+| ---------------------------------- | ---------------------------------------------- |
+| `runner.completion.type`           | 8 種類のみ有効。レガシー名は廃止済み           |
+| `runner.flow.systemPromptPath`     | agent.json からの相対パス                      |
+| `runner.boundaries.allowedTools`   | 許可されていないツールは実行時エラー           |
+| `runner.boundaries.permissionMode` | `bypassPermissions` は信頼できる環境でのみ使用 |
 
 ---
 

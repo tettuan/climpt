@@ -177,20 +177,33 @@ export class ConfigService {
   ): AgentDefinition {
     return {
       ...definition,
-      behavior: {
-        ...definition.behavior,
-        systemPromptPath: join(agentDir, definition.behavior.systemPromptPath),
-      },
-      prompts: {
-        ...definition.prompts,
-        registry: join(agentDir, definition.prompts.registry),
-        fallbackDir: join(agentDir, definition.prompts.fallbackDir),
-      },
-      logging: {
-        ...definition.logging,
-        directory: definition.logging.directory.startsWith("/")
-          ? definition.logging.directory
-          : join(agentDir, definition.logging.directory),
+      runner: {
+        ...definition.runner,
+        flow: {
+          ...definition.runner.flow,
+          systemPromptPath: join(
+            agentDir,
+            definition.runner.flow.systemPromptPath,
+          ),
+          prompts: {
+            ...definition.runner.flow.prompts,
+            registry: join(agentDir, definition.runner.flow.prompts.registry),
+            fallbackDir: join(
+              agentDir,
+              definition.runner.flow.prompts.fallbackDir,
+            ),
+          },
+        },
+        ...(definition.runner.logging
+          ? {
+            logging: {
+              ...definition.runner.logging,
+              directory: definition.runner.logging.directory.startsWith("/")
+                ? definition.runner.logging.directory
+                : join(agentDir, definition.runner.logging.directory),
+            },
+          }
+          : {}),
       },
     };
   }

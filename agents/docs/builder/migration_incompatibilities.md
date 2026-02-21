@@ -7,10 +7,32 @@ and their resolution status.
 
 ## Overview
 
-| Category               | Issues | Resolved |
-| ---------------------- | ------ | -------- |
-| Schema Extensions      | 4      | 4        |
-| Pending Implementation | 2      | 0        |
+| Category                             | Issues | Resolved |
+| ------------------------------------ | ------ | -------- |
+| v1.12.0 Breaking: Config Restructure | 1      | 1        |
+| Schema Extensions                    | 4      | 4        |
+| Pending Implementation               | 2      | 0        |
+
+---
+
+## 0. v1.12.0 Breaking Change: Config Restructure
+
+### 0.1 `behavior`/`prompts`/`logging` -> `runner.*`
+
+**Version**: v1.12.0
+
+**Impact**: agent.json のトップレベル構造が変更。旧形式は動作しない。
+
+**変更内容**: フラットな
+`behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize` を
+ランタイムモジュールの責務に沿った `runner.*` 階層に置き換え。
+
+**対応表**:
+[migration_guide.md の v1.12.0 Config Migration セクション](./migration_guide.md#v1120-config-migration-behavior---runner)
+を参照。
+
+**対処方法**: agent.json を `runner.*` 形式に書き換える。`deno check agents/`
+で型エラーがないことを確認。
 
 ---
 

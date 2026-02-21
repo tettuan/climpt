@@ -20,9 +20,9 @@ import {
 } from "./errors.ts";
 import { AgentRunner } from "./runner.ts";
 import { AgentEventEmitter } from "./events.ts";
-import type { AgentDefinition } from "../src_common/types.ts";
+import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 
-const logger = new BreakdownLogger("agent-runner");
+const logger = new BreakdownLogger("iteration");
 
 // =============================================================================
 // Error Hierarchy Tests
@@ -170,7 +170,15 @@ Deno.test("normalizeToAgentError - returns AgentError as-is", () => {
 
 Deno.test("normalizeToAgentError - wraps Error as AgentQueryError", () => {
   const original = new Error("Regular error");
+  logger.debug("normalizeToAgentError input", {
+    type: original.constructor.name,
+    message: original.message,
+  });
   const normalized = normalizeToAgentError(original);
+  logger.debug("normalizeToAgentError result", {
+    type: normalized.constructor.name,
+    code: normalized.code,
+  });
   assertInstanceOf(normalized, AgentQueryError);
   assertEquals(normalized.message, "Regular error");
   assertEquals(normalized.cause, original);
@@ -314,27 +322,34 @@ Deno.test("AgentEventEmitter - listenerCount for non-existent event returns 0", 
 // =============================================================================
 
 // Minimal valid agent definition for testing
-function createMinimalDefinition(): AgentDefinition {
+function createMinimalDefinition(): ResolvedAgentDefinition {
   return {
     name: "test-agent",
     displayName: "Test Agent",
     description: "Test agent for unit tests",
     version: "1.0.0",
-    behavior: {
-      systemPromptPath: "./prompts/system.md",
-      completionType: "iterationBudget",
-      completionConfig: { maxIterations: 10 },
-      allowedTools: [],
-      permissionMode: "plan",
-    },
     parameters: {},
-    prompts: {
-      registry: "./prompts/registry.json",
-      fallbackDir: "./prompts",
-    },
-    logging: {
-      directory: "./logs",
-      format: "jsonl",
+    runner: {
+      flow: {
+        systemPromptPath: "./prompts/system.md",
+        prompts: {
+          registry: "./prompts/registry.json",
+          fallbackDir: "./prompts",
+        },
+      },
+      completion: {
+        type: "iterationBudget",
+        config: { maxIterations: 10 },
+      },
+      boundaries: {
+        allowedTools: [],
+        permissionMode: "plan",
+      },
+      execution: {},
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
+      },
     },
   };
 }
@@ -463,7 +478,12 @@ Deno.test("Completion Validation - hasAICompletionDeclaration detects status=com
       summary: "Task done",
     },
   });
-  assertEquals(hasAICompletionDeclaration(summary), true);
+  logger.debug("hasAICompletionDeclaration input", {
+    status: summary.structuredOutput?.status,
+  });
+  const result = hasAICompletionDeclaration(summary);
+  logger.debug("hasAICompletionDeclaration result", { result });
+  assertEquals(result, true);
 });
 
 Deno.test("Completion Validation - hasAICompletionDeclaration detects next_action.action=complete", () => {
@@ -507,7 +527,15 @@ Deno.test("Completion Validation - FormatValidator validates JSON in assistant r
     },
   };
 
+  logger.debug("FormatValidator input", {
+    formatType: format.type,
+    responseCount: summary.assistantResponses.length,
+  });
   const result = validator.validate(summary, format);
+  logger.debug("FormatValidator result", {
+    valid: result.valid,
+    hasExtracted: result.extracted !== undefined,
+  });
 
   assertEquals(result.valid, true);
   assertEquals((result.extracted as Record<string, unknown>).status, "success");

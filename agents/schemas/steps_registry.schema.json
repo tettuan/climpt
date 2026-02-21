@@ -153,7 +153,7 @@
         "model": {
           "type": "string",
           "enum": ["sonnet", "opus", "haiku"],
-          "description": "Model to use for this step. Resolution order: step.model > behavior.defaultModel > 'opus' (system default). Use haiku for cost optimization on routine steps."
+          "description": "Model to use for this step. Resolution order: step.model > runner.flow.defaultModel > 'opus' (system default). Use haiku for cost optimization on routine steps."
         }
       }
     },

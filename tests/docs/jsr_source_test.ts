@@ -12,6 +12,9 @@ import {
   getLatestVersion,
   getManifest,
 } from "../../src/docs/source.ts";
+import { createTestLogger } from "../test-utils.ts";
+
+const logger = createTestLogger("docs-jsr");
 
 // Check both permission and actual connectivity (sandbox may block jsr.io)
 let hasNetAccess = false;
@@ -37,6 +40,7 @@ Deno.test({
   ignore: !hasNetAccess,
   fn: async () => {
     const version = await getLatestVersion();
+    logger.debug("getLatestVersion result", { version });
     assert(typeof version === "string", "Version should be a string");
     assert(version.length > 0, "Version should not be empty");
     // Version should match semver pattern (e.g., "1.0.0" or "1.0.0-beta.1")
@@ -57,6 +61,10 @@ Deno.test({
   fn: async () => {
     const version = await getLatestVersion();
     const manifest = await getManifest(version);
+    logger.debug("getManifest result", {
+      version: manifest.version,
+      entryCount: manifest.entries.length,
+    });
 
     assert(
       typeof manifest.version === "string",
@@ -120,7 +128,9 @@ Deno.test({
 
     if (manifest.entries.length > 0) {
       const entry = manifest.entries[0];
+      logger.debug("getContent input", { version, path: entry.path });
       const content = await getContent(version, entry.path);
+      logger.debug("getContent result", { contentLength: content.length });
 
       assert(typeof content === "string", "Content should be a string");
       assert(content.length > 0, "Content should not be empty");
@@ -176,6 +186,11 @@ Deno.test({
     // Pick first entry
     const entry = manifest.entries[0];
     const content = await getContent(version, entry.path);
+    logger.debug("integration fetch result", {
+      version,
+      entryId: entry.id,
+      contentLength: content.length,
+    });
 
     assert(content.length > 0, "Content should not be empty");
     assertEquals(typeof content, "string", "Content should be string");

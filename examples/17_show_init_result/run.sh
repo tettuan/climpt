@@ -28,10 +28,10 @@ main() {
   echo ""
 
   info "Default permissionMode:"
-  jq -r '.behavior.permissionMode' "${AGENT_DIR}/agent.json"
+  jq -r '.runner.boundaries.permissionMode' "${AGENT_DIR}/agent.json"
 
   info "Default allowedTools:"
-  jq -r '.behavior.allowedTools[]' "${AGENT_DIR}/agent.json"
+  jq -r '.runner.boundaries.allowedTools[]' "${AGENT_DIR}/agent.json"
 
   success "Agent init result displayed."
 }

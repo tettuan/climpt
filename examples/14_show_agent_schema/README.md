@@ -7,4 +7,4 @@
 
 - `agents/schemas/agent.schema.json` exists
 - Schema is valid JSON (`jq empty` passes)
-- Schema contains `"behavior"` property definition
+- Schema contains `"runner"` property definition

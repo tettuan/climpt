@@ -61,7 +61,7 @@ registerHandler(
 
     const repo = args.repository as string | undefined;
     const stateChecker = new GitHubStateChecker(repo);
-    const githubConfig = definition.github as
+    const githubConfig = definition.runner.integrations?.github as
       | { defaultClosureAction?: string; labels?: Record<string, unknown> }
       | undefined;
     const issueConfig: IssueContractConfig = {
@@ -92,7 +92,7 @@ registerHandler(
 // iterationBudget (was: iterate) - Complete after N iterations
 registerHandler("iterationBudget", (_args, promptResolver, definition) => {
   const iterateHandler = new IterateCompletionHandler(
-    definition.behavior.completionConfig.maxIterations ??
+    definition.runner.completion.config.maxIterations ??
       AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
   );
   iterateHandler.setPromptResolver(promptResolver);
@@ -102,7 +102,7 @@ registerHandler("iterationBudget", (_args, promptResolver, definition) => {
 // keywordSignal (was: manual) - Complete when LLM outputs specific keyword
 registerHandler("keywordSignal", (_args, promptResolver, definition) => {
   const manualHandler = new ManualCompletionHandler(
-    definition.behavior.completionConfig.completionKeyword ?? "TASK_COMPLETE",
+    definition.runner.completion.config.completionKeyword ?? "TASK_COMPLETE",
   );
   manualHandler.setPromptResolver(promptResolver);
   return manualHandler;
@@ -111,7 +111,7 @@ registerHandler("keywordSignal", (_args, promptResolver, definition) => {
 // checkBudget - Complete after N status checks
 registerHandler("checkBudget", (_args, promptResolver, definition) => {
   const checkHandler = new CheckBudgetCompletionHandler(
-    definition.behavior.completionConfig.maxChecks ?? 10,
+    definition.runner.completion.config.maxChecks ?? 10,
   );
   checkHandler.setPromptResolver(promptResolver);
   return checkHandler;
@@ -119,14 +119,14 @@ registerHandler("checkBudget", (_args, promptResolver, definition) => {
 
 // structuredSignal - Complete when LLM outputs specific JSON signal
 registerHandler("structuredSignal", (_args, promptResolver, definition) => {
-  if (!definition.behavior.completionConfig.signalType) {
+  if (!definition.runner.completion.config.signalType) {
     throw new Error(
       "structuredSignal completion type requires signalType in completionConfig",
     );
   }
   const signalHandler = new StructuredSignalCompletionHandler(
-    definition.behavior.completionConfig.signalType,
-    definition.behavior.completionConfig.requiredFields,
+    definition.runner.completion.config.signalType,
+    definition.runner.completion.config.requiredFields,
   );
   signalHandler.setPromptResolver(promptResolver);
   return signalHandler;
@@ -134,7 +134,7 @@ registerHandler("structuredSignal", (_args, promptResolver, definition) => {
 
 // composite - Combines multiple conditions
 registerHandler("composite", (args, promptResolver, definition, agentDir) => {
-  const { completionConfig } = definition.behavior;
+  const { config: completionConfig } = definition.runner.completion;
   if (!completionConfig.conditions || !completionConfig.operator) {
     throw new Error(
       "composite completion type requires conditions and operator in completionConfig",
@@ -155,7 +155,7 @@ registerHandler("composite", (args, promptResolver, definition, agentDir) => {
 registerHandler(
   "stepMachine",
   async (_args, promptResolver, definition, agentDir) => {
-    const { completionConfig } = definition.behavior;
+    const { config: completionConfig } = definition.runner.completion;
 
     // Load steps registry for step machine
     const registryPath = completionConfig.registryPath ??
@@ -199,14 +199,14 @@ registerHandler(
 registerHandler(
   "custom",
   async (_args, _promptResolver, definition, agentDir) => {
-    if (!definition.behavior.completionConfig.handlerPath) {
+    if (!definition.runner.completion.config.handlerPath) {
       throw new Error(
         "Custom completion type requires handlerPath in completionConfig",
       );
     }
     return await loadCustomHandler(
       definition,
-      definition.behavior.completionConfig.handlerPath,
+      definition.runner.completion.config.handlerPath,
       _args,
       agentDir,
     );
@@ -228,14 +228,14 @@ export async function createRegistryCompletionHandler(
   args: Record<string, unknown>,
   agentDir: string,
 ): Promise<CompletionHandler> {
-  const { completionType } = definition.behavior;
+  const { type: completionType } = definition.runner.completion;
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
     agentName: definition.name,
     agentDir,
-    registryPath: definition.prompts.registry,
-    fallbackDir: definition.prompts.fallbackDir,
+    registryPath: definition.runner.flow.prompts.registry,
+    fallbackDir: definition.runner.flow.prompts.fallbackDir,
   });
 
   // Get factory from registry

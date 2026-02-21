@@ -93,7 +93,7 @@ export class QueryExecutor {
       const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
       // Apply stepKind-based tool gating if we have step info
-      let allowedTools = this.deps.definition.behavior.allowedTools;
+      let allowedTools = this.deps.definition.runner.boundaries.allowedTools;
       let currentStepKind: StepKind | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
 
@@ -116,7 +116,7 @@ export class QueryExecutor {
         cwd: ctx.cwd,
         systemPrompt,
         allowedTools,
-        permissionMode: this.deps.definition.behavior.permissionMode,
+        permissionMode: this.deps.definition.runner.boundaries.permissionMode,
         settingSources: ["user", "project"],
         plugins,
         resume: sessionId,
@@ -127,7 +127,7 @@ export class QueryExecutor {
         ) => {
           if (toolName === "AskUserQuestion") {
             const autoResponse =
-              this.deps.definition.behavior.askUserAutoResponse ??
+              this.deps.definition.runner.flow.askUserAutoResponse ??
                 "Use your best judgment to choose the optimal approach. No need to confirm again.";
             const questions = input.questions as Array<{
               question: string;
@@ -153,7 +153,7 @@ export class QueryExecutor {
 
       // Configure sandbox
       const sandboxConfig = mergeSandboxConfig(
-        this.deps.definition.behavior.sandboxConfig,
+        this.deps.definition.runner.boundaries.sandbox,
       );
       if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;

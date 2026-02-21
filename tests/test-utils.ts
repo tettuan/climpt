@@ -6,6 +6,37 @@
  */
 
 import type { Command } from "../src/mcp/types.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+// =============================================================================
+// Logging Utilities
+// =============================================================================
+
+/**
+ * Create a BreakdownLogger for tests, controlled by the BREAKDOWN_LOG env var.
+ *
+ * When `BREAKDOWN_LOG` is set to a truthy value (any non-empty string),
+ * `LOG_LEVEL` is forced to `"debug"` so that all log output is visible on the
+ * console. When the variable is unset or empty, the logger is still returned
+ * but the default log-level filtering applies (info and above), keeping test
+ * output quiet.
+ *
+ * @param key - Logger key used for filtering via `LOG_KEY`
+ * @returns A configured BreakdownLogger instance
+ *
+ * @example
+ * ```ts
+ * import { createTestLogger } from "../tests/test-utils.ts";
+ * const logger = createTestLogger("my-component");
+ * logger.debug("trace info", { data: 42 });
+ * ```
+ */
+export function createTestLogger(key: string): BreakdownLogger {
+  if (Deno.env.get("BREAKDOWN_LOG")) {
+    Deno.env.set("LOG_LEVEL", "debug");
+  }
+  return new BreakdownLogger(key);
+}
 
 // =============================================================================
 // Temporary Directory Utilities

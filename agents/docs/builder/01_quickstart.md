@@ -10,9 +10,12 @@ Before creating files, understand what each piece does:
 ┌─────────────────────────────────────────────────────────────┐
 │  agent.json                                                 │
 │  ├── name, description      ← What is this Agent?          │
-│  ├── completionType         ← When does it stop?           │
 │  ├── parameters             ← What inputs does it accept?  │
-│  └── behavior               ← How does it behave?          │
+│  └── runner                 ← How does it behave?           │
+│      ├── flow               ← Prompts, system prompt       │
+│      ├── completion         ← When does it stop?            │
+│      ├── boundaries         ← Tools, permissions, sandbox   │
+│      └── logging            ← Log output config             │
 ├─────────────────────────────────────────────────────────────┤
 │  steps_registry.json                                        │
 │  ├── entryStepMapping       ← Where does it start?         │
@@ -32,11 +35,11 @@ Before creating files, understand what each piece does:
 
 ### Key Decisions
 
-| Decision           | Options                                                            | Impact                             |
-| ------------------ | ------------------------------------------------------------------ | ---------------------------------- |
-| **completionType** | `externalState`, `iterationBudget`, `keywordSignal`, `stepMachine` | Determines how Agent knows to stop |
-| **Step flow**      | Linear, branching, looping                                         | Determines task complexity         |
-| **Output schema**  | Minimal, detailed                                                  | Determines response validation     |
+| Decision                   | Options                                                            | Impact                             |
+| -------------------------- | ------------------------------------------------------------------ | ---------------------------------- |
+| **runner.completion.type** | `externalState`, `iterationBudget`, `keywordSignal`, `stepMachine` | Determines how Agent knows to stop |
+| **Step flow**              | Linear, branching, looping                                         | Determines task complexity         |
+| **Output schema**          | Minimal, detailed                                                  | Determines response validation     |
 
 For concept details, see
 [Agent Configuration Concepts](../../guides/en/00-1-concepts.md).
@@ -63,7 +66,8 @@ Claude Code で以下のいずれかを実行:
 - 「新しい agent を作成」
 - 「create agent」
 
-Skill が agent 名や completionType を質問し、必要なファイルを自動生成します。
+Skill が agent 名や `runner.completion.type`
+を質問し、必要なファイルを自動生成します。
 
 #### CLI から直接実行
 
@@ -144,20 +148,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 ```json
 {
-  "version": "1.10.0",
+  "version": "1.12.0",
   "name": "my-agent",
   "displayName": "My Agent",
   "description": "Agent の説明",
-
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "externalState",
-    "completionConfig": {
-      "maxIterations": 50
-    },
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "bypassPermissions"
-  },
 
   "parameters": {
     "issue": {
@@ -168,14 +162,28 @@ mkdir -p .agent/${AGENT_NAME}/schemas
     }
   },
 
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-
-  "logging": {
-    "directory": "tmp/logs/agents/my-agent",
-    "format": "jsonl"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "completion": {
+      "type": "externalState",
+      "config": {
+        "maxIterations": 50
+      }
+    },
+    "boundaries": {
+      "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+      "permissionMode": "bypassPermissions"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/my-agent",
+      "format": "jsonl"
+    }
   }
 }
 ```
@@ -210,7 +218,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 この順番で埋めておけば、必須条件を満たしていない場合は Runner がエラーで止まり、
 ドキュメントを読み返さなくても原因が明示される。
 
-### completionType の選択
+### runner.completion.type の選択
 
 | タイプ            | 用途                | 設定                  |
 | ----------------- | ------------------- | --------------------- |
@@ -227,7 +235,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 を作るときは、**以下の3点を満たしていれば Runner
 がそのまま受け入れてくれる**という順番で作業する。
 
-1. `entryStepMapping` で `completionType` ごとの開始 Step を明示する
+1. `entryStepMapping` で `runner.completion.type` ごとの開始 Step を明示する
 2. すべての Flow/Completion Step に `structuredGate` と `transitions` を持たせる
 3. 同じ Step に `outputSchemaRef` を付け、`schema` には JSON Pointer
    (`#/definitions/<stepId>`) を記載して後述の Schema ファイルへ誘導する
@@ -236,9 +244,6 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 のロード段階で即エラーになるため、上から順に埋めれば迷わない。
 
 完成形は次のとおり:
-
-````json
-{
 
 ```json
 {
@@ -252,7 +257,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}.md",
 
   "entryStepMapping": {
-    "issue": "initial.default",
+    "externalState": "initial.default",
     "default": "initial.default",
     "stepMachine": "initial.default"
   },
@@ -355,7 +360,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
     }
   }
 }
-````
+```
 
 ### Structured Output Schema の用意
 
@@ -682,18 +687,17 @@ Agent ロジックが注入する変数:
 
 ## entryStepMapping Requirements
 
-`completionType` に応じて、`entryStepMapping` に必要なキーを定義する。
+`runner.completion.type` に応じて、`entryStepMapping` に必要なキーを定義する。
 不足しているとロード時にエラーになる。
 
-| completionType  | Required entryStepMapping key |
-| --------------- | ----------------------------- |
-| `externalState` | `externalState`               |
-| `issue`         | `issue`                       |
-| `iterate`       | `iterate`                     |
-| `stepMachine`   | `stepMachine`                 |
-| `default`       | `default`                     |
+| runner.completion.type | Required entryStepMapping key |
+| ---------------------- | ----------------------------- |
+| `externalState`        | `externalState`               |
+| `iterationBudget`      | `iterationBudget`             |
+| `stepMachine`          | `stepMachine`                 |
+| `default`              | `default`                     |
 
-例: `completionType: "externalState"` の場合:
+例: `runner.completion.type: "externalState"` の場合:
 
 ```json
 "entryStepMapping": {

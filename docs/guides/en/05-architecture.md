@@ -98,7 +98,7 @@ Climpt has evolved incrementally and now consists of five layers.
 
 | Layer           | Role                                     | Context         | Implementation                                                              |
 | --------------- | ---------------------------------------- | --------------- | --------------------------------------------------------------------------- |
-| Top Layer       | GitHub integration, iteration control    | SDK Session #1  | `agents/iterator/scripts/agent.ts`                                          |
+| Top Layer       | GitHub integration, iteration control    | SDK Session #1  | `agents/scripts/run-agent.ts`                                               |
 | Middle Layer    | Parameter conversion, command resolution | Plugin Context  | `plugins/climpt-agent/skills/delegate-climpt-agent/SKILL.md`                |
 | Execution Layer | Prompt retrieval, autonomous execution   | SDK Session #2  | `plugins/climpt-agent/skills/delegate-climpt-agent/scripts/climpt-agent.ts` |
 | Tool Layer      | CLI/MCP invocation                       | CLI/MCP Process | `cli.ts`, `mcp.ts`                                                          |
