@@ -5,7 +5,11 @@
  * Provides ConfigurationContract implementation
  */
 
-import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
+import type {
+  AgentDefinition,
+  ResolvedAgentDefinition,
+  ValidationResult,
+} from "../src_common/types.ts";
 import type { ConfigurationContract } from "../src_common/contracts.ts";
 import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { validate, validateComplete } from "./validator.ts";
@@ -30,7 +34,7 @@ export { getAgentDir } from "./loader.ts";
 export async function loadConfiguration(
   agentName: string,
   baseDir: string,
-): Promise<Readonly<AgentDefinition>> {
+): Promise<Readonly<ResolvedAgentDefinition>> {
   const agentDir = getAgentDir(agentName, baseDir);
 
   // Load raw configuration

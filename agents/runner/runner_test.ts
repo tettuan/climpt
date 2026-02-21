@@ -20,7 +20,7 @@ import {
 } from "./errors.ts";
 import { AgentRunner } from "./runner.ts";
 import { AgentEventEmitter } from "./events.ts";
-import type { AgentDefinition } from "../src_common/types.ts";
+import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 
 const logger = new BreakdownLogger("iteration");
 
@@ -322,7 +322,7 @@ Deno.test("AgentEventEmitter - listenerCount for non-existent event returns 0", 
 // =============================================================================
 
 // Minimal valid agent definition for testing
-function createMinimalDefinition(): AgentDefinition {
+function createMinimalDefinition(): ResolvedAgentDefinition {
   return {
     name: "test-agent",
     displayName: "Test Agent",
@@ -346,11 +346,9 @@ function createMinimalDefinition(): AgentDefinition {
         permissionMode: "plan",
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "./logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
       },
     },
   };

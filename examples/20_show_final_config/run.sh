@@ -20,24 +20,24 @@ main() {
     return 1
   fi
 
-  # Verify behavior key exists and is non-null
-  local behavior
-  behavior=$(jq '.behavior' "$AGENT_JSON" 2>&1) \
-    || { error "FAIL: jq '.behavior' failed"; return 1; }
-  if [[ "$behavior" == "null" ]]; then
-    error "FAIL: .behavior is null"; return 1
+  # Verify runner key exists and is non-null
+  local runner
+  runner=$(jq '.runner' "$AGENT_JSON" 2>&1) \
+    || { error "FAIL: jq '.runner' failed"; return 1; }
+  if [[ "$runner" == "null" ]]; then
+    error "FAIL: .runner is null"; return 1
   fi
-  info "behavior:"
-  echo "$behavior"
+  info "runner:"
+  echo "$runner"
   echo ""
 
   # Verify permissionMode exists
   local perm_mode
-  perm_mode=$(jq -r '.behavior.permissionMode // empty' "$AGENT_JSON" 2>&1)
+  perm_mode=$(jq -r '.runner.boundaries.permissionMode // empty' "$AGENT_JSON" 2>&1)
   if [[ -z "$perm_mode" ]]; then
-    error "FAIL: .behavior.permissionMode is missing or null"; return 1
+    error "FAIL: .runner.boundaries.permissionMode is missing or null"; return 1
   fi
-  success "PASS: behavior.permissionMode = ${perm_mode}"
+  success "PASS: runner.boundaries.permissionMode = ${perm_mode}"
 
   # Show system prompt
   local system_md="${AGENT_DIR}/prompts/system.md"

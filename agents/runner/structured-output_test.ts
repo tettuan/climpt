@@ -351,11 +351,9 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
         permissionMode: "plan",
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "./logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
       },
     },
   };

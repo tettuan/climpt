@@ -17,8 +17,10 @@ agent.json で Agent
     "flow": { "..." },
     "completion": { "..." },
     "boundaries": { "..." },
+    "integrations": { "..." },
+    "actions": { "..." },
     "execution": { "..." },
-    "telemetry": { "..." }
+    "logging": { "..." }
   }
 }
 ```
@@ -93,25 +95,23 @@ steps_registry.json で完了条件を定義する。詳細は
 
 ## runner.boundaries
 
-ツール許可、権限、外部連携。
+ツール許可、権限、サンドボックス（セキュリティポリシー）。
 
 ```json
 {
   "runner": {
     "boundaries": {
       "allowedTools": ["Read", "Write", "Edit", "Bash"],
-      "permissionMode": "plan | acceptEdits | bypassPermissions",
-      "defaultModel": "sonnet",
-      "github": { "..." },
-      "actions": { "..." }
+      "permissionMode": "plan | acceptEdits | bypassPermissions"
     }
   }
 }
 ```
 
-### defaultModel
+### runner.flow.defaultModel
 
 使用するモデルのデフォルト値。省略時は `opus`（システムデフォルト）。
+`runner.flow` 内に配置する。
 
 | 値       | 説明                           |
 | -------- | ------------------------------ |
@@ -124,16 +124,20 @@ steps_registry.json で完了条件を定義する。詳細は
 
 詳細: [design/09_model_selection.md](../design/09_model_selection.md)
 
+## runner.integrations
+
+外部サービス連携設定（省略可）。
+
 ### github
 
-外部連携（省略可）。`agents/scripts/run-agent.ts` が worktree の生成と
+GitHub 連携（省略可）。`agents/scripts/run-agent.ts` が worktree の生成と
 `--branch` / `--base-branch` を既に解決しており、Issue ごとに
 孤立した作業空間を用意できる。
 
 ```json
 {
   "runner": {
-    "boundaries": {
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {
@@ -205,6 +209,32 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
 `"action":"complete"` を使用し、エージェントに phase 完了のみを指示する。
 
+## runner.actions
+
+アクション検出と実行設定（省略可）。
+
+```json
+{
+  "runner": {
+    "actions": {
+      "enabled": true,
+      "types": ["issue-action", "project-plan", "review-result"],
+      "outputFormat": "json",
+      "handlers": {
+        "project-plan": "builtin:completion-signal"
+      }
+    }
+  }
+}
+```
+
+| フィールド     | 説明                                   |
+| -------------- | -------------------------------------- |
+| `enabled`      | アクション検出を有効化                 |
+| `types`        | 許可するアクションタイプのリスト       |
+| `outputFormat` | Markdown コードブロックマーカー形式    |
+| `handlers`     | ハンドラーマッピング (type -> handler) |
+
 ## runner.execution
 
 ワークツリーとファイナライズ設定。
@@ -261,18 +291,16 @@ CLI オプションでオーバーライド可能:
 - `--create-pr`: PR 作成モード
 - `--pr-target <branch>`: PR ターゲット指定
 
-## runner.telemetry
+## runner.logging
 
 ログ設定。
 
 ```json
 {
   "runner": {
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/{name}",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/{name}",
+      "format": "jsonl"
     }
   }
 }

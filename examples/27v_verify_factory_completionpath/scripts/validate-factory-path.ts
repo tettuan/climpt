@@ -113,9 +113,7 @@ function createTestDefinition(
         },
       },
       execution: {},
-      telemetry: {
-        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
-      },
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
   } as AgentDefinition;
 }

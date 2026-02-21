@@ -49,7 +49,9 @@
     },
     "boundaries": {
       "allowedTools": ["Skill", "Read", "Glob", "Grep", "Bash", "WebFetch", "Task"],
-      "permissionMode": "acceptEdits",
+      "permissionMode": "acceptEdits"
+    },
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {
@@ -57,12 +59,12 @@
           "review": "review",
           "gap": "implementation-gap"
         }
-      },
-      "actions": {
-        "enabled": true,
-        "types": ["review-action"],
-        "outputFormat": "json"
       }
+    },
+    "actions": {
+      "enabled": true,
+      "types": ["review-action"],
+      "outputFormat": "json"
     },
     "execution": {
       "worktree": {
@@ -70,12 +72,10 @@
         "root": "../worktree"
       }
     },
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/reviewer",
-        "format": "jsonl",
-        "maxFiles": 100
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/reviewer",
+      "format": "jsonl",
+      "maxFiles": 100
     }
   }
 }

@@ -2,11 +2,13 @@
  * Agent definition type definitions for climpt-agents
  *
  * Runner config hierarchy mirrors runtime ownership:
- * - flow: FlowOrchestrator (prompts, schemas, system prompt)
+ * - flow: FlowOrchestrator (prompts, schemas, system prompt, defaultModel, askUserAutoResponse)
  * - completion: CompletionManager (type, config)
- * - boundaries: QueryExecutor (tools, permissions, sandbox, github, actions)
+ * - boundaries: QueryExecutor (tools, permissions, sandbox)
+ * - integrations: external service configs (github)
+ * - actions: ActionDetector (detection, types, handlers)
  * - execution: run-agent.ts (worktree, finalize)
- * - telemetry: logging
+ * - logging: log output config
  */
 
 import type { CompletionConfigUnion, CompletionType } from "./completion.ts";
@@ -35,8 +37,28 @@ export interface RunnerConfig {
   flow: RunnerFlowConfig;
   completion: RunnerCompletionConfig;
   boundaries: RunnerBoundariesConfig;
+  integrations?: RunnerIntegrationsConfig;
+  actions?: ActionConfig;
+  execution?: RunnerExecutionConfig;
+  logging?: LoggingConfig;
+}
+
+/**
+ * RunnerConfig with execution and logging guaranteed present (after defaults applied).
+ */
+export interface ResolvedRunnerConfig extends RunnerConfig {
   execution: RunnerExecutionConfig;
-  telemetry: RunnerTelemetryConfig;
+  logging: LoggingConfig;
+}
+
+/**
+ * AgentDefinition with all optional runner fields resolved to concrete values.
+ * Produced by applyDefaults(); consumed by Runner and downstream code that
+ * needs guaranteed access to execution/logging.
+ */
+export interface ResolvedAgentDefinition
+  extends Omit<AgentDefinition, "runner"> {
+  runner: ResolvedRunnerConfig;
 }
 
 export interface RunnerFlowConfig {
@@ -49,6 +71,8 @@ export interface RunnerFlowConfig {
     base?: string;
     inspection?: boolean;
   };
+  defaultModel?: string;
+  askUserAutoResponse?: string;
 }
 
 export interface RunnerCompletionConfig {
@@ -60,19 +84,15 @@ export interface RunnerBoundariesConfig {
   allowedTools: string[];
   permissionMode: PermissionMode;
   sandbox?: SandboxConfig;
-  askUserAutoResponse?: string;
-  defaultModel?: string;
+}
+
+export interface RunnerIntegrationsConfig {
   github?: GitHubConfig;
-  actions?: ActionConfig;
 }
 
 export interface RunnerExecutionConfig {
   worktree?: WorktreeConfig;
   finalize?: FinalizeConfig;
-}
-
-export interface RunnerTelemetryConfig {
-  logging: LoggingConfig;
 }
 
 // ============================================================================

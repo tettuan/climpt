@@ -22,19 +22,19 @@ main() {
 
   # Show before
   info "Before: permissionMode"
-  show_cmd jq '.behavior.permissionMode' "$AGENT_JSON"
-  jq '.behavior.permissionMode' "$AGENT_JSON"
+  show_cmd jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
+  jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
 
   # Set permissionMode to "plan", limit to 1 iteration
   # Keep Write/Edit in allowedTools intentionally — plan mode should block them
-  jq '.behavior.permissionMode = "plan"
-    | .behavior.completionConfig.maxIterations = 1' \
+  jq '.runner.boundaries.permissionMode = "plan"
+    | .runner.completion.config.maxIterations = 1' \
     "$AGENT_JSON" > "${AGENT_JSON}.tmp" && mv "${AGENT_JSON}.tmp" "$AGENT_JSON"
 
   # Show after
   info "After: permissionMode"
-  show_cmd jq '.behavior.permissionMode' "$AGENT_JSON"
-  jq '.behavior.permissionMode' "$AGENT_JSON"
+  show_cmd jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
+  jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
 
   success "permissionMode set to 'plan'"
 }

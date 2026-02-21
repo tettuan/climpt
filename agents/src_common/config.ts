@@ -5,7 +5,7 @@
  */
 
 import { deepMerge } from "./deep-merge.ts";
-import type { AgentDefinition } from "./types.ts";
+import type { AgentDefinition, ResolvedAgentDefinition } from "./types.ts";
 import { ConfigService, type RuntimeConfig } from "../shared/config-service.ts";
 
 export type { RuntimeConfig };
@@ -48,12 +48,14 @@ export function getDefaults(): Partial<AgentDefinition> {
       boundaries: {
         allowedTools: [],
         permissionMode: "plan",
+      },
+      integrations: {
         github: { enabled: false },
       },
       execution: {
         worktree: { enabled: false },
       },
-      telemetry: { logging: { directory: "", format: "jsonl" } },
+      logging: { directory: "", format: "jsonl" },
     },
   };
 }
@@ -61,22 +63,26 @@ export function getDefaults(): Partial<AgentDefinition> {
 /**
  * Apply default values to agent definition
  */
-export function applyDefaults(definition: AgentDefinition): AgentDefinition {
+export function applyDefaults(
+  definition: AgentDefinition,
+): ResolvedAgentDefinition {
   const defaults = getDefaults();
   return {
     ...definition,
     runner: {
       ...definition.runner,
-      boundaries: {
-        ...definition.runner.boundaries,
-        github: definition.runner.boundaries.github ??
-          defaults.runner?.boundaries?.github,
+      integrations: {
+        ...definition.runner.integrations,
+        github: definition.runner.integrations?.github ??
+          defaults.runner?.integrations?.github,
       },
       execution: {
-        ...definition.runner.execution,
-        worktree: definition.runner.execution.worktree ??
+        ...(definition.runner.execution ?? { worktree: { enabled: false } }),
+        worktree: definition.runner.execution?.worktree ??
           defaults.runner?.execution?.worktree,
       },
+      logging: definition.runner.logging ??
+        defaults.runner?.logging ?? { directory: "", format: "jsonl" as const },
     },
   };
 }

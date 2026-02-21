@@ -61,7 +61,7 @@ registerHandler(
 
     const repo = args.repository as string | undefined;
     const stateChecker = new GitHubStateChecker(repo);
-    const githubConfig = definition.runner.boundaries.github as
+    const githubConfig = definition.runner.integrations?.github as
       | { defaultClosureAction?: string; labels?: Record<string, unknown> }
       | undefined;
     const issueConfig: IssueContractConfig = {

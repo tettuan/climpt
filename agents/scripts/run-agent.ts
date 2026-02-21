@@ -209,7 +209,7 @@ async function main(): Promise<void> {
     let workingDir = Deno.cwd();
     let worktreeResult: WorktreeSetupResult | undefined;
 
-    const worktreeConfig = definition.runner.execution.worktree;
+    const worktreeConfig = definition.runner.execution?.worktree;
     if (worktreeConfig?.enabled) {
       const setupConfig: WorktreeSetupConfig = {
         forceWorktree: true,
@@ -283,7 +283,7 @@ async function main(): Promise<void> {
 
       // Build finalize options from CLI args and agent definition
       const finalizeConfig: FinalizeConfig =
-        definition.runner.execution.finalize ?? {};
+        definition.runner.execution?.finalize ?? {};
       const finalizeOptions: FinalizeOptions = {
         autoMerge: !args["no-merge"] && (finalizeConfig.autoMerge ?? true),
         push: args.push || (finalizeConfig.push ?? false),

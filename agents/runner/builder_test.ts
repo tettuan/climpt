@@ -23,7 +23,7 @@ import {
   type PromptResolverFactory,
   type PromptResolverFactoryOptions,
 } from "./builder.ts";
-import type { AgentDefinition } from "../src_common/types.ts";
+import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { CompletionHandler } from "../completion/types.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
@@ -37,7 +37,7 @@ const logger = new BreakdownLogger("factory");
 /**
  * Create minimal valid agent definition for testing
  */
-function createMinimalDefinition(): AgentDefinition {
+function createMinimalDefinition(): ResolvedAgentDefinition {
   return {
     name: "test-agent",
     displayName: "Test Agent",
@@ -61,11 +61,9 @@ function createMinimalDefinition(): AgentDefinition {
         permissionMode: "plan",
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "./logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
       },
     },
   };

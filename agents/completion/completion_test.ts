@@ -88,9 +88,7 @@ function createMockAgentDefinition(
         permissionMode: "plan",
       },
       execution: {},
-      telemetry: {
-        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
-      },
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
   } as AgentDefinition;
 }
@@ -1262,6 +1260,8 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
       boundaries: {
         allowedTools: ["Bash", "Read"],
         permissionMode: "default",
+      },
+      integrations: {
         github: {
           enabled: true,
           labels: {},
@@ -1269,9 +1269,7 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
         },
       },
       execution: {},
-      telemetry: {
-        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
-      },
+      logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
   };
 
@@ -1316,6 +1314,8 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
       boundaries: {
         allowedTools: ["Bash", "Read"],
         permissionMode: "default",
+      },
+      integrations: {
         github: {
           enabled: true,
           labels: {},
@@ -1323,11 +1323,9 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
         },
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "/tmp/claude/test-logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "/tmp/claude/test-logs",
+        format: "jsonl",
       },
     },
   };
@@ -1371,6 +1369,8 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
       boundaries: {
         allowedTools: ["Bash", "Read"],
         permissionMode: "default",
+      },
+      integrations: {
         github: {
           enabled: true,
           labels: {},
@@ -1378,11 +1378,9 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
         },
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "/tmp/claude/test-logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "/tmp/claude/test-logs",
+        format: "jsonl",
       },
     },
   };

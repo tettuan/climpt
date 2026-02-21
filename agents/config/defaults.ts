@@ -8,7 +8,10 @@
  * we aim to reduce defaults and require them as explicit mandatory items.
  */
 
-import type { AgentDefinition } from "../src_common/types.ts";
+import type {
+  AgentDefinition,
+  ResolvedAgentDefinition,
+} from "../src_common/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { PATHS } from "../shared/paths.ts";
@@ -34,6 +37,8 @@ const DEFAULTS = {
     boundaries: {
       permissionMode: "plan" as const,
       allowedTools: ["*"],
+    },
+    integrations: {
       github: {
         enabled: false,
       },
@@ -43,11 +48,9 @@ const DEFAULTS = {
         enabled: false,
       },
     },
-    telemetry: {
-      logging: {
-        directory: PATHS.LOGS_DIR,
-        format: "jsonl" as const,
-      },
+    logging: {
+      directory: PATHS.LOGS_DIR,
+      format: "jsonl" as const,
     },
   },
   parameters: {} as Record<string, unknown>,
@@ -60,7 +63,7 @@ const DEFAULTS = {
  * @param raw - Raw definition from JSON
  * @returns AgentDefinition with defaults applied
  */
-export function applyDefaults(raw: unknown): AgentDefinition {
+export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
   if (!isRecord(raw)) {
     throw new Error("applyDefaults: input must be an object");
   }
@@ -73,14 +76,16 @@ export function applyDefaults(raw: unknown): AgentDefinition {
   const rawBoundaries = isRecord(rawRunner.boundaries)
     ? rawRunner.boundaries
     : {};
+  const rawIntegrations = isRecord(rawRunner.integrations)
+    ? rawRunner.integrations
+    : {};
   const rawExecution = isRecord(rawRunner.execution) ? rawRunner.execution : {};
-  const rawTelemetry = isRecord(rawRunner.telemetry) ? rawRunner.telemetry : {};
+  const rawLogging = isRecord(rawRunner.logging) ? rawRunner.logging : {};
 
   const rawPrompts = isRecord(rawFlow.prompts) ? rawFlow.prompts : {};
   const rawCompletionConfig = isRecord(rawCompletion.config)
     ? rawCompletion.config
     : {};
-  const rawLogging = isRecord(rawTelemetry.logging) ? rawTelemetry.logging : {};
 
   // Deep merge with defaults
   return {
@@ -102,6 +107,9 @@ export function applyDefaults(raw: unknown): AgentDefinition {
         },
         schemas: rawFlow
           .schemas as AgentDefinition["runner"]["flow"]["schemas"],
+        defaultModel: rawFlow.defaultModel as string | undefined,
+        askUserAutoResponse: rawFlow
+          .askUserAutoResponse as string | undefined,
       },
       completion: {
         type: (rawCompletion
@@ -122,33 +130,34 @@ export function applyDefaults(raw: unknown): AgentDefinition {
           DEFAULTS.runner.boundaries.permissionMode,
         sandbox: rawBoundaries
           .sandbox as AgentDefinition["runner"]["boundaries"]["sandbox"],
-        askUserAutoResponse: rawBoundaries
-          .askUserAutoResponse as string | undefined,
-        defaultModel: rawBoundaries.defaultModel as string | undefined,
-        github: (rawBoundaries
-          .github as AgentDefinition["runner"]["boundaries"]["github"]) ??
-          DEFAULTS.runner.boundaries.github,
-        actions: rawBoundaries
-          .actions as AgentDefinition["runner"]["boundaries"]["actions"],
       },
+      integrations: {
+        github: (rawIntegrations
+          .github as AgentDefinition["runner"]["integrations"] extends
+            { github?: infer G } ? G : never) ??
+          DEFAULTS.runner.integrations.github,
+      },
+      actions: rawRunner.actions as AgentDefinition["runner"]["actions"],
       execution: {
         worktree: (rawExecution
-          .worktree as AgentDefinition["runner"]["execution"]["worktree"]) ??
+          .worktree as NonNullable<
+            AgentDefinition["runner"]["execution"]
+          >["worktree"]) ??
           DEFAULTS.runner.execution.worktree,
         finalize: rawExecution
-          .finalize as AgentDefinition["runner"]["execution"]["finalize"],
+          .finalize as NonNullable<
+            AgentDefinition["runner"]["execution"]
+          >["finalize"],
       },
-      telemetry: {
-        logging: {
-          directory: (rawLogging.directory as string) ??
-            DEFAULTS.runner.telemetry.logging.directory,
-          format: (rawLogging
-            .format as AgentDefinition["runner"]["telemetry"]["logging"][
-              "format"
-            ]) ??
-            DEFAULTS.runner.telemetry.logging.format,
-          maxFiles: rawLogging.maxFiles as number | undefined,
-        },
+      logging: {
+        directory: (rawLogging.directory as string) ??
+          DEFAULTS.runner.logging.directory,
+        format: (rawLogging
+          .format as NonNullable<
+            AgentDefinition["runner"]["logging"]
+          >["format"]) ??
+          DEFAULTS.runner.logging.format,
+        maxFiles: rawLogging.maxFiles as number | undefined,
       },
     },
   };

@@ -127,7 +127,7 @@ export class QueryExecutor {
         ) => {
           if (toolName === "AskUserQuestion") {
             const autoResponse =
-              this.deps.definition.runner.boundaries.askUserAutoResponse ??
+              this.deps.definition.runner.flow.askUserAutoResponse ??
                 "Use your best judgment to choose the optimal approach. No need to confirm again.";
             const questions = input.questions as Array<{
               question: string;

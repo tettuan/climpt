@@ -23,7 +23,7 @@
 
 ```
 1. step.model                        (ステップ固有の指定)
-2. runner.boundaries.defaultModel    (エージェントのデフォルト)
+2. runner.flow.defaultModel    (エージェントのデフォルト)
 3. "opus"                            (システムデフォルト)
 ```
 
@@ -86,8 +86,8 @@ private resolveModelForStep(stepId?: string): ModelName {
   }
 
   // 2. エージェントのデフォルト
-  if (this.definition.runner.boundaries.defaultModel) {
-    return this.definition.runner.boundaries.defaultModel;
+  if (this.definition.runner.flow.defaultModel) {
+    return this.definition.runner.flow.defaultModel;
   }
 
   // 3. システムデフォルト

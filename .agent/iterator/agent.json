@@ -64,7 +64,9 @@
         "Task",
         "TodoWrite"
       ],
-      "permissionMode": "acceptEdits",
+      "permissionMode": "acceptEdits"
+    },
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {
@@ -77,12 +79,12 @@
           }
         },
         "defaultClosureAction": "label-only"
-      },
-      "actions": {
-        "enabled": true,
-        "types": ["issue-action", "project-plan", "review-result"],
-        "outputFormat": "json"
       }
+    },
+    "actions": {
+      "enabled": true,
+      "types": ["issue-action", "project-plan", "review-result"],
+      "outputFormat": "json"
     },
     "execution": {
       "worktree": {
@@ -90,12 +92,10 @@
         "root": "../worktree"
       }
     },
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/iterator",
-        "format": "jsonl",
-        "maxFiles": 100
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/iterator",
+      "format": "jsonl",
+      "maxFiles": 100
     }
   }
 }

@@ -48,11 +48,9 @@ function createValidDefinition(): AgentDefinition {
         permissionMode: "plan",
       },
       execution: {},
-      telemetry: {
-        logging: {
-          directory: "./logs",
-          format: "jsonl",
-        },
+      logging: {
+        directory: "./logs",
+        format: "jsonl",
       },
     },
   };
@@ -381,7 +379,7 @@ Deno.test("validateAgentDefinition - missing prompts.fallbackDir fails", () => {
 
 Deno.test("validateAgentDefinition - missing logging.directory fails", () => {
   const def = createValidDefinition();
-  def.runner.telemetry.logging.directory = "";
+  def.runner.logging!.directory = "";
 
   const result = validateAgentDefinition(def);
 
@@ -392,7 +390,7 @@ Deno.test("validateAgentDefinition - missing logging.directory fails", () => {
 Deno.test("validateAgentDefinition - invalid logging.format fails", () => {
   const def = createValidDefinition();
   // @ts-ignore - intentionally testing invalid state
-  def.runner.telemetry.logging.format = "xml";
+  def.runner.logging!.format = "xml";
 
   const result = validateAgentDefinition(def);
 

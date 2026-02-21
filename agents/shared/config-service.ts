@@ -194,16 +194,16 @@ export class ConfigService {
             ),
           },
         },
-        telemetry: {
-          ...definition.runner.telemetry,
-          logging: {
-            ...definition.runner.telemetry.logging,
-            directory:
-              definition.runner.telemetry.logging.directory.startsWith("/")
-                ? definition.runner.telemetry.logging.directory
-                : join(agentDir, definition.runner.telemetry.logging.directory),
-          },
-        },
+        ...(definition.runner.logging
+          ? {
+            logging: {
+              ...definition.runner.logging,
+              directory: definition.runner.logging.directory.startsWith("/")
+                ? definition.runner.logging.directory
+                : join(agentDir, definition.runner.logging.directory),
+            },
+          }
+          : {}),
       },
     };
   }

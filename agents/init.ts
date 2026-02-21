@@ -86,26 +86,26 @@ export async function initAgent(
       boundaries: {
         allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
         permissionMode: "acceptEdits",
-        actions: {
-          enabled: false,
-          types: [],
-          outputFormat: "action",
-        },
+      },
+      integrations: {
         github: {
           enabled: false,
         },
+      },
+      actions: {
+        enabled: false,
+        types: [],
+        outputFormat: "action",
       },
       execution: {
         worktree: {
           enabled: false,
         },
       },
-      telemetry: {
-        logging: {
-          directory: `tmp/logs/agents/${agentName}`,
-          format: "jsonl",
-          maxFiles: 50,
-        },
+      logging: {
+        directory: `tmp/logs/agents/${agentName}`,
+        format: "jsonl",
+        maxFiles: 50,
       },
     },
   };

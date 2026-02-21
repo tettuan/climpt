@@ -13,7 +13,11 @@
 // deno-lint-ignore-file no-console
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
-import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
+import type {
+  AgentDefinition,
+  ResolvedAgentDefinition,
+  ValidationResult,
+} from "../src_common/types.ts";
 import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
 import { ConfigService } from "../shared/config-service.ts";
@@ -29,7 +33,7 @@ const configService = new ConfigService();
 export async function loadAgentDefinition(
   agentName: string,
   cwd: string = Deno.cwd(),
-): Promise<AgentDefinition> {
+): Promise<ResolvedAgentDefinition> {
   const agentDir = configService.getAgentDir(agentName, cwd);
   const definitionPath = join(agentDir, PATHS.AGENT_JSON);
 
@@ -158,27 +162,27 @@ export function validateAgentDefinition(
       errors.push("runner.flow.prompts.fallbackDir is required");
     }
 
-    // Logging validation
-    if (def.runner.telemetry?.logging) {
-      if (!def.runner.telemetry.logging.directory) {
-        errors.push("runner.telemetry.logging.directory is required");
+    // Logging validation (logging is optional; defaults fill it in)
+    if (def.runner.logging) {
+      if (!def.runner.logging.directory) {
+        errors.push(
+          "runner.logging.directory is required when logging is specified",
+        );
       }
-      if (!def.runner.telemetry.logging.format) {
-        errors.push("runner.telemetry.logging.format is required");
+      if (!def.runner.logging.format) {
+        errors.push(
+          "runner.logging.format is required when logging is specified",
+        );
       }
       const validFormats = ["jsonl", "text"];
       if (
-        def.runner.telemetry.logging.format &&
-        !validFormats.includes(def.runner.telemetry.logging.format)
+        def.runner.logging.format &&
+        !validFormats.includes(def.runner.logging.format)
       ) {
         errors.push(
-          `runner.telemetry.logging.format must be one of: ${
-            validFormats.join(", ")
-          }`,
+          `runner.logging.format must be one of: ${validFormats.join(", ")}`,
         );
       }
-    } else {
-      errors.push("runner.telemetry.logging is required");
     }
   }
 

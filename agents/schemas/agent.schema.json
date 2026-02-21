@@ -51,9 +51,7 @@
       "required": [
         "flow",
         "completion",
-        "boundaries",
-        "execution",
-        "telemetry"
+        "boundaries"
       ],
       "properties": {
         "flow": {
@@ -65,11 +63,17 @@
         "boundaries": {
           "$ref": "#/definitions/RunnerBoundariesConfig"
         },
+        "integrations": {
+          "$ref": "#/definitions/RunnerIntegrationsConfig"
+        },
+        "actions": {
+          "$ref": "#/definitions/ActionConfig"
+        },
         "execution": {
           "$ref": "#/definitions/RunnerExecutionConfig"
         },
-        "telemetry": {
-          "$ref": "#/definitions/RunnerTelemetryConfig"
+        "logging": {
+          "$ref": "#/definitions/LoggingConfig"
         }
       }
     },
@@ -107,6 +111,15 @@
               "description": "Enable schema inspection mode"
             }
           }
+        },
+        "defaultModel": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Default model for all steps. Resolution order: step.model > runner.flow.defaultModel > 'opus' (system default)."
+        },
+        "askUserAutoResponse": {
+          "type": "string",
+          "description": "Auto-response message for AskUserQuestion tool. When set, the agent will automatically respond with this message instead of waiting for user input, enabling autonomous execution."
         }
       }
     },
@@ -220,21 +233,14 @@
         "sandbox": {
           "$ref": "#/definitions/SandboxConfig",
           "description": "Fine-grained sandbox configuration"
-        },
-        "askUserAutoResponse": {
-          "type": "string",
-          "description": "Auto-response message for AskUserQuestion tool. When set, the agent will automatically respond with this message instead of waiting for user input, enabling autonomous execution."
-        },
-        "defaultModel": {
-          "type": "string",
-          "enum": ["sonnet", "opus", "haiku"],
-          "description": "Default model for all steps. Resolution order: step.model > runner.boundaries.defaultModel > 'opus' (system default)."
-        },
+        }
+      }
+    },
+    "RunnerIntegrationsConfig": {
+      "type": "object",
+      "properties": {
         "github": {
           "$ref": "#/definitions/GitHubConfig"
-        },
-        "actions": {
-          "$ref": "#/definitions/ActionConfig"
         }
       }
     },
@@ -246,15 +252,6 @@
         },
         "finalize": {
           "$ref": "#/definitions/FinalizeConfig"
-        }
-      }
-    },
-    "RunnerTelemetryConfig": {
-      "type": "object",
-      "required": ["logging"],
-      "properties": {
-        "logging": {
-          "$ref": "#/definitions/LoggingConfig"
         }
       }
     },

@@ -33,32 +33,32 @@ Guide for migrating existing agents to the climpt-agents framework.
 v1.12.0 で `behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize`
 のフラット構造を `runner.*` 階層に置き換えた。全フィールドの対応表:
 
-| Old Path (v1.11.x)             | New Path (v1.12.0)                              |
-| ------------------------------ | ----------------------------------------------- |
-| `behavior.systemPromptPath`    | `runner.flow.systemPromptPath`                  |
-| `behavior.completionType`      | `runner.completion.type`                        |
-| `behavior.completionConfig`    | `runner.completion.config`                      |
-| `behavior.allowedTools`        | `runner.boundaries.allowedTools`                |
-| `behavior.permissionMode`      | `runner.boundaries.permissionMode`              |
-| `behavior.sandboxConfig`       | `runner.boundaries.sandbox`                     |
-| `behavior.askUserAutoResponse` | `runner.boundaries.askUserAutoResponse`         |
-| `behavior.defaultModel`        | `runner.boundaries.defaultModel`                |
-| `prompts.registry`             | `runner.flow.prompts.registry`                  |
-| `prompts.fallbackDir`          | `runner.flow.prompts.fallbackDir`               |
-| `github.enabled`               | `runner.boundaries.github.enabled`              |
-| `github.labels`                | `runner.boundaries.github.labels`               |
-| `github.defaultClosureAction`  | `runner.boundaries.github.defaultClosureAction` |
-| `actions.enabled`              | `runner.boundaries.actions.enabled`             |
-| `actions.allowedTypes`         | `runner.boundaries.actions.allowedTypes`        |
-| `worktree.enabled`             | `runner.execution.worktree.enabled`             |
-| `worktree.root`                | `runner.execution.worktree.root`                |
-| `finalize.autoMerge`           | `runner.execution.finalize.autoMerge`           |
-| `finalize.push`                | `runner.execution.finalize.push`                |
-| `finalize.remote`              | `runner.execution.finalize.remote`              |
-| `finalize.createPr`            | `runner.execution.finalize.createPr`            |
-| `finalize.prTarget`            | `runner.execution.finalize.prTarget`            |
-| `logging.directory`            | `runner.telemetry.logging.directory`            |
-| `logging.format`               | `runner.telemetry.logging.format`               |
+| Old Path (v1.11.x)             | New Path (v1.12.0)                                |
+| ------------------------------ | ------------------------------------------------- |
+| `behavior.systemPromptPath`    | `runner.flow.systemPromptPath`                    |
+| `behavior.completionType`      | `runner.completion.type`                          |
+| `behavior.completionConfig`    | `runner.completion.config`                        |
+| `behavior.allowedTools`        | `runner.boundaries.allowedTools`                  |
+| `behavior.permissionMode`      | `runner.boundaries.permissionMode`                |
+| `behavior.sandboxConfig`       | `runner.boundaries.sandbox`                       |
+| `behavior.askUserAutoResponse` | `runner.flow.askUserAutoResponse`                 |
+| `behavior.defaultModel`        | `runner.flow.defaultModel`                        |
+| `prompts.registry`             | `runner.flow.prompts.registry`                    |
+| `prompts.fallbackDir`          | `runner.flow.prompts.fallbackDir`                 |
+| `github.enabled`               | `runner.integrations.github.enabled`              |
+| `github.labels`                | `runner.integrations.github.labels`               |
+| `github.defaultClosureAction`  | `runner.integrations.github.defaultClosureAction` |
+| `actions.enabled`              | `runner.actions.enabled`                          |
+| `actions.allowedTypes`         | `runner.actions.types`                            |
+| `worktree.enabled`             | `runner.execution.worktree.enabled`               |
+| `worktree.root`                | `runner.execution.worktree.root`                  |
+| `finalize.autoMerge`           | `runner.execution.finalize.autoMerge`             |
+| `finalize.push`                | `runner.execution.finalize.push`                  |
+| `finalize.remote`              | `runner.execution.finalize.remote`                |
+| `finalize.createPr`            | `runner.execution.finalize.createPr`              |
+| `finalize.prTarget`            | `runner.execution.finalize.prTarget`              |
+| `logging.directory`            | `runner.logging.directory`                        |
+| `logging.format`               | `runner.logging.format`                           |
 
 **削除されたフィールド:**
 
@@ -132,11 +132,9 @@ v1.12.0 で `behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize`
       }
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/my-agent",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/my-agent",
+      "format": "jsonl"
     }
   }
 }
@@ -144,13 +142,15 @@ v1.12.0 で `behavior`/`prompts`/`logging`/`github`/`worktree`/`finalize`
 
 ### runner.* 設計原則
 
-| runner サブキー     | 担当モジュール       | 管理対象                     |
-| ------------------- | -------------------- | ---------------------------- |
-| `runner.flow`       | FlowOrchestrator     | プロンプト解決、ステップ遷移 |
-| `runner.completion` | CompletionManager    | 完了判定戦略と設定           |
-| `runner.boundaries` | QueryExecutor, Hooks | ツール許可、権限、外部連携   |
-| `runner.execution`  | run-agent.ts         | ワークツリー、ファイナライズ |
-| `runner.telemetry`  | Logger               | ログ出力設定                 |
+| runner サブキー       | 担当モジュール       | 管理対象                         |
+| --------------------- | -------------------- | -------------------------------- |
+| `runner.flow`         | FlowOrchestrator     | プロンプト解決、ステップ遷移     |
+| `runner.completion`   | CompletionManager    | 完了判定戦略と設定               |
+| `runner.boundaries`   | QueryExecutor, Hooks | ツール許可、権限、サンドボックス |
+| `runner.integrations` | CompletionManager    | 外部連携 (GitHub)                |
+| `runner.actions`      | ActionDetector       | アクション検出・タイプ           |
+| `runner.execution`    | run-agent.ts         | ワークツリー、ファイナライズ     |
+| `runner.logging`      | Logger               | ログ出力設定                     |
 
 ### Completion Condition Migration
 
@@ -261,11 +261,9 @@ const result = await query({
       "permissionMode": "plan"
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/code-reviewer",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/code-reviewer",
+      "format": "jsonl"
     }
   }
 }
@@ -324,11 +322,9 @@ gh issue view 42 --json body | claude --system-prompt "..."
       "github": { "enabled": true }
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/issue-resolver",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/issue-resolver",
+      "format": "jsonl"
     }
   }
 }
@@ -381,11 +377,9 @@ done
       "permissionMode": "plan"
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/iterative-task",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/iterative-task",
+      "format": "jsonl"
     }
   }
 }
@@ -440,11 +434,9 @@ claude --prompt "Review fixes"
       "permissionMode": "acceptEdits"
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/code-improver",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/code-improver",
+      "format": "jsonl"
     }
   }
 }
@@ -520,8 +512,8 @@ deno task agent --agent code-improver --topic "Improve authentication module"
   - [ ] runner.boundaries.permissionMode
   - [ ] runner.flow.prompts.registry
   - [ ] runner.flow.prompts.fallbackDir
-  - [ ] runner.telemetry.logging.directory
-  - [ ] runner.telemetry.logging.format
+  - [ ] runner.logging.directory
+  - [ ] runner.logging.format
 
 - [ ] Create `steps_registry.json`
   - **For traditional model (iterate/manual):**
@@ -546,8 +538,8 @@ deno task agent --agent code-improver --topic "Improve authentication module"
 ### Optional Items
 
 - [ ] parameters definition (if CLI parameters needed)
-- [ ] runner.boundaries.actions settings (if action output needed)
-- [ ] runner.boundaries.github settings (if GitHub integration needed)
+- [ ] runner.actions settings (if action output needed)
+- [ ] runner.integrations.github settings (if GitHub integration needed)
 - [ ] runner.execution.worktree settings (if Git worktree needed)
 - [ ] runner.execution.finalize settings (if auto-merge/PR needed)
 

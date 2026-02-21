@@ -178,11 +178,9 @@ Agent configurations are located in `/.agent/<agent-name>/`:
       }
     },
     "execution": {},
-    "telemetry": {
-      "logging": {
-        "directory": "tmp/logs/agents/code-reviewer",
-        "format": "jsonl"
-      }
+    "logging": {
+      "directory": "tmp/logs/agents/code-reviewer",
+      "format": "jsonl"
     }
   }
 }
@@ -190,12 +188,12 @@ Agent configurations are located in `/.agent/<agent-name>/`:
 
 ### GitHub Integration
 
-Configure Issue closure behavior in `runner.boundaries.github`:
+Configure Issue closure behavior in `runner.integrations.github`:
 
 ```json
 {
   "runner": {
-    "boundaries": {
+    "integrations": {
       "github": {
         "enabled": true,
         "labels": {
@@ -377,8 +375,7 @@ JSONL log entries for each iteration.
 
 ## Logs
 
-Logs are saved in JSONL format at the configured
-`runner.telemetry.logging.directory`:
+Logs are saved in JSONL format at the configured `runner.logging.directory`:
 
 ```
 tmp/logs/agents/my-agent/

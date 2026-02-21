@@ -151,25 +151,22 @@ export function validate(definition: unknown): ValidationResult {
       }
     }
 
-    // Validate runner.telemetry.logging
-    if (runner.telemetry && typeof runner.telemetry === "object") {
-      const telemetry = runner.telemetry as Record<string, unknown>;
-      if (telemetry.logging && typeof telemetry.logging === "object") {
-        const logging = telemetry.logging as Record<string, unknown>;
+    // Validate runner.logging
+    if (runner.logging && typeof runner.logging === "object") {
+      const logging = runner.logging as Record<string, unknown>;
 
-        if (
-          logging.format &&
-          !VALID_LOGGING_FORMATS.includes(logging.format as string)
-        ) {
-          errors.push(
-            `runner.telemetry.logging.format must be one of: ${
-              VALID_LOGGING_FORMATS.join(", ")
-            }`,
-          );
-        }
-        if (logging.directory && typeof logging.directory !== "string") {
-          errors.push("runner.telemetry.logging.directory must be a string");
-        }
+      if (
+        logging.format &&
+        !VALID_LOGGING_FORMATS.includes(logging.format as string)
+      ) {
+        errors.push(
+          `runner.logging.format must be one of: ${
+            VALID_LOGGING_FORMATS.join(", ")
+          }`,
+        );
+      }
+      if (logging.directory && typeof logging.directory !== "string") {
+        errors.push("runner.logging.directory must be a string");
       }
     }
   }
@@ -340,14 +337,17 @@ export function validateComplete(
     result.valid = false;
   }
 
-  if (!definition.runner?.telemetry?.logging?.directory) {
-    result.errors.push("runner.telemetry.logging.directory is required");
-    result.valid = false;
-  }
-
-  if (!definition.runner?.telemetry?.logging?.format) {
-    result.errors.push("runner.telemetry.logging.format is required");
-    result.valid = false;
+  // Logging is optional before defaults; after defaults it's guaranteed.
+  // Only validate if logging is present.
+  if (definition.runner?.logging) {
+    if (!definition.runner.logging.directory) {
+      result.errors.push("runner.logging.directory is required");
+      result.valid = false;
+    }
+    if (!definition.runner.logging.format) {
+      result.errors.push("runner.logging.format is required");
+      result.valid = false;
+    }
   }
 
   return result;
