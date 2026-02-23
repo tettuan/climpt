@@ -33,6 +33,30 @@ The agent runtime uses a **dual-loop architecture**:
 - **Flow Loop**: Advances through steps, manages handoff data, resolves prompts
 - **Completion Loop**: Validates completion conditions after completion signal
 
+### Runner vs. Agent Instances
+
+The Agent Runner is the shared execution engine for all agents. It is NOT an
+agent itself. Individual agents (Iterator, Reviewer, or custom) are concrete
+instances defined by configuration and prompts. The Runner executes them through
+the dual-loop architecture.
+
+```mermaid
+flowchart TB
+    subgraph Runner["Agent Runner (Shared Execution Engine)"]
+        direction LR
+        FL["Flow Loop<br>(step advancement)"] --> CL["Completion Loop<br>(validation)"]
+    end
+
+    IA[".agent/iterator/<br>agent.json + prompts/<br><b>Iterator Agent</b>"] -->|executed by| Runner
+    RA[".agent/reviewer/<br>agent.json + prompts/<br><b>Reviewer Agent</b>"] -->|executed by| Runner
+    CA[".agent/custom/<br>agent.json + prompts/<br><b>Custom Agent</b>"] -->|executed by| Runner
+
+    style Runner fill:#e8f4f8,stroke:#2196F3,stroke-width:2px
+    style IA fill:#fff3e0,stroke:#FF9800
+    style RA fill:#fff3e0,stroke:#FF9800
+    style CA fill:#fff3e0,stroke:#FF9800
+```
+
 ## Quick Start
 
 ### 1. Create a GitHub Issue

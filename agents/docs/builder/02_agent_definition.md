@@ -390,6 +390,25 @@ load(path) → parse → validate → 起動 or エラー
 
 ---
 
+## 用語: iterate 関連の用語整理
+
+コードベース内で "iterate" に関連する用語が複数存在する。混同を防ぐため
+以下に整理する。
+
+| Term              | Context         | Meaning                                                                | Location                                  |
+| ----------------- | --------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
+| `iterator`        | Agent name      | GitHub Issue を反復的に解決する具象ビルトインエージェント              | `.agent/iterator/agent.json`              |
+| `iterationBudget` | Completion type | N 回の iteration 後に停止する完了戦略                                  | `runner.completion.type` in agent.json    |
+| `iterate`         | Entry step key  | iterate モードの開始ステップを選択するエントリーステップマッピングキー | `entryStepMapping` in steps_registry.json |
+| `--iterate-max`   | CLI parameter   | 最大 iteration 回数を設定する（iterationBudget completion に適用）     | `definition.parameters` in agent.json     |
+
+> **注意**: これらの用語は関連しているが、それぞれ異なる概念である。 Iterator
+> Agent は具象エージェントインスタンスであり、completion type や
+> 実行モードではない。`iterationBudget` completion type は Iterator Agent
+> に限らず、任意のエージェントで使用できる。
+
+---
+
 ## 関連ドキュメント
 
 | ドキュメント                                                          | 内容                        |

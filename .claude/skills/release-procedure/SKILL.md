@@ -20,6 +20,24 @@ CIが `deno.json` と `src/version.ts` の一致を自動検証するので、`d
 
 ## リリースフロー
 
+各ステップに Gate check（前提条件の検知）を設ける。Gate が NG なら先に進まず原因を解消する。
+
+### Gate 0: Pre-flight（リリース作業開始前）
+
+```bash
+git fetch origin
+# 1. release/* ブランチにいるか
+git branch --show-current | grep -q '^release/' || echo "ERROR: release/* ブランチではない"
+# 2. ローカル develop が origin/develop と一致するか
+git rev-parse develop 2>/dev/null && git diff develop origin/develop --stat  # 差分があれば diverge
+# 3. 未コミット変更がないか
+git status --short  # 出力があれば未コミットあり
+# 4. 前リリースが develop に入っているか（直前の release/* ブランチのマージ確認）
+git log --oneline origin/develop -5  # 直前の release マージコミットが含まれているか目視確認
+```
+
+全て OK なら Step 1 へ進む。
+
 ### 1. release/* ブランチでバージョンアップ
 
 ```bash
@@ -46,6 +64,16 @@ chmod +x examples/**/*.sh examples/*.sh
 ./examples/07_clean.sh
 ```
 
+### Gate 4: release/* → develop 前の検知
+
+```bash
+git fetch origin
+# 1. release/* の全コミットが push 済みか
+git log origin/release/x.y.z..release/x.y.z --oneline  # 出力があれば未 push
+# 2. develop が origin/develop と同期しているか
+[ "$(git rev-parse origin/develop)" = "$(git rev-parse develop 2>/dev/null)" ] && echo "OK" || echo "ERROR: develop diverged — git checkout develop && git reset --hard origin/develop"
+```
+
 ### 4. release/* → develop
 
 ```bash
@@ -54,12 +82,34 @@ gh pr checks <PR番号> --watch  # CI全pass確認
 gh pr merge <PR番号> --merge   # ← ユーザー指示を待つ
 ```
 
+### Gate 5: develop → main 前の検知
+
+```bash
+git fetch origin
+# 1. Step 4 の PR がマージ済みか（release コミットが develop に入っているか）
+git log --oneline origin/develop -3  # release/x.y.z のマージコミットが見えるか
+# 2. ローカル develop を更新
+git checkout develop && git reset --hard origin/develop
+# 3. main が origin/main と同期しているか
+[ "$(git rev-parse origin/main)" = "$(git rev-parse main 2>/dev/null)" ] && echo "OK" || echo "ERROR: main diverged"
+```
+
 ### 5. develop → main
 
 ```bash
 gh pr create --base main --head develop --title "Release x.y.z" --body "..."
 gh pr checks <PR番号> --watch
 gh pr merge <PR番号> --merge   # ← ユーザー指示を待つ。mainマージでJSR publish自動実行
+```
+
+### Gate 6: vtag 前の検知
+
+```bash
+git fetch origin
+# 1. Step 5 の PR がマージ済みか
+git log --oneline origin/main -3  # develop マージコミットが見えるか
+# 2. 同名タグが既に存在しないか
+git tag -l "vx.y.z" | grep -q . && echo "ERROR: tag vx.y.z already exists" || echo "OK"
 ```
 
 ### 6. vtag作成 & クリーンアップ
