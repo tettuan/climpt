@@ -1,6 +1,6 @@
 ---
 name: agents-overview
-description: Use when user asks about 'iterator', 'reviewer', 'agent', 'autonomous', 'runIterator', 'runReviewer', or discusses agent architecture, completion handlers, prompt system, or agent configuration files like config.json, registry.json, steps_registry.json.
+description: Use when user asks about 'iterator', 'reviewer', 'autonomous', 'runIterator', 'runReviewer', 'agent architecture', 'agent config', 'agent definition', 'agent runner', 'completion handler', 'steps registry', or discusses completion handlers, prompt system, or agent configuration files like config.json, registry.json, steps_registry.json.
 allowed-tools: [Read, Glob, Grep, Bash]
 ---
 
