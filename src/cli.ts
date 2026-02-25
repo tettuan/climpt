@@ -96,6 +96,9 @@ Examples:
   # Generate from standard input
   echo "error log" | climpt-diagnose trace stack -e=test -o=./output
 
+Agent Runner:
+  deno run --allow-read agents/scripts/run-agent.ts --help
+
 MCP Server:
   Climpt supports Model Context Protocol (MCP) for AI assistant integration.
   For details: https://jsr.io/@aidevtool/climpt
