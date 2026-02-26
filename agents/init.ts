@@ -68,6 +68,12 @@ export async function initAgent(
         required: true,
         cli: "--topic",
       },
+      maxIterations: {
+        type: "number",
+        description: "Maximum iterations",
+        default: 10,
+        cli: "--max-iterations",
+      },
     },
     runner: {
       flow: {

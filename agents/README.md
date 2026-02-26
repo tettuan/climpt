@@ -170,6 +170,12 @@ Agent configurations are located in `/.agent/<agent-name>/`:
       "description": "File or directory to review",
       "required": true,
       "cli": "--target"
+    },
+    "maxIterations": {
+      "type": "number",
+      "description": "Maximum number of review iterations",
+      "default": 3,
+      "cli": "--max-iterations"
     }
   },
 
@@ -211,6 +217,9 @@ Agent configurations are located in `/.agent/<agent-name>/`:
   }
 }
 ```
+
+> `required` defaults to `false` when omitted; parameters without it are treated
+> as optional.
 
 ### GitHub Integration
 

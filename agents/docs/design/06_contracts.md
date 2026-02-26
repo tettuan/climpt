@@ -222,6 +222,9 @@ interface InputSpec {
 - **Why**: 参照元を `stepId.key` 形式で明示することで、Step Flow 設計図と実装を
   1:1 に保ち、手当たり次第の変数参照による複雑化を避ける。
 
+> **注意**: Step InputSpec の `required` はデフォルト `true`。Agent
+> ParameterDefinition の `required` はデフォルト `false`。
+
 ## エラーの契約
 
 ### 分類
