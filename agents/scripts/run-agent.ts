@@ -209,7 +209,7 @@ async function main(): Promise<void> {
       for (
         const [key, param] of Object.entries(definition.parameters)
       ) {
-        if (param.required && runnerArgs[key] === undefined) {
+        if (param.required === true && runnerArgs[key] === undefined) {
           // deno-lint-ignore no-console
           console.error(
             `Error: Required parameter ${param.cli} is not provided for agent '${agentName}'`,
