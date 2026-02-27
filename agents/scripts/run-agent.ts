@@ -7,12 +7,12 @@
  *
  * @example Run iterator agent
  * ```bash
- * deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
+ * deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123
  * ```
  *
  * @example Run reviewer agent
  * ```bash
- * deno run -A agents/scripts/run-agent.ts --agent reviewer --issue 123
+ * deno run --allow-all agents/scripts/run-agent.ts --agent reviewer --issue 123
  * ```
  */
 
@@ -32,15 +32,20 @@ import type {
 } from "../common/types.ts";
 import type { FinalizeConfig } from "../src_common/types.ts";
 
+const SCRIPT = "agents/scripts/run-agent.ts";
+const RUN = `deno run --allow-all ${SCRIPT}`;
+const RUN_RW = `deno run --allow-read --allow-write ${SCRIPT}`;
+const RUN_RO = `deno run --allow-read ${SCRIPT}`;
+
 function printHelp(): void {
   // deno-lint-ignore no-console
   console.log(`
 Unified Agent Runner
 
 Usage:
-  deno task agent --agent <name> [options]
-  deno task agent --init --agent <name>
-  deno task agent --list
+  ${RUN} --agent <name> [options]
+  ${RUN_RW} --init --agent <name>
+  ${RUN_RO} --list
 
 Required:
   --agent, -a <name>     Agent name (iterator, reviewer, etc.)
@@ -49,21 +54,6 @@ Options:
   --help, -h             Show this help message
   --init                 Initialize new agent with basic template
   --list                 List available agents
-
-Agent Initialization:
-  --init creates a minimal agent template in .agent/<name>/
-
-  For advanced scaffolding with step flow, use the scaffolder skill:
-    /agent-scaffolder (in Claude Code)
-
-  Note: The scaffolder skill requires the plugin-dev plugin.
-  Install: https://github.com/anthropics/claude-code-plugin-dev
-
-  Scaffolder features:
-    - Interactive completionType selection
-    - Step flow configuration (stepMachine)
-    - Schema generation for structured outputs
-    - C3L prompt structure setup
 
 Common Options:
   --issue, -i <number>   GitHub Issue number
@@ -81,14 +71,9 @@ Finalize Options:
   --pr-target <branch>   Target branch for PR (default: base branch)
 
 Examples:
-  # Initialize new agent
-  deno task agent --init --agent my-agent
-
-  # Work on a GitHub Issue
-  deno task agent --agent iterator --issue 123
-
-  # Review an issue
-  deno task agent --agent reviewer --issue 123
+  ${RUN_RW} --init --agent my-agent
+  ${RUN} --agent iterator --issue 123
+  ${RUN} --agent reviewer --issue 123
 
 Documentation:
   Quick Start:      agents/docs/builder/01_quickstart.md
