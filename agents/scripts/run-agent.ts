@@ -189,6 +189,21 @@ async function main(): Promise<void> {
       }
     }
 
+    // Validate required parameters
+    if (definition.parameters) {
+      for (
+        const [key, param] of Object.entries(definition.parameters)
+      ) {
+        if (param.required === true && runnerArgs[key] === undefined) {
+          // deno-lint-ignore no-console
+          console.error(
+            `Error: Required parameter ${param.cli} is not provided for agent '${agentName}'`,
+          );
+          Deno.exit(1);
+        }
+      }
+    }
+
     // Setup worktree if enabled in config
     // When worktree is enabled, branch name is auto-generated if not specified
     let workingDir = Deno.cwd();

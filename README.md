@@ -223,6 +223,12 @@ Minimal `agent.json`:
       "description": "GitHub Issue number",
       "required": true,
       "cli": "--issue"
+    },
+    "iterateMax": {
+      "type": "number",
+      "description": "Maximum iteration count",
+      "default": 3,
+      "cli": "--iterate-max"
     }
   },
   "prompts": {
@@ -235,6 +241,8 @@ Minimal `agent.json`:
   }
 }
 ```
+
+> `required` defaults to `false` when omitted; parameters without it are treated as optional.
 
 📖 [Agent Documentation](https://tettuan.github.io/climpt/)
 

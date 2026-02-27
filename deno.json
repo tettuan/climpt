@@ -1,6 +1,6 @@
 {
   "name": "@aidevtool/climpt",
-  "version": "1.12.2",
+  "version": "1.12.3",
   "description": "A CLI wrapper around @tettuan/breakdown for AI-assisted development instruction tools. Provides unified interface for creating, managing, and executing development instructions using TypeScript and JSON Schema for AI system interpretation.",
   "license": "MIT",
   "author": "tettuan",
@@ -73,6 +73,7 @@
     "agent": "deno run --allow-all agents/scripts/run-agent.ts",
     "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
     "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer",
+    "facilitate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent facilitator",
     "bump-version": "deno run --allow-read --allow-write --allow-run scripts/bump-version.ts",
     "generate-docs-manifest": "deno run --allow-read --allow-write scripts/generate-docs-manifest.ts",
     "verify-docs": "deno run --allow-read --allow-run .claude/skills/docs-consistency/scripts/verify-docs.ts"

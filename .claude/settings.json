@@ -66,18 +66,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net jsr:@aidevtool/ci --allow-dirty >&2 && echo '{}' || echo '{\"decision\": \"block\", \"reason\": \"CI failed\"}'",
-            "timeout": 120,
-            "statusMessage": "CI"
-          }
-        ]
-      }
     ]
   },
   "sandbox": {

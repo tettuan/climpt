@@ -188,6 +188,9 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 }
 ```
 
+> **Note**: `required` は省略可能（デフォルト: `false`）。`required: true`
+> を指定したパラメータのみ、CLI で未指定時にエラーとなる。
+
 #### Runner の検証
 
 - `entryStepMapping` または `entryStep` が未設定だと

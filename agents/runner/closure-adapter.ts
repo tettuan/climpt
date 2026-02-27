@@ -70,7 +70,9 @@ export class ClosureAdapter {
         stepId,
         {
           uv: {
-            issue_number: String(this.deps.args.issue ?? ""),
+            ...(this.deps.args.issue !== undefined && {
+              issue_number: String(this.deps.args.issue),
+            }),
           },
         },
         overrides,
