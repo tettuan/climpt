@@ -301,7 +301,7 @@
     },
     "ParameterDefinition": {
       "type": "object",
-      "required": ["type", "description", "required", "cli"],
+      "required": ["type", "description", "cli"],
       "properties": {
         "type": {
           "type": "string",
@@ -314,7 +314,8 @@
         },
         "required": {
           "type": "boolean",
-          "description": "Whether the parameter is required"
+          "default": false,
+          "description": "Whether the parameter is required (default: false)"
         },
         "default": {
           "description": "Default value"

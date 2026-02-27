@@ -160,7 +160,7 @@ export type PermissionMode =
 export interface ParameterDefinition {
   type: "string" | "number" | "boolean" | "array";
   description: string;
-  required: boolean;
+  required?: boolean;
   default?: unknown;
   cli: string;
   validation?: ParameterValidation;

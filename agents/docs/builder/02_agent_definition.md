@@ -330,6 +330,18 @@ CLI 引数の定義。`run-agent.ts`
 }
 ```
 
+| フィールド    | 必須 | 説明                                                 |
+| ------------- | ---- | ---------------------------------------------------- |
+| `type`        | Yes  | パラメータの型 (`string`, `number` など)             |
+| `description` | No   | パラメータの説明                                     |
+| `required`    | No   | 必須指定。省略時は `false`（optional）として扱われる |
+| `default`     | No   | デフォルト値                                         |
+| `cli`         | No   | 対応する CLI オプション名                            |
+
+> **Note**: `required` フィールドは省略可能。省略時は `false`（optional）として
+> 扱われる。`required: true` を指定したパラメータのみ、CLI
+> で未指定時にエラーとなる。
+
 ### completionType 別の必須パラメータ
 
 | completionType  | 必須パラメータ | 説明                                      |

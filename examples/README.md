@@ -22,7 +22,7 @@ on the state created by previous steps:
 21-23  Agent E2E      run, verify, save        → plan-mode tested
   ↓
 24-26  Agent Run      resolution, iterator,    → agents executed
-                      reviewer
+                      reviewer, facilitator
   ↓
 25v-26v Schema Verify  iterator, reviewer       → schema integrity verified
   ↓
@@ -94,6 +94,7 @@ PR creation (release/* → develop)
 | 24  | 24_prompt_resolution/       | Prompt file presence affects behavior | —                    | —                            | real resolver for all 4 scenarios               |
 | 25  | 25_run_iterator/            | Run iterator agent (no API key)       | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
 | 26  | 26_run_reviewer/            | Run reviewer agent (no API key)       | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
+| 26a | 26a_run_facilitator/        | Run facilitator agent (no --issue)    | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
 | 25v | 25v_verify_iterator_schema/ | Verify iterator JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent    |
 | 26v | 26v_verify_reviewer_schema/ | Verify reviewer JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent    |
 | 27  | 27_generate_registry/       | Generate registry.json                | `.agent/climpt/`     | `registry.json`              |                                                 |
