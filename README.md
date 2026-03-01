@@ -194,11 +194,12 @@ deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
 |----------|------|-------------|
 | Quick Start | `agents/docs/builder/01_quickstart.md` | Agent creation guide |
 | Definition Reference | `agents/docs/builder/02_agent_definition.md` | agent.json fields |
+| YAML Reference | `agents/docs/builder/reference/` | All fields with comments |
 | Troubleshooting | `agents/docs/builder/05_troubleshooting.md` | Common issues and solutions |
 | Design Docs | `agents/docs/design/` | Architecture and concepts |
 | JSON Schemas | `agents/schemas/` | agent.schema.json, steps_registry.schema.json |
 
-Use `deno task agent --help` for CLI options.
+Use `deno task agent --help` for CLI options. Use `deno task agent --agent <name> --validate` to validate configuration without running.
 
 ### Configuration Example
 

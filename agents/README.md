@@ -424,19 +424,23 @@ under `agents/docs/builder/`:
 
 Design:
 
-- [design/01_runner.md](./docs/design/01_runner.md) - Agent runner design
-- [design/02_prompt_system.md](./docs/design/02_prompt_system.md) - Prompt
-  system
-- [design/03_structured_outputs.md](./docs/design/03_structured_outputs.md) -
-  Structured output handling
-- [design/04_philosophy.md](./docs/design/04_philosophy.md) - Design philosophy
-- [design/05_core_architecture.md](./docs/design/05_core_architecture.md) -
+- [design/01_philosophy.md](./docs/design/01_philosophy.md) - Design philosophy
+- [design/02_core_architecture.md](./docs/design/02_core_architecture.md) -
   Flow/Completion architecture
-- [design/06_contracts.md](./docs/design/06_contracts.md) - Contracts & I/O
-- [design/07_extension_points.md](./docs/design/07_extension_points.md) -
-  Extension points
-- [design/08_step_flow_design.md](./docs/design/08_step_flow_design.md) - Flow
+- [design/03_concept_tree.md](./docs/design/03_concept_tree.md) - Concept
+  hierarchy
+- [design/04_step_flow_design.md](./docs/design/04_step_flow_design.md) - Flow
   step requirements
+- [design/05_structured_outputs.md](./docs/design/05_structured_outputs.md) -
+  Structured output handling
+- [design/06_runner.md](./docs/design/06_runner.md) - Agent runner design
+- [design/07_prompt_system.md](./docs/design/07_prompt_system.md) - Prompt
+  system
+- [design/08_model_selection.md](./docs/design/08_model_selection.md) - Model
+  selection
+- [design/09_contracts.md](./docs/design/09_contracts.md) - Contracts & I/O
+- [design/10_extension_points.md](./docs/design/10_extension_points.md) -
+  Extension points
 
 Builder/Guides:
 
@@ -447,12 +451,15 @@ Builder/Guides:
   builder guide
 - [builder/04_config_system.md](./docs/builder/04_config_system.md) - Config
   layering
-- [builder/migration_guide.md](./docs/builder/migration_guide.md) - Migration
-  guide
-- [builder/migration_incompatibilities.md](./docs/builder/migration_incompatibilities.md)
-  - Incompatibilities list
-- [builder/migration_template.md](./docs/builder/migration_template.md) -
-  Migration template
+- [builder/05_troubleshooting.md](./docs/builder/05_troubleshooting.md) -
+  Troubleshooting
+
+Reference:
+
+- [builder/reference/agent.yaml](./docs/builder/reference/agent.yaml) -
+  agent.json full field reference
+- [builder/reference/steps_registry.yaml](./docs/builder/reference/steps_registry.yaml) -
+  steps_registry.json full field reference
 
 ## Troubleshooting
 
