@@ -15,7 +15,7 @@ agent.json で Agent
   "parameters": { "..." },
   "runner": {
     "flow": { "..." },
-    "completion": { "..." },
+    "verdict": { "..." },
     "boundaries": { "..." },
     "integrations": { "..." },
     "actions": { "..." },
@@ -50,7 +50,7 @@ agent.json で Agent
 ```json
 {
   "runner": {
-    "completion": {
+    "verdict": {
       "type": "externalState | iterationBudget | keywordSignal | composite",
       "config": { "..." }
     }
@@ -73,7 +73,9 @@ agent.json で Agent
 
 ### validationConditions
 
-steps_registry.json で完了条件を定義する。詳細は
+Completion Loop の Stage 2（Validation）で実行される検証条件を
+steps_registry.json で定義する。ValidationChain が各 validator を実行し、 結果は
+Stage 3（Verdict）の VerdictHandler に渡される。詳細は
 `design/05_structured_outputs.md` を参照。
 
 ```json

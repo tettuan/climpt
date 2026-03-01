@@ -47,10 +47,15 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
      handoff を抽出。
    - Why: Step 定義を唯一の真実として扱い、AI 応答の揺らぎを遷移ロジックに
      伝播させないため。
-3. **Completion ループ**
-   - What: Flow が `closure.<domain>` に遷移したとき、ValidationChain が
-     structured output を検証し、Issue の状態や外部信号と照合。
-   - Why: 「やりきったか？」を別ループに分離し、Flow を単純化するため。
+3. **Completion ループ**（三段構成）
+   - What: Flow が `closure.<domain>` に遷移したとき、三段の手続きで Agent
+     完了を判定する。
+     1. **Closure** — AI に最終確認を促し、証跡を構造化する（ClosureManager）
+     2. **Validation** — 外部コマンド（git clean, tests
+        等）で成果物を機械的に検証する（ValidationChain）
+     3. **Verdict** — 検証結果に基づき Agent 完了 or retryPrompt を Flow
+        へ返す（VerdictHandler）
+   - Why: 各段が単一責務だけを持ち、判定ロジックが Flow に漏れない。
 4. **Fail-fast**
    - What: Schema 解決失敗や Intent 欠落を検出した時点で Flow を中断し、
      `FAILED_SCHEMA_RESOLUTION` 等で終了。
@@ -108,20 +113,20 @@ Work step のプロンプトには以下を明示する:
 
 ## 5. 実装との対応表
 
-| 設定項目 / 概念               | 実装コンポーネント                                      | Why                                  | 参照                              |
-| ----------------------------- | ------------------------------------------------------- | ------------------------------------ | --------------------------------- |
-| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)               | ループ全体の許可・制限を司る         | `design/06_runner.md`             |
-| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`                 | intent 解析と遷移の一元化            | `design/04_step_flow_design.md`   |
-| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`)   | structured output の契約チェック     | `design/05_structured_outputs.md` |
-| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)         | 設定→実行→Markdown への橋渡し        | `design/07_prompt_system.md`      |
-| VerdictType                   | `ValidationChain` (`agents/runner/validation-chain.ts`) | Flow からの handoff を完了判定へ接続 | `design/02_core_architecture.md`  |
+| 設定項目 / 概念               | 実装コンポーネント                                    | Why                                        | 参照                              |
+| ----------------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------- |
+| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)             | ループ全体の許可・制限を司る               | `design/06_runner.md`             |
+| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`               | intent 解析と遷移の一元化                  | `design/04_step_flow_design.md`   |
+| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`) | structured output の契約チェック           | `design/05_structured_outputs.md` |
+| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)       | 設定→実行→Markdown への橋渡し              | `design/07_prompt_system.md`      |
+| VerdictType                   | `VerdictHandler`（Strategy パターン）                 | completionSignal で起動し Agent 完了を判定 | `design/02_core_architecture.md`  |
 
 ## 6. Agent 構築チェックリスト（What/Why ベース）
 
 1. **目的を決める** — どの VerdictType が適合するか？ Why: 終了条件を明確にし、
    余計なステップを排除する。
-2. **Step グラフを書く** — 初期/継続/完了の 3 段を紙に起こす。 Why: Structured
-   Gate 設計を迷わないようにする。
+2. **Step グラフを書く** — 初期/継続/検証/完了の 4 種別を紙に起こす。 Why:
+   Structured Gate 設計を迷わないようにする。
 3. **Schema を用意する** — 各 Step の JSON Pointer を定義。 Why: Runner が
    fail-fast できるよう、契約を先に決める。
 4. **C3L プロンプトを配置** — Step グラフと同じ ID で Markdown を置く。 Why:
