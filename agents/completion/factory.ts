@@ -132,19 +132,37 @@ registerHandler("checkBudget", (_args, promptResolver, definition) => {
 });
 
 // structuredSignal - Complete when LLM outputs specific JSON signal
-registerHandler("structuredSignal", (_args, promptResolver, definition) => {
-  if (!definition.runner.completion.config.signalType) {
-    throw new Error(
-      "structuredSignal completion type requires signalType in completionConfig",
+registerHandler(
+  "structuredSignal",
+  async (_args, promptResolver, definition, agentDir) => {
+    if (!definition.runner.completion.config.signalType) {
+      throw new Error(
+        "structuredSignal completion type requires signalType in completionConfig",
+      );
+    }
+
+    // Load entry step ID from steps_registry if available
+    let entryStepId: string | undefined;
+    try {
+      const registryPath = `${agentDir}/${PATHS.STEPS_REGISTRY}`;
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+      entryStepId = registry.entryStepMapping?.structuredSignal as
+        | string
+        | undefined;
+    } catch {
+      // Graceful fallback: handler defaults to "initial.structured-signal"
+    }
+
+    const signalHandler = new StructuredSignalCompletionHandler(
+      definition.runner.completion.config.signalType,
+      definition.runner.completion.config.requiredFields,
+      entryStepId,
     );
-  }
-  const signalHandler = new StructuredSignalCompletionHandler(
-    definition.runner.completion.config.signalType,
-    definition.runner.completion.config.requiredFields,
-  );
-  signalHandler.setPromptResolver(promptResolver);
-  return signalHandler;
-});
+    signalHandler.setPromptResolver(promptResolver);
+    return signalHandler;
+  },
+);
 
 // composite - Combines multiple conditions
 registerHandler("composite", (args, promptResolver, definition, agentDir) => {

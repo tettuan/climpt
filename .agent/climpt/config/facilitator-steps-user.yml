@@ -1,0 +1,7 @@
+# Breakdown Configuration for facilitator-steps
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation|closure|retry)$"
+    layerType:
+      pattern: "^(statuscheck|discover|blockercheck|stalecheck|judge|facilitate|report|facilitation|complete)$"

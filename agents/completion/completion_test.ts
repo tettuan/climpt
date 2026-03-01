@@ -1781,6 +1781,50 @@ Deno.test("StructuredSignalCompletionHandler + resolver - buildContinuationPromp
   );
 });
 
+// --- StructuredSignalCompletionHandler + custom entryStepId ---
+
+Deno.test("StructuredSignalCompletionHandler + custom entryStepId - buildInitialPrompt uses mapped stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new StructuredSignalCompletionHandler(
+    "facilitator_decision",
+    undefined,
+    "initial.statuscheck",
+  );
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.statuscheck");
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_initial.statuscheck",
+  );
+});
+
+Deno.test("StructuredSignalCompletionHandler + custom entryStepId - buildContinuationPrompt derives continuation stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new StructuredSignalCompletionHandler(
+    "facilitator_decision",
+    undefined,
+    "initial.statuscheck",
+  );
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.statuscheck");
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.statuscheck",
+  );
+});
+
 // --- StepMachineCompletionHandler + resolver ---
 
 Deno.test("StepMachineCompletionHandler + resolver - buildInitialPrompt resolves via currentStepId", async () => {
