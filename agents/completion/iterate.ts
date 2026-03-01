@@ -34,7 +34,7 @@ export class IterateCompletionHandler extends BaseCompletionHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial_iterate", {
+      return await this.promptResolver.resolve("initial.iterate", {
         "uv-max_iterations": String(this.maxIterations),
       });
     }
@@ -74,7 +74,7 @@ Work efficiently to complete your goal within the iteration limit.
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation_iterate", {
+      return await this.promptResolver.resolve("continuation.iterate", {
         "uv-iteration": String(completedIterations),
         "uv-max_iterations": String(this.maxIterations),
         "uv-remaining": String(remaining),

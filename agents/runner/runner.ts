@@ -293,9 +293,22 @@ export class AgentRunner {
           this.pendingRetryPrompt = null;
           ctx.logger.debug("Using retry prompt from completion validation");
         } else if (iteration === 1) {
+          // Try stepPromptResolver for work-step rich prompts
           // deno-lint-ignore no-await-in-loop
-          prompt = await ctx.completionHandler.buildInitialPrompt();
-          promptSource = "user";
+          const workPrompt = await this.completionManager
+            .resolveWorkStepPrompt(stepId, this.buildUvVariables(iteration));
+          if (workPrompt) {
+            prompt = workPrompt.content;
+            promptSource = workPrompt.source;
+            ctx.logger.info(
+              `[WorkStepPrompt] Resolved via stepPromptResolver for "${stepId}"`,
+              { source: workPrompt.source, promptPath: workPrompt.promptPath },
+            );
+          } else {
+            // deno-lint-ignore no-await-in-loop
+            prompt = await ctx.completionHandler.buildInitialPrompt();
+            promptSource = "user";
+          }
           promptType = STEP_PHASE.INITIAL;
         } else {
           // Try closure adaptation for closure steps
@@ -307,12 +320,28 @@ export class AgentRunner {
             promptSource = closurePrompt.source;
             promptType = STEP_PHASE.CONTINUATION;
           } else {
+            // Try stepPromptResolver for work-step rich prompts
             // deno-lint-ignore no-await-in-loop
-            prompt = await ctx.completionHandler.buildContinuationPrompt(
-              iteration - 1,
-              lastSummary,
-            );
-            promptSource = "user";
+            const workPrompt = await this.completionManager
+              .resolveWorkStepPrompt(stepId, this.buildUvVariables(iteration));
+            if (workPrompt) {
+              prompt = workPrompt.content;
+              promptSource = workPrompt.source;
+              ctx.logger.info(
+                `[WorkStepPrompt] Resolved via stepPromptResolver for "${stepId}"`,
+                {
+                  source: workPrompt.source,
+                  promptPath: workPrompt.promptPath,
+                },
+              );
+            } else {
+              // deno-lint-ignore no-await-in-loop
+              prompt = await ctx.completionHandler.buildContinuationPrompt(
+                iteration - 1,
+                lastSummary,
+              );
+              promptSource = "user";
+            }
             promptType = STEP_PHASE.CONTINUATION;
           }
         }
@@ -661,6 +690,20 @@ export class AgentRunner {
       );
     }
     return AGENT_LIMITS.FALLBACK_MAX_ITERATIONS;
+  }
+
+  /**
+   * Build UV variables from CLI args for stepPromptResolver.
+   */
+  private buildUvVariables(iteration: number): Record<string, string> {
+    const uv: Record<string, string> = {};
+    if (this.args.issue !== undefined) {
+      uv.issue_number = String(this.args.issue);
+    }
+    if (iteration > 1) {
+      uv.completed_iterations = String(iteration - 1);
+    }
+    return uv;
   }
 
   /**
