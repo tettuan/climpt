@@ -6,6 +6,16 @@
 番号付きスクリプトが順序依存で並び、各ステップが前ステップの生成物に依存する。
 一覧と構造は `examples/README.md` の Directory Structure テーブルを参照。
 
+## cwd ルール
+
+**すべての run.sh は `examples/` ディレクトリを cwd として実行する。**
+
+- `climpt init` → `examples/.agent/climpt/` に作成される
+- agent init → `examples/.agent/<agent>/` に作成される
+- REPO_ROOT のファイル参照は絶対パスを使う
+- `deno task` は REPO_ROOT の deno.json に依存するため使わない。代わりに
+  `deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts"` で直接実行する
+
 ## Why
 
 - 順序依存: 各 example は前ステップの状態に依存する。順序を守らないと失敗する
@@ -13,6 +23,8 @@
   で走らせると壊れる
 - 状態リセット: `31_clean`
   で全アーティファクトが消える。途中再開は不可能で最初からやり直し
+- 環境分離: examples は REPO_ROOT の `.agent/` を汚染しない。 `examples/.agent/`
+  を独立した作業環境として使う
 
 ## How
 

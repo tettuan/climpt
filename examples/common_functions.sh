@@ -2,13 +2,16 @@
 # common_functions.sh - Shared functions for Climpt examples
 #
 # Source this file from example scripts:
-#   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common_functions.sh"
+#   source "${EXAMPLES_DIR}/common_functions.sh"
 
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Constants
+# Directory constants — all examples run with cwd = examples/
 # ---------------------------------------------------------------------------
+EXAMPLES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+
 CLIMPT_DIR=".agent/climpt"
 CLIMPT_CONFIG_DIR="${CLIMPT_DIR}/config"
 CLIMPT_PROMPTS_DIR="${CLIMPT_DIR}/prompts"
@@ -112,6 +115,7 @@ clear_claude_env() {
   unset SANDBOX_ENABLED SANDBOX_ID SANDBOX_ALLOWED_PATHS SANDBOX_RUNTIME
 }
 
+export EXAMPLES_DIR REPO_ROOT
 export -f info success warn error show_cmd
 export -f check_deno check_climpt_init check_command
 export -f cleanup_temp_files run_example

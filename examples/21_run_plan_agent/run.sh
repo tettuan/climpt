@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
-AGENT_DIR="${REPO_ROOT}/.agent/${AGENT_NAME}"
+AGENT_DIR=".agent/${AGENT_NAME}"
 SENTINEL="/tmp/claude/plan-mode-test.txt"
 
 main() {
@@ -31,12 +33,12 @@ main() {
   info "  If plan mode works → Write blocked → sentinel NOT created"
   echo ""
 
-  show_cmd deno task agent --agent "$AGENT_NAME" \
+  show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --agent "$AGENT_NAME" \
     --topic "Create /tmp/claude/plan-mode-test.txt"
 
   local exit_code=0
-  output=$( (cd "$REPO_ROOT" && deno task agent --agent "$AGENT_NAME" \
-    --topic "Create /tmp/claude/plan-mode-test.txt") 2>&1) \
+  output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --agent "$AGENT_NAME" \
+    --topic "Create /tmp/claude/plan-mode-test.txt" 2>&1) \
     || exit_code=$?
 
   # Crash detection: import/startup errors are always fatal

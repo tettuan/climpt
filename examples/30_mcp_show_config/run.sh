@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 show_project_config() {
   info "Option A: Project-level config (.mcp.json in project root)"
@@ -51,7 +53,7 @@ main() {
   show_global_config
 
   # Verify mcp-config.example.json exists
-  local example_config="${REPO_ROOT}/examples/mcp/mcp-config.example.json"
+  local example_config="mcp/mcp-config.example.json"
   if [[ ! -f "$example_config" ]]; then
     # Also check in SCRIPT_DIR
     example_config="${SCRIPT_DIR}/mcp-config.example.json"

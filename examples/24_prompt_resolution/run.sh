@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
   info "=== Prompt Resolution: File Presence Affects Agent Behavior ==="
 
   check_deno
+
+  # Breakdown's TwoParamsStdinProcessor reads stdin by default.
+  # This example never uses stdin, so skip it to avoid blocking.
+  export BREAKDOWN_SKIP_STDIN=true
 
   info "Running prompt resolution comparison script..."
   show_cmd deno run --allow-read --allow-write --allow-env \
