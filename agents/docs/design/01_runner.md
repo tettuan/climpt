@@ -15,11 +15,18 @@ Agent 実行エンジン。定義を読み、Flow ループと Completion ルー
 ## ループ構造
 
 ```
-Flow Loop
-  prompt = resolve(step, handoff)
+Flow Loop (単一の while)
+  step    = resolveNextStep(intent, transitions)    // Step 遷移 (Flow の責務)
+  prompt  = resolve(step, handoff)
   response = queryLLM(prompt)
-  handoff = merge(handoff, extract(response))
-  if completionSignal(response): trigger Completion Loop
+  intent, handoff = extractFromGate(response)       // Step 完了の判定材料
+
+  if intent == "closing":                           // completionSignal 検出
+    verdict = runCompletionLoop(response, handoff)  // Completion Loop 起動
+    if verdict.done: return success                 // Agent 完了
+    else: prompt = verdict.retryPrompt; continue    // Flow 継続
+  else:
+    continue                                        // 次の Step へ (Step 完了)
 ```
 
 ```
@@ -45,8 +52,10 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
     `formatted: { type: "json_schema", schema }` へ渡す。Pointer
     解決に失敗したらその場で iteration を中止し、2 連続失敗で run 全体を
     `FAILED_SCHEMA_RESOLUTION` として停止する。
-  - Step の出力から `completionSignal`（structured output の `status` または
-    `next_action`）を取り出す。
+  - Step の出力から intent を抽出する。`closing` intent が Completion Loop の
+    唯一のトリガーである（design/05_core_architecture.md「Completion Signal
+    の定義」参照）。 intent routing による Step 遷移は Flow の責務であり、Agent
+    完了の判定には関与しない。
   - `handoff` は Step ID 名前空間で累積し、次ステップの変数として注入する。
 
 #### Step kind と許可制御
@@ -66,10 +75,15 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 - **Why**: 完了チェックの複雑さを Flow に持ち込まず、失敗時に retryPrompt を返す
   仕組みへ収束させるため。
 - **最小限の How**:
+  - Completion Loop は三段構成（Closure Prompt → Validation →
+    Verdict）で動作する （design/05_core_architecture.md「Completion Loop
+    の三段構成」参照）。 Flow ループは Verdict の戻り値だけを受け取り、Agent
+    の完了または継続を決定する。 Completion Loop の内部処理を Flow
+    が代行することはない。
   - `steps/complete/*` の C3L プロンプトで完了指示を生成。ユーザーは docs/
-    に従って プロンプトを管理できる。
+    に従ってプロンプトを管理できる。
   - Structured Output Schema (`outputSchemaRef`) は SDK の outputFormat
-    に渡され、 JSON 抽出後に CompletionValidator を走らせる。
+    に渡され、JSON 抽出後に CompletionValidator を走らせる。
   - 失敗時は Completion Loop が返す `pendingActions` を RetryHandler に渡し、
     次の Flow ループへ渡す C3L 指示文を構築する。
 
