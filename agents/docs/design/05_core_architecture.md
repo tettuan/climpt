@@ -126,7 +126,7 @@ Stage 1: Closure Prompt
   → Closure Step の AI に最終確認を促し、証跡を構造化する
 
 Stage 2: Validation
-  validation = runCompletionConditions(closureResult)
+  validation = runValidationConditions(closureResult)
   → validationConditions（外部コマンド）で成果物を機械的に検証する
 
 Stage 3: Verdict
@@ -199,7 +199,7 @@ Step B receives uv-s_a.finding
 3. **ループ実行**: `prompt = resolve(step)` → `response = query()` → `handoff`
    更新を繰り返す。完了宣言が出ない限り、Flow ループ以外の処理をしない。
 4. **Completion 起動**: `completionSignal` が届いた iteration だけ Completion
-   Loop を呼び、`allComplete` or `retryPrompt` を受け取る。
+   Loop を呼び、`done` or `retryPrompt` を受け取る。
 5. **終了/継続**: Completion Loop が完了を返せば実行終了。未完了なら Flow
    ループは `retryPrompt` から次の Step 作業を開始する。
 

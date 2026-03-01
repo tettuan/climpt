@@ -45,14 +45,14 @@ completionSignal(response) =
      SDK の `formatted: { type: "json_schema", schema }` が起動し、intent
      セットも schema 側で確定させる。
 
-3. **Completion Conditions**
-   - `steps_registry.json` の `completionSteps.<id>.validationConditions[]`
+3. **Validation Conditions**
+   - `steps_registry.json` の `closureSteps.<id>.validationConditions[]`
      で宣言。
    - 各 validator (git clean, type check, tests, lint 等) は `Why: エビデンス`
      に対応づけられており、未達時は `pattern` と `params` を返す。
 
 4. **Decision & Retry**
-   - `allComplete = true` の場合、Completion Loop は `success` を Flow へ返す。
+   - `done = true` の場合、Completion Loop は `success` を Flow へ返す。
    - `false` の場合、`pendingActions` から RetryHandler が C3L (`steps/retry/*`)
      を解決し、 Flow の次 iteration で使う `retryPrompt` を生成する。
 
@@ -60,7 +60,7 @@ completionSignal(response) =
 
 ```jsonc
 {
-  "completionSteps": {
+  "closureSteps": {
     "closure.issue": {
       "prompt": { "c1": "steps", "c2": "closure", "c3": "issue" },
       "outputSchemaRef": {
@@ -77,7 +77,7 @@ completionSignal(response) =
 }
 ```
 
-- **What**: completion step と schema を紐づけ、構造化レスポンスを期待する。
+- **What**: closure step と schema を紐づけ、構造化レスポンスを期待する。
 - **Why**: docs に並ぶ完了チェックリストをそのままコードへ反映するため。
 - **How (最小限)**: Runner は `PromptResolver` と `ValidationChain` を通じて
   プロンプト → Structured Output → validator 実行 → retryPrompt
@@ -86,8 +86,8 @@ completionSignal(response) =
 ## retryPrompt の扱い
 
 ```
-if (!allComplete) {
-  pendingRetryPrompt = completionLoop.buildRetryPrompt(pendingActions)
+if (!done) {
+  pendingRetryPrompt = closureManager.buildRetryPrompt(pendingActions)
   FlowLoop.nextPrompt = pendingRetryPrompt
 }
 ```
