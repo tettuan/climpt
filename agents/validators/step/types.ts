@@ -1,8 +1,8 @@
 /**
- * CompletionValidator Types
+ * StepValidator Types
  *
- * Type definitions specific to CompletionValidator.
- * Common types are re-exported from agents/common/completion-types.ts.
+ * Type definitions specific to StepValidator.
+ * Common types are re-exported from agents/common/validation-types.ts.
  */
 
 import type { Logger } from "../../src_common/logger.ts";
@@ -10,29 +10,29 @@ import type { Logger } from "../../src_common/logger.ts";
 // Re-export common types
 export type {
   CommandResult,
-  CompletionCondition,
-  CompletionPattern,
-  CompletionStepConfig,
   ExtendedStepsRegistry,
   ExtractorType,
   FailureAction,
+  FailurePattern,
   OnFailureConfig,
   SuccessCondition,
+  ValidationCondition,
+  ValidationStepConfig,
   ValidatorDefinition,
   ValidatorResult,
   ValidatorType,
-} from "../../common/completion-types.ts";
+} from "../../common/validation-types.ts";
 
 export {
   getPatternFromResult,
-  isCompletionStepConfig,
   isExtendedRegistry,
-} from "../../common/completion-types.ts";
+  isValidationStepConfig,
+} from "../../common/validation-types.ts";
 
 /**
- * CompletionValidator context
+ * StepValidator context
  */
-export interface CompletionValidatorContext {
+export interface StepValidatorContext {
   /** Working directory */
   workingDir: string;
   /** Logger */
@@ -48,12 +48,12 @@ export interface ValidatorRegistry {
   /** Map of validator definitions */
   validators: Record<
     string,
-    import("../../common/completion-types.ts").ValidatorDefinition
+    import("../../common/validation-types.ts").ValidatorDefinition
   >;
-  /** Map of completion patterns */
-  completionPatterns?: Record<
+  /** Map of failure patterns */
+  failurePatterns?: Record<
     string,
-    import("../../common/completion-types.ts").CompletionPattern
+    import("../../common/validation-types.ts").FailurePattern
   >;
 }
 

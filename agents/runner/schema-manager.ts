@@ -16,7 +16,7 @@ import type { PromptStepDefinition } from "../common/step-registry.ts";
 import type {
   ExtendedStepsRegistry,
   OutputSchemaRef,
-} from "../common/completion-types.ts";
+} from "../common/validation-types.ts";
 import {
   SchemaPointerError,
   SchemaResolver,

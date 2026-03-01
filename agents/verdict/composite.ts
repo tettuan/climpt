@@ -10,35 +10,35 @@
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type {
   AgentDefinition,
-  CompletionConfigUnion,
-  CompletionType,
+  VerdictConfigUnion,
+  VerdictType,
 } from "../src_common/types.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
-  type CompletionHandler,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
+  type VerdictHandler,
 } from "./types.ts";
-import { IterateCompletionHandler } from "./iterate.ts";
-import { ManualCompletionHandler } from "./manual.ts";
-import { CheckBudgetCompletionHandler } from "./check-budget.ts";
-import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
-import { IssueCompletionHandler } from "./issue.ts";
+import { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
+import { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
+import { CheckBudgetVerdictHandler } from "./check-budget.ts";
+import { StructuredSignalVerdictHandler } from "./structured-signal.ts";
+import { IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
-import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
+import { ExternalStateVerdictAdapter } from "./external-state-adapter.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
 
 export interface CompositeCondition {
-  type: CompletionType;
-  config: CompletionConfigUnion;
+  type: VerdictType;
+  config: VerdictConfigUnion;
 }
 
-export class CompositeCompletionHandler extends BaseCompletionHandler {
+export class CompositeVerdictHandler extends BaseVerdictHandler {
   readonly type = "composite" as const;
   private promptResolver?: PromptResolver;
-  private handlers: CompletionHandler[] = [];
+  private handlers: VerdictHandler[] = [];
   private completedConditionIndex?: number;
 
   constructor(
@@ -59,26 +59,26 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
     for (const condition of this.conditions) {
       const config = condition.config;
 
-      let handler: CompletionHandler;
+      let handler: VerdictHandler;
 
       switch (condition.type) {
         case "iterationBudget": {
-          handler = new IterateCompletionHandler(
+          handler = new IterationBudgetVerdictHandler(
             config.maxIterations ??
-              AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
+              AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
           );
           break;
         }
 
         case "keywordSignal": {
-          handler = new ManualCompletionHandler(
-            config.completionKeyword ?? "TASK_COMPLETE",
+          handler = new KeywordSignalVerdictHandler(
+            config.verdictKeyword ?? "TASK_COMPLETE",
           );
           break;
         }
 
         case "checkBudget": {
-          handler = new CheckBudgetCompletionHandler(
+          handler = new CheckBudgetVerdictHandler(
             config.maxChecks ?? 10,
           );
           break;
@@ -90,7 +90,7 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
               "structuredSignal condition requires signalType in config",
             );
           }
-          handler = new StructuredSignalCompletionHandler(
+          handler = new StructuredSignalVerdictHandler(
             config.signalType,
             config.requiredFields,
           );
@@ -108,11 +108,11 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
           }
           const repo = this.args.repository as string | undefined;
           const stateChecker = new GitHubStateChecker(repo);
-          const issueHandler = new IssueCompletionHandler(
+          const issueHandler = new IssueVerdictHandler(
             { issueNumber, repo },
             stateChecker,
           );
-          handler = new ExternalStateCompletionAdapter(issueHandler, {
+          handler = new ExternalStateVerdictAdapter(issueHandler, {
             issueNumber,
             repo,
             github: this._definition.runner.integrations?.github as {
@@ -167,7 +167,7 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
     return `
 You are working on a task with composite completion conditions.
 
-## Completion Conditions (${this.operator.toUpperCase()})
+## Verdict Conditions (${this.operator.toUpperCase()})
 
 ${conditionList}
 
@@ -209,8 +209,8 @@ Work to meet the completion criteria.
     `.trim();
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
-    const criteria = this.handlers.map((h) => h.buildCompletionCriteria());
+  buildVerdictCriteria(): VerdictCriteria {
+    const criteria = this.handlers.map((h) => h.buildVerdictCriteria());
     const shorts = criteria.map((c) => c.short).join(
       this.operator === "and" ? " AND " : " OR ",
     );
@@ -222,9 +222,9 @@ Work to meet the completion criteria.
     };
   }
 
-  async isComplete(): Promise<boolean> {
+  async isFinished(): Promise<boolean> {
     const results = await Promise.all(
-      this.handlers.map((h) => h.isComplete()),
+      this.handlers.map((h) => h.isFinished()),
     );
 
     switch (this.operator) {
@@ -243,19 +243,19 @@ Work to meet the completion criteria.
     }
   }
 
-  async getCompletionDescription(): Promise<string> {
-    const complete = await this.isComplete();
+  async getVerdictDescription(): Promise<string> {
+    const complete = await this.isFinished();
 
     if (!complete) {
       const descriptions = await Promise.all(
-        this.handlers.map((h) => h.getCompletionDescription()),
+        this.handlers.map((h) => h.getVerdictDescription()),
       );
       return `Composite (${this.operator}): ${descriptions.join(", ")}`;
     }
 
     if (this.completedConditionIndex !== undefined) {
       const completedHandler = this.handlers[this.completedConditionIndex];
-      const desc = await completedHandler.getCompletionDescription();
+      const desc = await completedHandler.getVerdictDescription();
       return `Composite completed by condition ${
         this.completedConditionIndex + 1
       }: ${desc}`;

@@ -9,16 +9,16 @@
 
 import type {
   AgentDefinition,
-  CompletionType,
   ValidationResult,
+  VerdictType,
 } from "../src_common/types.ts";
-import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
+import { ALL_VERDICT_TYPES } from "../src_common/types.ts";
 
 /**
- * Type guard to check if a string is a valid CompletionType
+ * Type guard to check if a string is a valid VerdictType
  */
-function isValidCompletionType(value: string): value is CompletionType {
-  return ALL_COMPLETION_TYPES.includes(value as CompletionType);
+function isValidVerdictType(value: string): value is VerdictType {
+  return ALL_VERDICT_TYPES.includes(value as VerdictType);
 }
 
 /**
@@ -142,29 +142,29 @@ export function validate(definition: unknown): ValidationResult {
   if (def.runner && typeof def.runner === "object") {
     const runner = def.runner as Record<string, unknown>;
 
-    // Validate runner.completion
-    if (runner.completion && typeof runner.completion === "object") {
-      const completion = runner.completion as Record<string, unknown>;
+    // Validate runner.verdict
+    if (runner.verdict && typeof runner.verdict === "object") {
+      const verdict = runner.verdict as Record<string, unknown>;
 
-      if (completion.type) {
-        const completionTypeStr = String(completion.type);
+      if (verdict.type) {
+        const verdictTypeStr = String(verdict.type);
         if (
-          typeof completion.type !== "string" ||
-          !isValidCompletionType(completionTypeStr)
+          typeof verdict.type !== "string" ||
+          !isValidVerdictType(verdictTypeStr)
         ) {
           errors.push(
-            `Invalid completion type: ${completion.type}. Must be one of: ${
-              ALL_COMPLETION_TYPES.join(", ")
+            `Invalid verdict type: ${verdict.type}. Must be one of: ${
+              ALL_VERDICT_TYPES.join(", ")
             }`,
           );
         }
       }
 
-      // Validate completion config based on type
-      if (completion.type && completion.config) {
-        validateCompletionConfig(
-          completion.type as string,
-          completion.config as Record<string, unknown>,
+      // Validate verdict config based on type
+      if (verdict.type && verdict.config) {
+        validateVerdictConfig(
+          verdict.type as string,
+          verdict.config as Record<string, unknown>,
           errors,
         );
       }
@@ -254,37 +254,37 @@ export function validate(definition: unknown): ValidationResult {
 }
 
 /**
- * Validate completion config based on completion type.
+ * Validate verdict config based on verdict type.
  */
-function validateCompletionConfig(
-  completionType: string,
+function validateVerdictConfig(
+  verdictType: string,
   config: Record<string, unknown>,
   errors: string[],
 ): void {
-  if (!isValidCompletionType(completionType)) {
+  if (!isValidVerdictType(verdictType)) {
     return; // Invalid type is already handled by the main validate function
   }
 
-  switch (completionType as CompletionType) {
+  switch (verdictType as VerdictType) {
     case "iterationBudget":
       if (!config.maxIterations) {
         errors.push(
-          "runner.completion.config.maxIterations is required for iterationBudget completion type",
+          "runner.verdict.config.maxIterations is required for iterationBudget verdict type",
         );
       } else if (
         typeof config.maxIterations !== "number" ||
         config.maxIterations < 1
       ) {
         errors.push(
-          "runner.completion.config.maxIterations must be a positive number",
+          "runner.verdict.config.maxIterations must be a positive number",
         );
       }
       break;
 
     case "keywordSignal":
-      if (!config.completionKeyword) {
+      if (!config.verdictKeyword) {
         errors.push(
-          "runner.completion.config.completionKeyword is required for keywordSignal completion type",
+          "runner.verdict.config.verdictKeyword is required for keywordSignal verdict type",
         );
       }
       break;
@@ -292,7 +292,7 @@ function validateCompletionConfig(
     case "custom":
       if (!config.handlerPath) {
         errors.push(
-          "runner.completion.config.handlerPath is required for custom completion type",
+          "runner.verdict.config.handlerPath is required for custom verdict type",
         );
       }
       break;
@@ -300,14 +300,14 @@ function validateCompletionConfig(
     case "checkBudget":
       if (!config.maxChecks) {
         errors.push(
-          "runner.completion.config.maxChecks is required for checkBudget completion type",
+          "runner.verdict.config.maxChecks is required for checkBudget verdict type",
         );
       } else if (
         typeof config.maxChecks !== "number" ||
         config.maxChecks < 1
       ) {
         errors.push(
-          "runner.completion.config.maxChecks must be a positive number",
+          "runner.verdict.config.maxChecks must be a positive number",
         );
       }
       break;
@@ -315,7 +315,7 @@ function validateCompletionConfig(
     case "structuredSignal":
       if (!config.signalType) {
         errors.push(
-          "runner.completion.config.signalType is required for structuredSignal completion type",
+          "runner.verdict.config.signalType is required for structuredSignal verdict type",
         );
       }
       break;
@@ -323,7 +323,7 @@ function validateCompletionConfig(
     case "composite":
       if (!config.operator) {
         errors.push(
-          "runner.completion.config.operator is required for composite completion type",
+          "runner.verdict.config.operator is required for composite verdict type",
         );
       }
       if (
@@ -332,7 +332,7 @@ function validateCompletionConfig(
         config.conditions.length === 0
       ) {
         errors.push(
-          "runner.completion.config.conditions is required for composite completion type",
+          "runner.verdict.config.conditions is required for composite verdict type",
         );
       }
       break;
@@ -356,8 +356,8 @@ export function validateComplete(
   const result = validate(definition);
 
   // Additional checks for complete definition
-  if (!definition.runner?.completion?.type) {
-    result.errors.push("runner.completion.type is required");
+  if (!definition.runner?.verdict?.type) {
+    result.errors.push("runner.verdict.type is required");
     result.valid = false;
   }
 

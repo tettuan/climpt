@@ -18,7 +18,7 @@ import type {
   ResolvedAgentDefinition,
   ValidationResult,
 } from "../src_common/types.ts";
-import { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
+import { ALL_VERDICT_TYPES } from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
 import { ConfigService } from "../shared/config-service.ts";
 
@@ -108,9 +108,9 @@ export function validateAgentDefinition(
       errors.push("runner.flow.systemPromptPath is required");
     }
 
-    // Completion validation
-    if (!def.runner.completion?.type) {
-      errors.push("runner.completion.type is required");
+    // Verdict validation
+    if (!def.runner.verdict?.type) {
+      errors.push("runner.verdict.type is required");
     }
 
     // Boundaries validation
@@ -121,15 +121,13 @@ export function validateAgentDefinition(
       errors.push("runner.boundaries.permissionMode is required");
     }
 
-    // Validate completion type
+    // Validate verdict type
     if (
-      def.runner.completion?.type &&
-      !ALL_COMPLETION_TYPES.includes(def.runner.completion.type)
+      def.runner.verdict?.type &&
+      !ALL_VERDICT_TYPES.includes(def.runner.verdict.type)
     ) {
       errors.push(
-        `runner.completion.type must be one of: ${
-          ALL_COMPLETION_TYPES.join(", ")
-        }`,
+        `runner.verdict.type must be one of: ${ALL_VERDICT_TYPES.join(", ")}`,
       );
     }
 
@@ -151,8 +149,8 @@ export function validateAgentDefinition(
       );
     }
 
-    // Completion config validation based on type
-    validateCompletionConfig(def, errors);
+    // Verdict config validation based on type
+    validateVerdictConfig(def, errors);
 
     // Prompts validation
     if (!def.runner.flow?.prompts?.registry) {
@@ -211,81 +209,81 @@ export function validateAgentDefinition(
   return { valid: errors.length === 0, errors, warnings };
 }
 
-function validateCompletionConfig(
+function validateVerdictConfig(
   def: AgentDefinition,
   errors: string[],
 ): void {
-  const completionType = def.runner.completion?.type;
-  const completionConfig = def.runner.completion?.config;
+  const verdictType = def.runner.verdict?.type;
+  const verdictConfig = def.runner.verdict?.config;
 
-  switch (completionType) {
+  switch (verdictType) {
     case "iterationBudget":
-      if (!completionConfig?.maxIterations) {
+      if (!verdictConfig?.maxIterations) {
         errors.push(
-          "runner.completion.config.maxIterations is required for iterationBudget completion type",
+          "runner.verdict.config.maxIterations is required for iterationBudget verdict type",
         );
       } else if (
-        typeof completionConfig.maxIterations !== "number" ||
-        completionConfig.maxIterations < 1
+        typeof verdictConfig.maxIterations !== "number" ||
+        verdictConfig.maxIterations < 1
       ) {
         errors.push(
-          "runner.completion.config.maxIterations must be a positive number",
+          "runner.verdict.config.maxIterations must be a positive number",
         );
       }
       break;
 
     case "keywordSignal":
-      if (!completionConfig?.completionKeyword) {
+      if (!verdictConfig?.verdictKeyword) {
         errors.push(
-          "runner.completion.config.completionKeyword is required for keywordSignal completion type",
+          "runner.verdict.config.verdictKeyword is required for keywordSignal verdict type",
         );
       }
       break;
 
     case "custom":
-      if (!completionConfig?.handlerPath) {
+      if (!verdictConfig?.handlerPath) {
         errors.push(
-          "runner.completion.config.handlerPath is required for custom completion type",
+          "runner.verdict.config.handlerPath is required for custom verdict type",
         );
       }
       break;
 
     case "checkBudget":
-      if (!completionConfig?.maxChecks) {
+      if (!verdictConfig?.maxChecks) {
         errors.push(
-          "runner.completion.config.maxChecks is required for checkBudget completion type",
+          "runner.verdict.config.maxChecks is required for checkBudget verdict type",
         );
       } else if (
-        typeof completionConfig.maxChecks !== "number" ||
-        completionConfig.maxChecks < 1
+        typeof verdictConfig.maxChecks !== "number" ||
+        verdictConfig.maxChecks < 1
       ) {
         errors.push(
-          "runner.completion.config.maxChecks must be a positive number",
+          "runner.verdict.config.maxChecks must be a positive number",
         );
       }
       break;
 
     case "structuredSignal":
-      if (!completionConfig?.signalType) {
+      if (!verdictConfig?.signalType) {
         errors.push(
-          "runner.completion.config.signalType is required for structuredSignal completion type",
+          "runner.verdict.config.signalType is required for structuredSignal verdict type",
         );
       }
       break;
 
     case "composite":
-      if (!completionConfig?.operator) {
+      if (!verdictConfig?.operator) {
         errors.push(
-          "runner.completion.config.operator is required for composite completion type",
+          "runner.verdict.config.operator is required for composite verdict type",
         );
       }
       if (
-        !completionConfig?.conditions ||
-        !Array.isArray(completionConfig.conditions) ||
-        completionConfig.conditions.length === 0
+        !verdictConfig?.conditions ||
+        !Array.isArray(verdictConfig.conditions) ||
+        verdictConfig.conditions.length === 0
       ) {
         errors.push(
-          "runner.completion.config.conditions is required for composite completion type",
+          "runner.verdict.config.conditions is required for composite verdict type",
         );
       }
       break;

@@ -1,23 +1,23 @@
 /**
- * External State Completion Adapter
+ * External State Verdict Adapter
  *
- * Bridges ContractCompletionHandler (V2) to CompletionHandler (V1) interface.
- * Enables the Runner to use V2 IssueCompletionHandler without Runner changes.
+ * Bridges ContractVerdictHandler (V2) to VerdictHandler (V1) interface.
+ * Enables the Runner to use V2 IssueVerdictHandler without Runner changes.
  *
  * Resolves:
- * - Gap 2: Interface mismatch (ContractCompletionHandler -> CompletionHandler)
- * - Gap 3: isComplete() logic (refreshState -> check bridge)
+ * - Gap 2: Interface mismatch (ContractVerdictHandler -> VerdictHandler)
+ * - Gap 3: isFinished() logic (refreshState -> check bridge)
  * - Gap 4: onBoundaryHook() (GitHub label/close operations)
  * - Gap 5: Prompt construction (PromptResolver integration)
  */
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
 } from "./types.ts";
-import type { IssueCompletionHandler } from "./issue.ts";
+import type { IssueVerdictHandler } from "./issue.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
 /**
@@ -38,25 +38,25 @@ export interface ExternalStateAdapterConfig {
 }
 
 /**
- * Adapter that wraps IssueCompletionHandler (ContractCompletionHandler)
- * and exposes CompletionHandler interface expected by AgentRunner.
+ * Adapter that wraps IssueVerdictHandler (ContractVerdictHandler)
+ * and exposes VerdictHandler interface expected by AgentRunner.
  *
  * Method mapping:
  * - buildInitialPrompt() -> PromptResolver.resolve("initial.externalState") || handler.buildPrompt(INITIAL, 1)
  * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.externalState") || handler.buildPrompt(CONTINUATION, n)
- * - buildCompletionCriteria() -> handler.getCompletionCriteria() with field name mapping
- * - isComplete() -> handler.refreshState() + handler.check()
- * - getCompletionDescription() -> derived from check result
+ * - buildVerdictCriteria() -> handler.getVerdictCriteria() with field name mapping
+ * - isFinished() -> handler.refreshState() + handler.check()
+ * - getVerdictDescription() -> derived from check result
  * - onBoundaryHook() -> gh issue edit (labels) + gh issue close
  * - setCurrentSummary() -> stored for future use
  */
-export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
+export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   readonly type = "externalState" as const;
   private promptResolver?: PromptResolver;
   private currentSummary?: IterationSummary;
 
   constructor(
-    private readonly handler: IssueCompletionHandler,
+    private readonly handler: IssueVerdictHandler,
     private readonly config: ExternalStateAdapterConfig,
   ) {
     super();
@@ -70,7 +70,7 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
   }
 
   /**
-   * Set current iteration summary (called by runner before isComplete).
+   * Set current iteration summary (called by runner before isFinished).
    */
   setCurrentSummary(summary: IterationSummary): void {
     this.currentSummary = summary;
@@ -108,8 +108,8 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
     );
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
-    const criteria = this.handler.getCompletionCriteria();
+  buildVerdictCriteria(): VerdictCriteria {
+    const criteria = this.handler.getVerdictCriteria();
     return {
       short: criteria.summary,
       detailed: criteria.detailed,
@@ -118,15 +118,15 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
 
   /**
    * Check completion by refreshing external state then checking.
-   * Bridges V2's separate refreshState()/check() to V1's single isComplete().
+   * Bridges V2's separate refreshState()/check() to V1's single isFinished().
    */
-  async isComplete(): Promise<boolean> {
+  async isFinished(): Promise<boolean> {
     await this.handler.refreshState();
     const result = this.handler.check({ iteration: 1 });
     return result.complete;
   }
 
-  getCompletionDescription(): Promise<string> {
+  getVerdictDescription(): Promise<string> {
     const result = this.handler.check({ iteration: 1 });
     if (result.complete) {
       return Promise.resolve(

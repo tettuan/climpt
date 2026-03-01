@@ -4,12 +4,12 @@
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
 } from "./types.ts";
 
-export class IterateCompletionHandler extends BaseCompletionHandler {
+export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "iterationBudget" as const;
   private currentIteration = 0;
   private promptResolver?: PromptResolver;
@@ -103,7 +103,7 @@ Work efficiently to complete your goal.
     `.trim();
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
+  buildVerdictCriteria(): VerdictCriteria {
     return {
       short: `${this.maxIterations} iterations`,
       detailed:
@@ -111,11 +111,11 @@ Work efficiently to complete your goal.
     };
   }
 
-  isComplete(): Promise<boolean> {
+  isFinished(): Promise<boolean> {
     return Promise.resolve(this.currentIteration >= this.maxIterations);
   }
 
-  getCompletionDescription(): Promise<string> {
+  getVerdictDescription(): Promise<string> {
     return Promise.resolve(
       `Completed ${this.currentIteration}/${this.maxIterations} iterations`,
     );

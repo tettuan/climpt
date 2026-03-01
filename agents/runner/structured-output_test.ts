@@ -12,7 +12,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import type { AgentDefinition } from "../src_common/types.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { join } from "@std/path";
 
 const logger = new BreakdownLogger("schema");
@@ -192,7 +192,7 @@ Deno.test("StructuredOutput - continuation.issue has outputSchemaRef", async () 
 });
 
 /**
- * Test that closure.issue in completionSteps has outputSchemaRef
+ * Test that closure.issue in validationSteps has outputSchemaRef
  */
 Deno.test("StructuredOutput - closure.issue completionStep has outputSchemaRef", async () => {
   const registryPath = ".agent/iterator/steps_registry.json";
@@ -201,11 +201,11 @@ Deno.test("StructuredOutput - closure.issue completionStep has outputSchemaRef",
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
   assertExists(
-    registry.completionSteps,
-    "completionSteps should exist",
+    registry.validationSteps,
+    "validationSteps should exist",
   );
 
-  const step = registry.completionSteps["closure.issue"];
+  const step = registry.validationSteps["closure.issue"];
   assertExists(step, "closure.issue completion step should exist");
   assertExists(
     step.outputSchemaRef,
@@ -256,8 +256,8 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
     }
   }
 
-  if (registry.completionSteps) {
-    for (const step of Object.values(registry.completionSteps)) {
+  if (registry.validationSteps) {
+    for (const step of Object.values(registry.validationSteps)) {
       if (step.outputSchemaRef) {
         schemaFiles.add(step.outputSchemaRef.file);
       }
@@ -297,8 +297,8 @@ Deno.test("StructuredOutput - all referenced schemas exist in files", async () =
     }
   }
 
-  if (registry.completionSteps) {
-    for (const step of Object.values(registry.completionSteps)) {
+  if (registry.validationSteps) {
+    for (const step of Object.values(registry.validationSteps)) {
       if (step.outputSchemaRef) {
         refs.push(step.outputSchemaRef);
       }
@@ -342,7 +342,7 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
           fallbackDir: "./prompts",
         },
       },
-      completion: {
+      verdict: {
         type: "externalState",
         config: { maxIterations: 10 },
       },
@@ -360,13 +360,13 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
 
   // Use reflection to test private method behavior
   // We verify the expected stepId format based on the implementation
-  const completionType = definition.runner.completion.type;
+  const verdictType = definition.runner.verdict.type;
 
-  // iteration 1 -> initial.{completionType}
-  assertEquals(`initial.${completionType}`, "initial.externalState");
+  // iteration 1 -> initial.{verdictType}
+  assertEquals(`initial.${verdictType}`, "initial.externalState");
 
-  // iteration 2+ -> continuation.{completionType}
-  assertEquals(`continuation.${completionType}`, "continuation.externalState");
+  // iteration 2+ -> continuation.{verdictType}
+  assertEquals(`continuation.${verdictType}`, "continuation.externalState");
 });
 
 /**
@@ -441,7 +441,7 @@ Deno.test("StructuredOutput - closure.issue schema has validation fields", async
 // =============================================================================
 
 // =============================================================================
-// externalState CompletionType Tests (Issue #246)
+// externalState VerdictType Tests (Issue #246)
 // =============================================================================
 
 /**

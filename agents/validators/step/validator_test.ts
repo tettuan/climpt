@@ -1,10 +1,10 @@
 /**
- * CompletionValidator Tests
+ * StepValidator Tests
  */
 
 import { assertEquals } from "@std/assert";
 import type { ValidatorRegistry } from "./types.ts";
-import { CompletionValidator } from "./validator.ts";
+import { StepValidator } from "./validator.ts";
 import { checkSuccessCondition } from "./command-runner.ts";
 
 // Mock logger (simplified for testing)
@@ -76,13 +76,13 @@ Deno.test("checkSuccessCondition - contains returns false when string is not fou
   assertEquals(result, false);
 });
 
-// CompletionValidator tests
-Deno.test("CompletionValidator - skips unknown validators", async () => {
+// StepValidator tests
+Deno.test("StepValidator - skips unknown validators", async () => {
   const registry: ValidatorRegistry = {
     validators: {},
   };
 
-  const validator = new CompletionValidator(registry, {
+  const validator = new StepValidator(registry, {
     workingDir: Deno.cwd(),
     logger: mockLogger,
   });

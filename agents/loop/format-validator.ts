@@ -10,10 +10,10 @@ import type {
   BaseValidationResult,
   IterationSummary,
 } from "../src_common/types.ts";
-import type { ResponseFormat } from "../common/completion-types.ts";
+import type { ResponseFormat } from "../common/validation-types.ts";
 
 // Re-export ResponseFormat for backwards compatibility
-export type { ResponseFormat } from "../common/completion-types.ts";
+export type { ResponseFormat } from "../common/validation-types.ts";
 
 /**
  * Result of format validation.

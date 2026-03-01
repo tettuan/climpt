@@ -46,7 +46,7 @@
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
+    "verdict": {
       "type": "structuredSignal",
       "config": {
         "signalType": "facilitator_decision",

@@ -4,7 +4,7 @@
  * Responsibility: Retrieve external state (e.g., GitHub Issue status)
  * Side Effect: External command execution
  *
- * By separating from CompletionHandler, judgment logic remains side-effect free.
+ * By separating from VerdictHandler, judgment logic remains side-effect free.
  */
 
 /**

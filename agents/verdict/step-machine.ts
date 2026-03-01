@@ -1,5 +1,5 @@
 /**
- * StepMachine Completion Handler - Multi-step execution orchestration
+ * StepMachine Verdict Handler - Multi-step execution orchestration
  *
  * Completes when the step state machine reaches a terminal state.
  * Uses step registry to determine step order and transitions.
@@ -9,12 +9,12 @@
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import type { StepContext, StepResult } from "../src_common/contracts.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
 } from "./types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 import { PATHS } from "../shared/paths.ts";
@@ -38,7 +38,7 @@ export interface StepState {
   /** Whether execution is complete */
   isComplete: boolean;
   /** Reason for completion if complete */
-  completionReason?: string;
+  verdictReason?: string;
 }
 
 /**
@@ -54,7 +54,7 @@ export interface StepTransition {
 }
 
 /**
- * StepMachine Completion Handler
+ * StepMachine Verdict Handler
  *
  * Orchestrates multi-step agent execution by:
  * 1. Tracking current step and iteration
@@ -62,7 +62,7 @@ export interface StepTransition {
  * 3. Passing data between steps via StepContext
  * 4. Determining completion when terminal state reached
  */
-export class StepMachineCompletionHandler extends BaseCompletionHandler {
+export class StepMachineVerdictHandler extends BaseVerdictHandler {
   readonly type = "stepMachine" as const;
 
   private promptResolver?: PromptResolver;
@@ -113,7 +113,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
 
   /**
    * Set current iteration summary
-   * Called by runner before isComplete()
+   * Called by runner before isFinished()
    */
   setCurrentSummary(summary: IterationSummary): void {
     this.lastSummary = summary;
@@ -215,7 +215,7 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
 
     if (nextStep.nextStep === STEP_PHASE.CLOSURE) {
       this.state.isComplete = true;
-      this.state.completionReason = nextStep.reason ??
+      this.state.verdictReason = nextStep.reason ??
         "Step machine reached terminal state";
       return STEP_PHASE.CLOSURE;
     }
@@ -363,7 +363,7 @@ ${this.buildStepInstructions(stepDef)}
       : "";
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
+  buildVerdictCriteria(): VerdictCriteria {
     const stepCount = Object.keys(this.registry.steps).length;
     return {
       short: `Step machine with ${stepCount} steps`,
@@ -375,7 +375,7 @@ ${this.buildStepInstructions(stepDef)}
     };
   }
 
-  isComplete(): Promise<boolean> {
+  isFinished(): Promise<boolean> {
     // Check if marked complete by transition
     if (this.state.isComplete) {
       return Promise.resolve(COMPLETE);
@@ -388,7 +388,7 @@ ${this.buildStepInstructions(stepDef)}
       // Check for explicit completion status
       if (so.status === "completed" || so.complete === true) {
         this.state.isComplete = true;
-        this.state.completionReason = "AI declared completion";
+        this.state.verdictReason = "AI declared completion";
         return Promise.resolve(COMPLETE);
       }
 
@@ -397,7 +397,7 @@ ${this.buildStepInstructions(stepDef)}
         const nextAction = so.next_action as Record<string, unknown>;
         if (nextAction.action === "complete") {
           this.state.isComplete = true;
-          this.state.completionReason = "AI requested completion action";
+          this.state.verdictReason = "AI requested completion action";
           return Promise.resolve(COMPLETE);
         }
       }
@@ -406,10 +406,10 @@ ${this.buildStepInstructions(stepDef)}
     return Promise.resolve(INCOMPLETE);
   }
 
-  async getCompletionDescription(): Promise<string> {
-    const complete = await this.isComplete();
+  async getVerdictDescription(): Promise<string> {
+    const complete = await this.isFinished();
     if (complete) {
-      return this.state.completionReason ?? "Step machine complete";
+      return this.state.verdictReason ?? "Step machine complete";
     }
     return `Step ${this.state.currentStepId}, iteration ${this.state.stepIteration}, total ${this.state.totalIterations}`;
   }

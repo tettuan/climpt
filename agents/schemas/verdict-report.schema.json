@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "completion-report.schema.json",
-  "title": "Completion Report",
-  "description": "Structured output for issue completion with validation results",
+  "$id": "verdict-report.schema.json",
+  "title": "Verdict Report",
+  "description": "Structured output for issue verdict with validation results",
   "type": "object",
   "required": ["action", "issue", "validation"],
   "properties": {
     "action": {
       "type": "string",
       "const": "close",
-      "description": "Action type (must be 'close' for completion report)"
+      "description": "Action type (must be 'close' for verdict report)"
     },
     "issue": {
       "type": "number",

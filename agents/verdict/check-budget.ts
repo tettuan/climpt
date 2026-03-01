@@ -7,12 +7,12 @@
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
 } from "./types.ts";
 
-export class CheckBudgetCompletionHandler extends BaseCompletionHandler {
+export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "checkBudget" as const;
   private checkCount = 0;
   private promptResolver?: PromptResolver;
@@ -115,7 +115,7 @@ Work efficiently to complete your monitoring goal.
     `.trim();
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
+  buildVerdictCriteria(): VerdictCriteria {
     return {
       short: `${this.maxChecks} checks`,
       detailed:
@@ -123,11 +123,11 @@ Work efficiently to complete your monitoring goal.
     };
   }
 
-  isComplete(): Promise<boolean> {
+  isFinished(): Promise<boolean> {
     return Promise.resolve(this.checkCount >= this.maxChecks);
   }
 
-  getCompletionDescription(): Promise<string> {
+  getVerdictDescription(): Promise<string> {
     return Promise.resolve(
       `Completed ${this.checkCount}/${this.maxChecks} status checks`,
     );

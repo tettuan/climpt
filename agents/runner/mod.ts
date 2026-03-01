@@ -21,17 +21,17 @@ export {
 export { FormatValidator, StepContextImpl } from "../loop/mod.ts";
 export type { FormatValidationResult } from "../loop/mod.ts";
 
-// Completion Layer
+// Verdict Layer
 export {
   GitHubStateChecker,
-  IssueCompletionHandler,
+  IssueVerdictHandler,
   MockStateChecker,
-} from "../completion/mod.ts";
+} from "../verdict/mod.ts";
 export type {
-  ContractCompletionHandler,
+  ContractVerdictHandler,
   ExternalStateChecker,
   IssueState,
-} from "../completion/mod.ts";
+} from "../verdict/mod.ts";
 
 // Prompt Layer
 export {
@@ -46,8 +46,6 @@ export type { PromptAdapter } from "../prompts/mod.ts";
 export type {
   AgentResultV2,
   CheckContext,
-  CompletionContract,
-  CompletionResult,
   ConfigurationContract,
   ConnectionContract,
   ExecutionContract,
@@ -55,18 +53,20 @@ export type {
   StartOptions,
   StepContext,
   Variables,
+  VerdictContract,
+  VerdictResult,
 } from "../src_common/contracts.ts";
 
 // === Legacy (deprecated, 互換性のため維持) ===
 
 // Errors (still relevant for v2)
 export {
-  AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
   AgentTimeoutError,
+  AgentVerdictError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
@@ -74,26 +74,26 @@ export {
 /** @deprecated Use AgentLifecycle instead */
 export { AgentRunner, type RunnerOptions } from "./runner.ts";
 
-// Completion Chain (extracted from runner.ts)
+// Validation Chain (extracted from runner.ts)
 export {
-  CompletionChain,
-  type CompletionChainOptions,
-  type CompletionValidationResult,
-} from "./completion-chain.ts";
+  ValidationChain,
+  type ValidationChainOptions,
+  type ValidationResult,
+} from "./validation-chain.ts";
 
 /** @deprecated Use AgentRunnerBuilder with v2 components */
 export {
   type AgentDependencies,
   AgentRunnerBuilder,
-  type CompletionHandlerFactory,
   createDefaultDependencies,
-  DefaultCompletionHandlerFactory,
   DefaultLoggerFactory,
   DefaultPromptResolverFactory,
+  DefaultVerdictHandlerFactory,
   type LoggerFactory,
   type LoggerFactoryOptions,
   type PromptResolverFactory,
   type PromptResolverFactoryOptions,
+  type VerdictHandlerFactory,
 } from "./builder.ts";
 
 /** @deprecated Use loadConfiguration from config/mod.ts */

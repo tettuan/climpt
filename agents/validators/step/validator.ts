@@ -1,12 +1,12 @@
 /**
- * CompletionValidator
+ * StepValidator
  *
- * Validates step completion conditions and returns pattern and parameters on failure.
+ * Validates step validation conditions and returns pattern and parameters on failure.
  */
 
 import type {
-  CompletionCondition,
-  CompletionValidatorContext,
+  StepValidatorContext,
+  ValidationCondition,
   ValidatorDefinition,
   ValidatorRegistry,
   ValidatorResult,
@@ -16,20 +16,20 @@ import { checkSuccessCondition, CommandRunner } from "./command-runner.ts";
 import { ParamExtractor } from "./param-extractors.ts";
 
 /**
- * CompletionValidator
+ * StepValidator
  *
- * Validates completion conditions and returns information for pattern-based
+ * Validates step conditions and returns information for pattern-based
  * retry prompt generation on failure.
  */
-export class CompletionValidator {
+export class StepValidator {
   private readonly registry: ValidatorRegistry;
   private readonly commandRunner: CommandRunner;
   private readonly paramExtractor: ParamExtractor;
-  private readonly ctx: CompletionValidatorContext;
+  private readonly ctx: StepValidatorContext;
 
   constructor(
     registry: ValidatorRegistry,
-    ctx: CompletionValidatorContext,
+    ctx: StepValidatorContext,
   ) {
     this.registry = registry;
     this.ctx = ctx;
@@ -38,13 +38,13 @@ export class CompletionValidator {
   }
 
   /**
-   * Validates multiple completion conditions sequentially
+   * Validates multiple validation conditions sequentially
    *
    * Returns valid: true only if all conditions succeed.
    * Returns pattern and parameters on the first failing condition.
    */
   async validate(
-    conditions: CompletionCondition[],
+    conditions: ValidationCondition[],
   ): Promise<ValidatorResult> {
     for (const condition of conditions) {
       const def = this.registry.validators[condition.validator];
@@ -188,11 +188,11 @@ export class CompletionValidator {
 }
 
 /**
- * Factory function for CompletionValidator
+ * Factory function for StepValidator
  */
-export function createCompletionValidator(
+export function createStepValidator(
   registry: ValidatorRegistry,
-  ctx: CompletionValidatorContext,
-): CompletionValidator {
-  return new CompletionValidator(registry, ctx);
+  ctx: StepValidatorContext,
+): StepValidator {
+  return new StepValidator(registry, ctx);
 }

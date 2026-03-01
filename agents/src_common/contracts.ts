@@ -131,7 +131,7 @@ export interface ExecutionContract {
 }
 
 // ============================================================================
-// Completion Contract
+// Verdict Contract
 // ============================================================================
 
 /**
@@ -149,11 +149,11 @@ export interface CheckContext {
 }
 
 /**
- * Result of completion check.
+ * Result of verdict check.
  *
  * Guarantee: complete=true => reason is set
  */
-export interface CompletionResult {
+export interface VerdictResult {
   /** Whether agent should complete */
   complete: boolean;
   /** Reason for completion (required when complete=true) */
@@ -173,21 +173,21 @@ export interface StepResult {
 }
 
 /**
- * Contract for completion determination.
+ * Contract for verdict determination.
  *
  * Guarantees:
  * - check() has no side effects (pure function)
  * - Results are returned to execution layer
  * - Execution layer updates state
  */
-export interface CompletionContract {
+export interface VerdictContract {
   /**
    * Check if agent should complete.
    *
    * @param context - Current iteration context
-   * @returns Completion decision
+   * @returns Verdict decision
    */
-  check(context: CheckContext): CompletionResult;
+  check(context: CheckContext): VerdictResult;
 
   /**
    * Determine next step after step completion.

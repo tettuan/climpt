@@ -1,29 +1,26 @@
 /**
- * Completion Manager - initialization and validation of completion conditions.
+ * Closure Manager - initialization and validation of closure conditions.
  *
  * Handles:
- * - Loading StepRegistry and initializing CompletionChain, StepGateInterpreter, WorkflowRouter
- * - Validating completion conditions for steps
- * - Detecting AI completion declarations in structured output
- * - Determining completion step IDs
+ * - Loading StepRegistry and initializing ValidationChain, StepGateInterpreter, WorkflowRouter
+ * - Validating conditions for steps
+ * - Detecting AI verdict declarations in structured output
+ * - Determining closure step IDs
  *
  * Extracted from runner.ts for separation of concerns.
  */
 
 import type { AgentDefinition, IterationSummary } from "../src_common/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
-import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import {
   type ExtendedStepsRegistry,
-  hasCompletionChainSupport,
   hasFlowRoutingSupport,
-} from "../common/completion-types.ts";
+  hasValidationChainSupport,
+} from "../common/validation-types.ts";
 import { loadStepRegistry } from "../common/step-registry.ts";
-import {
-  CompletionChain,
-  type CompletionValidationResult,
-} from "./completion-chain.ts";
+import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 import type { AgentDependencies } from "./builder.ts";
@@ -39,29 +36,29 @@ import {
 } from "../common/prompt-resolver.ts";
 import type { SchemaManager } from "./schema-manager.ts";
 
-export interface CompletionManagerDeps {
+export interface ClosureManagerDeps {
   readonly definition: AgentDefinition;
   readonly dependencies: AgentDependencies;
 }
 
-export interface CompletionManagerState {
-  completionValidator: CompletionValidator | null;
+export interface ClosureManagerState {
+  stepValidator: StepValidator | null;
   retryHandler: RetryHandler | null;
   stepsRegistry: ExtendedStepsRegistry | null;
-  completionChain: CompletionChain | null;
+  validationChain: ValidationChain | null;
   stepGateInterpreter: StepGateInterpreter | null;
   workflowRouter: WorkflowRouter | null;
   stepPromptResolver: StepPromptResolver | null;
 }
 
-export class CompletionManager {
-  private readonly deps: CompletionManagerDeps;
+export class ClosureManager {
+  private readonly deps: ClosureManagerDeps;
 
-  // Completion validation
-  completionValidator: CompletionValidator | null = null;
+  // Validation
+  stepValidator: StepValidator | null = null;
   retryHandler: RetryHandler | null = null;
   stepsRegistry: ExtendedStepsRegistry | null = null;
-  completionChain: CompletionChain | null = null;
+  validationChain: ValidationChain | null = null;
 
   // Step flow orchestration
   stepGateInterpreter: StepGateInterpreter | null = null;
@@ -70,18 +67,18 @@ export class CompletionManager {
   // Step-level prompt resolver (for work-step and closure adaptation)
   stepPromptResolver: StepPromptResolver | null = null;
 
-  constructor(deps: CompletionManagerDeps) {
+  constructor(deps: ClosureManagerDeps) {
     this.deps = deps;
   }
 
   /**
-   * Initialize Completion validation system.
+   * Initialize validation system.
    *
    * Loads StepRegistry and initializes components based on registry capabilities:
-   * - CompletionChain support (completionPatterns/validators)
+   * - ValidationChain support (failurePatterns/validators)
    * - Flow routing support (structuredGate in steps)
    */
-  async initializeCompletionValidation(
+  async initializeValidation(
     agentDir: string,
     cwd: string,
     logger: import("../src_common/logger.ts").Logger,
@@ -116,24 +113,24 @@ export class CompletionManager {
       logger.debug("Intent schema enum validation passed");
 
       // Check for extended registry capabilities
-      const hasCompletionChain = hasCompletionChainSupport(registry);
+      const hasValidationChain = hasValidationChainSupport(registry);
       const hasFlowRouting = hasFlowRoutingSupport(registry);
 
-      // Fail-fast: stepMachine completion requires structuredGate on at least one step
+      // Fail-fast: stepMachine verdict requires structuredGate on at least one step
       if (
-        this.deps.definition.runner.completion.type === "stepMachine" &&
+        this.deps.definition.runner.verdict.type === "stepMachine" &&
         !hasFlowRouting
       ) {
         throw new Error(
-          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses completionType "stepMachine" ` +
+          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses verdictType "stepMachine" ` +
             `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
-            `or change completionType. See design/08_step_flow_design.md.`,
+            `or change verdictType. See design/08_step_flow_design.md.`,
         );
       }
 
-      if (!hasCompletionChain && !hasFlowRouting) {
+      if (!hasValidationChain && !hasFlowRouting) {
         logger.debug(
-          "Registry has no extended capabilities (no completionPatterns, validators, or structuredGate), skipping setup",
+          "Registry has no extended capabilities (no failurePatterns, validators, or structuredGate), skipping setup",
         );
         return;
       }
@@ -143,28 +140,27 @@ export class CompletionManager {
       this.stepsRegistry = stepsRegistry;
 
       const capabilities: string[] = [];
-      if (hasCompletionChain) capabilities.push("CompletionChain");
+      if (hasValidationChain) capabilities.push("ValidationChain");
       if (hasFlowRouting) capabilities.push("FlowRouting");
       logger.info(
         `Loaded steps registry with capabilities: ${capabilities.join(", ")}`,
       );
 
-      // Initialize CompletionChain components if supported
-      if (hasCompletionChain) {
-        // Initialize CompletionValidator factory
-        const validatorFactory =
-          this.deps.dependencies.completionValidatorFactory;
+      // Initialize ValidationChain components if supported
+      if (hasValidationChain) {
+        // Initialize StepValidator factory
+        const validatorFactory = this.deps.dependencies.stepValidatorFactory;
         if (validatorFactory) {
           if (isInitializable(validatorFactory)) {
             await validatorFactory.initialize();
           }
-          this.completionValidator = validatorFactory.create({
+          this.stepValidator = validatorFactory.create({
             registry: stepsRegistry,
             workingDir: cwd,
             logger,
             agentId: this.deps.definition.name,
           });
-          logger.debug("CompletionValidator initialized");
+          logger.debug("StepValidator initialized");
         }
 
         // Initialize RetryHandler factory
@@ -182,16 +178,16 @@ export class CompletionManager {
           logger.debug("RetryHandler initialized");
         }
 
-        // Initialize CompletionChain
-        this.completionChain = new CompletionChain({
+        // Initialize ValidationChain
+        this.validationChain = new ValidationChain({
           workingDir: cwd,
           logger,
           stepsRegistry: stepsRegistry,
-          completionValidator: this.completionValidator,
+          stepValidator: this.stepValidator,
           retryHandler: this.retryHandler,
           agentId: this.deps.definition.name,
         });
-        logger.debug("CompletionChain initialized");
+        logger.debug("ValidationChain initialized");
       }
 
       // Initialize Flow routing components if supported
@@ -215,7 +211,7 @@ export class CompletionManager {
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         logger.debug(
-          `Steps registry not found at ${registryPath}, using default completion`,
+          `Steps registry not found at ${registryPath}, using default verdict`,
         );
       } else {
         logger.warn(`Failed to load steps registry: ${error}`);
@@ -224,48 +220,48 @@ export class CompletionManager {
   }
 
   /**
-   * Validate completion conditions for a step.
+   * Validate conditions for a step.
    */
-  async validateCompletionConditions(
+  async validateConditions(
     stepId: string,
     _summary: IterationSummary,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<CompletionValidationResult> {
+  ): Promise<ValidationResult> {
     if (!this.stepsRegistry) {
       return { valid: true };
     }
 
-    const stepConfig = this.stepsRegistry.completionSteps?.[stepId];
+    const stepConfig = this.stepsRegistry.validationSteps?.[stepId];
     if (!stepConfig) {
       return { valid: true };
     }
 
-    // Use CompletionChain for validation (logs internally)
-    if (this.completionChain) {
-      return await this.completionChain.validate(stepId, _summary);
+    // Use ValidationChain for validation (logs internally)
+    if (this.validationChain) {
+      return await this.validationChain.validate(stepId, _summary);
     }
 
-    // Fallback path - log here since CompletionChain is not used
-    logger.info(`Validating completion for step: ${stepId}`);
+    // Fallback path - log here since ValidationChain is not used
+    logger.info(`Validating conditions for step: ${stepId}`);
 
     // Fallback to command-based validation
     if (
-      !this.completionValidator ||
-      !stepConfig.completionConditions?.length
+      !this.stepValidator ||
+      !stepConfig.validationConditions?.length
     ) {
       return { valid: true };
     }
 
-    const result = await this.completionValidator.validate(
-      stepConfig.completionConditions,
+    const result = await this.stepValidator.validate(
+      stepConfig.validationConditions,
     );
 
     if (result.valid) {
-      logger.info("All completion conditions passed");
+      logger.info("All validation conditions passed");
       return { valid: true };
     }
 
-    logger.warn(`Completion validation failed: pattern=${result.pattern}`);
+    logger.warn(`Validation failed: pattern=${result.pattern}`);
 
     if (this.retryHandler && result.pattern) {
       const retryPrompt = await this.retryHandler.buildRetryPrompt(
@@ -277,20 +273,20 @@ export class CompletionManager {
 
     return {
       valid: false,
-      retryPrompt: `Completion conditions not met: ${
+      retryPrompt: `Validation conditions not met: ${
         result.error ?? result.pattern
       }`,
     };
   }
 
   /**
-   * Check if AI declared completion via structured output.
+   * Check if AI declared verdict via structured output.
    *
    * Only "closing" intent from Closure Step triggers completion.
    * Note: "complete" is accepted for backward compatibility.
    * Note: status: "completed" is NOT a completion signal.
    */
-  hasAICompletionDeclaration(summary: IterationSummary): boolean {
+  hasAIVerdictDeclaration(summary: IterationSummary): boolean {
     if (!summary.structuredOutput) {
       return false;
     }
@@ -308,12 +304,12 @@ export class CompletionManager {
   }
 
   /**
-   * Get completion step ID based on completion type.
+   * Get closure step ID based on verdict type.
    */
-  getCompletionStepId(): string {
-    if (this.completionChain) {
-      return this.completionChain.getCompletionStepId(
-        this.deps.definition.runner.completion.type,
+  getClosureStepId(): string {
+    if (this.validationChain) {
+      return this.validationChain.getClosureStepId(
+        this.deps.definition.runner.verdict.type,
       );
     }
     return "closure.issue";

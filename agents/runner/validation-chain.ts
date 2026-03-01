@@ -1,5 +1,5 @@
 /**
- * CompletionChain - Completion validation chain
+ * ValidationChain - Validation chain for step closure
  *
  * Responsibility: Execute validation checks before allowing task completion.
  * Manages the chain of validators (format, completion, retry).
@@ -10,17 +10,17 @@
 import type { Logger } from "../src_common/logger.ts";
 import type { IterationSummary } from "../src_common/types.ts";
 import type {
-  CompletionStepConfig,
   ExtendedStepsRegistry,
-} from "../common/completion-types.ts";
-import type { CompletionValidator } from "../validators/completion/validator.ts";
+  ValidationStepConfig,
+} from "../common/validation-types.ts";
+import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
 
 /**
- * Result of completion validation
+ * Result of validation
  */
-export interface CompletionValidationResult {
+export interface ValidationResult {
   /** Whether validation passed */
   valid: boolean;
   /** Retry prompt if validation failed */
@@ -30,17 +30,17 @@ export interface CompletionValidationResult {
 }
 
 /**
- * Options for CompletionChain creation
+ * Options for ValidationChain creation
  */
-export interface CompletionChainOptions {
+export interface ValidationChainOptions {
   /** Working directory */
   workingDir: string;
   /** Logger instance */
   logger: Logger;
   /** Steps registry (extended) */
   stepsRegistry: ExtendedStepsRegistry | null;
-  /** Completion validator */
-  completionValidator: CompletionValidator | null;
+  /** Step validator */
+  stepValidator: StepValidator | null;
   /** Retry handler */
   retryHandler: RetryHandler | null;
   /** Agent ID */
@@ -48,33 +48,33 @@ export interface CompletionChainOptions {
 }
 
 /**
- * CompletionChain handles all validation checks before task completion.
+ * ValidationChain handles all validation checks before task completion.
  *
  * Responsibilities:
  * - Format validation
- * - Completion condition validation
+ * - Validation condition checking
  * - Retry prompt generation
  * - Close action detection
  */
-export class CompletionChain {
+export class ValidationChain {
   private readonly workingDir: string;
   private readonly logger: Logger;
   private readonly stepsRegistry: ExtendedStepsRegistry | null;
-  private readonly completionValidator: CompletionValidator | null;
+  private readonly stepValidator: StepValidator | null;
   private readonly retryHandler: RetryHandler | null;
   private readonly agentId: string;
 
-  constructor(options: CompletionChainOptions) {
+  constructor(options: ValidationChainOptions) {
     this.workingDir = options.workingDir;
     this.logger = options.logger;
     this.stepsRegistry = options.stepsRegistry;
-    this.completionValidator = options.completionValidator;
+    this.stepValidator = options.stepValidator;
     this.retryHandler = options.retryHandler;
     this.agentId = options.agentId;
   }
 
   /**
-   * Validate completion conditions for a step.
+   * Validate conditions for a step.
    *
    * Note: Structured output validation is handled at runner level.
    * This method only handles command-based validation fallback.
@@ -86,28 +86,28 @@ export class CompletionChain {
   async validate(
     stepId: string,
     _summary: IterationSummary,
-  ): Promise<CompletionValidationResult> {
+  ): Promise<ValidationResult> {
     const stepConfig = this.getStepConfig(stepId);
 
     if (!stepConfig) {
       return { valid: true };
     }
 
-    this.logger.info(`Validating completion for step: ${stepId}`);
+    this.logger.info(`Validating conditions for step: ${stepId}`);
 
     // Structured output validation is handled at runner level
-    // CompletionChain only handles command-based validation fallback
+    // ValidationChain only handles command-based validation fallback
     if (stepConfig.outputSchema) {
       this.logger.debug(
-        "[CompletionChain] outputSchema defined, validation handled at runner level",
+        "[ValidationChain] outputSchema defined, validation handled at runner level",
       );
       return { valid: true };
     }
 
     // Command-based validation
     if (
-      !this.completionValidator ||
-      !stepConfig.completionConditions?.length
+      !this.stepValidator ||
+      !stepConfig.validationConditions?.length
     ) {
       return { valid: true };
     }
@@ -116,63 +116,63 @@ export class CompletionChain {
   }
 
   /**
-   * Get completion step ID based on completion type.
+   * Get closure step ID based on verdict type.
    *
-   * Maps completion type to the appropriate step ID in the registry.
+   * Maps verdict type to the appropriate step ID in the registry.
    * Uses dynamic lookup in stepsRegistry if available, otherwise defaults.
    */
-  getCompletionStepId(completionType: string): string {
-    // Check if registry has a completion step for this type
-    if (this.stepsRegistry?.completionSteps) {
-      const stepId = `closure.${completionType}`;
-      if (this.stepsRegistry.completionSteps[stepId]) {
+  getClosureStepId(verdictType: string): string {
+    // Check if registry has a validation step for this type
+    if (this.stepsRegistry?.validationSteps) {
+      const stepId = `closure.${verdictType}`;
+      if (this.stepsRegistry.validationSteps[stepId]) {
         return stepId;
       }
     }
 
     // Type-specific defaults
-    switch (completionType) {
+    switch (verdictType) {
       case "issue":
         return "closure.issue";
       case "iterate":
       case "iterationBudget":
         return "closure.iterate";
       default:
-        // externalState and others use closure.${completionType}
-        return `closure.${completionType}`;
+        // externalState and others use closure.${verdictType}
+        return `closure.${verdictType}`;
     }
   }
 
   /**
    * Get step configuration from registry.
    */
-  private getStepConfig(stepId: string): CompletionStepConfig | undefined {
-    if (!this.stepsRegistry?.completionSteps) {
+  private getStepConfig(stepId: string): ValidationStepConfig | undefined {
+    if (!this.stepsRegistry?.validationSteps) {
       return undefined;
     }
-    return this.stepsRegistry.completionSteps[stepId];
+    return this.stepsRegistry.validationSteps[stepId];
   }
 
   /**
-   * Validate using completion conditions.
+   * Validate using validation conditions.
    */
   private async validateWithConditions(
-    stepConfig: CompletionStepConfig,
-  ): Promise<CompletionValidationResult> {
-    if (!this.completionValidator) {
+    stepConfig: ValidationStepConfig,
+  ): Promise<ValidationResult> {
+    if (!this.stepValidator) {
       return { valid: true };
     }
 
-    const result = await this.completionValidator.validate(
-      stepConfig.completionConditions,
+    const result = await this.stepValidator.validate(
+      stepConfig.validationConditions,
     );
 
     if (result.valid) {
-      this.logger.info("All completion conditions passed");
+      this.logger.info("All validation conditions passed");
       return { valid: true };
     }
 
-    this.logger.warn(`Completion validation failed: pattern=${result.pattern}`);
+    this.logger.warn(`Validation failed: pattern=${result.pattern}`);
 
     // Build retry prompt if RetryHandler is available
     if (this.retryHandler && result.pattern) {
@@ -186,7 +186,7 @@ export class CompletionChain {
     // Fallback: return generic failure message
     return {
       valid: false,
-      retryPrompt: `Completion conditions not met: ${
+      retryPrompt: `Validation conditions not met: ${
         result.error ?? result.pattern
       }`,
     };

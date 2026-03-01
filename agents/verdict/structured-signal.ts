@@ -7,15 +7,15 @@
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 import {
-  BaseCompletionHandler,
-  type CompletionCriteria,
+  BaseVerdictHandler,
   type IterationSummary,
+  type VerdictCriteria,
 } from "./types.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
 
-export class StructuredSignalCompletionHandler extends BaseCompletionHandler {
+export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
   readonly type = "structuredSignal" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
@@ -86,7 +86,7 @@ ${requiredFieldsDesc}
     completedIterations: number,
     previousSummary?: IterationSummary,
   ): Promise<string> {
-    // Store for isComplete check
+    // Store for isFinished check
     this.lastSummary = previousSummary;
 
     if (this.promptResolver) {
@@ -124,7 +124,7 @@ Work on the task. When complete, output the structured signal:
     `.trim();
   }
 
-  buildCompletionCriteria(): CompletionCriteria {
+  buildVerdictCriteria(): VerdictCriteria {
     const fieldDesc = this.requiredFields
       ? ` with required fields: ${Object.keys(this.requiredFields).join(", ")}`
       : "";
@@ -135,7 +135,7 @@ Work on the task. When complete, output the structured signal:
     };
   }
 
-  isComplete(): Promise<boolean> {
+  isFinished(): Promise<boolean> {
     if (!this.lastSummary) return Promise.resolve(INCOMPLETE);
 
     // Check if structured output matches the signal
@@ -184,8 +184,8 @@ Work on the task. When complete, output the structured signal:
     return Promise.resolve(COMPLETE);
   }
 
-  async getCompletionDescription(): Promise<string> {
-    const complete = await this.isComplete();
+  async getVerdictDescription(): Promise<string> {
+    const complete = await this.isFinished();
     return complete
       ? `Structured signal "${this.signalType}" detected`
       : `Waiting for "${this.signalType}" signal`;

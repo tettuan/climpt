@@ -9,10 +9,10 @@
 
 import type {
   CheckContext,
-  CompletionResult,
-  CompletionType,
-  ContractCompletionHandler,
+  ContractVerdictHandler,
   StepResult,
+  VerdictResult,
+  VerdictType,
 } from "./types.ts";
 import type {
   ExternalStateChecker,
@@ -21,7 +21,7 @@ import type {
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
 /**
- * Configuration for IssueCompletionHandler.
+ * Configuration for IssueVerdictHandler.
  */
 export interface IssueContractConfig {
   /** Issue number to track */
@@ -48,7 +48,7 @@ export interface IssueContractConfig {
  * Usage:
  * ```typescript
  * const checker = new GitHubStateChecker();
- * const handler = new IssueCompletionHandler(
+ * const handler = new IssueVerdictHandler(
  *   { issueNumber: 123, repo: "owner/repo" },
  *   checker
  * );
@@ -60,8 +60,8 @@ export interface IssueContractConfig {
  * const result = handler.check({ iteration: 1 });
  * ```
  */
-export class IssueCompletionHandler implements ContractCompletionHandler {
-  readonly type: CompletionType = "externalState";
+export class IssueVerdictHandler implements ContractVerdictHandler {
+  readonly type: VerdictType = "externalState";
 
   private cachedState?: IssueState;
   private lastCheckTime = 0;
@@ -79,7 +79,7 @@ export class IssueCompletionHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  check(_context: CheckContext): CompletionResult {
+  check(_context: CheckContext): VerdictResult {
     if (!this.cachedState) {
       return { complete: false };
     }
@@ -121,7 +121,7 @@ export class IssueCompletionHandler implements ContractCompletionHandler {
    *
    * @post No side effects (Query method)
    */
-  getCompletionCriteria(): { summary: string; detailed: string } {
+  getVerdictCriteria(): { summary: string; detailed: string } {
     const action = this.config.closureAction ?? "close";
 
     if (action === "label-only") {

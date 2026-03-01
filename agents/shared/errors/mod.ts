@@ -9,7 +9,7 @@
  *
  * Domain groupings:
  * - base: ClimptError (abstract), AgentError (alias), type guards
- * - runner-errors: query, completion, timeout, max iterations, retryable
+ * - runner-errors: query, verdict, timeout, max iterations, retryable
  * - flow-errors: schema resolution, step routing, gate interpretation
  * - env-errors: environment constraints, rate limits, config, prompt
  * - git-errors: git command failures
@@ -25,12 +25,12 @@ export {
 
 // Runner errors
 export {
-  AgentCompletionError,
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
   AgentRetryableQueryError,
   AgentTimeoutError,
+  AgentVerdictError,
   normalizeToAgentError,
 } from "./runner-errors.ts";
 

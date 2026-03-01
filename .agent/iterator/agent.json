@@ -46,7 +46,7 @@
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
+    "verdict": {
       "type": "externalState",
       "config": {
         "maxIterations": 500

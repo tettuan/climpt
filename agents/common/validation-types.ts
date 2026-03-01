@@ -1,21 +1,21 @@
 /**
- * Completion Validation Types
+ * Validation Types
  *
- * Type definitions for completion condition validation and partial retry.
+ * Type definitions for validation condition checking and partial retry.
  * Works in conjunction with the existing validators/ system.
  */
 
 import type { StepRegistry } from "./step-registry.ts";
 
 // ============================================================================
-// CompletionPattern - Failure pattern definitions for C3L integration
+// FailurePattern - Failure pattern definitions for C3L integration
 // ============================================================================
 
 /**
  * Failure pattern definition
  * Provides mapping from pattern names to C3L prompt paths
  */
-export interface CompletionPattern {
+export interface FailurePattern {
   /** Description of the pattern */
   description: string;
   /** C3L edition (e.g., "failed") */
@@ -73,7 +73,7 @@ export type ValidatorType = "command" | "file" | "custom";
 /**
  * Declarative validator definition (JSON format)
  *
- * Execution logic is handled by CompletionValidator.
+ * Execution logic is handled by StepValidator.
  */
 export interface ValidatorDefinition {
   /** Validator type */
@@ -84,20 +84,20 @@ export interface ValidatorDefinition {
   path?: string;
   /** Success condition */
   successWhen: SuccessCondition;
-  /** Pattern name on failure (key in completionPatterns) */
+  /** Pattern name on failure (key in failurePatterns) */
   failurePattern: string;
   /** Parameter extraction rules */
   extractParams: Record<string, ExtractorType | string>;
 }
 
 // ============================================================================
-// CompletionCondition - Step completion conditions
+// ValidationCondition - Step validation conditions
 // ============================================================================
 
 /**
- * Single completion condition
+ * Single validation condition
  */
-export interface CompletionCondition {
+export interface ValidationCondition {
   /** validator ID or key in validators */
   validator: string;
   /** Optional parameters for the validator */
@@ -152,15 +152,15 @@ export interface OutputSchemaRef {
 }
 
 // ============================================================================
-// CompletionStepConfig - Step configuration with completion conditions
+// ValidationStepConfig - Step configuration with validation conditions
 // ============================================================================
 
 /**
- * Step configuration with completion conditions
+ * Step configuration with validation conditions
  *
- * Extended step definition including completion conditions and retry settings.
+ * Extended step definition including validation conditions and retry settings.
  */
-export interface CompletionStepConfig {
+export interface ValidationStepConfig {
   /** Step ID */
   stepId: string;
   /** Display name */
@@ -169,8 +169,8 @@ export interface CompletionStepConfig {
   c2: string;
   /** C3L path component: c3 (issue, project, etc.) */
   c3: string;
-  /** Array of completion conditions (AND conditions) */
-  completionConditions: CompletionCondition[];
+  /** Array of validation conditions (AND conditions) */
+  validationConditions: ValidationCondition[];
   /** Behavior on failure */
   onFailure: OnFailureConfig;
   /**
@@ -211,26 +211,26 @@ export interface ValidatorResult {
 }
 
 // ============================================================================
-// ExtendedStepsRegistry - Registry with completion patterns
+// ExtendedStepsRegistry - Registry with failure patterns
 // ============================================================================
 
 /**
  * Extended Steps Registry
  *
- * Extends existing StepRegistry with completionPatterns and validators.
+ * Extends existing StepRegistry with failurePatterns and validators.
  */
 export interface ExtendedStepsRegistry extends StepRegistry {
   /** Base path for schema files */
   schemasBase?: string;
 
   /** Failure pattern definitions */
-  completionPatterns?: Record<string, CompletionPattern>;
+  failurePatterns?: Record<string, FailurePattern>;
 
   /** Validator definitions */
   validators?: Record<string, ValidatorDefinition>;
 
-  /** Step configurations with completion conditions */
-  completionSteps?: Record<string, CompletionStepConfig>;
+  /** Step configurations with validation conditions */
+  validationSteps?: Record<string, ValidationStepConfig>;
 }
 
 // ============================================================================
@@ -238,16 +238,16 @@ export interface ExtendedStepsRegistry extends StepRegistry {
 // ============================================================================
 
 /**
- * Check if the step is a completion step configuration
+ * Check if the step is a validation step configuration
  */
-export function isCompletionStepConfig(
+export function isValidationStepConfig(
   step: unknown,
-): step is CompletionStepConfig {
+): step is ValidationStepConfig {
   return (
     typeof step === "object" &&
     step !== null &&
-    "completionConditions" in step &&
-    Array.isArray((step as CompletionStepConfig).completionConditions)
+    "validationConditions" in step &&
+    Array.isArray((step as ValidationStepConfig).validationConditions)
   );
 }
 
@@ -255,8 +255,8 @@ export function isCompletionStepConfig(
  * Check if the registry is an extended registry
  *
  * A registry is considered "extended" if it has any of:
- * - completionPatterns (for CompletionChain validation)
- * - validators (for CompletionChain validation)
+ * - failurePatterns (for ValidationChain validation)
+ * - validators (for ValidationChain validation)
  * - steps with structuredGate (for Flow routing)
  */
 export function isExtendedRegistry(
@@ -266,8 +266,8 @@ export function isExtendedRegistry(
     return false;
   }
 
-  // Check for CompletionChain support
-  if ("completionPatterns" in registry || "validators" in registry) {
+  // Check for ValidationChain support
+  if ("failurePatterns" in registry || "validators" in registry) {
     return true;
   }
 
@@ -289,16 +289,16 @@ export function isExtendedRegistry(
 }
 
 /**
- * Check if the registry has CompletionChain support
- * (completionPatterns or validators)
+ * Check if the registry has ValidationChain support
+ * (failurePatterns or validators)
  */
-export function hasCompletionChainSupport(
+export function hasValidationChainSupport(
   registry: unknown,
 ): boolean {
   return (
     typeof registry === "object" &&
     registry !== null &&
-    ("completionPatterns" in registry || "validators" in registry)
+    ("failurePatterns" in registry || "validators" in registry)
   );
 }
 

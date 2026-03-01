@@ -1,9 +1,9 @@
 /**
- * Completion handlers module exports
+ * Verdict handlers module exports
  *
- * This module provides completion handlers for different completion strategies.
+ * This module provides verdict handlers for different completion strategies.
  *
- * Completion types:
+ * Verdict types:
  * - externalState: Complete when external resource reaches target state
  * - iterationBudget: Complete after N iterations
  * - checkBudget: Complete after N status checks
@@ -14,26 +14,26 @@
  * - custom: Fully custom handler implementation
  *
  * Contract-compliant Interfaces:
- * - ContractCompletionHandler: Interface with no side effects in check()
- * - IssueCompletionHandler: Issue handler using external state checker
+ * - ContractVerdictHandler: Interface with no side effects in check()
+ * - IssueVerdictHandler: Issue handler using external state checker
  * - ExternalStateChecker: Interface for external state retrieval
  */
 
 // Types
-export type { CompletionCriteria, CompletionHandler } from "./types.ts";
-export { BaseCompletionHandler, formatIterationSummary } from "./types.ts";
-export type { CompletionType, IterationSummary } from "./types.ts";
+export type { VerdictCriteria, VerdictHandler } from "./types.ts";
+export { BaseVerdictHandler, formatIterationSummary } from "./types.ts";
+export type { IterationSummary, VerdictType } from "./types.ts";
 
 // Contract-compliant types
 export type {
   CheckContext,
-  CompletionResult,
-  ContractCompletionHandler,
+  ContractVerdictHandler,
   StepResult,
+  VerdictResult,
 } from "./types.ts";
 
 // Factory functions
-export { createRegistryCompletionHandler } from "./factory.ts";
+export { createRegistryVerdictHandler } from "./factory.ts";
 
 // External State Checker
 export {
@@ -43,40 +43,40 @@ export {
   MockStateChecker,
 } from "./external-state-checker.ts";
 
-// Issue completion handler (contract-compliant)
-export { IssueCompletionHandler, type IssueContractConfig } from "./issue.ts";
+// Issue verdict handler (contract-compliant)
+export { type IssueContractConfig, IssueVerdictHandler } from "./issue.ts";
 
-// External state adapter (bridges ContractCompletionHandler -> CompletionHandler)
+// External state adapter (bridges ContractVerdictHandler -> VerdictHandler)
 export {
   type ExternalStateAdapterConfig,
-  ExternalStateCompletionAdapter,
+  ExternalStateVerdictAdapter,
 } from "./external-state-adapter.ts";
 
-// iterationBudget (was: iterate) - Complete after N iterations
-export { IterateCompletionHandler } from "./iterate.ts";
+// iterationBudget - Complete after N iterations
+export { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
 
-// keywordSignal (was: manual) - Complete when LLM outputs specific keyword
-export { ManualCompletionHandler } from "./manual.ts";
+// keywordSignal - Complete when LLM outputs specific keyword
+export { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
 
 // checkBudget - Complete after N status checks
-export { CheckBudgetCompletionHandler } from "./check-budget.ts";
+export { CheckBudgetVerdictHandler } from "./check-budget.ts";
 
-// structuredSignal - Complete when LLM outputs specific JSON signal (new)
-export { StructuredSignalCompletionHandler } from "./structured-signal.ts";
+// structuredSignal - Complete when LLM outputs specific JSON signal
+export { StructuredSignalVerdictHandler } from "./structured-signal.ts";
 
-// composite - Combines multiple conditions with AND/OR logic (new)
+// composite - Combines multiple conditions with AND/OR logic
 export {
-  CompositeCompletionHandler,
   type CompositeCondition,
   type CompositeOperator,
+  CompositeVerdictHandler,
 } from "./composite.ts";
 
-// stepMachine - Complete when step state machine reaches terminal (new)
+// stepMachine - Complete when step state machine reaches terminal
 export {
-  StepMachineCompletionHandler,
+  StepMachineVerdictHandler,
   type StepState,
   type StepTransition,
 } from "./step-machine.ts";
 
 // Re-export type utilities from src_common/types.ts
-export { ALL_COMPLETION_TYPES } from "../src_common/types.ts";
+export { ALL_VERDICT_TYPES } from "../src_common/types.ts";

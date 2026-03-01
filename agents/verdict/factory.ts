@@ -1,5 +1,5 @@
 /**
- * Completion handler factory
+ * Verdict handler factory
  *
  * Supports both new behavior-based type names and legacy aliases.
  * Legacy types are automatically resolved to their new equivalents.
@@ -7,18 +7,18 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import type { CompletionHandler } from "./types.ts";
-import { IssueCompletionHandler, type IssueContractConfig } from "./issue.ts";
+import type { VerdictHandler } from "./types.ts";
+import { type IssueContractConfig, IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
 import {
   type ExternalStateAdapterConfig,
-  ExternalStateCompletionAdapter,
+  ExternalStateVerdictAdapter,
 } from "./external-state-adapter.ts";
-import { IterateCompletionHandler } from "./iterate.ts";
-import { ManualCompletionHandler } from "./manual.ts";
-import { CheckBudgetCompletionHandler } from "./check-budget.ts";
-import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
-import { CompositeCompletionHandler } from "./composite.ts";
+import { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
+import { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
+import { CheckBudgetVerdictHandler } from "./check-budget.ts";
+import { StructuredSignalVerdictHandler } from "./structured-signal.ts";
+import { CompositeVerdictHandler } from "./composite.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { PATHS } from "../shared/paths.ts";
 
@@ -30,7 +30,7 @@ type HandlerFactory = (
   promptResolver: PromptResolver,
   definition: AgentDefinition,
   agentDir: string,
-) => CompletionHandler | Promise<CompletionHandler>;
+) => VerdictHandler | Promise<VerdictHandler>;
 
 /**
  * Registry of completion handler factories by type
@@ -73,14 +73,14 @@ registerHandler(
         | "label-and-close"
         | undefined) ?? "close",
     };
-    const issueHandler = new IssueCompletionHandler(issueConfig, stateChecker);
+    const issueHandler = new IssueVerdictHandler(issueConfig, stateChecker);
 
     const adapterConfig: ExternalStateAdapterConfig = {
       issueNumber,
       repo,
       github: githubConfig as ExternalStateAdapterConfig["github"],
     };
-    const adapter = new ExternalStateCompletionAdapter(
+    const adapter = new ExternalStateVerdictAdapter(
       issueHandler,
       adapterConfig,
     );
@@ -91,9 +91,9 @@ registerHandler(
 
 // iterationBudget (was: iterate) - Complete after N iterations
 registerHandler("iterationBudget", (_args, promptResolver, definition) => {
-  const iterateHandler = new IterateCompletionHandler(
-    definition.runner.completion.config.maxIterations ??
-      AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
+  const iterateHandler = new IterationBudgetVerdictHandler(
+    definition.runner.verdict.config.maxIterations ??
+      AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
   );
   iterateHandler.setPromptResolver(promptResolver);
   return iterateHandler;
@@ -101,8 +101,8 @@ registerHandler("iterationBudget", (_args, promptResolver, definition) => {
 
 // keywordSignal (was: manual) - Complete when LLM outputs specific keyword
 registerHandler("keywordSignal", (_args, promptResolver, definition) => {
-  const manualHandler = new ManualCompletionHandler(
-    definition.runner.completion.config.completionKeyword ?? "TASK_COMPLETE",
+  const manualHandler = new KeywordSignalVerdictHandler(
+    definition.runner.verdict.config.verdictKeyword ?? "TASK_COMPLETE",
   );
   manualHandler.setPromptResolver(promptResolver);
   return manualHandler;
@@ -110,8 +110,8 @@ registerHandler("keywordSignal", (_args, promptResolver, definition) => {
 
 // checkBudget - Complete after N status checks
 registerHandler("checkBudget", (_args, promptResolver, definition) => {
-  const checkHandler = new CheckBudgetCompletionHandler(
-    definition.runner.completion.config.maxChecks ?? 10,
+  const checkHandler = new CheckBudgetVerdictHandler(
+    definition.runner.verdict.config.maxChecks ?? 10,
   );
   checkHandler.setPromptResolver(promptResolver);
   return checkHandler;
@@ -119,14 +119,14 @@ registerHandler("checkBudget", (_args, promptResolver, definition) => {
 
 // structuredSignal - Complete when LLM outputs specific JSON signal
 registerHandler("structuredSignal", (_args, promptResolver, definition) => {
-  if (!definition.runner.completion.config.signalType) {
+  if (!definition.runner.verdict.config.signalType) {
     throw new Error(
-      "structuredSignal completion type requires signalType in completionConfig",
+      "structuredSignal completion type requires signalType in verdictConfig",
     );
   }
-  const signalHandler = new StructuredSignalCompletionHandler(
-    definition.runner.completion.config.signalType,
-    definition.runner.completion.config.requiredFields,
+  const signalHandler = new StructuredSignalVerdictHandler(
+    definition.runner.verdict.config.signalType,
+    definition.runner.verdict.config.requiredFields,
   );
   signalHandler.setPromptResolver(promptResolver);
   return signalHandler;
@@ -134,15 +134,15 @@ registerHandler("structuredSignal", (_args, promptResolver, definition) => {
 
 // composite - Combines multiple conditions
 registerHandler("composite", (args, promptResolver, definition, agentDir) => {
-  const { config: completionConfig } = definition.runner.completion;
-  if (!completionConfig.conditions || !completionConfig.operator) {
+  const { config: verdictConfig } = definition.runner.verdict;
+  if (!verdictConfig.conditions || !verdictConfig.operator) {
     throw new Error(
-      "composite completion type requires conditions and operator in completionConfig",
+      "composite completion type requires conditions and operator in verdictConfig",
     );
   }
-  const compositeHandler = new CompositeCompletionHandler(
-    completionConfig.operator,
-    completionConfig.conditions,
+  const compositeHandler = new CompositeVerdictHandler(
+    verdictConfig.operator,
+    verdictConfig.conditions,
     args,
     agentDir,
     definition,
@@ -155,10 +155,10 @@ registerHandler("composite", (args, promptResolver, definition, agentDir) => {
 registerHandler(
   "stepMachine",
   async (_args, promptResolver, definition, agentDir) => {
-    const { config: completionConfig } = definition.runner.completion;
+    const { config: verdictConfig } = definition.runner.verdict;
 
     // Load steps registry for step machine
-    const registryPath = completionConfig.registryPath ??
+    const registryPath = verdictConfig.registryPath ??
       `${agentDir}/${PATHS.STEPS_REGISTRY}`;
 
     try {
@@ -166,13 +166,13 @@ registerHandler(
       const registry = JSON.parse(content);
 
       // Import dynamically to avoid circular dependency at module load time
-      const { StepMachineCompletionHandler } = await import(
+      const { StepMachineVerdictHandler } = await import(
         "./step-machine.ts"
       );
 
-      const stepMachineHandler = new StepMachineCompletionHandler(
+      const stepMachineHandler = new StepMachineVerdictHandler(
         registry,
-        completionConfig.entryStep,
+        verdictConfig.entryStep,
       );
       stepMachineHandler.setPromptResolver(promptResolver);
       return stepMachineHandler;
@@ -183,9 +183,9 @@ registerHandler(
         console.warn(
           `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
         );
-        const iterateHandler = new IterateCompletionHandler(
-          completionConfig.maxIterations ??
-            AGENT_LIMITS.COMPLETION_FALLBACK_MAX_ITERATIONS,
+        const iterateHandler = new IterationBudgetVerdictHandler(
+          verdictConfig.maxIterations ??
+            AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
         );
         iterateHandler.setPromptResolver(promptResolver);
         return iterateHandler;
@@ -199,14 +199,14 @@ registerHandler(
 registerHandler(
   "custom",
   async (_args, _promptResolver, definition, agentDir) => {
-    if (!definition.runner.completion.config.handlerPath) {
+    if (!definition.runner.verdict.config.handlerPath) {
       throw new Error(
-        "Custom completion type requires handlerPath in completionConfig",
+        "Custom completion type requires handlerPath in verdictConfig",
       );
     }
     return await loadCustomHandler(
       definition,
-      definition.runner.completion.config.handlerPath,
+      definition.runner.verdict.config.handlerPath,
       _args,
       agentDir,
     );
@@ -221,14 +221,14 @@ registerHandler(
  * Create a completion handler based on agent definition using the registry.
  *
  * This is the main factory used by AgentRunner. It routes to the appropriate
- * handler based on completionType in the agent definition.
+ * handler based on verdictType in the agent definition.
  */
-export async function createRegistryCompletionHandler(
+export async function createRegistryVerdictHandler(
   definition: AgentDefinition,
   args: Record<string, unknown>,
   agentDir: string,
-): Promise<CompletionHandler> {
-  const { type: completionType } = definition.runner.completion;
+): Promise<VerdictHandler> {
+  const { type: verdictType } = definition.runner.verdict;
 
   // Create prompt resolver for handlers
   const promptResolver = await PromptResolver.create({
@@ -239,9 +239,9 @@ export async function createRegistryCompletionHandler(
   });
 
   // Get factory from registry
-  const factory = HANDLER_REGISTRY.get(completionType);
+  const factory = HANDLER_REGISTRY.get(verdictType);
   if (!factory) {
-    throw new Error(`Unknown completion type: ${completionType}`);
+    throw new Error(`Unknown completion type: ${verdictType}`);
   }
 
   return await factory(args, promptResolver, definition, agentDir);
@@ -255,7 +255,7 @@ async function loadCustomHandler(
   handlerPath: string,
   args: Record<string, unknown>,
   agentDir: string,
-): Promise<CompletionHandler> {
+): Promise<VerdictHandler> {
   const fullPath = `${agentDir}/${handlerPath}`;
 
   try {

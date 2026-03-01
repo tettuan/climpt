@@ -15,4 +15,4 @@ export {
   type FormatValidationResult,
   FormatValidator,
 } from "./format-validator.ts";
-// ResponseFormat is now exported from common/completion-types.ts
+// ResponseFormat is now exported from common/validation-types.ts (verdict validation types)

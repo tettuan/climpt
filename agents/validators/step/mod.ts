@@ -1,21 +1,21 @@
 /**
- * Completion Validation Module
+ * Step Validation Module
  *
- * Module for step completion condition validation and partial retry.
+ * Module for step validation condition checking and partial retry.
  */
 
 // Types
 export type {
   CommandResult,
-  CompletionCondition,
-  CompletionPattern,
-  CompletionStepConfig,
-  CompletionValidatorContext,
   ExtendedStepsRegistry,
   ExtractorType,
   FailureAction,
+  FailurePattern,
   OnFailureConfig,
+  StepValidatorContext,
   SuccessCondition,
+  ValidationCondition,
+  ValidationStepConfig,
   ValidatorDefinition,
   ValidatorRegistry,
   ValidatorResult,
@@ -26,12 +26,12 @@ export type {
 // Type guards
 export {
   getPatternFromResult,
-  isCompletionStepConfig,
   isExtendedRegistry,
+  isValidationStepConfig,
 } from "./types.ts";
 
 // Validator
-export { CompletionValidator, createCompletionValidator } from "./validator.ts";
+export { createStepValidator, StepValidator } from "./validator.ts";
 
 // Command runner
 export { checkSuccessCondition, CommandRunner } from "./command-runner.ts";

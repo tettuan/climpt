@@ -1,13 +1,13 @@
 /**
- * Tests for CompletionChain
+ * Tests for ValidationChain
  *
- * Covers validate(), getCompletionStepId(), and getStepIdForIteration().
+ * Covers validate(), getClosureStepId(), and getStepIdForIteration().
  */
 
 import { assertEquals } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
-import { CompletionChain } from "./completion-chain.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import { ValidationChain } from "./validation-chain.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { IterationSummary } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 
@@ -73,13 +73,13 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         usesStdin: false,
       },
     },
-    completionSteps: {
+    validationSteps: {
       "closure.issue": {
         stepId: "closure.issue",
         name: "Issue Closure",
         c2: "closure",
         c3: "issue",
-        completionConditions: [{
+        validationConditions: [{
           validator: "command",
           params: { command: "echo ok" },
         }],
@@ -90,7 +90,7 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         name: "External State Closure",
         c2: "closure",
         c3: "externalState",
-        completionConditions: [],
+        validationConditions: [],
         onFailure: { action: "retry" },
       },
     },
@@ -99,12 +99,12 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
 
 function createChain(
   registry: ExtendedStepsRegistry | null = createFixtureRegistry(),
-): CompletionChain {
-  return new CompletionChain({
+): ValidationChain {
+  return new ValidationChain({
     workingDir: "/tmp/claude/test",
     logger: createMockLogger(),
     stepsRegistry: registry,
-    completionValidator: null,
+    stepValidator: null,
     retryHandler: null,
     agentId: "test",
   });
@@ -114,7 +114,7 @@ function createChain(
 // validate Tests
 // =============================================================================
 
-Deno.test("CompletionChain - validate returns valid when no step config", async () => {
+Deno.test("ValidationChain - validate returns valid when no step config", async () => {
   const chain = createChain();
   const summary = createSummary();
 
@@ -125,14 +125,14 @@ Deno.test("CompletionChain - validate returns valid when no step config", async 
   assertEquals(result.valid, true);
 });
 
-Deno.test("CompletionChain - validate returns valid when outputSchema defers to runner", async () => {
+Deno.test("ValidationChain - validate returns valid when outputSchema defers to runner", async () => {
   const registry = createFixtureRegistry();
-  registry.completionSteps!["closure.schema"] = {
+  registry.validationSteps!["closure.schema"] = {
     stepId: "closure.schema",
     name: "Schema Closure",
     c2: "closure",
     c3: "schema",
-    completionConditions: [],
+    validationConditions: [],
     onFailure: { action: "retry" },
     outputSchema: { type: "object" },
   };
@@ -144,7 +144,7 @@ Deno.test("CompletionChain - validate returns valid when outputSchema defers to 
   assertEquals(result.valid, true);
 });
 
-Deno.test("CompletionChain - validate returns valid when no validator available", async () => {
+Deno.test("ValidationChain - validate returns valid when no validator available", async () => {
   const chain = createChain();
   const summary = createSummary();
 
@@ -154,7 +154,7 @@ Deno.test("CompletionChain - validate returns valid when no validator available"
   assertEquals(result.valid, true);
 });
 
-Deno.test("CompletionChain - validate returns valid for step with empty conditions", async () => {
+Deno.test("ValidationChain - validate returns valid for step with empty conditions", async () => {
   const chain = createChain();
   const summary = createSummary();
 
@@ -165,38 +165,38 @@ Deno.test("CompletionChain - validate returns valid for step with empty conditio
 });
 
 // =============================================================================
-// getCompletionStepId Tests
+// getClosureStepId Tests
 // =============================================================================
 
-Deno.test("CompletionChain - getCompletionStepId returns registry step for known type", () => {
+Deno.test("ValidationChain - getClosureStepId returns registry step for known type", () => {
   const chain = createChain();
 
-  logger.debug("getCompletionStepId input", { completionType: "issue" });
-  const stepId = chain.getCompletionStepId("issue");
-  logger.debug("getCompletionStepId result", { stepId });
+  logger.debug("getClosureStepId input", { verdictType: "issue" });
+  const stepId = chain.getClosureStepId("issue");
+  logger.debug("getClosureStepId result", { stepId });
 
   assertEquals(stepId, "closure.issue");
 });
 
-Deno.test("CompletionChain - getCompletionStepId returns closure.externalState", () => {
+Deno.test("ValidationChain - getClosureStepId returns closure.externalState", () => {
   const chain = createChain();
 
-  const stepId = chain.getCompletionStepId("externalState");
+  const stepId = chain.getClosureStepId("externalState");
 
   assertEquals(stepId, "closure.externalState");
 });
 
-Deno.test("CompletionChain - getCompletionStepId type defaults for iterate", () => {
+Deno.test("ValidationChain - getClosureStepId type defaults for iterate", () => {
   const chain = createChain();
 
-  assertEquals(chain.getCompletionStepId("iterate"), "closure.iterate");
-  assertEquals(chain.getCompletionStepId("iterationBudget"), "closure.iterate");
+  assertEquals(chain.getClosureStepId("iterate"), "closure.iterate");
+  assertEquals(chain.getClosureStepId("iterationBudget"), "closure.iterate");
 });
 
-Deno.test("CompletionChain - getCompletionStepId falls back to closure.{type}", () => {
+Deno.test("ValidationChain - getClosureStepId falls back to closure.{type}", () => {
   const chain = createChain();
 
-  const stepId = chain.getCompletionStepId("custom");
+  const stepId = chain.getClosureStepId("custom");
 
   assertEquals(stepId, "closure.custom");
 });
@@ -205,7 +205,7 @@ Deno.test("CompletionChain - getCompletionStepId falls back to closure.{type}", 
 // getStepIdForIteration Tests
 // =============================================================================
 
-Deno.test("CompletionChain - getStepIdForIteration maps iteration to step", () => {
+Deno.test("ValidationChain - getStepIdForIteration maps iteration to step", () => {
   const chain = createChain();
 
   logger.debug("getStepIdForIteration input", { iteration: 1 });
@@ -215,7 +215,7 @@ Deno.test("CompletionChain - getStepIdForIteration maps iteration to step", () =
   assertEquals(stepId, "initial.test");
 });
 
-Deno.test("CompletionChain - getStepIdForIteration clamps to last step", () => {
+Deno.test("ValidationChain - getStepIdForIteration clamps to last step", () => {
   const chain = createChain();
 
   // iteration 3 exceeds 2 steps, should clamp to last
@@ -224,7 +224,7 @@ Deno.test("CompletionChain - getStepIdForIteration clamps to last step", () => {
   assertEquals(stepId, "continuation.test");
 });
 
-Deno.test("CompletionChain - getStepIdForIteration without registry falls back", () => {
+Deno.test("ValidationChain - getStepIdForIteration without registry falls back", () => {
   const chain = createChain(null);
 
   const stepId = chain.getStepIdForIteration(1);

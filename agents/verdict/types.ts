@@ -1,29 +1,29 @@
 /**
- * Completion handler types and interfaces
+ * Verdict handler types and interfaces
  *
  * Unified interface combining features from runner and iterator implementations.
  * Uses Strategy pattern for different completion conditions.
  */
 
-import type { CompletionType, IterationSummary } from "../src_common/types.ts";
+import type { IterationSummary, VerdictType } from "../src_common/types.ts";
 import type {
   CheckContext,
-  CompletionResult,
   StepResult,
+  VerdictResult,
 } from "../src_common/contracts.ts";
 import { TRUNCATION } from "../shared/constants.ts";
 import type { STEP_PHASE } from "../shared/step-phases.ts";
 
 // Re-export for convenience
-export type { CompletionType, IterationSummary };
+export type { IterationSummary, VerdictType };
 
 // Re-export contract types for V2 API
-export type { CheckContext, CompletionResult, StepResult };
+export type { CheckContext, StepResult, VerdictResult };
 
 /**
- * Completion criteria for system prompt and logging
+ * Verdict criteria for system prompt and logging
  */
-export interface CompletionCriteria {
+export interface VerdictCriteria {
   /** Short description (for logs) */
   short: string;
   /** Detailed description (for system prompt) */
@@ -105,9 +105,9 @@ export function formatIterationSummary(summary: IterationSummary): string {
  * 2. Add to factory in factory.ts
  * 3. Add CLI option support
  */
-export interface CompletionHandler {
-  /** Completion type identifier */
-  readonly type: CompletionType;
+export interface VerdictHandler {
+  /** Verdict type identifier */
+  readonly type: VerdictType;
 
   /**
    * Build initial prompt for first iteration
@@ -116,8 +116,8 @@ export interface CompletionHandler {
   buildInitialPrompt(): Promise<string>;
 
   /**
-   * Set the current iteration summary before completion check.
-   * Called by runner before isComplete() to provide structured output context.
+   * Set the current iteration summary before verdict check.
+   * Called by runner before isFinished() to provide structured output context.
    * Optional - not all handlers need this.
    */
   setCurrentSummary?(summary: IterationSummary): void;
@@ -134,13 +134,13 @@ export interface CompletionHandler {
   ): Promise<string>;
 
   /** Get completion criteria for system prompt */
-  buildCompletionCriteria(): CompletionCriteria;
+  buildVerdictCriteria(): VerdictCriteria;
 
   /** Check if agent should complete (state managed internally) */
-  isComplete(): Promise<boolean>;
+  isFinished(): Promise<boolean>;
 
   /** Get description of completion status */
-  getCompletionDescription(): Promise<string>;
+  getVerdictDescription(): Promise<string>;
 
   /**
    * Called when a closure step emits `closing` intent.
@@ -164,17 +164,17 @@ export interface CompletionHandler {
 /**
  * Base class with common utilities for completion handlers
  */
-export abstract class BaseCompletionHandler implements CompletionHandler {
-  abstract readonly type: CompletionType;
+export abstract class BaseVerdictHandler implements VerdictHandler {
+  abstract readonly type: VerdictType;
 
   abstract buildInitialPrompt(): Promise<string>;
   abstract buildContinuationPrompt(
     completedIterations: number,
     previousSummary?: IterationSummary,
   ): Promise<string>;
-  abstract buildCompletionCriteria(): CompletionCriteria;
-  abstract isComplete(): Promise<boolean>;
-  abstract getCompletionDescription(): Promise<string>;
+  abstract buildVerdictCriteria(): VerdictCriteria;
+  abstract isFinished(): Promise<boolean>;
+  abstract getVerdictDescription(): Promise<string>;
 
   /**
    * Format iteration summary for continuation prompts
@@ -205,9 +205,9 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
 // ============================================================================
 
 /**
- * Contract-compliant Completion Handler Interface
+ * Contract-compliant Verdict Handler Interface
  *
- * Based on: agents/docs/design/06_contracts.md CompletionContract
+ * Based on: agents/docs/design/06_contracts.md VerdictContract
  *
  * Contract guarantees:
  * - check() is a Query method (no side effects)
@@ -215,19 +215,19 @@ export abstract class BaseCompletionHandler implements CompletionHandler {
  * - buildPrompt() is a Query method (no side effects)
  * - External state retrieval is delegated to ExternalStateChecker
  */
-export interface ContractCompletionHandler {
-  /** Completion type identifier */
-  readonly type: CompletionType;
+export interface ContractVerdictHandler {
+  /** Verdict type identifier */
+  readonly type: VerdictType;
 
   /**
-   * Check if completion condition is met.
+   * Check if verdict condition is met.
    *
    * @pre context.iteration > 0
    * @post No side effects (Query method)
    * @param context - Current iteration context
-   * @returns Completion decision
+   * @returns Verdict decision
    */
-  check(context: CheckContext): CompletionResult;
+  check(context: CheckContext): VerdictResult;
 
   /**
    * Determine next step after current step completes.
@@ -252,10 +252,10 @@ export interface ContractCompletionHandler {
   ): string;
 
   /**
-   * Get completion criteria description.
+   * Get verdict criteria description.
    *
    * @post No side effects (Query method)
-   * @returns Completion criteria with summary and detailed description
+   * @returns Verdict criteria with summary and detailed description
    */
-  getCompletionCriteria(): { summary: string; detailed: string };
+  getVerdictCriteria(): { summary: string; detailed: string };
 }

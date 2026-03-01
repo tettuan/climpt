@@ -1,34 +1,34 @@
 /**
- * Completion Handler Tests
+ * Verdict Handler Tests
  *
  * Tests for the completion module including:
  * - Factory functions
- * - IssueCompletionHandler (contract-compliant)
- * - CompositeCompletionHandler (AND/OR logic)
- * - IterateCompletionHandler
- * - ManualCompletionHandler
- * - CheckBudgetCompletionHandler
- * - StructuredSignalCompletionHandler
+ * - IssueVerdictHandler (contract-compliant)
+ * - CompositeVerdictHandler (AND/OR logic)
+ * - IterationBudgetVerdictHandler
+ * - KeywordSignalVerdictHandler
+ * - CheckBudgetVerdictHandler
+ * - StructuredSignalVerdictHandler
  * - MockStateChecker
  */
 
 import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
-import { createRegistryCompletionHandler } from "./factory.ts";
+import { createRegistryVerdictHandler } from "./factory.ts";
 
 const logger = new BreakdownLogger("handler");
-import { ExternalStateCompletionAdapter } from "./external-state-adapter.ts";
-import { IssueCompletionHandler } from "./issue.ts";
-import { CompositeCompletionHandler } from "./composite.ts";
-import { IterateCompletionHandler } from "./iterate.ts";
-import { ManualCompletionHandler } from "./manual.ts";
-import { CheckBudgetCompletionHandler } from "./check-budget.ts";
-import { StructuredSignalCompletionHandler } from "./structured-signal.ts";
+import { ExternalStateVerdictAdapter } from "./external-state-adapter.ts";
+import { IssueVerdictHandler } from "./issue.ts";
+import { CompositeVerdictHandler } from "./composite.ts";
+import { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
+import { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
+import { CheckBudgetVerdictHandler } from "./check-budget.ts";
+import { StructuredSignalVerdictHandler } from "./structured-signal.ts";
 import { MockStateChecker } from "./external-state-checker.ts";
-import { StepMachineCompletionHandler } from "./step-machine.ts";
+import { StepMachineVerdictHandler } from "./step-machine.ts";
 import type { IterationSummary } from "./types.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 
 // =============================================================================
 // Test Utilities
@@ -53,23 +53,23 @@ function createMockIterationSummary(
  * Create a minimal mock agent definition
  *
  * Uses type assertions for testing purposes - the tests only need
- * the runner.completion fields, not the full definition.
+ * the runner.verdict fields, not the full definition.
  */
 function createMockAgentDefinition(
   overrides: {
-    completion?: Partial<AgentDefinition["runner"]["completion"]>;
+    verdict?: Partial<AgentDefinition["runner"]["verdict"]>;
   } = {},
 ): AgentDefinition {
-  const baseCompletion = {
+  const baseVerdict = {
     type: "iterationBudget" as const,
     config: {
       maxIterations: 10,
     },
   };
 
-  const completion = overrides.completion
-    ? { ...baseCompletion, ...overrides.completion }
-    : baseCompletion;
+  const verdict = overrides.verdict
+    ? { ...baseVerdict, ...overrides.verdict }
+    : baseVerdict;
 
   return {
     name: "test-agent",
@@ -82,7 +82,7 @@ function createMockAgentDefinition(
           fallbackDir: "prompts",
         },
       },
-      completion,
+      verdict,
       boundaries: {
         allowedTools: ["Bash", "Read", "Write"],
         permissionMode: "plan",
@@ -94,12 +94,12 @@ function createMockAgentDefinition(
 }
 
 // =============================================================================
-// IssueCompletionHandler Tests
+// IssueVerdictHandler Tests
 // =============================================================================
 
-Deno.test("IssueCompletionHandler - check without cached state returns incomplete", () => {
+Deno.test("IssueVerdictHandler - check without cached state returns incomplete", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -108,11 +108,11 @@ Deno.test("IssueCompletionHandler - check without cached state returns incomplet
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueCompletionHandler - check with cached open state returns incomplete", async () => {
+Deno.test("IssueVerdictHandler - check with cached open state returns incomplete", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -122,11 +122,11 @@ Deno.test("IssueCompletionHandler - check with cached open state returns incompl
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueCompletionHandler - check with cached closed state returns complete", async () => {
+Deno.test("IssueVerdictHandler - check with cached closed state returns complete", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, true);
 
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -142,11 +142,11 @@ Deno.test("IssueCompletionHandler - check with cached closed state returns compl
   assertEquals(result.reason?.includes("123"), true);
 });
 
-Deno.test("IssueCompletionHandler - refreshState respects interval", async () => {
+Deno.test("IssueVerdictHandler - refreshState respects interval", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123, checkInterval: 60000 },
     mockChecker,
   );
@@ -163,11 +163,11 @@ Deno.test("IssueCompletionHandler - refreshState respects interval", async () =>
   assertEquals(result.complete, false);
 });
 
-Deno.test("IssueCompletionHandler - forceRefreshState ignores interval", async () => {
+Deno.test("IssueVerdictHandler - forceRefreshState ignores interval", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(123, false);
 
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123, checkInterval: 60000 },
     mockChecker,
   );
@@ -181,9 +181,9 @@ Deno.test("IssueCompletionHandler - forceRefreshState ignores interval", async (
   assertEquals(result.complete, true);
 });
 
-Deno.test("IssueCompletionHandler - buildPrompt initial phase", () => {
+Deno.test("IssueVerdictHandler - buildPrompt initial phase", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 456 },
     mockChecker,
   );
@@ -192,9 +192,9 @@ Deno.test("IssueCompletionHandler - buildPrompt initial phase", () => {
   assertEquals(prompt.includes("456"), true);
 });
 
-Deno.test("IssueCompletionHandler - buildPrompt continuation phase", () => {
+Deno.test("IssueVerdictHandler - buildPrompt continuation phase", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 456 },
     mockChecker,
   );
@@ -204,62 +204,62 @@ Deno.test("IssueCompletionHandler - buildPrompt continuation phase", () => {
   assertEquals(prompt.includes("5"), true);
 });
 
-Deno.test("IssueCompletionHandler - getCompletionCriteria", () => {
+Deno.test("IssueVerdictHandler - getVerdictCriteria", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 789, repo: "test/repo" },
     mockChecker,
   );
 
-  const criteria = handler.getCompletionCriteria();
+  const criteria = handler.getVerdictCriteria();
   assertEquals(criteria.summary.includes("789"), true);
   assertEquals(criteria.detailed.includes("test/repo"), true);
 });
 
-Deno.test("IssueCompletionHandler - getCompletionCriteria with label-only", () => {
-  const handler = new IssueCompletionHandler(
+Deno.test("IssueVerdictHandler - getVerdictCriteria with label-only", () => {
+  const handler = new IssueVerdictHandler(
     { issueNumber: 42, closureAction: "label-only" },
     new MockStateChecker(),
   );
-  const criteria = handler.getCompletionCriteria();
+  const criteria = handler.getVerdictCriteria();
   assertEquals(criteria.summary, "Phase complete for Issue #42");
   assertStringIncludes(criteria.detailed, "Do NOT close");
   assertStringIncludes(criteria.detailed, "#42");
 });
 
-Deno.test("IssueCompletionHandler - getCompletionCriteria with label-and-close", () => {
-  const handler = new IssueCompletionHandler(
+Deno.test("IssueVerdictHandler - getVerdictCriteria with label-and-close", () => {
+  const handler = new IssueVerdictHandler(
     { issueNumber: 42, closureAction: "label-and-close" },
     new MockStateChecker(),
   );
-  const criteria = handler.getCompletionCriteria();
+  const criteria = handler.getVerdictCriteria();
   assertEquals(criteria.summary, "Issue #42 labeled and closed");
   assertStringIncludes(criteria.detailed, "close");
 });
 
-Deno.test("IssueCompletionHandler - getCompletionCriteria with close (explicit)", () => {
-  const handler = new IssueCompletionHandler(
+Deno.test("IssueVerdictHandler - getVerdictCriteria with close (explicit)", () => {
+  const handler = new IssueVerdictHandler(
     { issueNumber: 42, closureAction: "close" },
     new MockStateChecker(),
   );
-  const criteria = handler.getCompletionCriteria();
+  const criteria = handler.getVerdictCriteria();
   assertEquals(criteria.summary, "Issue #42 closed");
   assertStringIncludes(criteria.detailed, "closed");
 });
 
-Deno.test("IssueCompletionHandler - getCompletionCriteria default (no closureAction)", () => {
-  const handler = new IssueCompletionHandler(
+Deno.test("IssueVerdictHandler - getVerdictCriteria default (no closureAction)", () => {
+  const handler = new IssueVerdictHandler(
     { issueNumber: 42 },
     new MockStateChecker(),
   );
-  const criteria = handler.getCompletionCriteria();
+  const criteria = handler.getVerdictCriteria();
   assertEquals(criteria.summary, "Issue #42 closed");
   assertStringIncludes(criteria.detailed, "closed");
 });
 
-Deno.test("IssueCompletionHandler - transition always returns closure", () => {
+Deno.test("IssueVerdictHandler - transition always returns closure", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -275,9 +275,9 @@ Deno.test("IssueCompletionHandler - transition always returns closure", () => {
   );
 });
 
-Deno.test("IssueCompletionHandler - getCachedState returns undefined initially", () => {
+Deno.test("IssueVerdictHandler - getCachedState returns undefined initially", () => {
   const mockChecker = new MockStateChecker();
-  const handler = new IssueCompletionHandler(
+  const handler = new IssueVerdictHandler(
     { issueNumber: 123 },
     mockChecker,
   );
@@ -286,25 +286,25 @@ Deno.test("IssueCompletionHandler - getCachedState returns undefined initially",
 });
 
 // =============================================================================
-// CompositeCompletionHandler Tests
+// CompositeVerdictHandler Tests
 // =============================================================================
 
-Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () => {
+Deno.test("CompositeVerdictHandler - AND logic - all incomplete", async () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "and",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 10 } },
-          { type: "keywordSignal", config: { completionKeyword: "DONE" } },
+          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
   });
 
-  const conditions = definition.runner.completion.config.conditions ?? [];
-  const handler = new CompositeCompletionHandler(
+  const conditions = definition.runner.verdict.config.conditions ?? [];
+  const handler = new CompositeVerdictHandler(
     "and",
     conditions,
     {},
@@ -312,27 +312,27 @@ Deno.test("CompositeCompletionHandler - AND logic - all incomplete", async () =>
     definition,
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
+Deno.test("CompositeVerdictHandler - OR logic - one complete", async () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "or",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 1 } },
-          { type: "keywordSignal", config: { completionKeyword: "DONE" } },
+          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "or",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -340,16 +340,16 @@ Deno.test("CompositeCompletionHandler - OR logic - one complete", async () => {
 
   // Access internal handlers to set iteration count
   // @ts-ignore - accessing private for testing
-  const iterateHandler = handler.handlers[0] as IterateCompletionHandler;
+  const iterateHandler = handler.handlers[0] as IterationBudgetVerdictHandler;
   iterateHandler.setCurrentIteration(1);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", async () => {
+Deno.test("CompositeVerdictHandler - FIRST logic - tracks completed index", async () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "first",
@@ -361,9 +361,9 @@ Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", a
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "first",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -371,19 +371,19 @@ Deno.test("CompositeCompletionHandler - FIRST logic - tracks completed index", a
 
   // Set second handler to complete
   // @ts-ignore - accessing private for testing
-  const secondHandler = handler.handlers[1] as IterateCompletionHandler;
+  const secondHandler = handler.handlers[1] as IterationBudgetVerdictHandler;
   secondHandler.setCurrentIteration(1);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("condition 2"), true);
 });
 
-Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handlers", () => {
+Deno.test("CompositeVerdictHandler - buildVerdictCriteria combines handlers", () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "and",
@@ -395,21 +395,21 @@ Deno.test("CompositeCompletionHandler - buildCompletionCriteria combines handler
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "and",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     {},
     "/test",
     definition,
   );
 
-  const criteria = handler.buildCompletionCriteria();
+  const criteria = handler.buildVerdictCriteria();
   assertEquals(criteria.short.includes("AND"), true);
 });
 
-Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", async () => {
+Deno.test("CompositeVerdictHandler - buildInitialPrompt uses first handler", async () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "or",
@@ -420,9 +420,9 @@ Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", 
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "or",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -432,11 +432,11 @@ Deno.test("CompositeCompletionHandler - buildInitialPrompt uses first handler", 
   assertEquals(prompt.includes("iteration"), true);
 });
 
-Deno.test("CompositeCompletionHandler - throws on unsupported condition type", () => {
+Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () => {
   const definition = createMockAgentDefinition();
 
   try {
-    new CompositeCompletionHandler(
+    new CompositeVerdictHandler(
       "and",
       // deno-lint-ignore no-explicit-any
       [{ type: "custom" as any, config: {} }],
@@ -451,66 +451,66 @@ Deno.test("CompositeCompletionHandler - throws on unsupported condition type", (
 });
 
 // =============================================================================
-// IterateCompletionHandler Tests
+// IterationBudgetVerdictHandler Tests
 // =============================================================================
 
-Deno.test("IterateCompletionHandler - initialization", () => {
-  const handler = new IterateCompletionHandler(100);
+Deno.test("IterationBudgetVerdictHandler - initialization", () => {
+  const handler = new IterationBudgetVerdictHandler(100);
 
   assertEquals(handler.type, "iterationBudget");
 });
 
-Deno.test("IterateCompletionHandler - isComplete before max", async () => {
-  const handler = new IterateCompletionHandler(10);
+Deno.test("IterationBudgetVerdictHandler - isFinishedbefore max", async () => {
+  const handler = new IterationBudgetVerdictHandler(10);
   handler.setCurrentIteration(5);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("IterateCompletionHandler - isComplete at max", async () => {
-  const handler = new IterateCompletionHandler(10);
+Deno.test("IterationBudgetVerdictHandler - isFinishedat max", async () => {
+  const handler = new IterationBudgetVerdictHandler(10);
   handler.setCurrentIteration(10);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("IterateCompletionHandler - isComplete after max", async () => {
-  const handler = new IterateCompletionHandler(10);
+Deno.test("IterationBudgetVerdictHandler - isFinishedafter max", async () => {
+  const handler = new IterationBudgetVerdictHandler(10);
   handler.setCurrentIteration(15);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("IterateCompletionHandler - buildCompletionCriteria", () => {
-  const handler = new IterateCompletionHandler(25);
-  const criteria = handler.buildCompletionCriteria();
+Deno.test("IterationBudgetVerdictHandler - buildVerdictCriteria", () => {
+  const handler = new IterationBudgetVerdictHandler(25);
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short, "25 iterations");
   assertEquals(criteria.detailed.includes("25"), true);
 });
 
-Deno.test("IterateCompletionHandler - getCompletionDescription", async () => {
-  const handler = new IterateCompletionHandler(20);
+Deno.test("IterationBudgetVerdictHandler - getVerdictDescription", async () => {
+  const handler = new IterationBudgetVerdictHandler(20);
   handler.setCurrentIteration(7);
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("7"), true);
   assertEquals(desc.includes("20"), true);
 });
 
-Deno.test("IterateCompletionHandler - buildInitialPrompt", async () => {
-  const handler = new IterateCompletionHandler(50);
+Deno.test("IterationBudgetVerdictHandler - buildInitialPrompt", async () => {
+  const handler = new IterationBudgetVerdictHandler(50);
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(prompt.includes("50"), true);
   assertEquals(prompt.includes("iteration"), true);
 });
 
-Deno.test("IterateCompletionHandler - buildContinuationPrompt updates iteration", async () => {
-  const handler = new IterateCompletionHandler(30);
+Deno.test("IterationBudgetVerdictHandler - buildContinuationPrompt updates iteration", async () => {
+  const handler = new IterationBudgetVerdictHandler(30);
   const prompt = await handler.buildContinuationPrompt(15);
 
   assertEquals(prompt.includes("15"), true);
@@ -519,24 +519,24 @@ Deno.test("IterateCompletionHandler - buildContinuationPrompt updates iteration"
 });
 
 // =============================================================================
-// ManualCompletionHandler Tests
+// KeywordSignalVerdictHandler Tests
 // =============================================================================
 
-Deno.test("ManualCompletionHandler - initialization", () => {
-  const handler = new ManualCompletionHandler("TASK_COMPLETE");
+Deno.test("KeywordSignalVerdictHandler - initialization", () => {
+  const handler = new KeywordSignalVerdictHandler("TASK_COMPLETE");
 
   assertEquals(handler.type, "keywordSignal");
 });
 
-Deno.test("ManualCompletionHandler - isComplete without summary", async () => {
-  const handler = new ManualCompletionHandler("DONE");
+Deno.test("KeywordSignalVerdictHandler - isFinishedwithout summary", async () => {
+  const handler = new KeywordSignalVerdictHandler("DONE");
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("ManualCompletionHandler - isComplete with keyword in response", async () => {
-  const handler = new ManualCompletionHandler("FINISHED");
+Deno.test("KeywordSignalVerdictHandler - isFinishedwith keyword in response", async () => {
+  const handler = new KeywordSignalVerdictHandler("FINISHED");
 
   // Build continuation prompt stores the summary
   await handler.buildContinuationPrompt(
@@ -546,12 +546,12 @@ Deno.test("ManualCompletionHandler - isComplete with keyword in response", async
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("ManualCompletionHandler - isComplete without keyword", async () => {
-  const handler = new ManualCompletionHandler("COMPLETE");
+Deno.test("KeywordSignalVerdictHandler - isFinishedwithout keyword", async () => {
+  const handler = new KeywordSignalVerdictHandler("COMPLETE");
 
   await handler.buildContinuationPrompt(
     1,
@@ -560,20 +560,20 @@ Deno.test("ManualCompletionHandler - isComplete without keyword", async () => {
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("ManualCompletionHandler - buildCompletionCriteria", () => {
-  const handler = new ManualCompletionHandler("MY_KEYWORD");
-  const criteria = handler.buildCompletionCriteria();
+Deno.test("KeywordSignalVerdictHandler - buildVerdictCriteria", () => {
+  const handler = new KeywordSignalVerdictHandler("MY_KEYWORD");
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short.includes("MY_KEYWORD"), true);
   assertEquals(criteria.detailed.includes("MY_KEYWORD"), true);
 });
 
-Deno.test("ManualCompletionHandler - getCompletionDescription when complete", async () => {
-  const handler = new ManualCompletionHandler("DONE");
+Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when complete", async () => {
+  const handler = new KeywordSignalVerdictHandler("DONE");
 
   await handler.buildContinuationPrompt(
     1,
@@ -582,30 +582,30 @@ Deno.test("ManualCompletionHandler - getCompletionDescription when complete", as
     }),
   );
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("detected"), true);
 });
 
-Deno.test("ManualCompletionHandler - getCompletionDescription when waiting", async () => {
-  const handler = new ManualCompletionHandler("DONE");
+Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when waiting", async () => {
+  const handler = new KeywordSignalVerdictHandler("DONE");
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("Waiting"), true);
 });
 
 // =============================================================================
-// CheckBudgetCompletionHandler Tests
+// CheckBudgetVerdictHandler Tests
 // =============================================================================
 
-Deno.test("CheckBudgetCompletionHandler - initialization", () => {
-  const handler = new CheckBudgetCompletionHandler(10);
+Deno.test("CheckBudgetVerdictHandler - initialization", () => {
+  const handler = new CheckBudgetVerdictHandler(10);
 
   assertEquals(handler.type, "checkBudget");
   assertEquals(handler.getCheckCount(), 0);
 });
 
-Deno.test("CheckBudgetCompletionHandler - incrementCheckCount", () => {
-  const handler = new CheckBudgetCompletionHandler(5);
+Deno.test("CheckBudgetVerdictHandler - incrementCheckCount", () => {
+  const handler = new CheckBudgetVerdictHandler(5);
 
   handler.incrementCheckCount();
   assertEquals(handler.getCheckCount(), 1);
@@ -615,37 +615,37 @@ Deno.test("CheckBudgetCompletionHandler - incrementCheckCount", () => {
   assertEquals(handler.getCheckCount(), 3);
 });
 
-Deno.test("CheckBudgetCompletionHandler - isComplete before max", async () => {
-  const handler = new CheckBudgetCompletionHandler(10);
+Deno.test("CheckBudgetVerdictHandler - isFinishedbefore max", async () => {
+  const handler = new CheckBudgetVerdictHandler(10);
 
   handler.incrementCheckCount();
   handler.incrementCheckCount();
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("CheckBudgetCompletionHandler - isComplete at max", async () => {
-  const handler = new CheckBudgetCompletionHandler(3);
+Deno.test("CheckBudgetVerdictHandler - isFinishedat max", async () => {
+  const handler = new CheckBudgetVerdictHandler(3);
 
   handler.incrementCheckCount();
   handler.incrementCheckCount();
   handler.incrementCheckCount();
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("CheckBudgetCompletionHandler - buildCompletionCriteria", () => {
-  const handler = new CheckBudgetCompletionHandler(15);
-  const criteria = handler.buildCompletionCriteria();
+Deno.test("CheckBudgetVerdictHandler - buildVerdictCriteria", () => {
+  const handler = new CheckBudgetVerdictHandler(15);
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short, "15 checks");
   assertEquals(criteria.detailed.includes("15"), true);
 });
 
-Deno.test("CheckBudgetCompletionHandler - buildContinuationPrompt increments count", async () => {
-  const handler = new CheckBudgetCompletionHandler(10);
+Deno.test("CheckBudgetVerdictHandler - buildContinuationPrompt increments count", async () => {
+  const handler = new CheckBudgetVerdictHandler(10);
 
   assertEquals(handler.getCheckCount(), 0);
 
@@ -656,36 +656,36 @@ Deno.test("CheckBudgetCompletionHandler - buildContinuationPrompt increments cou
   assertEquals(handler.getCheckCount(), 2);
 });
 
-Deno.test("CheckBudgetCompletionHandler - getCompletionDescription", async () => {
-  const handler = new CheckBudgetCompletionHandler(5);
+Deno.test("CheckBudgetVerdictHandler - getVerdictDescription", async () => {
+  const handler = new CheckBudgetVerdictHandler(5);
 
   handler.incrementCheckCount();
   handler.incrementCheckCount();
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("2"), true);
   assertEquals(desc.includes("5"), true);
 });
 
 // =============================================================================
-// StructuredSignalCompletionHandler Tests
+// StructuredSignalVerdictHandler Tests
 // =============================================================================
 
-Deno.test("StructuredSignalCompletionHandler - initialization", () => {
-  const handler = new StructuredSignalCompletionHandler("complete-signal");
+Deno.test("StructuredSignalVerdictHandler - initialization", () => {
+  const handler = new StructuredSignalVerdictHandler("complete-signal");
 
   assertEquals(handler.type, "structuredSignal");
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete without summary", async () => {
-  const handler = new StructuredSignalCompletionHandler("done");
+Deno.test("StructuredSignalVerdictHandler - isFinishedwithout summary", async () => {
+  const handler = new StructuredSignalVerdictHandler("done");
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete with matching signal type", async () => {
-  const handler = new StructuredSignalCompletionHandler("task-complete");
+Deno.test("StructuredSignalVerdictHandler - isFinishedwith matching signal type", async () => {
+  const handler = new StructuredSignalVerdictHandler("task-complete");
 
   await handler.buildContinuationPrompt(
     1,
@@ -694,12 +694,12 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with matching signal t
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete without matching signal", async () => {
-  const handler = new StructuredSignalCompletionHandler("my-signal");
+Deno.test("StructuredSignalVerdictHandler - isFinishedwithout matching signal", async () => {
+  const handler = new StructuredSignalVerdictHandler("my-signal");
 
   await handler.buildContinuationPrompt(
     1,
@@ -708,12 +708,12 @@ Deno.test("StructuredSignalCompletionHandler - isComplete without matching signa
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete with status=completed", async () => {
-  const handler = new StructuredSignalCompletionHandler("complete");
+Deno.test("StructuredSignalVerdictHandler - isFinishedwith status=completed", async () => {
+  const handler = new StructuredSignalVerdictHandler("complete");
 
   await handler.buildContinuationPrompt(
     1,
@@ -722,12 +722,12 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with status=completed"
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete with required fields match", async () => {
-  const handler = new StructuredSignalCompletionHandler("complete", {
+Deno.test("StructuredSignalVerdictHandler - isFinishedwith required fields match", async () => {
+  const handler = new StructuredSignalVerdictHandler("complete", {
     status: "success",
     code: 0,
   });
@@ -739,12 +739,12 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with required fields m
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StructuredSignalCompletionHandler - isComplete with required fields mismatch", async () => {
-  const handler = new StructuredSignalCompletionHandler("complete", {
+Deno.test("StructuredSignalVerdictHandler - isFinishedwith required fields mismatch", async () => {
+  const handler = new StructuredSignalVerdictHandler("complete", {
     status: "success",
   });
 
@@ -755,30 +755,30 @@ Deno.test("StructuredSignalCompletionHandler - isComplete with required fields m
     }),
   );
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("StructuredSignalCompletionHandler - buildCompletionCriteria without fields", () => {
-  const handler = new StructuredSignalCompletionHandler("done-signal");
-  const criteria = handler.buildCompletionCriteria();
+Deno.test("StructuredSignalVerdictHandler - buildVerdictCriteria without fields", () => {
+  const handler = new StructuredSignalVerdictHandler("done-signal");
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short.includes("done-signal"), true);
 });
 
-Deno.test("StructuredSignalCompletionHandler - buildCompletionCriteria with fields", () => {
-  const handler = new StructuredSignalCompletionHandler("done-signal", {
+Deno.test("StructuredSignalVerdictHandler - buildVerdictCriteria with fields", () => {
+  const handler = new StructuredSignalVerdictHandler("done-signal", {
     status: "ok",
   });
-  const criteria = handler.buildCompletionCriteria();
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.detailed.includes("status"), true);
 });
 
-Deno.test("StructuredSignalCompletionHandler - getCompletionDescription", async () => {
-  const handler = new StructuredSignalCompletionHandler("test-signal");
+Deno.test("StructuredSignalVerdictHandler - getVerdictDescription", async () => {
+  const handler = new StructuredSignalVerdictHandler("test-signal");
 
-  let desc = await handler.getCompletionDescription();
+  let desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("Waiting"), true);
 
   await handler.buildContinuationPrompt(
@@ -788,7 +788,7 @@ Deno.test("StructuredSignalCompletionHandler - getCompletionDescription", async 
     }),
   );
 
-  desc = await handler.getCompletionDescription();
+  desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("detected"), true);
 });
 
@@ -854,7 +854,7 @@ Deno.test("MockStateChecker - retrieves state by issue number", async () => {
 });
 
 // =============================================================================
-// StepMachineCompletionHandler Tests
+// StepMachineVerdictHandler Tests
 // =============================================================================
 
 /**
@@ -921,9 +921,9 @@ function createMockStepsRegistry(
   return { ...base, ...overrides };
 }
 
-Deno.test("StepMachineCompletionHandler - initialization", () => {
+Deno.test("StepMachineVerdictHandler - initialization", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   assertEquals(handler.type, "stepMachine");
 
@@ -935,9 +935,9 @@ Deno.test("StepMachineCompletionHandler - initialization", () => {
   assertEquals(state.isComplete, false);
 });
 
-Deno.test("StepMachineCompletionHandler - initialization with entry step", () => {
+Deno.test("StepMachineVerdictHandler - initialization with entry step", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(
+  const handler = new StepMachineVerdictHandler(
     registry,
     "continuation.test",
   );
@@ -946,18 +946,18 @@ Deno.test("StepMachineCompletionHandler - initialization with entry step", () =>
   assertEquals(state.currentStepId, "continuation.test");
 });
 
-Deno.test("StepMachineCompletionHandler - getStepContext returns context", () => {
+Deno.test("StepMachineVerdictHandler - getStepContext returns context", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const context = handler.getStepContext();
   assertExists(context);
   assertExists(context.outputs);
 });
 
-Deno.test("StepMachineCompletionHandler - recordStepOutput stores data", () => {
+Deno.test("StepMachineVerdictHandler - recordStepOutput stores data", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   handler.recordStepOutput("step1", { result: "success", value: 42 });
 
@@ -966,9 +966,9 @@ Deno.test("StepMachineCompletionHandler - recordStepOutput stores data", () => {
   assertEquals(context.get("step1", "value"), 42);
 });
 
-Deno.test("StepMachineCompletionHandler - getNextStep initial to continuation", () => {
+Deno.test("StepMachineVerdictHandler - getNextStep initial to continuation", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const transition = handler.getNextStep({
     stepId: "initial.test",
@@ -979,7 +979,7 @@ Deno.test("StepMachineCompletionHandler - getNextStep initial to continuation", 
   assertEquals(transition.passed, true);
 });
 
-Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", () => {
+Deno.test("StepMachineVerdictHandler - getNextStep single step to complete", () => {
   const registry = createMockStepsRegistry({
     entryStep: "initial.single",
     steps: {
@@ -1005,7 +1005,7 @@ Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", 
       },
     },
   });
-  const handler = new StepMachineCompletionHandler(registry, "initial.single");
+  const handler = new StepMachineVerdictHandler(registry, "initial.single");
 
   const transition = handler.getNextStep({
     stepId: "initial.single",
@@ -1015,9 +1015,9 @@ Deno.test("StepMachineCompletionHandler - getNextStep single step to complete", 
   assertEquals(transition.nextStep, "closure");
 });
 
-Deno.test("StepMachineCompletionHandler - transition updates state", () => {
+Deno.test("StepMachineVerdictHandler - transition updates state", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const nextStep = handler.transition({
     stepId: "initial.test",
@@ -1031,7 +1031,7 @@ Deno.test("StepMachineCompletionHandler - transition updates state", () => {
   assertEquals(state.retryCount, 0);
 });
 
-Deno.test("StepMachineCompletionHandler - transition to complete", () => {
+Deno.test("StepMachineVerdictHandler - transition to complete", () => {
   const registry = createMockStepsRegistry({
     entryStep: "initial.only",
     steps: {
@@ -1057,7 +1057,7 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
       },
     },
   });
-  const handler = new StepMachineCompletionHandler(registry, "initial.only");
+  const handler = new StepMachineVerdictHandler(registry, "initial.only");
 
   const nextStep = handler.transition({
     stepId: "initial.only",
@@ -1068,18 +1068,18 @@ Deno.test("StepMachineCompletionHandler - transition to complete", () => {
 
   const state = handler.getState();
   assertEquals(state.isComplete, true);
-  assertExists(state.completionReason);
+  assertExists(state.verdictReason);
 });
 
-Deno.test("StepMachineCompletionHandler - isComplete false initially", async () => {
+Deno.test("StepMachineVerdictHandler - isFinishedfalse initially", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("StepMachineCompletionHandler - isComplete true after transition to complete", async () => {
+Deno.test("StepMachineVerdictHandler - isFinishedtrue after transition to complete", async () => {
   const registry = createMockStepsRegistry({
     entryStep: "initial.final",
     steps: {
@@ -1105,62 +1105,62 @@ Deno.test("StepMachineCompletionHandler - isComplete true after transition to co
       },
     },
   });
-  const handler = new StepMachineCompletionHandler(registry, "initial.final");
+  const handler = new StepMachineVerdictHandler(registry, "initial.final");
 
   handler.transition({ stepId: "initial.final", passed: true });
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StepMachineCompletionHandler - isComplete with structured output status=completed", async () => {
+Deno.test("StepMachineVerdictHandler - isFinishedwith structured output status=completed", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const summary = createMockIterationSummary({
     structuredOutput: { status: "completed" },
   });
   handler.setCurrentSummary(summary);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StepMachineCompletionHandler - isComplete with next_action.action=complete", async () => {
+Deno.test("StepMachineVerdictHandler - isFinishedwith next_action.action=complete", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const summary = createMockIterationSummary({
     structuredOutput: { next_action: { action: "complete", reason: "done" } },
   });
   handler.setCurrentSummary(summary);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("StepMachineCompletionHandler - buildCompletionCriteria", () => {
+Deno.test("StepMachineVerdictHandler - buildVerdictCriteria", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
-  const criteria = handler.buildCompletionCriteria();
+  const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short.includes("Step machine"), true);
   assertEquals(criteria.detailed.includes("initial.test"), true);
 });
 
-Deno.test("StepMachineCompletionHandler - buildInitialPrompt", async () => {
+Deno.test("StepMachineVerdictHandler - buildInitialPrompt", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(prompt.includes("initial.test"), true);
 });
 
-Deno.test("StepMachineCompletionHandler - buildContinuationPrompt updates state", async () => {
+Deno.test("StepMachineVerdictHandler - buildContinuationPrompt updates state", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   await handler.buildContinuationPrompt(5);
 
@@ -1169,17 +1169,17 @@ Deno.test("StepMachineCompletionHandler - buildContinuationPrompt updates state"
   assertEquals(state.stepIteration, 1);
 });
 
-Deno.test("StepMachineCompletionHandler - getCompletionDescription not complete", async () => {
+Deno.test("StepMachineVerdictHandler - getVerdictDescription not complete", async () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
 
   assertEquals(desc.includes("initial.test"), true);
   assertEquals(desc.includes("Step"), true);
 });
 
-Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete", async () => {
+Deno.test("StepMachineVerdictHandler - getVerdictDescription when complete", async () => {
   const registry = createMockStepsRegistry({
     entryStep: "initial.end",
     steps: {
@@ -1205,11 +1205,11 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
       },
     },
   });
-  const handler = new StepMachineCompletionHandler(registry, "initial.end");
+  const handler = new StepMachineVerdictHandler(registry, "initial.end");
 
   handler.transition({ stepId: "initial.end", passed: true });
 
-  const desc = await handler.getCompletionDescription();
+  const desc = await handler.getVerdictDescription();
 
   // Description should indicate completion via transition
   assertEquals(
@@ -1220,9 +1220,9 @@ Deno.test("StepMachineCompletionHandler - getCompletionDescription when complete
   );
 });
 
-Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", () => {
+Deno.test("StepMachineVerdictHandler - step context toUV converts outputs", () => {
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
 
   handler.recordStepOutput("step1", { result: "success", count: 10 });
 
@@ -1237,10 +1237,10 @@ Deno.test("StepMachineCompletionHandler - step context toUV converts outputs", (
 });
 
 // =============================================================================
-// createRegistryCompletionHandler Tests
+// createRegistryVerdictHandler Tests
 // =============================================================================
 
-Deno.test("createRegistryCompletionHandler - externalState with args.issue returns adapter", async () => {
+Deno.test("createRegistryVerdictHandler - externalState with args.issue returns adapter", async () => {
   logger.debug("factory input", { type: "externalState", issue: 123 });
   const definition: AgentDefinition = {
     name: "test-agent",
@@ -1253,7 +1253,7 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
         systemPromptPath: "prompts/system.md",
         prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
       },
-      completion: {
+      verdict: {
         type: "externalState",
         config: { maxIterations: 10 },
       },
@@ -1273,7 +1273,7 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
     },
   };
 
-  const result = await createRegistryCompletionHandler(
+  const result = await createRegistryVerdictHandler(
     definition,
     { issue: 123, repository: "owner/repo" },
     "/tmp/claude/test-agent",
@@ -1282,15 +1282,15 @@ Deno.test("createRegistryCompletionHandler - externalState with args.issue retur
 
   assertExists(result);
   assertEquals(result.type, "externalState");
-  // Verify it's an ExternalStateCompletionAdapter by checking adapter-specific method
+  // Verify it's an ExternalStateVerdictAdapter by checking adapter-specific method
   assertEquals(
-    typeof (result as ExternalStateCompletionAdapter).buildInitialPrompt,
+    typeof (result as ExternalStateVerdictAdapter).buildInitialPrompt,
     "function",
   );
-  assertEquals(result instanceof ExternalStateCompletionAdapter, true);
+  assertEquals(result instanceof ExternalStateVerdictAdapter, true);
 });
 
-Deno.test("createRegistryCompletionHandler - externalState without args.issue throws", async () => {
+Deno.test("createRegistryVerdictHandler - externalState without args.issue throws", async () => {
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
@@ -1305,7 +1305,7 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
           fallbackDir: "prompts/",
         },
       },
-      completion: {
+      verdict: {
         type: "externalState",
         config: {
           maxIterations: 10,
@@ -1331,7 +1331,7 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
   };
 
   try {
-    await createRegistryCompletionHandler(
+    await createRegistryVerdictHandler(
       definition,
       {},
       "/tmp/claude/test-agent",
@@ -1345,7 +1345,7 @@ Deno.test("createRegistryCompletionHandler - externalState without args.issue th
   }
 });
 
-Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", async () => {
+Deno.test("createRegistryVerdictHandler - iterationBudget creates handler", async () => {
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
@@ -1360,7 +1360,7 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
           fallbackDir: "prompts/",
         },
       },
-      completion: {
+      verdict: {
         type: "iterationBudget",
         config: {
           maxIterations: 5,
@@ -1385,7 +1385,7 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
     },
   };
 
-  const result = await createRegistryCompletionHandler(
+  const result = await createRegistryVerdictHandler(
     definition,
     {},
     "/tmp/claude/test-agent",
@@ -1396,102 +1396,102 @@ Deno.test("createRegistryCompletionHandler - iterationBudget creates handler", a
 });
 
 // =============================================================================
-// ExternalStateCompletionAdapter Tests
+// ExternalStateVerdictAdapter Tests
 // =============================================================================
 
-Deno.test("ExternalStateCompletionAdapter - isComplete bridges refreshState and check", async () => {
+Deno.test("ExternalStateVerdictAdapter - isFinishedbridges refreshState and check", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(42, true);
 
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 42 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 42,
   });
 
-  const complete = await adapter.isComplete();
+  const complete = await adapter.isFinished();
   assertEquals(complete, true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - isComplete returns false for open issue", async () => {
+Deno.test("ExternalStateVerdictAdapter - isFinishedreturns false for open issue", async () => {
   const mockChecker = new MockStateChecker();
   // Issue 42 defaults to open (closed: false)
 
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 42 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 42,
   });
 
-  const complete = await adapter.isComplete();
+  const complete = await adapter.isFinished();
   assertEquals(complete, false);
 });
 
-Deno.test("ExternalStateCompletionAdapter - buildCompletionCriteria maps fields", () => {
+Deno.test("ExternalStateVerdictAdapter - buildVerdictCriteria maps fields", () => {
   const mockChecker = new MockStateChecker();
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 77 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 77,
   });
 
-  const criteria = adapter.buildCompletionCriteria();
+  const criteria = adapter.buildVerdictCriteria();
   assertExists(criteria.short);
   assertExists(criteria.detailed);
   assertEquals(criteria.short.includes("77"), true);
   assertEquals(criteria.detailed.includes("77"), true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - getCompletionDescription when complete", async () => {
+Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when complete", async () => {
   const mockChecker = new MockStateChecker();
   mockChecker.setIssueState(99, true);
 
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 99 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 99,
   });
 
-  // Populate cached state via isComplete (which calls refreshState + check)
-  await adapter.isComplete();
+  // Populate cached state via isFinished (which calls refreshState + check)
+  await adapter.isFinished();
 
-  const desc = await adapter.getCompletionDescription();
+  const desc = await adapter.getVerdictDescription();
   assertEquals(desc.includes("99"), true);
   assertEquals(desc.includes("closed"), true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - getCompletionDescription when not complete", async () => {
+Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when not complete", async () => {
   const mockChecker = new MockStateChecker();
   // Issue 99 defaults to open
 
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 99 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 99,
   });
 
-  const desc = await adapter.getCompletionDescription();
+  const desc = await adapter.getVerdictDescription();
   assertEquals(desc.includes("Waiting"), true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - buildInitialPrompt fallback", async () => {
+Deno.test("ExternalStateVerdictAdapter - buildInitialPrompt fallback", async () => {
   const mockChecker = new MockStateChecker();
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 55 },
     mockChecker,
   );
   // No promptResolver set - should fall back to handler.buildPrompt
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 55,
   });
 
@@ -1499,14 +1499,14 @@ Deno.test("ExternalStateCompletionAdapter - buildInitialPrompt fallback", async 
   assertEquals(prompt.includes("55"), true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - buildContinuationPrompt fallback", async () => {
+Deno.test("ExternalStateVerdictAdapter - buildContinuationPrompt fallback", async () => {
   const mockChecker = new MockStateChecker();
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 55 },
     mockChecker,
   );
   // No promptResolver set - should fall back to handler.buildPrompt
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 55,
   });
 
@@ -1514,13 +1514,13 @@ Deno.test("ExternalStateCompletionAdapter - buildContinuationPrompt fallback", a
   assertEquals(prompt.includes("55"), true);
 });
 
-Deno.test("ExternalStateCompletionAdapter - type is externalState", () => {
+Deno.test("ExternalStateVerdictAdapter - type is externalState", () => {
   const mockChecker = new MockStateChecker();
-  const issueHandler = new IssueCompletionHandler(
+  const issueHandler = new IssueVerdictHandler(
     { issueNumber: 1 },
     mockChecker,
   );
-  const adapter = new ExternalStateCompletionAdapter(issueHandler, {
+  const adapter = new ExternalStateVerdictAdapter(issueHandler, {
     issueNumber: 1,
   });
 
@@ -1556,12 +1556,12 @@ class MockPromptResolver {
   }
 }
 
-// --- ExternalStateCompletionAdapter + resolver ---
+// --- ExternalStateVerdictAdapter + resolver ---
 
-Deno.test("ExternalStateCompletionAdapter + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+Deno.test("ExternalStateVerdictAdapter + resolver - buildInitialPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const adapter = new ExternalStateCompletionAdapter(
-    new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+  const adapter = new ExternalStateVerdictAdapter(
+    new IssueVerdictHandler({ issueNumber: 1 }, new MockStateChecker()),
     { issueNumber: 1 },
   );
   adapter.setPromptResolver(
@@ -1576,10 +1576,10 @@ Deno.test("ExternalStateCompletionAdapter + resolver - buildInitialPrompt uses d
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.externalState");
 });
 
-Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+Deno.test("ExternalStateVerdictAdapter + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const adapter = new ExternalStateCompletionAdapter(
-    new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+  const adapter = new ExternalStateVerdictAdapter(
+    new IssueVerdictHandler({ issueNumber: 1 }, new MockStateChecker()),
     { issueNumber: 1 },
   );
   adapter.setPromptResolver(
@@ -1597,11 +1597,11 @@ Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt u
   );
 });
 
-// --- IterateCompletionHandler + resolver ---
+// --- IterationBudgetVerdictHandler + resolver ---
 
-Deno.test("IterateCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+Deno.test("IterationBudgetVerdictHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new IterateCompletionHandler(10);
+  const handler = new IterationBudgetVerdictHandler(10);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1614,9 +1614,9 @@ Deno.test("IterateCompletionHandler + resolver - buildInitialPrompt uses dot-for
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iterate");
 });
 
-Deno.test("IterateCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+Deno.test("IterationBudgetVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new IterateCompletionHandler(10);
+  const handler = new IterationBudgetVerdictHandler(10);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1632,11 +1632,11 @@ Deno.test("IterateCompletionHandler + resolver - buildContinuationPrompt uses do
   );
 });
 
-// --- CheckBudgetCompletionHandler + resolver ---
+// --- CheckBudgetVerdictHandler + resolver ---
 
-Deno.test("CheckBudgetCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+Deno.test("CheckBudgetVerdictHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new CheckBudgetCompletionHandler(5);
+  const handler = new CheckBudgetVerdictHandler(5);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1649,9 +1649,9 @@ Deno.test("CheckBudgetCompletionHandler + resolver - buildInitialPrompt uses dot
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.checkBudget");
 });
 
-Deno.test("CheckBudgetCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+Deno.test("CheckBudgetVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new CheckBudgetCompletionHandler(5);
+  const handler = new CheckBudgetVerdictHandler(5);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1667,11 +1667,11 @@ Deno.test("CheckBudgetCompletionHandler + resolver - buildContinuationPrompt use
   );
 });
 
-// --- ManualCompletionHandler + resolver ---
+// --- KeywordSignalVerdictHandler + resolver ---
 
-Deno.test("ManualCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+Deno.test("KeywordSignalVerdictHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new ManualCompletionHandler("DONE");
+  const handler = new KeywordSignalVerdictHandler("DONE");
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1684,9 +1684,9 @@ Deno.test("ManualCompletionHandler + resolver - buildInitialPrompt uses dot-form
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.manual");
 });
 
-Deno.test("ManualCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+Deno.test("KeywordSignalVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new ManualCompletionHandler("DONE");
+  const handler = new KeywordSignalVerdictHandler("DONE");
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1702,11 +1702,11 @@ Deno.test("ManualCompletionHandler + resolver - buildContinuationPrompt uses dot
   );
 });
 
-// --- StructuredSignalCompletionHandler + resolver ---
+// --- StructuredSignalVerdictHandler + resolver ---
 
-Deno.test("StructuredSignalCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+Deno.test("StructuredSignalVerdictHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new StructuredSignalCompletionHandler("complete");
+  const handler = new StructuredSignalVerdictHandler("complete");
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1722,9 +1722,9 @@ Deno.test("StructuredSignalCompletionHandler + resolver - buildInitialPrompt use
   );
 });
 
-Deno.test("StructuredSignalCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+Deno.test("StructuredSignalVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
-  const handler = new StructuredSignalCompletionHandler("complete");
+  const handler = new StructuredSignalVerdictHandler("complete");
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1740,12 +1740,12 @@ Deno.test("StructuredSignalCompletionHandler + resolver - buildContinuationPromp
   );
 });
 
-// --- StepMachineCompletionHandler + resolver ---
+// --- StepMachineVerdictHandler + resolver ---
 
-Deno.test("StepMachineCompletionHandler + resolver - buildInitialPrompt resolves via currentStepId", async () => {
+Deno.test("StepMachineVerdictHandler + resolver - buildInitialPrompt resolves via currentStepId", async () => {
   const mock = new MockPromptResolver();
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1758,10 +1758,10 @@ Deno.test("StepMachineCompletionHandler + resolver - buildInitialPrompt resolves
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.test");
 });
 
-Deno.test("StepMachineCompletionHandler + resolver - buildContinuationPrompt resolves via currentStepId", async () => {
+Deno.test("StepMachineVerdictHandler + resolver - buildContinuationPrompt resolves via currentStepId", async () => {
   const mock = new MockPromptResolver();
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1774,10 +1774,10 @@ Deno.test("StepMachineCompletionHandler + resolver - buildContinuationPrompt res
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.test");
 });
 
-Deno.test("StepMachineCompletionHandler + resolver - stepId changes after transition", async () => {
+Deno.test("StepMachineVerdictHandler + resolver - stepId changes after transition", async () => {
   const mock = new MockPromptResolver();
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineCompletionHandler(registry);
+  const handler = new StepMachineVerdictHandler(registry);
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
@@ -1794,26 +1794,26 @@ Deno.test("StepMachineCompletionHandler + resolver - stepId changes after transi
   );
 });
 
-// --- CompositeCompletionHandler + resolver ---
+// --- CompositeVerdictHandler + resolver ---
 
-Deno.test("CompositeCompletionHandler + resolver - propagates resolver to sub-handlers", async () => {
+Deno.test("CompositeVerdictHandler + resolver - propagates resolver to sub-handlers", async () => {
   const mock = new MockPromptResolver();
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "or",
         conditions: [
           { type: "iterationBudget", config: { maxIterations: 5 } },
-          { type: "keywordSignal", config: { completionKeyword: "DONE" } },
+          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "or",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     {},
     "/test",
     definition,
@@ -1846,27 +1846,27 @@ Deno.test("Contract - all handler stepIds use dot-format (phase.type)", async ()
     };
   }> = [
     {
-      name: "ExternalStateCompletionAdapter",
-      handler: new ExternalStateCompletionAdapter(
-        new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+      name: "ExternalStateVerdictAdapter",
+      handler: new ExternalStateVerdictAdapter(
+        new IssueVerdictHandler({ issueNumber: 1 }, new MockStateChecker()),
         { issueNumber: 1 },
       ),
     },
     {
-      name: "IterateCompletionHandler",
-      handler: new IterateCompletionHandler(5),
+      name: "IterationBudgetVerdictHandler",
+      handler: new IterationBudgetVerdictHandler(5),
     },
     {
-      name: "CheckBudgetCompletionHandler",
-      handler: new CheckBudgetCompletionHandler(5),
+      name: "CheckBudgetVerdictHandler",
+      handler: new CheckBudgetVerdictHandler(5),
     },
     {
-      name: "ManualCompletionHandler",
-      handler: new ManualCompletionHandler("DONE"),
+      name: "KeywordSignalVerdictHandler",
+      handler: new KeywordSignalVerdictHandler("DONE"),
     },
     {
-      name: "StructuredSignalCompletionHandler",
-      handler: new StructuredSignalCompletionHandler("sig"),
+      name: "StructuredSignalVerdictHandler",
+      handler: new StructuredSignalVerdictHandler("sig"),
     },
   ];
 
@@ -1897,9 +1897,9 @@ Deno.test("Contract - all handler stepIds use dot-format (phase.type)", async ()
 // Composite with externalState Tests
 // =============================================================================
 
-Deno.test("CompositeCompletionHandler - externalState condition with issue", async () => {
+Deno.test("CompositeVerdictHandler - externalState condition with issue", async () => {
   const definition = createMockAgentDefinition({
-    completion: {
+    verdict: {
       type: "composite",
       config: {
         operator: "or",
@@ -1911,9 +1911,9 @@ Deno.test("CompositeCompletionHandler - externalState condition with issue", asy
     },
   });
 
-  const handler = new CompositeCompletionHandler(
+  const handler = new CompositeVerdictHandler(
     "or",
-    definition.runner.completion.config.conditions ?? [],
+    definition.runner.verdict.config.conditions ?? [],
     { issue: 42 },
     "/test",
     definition,
@@ -1923,9 +1923,9 @@ Deno.test("CompositeCompletionHandler - externalState condition with issue", asy
   // (returns closed: false). Set the iterationBudget handler's iteration to 1
   // to make it complete.
   // @ts-ignore - accessing private for testing
-  const iterateHandler = handler.handlers[1] as IterateCompletionHandler;
+  const iterateHandler = handler.handlers[1] as IterationBudgetVerdictHandler;
   iterateHandler.setCurrentIteration(1);
 
-  const complete = await handler.isComplete();
+  const complete = await handler.isFinished();
   assertEquals(complete, true);
 });

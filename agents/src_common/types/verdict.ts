@@ -1,9 +1,9 @@
 /**
- * Completion type definitions for climpt-agents
+ * Verdict type definitions for climpt-agents
  */
 
 /**
- * Completion types based on HOW completion is determined,
+ * Verdict types based on HOW completion is determined,
  * not WHO uses the completion handler.
  *
  * Behavior-based naming convention:
@@ -16,7 +16,7 @@
  * - composite: Combines multiple conditions with AND/OR logic
  * - custom: Fully custom handler implementation
  */
-export type CompletionType =
+export type VerdictType =
   | "externalState"
   | "iterationBudget"
   | "checkBudget"
@@ -27,9 +27,9 @@ export type CompletionType =
   | "custom";
 
 /**
- * All valid completion types
+ * All valid verdict types
  */
-export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
+export const ALL_VERDICT_TYPES: readonly VerdictType[] = [
   "externalState",
   "iterationBudget",
   "checkBudget",
@@ -41,13 +41,13 @@ export const ALL_COMPLETION_TYPES: readonly CompletionType[] = [
 ] as const;
 
 /**
- * Completion configuration - uses optional properties for flexibility
+ * Verdict configuration - uses optional properties for flexibility
  */
-export interface CompletionConfigUnion {
+export interface VerdictConfigUnion {
   /** For iterationBudget/iterate completion type */
   maxIterations?: number;
   /** For keywordSignal/manual completion type */
-  completionKeyword?: string;
+  verdictKeyword?: string;
   /** For custom completion type */
   handlerPath?: string;
   /** For checkBudget completion type */
@@ -58,8 +58,8 @@ export interface CompletionConfigUnion {
   /** For composite completion type */
   operator?: "and" | "or" | "first";
   conditions?: Array<{
-    type: CompletionType;
-    config: CompletionConfigUnion;
+    type: VerdictType;
+    config: VerdictConfigUnion;
   }>;
   /** For structuredSignal completion type */
   signalType?: string;
@@ -69,38 +69,38 @@ export interface CompletionConfigUnion {
   entryStep?: string;
 }
 
-// Completion config types
-export type ExternalStateCompletionConfig = CompletionConfigUnion & {
+// Verdict config types
+export type ExternalStateVerdictConfig = VerdictConfigUnion & {
   resourceType: "github-issue" | "github-project" | "file" | "api";
   targetState: string | Record<string, unknown>;
 };
-export type IterationBudgetCompletionConfig = CompletionConfigUnion & {
+export type IterationBudgetVerdictConfig = VerdictConfigUnion & {
   maxIterations: number;
 };
-export type CheckBudgetCompletionConfig = CompletionConfigUnion & {
+export type CheckBudgetVerdictConfig = VerdictConfigUnion & {
   maxChecks: number;
 };
-export type KeywordSignalCompletionConfig = CompletionConfigUnion & {
-  completionKeyword: string;
+export type KeywordSignalVerdictConfig = VerdictConfigUnion & {
+  verdictKeyword: string;
 };
-export type StructuredSignalCompletionConfig = CompletionConfigUnion & {
+export type StructuredSignalVerdictConfig = VerdictConfigUnion & {
   signalType: string;
   requiredFields?: Record<string, unknown>;
 };
-export type PhaseCompletionConfig = CompletionConfigUnion & {
+export type PhaseVerdictConfig = VerdictConfigUnion & {
   terminalPhases: string[];
 };
-export type StepMachineCompletionConfig = CompletionConfigUnion & {
+export type StepMachineVerdictConfig = VerdictConfigUnion & {
   registryPath: string;
   entryStep?: string;
 };
-export type CompositeCompletionConfig = CompletionConfigUnion & {
+export type CompositeVerdictConfig = VerdictConfigUnion & {
   operator: "and" | "or" | "first";
   conditions: Array<{
-    type: CompletionType;
-    config: CompletionConfigUnion;
+    type: VerdictType;
+    config: VerdictConfigUnion;
   }>;
 };
-export type CustomCompletionConfig = CompletionConfigUnion & {
+export type CustomVerdictConfig = VerdictConfigUnion & {
   handlerPath: string;
 };

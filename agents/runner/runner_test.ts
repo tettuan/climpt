@@ -8,13 +8,13 @@
 import { assertEquals, assertInstanceOf, assertThrows } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
-  AgentCompletionError,
   AgentError,
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
   AgentSchemaResolutionError,
   AgentTimeoutError,
+  AgentVerdictError,
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
@@ -60,11 +60,11 @@ Deno.test("AgentQueryError - stores iteration", () => {
   assertEquals(error.iteration, 5);
 });
 
-Deno.test("AgentCompletionError - has correct code and is recoverable", () => {
-  const error = new AgentCompletionError("Completion check failed");
-  assertEquals(error.code, "AGENT_COMPLETION_ERROR");
+Deno.test("AgentVerdictError - has correct code and is recoverable", () => {
+  const error = new AgentVerdictError("Verdict check failed");
+  assertEquals(error.code, "AGENT_VERDICT_ERROR");
   assertEquals(error.recoverable, true);
-  assertEquals(error.name, "AgentCompletionError");
+  assertEquals(error.name, "AgentVerdictError");
 });
 
 Deno.test("AgentTimeoutError - has correct code and is recoverable", () => {
@@ -91,7 +91,7 @@ Deno.test("AgentMaxIterationsError - has correct code and is not recoverable", (
   assertEquals(error.maxIterations, 10);
   assertEquals(
     error.message,
-    "Maximum iterations (10) reached without completion",
+    "Maximum iterations (10) reached without finishing",
   );
 });
 
@@ -139,7 +139,7 @@ Deno.test("isAgentError - returns true for AgentError instances", () => {
   const errors = [
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
-    new AgentCompletionError("test"),
+    new AgentVerdictError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -163,7 +163,7 @@ Deno.test("isAgentError - returns false for non-AgentError", () => {
 // =============================================================================
 
 Deno.test("normalizeToAgentError - returns AgentError as-is", () => {
-  const original = new AgentCompletionError("Original");
+  const original = new AgentVerdictError("Original");
   const normalized = normalizeToAgentError(original);
   assertEquals(normalized, original);
 });
@@ -337,7 +337,7 @@ function createMinimalDefinition(): ResolvedAgentDefinition {
           fallbackDir: "./prompts",
         },
       },
-      completion: {
+      verdict: {
         type: "iterationBudget",
         config: { maxIterations: 10 },
       },
@@ -397,7 +397,7 @@ Deno.test("All error classes extend AgentError", () => {
   const errors: AgentError[] = [
     new AgentNotInitializedError(),
     new AgentQueryError("test"),
-    new AgentCompletionError("test"),
+    new AgentVerdictError("test"),
     new AgentTimeoutError("test", 1000),
     new AgentMaxIterationsError(10),
   ];
@@ -412,7 +412,7 @@ Deno.test("Error codes are unique", () => {
   const codes = [
     new AgentNotInitializedError().code,
     new AgentQueryError("test").code,
-    new AgentCompletionError("test").code,
+    new AgentVerdictError("test").code,
     new AgentTimeoutError("test", 1000).code,
     new AgentMaxIterationsError(10).code,
   ];
@@ -426,11 +426,11 @@ Deno.test("Error codes are unique", () => {
 });
 
 // =============================================================================
-// Completion Validation Integration Tests
+// Verdict Validation Integration Tests
 // =============================================================================
 
 import { FormatValidator } from "../loop/format-validator.ts";
-import type { ResponseFormat } from "../common/completion-types.ts";
+import type { ResponseFormat } from "../common/validation-types.ts";
 import type { IterationSummary } from "../src_common/types.ts";
 
 // Helper to create a minimal iteration summary
@@ -447,7 +447,7 @@ function createIterationSummary(
 }
 
 // Helper to check if AI declared completion via structured output (matches runner.ts logic)
-function hasAICompletionDeclaration(summary: IterationSummary): boolean {
+function hasAIVerdictDeclaration(summary: IterationSummary): boolean {
   if (!summary.structuredOutput) {
     return false;
   }
@@ -471,47 +471,47 @@ function hasAICompletionDeclaration(summary: IterationSummary): boolean {
   return false;
 }
 
-Deno.test("Completion Validation - hasAICompletionDeclaration detects status=completed", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration detects status=completed", () => {
   const summary = createIterationSummary({
     structuredOutput: {
       status: "completed",
       summary: "Task done",
     },
   });
-  logger.debug("hasAICompletionDeclaration input", {
+  logger.debug("hasAIVerdictDeclaration input", {
     status: summary.structuredOutput?.status,
   });
-  const result = hasAICompletionDeclaration(summary);
-  logger.debug("hasAICompletionDeclaration result", { result });
+  const result = hasAIVerdictDeclaration(summary);
+  logger.debug("hasAIVerdictDeclaration result", { result });
   assertEquals(result, true);
 });
 
-Deno.test("Completion Validation - hasAICompletionDeclaration detects next_action.action=complete", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration detects next_action.action=complete", () => {
   const summary = createIterationSummary({
     structuredOutput: {
       status: "in_progress",
       next_action: { action: "complete", reason: "All done" },
     },
   });
-  assertEquals(hasAICompletionDeclaration(summary), true);
+  assertEquals(hasAIVerdictDeclaration(summary), true);
 });
 
-Deno.test("Completion Validation - hasAICompletionDeclaration returns false for in_progress", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration returns false for in_progress", () => {
   const summary = createIterationSummary({
     structuredOutput: {
       status: "in_progress",
       next_action: { action: "continue", reason: "More work needed" },
     },
   });
-  assertEquals(hasAICompletionDeclaration(summary), false);
+  assertEquals(hasAIVerdictDeclaration(summary), false);
 });
 
-Deno.test("Completion Validation - hasAICompletionDeclaration returns false without structured output", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration returns false without structured output", () => {
   const summary = createIterationSummary({});
-  assertEquals(hasAICompletionDeclaration(summary), false);
+  assertEquals(hasAIVerdictDeclaration(summary), false);
 });
 
-Deno.test("Completion Validation - FormatValidator validates JSON in assistant response", () => {
+Deno.test("Verdict Validation - FormatValidator validates JSON in assistant response", () => {
   const validator = new FormatValidator();
 
   const summary = createIterationSummary({
@@ -542,7 +542,7 @@ Deno.test("Completion Validation - FormatValidator validates JSON in assistant r
   assertEquals((result.extracted as Record<string, unknown>).count, 5);
 });
 
-Deno.test("Completion Validation - FormatValidator validates text pattern", () => {
+Deno.test("Verdict Validation - FormatValidator validates text pattern", () => {
   const validator = new FormatValidator();
 
   const summary = createIterationSummary({
@@ -732,7 +732,7 @@ Deno.test("Structured Gate Flow - router routes 'next' intent to continuation st
   const routing = router.route("initial.test", interpretation);
 
   assertEquals(routing.nextStepId, "continuation.test");
-  assertEquals(routing.signalCompletion, false);
+  assertEquals(routing.signalClosing, false);
 });
 
 Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", () => {
@@ -747,7 +747,7 @@ Deno.test("Structured Gate Flow - router routes 'repeat' intent to same step", (
   const routing = router.route("initial.test", interpretation);
 
   assertEquals(routing.nextStepId, "initial.test");
-  assertEquals(routing.signalCompletion, false);
+  assertEquals(routing.signalClosing, false);
 });
 
 Deno.test("Structured Gate Flow - work step cannot emit closing intent", () => {
@@ -779,7 +779,7 @@ Deno.test("Structured Gate Flow - closure step closing signals completion", () =
   // Closure step with closing intent signals workflow completion
   const routing = router.route("closure.test", interpretation);
 
-  assertEquals(routing.signalCompletion, true);
+  assertEquals(routing.signalClosing, true);
 });
 
 Deno.test("Structured Gate Flow - router uses default transition for steps without explicit transitions", () => {
@@ -823,7 +823,7 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
   const routing = router.route("initial.foo", interpretation);
 
   assertEquals(routing.nextStepId, "continuation.foo");
-  assertEquals(routing.signalCompletion, false);
+  assertEquals(routing.signalClosing, false);
 });
 
 Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => {
@@ -863,12 +863,12 @@ Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => 
   const routing = router.route("initial.test", interpretation);
   logger.debug("e2e: routing result", {
     nextStepId: routing.nextStepId,
-    signalCompletion: routing.signalCompletion,
+    signalClosing: routing.signalClosing,
     reason: routing.reason,
   });
 
   assertEquals(routing.nextStepId, "continuation.test");
-  assertEquals(routing.signalCompletion, false);
+  assertEquals(routing.signalClosing, false);
   // Reason comes from structured output's next_action.reason
   assertEquals(routing.reason, "Processing files");
 });
@@ -904,10 +904,10 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
   // Closure step signals completion
   const closureRouting = router.route("closure.test", interpretation);
   logger.debug("e2e completion: routing result", {
-    signalCompletion: closureRouting.signalCompletion,
+    signalClosing: closureRouting.signalClosing,
     reason: closureRouting.reason,
   });
-  assertEquals(closureRouting.signalCompletion, true);
+  assertEquals(closureRouting.signalClosing, true);
   assertEquals(closureRouting.reason, "All tasks finished");
 });
 
@@ -983,7 +983,7 @@ Deno.test("Error codes for new error types are unique", () => {
   const allCodes = [
     new AgentNotInitializedError().code,
     new AgentQueryError("test").code,
-    new AgentCompletionError("test").code,
+    new AgentVerdictError("test").code,
     new AgentTimeoutError("test", 1000).code,
     new AgentMaxIterationsError(10).code,
     new AgentSchemaResolutionError("t", {
@@ -1190,7 +1190,7 @@ Deno.test("BoundaryHook - event emitter accepts boundaryHook event", async () =>
 });
 
 Deno.test("BoundaryHook - only firing on closing intent (router integration)", () => {
-  // Verify that router.signalCompletion is true only for closing intent from closure step
+  // Verify that router.signalClosing is true only for closing intent from closure step
   const registry = createTestStepRegistry();
   const router = new WorkflowRouter(registry);
 
@@ -1199,14 +1199,14 @@ Deno.test("BoundaryHook - only firing on closing intent (router integration)", (
     intent: "closing",
     usedFallback: false,
   });
-  assertEquals(closingResult.signalCompletion, true);
+  assertEquals(closingResult.signalClosing, true);
 
   // Closure step with repeat intent - should NOT signal completion (no boundary hook)
   const repeatResult = router.route("closure.test", {
     intent: "repeat",
     usedFallback: false,
   });
-  assertEquals(repeatResult.signalCompletion, false);
+  assertEquals(repeatResult.signalClosing, false);
 });
 
 Deno.test("BoundaryHook - work step closing intent rejected (no boundary hook possible)", () => {

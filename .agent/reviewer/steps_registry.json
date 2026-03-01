@@ -13,7 +13,7 @@
     "iterate": "initial.default"
   },
 
-  "completionPatterns": {
+  "failurePatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",
       "edition": "failed",
@@ -68,13 +68,13 @@
     }
   },
 
-  "completionSteps": {
+  "validationSteps": {
     "closure.review": {
       "stepId": "closure.review",
-      "name": "Review Completion Validation",
+      "name": "Review Validation",
       "c2": "retry",
       "c3": "review",
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "branch-pushed" },
         { "validator": "branch-merged" }
@@ -87,7 +87,7 @@
         "file": "reviewer.schema.json",
         "schema": "closure.review"
       },
-      "description": "Validate review completion with git-clean, branch-pushed, branch-merged"
+      "description": "Validate review with git-clean, branch-pushed, branch-merged"
     }
   },
 

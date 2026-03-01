@@ -15,7 +15,7 @@
     "composite": "initial.discover"
   },
 
-  "completionPatterns": {
+  "failurePatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",
       "edition": "failed",
@@ -70,13 +70,13 @@
     }
   },
 
-  "completionSteps": {
+  "validationSteps": {
     "closure.facilitation": {
       "stepId": "closure.facilitation",
-      "name": "Facilitation Completion Validation",
+      "name": "Facilitation Validation",
       "c2": "retry",
       "c3": "facilitation",
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "branch-pushed" },
         { "validator": "branch-merged" }
@@ -89,7 +89,7 @@
         "file": "facilitator.schema.json",
         "schema": "closure.facilitation"
       },
-      "description": "Validate facilitation completion with git-clean, branch-pushed, branch-merged"
+      "description": "Validate facilitation with git-clean, branch-pushed, branch-merged"
     }
   },
 
