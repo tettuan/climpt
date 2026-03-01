@@ -1,5 +1,11 @@
 /**
- * Fallback prompt provider for when Climpt is unavailable
+ * Fallback prompt provider that halts agent execution when prompt resolution fails.
+ *
+ * These templates are NOT functional prompts. They exist solely to surface
+ * prompt resolution failures. If any fallback template is rendered, it means
+ * the primary prompt resolution pipeline failed to load the correct prompt
+ * file from disk. The agent must halt and report the error rather than
+ * silently proceeding with degraded instructions.
  */
 
 export interface FallbackPromptProvider {
@@ -9,173 +15,328 @@ export interface FallbackPromptProvider {
 
 export class DefaultFallbackProvider implements FallbackPromptProvider {
   private templates: Record<string, string> = {
-    // System prompt
-    system: `# {uv-agent_name} Agent
+    system: `# FALLBACK PROMPT ACTIVATED
 
-You are operating as the **{uv-agent_name}** agent.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-## Completion Criteria
+## Diagnostic Information
 
-{uv-completion_criteria}
+- **Step**: system
+- **Agent**: {uv-agent_name}
+- **Completion Criteria**: {uv-completion_criteria}
 
-## Guidelines
+## Required Action
 
-- Think step by step
-- Report progress regularly
-- Ask for clarification when needed
-- Follow the completion criteria closely
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct system prompt file from disk.
 
-## Note
-
-This is a fallback system prompt. After completing your task, tell the user to create a \`prompts/system.md\` file with a role-specific system prompt tailored to this agent.
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Iterate completion type
-    initial_iterate: `# Task Start
+    initial_iterate: `# FALLBACK PROMPT ACTIVATED
 
-This task will run for up to **{uv-max_iterations}** iterations.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Begin iteration 1. Make progress and report what you accomplished.
+## Diagnostic Information
+
+- **Step**: initial_iterate
+- **Max Iterations**: {uv-max_iterations}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_iterate: `# Iteration {uv-iteration} of {uv-max_iterations}
+    continuation_iterate: `# FALLBACK PROMPT ACTIVATED
 
-**Remaining iterations:** {uv-remaining}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Continue making progress. Report what you accomplished this iteration.
+## Diagnostic Information
+
+- **Step**: continuation_iterate
+- **Iteration**: {uv-iteration}
+- **Max Iterations**: {uv-max_iterations}
+- **Remaining**: {uv-remaining}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Manual completion type
-    initial_manual: `# Session Start
+    initial_manual: `# FALLBACK PROMPT ACTIVATED
 
-## Topic
-{uv-topic}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Begin the session. When complete, output \`{uv-completion_keyword}\`.
+## Diagnostic Information
+
+- **Step**: initial_manual
+- **Topic**: {uv-topic}
+- **Completion Keyword**: {uv-completion_keyword}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_manual: `# Continuation (Iteration {uv-iteration})
+    continuation_manual: `# FALLBACK PROMPT ACTIVATED
 
-Continue the session.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-When complete, output \`{uv-completion_keyword}\`.
+## Diagnostic Information
+
+- **Step**: continuation_manual
+- **Iteration**: {uv-iteration}
+- **Completion Keyword**: {uv-completion_keyword}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Issue completion type
-    initial_issue: `# GitHub Issue #{uv-issue_number}
+    initial_issue: `# FALLBACK PROMPT ACTIVATED
 
-Work on completing the requirements in Issue #{uv-issue_number}.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Review the issue, understand the requirements, and begin implementation.
+## Diagnostic Information
 
-When all requirements are satisfied, close the issue using \`gh issue close {uv-issue_number}\`.
+- **Step**: initial_issue
+- **Issue Number**: {uv-issue_number}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_issue: `# Continuation (Iteration {uv-iteration})
+    continuation_issue: `# FALLBACK PROMPT ACTIVATED
 
-Continue working on Issue #{uv-issue_number}.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-{uv-previous_summary}
+## Diagnostic Information
 
-When all requirements are satisfied, close the issue.
+- **Step**: continuation_issue
+- **Iteration**: {uv-iteration}
+- **Issue Number**: {uv-issue_number}
+- **Previous Summary**: {uv-previous_summary}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Issue completion type - label-only variant
-    initial_issue_label_only:
-      `# GitHub Issue #{uv-issue_number} (Label-Only Phase)
+    initial_issue_label_only: `# FALLBACK PROMPT ACTIVATED
 
-Work on completing your assigned phase for Issue #{uv-issue_number}.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Review the issue, understand the requirements, and begin your phase of implementation.
+## Diagnostic Information
 
-When your phase is complete, update labels via Boundary Hook. Do NOT close this issue -- the next agent in the pipeline will continue.
+- **Step**: initial_issue_label_only
+- **Issue Number**: {uv-issue_number}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_issue_label_only:
-      `# Continuation - Issue #{uv-issue_number} (Iteration {uv-iteration})
+    continuation_issue_label_only: `# FALLBACK PROMPT ACTIVATED
 
-Continue working on your phase for Issue #{uv-issue_number}.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-{uv-previous_summary}
+## Diagnostic Information
 
-Complete your assigned phase. Do NOT close this issue.
+- **Step**: continuation_issue_label_only
+- **Iteration**: {uv-iteration}
+- **Issue Number**: {uv-issue_number}
+- **Previous Summary**: {uv-previous_summary}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Project completion type
-    initial_project: `# GitHub Project #{uv-project_number}
+    initial_project: `# FALLBACK PROMPT ACTIVATED
 
-Work through the project phases: {uv-phases}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Current phase: **{uv-phase}**
+## Diagnostic Information
 
-Begin working on the current phase.
+- **Step**: initial_project
+- **Project Number**: {uv-project_number}
+- **Phases**: {uv-phases}
+- **Current Phase**: {uv-phase}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_project: `# Project Continuation (Iteration {uv-iteration})
+    continuation_project: `# FALLBACK PROMPT ACTIVATED
 
-Project #{uv-project_number} - Phase: **{uv-phase}**
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-{uv-previous_summary}
+## Diagnostic Information
 
-Continue working on the current phase. When ready, move to the next phase.
+- **Step**: continuation_project
+- **Iteration**: {uv-iteration}
+- **Project Number**: {uv-project_number}
+- **Current Phase**: {uv-phase}
+- **Previous Summary**: {uv-previous_summary}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_project_preparation:
-      `# Preparation Phase (Iteration {uv-iteration})
+    continuation_project_preparation: `# FALLBACK PROMPT ACTIVATED
 
-Project #{uv-project_number}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Continue the preparation phase:
-- Gather requirements
-- Set up environment
-- Plan the work
+## Diagnostic Information
 
-When ready, indicate "Moving to processing" to advance.
+- **Step**: continuation_project_preparation
+- **Iteration**: {uv-iteration}
+- **Project Number**: {uv-project_number}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_project_processing:
-      `# Processing Phase (Iteration {uv-iteration})
+    continuation_project_processing: `# FALLBACK PROMPT ACTIVATED
 
-Project #{uv-project_number}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Continue the main implementation work.
+## Diagnostic Information
 
-When ready, indicate "Moving to review" to advance.
+- **Step**: continuation_project_processing
+- **Iteration**: {uv-iteration}
+- **Project Number**: {uv-project_number}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_project_review: `# Review Phase (Iteration {uv-iteration})
+    continuation_project_review: `# FALLBACK PROMPT ACTIVATED
 
-Project #{uv-project_number}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Review and validate the work:
-- Test the changes
-- Review code quality
-- Document as needed
+## Diagnostic Information
 
-When ready, indicate "Phase: complete" to finish.
+- **Step**: continuation_project_review
+- **Iteration**: {uv-iteration}
+- **Project Number**: {uv-project_number}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    // Structured signal completion type
-    initial_structured_signal: `# Task Start
+    initial_structured_signal: `# FALLBACK PROMPT ACTIVATED
 
-Work on the assigned task. When complete, output a structured completion signal.
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-## Completion Signal Type
-{uv-signal_type}
+## Diagnostic Information
 
-## Required Fields
-{uv-required_fields}
+- **Step**: initial_structured_signal
+- **Signal Type**: {uv-signal_type}
+- **Required Fields**: {uv-required_fields}
 
-Do not output the completion signal until you have verified the task is done.
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
 
-    continuation_structured_signal: `# Continuation (Iteration {uv-iteration})
+    continuation_structured_signal: `# FALLBACK PROMPT ACTIVATED
 
-{uv-previous_summary}
+**This is a fallback prompt. An error occurred in the prompt resolution process. Do NOT proceed with the task. Halt immediately and report this error.**
 
-Continue working on the task.
+## Diagnostic Information
 
-When complete, output the structured signal of type: {uv-signal_type}
+- **Step**: continuation_structured_signal
+- **Iteration**: {uv-iteration}
+- **Signal Type**: {uv-signal_type}
+- **Previous Summary**: {uv-previous_summary}
+
+## Required Action
+
+Report this error to the user. Do NOT execute any task instructions. The prompt resolution pipeline failed to load the correct prompt file from disk.
+
+Possible causes:
+1. Prompt file does not exist for this step
+2. Step ID format mismatch between handler and registry
+3. Registry configuration error
 `,
   };
 
