@@ -90,6 +90,34 @@ isComplete() → Promise<boolean>
 保証:    AI 宣言と外部条件の両方を考慮
 ```
 
+### 責務境界
+
+CompletionHandler に Step 遷移の責務を混ぜると、完了判定と進行制御が
+同一コンポーネントに集中し、二重ループの分離原則が崩れる。
+責務を明示的に分離することで、CompletionHandler の変更が Flow に波及しない
+境界を維持する。
+
+CompletionHandler は Agent 完了の判定のみを担う。Step 間の遷移決定は
+CompletionHandler の責務ではない。
+
+```
+CompletionHandler の責務:
+  ✓ Agent 完了の判定 (isComplete)
+  ✓ Completion Loop 用プロンプトの生成 (buildInitialPrompt, buildContinuationPrompt)
+  ✓ 完了基準の宣言 (buildCompletionCriteria)
+  ✓ 副作用の実行窓口 (onBoundaryHook)
+
+CompletionHandler の責務外:
+  ✗ Step 間の遷移決定 (→ FlowOrchestrator / WorkflowRouter)
+  ✗ intent の解釈 (→ StepGateInterpreter)
+  ✗ transitions テーブルの参照 (→ WorkflowRouter)
+```
+
+StepMachineCompletionHandler が内部に遷移ロジック (transition, getNextStep) を
+持つのは、Completion Loop 内での step context 維持と prompt
+生成に必要だからであり、 Flow ループの遷移決定を代行するためではない。 Flow
+ループでの遷移は常に FlowOrchestrator が担う。
+
 **Structured Output 統合**:
 
 ```

@@ -31,8 +31,10 @@ import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { inferStepKind } from "../common/step-registry.ts";
 import {
   createFallbackProvider,
+  type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
 } from "../common/prompt-resolver.ts";
 import type { SchemaManager } from "./schema-manager.ts";
@@ -65,7 +67,7 @@ export class CompletionManager {
   stepGateInterpreter: StepGateInterpreter | null = null;
   workflowRouter: WorkflowRouter | null = null;
 
-  // Step-level prompt resolver (for closure adaptation)
+  // Step-level prompt resolver (for work-step and closure adaptation)
   stepPromptResolver: StepPromptResolver | null = null;
 
   constructor(deps: CompletionManagerDeps) {
@@ -203,13 +205,12 @@ export class CompletionManager {
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 
-        // Initialize step prompt resolver for closure adaptation
         this.stepPromptResolver = new StepPromptResolver(
           stepsRegistry as unknown as StepRegistry,
           createFallbackProvider({}),
           { workingDir: cwd, configSuffix: "steps" },
         );
-        logger.debug("StepPromptResolver initialized for closure adaptation");
+        logger.debug("StepPromptResolver initialized");
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
@@ -316,6 +317,38 @@ export class CompletionManager {
       );
     }
     return "closure.issue";
+  }
+
+  /**
+   * Resolve a work-step prompt via stepPromptResolver (C3L).
+   *
+   * Returns null when resolver is unavailable, step is not found,
+   * or the step is not a work step.
+   */
+  async resolveWorkStepPrompt(
+    stepId: string,
+    variables: Record<string, string>,
+  ): Promise<PromptResolutionResult | null> {
+    if (!this.stepPromptResolver || !this.stepsRegistry) {
+      return null;
+    }
+
+    const stepDef = (this.stepsRegistry as unknown as StepRegistry)
+      .steps?.[stepId];
+    if (!stepDef) {
+      return null;
+    }
+
+    const stepKind = inferStepKind(stepDef);
+    if (stepKind !== "work") {
+      return null;
+    }
+
+    try {
+      return await this.stepPromptResolver.resolve(stepId, { uv: variables });
+    } catch {
+      return null;
+    }
   }
 
   /**
