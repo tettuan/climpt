@@ -425,10 +425,12 @@ load(path) → parse → validate → 起動 or エラー
 
 ## 関連ドキュメント
 
-| ドキュメント                                                          | 内容                        |
-| --------------------------------------------------------------------- | --------------------------- |
-| [01_quickstart.md](./01_quickstart.md)                                | ファイル作成手順            |
-| [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖              |
-| [04_config_system.md](./04_config_system.md)                          | 設定の優先順位              |
-| [design/05_structured_outputs.md](../design/05_structured_outputs.md) | validationConditions の詳細 |
-| [design/08_model_selection.md](../design/08_model_selection.md)       | モデル選択の設計            |
+| ドキュメント                                                          | 内容                                         |
+| --------------------------------------------------------------------- | -------------------------------------------- |
+| [01_quickstart.md](./01_quickstart.md)                                | ファイル作成手順                             |
+| [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖                               |
+| [04_config_system.md](./04_config_system.md)                          | 設定の優先順位                               |
+| [design/05_structured_outputs.md](../design/05_structured_outputs.md) | validationConditions の詳細                  |
+| [design/08_model_selection.md](../design/08_model_selection.md)       | モデル選択の設計                             |
+| [reference/agent.yaml](./reference/agent.yaml)                        | agent.json 全フィールドリファレンス          |
+| [reference/steps_registry.yaml](./reference/steps_registry.yaml)      | steps_registry.json 全フィールドリファレンス |

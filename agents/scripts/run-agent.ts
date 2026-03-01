@@ -81,6 +81,7 @@ Examples:
 Documentation:
   Quick Start:      agents/docs/builder/01_quickstart.md
   Definition Ref:   agents/docs/builder/02_agent_definition.md
+  YAML Reference:   agents/docs/builder/reference/
   Troubleshooting:  agents/docs/builder/05_troubleshooting.md
   Design Docs:      agents/docs/design/
   JSON Schemas:     agents/schemas/

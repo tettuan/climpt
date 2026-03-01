@@ -28,6 +28,13 @@ Agent を作成する際は、以下の順序で進める。
 | 3 | [03_builder_guide.md](./03_builder_guide.md)       | 設計思想と連鎖    | 設計を理解したいとき                  |
 | 4 | [04_config_system.md](./04_config_system.md)       | 設定の優先順位    | 実行時設定を変えたいとき              |
 
+### リファレンス
+
+| ドキュメント                                                     | 内容                                 |
+| ---------------------------------------------------------------- | ------------------------------------ |
+| [reference/agent.yaml](./reference/agent.yaml)                   | agent.json 全フィールド解説          |
+| [reference/steps_registry.yaml](./reference/steps_registry.yaml) | steps_registry.json 全フィールド解説 |
+
 ---
 
 ## 注意点

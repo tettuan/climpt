@@ -119,8 +119,10 @@ load → parse → merge → validate → 起動 or エラー
 
 ## 関連ドキュメント
 
-| ドキュメント                                       | 内容              |
-| -------------------------------------------------- | ----------------- |
-| [01_quickstart.md](./01_quickstart.md)             | ファイル作成手順  |
-| [02_agent_definition.md](./02_agent_definition.md) | agent.json の詳細 |
-| [03_builder_guide.md](./03_builder_guide.md)       | 設計思想と連鎖    |
+| ドキュメント                                                     | 内容                                         |
+| ---------------------------------------------------------------- | -------------------------------------------- |
+| [01_quickstart.md](./01_quickstart.md)                           | ファイル作成手順                             |
+| [02_agent_definition.md](./02_agent_definition.md)               | agent.json の詳細                            |
+| [03_builder_guide.md](./03_builder_guide.md)                     | 設計思想と連鎖                               |
+| [reference/agent.yaml](./reference/agent.yaml)                   | agent.json 全フィールドリファレンス          |
+| [reference/steps_registry.yaml](./reference/steps_registry.yaml) | steps_registry.json 全フィールドリファレンス |
