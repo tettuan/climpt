@@ -109,7 +109,7 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 | コンポーネント    | What                                        | Why                                |
 | ----------------- | ------------------------------------------- | ---------------------------------- |
 | `PromptResolver`  | C3L 参照をローカルパスに射影し、本文を返す  | プロンプトの所在を Agent から隠す  |
-| `ValidationChain` | closureSteps を解決し、検証を実行する       | Completion ループの一貫性を保つ    |
+| `ValidationChain` | validationSteps を解決し、検証を実行する    | Completion ループの一貫性を保つ    |
 | `StepValidator`   | `validationConditions` を評価               | 外部状態（git, test 等）の差分検出 |
 | `FormatValidator` | (SDK 委譲) Structured Output の schema 検証 | SDK の outputFormat 機能に委譲済み |
 | `RetryHandler`    | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映   |

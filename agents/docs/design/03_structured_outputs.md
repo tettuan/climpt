@@ -46,7 +46,7 @@ completionSignal(response) =
      セットも schema 側で確定させる。
 
 3. **Validation Conditions**
-   - `steps_registry.json` の `closureSteps.<id>.validationConditions[]`
+   - `steps_registry.json` の `validationSteps.<id>.validationConditions[]`
      で宣言。
    - 各 validator (git clean, type check, tests, lint 等) は `Why: エビデンス`
      に対応づけられており、未達時は `pattern` と `params` を返す。
@@ -60,7 +60,7 @@ completionSignal(response) =
 
 ```jsonc
 {
-  "closureSteps": {
+  "validationSteps": {
     "closure.issue": {
       "prompt": { "c1": "steps", "c2": "closure", "c3": "issue" },
       "outputSchemaRef": {
