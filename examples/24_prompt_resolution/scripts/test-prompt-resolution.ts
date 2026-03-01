@@ -21,6 +21,7 @@ import { PromptResolverAdapter } from "../../../agents/prompts/resolver-adapter.
 
 const SEPARATOR = "-".repeat(60);
 const TMPDIR = join(Deno.cwd(), "tmp", "prompt-resolution-example");
+const CONFIG_DIR = join(Deno.cwd(), ".agent", "climpt", "config");
 
 function header(title: string): void {
   console.log(`\n${SEPARATOR}`);
@@ -40,6 +41,28 @@ function printResult(
   }
   if (result.content.split("\n").length > 8) {
     console.log(`    ... (truncated)`);
+  }
+}
+
+function verify(
+  scenario: string,
+  result: { content: string; source: string },
+  expectedSource: string,
+  contentMarker: string,
+): void {
+  const sourceOk = result.source === expectedSource;
+  const markerOk = result.content.includes(contentMarker);
+  if (sourceOk && markerOk) {
+    console.log(`  PASS: ${scenario}`);
+  } else {
+    const reasons: string[] = [];
+    if (!sourceOk) {
+      reasons.push(`source="${result.source}", expected="${expectedSource}"`);
+    }
+    if (!markerOk) {
+      reasons.push(`marker "${contentMarker}" not found in content`);
+    }
+    console.log(`  FAIL: ${scenario} — ${reasons.join("; ")}`);
   }
 }
 
@@ -75,6 +98,30 @@ async function setupTempAgent(agentName: string): Promise<string> {
   await Deno.writeTextFile(
     join(agentDir, "steps_registry.json"),
     JSON.stringify(registry, null, 2),
+  );
+
+  // Breakdown config so C3LPromptLoader can resolve step prompts
+  const relativeAgentDir = `tmp/prompt-resolution-example/.agent/${agentName}`;
+  await Deno.writeTextFile(
+    join(CONFIG_DIR, `${agentName}-steps-app.yml`),
+    `# Auto-generated for example (cleaned up after run)
+working_dir: "${relativeAgentDir}"
+app_prompt:
+  base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"
+`,
+  );
+  await Deno.writeTextFile(
+    join(CONFIG_DIR, `${agentName}-steps-user.yml`),
+    `# Auto-generated for example (cleaned up after run)
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation)$"
+    layerType:
+      pattern: "^(issue)$"
+`,
   );
 
   return agentDir;
@@ -123,6 +170,12 @@ You are the **{uv-agent_name}** implementation agent.
   });
 
   printResult(result1);
+  verify(
+    "Scenario 1: system.md resolved from file",
+    result1,
+    "file",
+    "Follow TDD approach",
+  );
 
   // --- Scenario 2: system.md MISSING ---
   header("Scenario 2: system.md MISSING (fallback)");
@@ -143,6 +196,12 @@ You are the **{uv-agent_name}** implementation agent.
   });
 
   printResult(result2);
+  verify(
+    "Scenario 2: system.md missing triggers fallback",
+    result2,
+    "fallback",
+    "FALLBACK PROMPT ACTIVATED",
+  );
 
   // --- Comparison ---
   header("Comparison: system.md present vs absent");
@@ -202,6 +261,12 @@ You are beginning work on Issue #{uv-issue_number}.
   });
 
   printResult(result3);
+  verify(
+    "Scenario 3: step prompt resolved from file",
+    result3,
+    "file",
+    "Create a branch: feature/issue-",
+  );
 
   // --- Scenario 4: Step prompt file MISSING ---
   header("Scenario 4: Step prompt file MISSING (fallback)");
@@ -221,6 +286,12 @@ You are beginning work on Issue #{uv-issue_number}.
   });
 
   printResult(result4);
+  verify(
+    "Scenario 4: step prompt missing triggers fallback",
+    result4,
+    "fallback",
+    "FALLBACK PROMPT ACTIVATED",
+  );
 
   // --- Comparison ---
   header("Comparison: Step prompt present vs absent");
@@ -271,6 +342,11 @@ async function main(): Promise<void> {
   } finally {
     // Cleanup
     await Deno.remove(TMPDIR, { recursive: true });
+    for (const suffix of ["-steps-app.yml", "-steps-user.yml"]) {
+      try {
+        await Deno.remove(join(CONFIG_DIR, `example-agent${suffix}`));
+      } catch { /* already removed */ }
+    }
   }
 }
 

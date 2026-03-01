@@ -26,8 +26,13 @@ main() {
     fi
   done
 
+  if echo "$output" | grep -q "FAIL:"; then
+    error "FAIL: prompt resolution verification failed"
+    fail=1
+  fi
+
   if [[ $fail -ne 0 ]]; then return 1; fi
-  success "PASS: all prompt resolution scenarios present"
+  success "PASS: all prompt resolution scenarios verified"
 }
 
 main "$@"
