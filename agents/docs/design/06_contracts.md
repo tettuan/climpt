@@ -54,7 +54,7 @@ run(options) → AgentResult
 ### 完了判定
 
 ```
-CompletionValidator.validate(conditions) → CompletionValidationResult
+StepValidator.validate(conditions) → ValidationResult
 
 入力:    完了条件の配列
 出力:    { valid: boolean, pattern?: string, params?: Record }
@@ -72,18 +72,18 @@ FormatValidator.validate(summary, format) → FormatValidationResult
 副作用:  なし
 ```
 
-### CompletionHandler
+### VerdictHandler
 
 ```
-CompletionHandler インターフェース
+VerdictHandler インターフェース
 
 setCurrentSummary(summary) → void
 入力:    IterationSummary（structuredOutput 含む）
 出力:    なし
 副作用:  内部状態の更新（lastSummary）
-用途:    isComplete() 呼び出し前に現在の iteration 情報を渡す
+用途:    isFinished() 呼び出し前に現在の iteration 情報を渡す
 
-isComplete() → Promise<boolean>
+isFinished() → Promise<boolean>
 入力:    なし（内部状態を使用）
 出力:    完了フラグ
 副作用:  外部コマンド実行（git status, gh issue view 等）
@@ -92,28 +92,28 @@ isComplete() → Promise<boolean>
 
 ### 責務境界
 
-CompletionHandler に Step 遷移の責務を混ぜると、完了判定と進行制御が
+VerdictHandler に Step 遷移の責務を混ぜると、完了判定と進行制御が
 同一コンポーネントに集中し、二重ループの分離原則が崩れる。
-責務を明示的に分離することで、CompletionHandler の変更が Flow に波及しない
+責務を明示的に分離することで、VerdictHandler の変更が Flow に波及しない
 境界を維持する。
 
-CompletionHandler は Agent 完了の判定のみを担う。Step 間の遷移決定は
-CompletionHandler の責務ではない。
+VerdictHandler は Agent 完了の判定のみを担う。Step 間の遷移決定は VerdictHandler
+の責務ではない。
 
 ```
-CompletionHandler の責務:
-  ✓ Agent 完了の判定 (isComplete)
+VerdictHandler の責務:
+  ✓ Agent 完了の判定 (isFinished)
   ✓ Completion Loop 用プロンプトの生成 (buildInitialPrompt, buildContinuationPrompt)
-  ✓ 完了基準の宣言 (buildCompletionCriteria)
+  ✓ 完了基準の宣言 (buildVerdictCriteria)
   ✓ 副作用の実行窓口 (onBoundaryHook)
 
-CompletionHandler の責務外:
+VerdictHandler の責務外:
   ✗ Step 間の遷移決定 (→ FlowOrchestrator / WorkflowRouter)
   ✗ intent の解釈 (→ StepGateInterpreter)
   ✗ transitions テーブルの参照 (→ WorkflowRouter)
 ```
 
-StepMachineCompletionHandler が内部に遷移ロジック (transition, getNextStep) を
+StepMachineVerdictHandler が内部に遷移ロジック (transition, getNextStep) を
 持つのは、Completion Loop 内での step context 維持と prompt
 生成に必要だからであり、 Flow ループの遷移決定を代行するためではない。 Flow
 ループでの遷移は常に FlowOrchestrator が担う。
@@ -121,7 +121,7 @@ StepMachineCompletionHandler が内部に遷移ロジック (transition, getNext
 **Structured Output 統合**:
 
 ```
-判定ロジック（IssueCompletionHandler）:
+判定ロジック（IssueVerdictHandler）:
 
 ① getStructuredOutputStatus() で AI 宣言を取得
    - status === "completed"
@@ -185,10 +185,10 @@ interface AgentResult {
 // totalCostUsd  ⇒ SDK が返した場合のみ設定
 ```
 
-### CompletionValidationResult
+### ValidationResult
 
 ```typescript
-interface CompletionValidationResult {
+interface ValidationResult {
   valid: boolean;
   pattern?: string; // 失敗パターン名
   params?: Record<string, unknown>; // 抽出パラメータ

@@ -83,7 +83,7 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
   - `steps/complete/*` の C3L プロンプトで完了指示を生成。ユーザーは docs/
     に従ってプロンプトを管理できる。
   - Structured Output Schema (`outputSchemaRef`) は SDK の outputFormat
-    に渡され、JSON 抽出後に CompletionValidator を走らせる。
+    に渡され、JSON 抽出後に StepValidator を走らせる。
   - 失敗時は Completion Loop が返す `pendingActions` を RetryHandler に渡し、
     次の Flow ループへ渡す C3L 指示文を構築する。
 
@@ -91,7 +91,7 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 
 1. **load()**: agent.json / steps_registry.json / schemas / prompts
    を検証済み構造体に変換。
-2. **init()**: PromptResolver, CompletionChain, RetryHandler を生成。
+2. **init()**: PromptResolver, ValidationChain, RetryHandler を生成。
    (FormatValidator は SDK outputFormat に委譲)
 3. **runFlow()**:
    - Step プロンプト解決 → LLM 呼び出し → structured output 抽出 → handoff
@@ -99,20 +99,20 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
    - `completionSignal` が無ければ次 Step へ遷移。
 4. **runCompletion()** (signal ありのときだけ):
    - Completion プロンプトを C3L から解決。
-   - Structured Output + completionConditions で完了状態を判断。
+   - Structured Output + validationConditions で完了状態を判断。
    - `retryPrompt` があれば Flow の次 iteration へ渡す。
 5. **result()**: `success`, `reason`, `iterations` を返す。Flow
    が止まらなければ完了しない。
 
 ## 主なコンポーネント
 
-| コンポーネント        | What                                        | Why                                |
-| --------------------- | ------------------------------------------- | ---------------------------------- |
-| `PromptResolver`      | C3L 参照をローカルパスに射影し、本文を返す  | プロンプトの所在を Agent から隠す  |
-| `CompletionChain`     | completionSteps を解決し、検証を実行する    | Completion ループの一貫性を保つ    |
-| `CompletionValidator` | `completionConditions` を評価               | 外部状態（git, test 等）の差分検出 |
-| `FormatValidator`     | (SDK 委譲) Structured Output の schema 検証 | SDK の outputFormat 機能に委譲済み |
-| `RetryHandler`        | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映   |
+| コンポーネント    | What                                        | Why                                |
+| ----------------- | ------------------------------------------- | ---------------------------------- |
+| `PromptResolver`  | C3L 参照をローカルパスに射影し、本文を返す  | プロンプトの所在を Agent から隠す  |
+| `ValidationChain` | completionSteps を解決し、検証を実行する    | Completion ループの一貫性を保つ    |
+| `StepValidator`   | `validationConditions` を評価               | 外部状態（git, test 等）の差分検出 |
+| `FormatValidator` | (SDK 委譲) Structured Output の schema 検証 | SDK の outputFormat 機能に委譲済み |
+| `RetryHandler`    | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映   |
 
 ## リトライ設計
 

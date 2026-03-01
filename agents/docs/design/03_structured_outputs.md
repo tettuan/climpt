@@ -46,7 +46,7 @@ completionSignal(response) =
      セットも schema 側で確定させる。
 
 3. **Completion Conditions**
-   - `steps_registry.json` の `completionSteps.<id>.completionConditions[]`
+   - `steps_registry.json` の `completionSteps.<id>.validationConditions[]`
      で宣言。
    - 各 validator (git clean, type check, tests, lint 等) は `Why: エビデンス`
      に対応づけられており、未達時は `pattern` と `params` を返す。
@@ -67,7 +67,7 @@ completionSignal(response) =
         "file": "issue.schema.json",
         "schema": "closure.issue"
       },
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "type-check" }
       ],
@@ -79,7 +79,7 @@ completionSignal(response) =
 
 - **What**: completion step と schema を紐づけ、構造化レスポンスを期待する。
 - **Why**: docs に並ぶ完了チェックリストをそのままコードへ反映するため。
-- **How (最小限)**: Runner は `PromptResolver` と `CompletionChain` を通じて
+- **How (最小限)**: Runner は `PromptResolver` と `ValidationChain` を通じて
   プロンプト → Structured Output → validator 実行 → retryPrompt
   の順に進めるだけである。
 
@@ -108,7 +108,7 @@ Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先
 | ------------------------ | -------- | ---------------------------------------------------------- |
 | Structured Output Schema | 運用中   | 完了宣言を明示的に検証する唯一のソース                     |
 | FormatValidator          | SDK 委譲 | Runner が schema を渡すだけで SDK が intent と JSON を強制 |
-| CompletionConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す     |
+| ValidationConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す     |
 | RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除      |
 
 Completion Loop は「完璧な終了体験」を作るための最小構成であり、余計な判断を

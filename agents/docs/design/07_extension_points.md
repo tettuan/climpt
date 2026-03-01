@@ -168,9 +168,9 @@ const hooks = {
 
 ```typescript
 // 良い: 定義済みインターフェースを実装
-class MyHandler implements CompletionHandler {
+class MyHandler implements VerdictHandler {
   check(context) {}
-  isComplete() {}
+  isFinished() {}
   getReason() {}
 }
 
