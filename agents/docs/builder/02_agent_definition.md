@@ -43,7 +43,7 @@ agent.json で Agent
 }
 ```
 
-## runner.completion
+## runner.verdict
 
 完了判定の戦略。
 
@@ -58,7 +58,7 @@ agent.json で Agent
 }
 ```
 
-### completionType
+### verdictType
 
 | タイプ             | What                                      | Why                                                       | 主な設定                                                           |
 | ------------------ | ----------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -68,19 +68,19 @@ agent.json で Agent
 | `keywordSignal`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                                                |
 | `structuredSignal` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
 | `stepMachine`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
-| `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `completionConditions`, `mode`                                     |
-| `custom`           | 外部 CompletionHandler で任意判定         | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `completionHandler` 設定                         |
+| `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `validationConditions`, `mode`                                     |
+| `custom`           | 外部 VerdictHandler で任意判定            | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `verdictHandler` 設定                            |
 
-### completionConditions
+### validationConditions
 
 steps_registry.json で完了条件を定義する。詳細は
-`design/03_structured_outputs.md` を参照。
+`design/05_structured_outputs.md` を参照。
 
 ```json
 {
   "steps": {
     "closure.issue": {
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "tests-pass" }
       ],
@@ -122,7 +122,7 @@ steps_registry.json で完了条件を定義する。詳細は
 **通常は設定不要**。opus がデフォルトのため、エージェント全体で異なるモデルを
 使いたい場合のみ指定する。ステップごとの指定は `steps_registry.json` で行う。
 
-詳細: [design/09_model_selection.md](../design/09_model_selection.md)
+詳細: [design/08_model_selection.md](../design/08_model_selection.md)
 
 ## runner.integrations
 
@@ -199,11 +199,11 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 
 `defaultClosureAction` は Boundary Hook だけでなく、Prompt 生成にも反映される。
 
-| 設定値            | `buildCompletionCriteria().short` | Prompt のクローズ指示      |
-| ----------------- | --------------------------------- | -------------------------- |
-| `close`           | `Close Issue #N`                  | `"close it when done"`     |
-| `label-only`      | `Complete phase for Issue #N`     | `"Do NOT close the issue"` |
-| `label-and-close` | `Issue #N labeled and closed`     | `"close it when done"`     |
+| 設定値            | `buildVerdictCriteria().short` | Prompt のクローズ指示      |
+| ----------------- | ------------------------------ | -------------------------- |
+| `close`           | `Close Issue #N`               | `"close it when done"`     |
+| `label-only`      | `Complete phase for Issue #N`  | `"Do NOT close the issue"` |
+| `label-and-close` | `Issue #N labeled and closed`  | `"close it when done"`     |
 
 `label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
@@ -342,9 +342,9 @@ CLI 引数の定義。`run-agent.ts`
 > 扱われる。`required: true` を指定したパラメータのみ、CLI
 > で未指定時にエラーとなる。
 
-### completionType 別の必須パラメータ
+### verdictType 別の必須パラメータ
 
-| completionType  | 必須パラメータ | 説明                                      |
+| verdictType     | 必須パラメータ | 説明                                      |
 | --------------- | -------------- | ----------------------------------------- |
 | `externalState` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
 
@@ -384,9 +384,9 @@ load(path) → parse → validate → 起動 or エラー
 
 検証項目:
 - 必須フィールドの存在
-- runner.completion.config と runner.completion.type の整合性
+- runner.verdict.config と runner.verdict.type の整合性
 - 参照ファイルの存在
-- completionConditions の validator 参照の妥当性
+- validationConditions の validator 参照の妥当性
 ```
 
 ---
@@ -395,7 +395,7 @@ load(path) → parse → validate → 起動 or エラー
 
 | 項目                               | 注意                                           |
 | ---------------------------------- | ---------------------------------------------- |
-| `runner.completion.type`           | 8 種類のみ有効。レガシー名は廃止済み           |
+| `runner.verdict.type`              | 8 種類のみ有効。レガシー名は廃止済み           |
 | `runner.flow.systemPromptPath`     | agent.json からの相対パス                      |
 | `runner.boundaries.allowedTools`   | 許可されていないツールは実行時エラー           |
 | `runner.boundaries.permissionMode` | `bypassPermissions` は信頼できる環境でのみ使用 |
@@ -407,12 +407,12 @@ load(path) → parse → validate → 起動 or エラー
 コードベース内で "iterate" に関連する用語が複数存在する。混同を防ぐため
 以下に整理する。
 
-| Term              | Context         | Meaning                                                                | Location                                  |
-| ----------------- | --------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
-| `iterator`        | Agent name      | GitHub Issue を反復的に解決する具象ビルトインエージェント              | `.agent/iterator/agent.json`              |
-| `iterationBudget` | Completion type | N 回の iteration 後に停止する完了戦略                                  | `runner.completion.type` in agent.json    |
-| `iterate`         | Entry step key  | iterate モードの開始ステップを選択するエントリーステップマッピングキー | `entryStepMapping` in steps_registry.json |
-| `--iterate-max`   | CLI parameter   | 最大 iteration 回数を設定する（iterationBudget completion に適用）     | `definition.parameters` in agent.json     |
+| Term              | Context        | Meaning                                                                | Location                                  |
+| ----------------- | -------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
+| `iterator`        | Agent name     | GitHub Issue を反復的に解決する具象ビルトインエージェント              | `.agent/iterator/agent.json`              |
+| `iterationBudget` | Verdict type   | N 回の iteration 後に停止する完了戦略                                  | `runner.verdict.type` in agent.json       |
+| `iterate`         | Entry step key | iterate モードの開始ステップを選択するエントリーステップマッピングキー | `entryStepMapping` in steps_registry.json |
+| `--iterate-max`   | CLI parameter  | 最大 iteration 回数を設定する（iterationBudget completion に適用）     | `definition.parameters` in agent.json     |
 
 > **注意**: これらの用語は関連しているが、それぞれ異なる概念である。 Iterator
 > Agent は具象エージェントインスタンスであり、completion type や
@@ -428,5 +428,5 @@ load(path) → parse → validate → 起動 or エラー
 | [01_quickstart.md](./01_quickstart.md)                                | ファイル作成手順            |
 | [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖              |
 | [04_config_system.md](./04_config_system.md)                          | 設定の優先順位              |
-| [design/03_structured_outputs.md](../design/03_structured_outputs.md) | completionConditions の詳細 |
-| [design/09_model_selection.md](../design/09_model_selection.md)       | モデル選択の設計            |
+| [design/05_structured_outputs.md](../design/05_structured_outputs.md) | validationConditions の詳細 |
+| [design/08_model_selection.md](../design/08_model_selection.md)       | モデル選択の設計            |

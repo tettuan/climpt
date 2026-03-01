@@ -39,7 +39,7 @@ Agent の振る舞いを定義。変更頻度: 低。
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
+    "verdict": {
       "type": "keywordSignal",
       "config": { "completionKeyword": "SESSION_COMPLETE" }
     },
@@ -101,7 +101,7 @@ load → parse → merge → validate → 起動 or エラー
 検証項目:
 - 必須フィールドの存在
 - 型の整合性
-- runner.completion.config と runner.completion.type の対応
+- runner.verdict.config と runner.verdict.type の対応
 ```
 
 ---

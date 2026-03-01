@@ -8,9 +8,9 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 | レイヤー       | What（何を定義するか）                                                | Why（なぜ必要か）                                                        | 主な参照                                                                                  |
 | -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| 設定           | `agent.json`, `steps_registry.json`, schema, prompts                  | Flow/Completion ループが迷わないよう、開始点と遷移・検証条件を明文化する | `01_quickstart.md`, `02_agent_definition.md`, `design/02_prompt_system.md`                |
-| 実行           | `AgentRunner` → Flow ループ → Completion ループ                       | 設定を元に状態遷移し、structured output を検証して完了可否を決める       | `design/01_runner.md`, `design/08_step_flow_design.md`, `design/03_structured_outputs.md` |
-| プロンプト配置 | `.agent/<name>/prompts/system.md` と `steps/{c2}/{c3}/f_<edition>.md` | C3L/Climpt のルールでプロンプトを参照し、Fallback を排除する             | `design/02_prompt_system.md`, `design/08_step_flow_design.md`                             |
+| 設定           | `agent.json`, `steps_registry.json`, schema, prompts                  | Flow/Completion ループが迷わないよう、開始点と遷移・検証条件を明文化する | `01_quickstart.md`, `02_agent_definition.md`, `design/07_prompt_system.md`                |
+| 実行           | `AgentRunner` → Flow ループ → Completion ループ                       | 設定を元に状態遷移し、structured output を検証して完了可否を決める       | `design/06_runner.md`, `design/04_step_flow_design.md`, `design/05_structured_outputs.md` |
+| プロンプト配置 | `.agent/<name>/prompts/system.md` と `steps/{c2}/{c3}/f_<edition>.md` | C3L/Climpt のルールでプロンプトを参照し、Fallback を排除する             | `design/07_prompt_system.md`, `design/04_step_flow_design.md`                             |
 
 この 3 レイヤーは **設定 → 実行 → プロンプト** の一方向連鎖になっており、
 どこかが欠落すると Runner が即停止する。暗黙のフォールバックを許さないことで
@@ -19,7 +19,7 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 ## 2. 設定レイヤーで決めること
 
 1. **役割と入力** (`agent.json`)
-   - What: Agent の ID、Completion Type、使用ツール、CLI 引数。
+   - What: Agent の ID、VerdictType、使用ツール、CLI 引数。
    - Why: 実行時に許可されたパーミッションと終了条件を固定し、設定変更だけで
      行動半径を制御するため。
 2. **状態遷移** (`steps_registry.json`)
@@ -48,7 +48,7 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
    - Why: Step 定義を唯一の真実として扱い、AI 応答の揺らぎを遷移ロジックに
      伝播させないため。
 3. **Completion ループ**
-   - What: Flow が `closure.<domain>` に遷移したとき、Completion Chain が
+   - What: Flow が `closure.<domain>` に遷移したとき、ValidationChain が
      structured output を検証し、Issue の状態や外部信号と照合。
    - Why: 「やりきったか？」を別ループに分離し、Flow を単純化するため。
 4. **Fail-fast**
@@ -59,14 +59,14 @@ Why」をまとめる。How（具体的なファイル作成手順）は `01_qui
 
 ## 4. プロンプト配置と Resolver
 
-- Flow Step は `c2` (=initial/continuation/closure) と `c3` (=completionType
-  など) の組み合わせで固有ディレクトリを持つ。
-- Runner は `design/08_step_flow_design.md` で規定された
+- Flow Step は `c2` (=initial/continuation/closure) と `c3` (=verdictType など)
+  の組み合わせで固有ディレクトリを持つ。
+- Runner は `design/04_step_flow_design.md` で規定された
   `pathTemplate`（デフォルト: `{c1}/{c2}/{c3}/f_{edition}.md`）で Markdown
   を解決する。
 - `systemPromptPath` は共通の安全装置であり、Flow/Completion の文脈と一体で
   使う。個別 Step で追加の system prompt を書かない。
-- Prompt から Structured Output を得る際は `design/03_structured_outputs.md` の
+- Prompt から Structured Output を得る際は `design/05_structured_outputs.md` の
   フォーマットを遵守し、スキーマと intent 名を揃える。
 
 > プロンプトは **設定された C3L 参照の結果としてのみ** 呼び出される。 Runner
@@ -110,16 +110,16 @@ Work step のプロンプトには以下を明示する:
 
 | 設定項目 / 概念               | 実装コンポーネント                                      | Why                                  | 参照                              |
 | ----------------------------- | ------------------------------------------------------- | ------------------------------------ | --------------------------------- |
-| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)               | ループ全体の許可・制限を司る         | `design/01_runner.md`             |
-| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`                 | intent 解析と遷移の一元化            | `design/08_step_flow_design.md`   |
-| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`)   | structured output の契約チェック     | `design/03_structured_outputs.md` |
-| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)         | 設定→実行→Markdown への橋渡し        | `design/02_prompt_system.md`      |
-| Completion Type               | `CompletionChain` (`agents/runner/completion-chain.ts`) | Flow からの handoff を完了判定へ接続 | `design/05_core_architecture.md`  |
+| `agent.json.behavior`         | `AgentRunner` (`agents/runner/runner.ts`)               | ループ全体の許可・制限を司る         | `design/06_runner.md`             |
+| `steps_registry.json.steps.*` | `StepGateInterpreter`, `WorkflowRouter`                 | intent 解析と遷移の一元化            | `design/04_step_flow_design.md`   |
+| `outputSchemaRef`             | `SchemaResolver` (`agents/common/schema-resolver.ts`)   | structured output の契約チェック     | `design/05_structured_outputs.md` |
+| C3L プロンプト                | `PromptResolver` (`agents/prompts/resolver.ts`)         | 設定→実行→Markdown への橋渡し        | `design/07_prompt_system.md`      |
+| VerdictType                   | `ValidationChain` (`agents/runner/validation-chain.ts`) | Flow からの handoff を完了判定へ接続 | `design/02_core_architecture.md`  |
 
 ## 6. Agent 構築チェックリスト（What/Why ベース）
 
-1. **目的を決める** — どの Completion Type が適合するか？ Why:
-   終了条件を明確にし、 余計なステップを排除する。
+1. **目的を決める** — どの VerdictType が適合するか？ Why: 終了条件を明確にし、
+   余計なステップを排除する。
 2. **Step グラフを書く** — 初期/継続/完了の 3 段を紙に起こす。 Why: Structured
    Gate 設計を迷わないようにする。
 3. **Schema を用意する** — 各 Step の JSON Pointer を定義。 Why: Runner が
@@ -153,6 +153,6 @@ Work step のプロンプトには以下を明示する:
 | [01_quickstart.md](./01_quickstart.md)                                                       | ファイル作成手順   |
 | [02_agent_definition.md](./02_agent_definition.md)                                           | agent.json の詳細  |
 | [04_config_system.md](./04_config_system.md)                                                 | 設定の優先順位     |
-| [design/08_step_flow_design.md](../design/08_step_flow_design.md)                            | Step Flow 設計詳細 |
-| [design/03_structured_outputs.md](../design/03_structured_outputs.md)                        | Structured Output  |
+| [design/04_step_flow_design.md](../design/04_step_flow_design.md)                            | Step Flow 設計詳細 |
+| [design/05_structured_outputs.md](../design/05_structured_outputs.md)                        | Structured Output  |
 | [docs/internal/ai-complexity-philosophy.md](../../docs/internal/ai-complexity-philosophy.md) | 設計哲学           |
