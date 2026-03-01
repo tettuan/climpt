@@ -1,7 +1,7 @@
 # 概念ツリー
 
 Agent Runner を構成する概念の階層構造。
-識別子は「何をするか」で命名する（05_core_architecture.md「命名規則」参照）。
+識別子は「何をするか」で命名する（02_core_architecture.md「命名規則」参照）。
 
 ## 全体構造
 

@@ -25,7 +25,7 @@ completionSignal(response) =
 
 > **Note**: `status: "completed"` は**ステップ完了状態**を示すフィールドであり、
 > ワークフロー完了シグナルではない。`closing` intent のみが Completion Loop を
-> 起動する。詳細は `08_step_flow_design.md` Section 3 および 7.1 を参照。
+> 起動する。詳細は `04_step_flow_design.md` Section 3 および 7.1 を参照。
 
 これ以外のケースでは Flow は継続し、Completion Loop は存在を主張しない。
 
@@ -34,7 +34,7 @@ completionSignal(response) =
 1. **Prompt Resolution**
    - C3L (`steps/closure/<domain>/f_<edition>.md`)
      から完了指示用プロンプトを読み込む。
-   - design/02_prompt_system.md 同様のルールで解決するため、ユーザーは Step
+   - design/07_prompt_system.md 同様のルールで解決するため、ユーザーは Step
      プロンプトと同じリズムで管理できる。
 
 2. **Structured Output 取込み**
