@@ -64,6 +64,12 @@ PR creation (release/* → develop)
 > internally, so agent examples (21-26) can verify the runner pipeline,
 > configuration, and permission enforcement without setting the key separately.
 
+> **Warning: Nested Claude Code execution is not supported.** Examples 21-26a
+> invoke `deno task agent` which internally spawns a Claude Code process. If you
+> run these examples from within a Claude Code session (e.g., via the Bash
+> tool), the nested Claude Code process will fail. Always delegate example
+> execution to a **sub-agent** or run from an external terminal.
+
 ## Directory Structure
 
 | #   | Folder                      | Description                           | State In             | State Out                    | Verifies                                        |
