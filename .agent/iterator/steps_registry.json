@@ -9,7 +9,7 @@
 
   "entryStepMapping": {
     "issue": "initial.issue",
-    "externalState": "initial.externalState",
+    "externalState": "initial.external-state",
     "iterate": "initial.iterate"
   },
 
@@ -158,8 +158,8 @@
       },
       "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
     },
-    "closure.externalState": {
-      "stepId": "closure.externalState",
+    "closure.external-state": {
+      "stepId": "closure.external-state",
       "name": "External State Completion Validation",
       "c2": "retry",
       "c3": "issue",
@@ -172,8 +172,8 @@
         "maxAttempts": 3
       },
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "closure.externalState"
+        "file": "external-state.schema.json",
+        "schema": "closure.external-state"
       },
       "description": "Validate external state completion with git-clean and type-check."
     }
@@ -637,20 +637,20 @@
       },
       "description": "Continuation prompt for iteration-based execution"
     },
-    "initial.externalState": {
-      "stepId": "initial.externalState",
+    "initial.external-state": {
+      "stepId": "initial.external-state",
       "name": "External State Initial Prompt",
       "type": "prompt",
       "stepKind": "work",
       "c2": "initial",
-      "c3": "externalState",
+      "c3": "external-state",
       "edition": "default",
-      "fallbackKey": "externalState_initial_default",
+      "fallbackKey": "external-state_initial_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "initial.externalState"
+        "file": "external-state.schema.json",
+        "schema": "initial.external-state"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
@@ -660,25 +660,25 @@
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
       },
       "transitions": {
-        "next": { "target": "continuation.externalState" },
-        "repeat": { "target": "initial.externalState" }
+        "next": { "target": "continuation.external-state" },
+        "repeat": { "target": "initial.external-state" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
-    "continuation.externalState": {
-      "stepId": "continuation.externalState",
+    "continuation.external-state": {
+      "stepId": "continuation.external-state",
       "name": "External State Continuation Prompt",
       "type": "prompt",
       "stepKind": "work",
       "c2": "continuation",
-      "c3": "externalState",
+      "c3": "external-state",
       "edition": "default",
-      "fallbackKey": "externalState_continuation_default",
+      "fallbackKey": "external-state_continuation_default",
       "uvVariables": ["issue_number", "completed_iterations"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "continuation.externalState"
+        "file": "external-state.schema.json",
+        "schema": "continuation.external-state"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
@@ -688,26 +688,26 @@
         "handoffFields": ["iteration.work_done", "progress"]
       },
       "transitions": {
-        "next": { "target": "continuation.externalState" },
-        "repeat": { "target": "continuation.externalState" },
-        "handoff": { "target": "closure.externalState" }
+        "next": { "target": "continuation.external-state" },
+        "repeat": { "target": "continuation.external-state" },
+        "handoff": { "target": "closure.external-state" }
       },
       "description": "Continuation prompt for external state completion"
     },
-    "closure.externalState": {
-      "stepId": "closure.externalState",
+    "closure.external-state": {
+      "stepId": "closure.external-state",
       "name": "External State Closure Prompt",
       "type": "prompt",
       "stepKind": "closure",
       "c2": "closure",
-      "c3": "externalState",
+      "c3": "external-state",
       "edition": "default",
-      "fallbackKey": "externalState_closure_default",
+      "fallbackKey": "external-state_closure_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "closure.externalState"
+        "file": "external-state.schema.json",
+        "schema": "closure.external-state"
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
@@ -718,7 +718,7 @@
       },
       "transitions": {
         "closing": { "target": null },
-        "repeat": { "target": "closure.externalState" }
+        "repeat": { "target": "closure.external-state" }
       },
       "description": "Completion prompt for external state (terminal step)"
     },

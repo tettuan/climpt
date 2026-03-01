@@ -42,8 +42,8 @@ export interface ExternalStateAdapterConfig {
  * and exposes CompletionHandler interface expected by AgentRunner.
  *
  * Method mapping:
- * - buildInitialPrompt() -> PromptResolver.resolve("initial.externalState") || handler.buildPrompt(INITIAL, 1)
- * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.externalState") || handler.buildPrompt(CONTINUATION, n)
+ * - buildInitialPrompt() -> PromptResolver.resolve("initial.external-state") || handler.buildPrompt(INITIAL, 1)
+ * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.external-state") || handler.buildPrompt(CONTINUATION, n)
  * - buildCompletionCriteria() -> handler.getCompletionCriteria() with field name mapping
  * - isComplete() -> handler.refreshState() + handler.check()
  * - getCompletionDescription() -> derived from check result
@@ -78,7 +78,7 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.externalState", {
+      return await this.promptResolver.resolve("initial.external-state", {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-repository": this.config.repo ?? "",
       });
@@ -95,7 +95,7 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("continuation.externalState", {
+      return await this.promptResolver.resolve("continuation.external-state", {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-iteration": String(completedIterations),
         "uv-previous_summary": summaryText,

@@ -243,7 +243,7 @@ Deno.test("CompletionManager - getCompletionStepId delegates to CompletionChain 
   });
   const stepId = manager.getCompletionStepId();
   logger.debug("getCompletionStepId result", { stepId });
-  assertEquals(stepId, "closure.externalState");
+  assertEquals(stepId, "closure.external-state");
 });
 
 // =============================================================================
@@ -370,7 +370,7 @@ Deno.test("CompletionChain - getCompletionStepId returns closure.{type} for know
   assertEquals(chain.getCompletionStepId("iterate"), "closure.iterate");
   assertEquals(
     chain.getCompletionStepId("externalState"),
-    "closure.externalState",
+    "closure.external-state",
   );
 });
 

@@ -228,6 +228,235 @@ Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
   );
 });
 
+// =============================================================================
+// c3 Format Validation Tests (camelCase rejection)
+// =============================================================================
+
+Deno.test("validateStepRegistry - rejects camelCase c3 value 'externalState'", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.externalState": {
+        stepId: "initial.externalState",
+        name: "External State Step",
+        c2: "initial",
+        c3: "externalState",
+        edition: "default",
+        fallbackKey: "externalState_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    'c3 "externalState" is invalid',
+  );
+});
+
+Deno.test("validateStepRegistry - rejects camelCase c3 value 'structuredSignal'", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.structuredSignal": {
+        stepId: "initial.structuredSignal",
+        name: "Structured Signal Step",
+        c2: "initial",
+        c3: "structuredSignal",
+        edition: "default",
+        fallbackKey: "structuredSignal_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    'c3 "structuredSignal" is invalid',
+  );
+});
+
+Deno.test("validateStepRegistry - rejects camelCase c3 value 'checkBudget'", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.checkBudget": {
+        stepId: "initial.checkBudget",
+        name: "Check Budget Step",
+        c2: "initial",
+        c3: "checkBudget",
+        edition: "default",
+        fallbackKey: "checkBudget_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    'c3 "checkBudget" is invalid',
+  );
+});
+
+Deno.test("validateStepRegistry - error message mentions kebab-case and LayerType", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.myStep": {
+        stepId: "initial.myStep",
+        name: "My Step",
+        c2: "initial",
+        c3: "myStep",
+        edition: "default",
+        fallbackKey: "myStep_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  try {
+    validateStepRegistry(registry);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    if (e instanceof Error) {
+      assertEquals(e.message.includes("kebab-case"), true);
+      assertEquals(e.message.includes("LayerType"), true);
+      assertEquals(e.message.includes("externalState"), true);
+    } else {
+      throw e;
+    }
+  }
+});
+
+Deno.test("validateStepRegistry - rejects uppercase c3", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.Issue": {
+        stepId: "initial.Issue",
+        name: "Issue Step",
+        c2: "initial",
+        c3: "Issue",
+        edition: "default",
+        fallbackKey: "issue_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    'c3 "Issue" is invalid',
+  );
+});
+
+Deno.test("validateStepRegistry - accepts valid kebab-case c3", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.external-state": {
+        stepId: "initial.external-state",
+        name: "External State Step",
+        c2: "initial",
+        c3: "external-state",
+        edition: "default",
+        fallbackKey: "external-state_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  // Should not throw
+  validateStepRegistry(registry);
+});
+
+Deno.test("validateStepRegistry - accepts single-word lowercase c3", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.issue": {
+        stepId: "initial.issue",
+        name: "Issue Step",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "issue_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  // Should not throw
+  validateStepRegistry(registry);
+});
+
+Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () => {
+  const registry: StepRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.externalState": {
+        stepId: "initial.externalState",
+        name: "External State",
+        c2: "initial",
+        c3: "externalState",
+        edition: "default",
+        fallbackKey: "es_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+      "initial.checkBudget": {
+        stepId: "initial.checkBudget",
+        name: "Check Budget",
+        c2: "initial",
+        c3: "checkBudget",
+        edition: "default",
+        fallbackKey: "cb_initial",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  try {
+    validateStepRegistry(registry);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    if (e instanceof Error) {
+      assertEquals(e.message.includes('"externalState"'), true);
+      assertEquals(e.message.includes('"checkBudget"'), true);
+    } else {
+      throw e;
+    }
+  }
+});
+
 Deno.test("serializeRegistry - produces valid JSON", () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {

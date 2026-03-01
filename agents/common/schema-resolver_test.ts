@@ -183,11 +183,11 @@ Deno.test("SchemaResolver - resolves iterate schema with external refs", async (
   assertEquals(work.additionalProperties, false);
 });
 
-Deno.test("SchemaResolver - resolves externalState schema", async () => {
+Deno.test("SchemaResolver - resolves external-state schema", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
   const schema = await resolver.resolve(
-    "externalState.schema.json",
-    "initial.externalState",
+    "external-state.schema.json",
+    "initial.external-state",
   );
 
   assertEquals(schema.type, "object");

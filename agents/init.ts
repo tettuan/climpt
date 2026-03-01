@@ -122,35 +122,38 @@ export async function initAgent(
   );
 
   // Create steps_registry.json
-  // Format: Compatible with agents/prompts/resolver.ts (keywordSignal completion type)
+  // Format: Compatible with flow-orchestrator.ts (keywordSignal completion type)
   // For stepMachine completion type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
-    version: "1.0.0",
-    basePath: PATHS.PROMPTS_DIR,
+    agentId: agentName,
+    version: "3.0.0",
+    userPromptsBase:
+      `${PATHS.AGENT_DIR_PREFIX}/${agentName}/${PATHS.PROMPTS_DIR}`,
+    c1: "steps",
+    entryStepMapping: {
+      keywordSignal: "initial.manual",
+    },
+    entryStep: "initial.manual",
     steps: {
-      // System prompt: uses direct path
-      system: {
-        name: "System Prompt",
-        path: "system.md",
-        variables: ["uv-agent_name", "uv-completion_criteria"],
-      },
-      // Initial prompt: uses C3L path (c1/c2/c3)
-      initial_manual: {
+      "initial.manual": {
         name: "Manual Initial Prompt",
-        c1: "steps",
+        stepId: "initial.manual",
         c2: STEP_PHASE.INITIAL,
         c3: "manual",
         edition: "default",
-        variables: ["uv-topic", "uv-completion_keyword"],
+        fallbackKey: "initial_manual",
+        uvVariables: ["topic", "completion_keyword"],
+        usesStdin: false,
       },
-      // Continuation prompt: uses C3L path
-      continuation_manual: {
+      "continuation.manual": {
         name: "Manual Continuation Prompt",
-        c1: "steps",
+        stepId: "continuation.manual",
         c2: STEP_PHASE.CONTINUATION,
         c3: "manual",
         edition: "default",
-        variables: ["uv-iteration", "uv-completion_keyword"],
+        fallbackKey: "continuation_manual",
+        uvVariables: ["iteration", "completion_keyword"],
+        usesStdin: false,
       },
     },
   };

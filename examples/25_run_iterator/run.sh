@@ -25,10 +25,10 @@ main() {
   output=$( (cd "$REPO_ROOT" && deno task iterate-agent --issue 123) 2>&1) \
     || exit_code=$?
 
-  # Crash detection: import/startup errors are always fatal
-  if echo "$output" | grep -qE "error: (Module not found|Cannot resolve|Uncaught)"; then
-    error "FAIL: iterate-agent crashed with import/startup error"
-    echo "$output" | grep -E "error:" | head -5 >&2
+  # STRICT: fail if non-zero exit code
+  if [[ $exit_code -ne 0 ]]; then
+    error "FAIL: iterate-agent exited with code ${exit_code}"
+    echo "$output" | tail -20 >&2
     return 1
   fi
 
@@ -36,11 +36,14 @@ main() {
     error "FAIL: iterate-agent produced no output"; return 1
   fi
 
-  # Content validation: output should mention agent-related terms
-  if ! echo "$output" | grep -qiE "(iterator|agent|issue|step|running|anthropic|api)"; then
-    error "FAIL: output lacks agent-related content"; return 1
+  # STRICT: fail if output contains error markers
+  if echo "$output" | grep -qiE "(FAILED|AGENT_QUERY_ERROR)"; then
+    error "FAIL: output contains error markers"
+    echo "$output" | grep -iE "(FAILED|AGENT_QUERY_ERROR)" >&2
+    return 1
   fi
-  success "PASS: iterate-agent ran without crash (exit_code=${exit_code})"
+
+  success "PASS: iterate-agent ran successfully (exit_code=${exit_code})"
 }
 
 main "$@"

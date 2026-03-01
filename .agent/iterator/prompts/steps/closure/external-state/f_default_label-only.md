@@ -1,15 +1,15 @@
 ---
-stepId: closure.externalState
-name: External State Closure Prompt (Label and Close)
-description: Terminal step for external state closure - labels then closes
+stepId: closure.external-state
+name: External State Closure Prompt (Label Only)
+description: Terminal step for external state closure - labels only, keeps issue open
 uvVariables:
   - issue_number
 customVariables:
   - summary_section
-adaptation: label-and-close
+adaptation: label-only
 ---
 
-# External State Closure: Issue #{uv-issue_number} (Label and Close)
+# External State Closure: Issue #{uv-issue_number} (Label Only)
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -24,12 +24,14 @@ adaptation: label-and-close
 
 {summary_section}
 
-## Your Role: Implementation Complete, Label and Close Issue
+## Your Role: Phase Agent - Complete Your Phase
 
-You are an **implementation agent**. Your work is done when:
+You are a **phase agent** in a multi-agent pipeline. Your work is done when:
 
-1. All code changes are committed
-2. Labels are updated and the issue is closed
+1. All code changes for your phase are committed
+2. Labels are updated to signal phase completion
+
+**Do NOT close this issue.** The next agent in the pipeline will continue.
 
 ## Closure Verification
 
@@ -50,7 +52,8 @@ If any of the above are not satisfied:
 
 ### Closure Action
 
-This step will **change labels and then close** Issue #{uv-issue_number}.
+This step will **change labels only** on Issue #{uv-issue_number}. The issue
+will remain **OPEN** for the next agent.
 
 ### Closure Report
 
@@ -58,7 +61,7 @@ When all conditions are met, report in structured output:
 
 - `status`: "completed"
 - `next_action.action`: "closing" (signals workflow completion)
-- `action`: "label-and-close"
+- `action`: "label-only"
 - `summary`: Brief closure summary describing what was accomplished
 - `issue.labels`: { add: [...], remove: [...] } (optional, to override defaults)
 
@@ -66,13 +69,12 @@ When all conditions are met, report in structured output:
 
 **IMPORTANT**: Do NOT execute any of these commands directly:
 
-- `gh issue close` - Issue closing
 - `gh issue edit --add-label` / `--remove-label` - Label changes
 
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
 - Apply label changes based on config (`github.labels.completion`)
-- Close Issue #{uv-issue_number}
+- Keep Issue #{uv-issue_number} **OPEN**
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

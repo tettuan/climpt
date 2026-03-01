@@ -1531,7 +1531,7 @@ Deno.test("ExternalStateCompletionAdapter - type is externalState", () => {
 // PromptResolver Integration Tests
 // =============================================================================
 
-const STEP_ID_PATTERN = /^(initial|continuation|closure)\.[a-zA-Z]+$/;
+const STEP_ID_PATTERN = /^(initial|continuation|closure)\.[a-z]+(-[a-z]+)*$/;
 
 class MockPromptResolver {
   readonly calls: Array<{
@@ -1571,9 +1571,12 @@ Deno.test("ExternalStateCompletionAdapter + resolver - buildInitialPrompt uses d
   const prompt = await adapter.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.externalState");
+  assertEquals(mock.lastStepId(), "initial.external-state");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.externalState");
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_initial.external-state",
+  );
 });
 
 Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
@@ -1589,11 +1592,11 @@ Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt u
   const prompt = await adapter.buildContinuationPrompt(3);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.externalState");
+  assertEquals(mock.lastStepId(), "continuation.external-state");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.externalState",
+    "RICH_PROMPT_CONTENT_FOR_continuation.external-state",
   );
 });
 
@@ -1644,9 +1647,9 @@ Deno.test("CheckBudgetCompletionHandler + resolver - buildInitialPrompt uses dot
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.checkBudget");
+  assertEquals(mock.lastStepId(), "initial.check-budget");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.checkBudget");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.check-budget");
 });
 
 Deno.test("CheckBudgetCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
@@ -1659,11 +1662,11 @@ Deno.test("CheckBudgetCompletionHandler + resolver - buildContinuationPrompt use
   const prompt = await handler.buildContinuationPrompt(2);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.checkBudget");
+  assertEquals(mock.lastStepId(), "continuation.check-budget");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.checkBudget",
+    "RICH_PROMPT_CONTENT_FOR_continuation.check-budget",
   );
 });
 
@@ -1714,11 +1717,11 @@ Deno.test("StructuredSignalCompletionHandler + resolver - buildInitialPrompt use
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.structuredSignal");
+  assertEquals(mock.lastStepId(), "initial.structured-signal");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_initial.structuredSignal",
+    "RICH_PROMPT_CONTENT_FOR_initial.structured-signal",
   );
 });
 
@@ -1732,11 +1735,11 @@ Deno.test("StructuredSignalCompletionHandler + resolver - buildContinuationPromp
   const prompt = await handler.buildContinuationPrompt(3);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.structuredSignal");
+  assertEquals(mock.lastStepId(), "continuation.structured-signal");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.structuredSignal",
+    "RICH_PROMPT_CONTENT_FOR_continuation.structured-signal",
   );
 });
 

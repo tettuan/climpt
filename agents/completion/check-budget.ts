@@ -44,7 +44,7 @@ export class CheckBudgetCompletionHandler extends BaseCompletionHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.checkBudget", {
+      return await this.promptResolver.resolve("initial.check-budget", {
         "uv-max_checks": String(this.maxChecks),
       });
     }
@@ -85,7 +85,7 @@ Work efficiently to complete your monitoring goal within the check budget.
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation.checkBudget", {
+      return await this.promptResolver.resolve("continuation.check-budget", {
         "uv-check_count": String(this.checkCount),
         "uv-max_checks": String(this.maxChecks),
         "uv-remaining": String(remaining),

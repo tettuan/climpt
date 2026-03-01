@@ -85,11 +85,11 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         }],
         onFailure: { action: "retry" },
       },
-      "closure.externalState": {
-        stepId: "closure.externalState",
+      "closure.external-state": {
+        stepId: "closure.external-state",
         name: "External State Closure",
         c2: "closure",
-        c3: "externalState",
+        c3: "external-state",
         completionConditions: [],
         onFailure: { action: "retry" },
       },
@@ -158,8 +158,8 @@ Deno.test("CompletionChain - validate returns valid for step with empty conditio
   const chain = createChain();
   const summary = createSummary();
 
-  // closure.externalState has empty completionConditions
-  const result = await chain.validate("closure.externalState", summary);
+  // closure.external-state has empty completionConditions
+  const result = await chain.validate("closure.external-state", summary);
 
   assertEquals(result.valid, true);
 });
@@ -178,12 +178,12 @@ Deno.test("CompletionChain - getCompletionStepId returns registry step for known
   assertEquals(stepId, "closure.issue");
 });
 
-Deno.test("CompletionChain - getCompletionStepId returns closure.externalState", () => {
+Deno.test("CompletionChain - getCompletionStepId returns closure.external-state", () => {
   const chain = createChain();
 
   const stepId = chain.getCompletionStepId("externalState");
 
-  assertEquals(stepId, "closure.externalState");
+  assertEquals(stepId, "closure.external-state");
 });
 
 Deno.test("CompletionChain - getCompletionStepId type defaults for iterate", () => {
