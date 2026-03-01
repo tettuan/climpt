@@ -1,0 +1,852 @@
+# ============================================================
+# Climpt Agent Definition — YAML Reference
+# ============================================================
+# JSON Schema: agents/schemas/agent.schema.json
+# Real example: .agent/iterator/agent.json
+#
+# This file is NOT loaded at runtime.
+# It is a commented reference for agent builders.
+# ============================================================
+
+# ------------------------------------------------------------
+# $schema
+# ------------------------------------------------------------
+# Description : JSON Schema URL for validation.
+# Type        : string
+# Required    : no (recommended)
+# Default     : none
+# Why         : Enables IDE autocompletion and linting for
+#               agent.json files. Relative path from the
+#               .agent/{name}/ directory to the schema file.
+# ------------------------------------------------------------
+$schema: "../../agents/schemas/agent.schema.json"
+
+# ------------------------------------------------------------
+# version
+# ------------------------------------------------------------
+# Description : Schema version in semver format.
+# Type        : string (pattern: ^\d+\.\d+\.\d+$)
+# Required    : yes
+# Default     : none
+# Why         : Ties the definition to a specific schema
+#               version so the runner can detect incompatible
+#               changes. Bump when you change the definition
+#               structure.
+# ------------------------------------------------------------
+version: "1.12.0"
+
+# ------------------------------------------------------------
+# name
+# ------------------------------------------------------------
+# Description : Agent identifier, lowercase kebab-case.
+# Type        : string (pattern: ^[a-z][a-z0-9-]*$)
+# Required    : yes
+# Default     : none
+# Why         : Used as the directory name under .agent/ and
+#               as the agent selector in CLI (--agent <name>).
+#               Must be unique across all agents in the repo.
+# ------------------------------------------------------------
+name: "iterator"
+
+# ------------------------------------------------------------
+# displayName
+# ------------------------------------------------------------
+# Description : Human-readable name shown in logs and UI.
+# Type        : string
+# Required    : yes
+# Default     : none
+# Why         : Provides a friendly label for log output and
+#               status messages. Not used for routing.
+# ------------------------------------------------------------
+displayName: "Iterator Agent"
+
+# ------------------------------------------------------------
+# description
+# ------------------------------------------------------------
+# Description : Free-text description of what the agent does.
+# Type        : string
+# Required    : yes
+# Default     : none
+# Why         : Documentation. Shown in --help output and
+#               agent listing.
+# ------------------------------------------------------------
+description: >-
+  Autonomous development agent that works on GitHub
+  Issues/Projects in iteration cycles
+
+# ============================================================
+# parameters
+# ============================================================
+# Description : CLI parameters the agent accepts. Each key
+#               becomes a named argument forwarded to the
+#               runner via runnerArgs.
+# Type        : object (additionalProperties: ParameterDefinition)
+# Required    : no (optional)
+# Default     : {} (no parameters)
+# Why         : Declares the contract between CLI and runner.
+#               run-agent.ts only forwards parameters declared
+#               here; undeclared flags are silently dropped.
+# ============================================================
+parameters:
+
+  # ----------------------------------------------------------
+  # ParameterDefinition fields:
+  #   type        : (required) "string" | "number" | "boolean" | "array"
+  #   description : (required) Human-readable description
+  #   cli         : (required) CLI flag, pattern: ^--[a-z][a-z0-9-]*$
+  #   required    : (optional) boolean, default: false
+  #   default     : (optional) any — default value when omitted
+  #   validation  : (optional) object with constraints:
+  #     min       : number — minimum value (numbers only)
+  #     max       : number — maximum value (numbers only)
+  #     pattern   : string — regex pattern (strings only)
+  #     enum      : string[] — allowed values (strings only)
+  # ----------------------------------------------------------
+
+  # A required parameter — agent will not start without it
+  issue:
+    type: "number"
+    description: "GitHub Issue number to work on"
+    required: true
+    cli: "--issue"
+    # No default: required parameters must be supplied.
+    # Why: The iterator agent is issue-driven; the issue
+    #      number is the primary input for externalState
+    #      verdict and prompt variable injection.
+
+  # An optional parameter with a default value
+  iterateMax:
+    type: "number"
+    description: "Maximum number of iterations (fallback)"
+    required: false
+    default: 500
+    cli: "--iterate-max"
+    # Why: Safety cap. Prevents runaway loops when the
+    #      verdict engine alone does not terminate.
+    # Tip: For short tasks, override with --iterate-max 10.
+
+  resume:
+    type: "boolean"
+    description: "Resume previous session"
+    required: false
+    default: false
+    cli: "--resume"
+    # Why: Allows the agent to pick up where it left off
+    #      using the session log as context.
+
+  branch:
+    type: "string"
+    description: "Working branch name for worktree mode"
+    required: false
+    cli: "--branch"
+    # Why: When worktree is enabled, this names the branch
+    #      created in the worktree. If omitted, the runner
+    #      auto-generates a name from the issue number.
+
+  baseBranch:
+    type: "string"
+    description: "Base branch (merge target) for worktree mode"
+    required: false
+    cli: "--base-branch"
+    # Why: Determines where the worktree branch is merged
+    #      back to during finalization.
+
+  # Example: parameter with validation constraints (not in
+  # the iterator agent, shown for reference)
+  #
+  # priority:
+  #   type: "string"
+  #   description: "Task priority level"
+  #   required: false
+  #   default: "normal"
+  #   cli: "--priority"
+  #   validation:
+  #     enum: ["low", "normal", "high", "critical"]
+
+# ============================================================
+# runner
+# ============================================================
+# Description : Core runner configuration. Controls flow,
+#               verdict, boundaries, integrations, actions,
+#               execution, and logging.
+# Type        : RunnerConfig object
+# Required    : yes
+# Required sub-keys: flow, verdict, boundaries
+# Optional sub-keys: integrations, actions, execution, logging
+# ============================================================
+runner:
+
+  # ==========================================================
+  # runner.flow — RunnerFlowConfig
+  # ==========================================================
+  # Description : Prompt loading and model configuration.
+  # Required sub-keys: systemPromptPath, prompts
+  # Optional sub-keys: schemas, defaultModel, askUserAutoResponse
+  # ==========================================================
+  flow:
+
+    # --------------------------------------------------------
+    # systemPromptPath
+    # --------------------------------------------------------
+    # Description : Path to the system prompt markdown file.
+    # Type        : string
+    # Required    : yes
+    # Default     : none
+    # Why         : Loaded once at session start and prepended
+    #               to every API call as the system message.
+    #               Relative to .agent/{name}/.
+    # --------------------------------------------------------
+    systemPromptPath: "prompts/system.md"
+
+    # --------------------------------------------------------
+    # prompts
+    # --------------------------------------------------------
+    # Description : Prompt resolution configuration.
+    # Required sub-keys: registry, fallbackDir
+    # --------------------------------------------------------
+    prompts:
+
+      # ------------------------------------------------------
+      # prompts.registry
+      # ------------------------------------------------------
+      # Description : Filename of the steps registry JSON.
+      # Type        : string
+      # Required    : yes
+      # Default     : none
+      # Why         : The step machine reads this file to
+      #               resolve C3L prompt paths and structured
+      #               gate routing. Relative to .agent/{name}/.
+      # ------------------------------------------------------
+      registry: "steps_registry.json"
+
+      # ------------------------------------------------------
+      # prompts.fallbackDir
+      # ------------------------------------------------------
+      # Description : Directory for fallback prompt files.
+      # Type        : string
+      # Required    : yes
+      # Default     : none
+      # Why         : When C3L resolution fails (file not
+      #               found), the runner looks here using the
+      #               step's fallbackKey. Relative to
+      #               .agent/{name}/.
+      # ------------------------------------------------------
+      fallbackDir: "prompts/"
+
+    # --------------------------------------------------------
+    # schemas (optional)
+    # --------------------------------------------------------
+    # Description : Schema resolution configuration.
+    # Type        : object
+    # Required    : no
+    # --------------------------------------------------------
+    # schemas:
+    #
+    #   # base
+    #   # Description : Base directory for JSON schema files.
+    #   # Type        : string
+    #   # Default     : none
+    #   # Why         : outputSchemaRef.file in steps_registry
+    #   #               is resolved relative to this directory.
+    #   base: "schemas/"
+    #
+    #   # inspection
+    #   # Description : Enable schema inspection mode.
+    #   # Type        : boolean
+    #   # Default     : false (implicit)
+    #   # Why         : When true, the runner logs schema
+    #   #               resolution details for debugging.
+    #   inspection: false
+
+    # --------------------------------------------------------
+    # defaultModel (optional)
+    # --------------------------------------------------------
+    # Description : Default model for all steps.
+    # Type        : string
+    # Options     : "sonnet" | "opus" | "haiku"
+    # Required    : no
+    # Default     : none (system default is "opus")
+    # Resolution  : step.model > runner.flow.defaultModel
+    #               > "opus" (system default)
+    # Why         : Set a cost-effective default for the whole
+    #               agent, then override per-step in the
+    #               steps_registry where needed.
+    # --------------------------------------------------------
+    # defaultModel: "sonnet"
+
+    # --------------------------------------------------------
+    # askUserAutoResponse (optional)
+    # --------------------------------------------------------
+    # Description : Auto-response for AskUserQuestion tool.
+    # Type        : string
+    # Required    : no
+    # Default     : none (tool blocks for user input)
+    # Why         : Enables fully autonomous execution without
+    #               human-in-the-loop. When set, every
+    #               AskUserQuestion call returns this string
+    #               immediately. Useful for CI/batch runs.
+    # Caution     : Removes human oversight. Use only in
+    #               controlled environments.
+    # --------------------------------------------------------
+    # askUserAutoResponse: "Proceed with the default approach."
+
+  # ==========================================================
+  # runner.verdict — RunnerVerdictConfig
+  # ==========================================================
+  # Description : How the agent determines when work is done.
+  # Required sub-keys: type
+  # Optional sub-keys: config
+  #
+  # The verdict engine evaluates after each iteration and
+  # returns "continue" or "done". The type field selects the
+  # strategy; config supplies type-specific parameters.
+  # ==========================================================
+  verdict:
+
+    # --------------------------------------------------------
+    # verdict.type
+    # --------------------------------------------------------
+    # Description : Verdict strategy selector.
+    # Type        : string (enum)
+    # Required    : yes
+    # Options     :
+    #
+    #   "externalState"
+    #     Polls an external resource (e.g., GitHub Issue) and
+    #     completes when the resource reaches a target state.
+    #     Best for: issue-driven agents.
+    #     Requires: --issue parameter.
+    #     Config: maxIterations, resourceType, targetState.
+    #
+    #   "iterationBudget"
+    #     Completes after a fixed number of iterations.
+    #     Best for: batch/bulk processing with known scope.
+    #     Config: maxIterations (required).
+    #
+    #   "checkBudget"
+    #     Completes after N status checks (not iterations).
+    #     Best for: polling-heavy workflows.
+    #     Config: maxChecks (required).
+    #
+    #   "keywordSignal"
+    #     Completes when the agent outputs a specific keyword.
+    #     Best for: simple agents with explicit done signals.
+    #     Config: verdictKeyword (required).
+    #
+    #   "structuredSignal"
+    #     Completes when the agent emits a JSON action block
+    #     matching required fields.
+    #     Best for: agents with structured output contracts.
+    #     Config: signalType, requiredFields.
+    #
+    #   "stepMachine"
+    #     Completes when the step state machine reaches a
+    #     terminal step (transition target: null).
+    #     Best for: multi-phase workflows with defined end.
+    #     Config: registryPath, entryStep.
+    #
+    #   "composite"
+    #     Combines multiple verdict conditions with a logical
+    #     operator (and/or/first).
+    #     Best for: complex agents needing multiple signals.
+    #     Config: operator, conditions[].
+    #
+    #   "custom"
+    #     Delegates to an external handler module.
+    #     Best for: domain-specific verdict logic.
+    #     Config: handlerPath (required).
+    #
+    # --------------------------------------------------------
+    type: "externalState"
+
+    # --------------------------------------------------------
+    # verdict.config
+    # --------------------------------------------------------
+    # Description : Type-specific verdict configuration.
+    # Type        : object
+    # Required    : no (depends on type)
+    # --------------------------------------------------------
+    config:
+
+      # === Fields by verdict type ===
+
+      # -- maxIterations (externalState, iterationBudget) --
+      # Description : Maximum iterations before forced stop.
+      # Type        : number (minimum: 1)
+      # Default     : none
+      # Why         : Safety cap. For externalState, prevents
+      #               infinite loops if the resource never
+      #               reaches the target state.
+      maxIterations: 500
+
+      # -- verdictKeyword (keywordSignal) --
+      # Description : Keyword that signals completion.
+      # Type        : string
+      # Default     : none
+      # Example     : "TASK_COMPLETE"
+      # Why         : The runner scans agent output for this
+      #               exact string to trigger verdict.
+      # verdictKeyword: "TASK_COMPLETE"
+
+      # -- handlerPath (custom) --
+      # Description : Path to custom verdict handler module.
+      # Type        : string
+      # Default     : none
+      # Why         : The module must export a default function
+      #               matching the VerdictHandler interface.
+      # handlerPath: "./verdict/custom-handler.ts"
+
+      # -- maxChecks (checkBudget) --
+      # Description : Maximum status checks before stop.
+      # Type        : number (minimum: 1)
+      # Default     : none
+      # Why         : Like iterationBudget but counts external
+      #               status polls, not loop iterations.
+      # maxChecks: 20
+
+      # -- resourceType (externalState) --
+      # Description : Type of external resource to monitor.
+      # Type        : string
+      # Options     : "github-issue" | "github-project"
+      #               | "file" | "api"
+      # Default     : none (inferred from context)
+      # Why         : Tells the verdict engine which adapter
+      #               to use for polling state.
+      # resourceType: "github-issue"
+
+      # -- targetState (externalState) --
+      # Description : Desired state of the external resource.
+      # Type        : any (string, object, etc.)
+      # Default     : none (inferred from context)
+      # Why         : Verdict returns "done" when the resource
+      #               matches this state.
+      # targetState: "closed"
+
+      # -- operator (composite) --
+      # Description : Logical operator for combining verdicts.
+      # Type        : string
+      # Options     : "and" | "or" | "first"
+      # Default     : none
+      # Why         : "and" = all conditions must be done,
+      #               "or" = any condition is done,
+      #               "first" = first condition to fire wins.
+      # operator: "and"
+
+      # -- conditions (composite) --
+      # Description : Array of sub-verdict conditions.
+      # Type        : array of {type, config} objects
+      # Default     : none
+      # Why         : Each element is a full verdict config
+      #               (type + config) evaluated by the operator.
+      # Example:
+      # conditions:
+      #   - type: "externalState"
+      #     config:
+      #       maxIterations: 100
+      #   - type: "keywordSignal"
+      #     config:
+      #       verdictKeyword: "ALL_DONE"
+
+      # -- signalType (structuredSignal) --
+      # Description : Action block type to detect.
+      # Type        : string
+      # Default     : none
+      # Why         : The runner looks for a JSON code block
+      #               whose "type" field matches this value.
+      # signalType: "completion-signal"
+
+      # -- requiredFields (structuredSignal) --
+      # Description : Required field values in the signal.
+      # Type        : object (key-value pairs)
+      # Default     : none
+      # Why         : All listed key-value pairs must match
+      #               in the detected action block for the
+      #               verdict to fire.
+      # requiredFields:
+      #   status: "complete"
+      #   verified: true
+
+      # -- registryPath (stepMachine) --
+      # Description : Path to the steps registry file.
+      # Type        : string
+      # Default     : none
+      # Why         : The step machine loads transitions from
+      #               this file to determine terminal states.
+      # registryPath: "steps_registry.json"
+
+      # -- entryStep (stepMachine) --
+      # Description : Initial step ID for the state machine.
+      # Type        : string
+      # Default     : none
+      # Why         : The step machine begins execution at
+      #               this step. Must exist in the registry.
+      # entryStep: "initial.issue"
+
+  # ==========================================================
+  # runner.boundaries — RunnerBoundariesConfig
+  # ==========================================================
+  # Description : Tool access and permission controls.
+  # Required sub-keys: allowedTools, permissionMode
+  # Optional sub-keys: sandbox
+  # ==========================================================
+  boundaries:
+
+    # --------------------------------------------------------
+    # allowedTools
+    # --------------------------------------------------------
+    # Description : Tools the agent is allowed to use.
+    # Type        : array of strings
+    # Required    : yes
+    # Default     : none
+    # Why         : Principle of least privilege. The runner
+    #               passes this list to the Claude SDK;
+    #               unlisted tools are unavailable to the
+    #               agent. Add only what the agent needs.
+    # Common tools: Read, Write, Edit, Bash, Glob, Grep,
+    #               Skill, Task, TodoWrite
+    # --------------------------------------------------------
+    allowedTools:
+      - "Skill"
+      - "Read"
+      - "Write"
+      - "Edit"
+      - "Bash"
+      - "Glob"
+      - "Grep"
+      - "Task"
+      - "TodoWrite"
+
+    # --------------------------------------------------------
+    # permissionMode
+    # --------------------------------------------------------
+    # Description : Claude SDK permission mode.
+    # Type        : string (enum)
+    # Required    : yes
+    # Options     :
+    #   "default"           — Prompt user for every action
+    #   "plan"              — Show plan, prompt for execution
+    #   "acceptEdits"       — Auto-accept file edits, prompt
+    #                         for other actions (bash, etc.)
+    #   "bypassPermissions" — Accept everything without prompt
+    # Default     : none (must be specified)
+    # Why         : Controls the level of human oversight.
+    #   - Use "acceptEdits" for attended sessions where you
+    #     trust file changes but want to approve shell commands.
+    #   - Use "bypassPermissions" for CI/unattended runs.
+    # --------------------------------------------------------
+    permissionMode: "acceptEdits"
+
+    # --------------------------------------------------------
+    # sandbox (optional) — SandboxConfig
+    # --------------------------------------------------------
+    # Description : Fine-grained sandbox for network and
+    #               filesystem access.
+    # Type        : SandboxConfig object
+    # Required    : no
+    # Why         : Additional layer on top of permissionMode.
+    #               Restricts what the agent can reach even
+    #               when tools are allowed.
+    # --------------------------------------------------------
+    # sandbox:
+    #
+    #   # enabled
+    #   # Description : Enable sandbox mode.
+    #   # Type        : boolean
+    #   # Default     : true
+    #   # Why         : Master switch. Set false only for
+    #   #               debugging or if the agent needs
+    #   #               unrestricted access.
+    #   enabled: true
+    #
+    #   # network
+    #   # Description : Network access constraints.
+    #   network:
+    #
+    #     # mode
+    #     # Description : Network access mode.
+    #     # Type        : string
+    #     # Options     : "trusted" | "none" | "custom"
+    #     # Default     : "trusted"
+    #     # Why         :
+    #     #   "trusted" — Pre-approved domains only (github.com,
+    #     #               api.anthropic.com, etc.)
+    #     #   "none"    — No network access at all
+    #     #   "custom"  — Only domains in trustedDomains list
+    #     mode: "trusted"
+    #
+    #     # trustedDomains
+    #     # Description : Allowed domains when mode is "custom".
+    #     # Type        : array of strings
+    #     # Default     : [] (empty)
+    #     # Why         : Supports wildcards (e.g., *.github.com).
+    #     #               Ignored when mode is "trusted" or "none".
+    #     trustedDomains:
+    #       - "api.github.com"
+    #       - "*.githubusercontent.com"
+    #
+    #   # filesystem
+    #   # Description : Filesystem write constraints.
+    #   filesystem:
+    #
+    #     # allowedPaths
+    #     # Description : Additional paths to allow write access.
+    #     # Type        : array of strings
+    #     # Default     : [] (empty)
+    #     # Why         : By default the sandbox allows writes
+    #     #               only to the project directory. Add
+    #     #               paths here for external directories
+    #     #               the agent needs to modify (e.g.,
+    #     #               worktree root).
+    #     allowedPaths:
+    #       - "../worktree"
+    #       - "/tmp/agent-scratch"
+
+  # ==========================================================
+  # runner.integrations (optional) — RunnerIntegrationsConfig
+  # ==========================================================
+  # Description : External service integrations.
+  # Optional sub-keys: github
+  # ==========================================================
+  integrations:
+
+    # --------------------------------------------------------
+    # github — GitHubConfig
+    # --------------------------------------------------------
+    # Description : GitHub integration for issue/PR management.
+    # Required sub-keys: enabled
+    # Optional sub-keys: labels, defaultClosureAction
+    # --------------------------------------------------------
+    github:
+
+      # enabled
+      # Description : Enable GitHub integration.
+      # Type        : boolean
+      # Required    : yes
+      # Default     : none (must be specified)
+      # Why         : When true, the runner uses gh CLI to
+      #               read issue state, apply labels, and
+      #               optionally close issues on completion.
+      enabled: true
+
+      # labels (optional)
+      # Description : Label mappings for issue lifecycle.
+      # Type        : object
+      # Why         : Maps agent lifecycle states to GitHub
+      #               labels. The runner applies these labels
+      #               automatically during execution.
+      labels:
+
+        # requirements
+        # Description : Label for requirements/docs issues.
+        # Type        : string
+        requirements: "docs"
+
+        # inProgress
+        # Description : Label applied when agent starts work.
+        # Type        : string
+        inProgress: "in-progress"
+
+        # blocked
+        # Description : Label applied when agent is blocked.
+        # Type        : string
+        blocked: "need clearance"
+
+        # completion
+        # Description : Labels to add/remove on completion.
+        # Type        : object with "add" and "remove" arrays
+        completion:
+          add: ["done"]
+          remove: ["in-progress"]
+
+      # defaultClosureAction
+      # Description : What to do with the issue on completion.
+      # Type        : string (enum)
+      # Options     :
+      #   "close"           — Close the issue
+      #   "label-only"      — Change labels but keep open
+      #   "label-and-close" — Change labels then close
+      # Default     : "close"
+      # Why         : "label-only" is safer for workflows
+      #               where a human reviews before closing.
+      #               "close" is for fully autonomous agents.
+      defaultClosureAction: "label-only"
+
+  # ==========================================================
+  # runner.actions (optional) — ActionConfig
+  # ==========================================================
+  # Description : Action block detection and execution.
+  #               Actions are structured JSON blocks emitted
+  #               by the agent in markdown code fences.
+  # Required sub-keys: enabled
+  # Optional sub-keys: types, outputFormat, handlers
+  # ==========================================================
+  actions:
+
+    # enabled
+    # Description : Enable action detection and execution.
+    # Type        : boolean
+    # Required    : yes
+    # Default     : none (must be specified)
+    # Why         : When true, the runner scans agent output
+    #               for JSON action blocks and dispatches them
+    #               to handlers.
+    enabled: true
+
+    # types (optional)
+    # Description : Allowed action types.
+    # Type        : array of strings
+    # Default     : [] (all types allowed)
+    # Why         : Whitelist. Only action blocks whose "type"
+    #               field matches one of these strings are
+    #               dispatched. Unknown types are ignored.
+    types:
+      - "issue-action"
+      - "project-plan"
+      - "review-result"
+
+    # outputFormat (optional)
+    # Description : Markdown code block language marker.
+    # Type        : string
+    # Default     : none
+    # Why         : The runner looks for code blocks tagged
+    #               with this language (e.g., ```json). Set
+    #               to "json" for JSON action blocks.
+    outputFormat: "json"
+
+    # handlers (optional)
+    # Description : Custom handler mapping (type -> handler).
+    # Type        : object (string -> string)
+    # Default     : {} (built-in handlers only)
+    # Why         : Maps action types to custom handler module
+    #               paths or built-in handler names.
+    # Example:
+    # handlers:
+    #   "issue-action": "built-in:github"
+    #   "custom-deploy": "./handlers/deploy.ts"
+
+  # ==========================================================
+  # runner.execution (optional) — RunnerExecutionConfig
+  # ==========================================================
+  # Description : Execution environment configuration.
+  # Optional sub-keys: worktree, finalize
+  # ==========================================================
+  execution:
+
+    # --------------------------------------------------------
+    # worktree — WorktreeConfig
+    # --------------------------------------------------------
+    # Description : Git worktree isolation for agent work.
+    # Required sub-keys: enabled
+    # Optional sub-keys: root
+    # Why         : Isolates agent changes in a separate
+    #               worktree so the main working directory
+    #               stays clean. Essential for agents that
+    #               modify files.
+    # --------------------------------------------------------
+    worktree:
+
+      # enabled
+      # Description : Enable git worktree mode.
+      # Type        : boolean
+      # Required    : yes
+      # Default     : none (must be specified)
+      # Why         : When true, the runner creates a worktree
+      #               before execution and merges/cleans up
+      #               after. Requires --branch or auto-naming.
+      enabled: true
+
+      # root
+      # Description : Root directory for worktrees.
+      # Type        : string
+      # Required    : no
+      # Default     : none
+      # Why         : Worktrees are created under this path.
+      #               Relative to the repository root.
+      root: "../worktree"
+
+    # --------------------------------------------------------
+    # finalize (optional) — FinalizeConfig
+    # --------------------------------------------------------
+    # Description : Post-completion finalization actions.
+    # Why         : Controls what happens to the worktree
+    #               branch after the agent finishes. Only
+    #               relevant when worktree.enabled is true.
+    # --------------------------------------------------------
+    # finalize:
+    #
+    #   # autoMerge
+    #   # Description : Merge worktree branch to base branch.
+    #   # Type        : boolean
+    #   # Default     : true
+    #   # Why         : When true, the runner merges the work
+    #   #               branch into baseBranch automatically.
+    #   autoMerge: true
+    #
+    #   # push
+    #   # Description : Push after merge.
+    #   # Type        : boolean
+    #   # Default     : false
+    #   # Why         : Set true for CI agents that should
+    #   #               push results without human review.
+    #   push: false
+    #
+    #   # remote
+    #   # Description : Git remote to push to.
+    #   # Type        : string
+    #   # Default     : "origin"
+    #   # Why         : Override for multi-remote setups.
+    #   remote: "origin"
+    #
+    #   # createPr
+    #   # Description : Create a PR instead of direct merge.
+    #   # Type        : boolean
+    #   # Default     : false
+    #   # Why         : Safer than direct merge. Creates a PR
+    #   #               for human review before merging.
+    #   createPr: false
+    #
+    #   # prTarget
+    #   # Description : Target branch for the PR.
+    #   # Type        : string
+    #   # Default     : none (uses baseBranch)
+    #   # Why         : Override when the PR should target a
+    #   #               different branch than the merge target.
+    #   prTarget: "develop"
+
+  # ==========================================================
+  # runner.logging (optional) — LoggingConfig
+  # ==========================================================
+  # Description : Execution log configuration.
+  # Required sub-keys: directory, format
+  # Optional sub-keys: maxFiles
+  # ==========================================================
+  logging:
+
+    # directory
+    # Description : Log directory path.
+    # Type        : string
+    # Required    : yes (when logging block is present)
+    # Default     : none
+    # Why         : Session logs are written here. Each run
+    #               creates a new file. Relative to repo root.
+    directory: "tmp/logs/agents/iterator"
+
+    # format
+    # Description : Log file format.
+    # Type        : string (enum)
+    # Options     : "jsonl" | "text"
+    # Required    : yes (when logging block is present)
+    # Default     : none
+    # Why         : "jsonl" produces one JSON object per line,
+    #               ideal for machine parsing. "text" produces
+    #               human-readable output.
+    format: "jsonl"
+
+    # maxFiles (optional)
+    # Description : Maximum number of log files to retain.
+    # Type        : number (minimum: 1)
+    # Required    : no
+    # Default     : none (no rotation)
+    # Why         : Prevents disk exhaustion. Oldest files are
+    #               deleted when the limit is exceeded.
+    maxFiles: 100

@@ -1,0 +1,1021 @@
+# ============================================================
+# Climpt Steps Registry — YAML Reference
+# ============================================================
+# JSON Schema: agents/schemas/steps_registry.schema.json
+# Real example: .agent/iterator/steps_registry.json
+#
+# This file is NOT loaded at runtime.
+# It is a commented reference for agent builders.
+# ============================================================
+
+# ============================================================
+# Cross-Reference Chain
+# ============================================================
+# failurePatterns.{name}
+#   ^ referenced by validators.{name}.failurePattern
+#     ^ referenced by validationSteps.{name}.validationConditions[].validator
+#       ^ triggered during closure validation
+#
+# Example trace:
+#   failurePatterns.git-dirty
+#     ^ validators.git-clean.failurePattern = "git-dirty"
+#       ^ validationSteps.closure.issue.validationConditions[0].validator = "git-clean"
+#         ^ triggered when closure.issue step runs validation
+#
+# The chain flows bottom-up at runtime:
+#   1. Closure step triggers validationSteps entry
+#   2. Each validationCondition invokes a named validator
+#   3. If the validator fails, the linked failurePattern
+#      determines the edition/adaptation for the retry prompt
+#   4. The retry prompt file is resolved via C3L path:
+#      {c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
+# ============================================================
+
+# ============================================================
+# C3L Path Resolution
+# ============================================================
+# C3L = Category-Classification-Criteria-Layer
+#
+# Path components:
+#   c1 — Top-level category (from registry root)
+#   c2 — Category (from step definition: initial, continuation, closure, etc.)
+#   c3 — Classification (from step definition: issue, project, iterate, etc.)
+#   edition    — Per-step variant (default, preparation, processing, failed, etc.)
+#   adaptation — Failure-specific variant (git-dirty, empty, label-only, etc.)
+#
+# Resolution order:
+#   1. pathTemplate:             {c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
+#   2. pathTemplateNoAdaptation: {c1}/{c2}/{c3}/f_{edition}.md
+#   3. fallbackKey lookup in agents/prompts/fallback.ts
+# ============================================================
+
+# ------------------------------------------------------------
+# agentId
+# ------------------------------------------------------------
+# Description : Agent identifier. Must match the "name" field
+#               in the corresponding agent.json.
+# Type        : string
+# Required    : yes
+# Default     : none
+# Why         : Links this registry to its agent definition.
+#               The runner uses this to locate the correct
+#               .agent/{agentId}/ directory.
+# ------------------------------------------------------------
+agentId: "iterator"
+
+# ------------------------------------------------------------
+# version
+# ------------------------------------------------------------
+# Description : Registry schema version (semver).
+# Type        : string (pattern: ^\d+\.\d+\.\d+$)
+# Required    : yes
+# Default     : none
+# Why         : Tracks structural changes to the registry.
+#               Bump major version for breaking changes.
+# ------------------------------------------------------------
+version: "3.0.0"
+
+# ------------------------------------------------------------
+# c1
+# ------------------------------------------------------------
+# Description : C3L top-level path component.
+# Type        : string
+# Required    : yes
+# Default     : none
+# Why         : First segment of the C3L path. All prompt
+#               files live under {userPromptsBase}/{c1}/...
+# Example     : "steps" -> prompts are under
+#               .agent/iterator/prompts/steps/
+# ------------------------------------------------------------
+c1: "steps"
+
+# ------------------------------------------------------------
+# userPromptsBase
+# ------------------------------------------------------------
+# Description : Base directory for user prompt files.
+# Type        : string
+# Required    : no (optional)
+# Default     : ".agent/{agentId}/prompts"
+# Why         : Override the default prompt directory. The
+#               C3L resolver constructs paths relative to this.
+# ------------------------------------------------------------
+userPromptsBase: ".agent/iterator/prompts"
+
+# ------------------------------------------------------------
+# schemasBase
+# ------------------------------------------------------------
+# Description : Base directory for JSON schema files.
+# Type        : string
+# Required    : no (optional)
+# Default     : ".agent/{agentId}/schemas"
+# Why         : outputSchemaRef.file is resolved relative to
+#               this directory.
+# ------------------------------------------------------------
+schemasBase: ".agent/iterator/schemas"
+
+# ------------------------------------------------------------
+# pathTemplate
+# ------------------------------------------------------------
+# Description : C3L path template WITH adaptation.
+# Type        : string
+# Required    : no (optional)
+# Default     : "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md"
+# Why         : Used when a step has both edition and
+#               adaptation set. The resolver interpolates
+#               {c1}, {c2}, {c3}, {edition}, {adaptation}
+#               with values from the step definition.
+# Example     : steps/closure/issue/f_failed_git-dirty.md
+# ------------------------------------------------------------
+pathTemplate: "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md"
+
+# ------------------------------------------------------------
+# pathTemplateNoAdaptation
+# ------------------------------------------------------------
+# Description : C3L path template WITHOUT adaptation.
+# Type        : string
+# Required    : no (optional)
+# Default     : "{c1}/{c2}/{c3}/f_{edition}.md"
+# Why         : Used when a step has only edition (no
+#               adaptation). Also used as fallback when the
+#               full path (with adaptation) does not exist.
+# Example     : steps/initial/issue/f_default.md
+# ------------------------------------------------------------
+pathTemplateNoAdaptation: "{c1}/{c2}/{c3}/f_{edition}.md"
+
+# ------------------------------------------------------------
+# entryStep (optional)
+# ------------------------------------------------------------
+# Description : Default entry step ID for execution.
+# Type        : string
+# Required    : no
+# Default     : none
+# Why         : Simple agents with a single entry point use
+#               this. For agents with multiple modes, use
+#               entryStepMapping instead.
+# ------------------------------------------------------------
+# entryStep: "initial.issue"
+
+# ------------------------------------------------------------
+# entryStepMapping (optional)
+# ------------------------------------------------------------
+# Description : Mode-based entry step mapping.
+# Type        : object (string -> string)
+# Required    : no
+# Default     : none
+# Why         : Maps execution modes to their starting step.
+#               The runner selects the mode based on CLI
+#               parameters (e.g., --issue -> "issue" mode).
+#               Each value must be a valid step ID in "steps".
+# Note        : When both entryStep and entryStepMapping are
+#               set, entryStepMapping takes priority if the
+#               mode matches; otherwise entryStep is used.
+# ------------------------------------------------------------
+entryStepMapping:
+  issue: "initial.issue"
+  externalState: "initial.externalState"
+  iterate: "initial.iterate"
+
+# ============================================================
+# failurePatterns
+# ============================================================
+# Description : Named patterns for failure scenarios. Each
+#               pattern defines the edition/adaptation for the
+#               C3L retry prompt and the parameters extracted
+#               from the failure output.
+# Type        : object (string -> FailurePattern)
+# Required    : no (optional)
+#
+# FailurePattern fields:
+#   description : (required) Human-readable pattern description
+#   edition     : (required) Edition for the failure prompt
+#   adaptation  : (optional) Adaptation for the failure prompt
+#   params      : (optional) Parameter names extracted on match
+#
+# How it works:
+#   When a validator fails, the runner looks up the pattern by
+#   name, reads edition/adaptation, and resolves the retry
+#   prompt via C3L: {c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
+#   The params are extracted from the validator output and
+#   injected as UV variables into the retry prompt.
+# ============================================================
+failurePatterns:
+  git-dirty:
+    description: "Uncommitted changes exist in the working tree"
+    edition: "failed"
+    adaptation: "git-dirty"
+    params: ["changedFiles", "untrackedFiles"]
+    # Resolved path: steps/{c2}/{c3}/f_failed_git-dirty.md
+
+  test-failed:
+    description: "One or more tests failed"
+    edition: "failed"
+    adaptation: "test-failed"
+    params: ["failedTests", "errorOutput"]
+    # Resolved path: steps/{c2}/{c3}/f_failed_test-failed.md
+
+  type-error:
+    description: "TypeScript type errors detected"
+    edition: "failed"
+    adaptation: "type-error"
+    params: ["errors", "files"]
+
+  lint-error:
+    description: "Lint errors detected"
+    edition: "failed"
+    adaptation: "lint-error"
+    params: ["errors", "files"]
+
+  format-error:
+    description: "Code formatting errors detected"
+    edition: "failed"
+    adaptation: "format-error"
+    params: ["files", "diff"]
+
+  file-not-exists:
+    description: "Required file does not exist"
+    edition: "failed"
+    adaptation: "file-not-exists"
+    params: ["missingFiles", "expectedPath"]
+
+  branch-not-pushed:
+    description: "Branch has not been pushed to remote"
+    edition: "failed"
+    adaptation: "branch-not-pushed"
+    params: ["branchName", "remoteStatus"]
+
+  branch-not-merged:
+    description: "Branch has not been merged to base"
+    edition: "failed"
+    adaptation: "branch-not-merged"
+    params: ["branchName", "baseBranch", "mergeStatus"]
+
+# ============================================================
+# validators
+# ============================================================
+# Description : Named validators that execute commands and
+#               evaluate success/failure.
+# Type        : object (string -> Validator)
+# Required    : no (optional)
+#
+# Validator fields:
+#   type           : (required) "command" — currently the only type
+#   command        : (required) Shell command to execute
+#   successWhen    : (required) Success condition:
+#                      "empty"      — stdout is empty
+#                      "exitCode:0" — exit code is 0
+#   failurePattern : (required) Name of a failurePattern entry
+#                    to use when this validator fails
+#   extractParams  : (optional) Parameter extraction rules.
+#                    Keys are parameter names (matching params
+#                    in the failurePattern), values are
+#                    extraction functions:
+#                      "parseChangedFiles"   — parse git status
+#                      "parseUntrackedFiles" — parse git status
+#                      "parseTestOutput"     — parse test runner
+#                      "parseTypeErrors"     — parse tsc output
+#                      "parseLintErrors"     — parse linter
+#                      "parseFormatOutput"   — parse fmt output
+#                      "extractFiles"        — extract file paths
+#                      "generateDiff"        — generate diff
+#                      "parseBranchName"     — parse branch name
+#                      "parseRemoteStatus"   — parse remote info
+#                      "parseMergeStatus"    — parse merge info
+#                      "stderr"              — raw stderr output
+#                      "stdout"              — raw stdout output
+# ============================================================
+validators:
+  git-clean:
+    type: "command"
+    command: "git status --porcelain"
+    successWhen: "empty"
+    # Success when stdout is empty (no uncommitted changes)
+    failurePattern: "git-dirty"
+    extractParams:
+      changedFiles: "parseChangedFiles"
+      untrackedFiles: "parseUntrackedFiles"
+
+  tests-pass:
+    type: "command"
+    command: "deno task test"
+    successWhen: "exitCode:0"
+    # Success when deno test exits with code 0
+    failurePattern: "test-failed"
+    extractParams:
+      failedTests: "parseTestOutput"
+      errorOutput: "stderr"
+
+  type-check:
+    type: "command"
+    command: "deno check src/**/*.ts agents/**/*.ts *.ts"
+    successWhen: "exitCode:0"
+    failurePattern: "type-error"
+    extractParams:
+      errors: "parseTypeErrors"
+      files: "extractFiles"
+
+  lint-check:
+    type: "command"
+    command: "deno task lint"
+    successWhen: "exitCode:0"
+    failurePattern: "lint-error"
+    extractParams:
+      errors: "parseLintErrors"
+      files: "extractFiles"
+
+  format-check:
+    type: "command"
+    command: "deno fmt --check"
+    successWhen: "exitCode:0"
+    failurePattern: "format-error"
+    extractParams:
+      files: "parseFormatOutput"
+      diff: "generateDiff"
+
+  branch-pushed:
+    type: "command"
+    command: "git rev-parse --abbrev-ref --symbolic-full-name @{u}"
+    successWhen: "exitCode:0"
+    failurePattern: "branch-not-pushed"
+    extractParams:
+      branchName: "parseBranchName"
+      remoteStatus: "parseRemoteStatus"
+
+  branch-merged:
+    type: "command"
+    command: "git log origin/develop..HEAD --oneline"
+    successWhen: "empty"
+    # Success when empty (no commits ahead of origin/develop)
+    failurePattern: "branch-not-merged"
+    extractParams:
+      branchName: "parseBranchName"
+      baseBranch: "stdout"
+      mergeStatus: "parseMergeStatus"
+
+# ============================================================
+# validationSteps
+# ============================================================
+# Description : Step definitions for closure validation.
+#               These are triggered when a closure step
+#               begins, BEFORE the closure prompt is sent.
+#               All validationConditions must pass for the
+#               closure to proceed.
+# Type        : object (string -> ValidationStep)
+# Required    : no (optional)
+#
+# ValidationStep fields:
+#   stepId               : (required) Validation step identifier
+#   name                 : (required) Human-readable name
+#   c2                   : (required) C3L Category
+#   c3                   : (required) C3L Classification
+#   validationConditions : (optional) Array of conditions
+#   onFailure            : (optional) Action when validation fails
+#   outputSchemaRef      : (optional) Reference to output schema
+#   description          : (optional) Step description
+#
+# ValidationCondition:
+#   validator : (required) Name of a validator in the
+#               "validators" section above
+#
+# FailureAction:
+#   action      : (required) "retry" | "abort" | "skip"
+#     "retry" — Re-run the pre-closure work step
+#     "abort" — Stop execution with an error
+#     "skip"  — Skip validation and proceed to closure
+#   maxAttempts : (optional) Max retry attempts (for "retry")
+# ============================================================
+validationSteps:
+
+  # Validation for issue closure
+  closure.issue:
+    stepId: "closure.issue"
+    name: "Issue Validation"
+    c2: "retry"
+    c3: "issue"
+    validationConditions:
+      # Each condition references a named validator.
+      # All conditions must pass for validation to succeed.
+      - validator: "git-clean"
+        # Ensures no uncommitted changes before closing
+      - validator: "type-check"
+        # Ensures no type errors before closing
+    onFailure:
+      action: "retry"
+      # On failure: go back to the work step and retry.
+      # The retry prompt uses the failurePattern's
+      # edition/adaptation to load a targeted prompt.
+      maxAttempts: 3
+      # After 3 failed retries, abort execution.
+    outputSchemaRef:
+      file: "issue.schema.json"
+      schema: "closure.issue"
+    description: >-
+      Validate issue with git-clean and type-check.
+      Branch merge is handled by run-agent.ts in worktree mode.
+
+  # Validation for externalState closure
+  closure.externalState:
+    stepId: "closure.externalState"
+    name: "External State Validation"
+    c2: "retry"
+    c3: "issue"
+    validationConditions:
+      - validator: "git-clean"
+      - validator: "type-check"
+    onFailure:
+      action: "retry"
+      maxAttempts: 3
+    outputSchemaRef:
+      file: "externalState.schema.json"
+      schema: "closure.externalState"
+    description: "Validate external state with git-clean and type-check."
+
+# ============================================================
+# steps
+# ============================================================
+# Description : Map of step ID to step definition. Each step
+#               represents a prompt template that the runner
+#               sends to the model during execution.
+# Type        : object (string -> StepDefinition)
+# Required    : yes
+#
+# StepDefinition fields:
+#   stepId          : (required) Unique step identifier
+#   name            : (required) Human-readable step name
+#   c2              : (required) C3L Category
+#   c3              : (required) C3L Classification
+#   fallbackKey     : (required) Key for fallback prompt lookup
+#   type            : (optional) "prompt" — default: "prompt"
+#   stepKind        : (optional) "work" | "verification" | "closure"
+#     Determines allowed intents:
+#       work         — next, repeat, jump, handoff
+#       verification — next, repeat, jump, escalate
+#       closure      — closing, repeat
+#   edition         : (optional) Edition variant, default: "default"
+#   adaptation      : (optional) Adaptation variant
+#   uvVariables     : (optional) UV variable names for this prompt
+#   usesStdin       : (optional) boolean, default: false
+#   outputSchemaRef : (optional) External JSON schema reference
+#   structuredGate  : (optional) Intent/target routing config
+#   transitions     : (optional) Intent -> step transition map
+#   description     : (optional) What this step does
+#   model           : (optional) "sonnet" | "opus" | "haiku"
+#     Resolution: step.model > runner.flow.defaultModel > "opus"
+# ============================================================
+steps:
+
+  # ==========================================================
+  # 1. INITIAL STEP — Entry point for issue mode
+  # ==========================================================
+  # An initial step is the first step executed when the agent
+  # starts. It gathers context and produces an initial plan.
+  # ==========================================================
+  initial.issue:
+    stepId: "initial.issue"
+    name: "Issue Initial Prompt"
+
+    # type (optional)
+    # Description : Step type for categorization.
+    # Options     : "prompt"
+    # Default     : "prompt"
+    # Why         : Currently only "prompt" is supported.
+    #               Reserved for future step types.
+    type: "prompt"
+
+    # stepKind (optional)
+    # Description : Flow taxonomy classification.
+    # Options     : "work" | "verification" | "closure"
+    # Default     : none
+    # Why         : Determines which intents are valid.
+    #   work         — The step does productive work
+    #   verification — The step checks/validates prior work
+    #   closure      — The step finalizes and terminates
+    stepKind: "work"
+
+    # c2
+    # Description : C3L Category.
+    # Type        : string
+    # Required    : yes
+    # Common values: "initial", "continuation", "closure",
+    #                "section", "retry"
+    # Why         : Second segment of the C3L path. Together
+    #               with c1 and c3, determines the prompt
+    #               file directory.
+    c2: "initial"
+
+    # c3
+    # Description : C3L Classification.
+    # Type        : string
+    # Required    : yes
+    # Common values: "issue", "project", "iterate",
+    #                "externalState"
+    # Why         : Third segment of the C3L path. Determines
+    #               the subdirectory within the c2 directory.
+    c3: "issue"
+
+    # edition (optional)
+    # Description : Edition variant for prompt file selection.
+    # Type        : string
+    # Default     : "default"
+    # Common values: "default", "preparation", "processing",
+    #                "review", "again", "closure", "context",
+    #                "failed"
+    # Why         : Selects a specific variant of the prompt.
+    #               The file name is f_{edition}.md or
+    #               f_{edition}_{adaptation}.md.
+    edition: "default"
+
+    # adaptation (optional)
+    # Description : Adaptation variant for failure-specific
+    #               or context-specific prompts.
+    # Type        : string
+    # Default     : none (no adaptation)
+    # Common values: "empty", "done", "git-dirty",
+    #                "test-failed", "type-error", "lint-error",
+    #                "format-error", "label-only"
+    # Why         : Appended to the edition to form a more
+    #               specific prompt file name. Typically set
+    #               by failurePatterns during retry.
+    # (not set for this step — uses pathTemplateNoAdaptation)
+
+    # fallbackKey
+    # Description : Key for embedded fallback prompt lookup.
+    # Type        : string
+    # Required    : yes
+    # Why         : When the C3L file is not found on disk,
+    #               the runner falls back to the embedded
+    #               prompt identified by this key in
+    #               agents/prompts/fallback.ts.
+    fallbackKey: "issue_initial_default"
+
+    # uvVariables (optional)
+    # Description : User Variable names injected into prompt.
+    # Type        : array of strings
+    # Default     : []
+    # Why         : Lists the variable placeholders in the
+    #               prompt template. The runner resolves these
+    #               from CLI parameters or runtime state.
+    #               Missing variables produce empty strings.
+    uvVariables: ["issue_number"]
+
+    # usesStdin (optional)
+    # Description : Whether this step accepts stdin input.
+    # Type        : boolean
+    # Default     : false
+    # Why         : When true, the runner passes stdin content
+    #               as additional context to the prompt.
+    usesStdin: false
+
+    # outputSchemaRef (optional)
+    # Description : Reference to a JSON schema that validates
+    #               the structured output of this step.
+    # Type        : OutputSchemaRef object
+    # Fields:
+    #   file   : (required) Schema file name, relative to
+    #            schemasBase (.agent/{agentId}/schemas/)
+    #   schema : (required) Schema name/key within the file.
+    #            Used to select a sub-schema if the file
+    #            contains multiple definitions.
+    # Why     : Enables structured output validation. The
+    #           runner checks the model's JSON output against
+    #           this schema before processing transitions.
+    outputSchemaRef:
+      file: "issue.schema.json"
+      schema: "initial.issue"
+
+    # ----------------------------------------------------------
+    # structuredGate (optional) — StructuredGate
+    # ----------------------------------------------------------
+    # Description : Controls how the runner extracts intent
+    #               and routing information from the model's
+    #               structured output.
+    # Required sub-keys: allowedIntents, intentSchemaRef,
+    #                    intentField
+    # Optional sub-keys: targetField, handoffFields,
+    #                    targetMode, failFast, fallbackIntent
+    # Why         : The gate is the decision point between
+    #               iterations. It reads the model's output,
+    #               determines the next intent, and routes
+    #               to the appropriate transition target.
+    # ----------------------------------------------------------
+    structuredGate:
+
+      # allowedIntents
+      # Description : Valid intents this step can emit.
+      # Type        : array of strings
+      # Options     : "next" | "repeat" | "jump" | "closing"
+      #               | "abort" | "escalate" | "handoff"
+      # Required    : yes
+      # Intent semantics:
+      #   next     — Proceed to the next step in the flow
+      #   repeat   — Re-execute the current step
+      #   jump     — Go to a specific step (needs targetField)
+      #   closing  — Terminal; end execution
+      #   abort    — Stop with error
+      #   escalate — Escalate to parent/human (verification)
+      #   handoff  — Transfer to a different step with data
+      # stepKind constraints:
+      #   work         — next, repeat, jump, handoff
+      #   verification — next, repeat, jump, escalate
+      #   closure      — closing, repeat
+      allowedIntents: ["next", "repeat"]
+
+      # intentSchemaRef
+      # Description : Internal JSON Pointer to the intent enum
+      #               in the step's output schema.
+      # Type        : string (pattern: ^#/)
+      # Required    : yes
+      # Why         : Points to the enum definition within
+      #               outputSchemaRef that lists valid intent
+      #               values. Used for schema validation.
+      #               Must be an internal reference (starts
+      #               with "#/"). External file references are
+      #               NOT allowed — use $ref in the step schema
+      #               to share definitions across steps.
+      intentSchemaRef: "#/properties/next_action/properties/action"
+
+      # intentField
+      # Description : JSON path to extract intent from output.
+      # Type        : string (dot-notation)
+      # Required    : yes
+      # Why         : The runner reads this field from the
+      #               model's JSON output to determine the
+      #               next action. Must match the schema
+      #               structure.
+      intentField: "next_action.action"
+
+      # targetField (optional)
+      # Description : JSON path to extract target step ID.
+      # Type        : string (dot-notation)
+      # Default     : none
+      # Why         : Used with "jump" intent. The model
+      #               specifies which step to go to by writing
+      #               a step ID into this field. Ignored for
+      #               other intents.
+      targetField: "next_action.details.target"
+
+      # handoffFields (optional)
+      # Description : JSON paths to extract for handoff data.
+      # Type        : array of strings (dot-notation)
+      # Default     : []
+      # Why         : When the model emits a "handoff" intent,
+      #               these fields are extracted from the
+      #               output and passed to the target step as
+      #               context. Provides continuity across step
+      #               boundaries.
+      handoffFields: ["analysis.understanding", "analysis.approach", "issue"]
+
+      # targetMode (optional)
+      # Description : How target step IDs are determined.
+      # Type        : string
+      # Options     : "explicit" | "dynamic" | "conditional"
+      # Default     : "explicit"
+      # Why         :
+      #   "explicit"    — Target comes from transitions map
+      #   "dynamic"     — Target comes from targetField in
+      #                   model output
+      #   "conditional" — Target depends on runtime condition
+      #                   (uses TransitionRule with condition)
+      # targetMode: "explicit"
+
+      # failFast (optional)
+      # Description : Error on unparseable intent vs fallback.
+      # Type        : boolean
+      # Default     : true
+      # Why         : When true (default), the runner throws
+      #               an error if the intent cannot be
+      #               extracted from the model output. This
+      #               is the safe production behavior per
+      #               design/08_step_flow_design.md.
+      #               Set false only for debugging, where you
+      #               want to use fallbackIntent instead.
+      # failFast: true
+
+      # fallbackIntent (optional)
+      # Description : Default intent when parsing fails.
+      # Type        : string
+      # Default     : none
+      # Why         : Used only when failFast is false. If the
+      #               runner cannot extract the intent, this
+      #               value is used instead. Must be one of
+      #               allowedIntents.
+      fallbackIntent: "next"
+
+    # ----------------------------------------------------------
+    # transitions (optional) — Transitions
+    # ----------------------------------------------------------
+    # Description : Maps intents to transition rules. Each key
+    #               is an intent name; the value determines
+    #               the target step.
+    # Type        : object (string -> TransitionRule)
+    #
+    # TransitionRule has two forms:
+    #
+    # Form 1 — Simple target:
+    #   target   : (required) Target step ID, or null for
+    #              terminal (end execution)
+    #   fallback : (optional) Fallback step ID if target fails
+    #
+    # Form 2 — Conditional target:
+    #   condition : (required) Condition expression or variable
+    #   targets   : (required) Map of condition values to step IDs
+    #
+    # Why : Decouples routing from the model. The model emits
+    #       an intent; the registry determines where to go.
+    # ----------------------------------------------------------
+    transitions:
+      next:
+        target: "continuation.issue"
+        # On "next": proceed to the continuation step
+      repeat:
+        target: "initial.issue"
+        # On "repeat": re-run this same step
+
+    description: "Initial prompt when working on a single GitHub issue"
+
+    # model (optional)
+    # Description : Model to use for this step.
+    # Type        : string
+    # Options     : "sonnet" | "opus" | "haiku"
+    # Default     : none (uses runner.flow.defaultModel or "opus")
+    # Resolution  : step.model > runner.flow.defaultModel > "opus"
+    # Why         : Override per step for cost optimization.
+    #               Use "haiku" for lightweight/routine steps;
+    #               use "opus" for complex reasoning steps.
+    # model: "opus"
+
+  # ==========================================================
+  # 2. CONTINUATION STEP — Iterative work loop
+  # ==========================================================
+  # A continuation step is executed repeatedly until the agent
+  # decides to hand off to closure or repeat. This is where
+  # the bulk of the work happens.
+  # ==========================================================
+  continuation.issue:
+    stepId: "continuation.issue"
+    name: "Issue Continuation Prompt"
+    stepKind: "work"
+    c2: "continuation"
+    c3: "issue"
+    edition: "default"
+    fallbackKey: "issue_continuation_default"
+    uvVariables: ["issue_number", "completed_iterations"]
+    usesStdin: false
+    outputSchemaRef:
+      file: "issue.schema.json"
+      schema: "continuation.issue"
+    structuredGate:
+      # Continuation steps typically allow "handoff" to move
+      # to closure when the model judges work is complete.
+      allowedIntents: ["next", "repeat", "handoff"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "next"
+      handoffFields: ["progress.completed_files", "progress.pending_tasks"]
+      # handoffFields carry progress data to the closure step
+    transitions:
+      next:
+        target: "continuation.issue"
+        # Loop: continue working
+      repeat:
+        target: "continuation.issue"
+        # Retry the same continuation step
+      handoff:
+        target: "closure.issue"
+        # Hand off to closure when work is done
+    description: "Continuation prompt for issue iterations"
+
+  # ==========================================================
+  # 3. CLOSURE STEP — Terminal step
+  # ==========================================================
+  # A closure step finalizes the agent's work. It typically
+  # has a "closing" intent that sets target: null, signaling
+  # the runner to end execution.
+  #
+  # If a matching key exists in validationSteps, the runner
+  # runs those validations BEFORE sending the closure prompt.
+  # ==========================================================
+  closure.issue:
+    stepId: "closure.issue"
+    name: "Issue Closure Prompt"
+    type: "prompt"
+    stepKind: "closure"
+    c2: "closure"
+    c3: "issue"
+    edition: "default"
+    fallbackKey: "issue_closure_default"
+    uvVariables: ["issue_number"]
+    usesStdin: false
+    outputSchemaRef:
+      file: "issue.schema.json"
+      schema: "closure.issue"
+    structuredGate:
+      # Closure steps only allow "closing" (terminal) and
+      # "repeat" (retry closure if something went wrong).
+      allowedIntents: ["closing", "repeat"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "closing"
+      handoffFields: []
+      # No handoff from closure — it is the terminal step
+    transitions:
+      closing:
+        target: null
+        # null target = terminal. Runner ends execution.
+      repeat:
+        target: "closure.issue"
+        # Retry closure if the model deems it incomplete
+    description: "Completion prompt for issue (terminal step)"
+
+  # ==========================================================
+  # 4. VERIFICATION / VALIDATION STEP (in steps section)
+  # ==========================================================
+  # While validationSteps above handle pre-closure validation
+  # using command validators, a verification step can also
+  # exist in the "steps" section as a normal flow step. The
+  # externalState closure step serves this role — it verifies
+  # external state before terminating.
+  # ==========================================================
+  closure.externalState:
+    stepId: "closure.externalState"
+    name: "External State Closure Prompt"
+    type: "prompt"
+    stepKind: "closure"
+    c2: "closure"
+    c3: "externalState"
+    edition: "default"
+    fallbackKey: "externalState_closure_default"
+    uvVariables: ["issue_number"]
+    usesStdin: false
+    outputSchemaRef:
+      file: "externalState.schema.json"
+      schema: "closure.externalState"
+    structuredGate:
+      allowedIntents: ["closing", "repeat"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "closing"
+      handoffFields: []
+    transitions:
+      closing:
+        target: null
+      repeat:
+        target: "closure.externalState"
+    description: "Completion prompt for external state (terminal step)"
+
+  # ==========================================================
+  # Additional step examples from the iterator registry
+  # ==========================================================
+
+  # -- Section step (no transitions, no structuredGate) --
+  # A section step is a prompt fragment inserted into other
+  # steps. It is NOT a flow step — it has no gate or
+  # transitions. Used for reusable context blocks.
+  section.projectcontext:
+    stepId: "section.projectcontext"
+    name: "Project Context Section"
+    c2: "section"
+    c3: "project"
+    edition: "context"
+    fallbackKey: "section_project_context_default"
+    uvVariables: [
+      "project_number",
+      "project_title",
+      "label_info",
+      "current_index",
+      "total_issues",
+    ]
+    usesStdin: false
+    description: >-
+      Project context section inserted into issue prompts
+      when part of a project. Not a Flow step — no
+      structuredGate or transitions needed.
+    # Note: No stepKind, structuredGate, or transitions.
+    # This step is composed into other steps, not executed
+    # independently by the step machine.
+
+  # -- Step with adaptation (empty variant) --
+  # Adaptation selects a failure-specific or context-specific
+  # prompt variant. This step handles the case where no issues
+  # are found during project preparation.
+  initial.project.preparationempty:
+    stepId: "initial.project.preparationempty"
+    name: "Project Preparation (No Issues)"
+    stepKind: "work"
+    c2: "initial"
+    c3: "project"
+    edition: "preparation"
+    adaptation: "empty"
+    # With adaptation set, the C3L path becomes:
+    #   steps/initial/project/f_preparation_empty.md
+    # If that file is missing, falls back to:
+    #   steps/initial/project/f_preparation.md
+    fallbackKey: "project_preparation_no_issues_default"
+    uvVariables: [
+      "project_number",
+      "project_title",
+      "label_info",
+      "label_filter",
+    ]
+    usesStdin: false
+    outputSchemaRef:
+      file: "project.schema.json"
+      schema: "initial.project.preparationempty"
+    structuredGate:
+      allowedIntents: ["next", "handoff"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "handoff"
+      # fallbackIntent is "handoff" here — if parsing fails,
+      # skip to closure since there are no issues to work on.
+      handoffFields: ["summary"]
+    transitions:
+      next:
+        target: "initial.project.preparation"
+      handoff:
+        target: "initial.project.closure"
+    description: "Preparation phase prompt when no issues found"
+
+  # -- Conditional transition example (conceptual) --
+  # The TransitionRule supports conditional routing based on
+  # runtime state. This is not used in the iterator registry
+  # but is documented here for reference.
+  #
+  # example.conditional.step:
+  #   stepId: "example.conditional.step"
+  #   name: "Conditional Step Example"
+  #   c2: "continuation"
+  #   c3: "example"
+  #   fallbackKey: "example_conditional_default"
+  #   stepKind: "work"
+  #   edition: "default"
+  #   structuredGate:
+  #     allowedIntents: ["next"]
+  #     intentSchemaRef: "#/properties/next_action/properties/action"
+  #     intentField: "next_action.action"
+  #     targetMode: "conditional"
+  #   transitions:
+  #     next:
+  #       condition: "issueCount"
+  #       targets:
+  #         "0": "initial.project.closure"
+  #         "1": "initial.issue"
+  #         "default": "initial.project.preparation"
+  #   description: "Routes based on issueCount runtime variable"
+
+  # -- Initial step for externalState mode --
+  initial.externalState:
+    stepId: "initial.externalState"
+    name: "External State Initial Prompt"
+    type: "prompt"
+    stepKind: "work"
+    c2: "initial"
+    c3: "externalState"
+    edition: "default"
+    fallbackKey: "externalState_initial_default"
+    uvVariables: ["issue_number"]
+    usesStdin: false
+    outputSchemaRef:
+      file: "externalState.schema.json"
+      schema: "initial.externalState"
+    structuredGate:
+      allowedIntents: ["next", "repeat"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "next"
+      handoffFields: ["analysis.understanding", "analysis.approach", "issue"]
+    transitions:
+      next:
+        target: "continuation.externalState"
+      repeat:
+        target: "initial.externalState"
+    description: "Initial prompt for external state completion (GitHub Issue state)"
+
+  # -- Continuation step for externalState mode --
+  continuation.externalState:
+    stepId: "continuation.externalState"
+    name: "External State Continuation Prompt"
+    type: "prompt"
+    stepKind: "work"
+    c2: "continuation"
+    c3: "externalState"
+    edition: "default"
+    fallbackKey: "externalState_continuation_default"
+    uvVariables: ["issue_number", "completed_iterations"]
+    usesStdin: false
+    outputSchemaRef:
+      file: "externalState.schema.json"
+      schema: "continuation.externalState"
+    structuredGate:
+      allowedIntents: ["next", "repeat", "handoff"]
+      intentSchemaRef: "#/properties/next_action/properties/action"
+      intentField: "next_action.action"
+      fallbackIntent: "next"
+      handoffFields: ["iteration.work_done", "progress"]
+    transitions:
+      next:
+        target: "continuation.externalState"
+      repeat:
+        target: "continuation.externalState"
+      handoff:
+        target: "closure.externalState"
+    description: "Continuation prompt for external state completion"

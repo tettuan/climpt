@@ -51,15 +51,15 @@
       "type": "object",
       "required": [
         "flow",
-        "completion",
+        "verdict",
         "boundaries"
       ],
       "properties": {
         "flow": {
           "$ref": "#/definitions/RunnerFlowConfig"
         },
-        "completion": {
-          "$ref": "#/definitions/RunnerCompletionConfig"
+        "verdict": {
+          "$ref": "#/definitions/RunnerVerdictConfig"
         },
         "boundaries": {
           "$ref": "#/definitions/RunnerBoundariesConfig"
@@ -126,7 +126,7 @@
       },
       "additionalProperties": false
     },
-    "RunnerCompletionConfig": {
+    "RunnerVerdictConfig": {
       "type": "object",
       "required": ["type"],
       "properties": {
@@ -142,20 +142,20 @@
             "composite",
             "custom"
           ],
-          "description": "How the agent determines completion. Types: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler)."
+          "description": "How the agent determines verdict. Types: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler)."
         },
         "config": {
           "type": "object",
-          "description": "Configuration for the completion type",
+          "description": "Configuration for the verdict type",
           "properties": {
             "maxIterations": {
               "type": "number",
               "minimum": 1,
               "description": "Maximum iterations (for iterationBudget type)"
             },
-            "completionKeyword": {
+            "verdictKeyword": {
               "type": "string",
-              "description": "Keyword to signal completion (for keywordSignal type)"
+              "description": "Keyword to signal verdict (for keywordSignal type)"
             },
             "handlerPath": {
               "type": "string",
@@ -181,13 +181,13 @@
             },
             "conditions": {
               "type": "array",
-              "description": "Array of completion conditions (for composite type)",
+              "description": "Array of verdict conditions (for composite type)",
               "items": {
                 "type": "object",
                 "properties": {
                   "type": {
                     "type": "string",
-                    "description": "Completion type for this condition"
+                    "description": "Verdict type for this condition"
                   },
                   "config": {
                     "type": "object",
@@ -202,8 +202,8 @@
               "description": "Action block type to detect (for structuredSignal type)"
             },
             "requiredFields": {
-              "type": "object",
-              "description": "Required field values to match (for structuredSignal type)"
+              "type": ["object", "array"],
+              "description": "Required fields for structuredSignal type. Object form: key-value pairs to match. Array form: field names that must exist."
             },
             "registryPath": {
               "type": "string",
