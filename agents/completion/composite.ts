@@ -153,7 +153,7 @@ export class CompositeCompletionHandler extends BaseCompletionHandler {
     }
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial_composite", {
+      return await this.promptResolver.resolve("initial.composite", {
         "uv-operator": this.operator,
         "uv-conditions_count": String(this.conditions.length),
       });

@@ -1528,6 +1528,372 @@ Deno.test("ExternalStateCompletionAdapter - type is externalState", () => {
 });
 
 // =============================================================================
+// PromptResolver Integration Tests
+// =============================================================================
+
+const STEP_ID_PATTERN = /^(initial|continuation|closure)\.[a-zA-Z]+$/;
+
+class MockPromptResolver {
+  readonly calls: Array<{
+    stepId: string;
+    variables: Record<string, string>;
+  }> = [];
+
+  async resolve(
+    stepId: string,
+    variables: Record<string, string>,
+  ): Promise<string> {
+    this.calls.push({ stepId, variables });
+    return `RICH_PROMPT_CONTENT_FOR_${stepId}`;
+  }
+
+  lastStepId(): string | undefined {
+    return this.calls[this.calls.length - 1]?.stepId;
+  }
+
+  reset(): void {
+    this.calls.length = 0;
+  }
+}
+
+// --- ExternalStateCompletionAdapter + resolver ---
+
+Deno.test("ExternalStateCompletionAdapter + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const adapter = new ExternalStateCompletionAdapter(
+    new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+    { issueNumber: 1 },
+  );
+  adapter.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await adapter.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.externalState");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.externalState");
+});
+
+Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const adapter = new ExternalStateCompletionAdapter(
+    new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+    { issueNumber: 1 },
+  );
+  adapter.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await adapter.buildContinuationPrompt(3);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.externalState");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.externalState",
+  );
+});
+
+// --- IterateCompletionHandler + resolver ---
+
+Deno.test("IterateCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new IterateCompletionHandler(10);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.iterate");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iterate");
+});
+
+Deno.test("IterateCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new IterateCompletionHandler(10);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(5);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.iterate");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.iterate",
+  );
+});
+
+// --- CheckBudgetCompletionHandler + resolver ---
+
+Deno.test("CheckBudgetCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new CheckBudgetCompletionHandler(5);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.checkBudget");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.checkBudget");
+});
+
+Deno.test("CheckBudgetCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new CheckBudgetCompletionHandler(5);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.checkBudget");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.checkBudget",
+  );
+});
+
+// --- ManualCompletionHandler + resolver ---
+
+Deno.test("ManualCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new ManualCompletionHandler("DONE");
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.manual");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.manual");
+});
+
+Deno.test("ManualCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new ManualCompletionHandler("DONE");
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.manual");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.manual",
+  );
+});
+
+// --- StructuredSignalCompletionHandler + resolver ---
+
+Deno.test("StructuredSignalCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new StructuredSignalCompletionHandler("complete");
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.structuredSignal");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_initial.structuredSignal",
+  );
+});
+
+Deno.test("StructuredSignalCompletionHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new StructuredSignalCompletionHandler("complete");
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(3);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.structuredSignal");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.structuredSignal",
+  );
+});
+
+// --- StepMachineCompletionHandler + resolver ---
+
+Deno.test("StepMachineCompletionHandler + resolver - buildInitialPrompt resolves via currentStepId", async () => {
+  const mock = new MockPromptResolver();
+  const registry = createMockStepsRegistry();
+  const handler = new StepMachineCompletionHandler(registry);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.test");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.test");
+});
+
+Deno.test("StepMachineCompletionHandler + resolver - buildContinuationPrompt resolves via currentStepId", async () => {
+  const mock = new MockPromptResolver();
+  const registry = createMockStepsRegistry();
+  const handler = new StepMachineCompletionHandler(registry);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.test");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.test");
+});
+
+Deno.test("StepMachineCompletionHandler + resolver - stepId changes after transition", async () => {
+  const mock = new MockPromptResolver();
+  const registry = createMockStepsRegistry();
+  const handler = new StepMachineCompletionHandler(registry);
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  handler.transition({ stepId: "initial.test", passed: true });
+
+  const prompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.lastStepId(), "continuation.test");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(
+    prompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.test",
+  );
+});
+
+// --- CompositeCompletionHandler + resolver ---
+
+Deno.test("CompositeCompletionHandler + resolver - propagates resolver to sub-handlers", async () => {
+  const mock = new MockPromptResolver();
+  const definition = createMockAgentDefinition({
+    completion: {
+      type: "composite",
+      config: {
+        operator: "or",
+        conditions: [
+          { type: "iterationBudget", config: { maxIterations: 5 } },
+          { type: "keywordSignal", config: { completionKeyword: "DONE" } },
+        ],
+      },
+    },
+  });
+
+  const handler = new CompositeCompletionHandler(
+    "or",
+    definition.runner.completion.config.conditions ?? [],
+    {},
+    "/test",
+    definition,
+  );
+  handler.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.iterate");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iterate");
+});
+
+// --- Contract: all handler stepIds match dot-format ---
+
+Deno.test("Contract - all handler stepIds use dot-format (phase.type)", async () => {
+  const mock = new MockPromptResolver();
+  const cast =
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter;
+
+  const handlers: Array<{
+    name: string;
+    handler: {
+      setPromptResolver: (r: typeof cast) => void;
+      buildInitialPrompt: () => Promise<string>;
+      buildContinuationPrompt: (n: number) => Promise<string>;
+    };
+  }> = [
+    {
+      name: "ExternalStateCompletionAdapter",
+      handler: new ExternalStateCompletionAdapter(
+        new IssueCompletionHandler({ issueNumber: 1 }, new MockStateChecker()),
+        { issueNumber: 1 },
+      ),
+    },
+    {
+      name: "IterateCompletionHandler",
+      handler: new IterateCompletionHandler(5),
+    },
+    {
+      name: "CheckBudgetCompletionHandler",
+      handler: new CheckBudgetCompletionHandler(5),
+    },
+    {
+      name: "ManualCompletionHandler",
+      handler: new ManualCompletionHandler("DONE"),
+    },
+    {
+      name: "StructuredSignalCompletionHandler",
+      handler: new StructuredSignalCompletionHandler("sig"),
+    },
+  ];
+
+  for (const { name, handler } of handlers) {
+    mock.reset();
+    handler.setPromptResolver(cast);
+
+    await handler.buildInitialPrompt();
+    const initialId = mock.lastStepId()!;
+    assertEquals(
+      STEP_ID_PATTERN.test(initialId),
+      true,
+      `${name} initial stepId "${initialId}" does not match pattern`,
+    );
+
+    mock.reset();
+    await handler.buildContinuationPrompt(1);
+    const contId = mock.lastStepId()!;
+    assertEquals(
+      STEP_ID_PATTERN.test(contId),
+      true,
+      `${name} continuation stepId "${contId}" does not match pattern`,
+    );
+  }
+});
+
+// =============================================================================
 // Composite with externalState Tests
 // =============================================================================
 

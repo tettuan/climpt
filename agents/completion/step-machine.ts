@@ -245,15 +245,16 @@ export class StepMachineCompletionHandler extends BaseCompletionHandler {
     const stepDef = this.getStepDefinition(this.state.currentStepId);
 
     if (this.promptResolver && stepDef) {
-      // Build UV variables from step definition
       const uvVars: Record<string, string> = {
         "uv-step_id": this.state.currentStepId,
         "uv-step_name": stepDef.name,
       };
 
-      // Use prompt resolver to get prompt
       try {
-        return await this.promptResolver.resolve(stepDef.fallbackKey, uvVars);
+        return await this.promptResolver.resolve(
+          this.state.currentStepId,
+          uvVars,
+        );
       } catch {
         // Fallback if prompt resolution fails
       }
@@ -302,11 +303,10 @@ ${this.buildStepInstructions(stepDef)}
       };
 
       try {
-        const continuationKey = stepDef.fallbackKey.replace(
-          STEP_PHASE.INITIAL,
-          STEP_PHASE.CONTINUATION,
+        return await this.promptResolver.resolve(
+          this.state.currentStepId,
+          uvVars,
         );
-        return await this.promptResolver.resolve(continuationKey, uvVars);
       } catch {
         // Fallback if prompt resolution fails
       }

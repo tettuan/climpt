@@ -29,7 +29,7 @@ export class ManualCompletionHandler extends BaseCompletionHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial_manual", {
+      return await this.promptResolver.resolve("initial.manual", {
         "uv-completion_keyword": this.completionKeyword,
       });
     }
@@ -61,7 +61,7 @@ When ready, output exactly: ${this.completionKeyword}
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation_manual", {
+      return await this.promptResolver.resolve("continuation.manual", {
         "uv-iteration": String(completedIterations),
         "uv-completion_keyword": this.completionKeyword,
         "uv-previous_summary": summaryText,

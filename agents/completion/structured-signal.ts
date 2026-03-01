@@ -44,7 +44,7 @@ export class StructuredSignalCompletionHandler extends BaseCompletionHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial_structured_signal", {
+      return await this.promptResolver.resolve("initial.structuredSignal", {
         "uv-signal_type": this.signalType,
         "uv-required_fields": JSON.stringify(this.requiredFields ?? {}),
       });
@@ -94,7 +94,7 @@ ${requiredFieldsDesc}
         ? this.formatIterationSummary(previousSummary)
         : "";
       return await this.promptResolver.resolve(
-        "continuation_structured_signal",
+        "continuation.structuredSignal",
         {
           "uv-iteration": String(completedIterations),
           "uv-signal_type": this.signalType,
