@@ -217,14 +217,30 @@ Step B receives uv-s_a.finding
 
 ## 命名規則（Verdict / Validation / Closure）
 
+### Why
+
+識別子は「何をするか」で命名する。「いつ走るか」や「どこで使われるか」では
+命名しない。名前から責務が読めなければ、読み手は実装を追わないと階層を判別
+できず、Completion が 3 階層で多義的に使われていた問題が再発する。
+
+- Verdict: Agent が終わったかを**判定する** → 判定の責務
+- Validation: Step 成果物が条件を**検証する** → 検証の責務
+- Closure: Completion Loop を**起動・初期化する** → 機構の責務
+
+例: `validationSteps` は Completion Loop 内で走るが、名前は「いつ走るか」
+ではなく「何をするか（検証条件の定義）」に基づく。`closureSteps` と命名
+すると実行タイミングしか伝わらず、中身が検証定義であることが読めない。
+
+### 語彙テーブル
+
 設計書とコードで以下の語彙を一貫させる。
 
-| 語彙           | 階層           | 意味                                | 代表的な識別子                                      |
-| -------------- | -------------- | ----------------------------------- | --------------------------------------------------- |
-| **Verdict**    | Agent 完了判定 | Agent 全体が終わったかの最終判定    | VerdictHandler, VerdictType, isFinished()           |
-| **Validation** | Step 検証      | Step 成果物が条件を満たしたかの検証 | ValidationChain, StepValidator, ValidationCondition |
-| **Closure**    | ループ機構     | Completion Loop の初期化・実行      | ClosureManager, hasClosingSignal()                  |
-| **Completion** | 概念名のみ     | 設計書の見出し・図中の名称          | "Completion Loop", "Completion Signal"              |
+| 語彙           | 階層           | 意味                                | 代表的な識別子                                  |
+| -------------- | -------------- | ----------------------------------- | ----------------------------------------------- |
+| **Verdict**    | Agent 完了判定 | Agent 全体が終わったかの最終判定    | VerdictHandler, VerdictType, isFinished()       |
+| **Validation** | Step 検証      | Step 成果物が条件を満たしたかの検証 | ValidationChain, StepValidator, validationSteps |
+| **Closure**    | ループ機構     | Completion Loop の初期化・実行      | ClosureManager, hasClosingSignal()              |
+| **Completion** | 概念名のみ     | 設計書の見出し・図中の名称          | "Completion Loop", "Completion Signal"          |
 
 「Completion」は概念名としてのみ使用し、型名・メソッド名・変数名には使わない。
 
