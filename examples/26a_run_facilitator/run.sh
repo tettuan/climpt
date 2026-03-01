@@ -9,6 +9,7 @@ main() {
 
   check_deno
   check_climpt_init
+  clear_claude_env
 
   # Verify facilitate-agent task exists in deno.json
   local task_list

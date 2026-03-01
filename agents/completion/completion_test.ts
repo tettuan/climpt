@@ -1600,6 +1600,44 @@ Deno.test("ExternalStateCompletionAdapter + resolver - buildContinuationPrompt u
   );
 });
 
+// --- ExternalStateCompletionAdapter + custom entryStepId ---
+
+Deno.test("ExternalStateCompletionAdapter + custom entryStepId - buildInitialPrompt uses mapped stepId", async () => {
+  const mock = new MockPromptResolver();
+  const adapter = new ExternalStateCompletionAdapter(
+    new IssueCompletionHandler({ issueNumber: 42 }, new MockStateChecker()),
+    { issueNumber: 42, entryStepId: "initial.issue" },
+  );
+  adapter.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await adapter.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.issue");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.issue");
+});
+
+Deno.test("ExternalStateCompletionAdapter + custom entryStepId - buildContinuationPrompt derives continuation stepId", async () => {
+  const mock = new MockPromptResolver();
+  const adapter = new ExternalStateCompletionAdapter(
+    new IssueCompletionHandler({ issueNumber: 42 }, new MockStateChecker()),
+    { issueNumber: 42, entryStepId: "initial.issue" },
+  );
+  adapter.setPromptResolver(
+    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+  );
+
+  const prompt = await adapter.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.issue");
+  assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_continuation.issue");
+});
+
 // --- IterateCompletionHandler + resolver ---
 
 Deno.test("IterateCompletionHandler + resolver - buildInitialPrompt uses dot-format stepId", async () => {

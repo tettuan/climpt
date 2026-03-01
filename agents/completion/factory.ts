@@ -49,7 +49,7 @@ function registerHandler(type: string, factory: HandlerFactory): void {
 // externalState (was: issue) - Complete when external resource reaches target state
 registerHandler(
   "externalState",
-  (args, promptResolver, definition) => {
+  async (args, promptResolver, definition, agentDir) => {
     const issueNumber = args.issue as number | undefined;
     if (issueNumber === undefined || issueNumber === null) {
       throw new Error(
@@ -75,9 +75,23 @@ registerHandler(
     };
     const issueHandler = new IssueCompletionHandler(issueConfig, stateChecker);
 
+    // Load entry step ID from steps_registry if available
+    let entryStepId: string | undefined;
+    try {
+      const registryPath = `${agentDir}/${PATHS.STEPS_REGISTRY}`;
+      const content = await Deno.readTextFile(registryPath);
+      const registry = JSON.parse(content);
+      entryStepId = registry.entryStepMapping?.externalState as
+        | string
+        | undefined;
+    } catch {
+      // Graceful fallback: adapter defaults to "initial.external-state"
+    }
+
     const adapterConfig: ExternalStateAdapterConfig = {
       issueNumber,
       repo,
+      entryStepId,
       github: githubConfig as ExternalStateAdapterConfig["github"],
     };
     const adapter = new ExternalStateCompletionAdapter(

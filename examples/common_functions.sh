@@ -99,6 +99,18 @@ run_example() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Environment sanitisation
+# ---------------------------------------------------------------------------
+
+# Unset env vars that cause Claude Code nesting detection to fail when
+# examples spawn a child Claude Code process via `deno task agent`.
+clear_claude_env() {
+  unset CLAUDE_CODE ANTHROPIC_CLI CLAUDE_SESSION_ID CLAUDE_NEST_LEVEL
+  unset SANDBOX_ENABLED SANDBOX_ID SANDBOX_ALLOWED_PATHS
+}
+
 export -f info success warn error show_cmd
 export -f check_deno check_climpt_init check_command
 export -f cleanup_temp_files run_example
+export -f clear_claude_env

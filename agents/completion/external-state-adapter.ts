@@ -28,6 +28,8 @@ export interface ExternalStateAdapterConfig {
   issueNumber: number;
   /** Repository in "owner/repo" format */
   repo?: string;
+  /** Entry step ID from registry (e.g. "initial.issue"). Defaults to "initial.external-state" */
+  entryStepId?: string;
   /** GitHub label configuration from agent definition */
   github?: {
     labels?: {
@@ -76,9 +78,28 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
     this.currentSummary = summary;
   }
 
+  /**
+   * Derive the initial step ID from config or default.
+   */
+  private get initialStepId(): string {
+    return this.config.entryStepId ?? "initial.external-state";
+  }
+
+  /**
+   * Derive the continuation step ID from the initial step ID.
+   * Replaces the "initial." prefix with "continuation.".
+   */
+  private get continuationStepId(): string {
+    const entry = this.initialStepId;
+    if (entry.startsWith("initial.")) {
+      return "continuation." + entry.slice("initial.".length);
+    }
+    return "continuation.external-state";
+  }
+
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.external-state", {
+      return await this.promptResolver.resolve(this.initialStepId, {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-repository": this.config.repo ?? "",
       });
@@ -95,7 +116,7 @@ export class ExternalStateCompletionAdapter extends BaseCompletionHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("continuation.external-state", {
+      return await this.promptResolver.resolve(this.continuationStepId, {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-iteration": String(completedIterations),
         "uv-previous_summary": summaryText,

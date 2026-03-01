@@ -9,6 +9,7 @@ main() {
 
   check_deno
   check_climpt_init
+  clear_claude_env
 
   # Verify iterate-agent task exists in deno.json
   local task_list
