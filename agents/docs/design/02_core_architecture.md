@@ -55,6 +55,34 @@ Completion Loop の起動トリガーである。closing intent 自体は Agent 
 Flow ループは「前へ進むための重力」、Completion ループは「外に漏れないための
 境界」として働き、互いに役割を奪わない。
 
+## イテレーション構造
+
+二重ループモデルを iteration 単位で展開すると、以下の構造になる。
+
+```
+start (init)
+  ↓
+Flow Loop（steps_registry.json が定義）
+  iteration 1: registry で指定された entry step を実行し、
+               structuredGate で次の step を決める
+  iteration 2: 直前の結果に基づいて次ステップを実行
+  …
+  iteration N: completionSignal が出るまで同じ要領で繰り返す
+  ↓
+Completion Loop（単発手続き）
+  Stage 1: Closure Prompt
+  Stage 2: Validation
+  Stage 3: Verdict（完了 or retry）
+```
+
+- Flow Loop の各 iteration では、`steps_registry.json` が定めたステップの中から
+  実行すべきものを structuredGate の intent routing で選ぶ。
+- Completion Loop はその iteration で
+  `completionSignal`（`next_action.action:
+  "closing"`）が出た場合だけ動く単発処理である。
+- Verdict が `done: false` を返した場合、`retryPrompt` が Flow Loop の次の
+  iteration に注入され、ループは継続する。
+
 ## Basic Loop (Flow)
 
 - **What**: `steps_registry.json` の `entryStep` から始まり、各 Step が宣言する
