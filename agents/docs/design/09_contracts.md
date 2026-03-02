@@ -113,9 +113,64 @@ VerdictHandler の責務外:
   ✗ transitions テーブルの参照 (→ WorkflowRouter)
 ```
 
+### StepMachineVerdictHandler と steps_registry.json
+
+**他の VerdictType との根本的な違い**
+
+他の VerdictType は「条件を満たしたら完了」である。
+
+- `count:iteration` — 指定回数まわったら完了
+- `detect:keyword` — キーワードが出たら完了
+- `poll:state` — 外部リソースが目標状態に達したら完了
+
+これらは **やったかどうか** だけを見る。ステップの成果物が正しいかは問わない。
+
+StepMachine (`detect:graph`) だけが異なる。StepMachine は
+**やったことが契約どおりに為されているか** を確認する。steps_registry.json に
+宣言されたステップの入力条件（uvVariables・C3L パス）と出力仕様
+（outputSchemaRef・handoff 項目）を、実行結果の structured output と突き合わせ、
+契約を満たしていなければ同じステップに差し戻す（repeat でやり直させる）。
+契約を満たして初めて次のステップへ遷移し、step graph の終端に到達したとき Agent
+完了となる。
+
+```
+他の VerdictType:
+  実行した → 条件チェック（回数/キーワード/外部状態）→ 完了
+
+StepMachine:
+  実行した → ステップ契約と突き合わせ → 不一致なら差し戻し
+                                        → 一致なら次ステップへ
+                                        → 終端到達で完了
+```
+
+**Why: registry を直接読む必然性**
+
+Flow ループは steps_registry.json から遷移先の stepId を決めるだけであり、
+ステップ固有の C3L パス・uvVariables・outputSchemaRef 等の情報を Completion
+ループへ渡さない。そのため StepMachineVerdictHandler 自身が registry
+を直接読み、 現在の stepId に対応するプロンプト・schema・handoff
+項目を取得したうえで、 返ってきた structured output が契約どおりかを判定する。
+
+```
+判定プロセス（StepMachineVerdictHandler）:
+
+① steps_registry.json から現在の stepId の定義を取得
+   - C3L パス (prompts 参照)
+   - outputSchemaRef (期待する出力構造)
+   - uvVariables / handoff 項目 (入力条件)
+
+② LLM の structured output を ① の定義と突き合わせ
+   - schema が期待する構造を満たしているか
+   - handoff に宣言された項目が出力に含まれるか
+
+③ 一致 → step graph 上の遷移を進める
+   不一致 → retryPrompt を生成し同じステップへ差し戻す
+   終端到達 → Agent 完了
+```
+
 StepMachineVerdictHandler が内部に遷移ロジック (transition, getNextStep) を
 持つのは、Completion Loop 内での step context 維持と prompt
-生成に必要だからであり、 Flow ループの遷移決定を代行するためではない。 Flow
+生成に必要だからであり、Flow ループの遷移決定を代行するためではない。Flow
 ループでの遷移は常に FlowOrchestrator が担う。
 
 **Structured Output 統合**:
