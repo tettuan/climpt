@@ -14,10 +14,10 @@ main() {
 
   # Install Climpt globally from local repo code (-f to overwrite existing)
   info "Installing climpt globally from repo..."
-  run_example deno install -g -f -A "$REPO_ROOT/cli.ts"
+  run_example deno install -g --name climpt --root .deno -f -A "$REPO_ROOT/cli.ts"
 
   # Add .deno/bin to PATH for verification (Deno installs binaries there)
-  export PATH="${REPO_ROOT}/.deno/bin:${HOME}/.deno/bin:${PATH}"
+  export PATH="${EXAMPLES_DIR}/.deno/bin:${PATH}"
 
   # Verify installation
   info "Verifying installation..."

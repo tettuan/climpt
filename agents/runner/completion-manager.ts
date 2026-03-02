@@ -131,16 +131,16 @@ export class CompletionManager {
         );
       }
 
+      // Store registry before capability checks — FlowOrchestrator needs it
+      // even when no extended capabilities (completionPatterns/validators/structuredGate) exist.
+      this.stepsRegistry = registry;
+
       if (!hasCompletionChain && !hasFlowRouting) {
         logger.debug(
           "Registry has no extended capabilities (no completionPatterns, validators, or structuredGate), skipping setup",
         );
         return;
       }
-
-      // Store registry with proper typing
-      const stepsRegistry: ExtendedStepsRegistry = registry;
-      this.stepsRegistry = stepsRegistry;
 
       const capabilities: string[] = [];
       if (hasCompletionChain) capabilities.push("CompletionChain");
