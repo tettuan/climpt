@@ -13,8 +13,8 @@ main() {
 
   # List all available documentation packages
   info "Listing available documentation..."
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs list
-  output=$(deno run -A jsr:@aidevtool/climpt/docs list 2>&1) \
+  show_cmd "deno run -A $REPO_ROOT/docs.ts list"
+  output=$(${CLIMPT_DOCS} list 2>&1) \
     || { error "FAIL: docs list command failed"; return 1; }
   if [[ -z "$output" ]]; then
     error "FAIL: docs list produced empty output"; return 1

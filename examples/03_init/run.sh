@@ -11,10 +11,16 @@ main() {
 
   check_deno
 
-  # Run climpt init to scaffold the project (use deno run to avoid global install dependency)
+  # Run climpt init to scaffold the project (use repo code, not JSR)
   # --force allows idempotent re-runs when .agent/climpt already exists
   info "Running climpt init..."
-  run_example deno run -A jsr:@aidevtool/climpt init --force
+  run_example ${CLIMPT} init --force
+
+  # Deploy fixtures: test and git domain configs + prompts
+  info "Deploying fixtures..."
+  cp -r "${EXAMPLES_DIR}/fixtures/config/"* "${CLIMPT_CONFIG_DIR}/"
+  cp -r "${EXAMPLES_DIR}/fixtures/prompts/"* "${CLIMPT_PROMPTS_DIR}/"
+  success "Fixtures deployed to ${CLIMPT_CONFIG_DIR}/ and ${CLIMPT_PROMPTS_DIR}/"
 
   # Verify created directories
   local fail=0

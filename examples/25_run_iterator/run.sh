@@ -15,13 +15,11 @@ main() {
   check_climpt_init
   clear_claude_env
 
-  # Verify iterate-agent task exists in deno.json
-  local task_list
-  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
-  if ! echo "$task_list" | grep -q "iterate-agent"; then
-    error "FAIL: 'iterate-agent' task not found in deno.json"; return 1
+  # Verify agent runner entry point exists
+  if [[ ! -f "$REPO_ROOT/agents/scripts/run-agent.ts" ]]; then
+    error "FAIL: agents/scripts/run-agent.ts not found"; return 1
   fi
-  success "PASS: iterate-agent task exists"
+  success "PASS: agent runner script exists"
 
   # Init agent under examples/.agent/ if not present
   if [[ ! -d ".agent/${AGENT_NAME}" ]]; then

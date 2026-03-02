@@ -9,15 +9,11 @@ source "${EXAMPLES_DIR}/common_functions.sh"
 main() {
   info "=== List Available Agents ==="
 
-  # 1. Verify iterate-agent/review-agent tasks exist in deno.json
-  local task_list
-  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
-  for task_name in iterate-agent review-agent; do
-    if ! echo "$task_list" | grep -q "$task_name"; then
-      error "FAIL: '${task_name}' task not found in deno.json"; return 1
-    fi
-  done
-  success "PASS: iterate-agent and review-agent tasks exist"
+  # 1. Verify agent runner entry point exists
+  if [[ ! -f "$REPO_ROOT/agents/scripts/run-agent.ts" ]]; then
+    error "FAIL: agents/scripts/run-agent.ts not found"; return 1
+  fi
+  success "PASS: agent runner script exists"
 
   # 2. List .agent/*/agent.json excluding climpt/
   info "User-defined agent configs (.agent/*/agent.json):"
@@ -34,12 +30,6 @@ main() {
     error "FAIL: no user-defined agent configs found"; return 1
   fi
   success "PASS: found ${found_agents} user-defined agent config(s)"
-
-  # 3. Verify agents/scripts/run-agent.ts exists
-  if [[ ! -f "${REPO_ROOT}/agents/scripts/run-agent.ts" ]]; then
-    error "FAIL: agents/scripts/run-agent.ts not found"; return 1
-  fi
-  success "PASS: agent runner script exists"
 }
 
 main "$@"

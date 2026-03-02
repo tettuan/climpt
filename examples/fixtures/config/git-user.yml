@@ -1,0 +1,7 @@
+# Breakdown Configuration
+params:
+  two:
+    directiveType:
+      pattern: "^(find-oldest|merge-up|group-commit|list-select|decide-branch)$"
+    layerType:
+      pattern: "^(descendant-branch|base-branch|unstaged-changes|pr-branch|working-branch)$"

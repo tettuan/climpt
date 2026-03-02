@@ -38,7 +38,8 @@ main() {
   # Clean temp files from common_functions
   cleanup_temp_files "."
 
-  success "Cleanup complete. Example scripts are preserved."
+  # Note: examples/fixtures/ is NOT cleaned — it is a permanent fixture directory
+  success "Cleanup complete. Example scripts and fixtures are preserved."
 }
 
 main "$@"

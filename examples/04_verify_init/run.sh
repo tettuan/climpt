@@ -30,6 +30,23 @@ main() {
     error "FAIL: Prompts directory not found: ${CLIMPT_PROMPTS_DIR}"; return 1
   fi
 
+  # Verify fixture deployment (test and git domains)
+  local fixture_fail=0
+  for cfg in test-app.yml test-user.yml git-app.yml git-user.yml; do
+    if [[ ! -f "${CLIMPT_CONFIG_DIR}/${cfg}" ]]; then
+      error "FAIL: fixture config not found: ${CLIMPT_CONFIG_DIR}/${cfg}"
+      fixture_fail=1
+    fi
+  done
+  for prompt in test/echo/input/f_default.md test/run/specific/f_default.md git/decide-branch/working-branch/f_default.md; do
+    if [[ ! -f "${CLIMPT_PROMPTS_DIR}/${prompt}" ]]; then
+      error "FAIL: fixture prompt not found: ${CLIMPT_PROMPTS_DIR}/${prompt}"
+      fixture_fail=1
+    fi
+  done
+  if [[ $fixture_fail -ne 0 ]]; then return 1; fi
+  success "PASS: fixture configs and prompts deployed"
+
   success "PASS: init directories verified"
 
   # --- Reference: available init options (not executed) ---

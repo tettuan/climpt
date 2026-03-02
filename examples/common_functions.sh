@@ -16,6 +16,11 @@ CLIMPT_DIR=".agent/climpt"
 CLIMPT_CONFIG_DIR="${CLIMPT_DIR}/config"
 CLIMPT_PROMPTS_DIR="${CLIMPT_DIR}/prompts"
 
+# Execution entry points — use repo code, not JSR
+CLIMPT="deno run -A ${REPO_ROOT}/mod.ts"
+CLIMPT_DOCS="deno run -A ${REPO_ROOT}/docs.ts"
+CLIMPT_MCP="deno run -A ${REPO_ROOT}/mcp.ts"
+
 # Colors (disabled when stdout is not a terminal)
 if [[ -t 1 ]]; then
   RED='\033[0;31m'
@@ -116,6 +121,7 @@ clear_claude_env() {
 }
 
 export EXAMPLES_DIR REPO_ROOT
+export CLIMPT CLIMPT_DOCS CLIMPT_MCP
 export -f info success warn error show_cmd
 export -f check_deno check_climpt_init check_command
 export -f cleanup_temp_files run_example
