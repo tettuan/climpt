@@ -151,9 +151,6 @@ deno task agent --list
 # Run with GitHub Issue
 deno task agent --agent {name} --issue {number}
 
-# Run with GitHub Project
-deno task agent --agent {name} --project {number}
-
 # Run in iterate mode
 deno task agent --agent {name} --iterate-max 10
 ```
