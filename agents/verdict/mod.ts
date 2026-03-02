@@ -72,11 +72,7 @@ export {
 } from "./composite.ts";
 
 // stepMachine - Complete when step state machine reaches terminal
-export {
-  StepMachineVerdictHandler,
-  type StepState,
-  type StepTransition,
-} from "./step-machine.ts";
+export { StepMachineVerdictHandler, type StepState } from "./step-machine.ts";
 
 // Re-export type utilities from src_common/types.ts
 export { ALL_VERDICT_TYPES } from "../src_common/types.ts";

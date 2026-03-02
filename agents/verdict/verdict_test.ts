@@ -931,8 +931,6 @@ Deno.test("StepMachineVerdictHandler - initialization", () => {
   assertEquals(state.currentStepId, "initial.test");
   assertEquals(state.stepIteration, 0);
   assertEquals(state.totalIterations, 0);
-  assertEquals(state.retryCount, 0);
-  assertEquals(state.isComplete, false);
 });
 
 Deno.test("StepMachineVerdictHandler - initialization with entry step", () => {
@@ -946,171 +944,12 @@ Deno.test("StepMachineVerdictHandler - initialization with entry step", () => {
   assertEquals(state.currentStepId, "continuation.test");
 });
 
-Deno.test("StepMachineVerdictHandler - getStepContext returns context", () => {
-  const registry = createMockStepsRegistry();
-  const handler = new StepMachineVerdictHandler(registry);
-
-  const context = handler.getStepContext();
-  assertExists(context);
-  assertExists(context.outputs);
-});
-
-Deno.test("StepMachineVerdictHandler - recordStepOutput stores data", () => {
-  const registry = createMockStepsRegistry();
-  const handler = new StepMachineVerdictHandler(registry);
-
-  handler.recordStepOutput("step1", { result: "success", value: 42 });
-
-  const context = handler.getStepContext();
-  assertEquals(context.get("step1", "result"), "success");
-  assertEquals(context.get("step1", "value"), 42);
-});
-
-Deno.test("StepMachineVerdictHandler - getNextStep initial to continuation", () => {
-  const registry = createMockStepsRegistry();
-  const handler = new StepMachineVerdictHandler(registry);
-
-  const transition = handler.getNextStep({
-    stepId: "initial.test",
-    passed: true,
-  });
-
-  assertEquals(transition.nextStep, "continuation.test");
-  assertEquals(transition.passed, true);
-});
-
-Deno.test("StepMachineVerdictHandler - getNextStep single step to complete", () => {
-  const registry = createMockStepsRegistry({
-    entryStep: "initial.single",
-    steps: {
-      "initial.single": {
-        stepId: "initial.single",
-        name: "Single Step",
-        c2: "initial",
-        c3: "single",
-        edition: "default",
-        fallbackKey: "initial_single",
-        uvVariables: [],
-        usesStdin: false,
-        structuredGate: {
-          allowedIntents: ["next", "closing"],
-          intentField: "next_action.action",
-          intentSchemaRef: "#/test",
-          fallbackIntent: "closing",
-        },
-        transitions: {
-          next: { target: "closure" },
-          closing: { target: "closure" },
-        },
-      },
-    },
-  });
-  const handler = new StepMachineVerdictHandler(registry, "initial.single");
-
-  const transition = handler.getNextStep({
-    stepId: "initial.single",
-    passed: true,
-  });
-
-  assertEquals(transition.nextStep, "closure");
-});
-
-Deno.test("StepMachineVerdictHandler - transition updates state", () => {
-  const registry = createMockStepsRegistry();
-  const handler = new StepMachineVerdictHandler(registry);
-
-  const nextStep = handler.transition({
-    stepId: "initial.test",
-    passed: true,
-  });
-
-  assertEquals(nextStep, "continuation.test");
-
-  const state = handler.getState();
-  assertEquals(state.currentStepId, "continuation.test");
-  assertEquals(state.retryCount, 0);
-});
-
-Deno.test("StepMachineVerdictHandler - transition to complete", () => {
-  const registry = createMockStepsRegistry({
-    entryStep: "initial.only",
-    steps: {
-      "initial.only": {
-        stepId: "initial.only",
-        name: "Only Step",
-        c2: "initial",
-        c3: "only",
-        edition: "default",
-        fallbackKey: "initial_only",
-        uvVariables: [],
-        usesStdin: false,
-        structuredGate: {
-          allowedIntents: ["next", "closing"],
-          intentField: "next_action.action",
-          intentSchemaRef: "#/test",
-          fallbackIntent: "closing",
-        },
-        transitions: {
-          next: { target: "closure" },
-          closing: { target: "closure" },
-        },
-      },
-    },
-  });
-  const handler = new StepMachineVerdictHandler(registry, "initial.only");
-
-  const nextStep = handler.transition({
-    stepId: "initial.only",
-    passed: true,
-  });
-
-  assertEquals(nextStep, "closure");
-
-  const state = handler.getState();
-  assertEquals(state.isComplete, true);
-  assertExists(state.verdictReason);
-});
-
 Deno.test("StepMachineVerdictHandler - isFinishedfalse initially", async () => {
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
 
   const complete = await handler.isFinished();
   assertEquals(complete, false);
-});
-
-Deno.test("StepMachineVerdictHandler - isFinishedtrue after transition to complete", async () => {
-  const registry = createMockStepsRegistry({
-    entryStep: "initial.final",
-    steps: {
-      "initial.final": {
-        stepId: "initial.final",
-        name: "Final Step",
-        c2: "initial",
-        c3: "final",
-        edition: "default",
-        fallbackKey: "initial_final",
-        uvVariables: [],
-        usesStdin: false,
-        structuredGate: {
-          allowedIntents: ["next", "closing"],
-          intentField: "next_action.action",
-          intentSchemaRef: "#/test",
-          fallbackIntent: "closing",
-        },
-        transitions: {
-          next: { target: "closure" },
-          closing: { target: "closure" },
-        },
-      },
-    },
-  });
-  const handler = new StepMachineVerdictHandler(registry, "initial.final");
-
-  handler.transition({ stepId: "initial.final", passed: true });
-
-  const complete = await handler.isFinished();
-  assertEquals(complete, true);
 });
 
 Deno.test("StepMachineVerdictHandler - isFinishedwith structured output status=completed", async () => {
@@ -1179,61 +1018,22 @@ Deno.test("StepMachineVerdictHandler - getVerdictDescription not complete", asyn
   assertEquals(desc.includes("Step"), true);
 });
 
-Deno.test("StepMachineVerdictHandler - getVerdictDescription when complete", async () => {
-  const registry = createMockStepsRegistry({
-    entryStep: "initial.end",
-    steps: {
-      "initial.end": {
-        stepId: "initial.end",
-        name: "End Step",
-        c2: "initial",
-        c3: "end",
-        edition: "default",
-        fallbackKey: "initial_end",
-        uvVariables: [],
-        usesStdin: false,
-        structuredGate: {
-          allowedIntents: ["next", "closing"],
-          intentField: "next_action.action",
-          intentSchemaRef: "#/test",
-          fallbackIntent: "closing",
-        },
-        transitions: {
-          next: { target: "closure" },
-          closing: { target: "closure" },
-        },
-      },
-    },
-  });
-  const handler = new StepMachineVerdictHandler(registry, "initial.end");
-
-  handler.transition({ stepId: "initial.end", passed: true });
-
-  const desc = await handler.getVerdictDescription();
-
-  // Description should indicate completion via transition
-  assertEquals(
-    desc.includes("Transition") ||
-      desc.includes("complete") ||
-      desc.includes("intent"),
-    true,
-  );
-});
-
-Deno.test("StepMachineVerdictHandler - step context toUV converts outputs", () => {
+Deno.test("StepMachineVerdictHandler - getVerdictDescription when complete via structured output", async () => {
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
 
-  handler.recordStepOutput("step1", { result: "success", count: 10 });
-
-  const context = handler.getStepContext();
-  const uvVars = context.toUV({
-    result: { from: "step1.result" },
-    count: { from: "step1.count" },
+  const summary = createMockIterationSummary({
+    structuredOutput: { status: "completed" },
   });
+  handler.setCurrentSummary(summary);
 
-  assertEquals(uvVars["uv-result"], "success");
-  assertEquals(uvVars["uv-count"], "10");
+  const desc = await handler.getVerdictDescription();
+
+  // Description should indicate AI declared completion
+  assertEquals(
+    desc.includes("completion") || desc.includes("complete"),
+    true,
+  );
 });
 
 // =============================================================================
@@ -1774,15 +1574,16 @@ Deno.test("StepMachineVerdictHandler + resolver - buildContinuationPrompt resolv
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.test");
 });
 
-Deno.test("StepMachineVerdictHandler + resolver - stepId changes after transition", async () => {
+Deno.test("StepMachineVerdictHandler + resolver - entryStep determines initial stepId", async () => {
   const mock = new MockPromptResolver();
   const registry = createMockStepsRegistry();
-  const handler = new StepMachineVerdictHandler(registry);
+  const handler = new StepMachineVerdictHandler(
+    registry,
+    "continuation.test",
+  );
   handler.setPromptResolver(
     mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
   );
-
-  handler.transition({ stepId: "initial.test", passed: true });
 
   const prompt = await handler.buildContinuationPrompt(2);
 

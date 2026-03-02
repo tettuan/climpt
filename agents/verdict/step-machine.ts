@@ -8,7 +8,6 @@
  */
 
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import type { StepContext, StepResult } from "../src_common/contracts.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import {
@@ -16,9 +15,7 @@ import {
   type IterationSummary,
   type VerdictCriteria,
 } from "./types.ts";
-import { StepContextImpl } from "../loop/step-context.ts";
 import { PATHS } from "../shared/paths.ts";
-import { STEP_PHASE } from "../shared/step-phases.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
@@ -33,24 +30,6 @@ export interface StepState {
   stepIteration: number;
   /** Total iterations across all steps */
   totalIterations: number;
-  /** Number of retries for current step */
-  retryCount: number;
-  /** Whether execution is complete */
-  isComplete: boolean;
-  /** Reason for completion if complete */
-  verdictReason?: string;
-}
-
-/**
- * Step transition result
- */
-export interface StepTransition {
-  /** Next step ID or STEP_PHASE.CLOSURE */
-  nextStep: string | typeof STEP_PHASE.CLOSURE;
-  /** Whether current step passed */
-  passed: boolean;
-  /** Reason for transition */
-  reason?: string;
 }
 
 /**
@@ -58,16 +37,16 @@ export interface StepTransition {
  *
  * Orchestrates multi-step agent execution by:
  * 1. Tracking current step and iteration
- * 2. Managing step transitions based on registry
- * 3. Passing data between steps via StepContext
- * 4. Determining completion when terminal state reached
+ * 2. Determining completion when structured output signals terminal state
+ *
+ * Step transitions and data passing are handled by FlowOrchestrator.
  */
 export class StepMachineVerdictHandler extends BaseVerdictHandler {
   readonly type = "stepMachine" as const;
 
   private promptResolver?: PromptResolver;
   private state: StepState;
-  private stepContext: StepContextImpl;
+  private verdictReason?: string;
   private lastSummary?: IterationSummary;
 
   constructor(
@@ -83,18 +62,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
       currentStepId: initialStep,
       stepIteration: 0,
       totalIterations: 0,
-      retryCount: 0,
-      isComplete: false,
     };
-
-    this.stepContext = new StepContextImpl();
-  }
-
-  /**
-   * Get the step context for data passing between steps
-   */
-  getStepContext(): StepContext {
-    return this.stepContext;
   }
 
   /**
@@ -143,102 +111,6 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
    */
   private getStepDefinition(stepId: string): PromptStepDefinition | undefined {
     return this.registry.steps[stepId] as PromptStepDefinition | undefined;
-  }
-
-  /**
-   * Get next step based on current step result.
-   *
-   * All Flow steps must define transitions in the step definition.
-   * No implicit fallback is allowed - missing transitions will throw an error.
-   */
-  getNextStep(result: StepResult): StepTransition {
-    const { stepId, passed } = result;
-    const stepDef = this.registry.steps[stepId];
-
-    if (!stepDef) {
-      throw new Error(
-        `[StepMachine] Step "${stepId}" not found in registry. ` +
-          `Check ${PATHS.STEPS_REGISTRY} for missing step definition.`,
-      );
-    }
-
-    if (!stepDef.transitions) {
-      throw new Error(
-        `[StepMachine] Step "${stepId}" has no transitions defined. ` +
-          `All Flow steps must define transitions. ` +
-          `Add a "transitions" object to the step definition in ${PATHS.STEPS_REGISTRY}.`,
-      );
-    }
-
-    const intent = passed ? "next" : "repeat";
-    const rule = stepDef.transitions[intent];
-
-    if (!rule) {
-      throw new Error(
-        `[StepMachine] Step "${stepId}" has no transition for intent "${intent}". ` +
-          `Add "${intent}" to the transitions object in ${PATHS.STEPS_REGISTRY}.`,
-      );
-    }
-
-    if (!("target" in rule)) {
-      throw new Error(
-        `[StepMachine] Step "${stepId}" transition for "${intent}" has no target. ` +
-          `Conditional transitions are not yet supported. Use { "target": "..." } format.`,
-      );
-    }
-
-    // target: null, "complete", or STEP_PHASE.CLOSURE all signal completion
-    // STEP_PHASE.CLOSURE is the canonical name; "complete" kept for backward compatibility
-    let nextStep: string;
-    if (
-      rule.target === null ||
-      rule.target === "complete" ||
-      rule.target === STEP_PHASE.CLOSURE
-    ) {
-      nextStep = STEP_PHASE.CLOSURE;
-    } else {
-      nextStep = rule.target;
-    }
-
-    return {
-      nextStep,
-      passed,
-      reason: `Transition via ${intent} intent`,
-    };
-  }
-
-  /**
-   * Transition to next step
-   */
-  transition(result: StepResult): string | typeof STEP_PHASE.CLOSURE {
-    const nextStep = this.getNextStep(result);
-
-    if (nextStep.nextStep === STEP_PHASE.CLOSURE) {
-      this.state.isComplete = true;
-      this.state.verdictReason = nextStep.reason ??
-        "Step machine reached terminal state";
-      return STEP_PHASE.CLOSURE;
-    }
-
-    // Update state for transition
-    if (nextStep.nextStep === this.state.currentStepId) {
-      // Retry - increment retry count
-      this.state.retryCount++;
-    } else {
-      // New step - reset retry count
-      this.state.currentStepId = nextStep.nextStep;
-      this.state.retryCount = 0;
-      this.state.stepIteration = 0;
-    }
-
-    return nextStep.nextStep;
-  }
-
-  /**
-   * Record step output to context
-   */
-  recordStepOutput(stepId: string, output: Record<string, unknown>): void {
-    this.stepContext.set(stepId, output);
   }
 
   async buildInitialPrompt(): Promise<string> {
@@ -324,7 +196,6 @@ Continue working on step: ${this.state.currentStepId}
 
 - Total iterations: ${completedIterations}
 - Step iterations: ${this.state.stepIteration}
-- Retry count: ${this.state.retryCount}
 
 ${summarySection}
 
@@ -376,19 +247,13 @@ ${this.buildStepInstructions(stepDef)}
   }
 
   isFinished(): Promise<boolean> {
-    // Check if marked complete by transition
-    if (this.state.isComplete) {
-      return Promise.resolve(COMPLETE);
-    }
-
     // Check if last summary has completion signal
     if (this.lastSummary?.structuredOutput) {
       const so = this.lastSummary.structuredOutput;
 
       // Check for explicit completion status
       if (so.status === "completed" || so.complete === true) {
-        this.state.isComplete = true;
-        this.state.verdictReason = "AI declared completion";
+        this.verdictReason = "AI declared completion";
         return Promise.resolve(COMPLETE);
       }
 
@@ -396,8 +261,7 @@ ${this.buildStepInstructions(stepDef)}
       if (typeof so.next_action === "object" && so.next_action !== null) {
         const nextAction = so.next_action as Record<string, unknown>;
         if (nextAction.action === "complete") {
-          this.state.isComplete = true;
-          this.state.verdictReason = "AI requested completion action";
+          this.verdictReason = "AI requested completion action";
           return Promise.resolve(COMPLETE);
         }
       }
@@ -409,7 +273,7 @@ ${this.buildStepInstructions(stepDef)}
   async getVerdictDescription(): Promise<string> {
     const complete = await this.isFinished();
     if (complete) {
-      return this.state.verdictReason ?? "Step machine complete";
+      return this.verdictReason ?? "Step machine complete";
     }
     return `Step ${this.state.currentStepId}, iteration ${this.state.stepIteration}, total ${this.state.totalIterations}`;
   }
