@@ -343,7 +343,7 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
         },
       },
       verdict: {
-        type: "externalState",
+        type: "poll:state",
         config: { maxIterations: 10 },
       },
       boundaries: {
@@ -358,15 +358,13 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
     },
   };
 
-  // Use reflection to test private method behavior
-  // We verify the expected stepId format based on the implementation
+  // Verify verdictType is set correctly
   const verdictType = definition.runner.verdict.type;
+  assertEquals(verdictType, "poll:state");
 
-  // iteration 1 -> initial.{verdictType}
-  assertEquals(`initial.${verdictType}`, "initial.externalState");
-
-  // iteration 2+ -> continuation.{verdictType}
-  assertEquals(`continuation.${verdictType}`, "continuation.externalState");
+  // Step IDs are resolved via entryStepMapping, not by concatenation.
+  // The mapping from verdict type to step ID is configured in steps_registry.json.
+  // e.g., "poll:state" -> "initial.externalState" (the step ID is independent of verdict type name)
 });
 
 /**

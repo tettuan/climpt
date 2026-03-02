@@ -40,7 +40,7 @@ function createValidDefinition(): AgentDefinition {
         },
       },
       verdict: {
-        type: "iterationBudget",
+        type: "count:iteration",
         config: { maxIterations: 10 },
       },
       boundaries: {
@@ -293,9 +293,9 @@ Deno.test("validateAgentDefinition - invalid permissionMode fails", () => {
 // validateAgentDefinition Tests - Verdict Type Specific
 // =============================================================================
 
-Deno.test("validateAgentDefinition - iterationBudget type requires maxIterations", () => {
+Deno.test("validateAgentDefinition - count:iteration type requires maxIterations", () => {
   const def = createValidDefinition();
-  def.runner.verdict.type = "iterationBudget";
+  def.runner.verdict.type = "count:iteration";
   def.runner.verdict.config = {}; // Missing maxIterations
 
   const result = validateAgentDefinition(def);
@@ -304,9 +304,9 @@ Deno.test("validateAgentDefinition - iterationBudget type requires maxIterations
   assertEquals(result.errors.some((e) => e.includes("maxIterations")), true);
 });
 
-Deno.test("validateAgentDefinition - iterationBudget with negative maxIterations fails", () => {
+Deno.test("validateAgentDefinition - count:iteration with negative maxIterations fails", () => {
   const def = createValidDefinition();
-  def.runner.verdict.type = "iterationBudget";
+  def.runner.verdict.type = "count:iteration";
   def.runner.verdict.config = { maxIterations: -1 };
 
   const result = validateAgentDefinition(def);
@@ -315,9 +315,9 @@ Deno.test("validateAgentDefinition - iterationBudget with negative maxIterations
   assertEquals(result.errors.some((e) => e.includes("maxIterations")), true);
 });
 
-Deno.test("validateAgentDefinition - keywordSignal type requires verdictKeyword", () => {
+Deno.test("validateAgentDefinition - detect:keyword type requires verdictKeyword", () => {
   const def = createValidDefinition();
-  def.runner.verdict.type = "keywordSignal";
+  def.runner.verdict.type = "detect:keyword";
   def.runner.verdict.config = {}; // Missing verdictKeyword
 
   const result = validateAgentDefinition(def);
@@ -331,7 +331,7 @@ Deno.test("validateAgentDefinition - keywordSignal type requires verdictKeyword"
 
 Deno.test("validateAgentDefinition - custom type requires handlerPath", () => {
   const def = createValidDefinition();
-  def.runner.verdict.type = "custom";
+  def.runner.verdict.type = "meta:custom";
   def.runner.verdict.config = {}; // Missing handlerPath
 
   const result = validateAgentDefinition(def);
@@ -342,10 +342,10 @@ Deno.test("validateAgentDefinition - custom type requires handlerPath", () => {
 
 Deno.test("validateAgentDefinition - composite type requires conditions", () => {
   const def = createValidDefinition();
-  def.runner.verdict.type = "composite";
+  def.runner.verdict.type = "meta:composite";
   def.runner.verdict.config = {
     operator: "and",
-    conditions: [{ type: "iterationBudget", config: { maxIterations: 5 } }],
+    conditions: [{ type: "count:iteration", config: { maxIterations: 5 } }],
   };
 
   const result = validateAgentDefinition(def);

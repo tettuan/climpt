@@ -266,10 +266,10 @@ function validateVerdictConfig(
   }
 
   switch (verdictType as VerdictType) {
-    case "iterationBudget":
+    case "count:iteration":
       if (!config.maxIterations) {
         errors.push(
-          "runner.verdict.config.maxIterations is required for iterationBudget verdict type",
+          "runner.verdict.config.maxIterations is required for count:iteration verdict type",
         );
       } else if (
         typeof config.maxIterations !== "number" ||
@@ -281,26 +281,26 @@ function validateVerdictConfig(
       }
       break;
 
-    case "keywordSignal":
+    case "detect:keyword":
       if (!config.verdictKeyword) {
         errors.push(
-          "runner.verdict.config.verdictKeyword is required for keywordSignal verdict type",
+          "runner.verdict.config.verdictKeyword is required for detect:keyword verdict type",
         );
       }
       break;
 
-    case "custom":
+    case "meta:custom":
       if (!config.handlerPath) {
         errors.push(
-          "runner.verdict.config.handlerPath is required for custom verdict type",
+          "runner.verdict.config.handlerPath is required for meta:custom verdict type",
         );
       }
       break;
 
-    case "checkBudget":
+    case "count:check":
       if (!config.maxChecks) {
         errors.push(
-          "runner.verdict.config.maxChecks is required for checkBudget verdict type",
+          "runner.verdict.config.maxChecks is required for count:check verdict type",
         );
       } else if (
         typeof config.maxChecks !== "number" ||
@@ -312,18 +312,18 @@ function validateVerdictConfig(
       }
       break;
 
-    case "structuredSignal":
+    case "detect:structured":
       if (!config.signalType) {
         errors.push(
-          "runner.verdict.config.signalType is required for structuredSignal verdict type",
+          "runner.verdict.config.signalType is required for detect:structured verdict type",
         );
       }
       break;
 
-    case "composite":
+    case "meta:composite":
       if (!config.operator) {
         errors.push(
-          "runner.verdict.config.operator is required for composite verdict type",
+          "runner.verdict.config.operator is required for meta:composite verdict type",
         );
       }
       if (
@@ -332,14 +332,14 @@ function validateVerdictConfig(
         config.conditions.length === 0
       ) {
         errors.push(
-          "runner.verdict.config.conditions is required for composite verdict type",
+          "runner.verdict.config.conditions is required for meta:composite verdict type",
         );
       }
       break;
 
-    // stepMachine, externalState - use runtime parameters, no strict validation here
-    case "stepMachine":
-    case "externalState":
+    // detect:graph, poll:state - use runtime parameters, no strict validation here
+    case "detect:graph":
+    case "poll:state":
       break;
   }
 }

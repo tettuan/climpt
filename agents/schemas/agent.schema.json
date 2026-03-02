@@ -133,16 +133,16 @@
         "type": {
           "type": "string",
           "enum": [
-            "externalState",
-            "iterationBudget",
-            "checkBudget",
-            "keywordSignal",
-            "structuredSignal",
-            "stepMachine",
-            "composite",
-            "custom"
+            "poll:state",
+            "count:iteration",
+            "count:check",
+            "detect:keyword",
+            "detect:structured",
+            "detect:graph",
+            "meta:composite",
+            "meta:custom"
           ],
-          "description": "How the agent determines verdict. Types: externalState (external resource state), iterationBudget (N iterations), checkBudget (N checks), keywordSignal (keyword output), structuredSignal (JSON output), stepMachine (step state machine), composite (combined conditions), custom (external handler)."
+          "description": "How the agent determines verdict. Types: poll:state (external resource state), count:iteration (N iterations), count:check (N checks), detect:keyword (keyword output), detect:structured (JSON output), detect:graph (step state machine), meta:composite (combined conditions), meta:custom (external handler)."
         },
         "config": {
           "type": "object",
@@ -151,37 +151,37 @@
             "maxIterations": {
               "type": "number",
               "minimum": 1,
-              "description": "Maximum iterations (for iterationBudget type)"
+              "description": "Maximum iterations (for count:iteration type)"
             },
             "verdictKeyword": {
               "type": "string",
-              "description": "Keyword to signal verdict (for keywordSignal type)"
+              "description": "Keyword to signal verdict (for detect:keyword type)"
             },
             "handlerPath": {
               "type": "string",
-              "description": "Path to custom handler (for custom type)"
+              "description": "Path to custom handler (for meta:custom type)"
             },
             "maxChecks": {
               "type": "number",
               "minimum": 1,
-              "description": "Maximum status checks (for checkBudget type)"
+              "description": "Maximum status checks (for count:check type)"
             },
             "resourceType": {
               "type": "string",
               "enum": ["github-issue", "github-project", "file", "api"],
-              "description": "Resource type being monitored (for externalState type)"
+              "description": "Resource type being monitored (for poll:state type)"
             },
             "targetState": {
-              "description": "Target state to match (for externalState type)"
+              "description": "Target state to match (for poll:state type)"
             },
             "operator": {
               "type": "string",
               "enum": ["and", "or", "first"],
-              "description": "Logical operator for combining conditions (for composite type)"
+              "description": "Logical operator for combining conditions (for meta:composite type)"
             },
             "conditions": {
               "type": "array",
-              "description": "Array of verdict conditions (for composite type)",
+              "description": "Array of verdict conditions (for meta:composite type)",
               "items": {
                 "type": "object",
                 "properties": {
@@ -199,19 +199,19 @@
             },
             "signalType": {
               "type": "string",
-              "description": "Action block type to detect (for structuredSignal type)"
+              "description": "Action block type to detect (for detect:structured type)"
             },
             "requiredFields": {
               "type": ["object", "array"],
-              "description": "Required fields for structuredSignal type. Object form: key-value pairs to match. Array form: field names that must exist."
+              "description": "Required fields for detect:structured type. Object form: key-value pairs to match. Array form: field names that must exist."
             },
             "registryPath": {
               "type": "string",
-              "description": "Path to steps registry (for stepMachine type)"
+              "description": "Path to steps registry (for detect:graph type)"
             },
             "entryStep": {
               "type": "string",
-              "description": "Entry step ID (for stepMachine type)"
+              "description": "Entry step ID (for detect:graph type)"
             }
           }
         }

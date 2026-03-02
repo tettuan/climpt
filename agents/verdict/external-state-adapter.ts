@@ -51,7 +51,7 @@ export interface ExternalStateAdapterConfig {
  * - setCurrentSummary() -> stored for future use
  */
 export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
-  readonly type = "externalState" as const;
+  readonly type = "poll:state" as const;
   private promptResolver?: PromptResolver;
   private currentSummary?: IterationSummary;
 

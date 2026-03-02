@@ -61,7 +61,7 @@ export interface IssueContractConfig {
  * ```
  */
 export class IssueVerdictHandler implements ContractVerdictHandler {
-  readonly type: VerdictType = "externalState";
+  readonly type: VerdictType = "poll:state";
 
   private cachedState?: IssueState;
   private lastCheckTime = 0;

@@ -29,7 +29,7 @@ const DEFAULTS = {
       },
     },
     verdict: {
-      type: "iterationBudget" as const,
+      type: "count:iteration" as const,
       config: {
         maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
       },

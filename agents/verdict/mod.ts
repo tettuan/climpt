@@ -4,14 +4,14 @@
  * This module provides verdict handlers for different completion strategies.
  *
  * Verdict types:
- * - externalState: Complete when external resource reaches target state
- * - iterationBudget: Complete after N iterations
- * - checkBudget: Complete after N status checks
- * - keywordSignal: Complete when LLM outputs specific keyword
- * - structuredSignal: Complete when LLM outputs specific JSON signal
- * - stepMachine: Complete when step state machine reaches terminal
- * - composite: Combines multiple conditions with AND/OR logic
- * - custom: Fully custom handler implementation
+ * - poll:state: Complete when external resource reaches target state
+ * - count:iteration: Complete after N iterations
+ * - count:check: Complete after N status checks
+ * - detect:keyword: Complete when LLM outputs specific keyword
+ * - detect:structured: Complete when LLM outputs specific JSON signal
+ * - detect:graph: Complete when step state machine reaches terminal
+ * - meta:composite: Combines multiple conditions with AND/OR logic
+ * - meta:custom: Fully custom handler implementation
  *
  * Contract-compliant Interfaces:
  * - ContractVerdictHandler: Interface with no side effects in check()
@@ -52,16 +52,16 @@ export {
   ExternalStateVerdictAdapter,
 } from "./external-state-adapter.ts";
 
-// iterationBudget - Complete after N iterations
+// count:iteration - Complete after N iterations
 export { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
 
-// keywordSignal - Complete when LLM outputs specific keyword
+// detect:keyword - Complete when LLM outputs specific keyword
 export { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
 
-// checkBudget - Complete after N status checks
+// count:check - Complete after N status checks
 export { CheckBudgetVerdictHandler } from "./check-budget.ts";
 
-// structuredSignal - Complete when LLM outputs specific JSON signal
+// detect:structured - Complete when LLM outputs specific JSON signal
 export { StructuredSignalVerdictHandler } from "./structured-signal.ts";
 
 // composite - Combines multiple conditions with AND/OR logic
@@ -71,7 +71,7 @@ export {
   CompositeVerdictHandler,
 } from "./composite.ts";
 
-// stepMachine - Complete when step state machine reaches terminal
+// detect:graph - Complete when step state machine reaches terminal
 export { StepMachineVerdictHandler, type StepState } from "./step-machine.ts";
 
 // Re-export type utilities from src_common/types.ts

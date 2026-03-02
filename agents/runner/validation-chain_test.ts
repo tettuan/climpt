@@ -178,25 +178,24 @@ Deno.test("ValidationChain - getClosureStepId returns registry step for known ty
   assertEquals(stepId, "closure.issue");
 });
 
-Deno.test("ValidationChain - getClosureStepId returns closure.externalState", () => {
+Deno.test("ValidationChain - getClosureStepId returns closure.externalState for poll:state", () => {
   const chain = createChain();
 
-  const stepId = chain.getClosureStepId("externalState");
+  const stepId = chain.getClosureStepId("poll:state");
 
   assertEquals(stepId, "closure.externalState");
 });
 
-Deno.test("ValidationChain - getClosureStepId type defaults for iterate", () => {
+Deno.test("ValidationChain - getClosureStepId returns closure.iterate for count:iteration", () => {
   const chain = createChain();
 
-  assertEquals(chain.getClosureStepId("iterate"), "closure.iterate");
-  assertEquals(chain.getClosureStepId("iterationBudget"), "closure.iterate");
+  assertEquals(chain.getClosureStepId("count:iteration"), "closure.iterate");
 });
 
 Deno.test("ValidationChain - getClosureStepId falls back to closure.{type}", () => {
   const chain = createChain();
 
-  const stepId = chain.getClosureStepId("custom");
+  const stepId = chain.getClosureStepId("meta:custom");
 
   assertEquals(stepId, "closure.custom");
 });

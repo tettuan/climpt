@@ -46,14 +46,14 @@ function registerHandler(type: string, factory: HandlerFactory): void {
 
 // Register standard handlers
 
-// externalState (was: issue) - Complete when external resource reaches target state
+// poll:state - Complete when external resource reaches target state
 registerHandler(
-  "externalState",
+  "poll:state",
   (args, promptResolver, definition) => {
     const issueNumber = args.issue as number | undefined;
     if (issueNumber === undefined || issueNumber === null) {
       throw new Error(
-        "externalState completion type requires --issue parameter. " +
+        "poll:state completion type requires --issue parameter. " +
           'Ensure agent.json declares issue in "parameters": ' +
           '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
       );
@@ -89,8 +89,8 @@ registerHandler(
   },
 );
 
-// iterationBudget (was: iterate) - Complete after N iterations
-registerHandler("iterationBudget", (_args, promptResolver, definition) => {
+// count:iteration - Complete after N iterations
+registerHandler("count:iteration", (_args, promptResolver, definition) => {
   const iterateHandler = new IterationBudgetVerdictHandler(
     definition.runner.verdict.config.maxIterations ??
       AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
@@ -99,8 +99,8 @@ registerHandler("iterationBudget", (_args, promptResolver, definition) => {
   return iterateHandler;
 });
 
-// keywordSignal (was: manual) - Complete when LLM outputs specific keyword
-registerHandler("keywordSignal", (_args, promptResolver, definition) => {
+// detect:keyword - Complete when LLM outputs specific keyword
+registerHandler("detect:keyword", (_args, promptResolver, definition) => {
   const manualHandler = new KeywordSignalVerdictHandler(
     definition.runner.verdict.config.verdictKeyword ?? "TASK_COMPLETE",
   );
@@ -108,8 +108,8 @@ registerHandler("keywordSignal", (_args, promptResolver, definition) => {
   return manualHandler;
 });
 
-// checkBudget - Complete after N status checks
-registerHandler("checkBudget", (_args, promptResolver, definition) => {
+// count:check - Complete after N status checks
+registerHandler("count:check", (_args, promptResolver, definition) => {
   const checkHandler = new CheckBudgetVerdictHandler(
     definition.runner.verdict.config.maxChecks ?? 10,
   );
@@ -117,11 +117,11 @@ registerHandler("checkBudget", (_args, promptResolver, definition) => {
   return checkHandler;
 });
 
-// structuredSignal - Complete when LLM outputs specific JSON signal
-registerHandler("structuredSignal", (_args, promptResolver, definition) => {
+// detect:structured - Complete when LLM outputs specific JSON signal
+registerHandler("detect:structured", (_args, promptResolver, definition) => {
   if (!definition.runner.verdict.config.signalType) {
     throw new Error(
-      "structuredSignal completion type requires signalType in verdictConfig",
+      "detect:structured completion type requires signalType in verdictConfig",
     );
   }
   const signalHandler = new StructuredSignalVerdictHandler(
@@ -132,28 +132,31 @@ registerHandler("structuredSignal", (_args, promptResolver, definition) => {
   return signalHandler;
 });
 
-// composite - Combines multiple conditions
-registerHandler("composite", (args, promptResolver, definition, agentDir) => {
-  const { config: verdictConfig } = definition.runner.verdict;
-  if (!verdictConfig.conditions || !verdictConfig.operator) {
-    throw new Error(
-      "composite completion type requires conditions and operator in verdictConfig",
-    );
-  }
-  const compositeHandler = new CompositeVerdictHandler(
-    verdictConfig.operator,
-    verdictConfig.conditions,
-    args,
-    agentDir,
-    definition,
-  );
-  compositeHandler.setPromptResolver(promptResolver);
-  return compositeHandler;
-});
-
-// stepMachine (was: stepFlow) - Complete when step state machine reaches terminal
+// meta:composite - Combines multiple conditions
 registerHandler(
-  "stepMachine",
+  "meta:composite",
+  (args, promptResolver, definition, agentDir) => {
+    const { config: verdictConfig } = definition.runner.verdict;
+    if (!verdictConfig.conditions || !verdictConfig.operator) {
+      throw new Error(
+        "composite completion type requires conditions and operator in verdictConfig",
+      );
+    }
+    const compositeHandler = new CompositeVerdictHandler(
+      verdictConfig.operator,
+      verdictConfig.conditions,
+      args,
+      agentDir,
+      definition,
+    );
+    compositeHandler.setPromptResolver(promptResolver);
+    return compositeHandler;
+  },
+);
+
+// detect:graph - Complete when step state machine reaches terminal
+registerHandler(
+  "detect:graph",
   async (_args, promptResolver, definition, agentDir) => {
     const { config: verdictConfig } = definition.runner.verdict;
 
@@ -181,7 +184,7 @@ registerHandler(
       if (error instanceof Deno.errors.NotFound) {
         // deno-lint-ignore no-console
         console.warn(
-          `[stepMachine] Steps registry not found at ${registryPath}, falling back to iterate`,
+          `[detect:graph] Steps registry not found at ${registryPath}, falling back to iterate`,
         );
         const iterateHandler = new IterationBudgetVerdictHandler(
           verdictConfig.maxIterations ??
@@ -195,9 +198,9 @@ registerHandler(
   },
 );
 
-// custom - Fully custom handler implementation
+// meta:custom - Fully custom handler implementation
 registerHandler(
-  "custom",
+  "meta:custom",
   async (_args, _promptResolver, definition, agentDir) => {
     if (!definition.runner.verdict.config.handlerPath) {
       throw new Error(

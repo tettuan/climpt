@@ -44,7 +44,7 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
 }
 
 function createTestDefinition(
-  verdictType: VerdictType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): AgentDefinition {
   return {
     name: "test-flow",
@@ -294,10 +294,10 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   const responses = createMockSdkResponses();
 
   logger.debug("dry-run loop input", {
-    verdictType: "externalState",
+    verdictType: "poll:state",
     responseCount: responses.length,
   });
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
   logger.debug("dry-run loop result", {
     iterations: result.iterations,
     completed: result.completed,
@@ -315,11 +315,11 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   assertEquals(result.pendingRetryPrompt, null);
 });
 
-Deno.test("Dry-run integration - iterationBudget verdictType uses same entry step", async () => {
+Deno.test("Dry-run integration - count:iteration verdictType uses same entry step", async () => {
   const registry = await loadFixtureRegistry();
   const responses = createMockSdkResponses();
 
-  const result = await runDryLoop(registry, "iterationBudget", responses);
+  const result = await runDryLoop(registry, "count:iteration", responses);
 
   assertEquals(result.iterations, 3);
   assertEquals(result.completed, true);
@@ -365,7 +365,7 @@ Deno.test("Dry-run integration - repeat iteration stays on same step", async () 
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 4);
   assertEquals(result.completed, true);
@@ -409,7 +409,7 @@ Deno.test("Dry-run integration - closure repeat delays completion", async () => 
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 4);
   assertEquals(result.completed, true);
@@ -424,7 +424,7 @@ Deno.test("Dry-run integration - closure repeat delays completion", async () => 
 
 Deno.test("Dry-run integration - step context accumulates across steps", async () => {
   const registry = await loadFixtureRegistry();
-  const definition = createTestDefinition("externalState");
+  const definition = createTestDefinition("poll:state");
   const logger = createMockLogger();
   const ctx = createMockContext(logger);
 
@@ -485,7 +485,7 @@ Deno.test("Dry-run integration - stepId normalization corrects LLM-returned step
   const ctx = createMockContext(logger);
 
   const closureManager = new ClosureManager({
-    definition: createTestDefinition("externalState"),
+    definition: createTestDefinition("poll:state"),
     dependencies: {
       loggerFactory: { create: () => Promise.resolve({} as never) },
       verdictHandlerFactory: { create: () => Promise.resolve({} as never) },
@@ -495,7 +495,7 @@ Deno.test("Dry-run integration - stepId normalization corrects LLM-returned step
   closureManager.stepsRegistry = registry;
 
   const flowOrchestrator = new FlowOrchestrator({
-    definition: createTestDefinition("externalState"),
+    definition: createTestDefinition("poll:state"),
     args: {},
     getStepsRegistry: () => closureManager.stepsRegistry,
     getStepGateInterpreter: () => null,
@@ -539,7 +539,7 @@ Deno.test("Dry-run integration - incomplete flow (no closing) does not complete"
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 2);
   assertEquals(result.completed, false);

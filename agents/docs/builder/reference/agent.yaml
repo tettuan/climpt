@@ -111,7 +111,7 @@ parameters:
     cli: "--issue"
     # No default: required parameters must be supplied.
     # Why: The iterator agent is issue-driven; the issue
-    #      number is the primary input for externalState
+    #      number is the primary input for poll:state
     #      verdict and prompt variable injection.
 
   # An optional parameter with a default value
@@ -311,53 +311,53 @@ runner:
     # Required    : yes
     # Options     :
     #
-    #   "externalState"
+    #   "poll:state"
     #     Polls an external resource (e.g., GitHub Issue) and
     #     completes when the resource reaches a target state.
     #     Best for: issue-driven agents.
     #     Requires: --issue parameter.
     #     Config: maxIterations, resourceType, targetState.
     #
-    #   "iterationBudget"
+    #   "count:iteration"
     #     Completes after a fixed number of iterations.
     #     Best for: batch/bulk processing with known scope.
     #     Config: maxIterations (required).
     #
-    #   "checkBudget"
+    #   "count:check"
     #     Completes after N status checks (not iterations).
     #     Best for: polling-heavy workflows.
     #     Config: maxChecks (required).
     #
-    #   "keywordSignal"
+    #   "detect:keyword"
     #     Completes when the agent outputs a specific keyword.
     #     Best for: simple agents with explicit done signals.
     #     Config: verdictKeyword (required).
     #
-    #   "structuredSignal"
+    #   "detect:structured"
     #     Completes when the agent emits a JSON action block
     #     matching required fields.
     #     Best for: agents with structured output contracts.
     #     Config: signalType, requiredFields.
     #
-    #   "stepMachine"
+    #   "detect:graph"
     #     Completes when the step state machine reaches a
     #     terminal step (transition target: null).
     #     Best for: multi-phase workflows with defined end.
     #     Config: registryPath, entryStep.
     #
-    #   "composite"
+    #   "meta:composite"
     #     Combines multiple verdict conditions with a logical
     #     operator (and/or/first).
     #     Best for: complex agents needing multiple signals.
     #     Config: operator, conditions[].
     #
-    #   "custom"
+    #   "meta:custom"
     #     Delegates to an external handler module.
     #     Best for: domain-specific verdict logic.
     #     Config: handlerPath (required).
     #
     # --------------------------------------------------------
-    type: "externalState"
+    type: "poll:state"
 
     # --------------------------------------------------------
     # verdict.config
@@ -370,16 +370,16 @@ runner:
 
       # === Fields by verdict type ===
 
-      # -- maxIterations (externalState, iterationBudget) --
+      # -- maxIterations (poll:state, count:iteration) --
       # Description : Maximum iterations before forced stop.
       # Type        : number (minimum: 1)
       # Default     : none
-      # Why         : Safety cap. For externalState, prevents
+      # Why         : Safety cap. For poll:state, prevents
       #               infinite loops if the resource never
       #               reaches the target state.
       maxIterations: 500
 
-      # -- verdictKeyword (keywordSignal) --
+      # -- verdictKeyword (detect:keyword) --
       # Description : Keyword that signals completion.
       # Type        : string
       # Default     : none
@@ -388,7 +388,7 @@ runner:
       #               exact string to trigger verdict.
       # verdictKeyword: "TASK_COMPLETE"
 
-      # -- handlerPath (custom) --
+      # -- handlerPath (meta:custom) --
       # Description : Path to custom verdict handler module.
       # Type        : string
       # Default     : none
@@ -396,15 +396,15 @@ runner:
       #               matching the VerdictHandler interface.
       # handlerPath: "./verdict/custom-handler.ts"
 
-      # -- maxChecks (checkBudget) --
+      # -- maxChecks (count:check) --
       # Description : Maximum status checks before stop.
       # Type        : number (minimum: 1)
       # Default     : none
-      # Why         : Like iterationBudget but counts external
+      # Why         : Like count:iteration but counts external
       #               status polls, not loop iterations.
       # maxChecks: 20
 
-      # -- resourceType (externalState) --
+      # -- resourceType (poll:state) --
       # Description : Type of external resource to monitor.
       # Type        : string
       # Options     : "github-issue" | "github-project"
@@ -414,7 +414,7 @@ runner:
       #               to use for polling state.
       # resourceType: "github-issue"
 
-      # -- targetState (externalState) --
+      # -- targetState (poll:state) --
       # Description : Desired state of the external resource.
       # Type        : any (string, object, etc.)
       # Default     : none (inferred from context)
@@ -422,7 +422,7 @@ runner:
       #               matches this state.
       # targetState: "closed"
 
-      # -- operator (composite) --
+      # -- operator (meta:composite) --
       # Description : Logical operator for combining verdicts.
       # Type        : string
       # Options     : "and" | "or" | "first"
@@ -432,7 +432,7 @@ runner:
       #               "first" = first condition to fire wins.
       # operator: "and"
 
-      # -- conditions (composite) --
+      # -- conditions (meta:composite) --
       # Description : Array of sub-verdict conditions.
       # Type        : array of {type, config} objects
       # Default     : none
@@ -440,14 +440,14 @@ runner:
       #               (type + config) evaluated by the operator.
       # Example:
       # conditions:
-      #   - type: "externalState"
+      #   - type: "poll:state"
       #     config:
       #       maxIterations: 100
-      #   - type: "keywordSignal"
+      #   - type: "detect:keyword"
       #     config:
       #       verdictKeyword: "ALL_DONE"
 
-      # -- signalType (structuredSignal) --
+      # -- signalType (detect:structured) --
       # Description : Action block type to detect.
       # Type        : string
       # Default     : none
@@ -455,7 +455,7 @@ runner:
       #               whose "type" field matches this value.
       # signalType: "completion-signal"
 
-      # -- requiredFields (structuredSignal) --
+      # -- requiredFields (detect:structured) --
       # Description : Required field values in the signal.
       # Type        : object (key-value pairs)
       # Default     : none
@@ -466,7 +466,7 @@ runner:
       #   status: "complete"
       #   verified: true
 
-      # -- registryPath (stepMachine) --
+      # -- registryPath (detect:graph) --
       # Description : Path to the steps registry file.
       # Type        : string
       # Default     : none
@@ -474,7 +474,7 @@ runner:
       #               this file to determine terminal states.
       # registryPath: "steps_registry.json"
 
-      # -- entryStep (stepMachine) --
+      # -- entryStep (detect:graph) --
       # Description : Initial step ID for the state machine.
       # Type        : string
       # Default     : none

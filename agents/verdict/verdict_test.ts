@@ -61,7 +61,7 @@ function createMockAgentDefinition(
   } = {},
 ): AgentDefinition {
   const baseVerdict = {
-    type: "iterationBudget" as const,
+    type: "count:iteration" as const,
     config: {
       maxIterations: 10,
     },
@@ -292,12 +292,12 @@ Deno.test("IssueVerdictHandler - getCachedState returns undefined initially", ()
 Deno.test("CompositeVerdictHandler - AND logic - all incomplete", async () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "and",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 10 } },
-          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
+          { type: "count:iteration", config: { maxIterations: 10 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
@@ -319,12 +319,12 @@ Deno.test("CompositeVerdictHandler - AND logic - all incomplete", async () => {
 Deno.test("CompositeVerdictHandler - OR logic - one complete", async () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "or",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 1 } },
-          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
+          { type: "count:iteration", config: { maxIterations: 1 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
@@ -350,12 +350,12 @@ Deno.test("CompositeVerdictHandler - OR logic - one complete", async () => {
 Deno.test("CompositeVerdictHandler - FIRST logic - tracks completed index", async () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "first",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 10 } },
-          { type: "iterationBudget", config: { maxIterations: 1 } },
+          { type: "count:iteration", config: { maxIterations: 10 } },
+          { type: "count:iteration", config: { maxIterations: 1 } },
         ],
       },
     },
@@ -384,12 +384,12 @@ Deno.test("CompositeVerdictHandler - FIRST logic - tracks completed index", asyn
 Deno.test("CompositeVerdictHandler - buildVerdictCriteria combines handlers", () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "and",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 5 } },
-          { type: "iterationBudget", config: { maxIterations: 10 } },
+          { type: "count:iteration", config: { maxIterations: 5 } },
+          { type: "count:iteration", config: { maxIterations: 10 } },
         ],
       },
     },
@@ -410,11 +410,11 @@ Deno.test("CompositeVerdictHandler - buildVerdictCriteria combines handlers", ()
 Deno.test("CompositeVerdictHandler - buildInitialPrompt uses first handler", async () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "or",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 5 } },
+          { type: "count:iteration", config: { maxIterations: 5 } },
         ],
       },
     },
@@ -439,7 +439,7 @@ Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () =
     new CompositeVerdictHandler(
       "and",
       // deno-lint-ignore no-explicit-any
-      [{ type: "custom" as any, config: {} }],
+      [{ type: "meta:custom" as any, config: {} }],
       {},
       "/test",
       definition,
@@ -457,7 +457,7 @@ Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () =
 Deno.test("IterationBudgetVerdictHandler - initialization", () => {
   const handler = new IterationBudgetVerdictHandler(100);
 
-  assertEquals(handler.type, "iterationBudget");
+  assertEquals(handler.type, "count:iteration");
 });
 
 Deno.test("IterationBudgetVerdictHandler - isFinishedbefore max", async () => {
@@ -525,7 +525,7 @@ Deno.test("IterationBudgetVerdictHandler - buildContinuationPrompt updates itera
 Deno.test("KeywordSignalVerdictHandler - initialization", () => {
   const handler = new KeywordSignalVerdictHandler("TASK_COMPLETE");
 
-  assertEquals(handler.type, "keywordSignal");
+  assertEquals(handler.type, "detect:keyword");
 });
 
 Deno.test("KeywordSignalVerdictHandler - isFinishedwithout summary", async () => {
@@ -600,7 +600,7 @@ Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when waiting", as
 Deno.test("CheckBudgetVerdictHandler - initialization", () => {
   const handler = new CheckBudgetVerdictHandler(10);
 
-  assertEquals(handler.type, "checkBudget");
+  assertEquals(handler.type, "count:check");
   assertEquals(handler.getCheckCount(), 0);
 });
 
@@ -674,7 +674,7 @@ Deno.test("CheckBudgetVerdictHandler - getVerdictDescription", async () => {
 Deno.test("StructuredSignalVerdictHandler - initialization", () => {
   const handler = new StructuredSignalVerdictHandler("complete-signal");
 
-  assertEquals(handler.type, "structuredSignal");
+  assertEquals(handler.type, "detect:structured");
 });
 
 Deno.test("StructuredSignalVerdictHandler - isFinishedwithout summary", async () => {
@@ -925,7 +925,7 @@ Deno.test("StepMachineVerdictHandler - initialization", () => {
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
 
-  assertEquals(handler.type, "stepMachine");
+  assertEquals(handler.type, "detect:graph");
 
   const state = handler.getState();
   assertEquals(state.currentStepId, "initial.test");
@@ -1040,8 +1040,8 @@ Deno.test("StepMachineVerdictHandler - getVerdictDescription when complete via s
 // createRegistryVerdictHandler Tests
 // =============================================================================
 
-Deno.test("createRegistryVerdictHandler - externalState with args.issue returns adapter", async () => {
-  logger.debug("factory input", { type: "externalState", issue: 123 });
+Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns adapter", async () => {
+  logger.debug("factory input", { type: "poll:state", issue: 123 });
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
@@ -1054,7 +1054,7 @@ Deno.test("createRegistryVerdictHandler - externalState with args.issue returns 
         prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
       },
       verdict: {
-        type: "externalState",
+        type: "poll:state",
         config: { maxIterations: 10 },
       },
       boundaries: {
@@ -1081,7 +1081,7 @@ Deno.test("createRegistryVerdictHandler - externalState with args.issue returns 
   logger.debug("factory result", { type: result?.type });
 
   assertExists(result);
-  assertEquals(result.type, "externalState");
+  assertEquals(result.type, "poll:state");
   // Verify it's an ExternalStateVerdictAdapter by checking adapter-specific method
   assertEquals(
     typeof (result as ExternalStateVerdictAdapter).buildInitialPrompt,
@@ -1090,7 +1090,7 @@ Deno.test("createRegistryVerdictHandler - externalState with args.issue returns 
   assertEquals(result instanceof ExternalStateVerdictAdapter, true);
 });
 
-Deno.test("createRegistryVerdictHandler - externalState without args.issue throws", async () => {
+Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws", async () => {
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
@@ -1106,7 +1106,7 @@ Deno.test("createRegistryVerdictHandler - externalState without args.issue throw
         },
       },
       verdict: {
-        type: "externalState",
+        type: "poll:state",
         config: {
           maxIterations: 10,
         },
@@ -1145,7 +1145,7 @@ Deno.test("createRegistryVerdictHandler - externalState without args.issue throw
   }
 });
 
-Deno.test("createRegistryVerdictHandler - iterationBudget creates handler", async () => {
+Deno.test("createRegistryVerdictHandler - count:iteration creates handler", async () => {
   const definition: AgentDefinition = {
     name: "test-agent",
     displayName: "Test",
@@ -1161,7 +1161,7 @@ Deno.test("createRegistryVerdictHandler - iterationBudget creates handler", asyn
         },
       },
       verdict: {
-        type: "iterationBudget",
+        type: "count:iteration",
         config: {
           maxIterations: 5,
         },
@@ -1192,7 +1192,7 @@ Deno.test("createRegistryVerdictHandler - iterationBudget creates handler", asyn
   );
 
   assertExists(result);
-  assertEquals(result.type, "iterationBudget");
+  assertEquals(result.type, "count:iteration");
 });
 
 // =============================================================================
@@ -1314,7 +1314,7 @@ Deno.test("ExternalStateVerdictAdapter - buildContinuationPrompt fallback", asyn
   assertEquals(prompt.includes("55"), true);
 });
 
-Deno.test("ExternalStateVerdictAdapter - type is externalState", () => {
+Deno.test("ExternalStateVerdictAdapter - type is poll:state", () => {
   const mockChecker = new MockStateChecker();
   const issueHandler = new IssueVerdictHandler(
     { issueNumber: 1 },
@@ -1324,7 +1324,7 @@ Deno.test("ExternalStateVerdictAdapter - type is externalState", () => {
     issueNumber: 1,
   });
 
-  assertEquals(adapter.type, "externalState");
+  assertEquals(adapter.type, "poll:state");
 });
 
 // =============================================================================
@@ -1601,12 +1601,12 @@ Deno.test("CompositeVerdictHandler + resolver - propagates resolver to sub-handl
   const mock = new MockPromptResolver();
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "or",
         conditions: [
-          { type: "iterationBudget", config: { maxIterations: 5 } },
-          { type: "keywordSignal", config: { verdictKeyword: "DONE" } },
+          { type: "count:iteration", config: { maxIterations: 5 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
         ],
       },
     },
@@ -1695,18 +1695,18 @@ Deno.test("Contract - all handler stepIds use dot-format (phase.type)", async ()
 });
 
 // =============================================================================
-// Composite with externalState Tests
+// Composite with poll:state Tests
 // =============================================================================
 
-Deno.test("CompositeVerdictHandler - externalState condition with issue", async () => {
+Deno.test("CompositeVerdictHandler - poll:state condition with issue", async () => {
   const definition = createMockAgentDefinition({
     verdict: {
-      type: "composite",
+      type: "meta:composite",
       config: {
         operator: "or",
         conditions: [
-          { type: "externalState", config: { maxIterations: 10 } },
-          { type: "iterationBudget", config: { maxIterations: 1 } },
+          { type: "poll:state", config: { maxIterations: 10 } },
+          { type: "count:iteration", config: { maxIterations: 1 } },
         ],
       },
     },
@@ -1720,8 +1720,8 @@ Deno.test("CompositeVerdictHandler - externalState condition with issue", async 
     definition,
   );
 
-  // The externalState handler uses GitHubStateChecker which will fail gracefully
-  // (returns closed: false). Set the iterationBudget handler's iteration to 1
+  // The poll:state handler uses GitHubStateChecker which will fail gracefully
+  // (returns closed: false). Set the count:iteration handler's iteration to 1
   // to make it complete.
   // @ts-ignore - accessing private for testing
   const iterateHandler = handler.handlers[1] as IterationBudgetVerdictHandler;

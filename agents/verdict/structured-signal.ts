@@ -16,7 +16,7 @@ const COMPLETE = true;
 const INCOMPLETE = false;
 
 export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
-  readonly type = "structuredSignal" as const;
+  readonly type = "detect:structured" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
 

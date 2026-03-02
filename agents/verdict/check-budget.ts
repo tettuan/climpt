@@ -13,7 +13,7 @@ import {
 } from "./types.ts";
 
 export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
-  readonly type = "checkBudget" as const;
+  readonly type = "count:check" as const;
   private checkCount = 0;
   private promptResolver?: PromptResolver;
 

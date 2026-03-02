@@ -180,18 +180,18 @@ Completion Loop が Agent 完了の唯一の判定者であり、 Flow ループ
 VerdictHandler は Completion Loop の判定ロジックを差し替える Strategy である。
 Flow ループの動作は VerdictType に依存しない。
 
-| VerdictType      | Flow ループ      | Completion Loop の判定基準             |
-| ---------------- | ---------------- | -------------------------------------- |
-| stepMachine      | Step Flow (必須) | Step 状態機械が終端到達                |
-| externalState    | Step Flow (推奨) | 外部リソースが目標状態に到達           |
-| iterationBudget  | Step Flow (任意) | N 回の iteration を消化                |
-| keywordSignal    | Step Flow (任意) | LLM 出力に特定キーワードを検出         |
-| structuredSignal | Step Flow (任意) | LLM 出力に特定 JSON 構造を検出         |
-| checkBudget      | Step Flow (任意) | N 回のステータスチェックを消化         |
-| composite        | Step Flow (任意) | 上記を AND/OR/FIRST で組み合わせ       |
-| custom           | Step Flow (任意) | 外部ファイルから動的ロードしたハンドラ |
+| VerdictType       | Flow ループ      | Completion Loop の判定基準             |
+| ----------------- | ---------------- | -------------------------------------- |
+| detect:graph      | Step Flow (必須) | Step 状態機械が終端到達                |
+| poll:state        | Step Flow (推奨) | 外部リソースが目標状態に到達           |
+| count:iteration   | Step Flow (任意) | N 回の iteration を消化                |
+| detect:keyword    | Step Flow (任意) | LLM 出力に特定キーワードを検出         |
+| detect:structured | Step Flow (任意) | LLM 出力に特定 JSON 構造を検出         |
+| count:check       | Step Flow (任意) | N 回のステータスチェックを消化         |
+| meta:composite    | Step Flow (任意) | 上記を AND/OR/FIRST で組み合わせ       |
+| meta:custom       | Step Flow (任意) | 外部ファイルから動的ロードしたハンドラ |
 
-- **Flow ループ列**: Step Flow の利用要否。stepMachine は structuredGate
+- **Flow ループ列**: Step Flow の利用要否。detect:graph は structuredGate
   が必須。 他のタイプは Step Flow なしでも動作可能だが、利用を推奨する。
 - **Completion Loop 列**: VerdictHandler.isFinished() が何を見て判定するか。
 - **共通**: どの VerdictType でも、Flow が Agent 完了を直接判定することはない。

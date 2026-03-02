@@ -35,7 +35,7 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
 }
 
 function createTestDefinition(
-  verdictType: VerdictType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): AgentDefinition {
   return {
     name: "test-completion",
@@ -63,7 +63,7 @@ function createTestDefinition(
 }
 
 function createMockDeps(
-  verdictType: VerdictType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): ClosureManagerDeps {
   return {
     definition: createTestDefinition(verdictType),
@@ -212,7 +212,7 @@ Deno.test("ClosureManager - hasAIVerdictDeclaration returns false for status:com
 // =============================================================================
 
 Deno.test("ClosureManager - getClosureStepId defaults to closure.issue without registry", () => {
-  const manager = new ClosureManager(createMockDeps("externalState"));
+  const manager = new ClosureManager(createMockDeps("poll:state"));
 
   // Without ValidationChain, falls back to hardcoded "closure.issue"
   assertEquals(manager.getClosureStepId(), "closure.issue");
@@ -220,7 +220,7 @@ Deno.test("ClosureManager - getClosureStepId defaults to closure.issue without r
 
 Deno.test("ClosureManager - getClosureStepId delegates to ValidationChain when available", async () => {
   const registry = await loadFixtureRegistry();
-  const manager = new ClosureManager(createMockDeps("externalState"));
+  const manager = new ClosureManager(createMockDeps("poll:state"));
   const mockLogger = createMockLogger();
 
   // Manually wire ValidationChain (simulating what initializeValidation does)
@@ -236,7 +236,7 @@ Deno.test("ClosureManager - getClosureStepId delegates to ValidationChain when a
 
   // ValidationChain looks up closure.{verdictType} in registry's validationSteps
   logger.debug("getClosureStepId input", {
-    verdictType: "externalState",
+    verdictType: "poll:state",
   });
   const stepId = manager.getClosureStepId();
   logger.debug("getClosureStepId result", { stepId });
@@ -366,7 +366,7 @@ Deno.test("ValidationChain - getClosureStepId returns closure.{type} for known t
   assertEquals(chain.getClosureStepId("issue"), "closure.issue");
   assertEquals(chain.getClosureStepId("iterate"), "closure.iterate");
   assertEquals(
-    chain.getClosureStepId("externalState"),
+    chain.getClosureStepId("poll:state"),
     "closure.externalState",
   );
 });

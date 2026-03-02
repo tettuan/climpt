@@ -36,11 +36,11 @@ Before creating files, understand what each piece does:
 
 ### Key Decisions
 
-| Decision                | Options                                                            | Impact                             |
-| ----------------------- | ------------------------------------------------------------------ | ---------------------------------- |
-| **runner.verdict.type** | `externalState`, `iterationBudget`, `keywordSignal`, `stepMachine` | Determines how Agent knows to stop |
-| **Step flow**           | Linear, branching, looping                                         | Determines task complexity         |
-| **Output schema**       | Minimal, detailed                                                  | Determines response validation     |
+| Decision                | Options                                                           | Impact                             |
+| ----------------------- | ----------------------------------------------------------------- | ---------------------------------- |
+| **runner.verdict.type** | `poll:state`, `count:iteration`, `detect:keyword`, `detect:graph` | Determines how Agent knows to stop |
+| **Step flow**           | Linear, branching, looping                                        | Determines task complexity         |
+| **Output schema**       | Minimal, detailed                                                 | Determines response validation     |
 
 For concept details, see
 [Agent Configuration Concepts](../../guides/en/00-1-concepts.md).
@@ -77,7 +77,7 @@ Skill が agent 名や `runner.verdict.type`
 deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
   --name my-agent \
   --description "My agent description" \
-  --completion-type externalState
+  --completion-type poll:state
 
 # オプション
 #   --dry-run              生成内容をプレビュー
@@ -172,7 +172,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       }
     },
     "verdict": {
-      "type": "externalState",
+      "type": "poll:state",
       "config": {
         "maxIterations": 50
       }
@@ -195,7 +195,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 #### Runner の検証
 
 - `entryStepMapping` または `entryStep` が未設定だと
-  `No entry step configured for verdictType "stepMachine"` で即中断する。
+  `No entry step configured for verdictType "detect:graph"` で即中断する。
 - Flow Step に `structuredGate`/`transitions` が無い場合は
   `Flow validation failed. All Flow steps must define structuredGate and transitions.`
   が表示される。
@@ -226,10 +226,10 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 
 | タイプ            | 用途                | 設定                  |
 | ----------------- | ------------------- | --------------------- |
-| `externalState`   | Issue/PR の状態監視 | `maxIterations`       |
-| `iterationBudget` | 固定回数で終了      | `maxIterations`       |
-| `keywordSignal`   | キーワードで終了    | `completionKeyword`   |
-| `stepMachine`     | Step グラフで判定   | `steps_registry.json` |
+| `poll:state`      | Issue/PR の状態監視 | `maxIterations`       |
+| `count:iteration` | 固定回数で終了      | `maxIterations`       |
+| `detect:keyword`  | キーワードで終了    | `completionKeyword`   |
+| `detect:graph`    | Step グラフで判定   | `steps_registry.json` |
 
 詳細: `02_agent_definition.md`
 
@@ -261,9 +261,9 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}.md",
 
   "entryStepMapping": {
-    "externalState": "initial.default",
+    "poll:state": "initial.default",
     "default": "initial.default",
-    "stepMachine": "initial.default"
+    "detect:graph": "initial.default"
   },
 
   "steps": {
@@ -703,16 +703,16 @@ Agent ロジックが注入する変数:
 
 | runner.verdict.type | Required entryStepMapping key |
 | ------------------- | ----------------------------- |
-| `externalState`     | `externalState`               |
-| `iterationBudget`   | `iterationBudget`             |
-| `stepMachine`       | `stepMachine`                 |
+| `poll:state`        | `poll:state`                  |
+| `count:iteration`   | `count:iteration`             |
+| `detect:graph`      | `detect:graph`                |
 | `default`           | `default`                     |
 
-例: `runner.verdict.type: "externalState"` の場合:
+例: `runner.verdict.type: "poll:state"` の場合:
 
 ```json
 "entryStepMapping": {
-  "externalState": "initial.default",
+  "poll:state": "initial.default",
   "default": "initial.default"
 }
 ```

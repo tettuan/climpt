@@ -51,7 +51,7 @@ agent.json で Agent
 {
   "runner": {
     "verdict": {
-      "type": "externalState | iterationBudget | keywordSignal | composite",
+      "type": "poll:state | count:iteration | detect:keyword | meta:composite",
       "config": { "..." }
     }
   }
@@ -60,16 +60,16 @@ agent.json で Agent
 
 ### verdictType
 
-| タイプ             | What                                      | Why                                                       | 主な設定                                                           |
-| ------------------ | ----------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ |
-| `externalState`    | Issue や git 等の外部状態と同期           | 1 Issue = 1 Branch = 1 Worktree の境界を守るため          | `validators`, `github`, `worktree`, **parameters に `issue` 必須** |
-| `iterationBudget`  | 所定回数の iteration で終了               | ループを有限に保ち暴走を防ぐ                              | `maxIterations`                                                    |
-| `checkBudget`      | Status check の回数で終了                 | 監視用途で「回数 = コスト」を明示し、作業計画を単純化     | `maxChecks`                                                        |
-| `keywordSignal`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                                                |
-| `structuredSignal` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
-| `stepMachine`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
-| `composite`        | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `validationConditions`, `mode`                                     |
-| `custom`           | 外部 VerdictHandler で任意判定            | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `verdictHandler` 設定                            |
+| タイプ              | What                                      | Why                                                       | 主な設定                                                           |
+| ------------------- | ----------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------ |
+| `poll:state`        | Issue や git 等の外部状態と同期           | 1 Issue = 1 Branch = 1 Worktree の境界を守るため          | `validators`, `github`, `worktree`, **parameters に `issue` 必須** |
+| `count:iteration`   | 所定回数の iteration で終了               | ループを有限に保ち暴走を防ぐ                              | `maxIterations`                                                    |
+| `count:check`       | Status check の回数で終了                 | 監視用途で「回数 = コスト」を明示し、作業計画を単純化     | `maxChecks`                                                        |
+| `detect:keyword`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                                                |
+| `detect:structured` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
+| `detect:graph`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
+| `meta:composite`    | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `validationConditions`, `mode`                                     |
+| `meta:custom`       | 外部 VerdictHandler で任意判定            | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `verdictHandler` 設定                            |
 
 ### validationConditions
 
@@ -346,11 +346,11 @@ CLI 引数の定義。`run-agent.ts`
 
 ### verdictType 別の必須パラメータ
 
-| verdictType     | 必須パラメータ | 説明                                      |
-| --------------- | -------------- | ----------------------------------------- |
-| `externalState` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
+| verdictType  | 必須パラメータ | 説明                                      |
+| ------------ | -------------- | ----------------------------------------- |
+| `poll:state` | `issue`        | GitHub Issue 番号。未宣言だと実行時エラー |
 
-`externalState` を使う場合、以下を `parameters` に含めること:
+`poll:state` を使う場合、以下を `parameters` に含めること:
 
 ```json
 {
@@ -412,13 +412,13 @@ load(path) → parse → validate → 起動 or エラー
 | Term              | Context        | Meaning                                                                | Location                                  |
 | ----------------- | -------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
 | `iterator`        | Agent name     | GitHub Issue を反復的に解決する具象ビルトインエージェント              | `.agent/iterator/agent.json`              |
-| `iterationBudget` | Verdict type   | N 回の iteration 後に停止する完了戦略                                  | `runner.verdict.type` in agent.json       |
+| `count:iteration` | Verdict type   | N 回の iteration 後に停止する完了戦略                                  | `runner.verdict.type` in agent.json       |
 | `iterate`         | Entry step key | iterate モードの開始ステップを選択するエントリーステップマッピングキー | `entryStepMapping` in steps_registry.json |
-| `--iterate-max`   | CLI parameter  | 最大 iteration 回数を設定する（iterationBudget completion に適用）     | `definition.parameters` in agent.json     |
+| `--iterate-max`   | CLI parameter  | 最大 iteration 回数を設定する（count:iteration completion に適用）     | `definition.parameters` in agent.json     |
 
 > **注意**: これらの用語は関連しているが、それぞれ異なる概念である。 Iterator
 > Agent は具象エージェントインスタンスであり、completion type や
-> 実行モードではない。`iterationBudget` completion type は Iterator Agent
+> 実行モードではない。`count:iteration` completion type は Iterator Agent
 > に限らず、任意のエージェントで使用できる。
 
 ---

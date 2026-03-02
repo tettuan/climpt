@@ -6,65 +6,65 @@
  * Verdict types based on HOW completion is determined,
  * not WHO uses the completion handler.
  *
- * Behavior-based naming convention:
- * - externalState: Complete when external resource reaches target state
- * - iterationBudget: Complete after N iterations
- * - checkBudget: Complete after N status checks (monitoring scenarios)
- * - keywordSignal: Complete when LLM outputs specific keyword
- * - structuredSignal: Complete when LLM outputs specific JSON signal
- * - stepMachine: Complete when step state machine reaches terminal
- * - composite: Combines multiple conditions with AND/OR logic
- * - custom: Fully custom handler implementation
+ * Category:variant naming convention:
+ * - poll:state: Complete when external resource reaches target state
+ * - count:iteration: Complete after N iterations
+ * - count:check: Complete after N status checks (monitoring scenarios)
+ * - detect:keyword: Complete when LLM outputs specific keyword
+ * - detect:structured: Complete when LLM outputs specific JSON signal
+ * - detect:graph: Complete when step state machine reaches terminal
+ * - meta:composite: Combines multiple conditions with AND/OR logic
+ * - meta:custom: Fully custom handler implementation
  */
 export type VerdictType =
-  | "externalState"
-  | "iterationBudget"
-  | "checkBudget"
-  | "keywordSignal"
-  | "structuredSignal"
-  | "stepMachine"
-  | "composite"
-  | "custom";
+  | "poll:state"
+  | "count:iteration"
+  | "count:check"
+  | "detect:keyword"
+  | "detect:structured"
+  | "detect:graph"
+  | "meta:composite"
+  | "meta:custom";
 
 /**
  * All valid verdict types
  */
 export const ALL_VERDICT_TYPES: readonly VerdictType[] = [
-  "externalState",
-  "iterationBudget",
-  "checkBudget",
-  "keywordSignal",
-  "structuredSignal",
-  "stepMachine",
-  "composite",
-  "custom",
+  "poll:state",
+  "count:iteration",
+  "count:check",
+  "detect:keyword",
+  "detect:structured",
+  "detect:graph",
+  "meta:composite",
+  "meta:custom",
 ] as const;
 
 /**
  * Verdict configuration - uses optional properties for flexibility
  */
 export interface VerdictConfigUnion {
-  /** For iterationBudget/iterate completion type */
+  /** For count:iteration verdict type */
   maxIterations?: number;
-  /** For keywordSignal/manual completion type */
+  /** For detect:keyword verdict type */
   verdictKeyword?: string;
-  /** For custom completion type */
+  /** For meta:custom verdict type */
   handlerPath?: string;
-  /** For checkBudget completion type */
+  /** For count:check verdict type */
   maxChecks?: number;
-  /** For externalState completion type */
+  /** For poll:state verdict type */
   resourceType?: "github-issue" | "github-project" | "file" | "api";
   targetState?: string | Record<string, unknown>;
-  /** For composite completion type */
+  /** For meta:composite verdict type */
   operator?: "and" | "or" | "first";
   conditions?: Array<{
     type: VerdictType;
     config: VerdictConfigUnion;
   }>;
-  /** For structuredSignal completion type */
+  /** For detect:structured verdict type */
   signalType?: string;
   requiredFields?: Record<string, unknown>;
-  /** For stepMachine completion type */
+  /** For detect:graph verdict type */
   registryPath?: string;
   entryStep?: string;
 }

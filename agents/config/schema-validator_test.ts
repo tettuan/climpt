@@ -35,7 +35,7 @@ function minimalValidAgent(): Record<string, unknown> {
         },
       },
       verdict: {
-        type: "iterationBudget",
+        type: "count:iteration",
         config: {
           maxIterations: 10,
         },
@@ -143,7 +143,7 @@ Deno.test("schema-validator/agent - full iterator-like agent passes", async () =
         },
       },
       verdict: {
-        type: "externalState",
+        type: "poll:state",
         config: { maxIterations: 500 },
       },
       boundaries: {
@@ -274,14 +274,14 @@ Deno.test("schema-validator/agent - invalid verdict type rejects", async () => {
 
 Deno.test("schema-validator/agent - valid verdict types pass", async () => {
   const verdictTypes = [
-    "externalState",
-    "iterationBudget",
-    "checkBudget",
-    "keywordSignal",
-    "structuredSignal",
-    "stepMachine",
-    "composite",
-    "custom",
+    "poll:state",
+    "count:iteration",
+    "count:check",
+    "detect:keyword",
+    "detect:structured",
+    "detect:graph",
+    "meta:composite",
+    "meta:custom",
   ];
 
   for (const vt of verdictTypes) {

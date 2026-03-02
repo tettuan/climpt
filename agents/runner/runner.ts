@@ -679,7 +679,7 @@ export class AgentRunner {
   }
 
   private getMaxIterations(): number {
-    if (this.definition.runner.verdict.type === "iterationBudget") {
+    if (this.definition.runner.verdict.type === "count:iteration") {
       return (
         (
           this.definition.runner.verdict.config as {

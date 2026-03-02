@@ -36,7 +36,7 @@ export interface CompositeCondition {
 }
 
 export class CompositeVerdictHandler extends BaseVerdictHandler {
-  readonly type = "composite" as const;
+  readonly type = "meta:composite" as const;
   private promptResolver?: PromptResolver;
   private handlers: VerdictHandler[] = [];
   private completedConditionIndex?: number;
@@ -62,7 +62,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
       let handler: VerdictHandler;
 
       switch (condition.type) {
-        case "iterationBudget": {
+        case "count:iteration": {
           handler = new IterationBudgetVerdictHandler(
             config.maxIterations ??
               AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
@@ -70,24 +70,24 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
           break;
         }
 
-        case "keywordSignal": {
+        case "detect:keyword": {
           handler = new KeywordSignalVerdictHandler(
             config.verdictKeyword ?? "TASK_COMPLETE",
           );
           break;
         }
 
-        case "checkBudget": {
+        case "count:check": {
           handler = new CheckBudgetVerdictHandler(
             config.maxChecks ?? 10,
           );
           break;
         }
 
-        case "structuredSignal": {
+        case "detect:structured": {
           if (!config.signalType) {
             throw new Error(
-              "structuredSignal condition requires signalType in config",
+              "detect:structured condition requires signalType in config",
             );
           }
           handler = new StructuredSignalVerdictHandler(
@@ -97,11 +97,11 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
           break;
         }
 
-        case "externalState": {
+        case "poll:state": {
           const issueNumber = this.args.issue as number | undefined;
           if (issueNumber === undefined || issueNumber === null) {
             throw new Error(
-              "externalState condition in composite requires --issue parameter. " +
+              "poll:state condition in composite requires --issue parameter. " +
                 'Ensure agent.json declares issue in "parameters": ' +
                 '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
             );

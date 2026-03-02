@@ -53,7 +53,7 @@ function createMinimalDefinition(): ResolvedAgentDefinition {
         },
       },
       verdict: {
-        type: "iterationBudget",
+        type: "count:iteration",
         config: { maxIterations: 10 },
       },
       boundaries: {

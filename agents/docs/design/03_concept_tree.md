@@ -18,14 +18,14 @@ Agent Runner
 │   └── Verdict (VerdictHandler.isFinished → done / retryPrompt)
 │
 └── Verdict Strategy (VerdictType)
-    ├── stepMachine       → StepMachineVerdictHandler
-    ├── externalState     → ExternalStateVerdictAdapter
-    ├── iterationBudget   → IterationBudgetVerdictHandler
-    ├── keywordSignal     → KeywordSignalVerdictHandler
-    ├── structuredSignal  → StructuredSignalVerdictHandler
-    ├── checkBudget       → CheckBudgetVerdictHandler
-    ├── composite         → CompositeVerdictHandler
-    └── custom            → (動的ロード)
+    ├── detect:graph      → StepMachineVerdictHandler
+    ├── poll:state        → ExternalStateVerdictAdapter
+    ├── count:iteration   → IterationBudgetVerdictHandler
+    ├── detect:keyword    → KeywordSignalVerdictHandler
+    ├── detect:structured → StructuredSignalVerdictHandler
+    ├── count:check       → CheckBudgetVerdictHandler
+    ├── meta:composite    → CompositeVerdictHandler
+    └── meta:custom       → (動的ロード)
 ```
 
 ## Flow Loop
@@ -98,28 +98,28 @@ VerdictType に応じて VerdictHandler を差し替える Strategy パターン
 
 ```
 Verdict Strategy (VerdictType)
-├── stepMachine
+├── detect:graph
 │   何をするか: Step 状態機械が終端に到達したかを判定する
 │
-├── externalState
+├── poll:state
 │   何をするか: 外部リソースが目標状態に到達したかを判定する
 │
-├── iterationBudget
+├── count:iteration
 │   何をするか: N 回の iteration を消化したかを判定する
 │
-├── keywordSignal
+├── detect:keyword
 │   何をするか: LLM 出力に特定キーワードを検出したかを判定する
 │
-├── structuredSignal
+├── detect:structured
 │   何をするか: LLM 出力に特定 JSON 構造を検出したかを判定する
 │
-├── checkBudget
+├── count:check
 │   何をするか: N 回のステータスチェックを消化したかを判定する
 │
-├── composite
+├── meta:composite
 │   何をするか: 上記を AND/OR/FIRST で組み合わせて判定する
 │
-└── custom
+└── meta:custom
     何をするか: 外部ファイルから動的ロードしたハンドラで判定する
 ```
 

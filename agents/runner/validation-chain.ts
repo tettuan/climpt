@@ -116,31 +116,39 @@ export class ValidationChain {
   }
 
   /**
+   * Verdict type to closure step ID mapping.
+   *
+   * Decouples verdict type names from step IDs so renaming verdict types
+   * does not break step lookups.
+   */
+  private static readonly VERDICT_CLOSURE_MAP: Record<string, string> = {
+    "poll:state": "closure.externalState",
+    "count:iteration": "closure.iterate",
+    "count:check": "closure.check",
+    "detect:keyword": "closure.keyword",
+    "detect:structured": "closure.structured",
+    "detect:graph": "closure.graph",
+    "meta:composite": "closure.composite",
+    "meta:custom": "closure.custom",
+  };
+
+  /**
    * Get closure step ID based on verdict type.
    *
-   * Maps verdict type to the appropriate step ID in the registry.
-   * Uses dynamic lookup in stepsRegistry if available, otherwise defaults.
+   * Maps verdict type to the appropriate step ID in the registry
+   * using an explicit mapping table.
    */
   getClosureStepId(verdictType: string): string {
-    // Check if registry has a validation step for this type
     if (this.stepsRegistry?.validationSteps) {
-      const stepId = `closure.${verdictType}`;
-      if (this.stepsRegistry.validationSteps[stepId]) {
-        return stepId;
+      const closureStepId = ValidationChain.VERDICT_CLOSURE_MAP[verdictType];
+      if (
+        closureStepId && this.stepsRegistry.validationSteps[closureStepId]
+      ) {
+        return closureStepId;
       }
     }
-
-    // Type-specific defaults
-    switch (verdictType) {
-      case "issue":
-        return "closure.issue";
-      case "iterate":
-      case "iterationBudget":
-        return "closure.iterate";
-      default:
-        // externalState and others use closure.${verdictType}
-        return `closure.${verdictType}`;
-    }
+    return ValidationChain.VERDICT_CLOSURE_MAP[verdictType] ??
+      `closure.${verdictType}`;
   }
 
   /**

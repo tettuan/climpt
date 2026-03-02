@@ -5,9 +5,9 @@
   "schemasBase": ".agent/test-flow/schemas",
 
   "entryStepMapping": {
-    "externalState": "initial.test",
-    "iterationBudget": "initial.test",
-    "stepMachine": "initial.test"
+    "poll:state": "initial.test",
+    "count:iteration": "initial.test",
+    "detect:graph": "initial.test"
   },
 
   "failurePatterns": {

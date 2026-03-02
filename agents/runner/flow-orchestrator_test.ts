@@ -45,7 +45,7 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
 
 /** Create a minimal AgentDefinition. verdictType must be a valid VerdictType. */
 function createTestDefinition(
-  verdictType: VerdictType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): AgentDefinition {
   return {
     name: "test-flow",
@@ -82,7 +82,7 @@ function buildDeps(
   } = {},
 ): FlowOrchestratorDeps {
   const definition = createTestDefinition(
-    options.verdictType ?? "externalState",
+    options.verdictType ?? "poll:state",
   );
   const interpreter = options.withRouting ? new StepGateInterpreter() : null;
   const router = options.withRouting && registry
@@ -141,12 +141,12 @@ function createSummary(
 
 Deno.test("FlowOrchestrator - entry step via entryStepMapping for externalState", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { verdictType: "externalState" });
+  const deps = buildDeps(registry, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   logger.debug("getStepIdForIteration input", {
     iteration: 1,
-    verdictType: "externalState",
+    verdictType: "poll:state",
   });
   const stepId = orchestrator.getStepIdForIteration(1);
   logger.debug("getStepIdForIteration result", { stepId });
@@ -155,7 +155,7 @@ Deno.test("FlowOrchestrator - entry step via entryStepMapping for externalState"
 
 Deno.test("FlowOrchestrator - entry step via entryStepMapping for iterationBudget", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { verdictType: "iterationBudget" });
+  const deps = buildDeps(registry, { verdictType: "count:iteration" });
   const orchestrator = new FlowOrchestrator(deps);
 
   const stepId = orchestrator.getStepIdForIteration(1);
@@ -181,7 +181,7 @@ Deno.test("FlowOrchestrator - entry step falls back to generic entryStep", () =>
       },
     },
   };
-  const deps = buildDeps(registry, { verdictType: "custom" });
+  const deps = buildDeps(registry, { verdictType: "meta:custom" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertEquals(orchestrator.getStepIdForIteration(1), "generic.entry");
@@ -194,18 +194,18 @@ Deno.test("FlowOrchestrator - throws when no entry step configured", () => {
     c1: "steps",
     steps: {},
   };
-  const deps = buildDeps(registry, { verdictType: "custom" });
+  const deps = buildDeps(registry, { verdictType: "meta:custom" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertThrows(
     () => orchestrator.getStepIdForIteration(1),
     Error,
-    'No entry step configured for verdictType "custom"',
+    'No entry step configured for verdictType "meta:custom"',
   );
 });
 
 Deno.test("FlowOrchestrator - throws when no registry available", () => {
-  const deps = buildDeps(null, { verdictType: "externalState" });
+  const deps = buildDeps(null, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertThrows(
@@ -254,7 +254,7 @@ Deno.test("FlowOrchestrator - iteration > 1 throws when no routed step ID", asyn
 
 Deno.test("FlowOrchestrator - initializeStepContext creates context and sets entry step", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { verdictType: "externalState" });
+  const deps = buildDeps(registry, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertEquals(orchestrator.stepContext, null);

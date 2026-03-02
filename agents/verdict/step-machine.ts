@@ -42,7 +42,7 @@ export interface StepState {
  * Step transitions and data passing are handled by FlowOrchestrator.
  */
 export class StepMachineVerdictHandler extends BaseVerdictHandler {
-  readonly type = "stepMachine" as const;
+  readonly type = "detect:graph" as const;
 
   private promptResolver?: PromptResolver;
   private state: StepState;

@@ -31,40 +31,40 @@ interface TestCase {
 
 const testCases: TestCase[] = [
   {
-    name: "externalState with --issue",
-    verdictType: "externalState",
+    name: "poll:state with --issue",
+    verdictType: "poll:state",
     verdictConfig: { maxIterations: 10 },
     args: { issue: 123, repository: "owner/repo" },
-    expectedType: "externalState",
+    expectedType: "poll:state",
     expectedClass: "ExternalStateVerdictAdapter",
   },
   {
-    name: "iterationBudget",
-    verdictType: "iterationBudget",
+    name: "count:iteration",
+    verdictType: "count:iteration",
     verdictConfig: { maxIterations: 5 },
     args: {},
-    expectedType: "iterationBudget",
+    expectedType: "count:iteration",
   },
   {
-    name: "keywordSignal",
-    verdictType: "keywordSignal",
+    name: "detect:keyword",
+    verdictType: "detect:keyword",
     verdictConfig: { verdictKeyword: "DONE" },
     args: {},
-    expectedType: "keywordSignal",
+    expectedType: "detect:keyword",
   },
   {
-    name: "checkBudget",
-    verdictType: "checkBudget",
+    name: "count:check",
+    verdictType: "count:check",
     verdictConfig: { maxChecks: 10 },
     args: {},
-    expectedType: "checkBudget",
+    expectedType: "count:check",
   },
   {
-    name: "structuredSignal",
-    verdictType: "structuredSignal",
+    name: "detect:structured",
+    verdictType: "detect:structured",
     verdictConfig: { signalType: "test-signal" },
     args: {},
-    expectedType: "structuredSignal",
+    expectedType: "detect:structured",
   },
 ];
 
@@ -76,8 +76,8 @@ const errorCases: {
   expectedError: string;
 }[] = [
   {
-    name: "externalState without --issue",
-    verdictType: "externalState",
+    name: "poll:state without --issue",
+    verdictType: "poll:state",
     verdictConfig: { maxIterations: 10 },
     args: {},
     expectedError: "requires --issue",

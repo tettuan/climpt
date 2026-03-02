@@ -142,7 +142,7 @@ setting, and prevents naming collisions as new features are added.
       }
     },
     "completion": {
-      "type": "iterationBudget",
+      "type": "count:iteration",
       "config": { "maxIterations": 10 }
     },
     "boundaries": {

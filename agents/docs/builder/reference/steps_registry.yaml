@@ -171,9 +171,8 @@ pathTemplateNoAdaptation: "{c1}/{c2}/{c3}/f_{edition}.md"
 #               mode matches; otherwise entryStep is used.
 # ------------------------------------------------------------
 entryStepMapping:
-  issue: "initial.issue"
-  externalState: "initial.externalState"
-  iterate: "initial.iterate"
+  poll:state: "initial.issue"
+  count:iteration: "initial.iterate"
 
 # ============================================================
 # failurePatterns

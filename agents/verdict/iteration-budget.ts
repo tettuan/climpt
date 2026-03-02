@@ -10,7 +10,7 @@ import {
 } from "./types.ts";
 
 export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
-  readonly type = "iterationBudget" as const;
+  readonly type = "count:iteration" as const;
   private currentIteration = 0;
   private promptResolver?: PromptResolver;
 

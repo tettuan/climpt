@@ -118,11 +118,11 @@ export class ClosureManager {
 
       // Fail-fast: stepMachine verdict requires structuredGate on at least one step
       if (
-        this.deps.definition.runner.verdict.type === "stepMachine" &&
+        this.deps.definition.runner.verdict.type === "detect:graph" &&
         !hasFlowRouting
       ) {
         throw new Error(
-          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses verdictType "stepMachine" ` +
+          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses verdictType "detect:graph" ` +
             `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
             `or change verdictType. See design/08_step_flow_design.md.`,
         );

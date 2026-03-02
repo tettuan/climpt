@@ -8,9 +8,8 @@
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
   "entryStepMapping": {
-    "issue": "initial.issue",
-    "externalState": "initial.externalState",
-    "iterate": "initial.iterate"
+    "poll:state": "initial.externalState",
+    "count:iteration": "initial.iterate"
   },
 
   "failurePatterns": {

@@ -47,7 +47,7 @@
       }
     },
     "verdict": {
-      "type": "externalState",
+      "type": "poll:state",
       "config": {
         "maxIterations": 500
       }

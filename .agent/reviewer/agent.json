@@ -40,7 +40,7 @@
       }
     },
     "verdict": {
-      "type": "externalState",
+      "type": "poll:state",
       "config": {
         "type": "issueClose",
         "issueParam": "issue",

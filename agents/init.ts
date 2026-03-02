@@ -84,7 +84,7 @@ export async function initAgent(
         },
       },
       verdict: {
-        type: "keywordSignal",
+        type: "detect:keyword",
         config: {
           verdictKeyword: "TASK_COMPLETE",
         },

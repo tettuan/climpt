@@ -12,7 +12,7 @@ import {
 const INCOMPLETE = false;
 
 export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
-  readonly type = "keywordSignal" as const;
+  readonly type = "detect:keyword" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
 

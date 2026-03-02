@@ -47,7 +47,7 @@
       }
     },
     "verdict": {
-      "type": "structuredSignal",
+      "type": "detect:structured",
       "config": {
         "signalType": "facilitator_decision",
         "requiredFields": ["recommendations", "reasoning"],

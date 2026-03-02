@@ -40,7 +40,7 @@ Agent の振る舞いを定義。変更頻度: 低。
       }
     },
     "verdict": {
-      "type": "keywordSignal",
+      "type": "detect:keyword",
       "config": { "completionKeyword": "SESSION_COMPLETE" }
     },
     "boundaries": {
