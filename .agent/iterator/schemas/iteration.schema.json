@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "iterate.schema.json",
+  "$id": "iteration.schema.json",
   "description": "Iterate関連stepのスキーマ定義",
 
   "$defs": {
@@ -54,7 +54,7 @@
     }
   },
 
-  "initial.iterate": {
+  "initial.iteration": {
     "type": "object",
     "description": "イテレーション開始時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -82,7 +82,7 @@
     }
   },
 
-  "continuation.iterate": {
+  "continuation.iteration": {
     "type": "object",
     "description": "イテレーション継続時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -117,7 +117,7 @@
     }
   },
 
-  "closure.iterate": {
+  "closure.iteration": {
     "type": "object",
     "description": "イテレーション完了時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -125,7 +125,7 @@
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "closure.iterate",
+        "const": "closure.iteration",
         "description": "実行されたstep識別子"
       },
       "next_action": {

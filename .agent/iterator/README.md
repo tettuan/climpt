@@ -41,7 +41,7 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
         ├── continuation/  # 継続フェーズ
         │   ├── issue/
         │   ├── project/
-        │   └── iterate/
+        │   └── iteration/
         └── section/       # セクション
             └── project/   # プロジェクトコンテキスト
 ```
@@ -69,8 +69,8 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
 
 | Step ID | ファイル | 説明 |
 |---------|----------|------|
-| `initial.iterate` | `steps/initial/iterate/f_default.md` | イテレーション開始 |
-| `continuation.iterate` | `steps/continuation/iterate/f_default.md` | イテレーション継続 |
+| `initial.iteration` | `steps/initial/iteration/f_default.md` | イテレーション開始 |
+| `continuation.iteration` | `steps/continuation/iteration/f_default.md` | イテレーション継続 |
 
 ## 変数置換
 

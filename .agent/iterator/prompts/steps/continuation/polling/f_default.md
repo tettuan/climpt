@@ -1,5 +1,5 @@
 ---
-stepId: continuation.externalState
+stepId: continuation.polling
 name: External State Continuation Prompt
 description: Continuation prompt for external state completion
 uvVariables:

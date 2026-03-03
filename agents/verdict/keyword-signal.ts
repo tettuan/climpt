@@ -29,7 +29,7 @@ export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.manual", {
+      return await this.promptResolver.resolve("initial.keyword", {
         "uv-completion_keyword": this.verdictKeyword,
       });
     }
@@ -61,7 +61,7 @@ When ready, output exactly: ${this.verdictKeyword}
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation.manual", {
+      return await this.promptResolver.resolve("continuation.keyword", {
         "uv-iteration": String(completedIterations),
         "uv-completion_keyword": this.verdictKeyword,
         "uv-previous_summary": summaryText,

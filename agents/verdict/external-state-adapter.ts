@@ -42,8 +42,8 @@ export interface ExternalStateAdapterConfig {
  * and exposes VerdictHandler interface expected by AgentRunner.
  *
  * Method mapping:
- * - buildInitialPrompt() -> PromptResolver.resolve("initial.externalState") || handler.buildPrompt(INITIAL, 1)
- * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.externalState") || handler.buildPrompt(CONTINUATION, n)
+ * - buildInitialPrompt() -> PromptResolver.resolve("initial.polling") || handler.buildPrompt(INITIAL, 1)
+ * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.polling") || handler.buildPrompt(CONTINUATION, n)
  * - buildVerdictCriteria() -> handler.getVerdictCriteria() with field name mapping
  * - isFinished() -> handler.refreshState() + handler.check()
  * - getVerdictDescription() -> derived from check result
@@ -78,7 +78,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.externalState", {
+      return await this.promptResolver.resolve("initial.polling", {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-repository": this.config.repo ?? "",
       });
@@ -95,7 +95,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("continuation.externalState", {
+      return await this.promptResolver.resolve("continuation.polling", {
         "uv-issue_number": String(this.config.issueNumber),
         "uv-iteration": String(completedIterations),
         "uv-previous_summary": summaryText,

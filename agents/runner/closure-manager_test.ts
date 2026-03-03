@@ -240,7 +240,7 @@ Deno.test("ClosureManager - getClosureStepId delegates to ValidationChain when a
   });
   const stepId = manager.getClosureStepId();
   logger.debug("getClosureStepId result", { stepId });
-  assertEquals(stepId, "closure.externalState");
+  assertEquals(stepId, "closure.polling");
 });
 
 // =============================================================================
@@ -364,10 +364,10 @@ Deno.test("ValidationChain - getClosureStepId returns closure.{type} for known t
   // closure.test is in the registry's validationSteps
   // But getClosureStepId looks for closure.{verdictType}
   assertEquals(chain.getClosureStepId("issue"), "closure.issue");
-  assertEquals(chain.getClosureStepId("iterate"), "closure.iterate");
+  assertEquals(chain.getClosureStepId("count:iteration"), "closure.iteration");
   assertEquals(
     chain.getClosureStepId("poll:state"),
-    "closure.externalState",
+    "closure.polling",
   );
 });
 

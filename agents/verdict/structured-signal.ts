@@ -44,7 +44,7 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.structuredSignal", {
+      return await this.promptResolver.resolve("initial.structured", {
         "uv-signal_type": this.signalType,
         "uv-required_fields": JSON.stringify(this.requiredFields ?? {}),
       });
@@ -94,7 +94,7 @@ ${requiredFieldsDesc}
         ? this.formatIterationSummary(previousSummary)
         : "";
       return await this.promptResolver.resolve(
-        "continuation.structuredSignal",
+        "continuation.structured",
         {
           "uv-iteration": String(completedIterations),
           "uv-signal_type": this.signalType,

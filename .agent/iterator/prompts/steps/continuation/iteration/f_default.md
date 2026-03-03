@@ -1,5 +1,5 @@
 ---
-stepId: continuation.iterate
+stepId: continuation.iteration
 name: Iterate Continuation Prompt
 description: Continuation prompt for iteration-based execution
 uvVariables:

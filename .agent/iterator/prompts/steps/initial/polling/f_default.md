@@ -1,5 +1,5 @@
 ---
-stepId: initial.externalState
+stepId: initial.polling
 name: External State Initial Prompt
 description: Initial prompt for external state completion (GitHub Issue state)
 uvVariables:
@@ -33,7 +33,7 @@ This issue uses **external state completion** - the workflow completes when:
 ## Step Flow (Sequential Enforcement)
 
 ```
-initial.externalState → (next) → continuation.externalState → (handoff) → closure.externalState → (closing) → end
+initial.polling → (next) → continuation.polling → (handoff) → closure.polling → (closing) → end
 ```
 
 **This is an initial step.** You MUST use `next` to continue to continuation
@@ -68,7 +68,7 @@ When initial work is done:
 
 **IMPORTANT**: Use exact intent values for THIS step:
 
-- `"next"` - continue to continuation.externalState
+- `"next"` - continue to continuation.polling
 - `"repeat"` - retry this initial step
 
 ## Issue Actions (Allowed in Work Steps)

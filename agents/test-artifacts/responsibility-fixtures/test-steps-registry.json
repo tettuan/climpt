@@ -43,11 +43,11 @@
         "maxAttempts": 2
       }
     },
-    "closure.externalState": {
-      "stepId": "closure.externalState",
+    "closure.polling": {
+      "stepId": "closure.polling",
       "name": "External State Validation",
       "c2": "retry",
-      "c3": "externalState",
+      "c3": "polling",
       "validationConditions": [
         { "validator": "always-pass" }
       ],

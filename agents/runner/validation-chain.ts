@@ -122,8 +122,8 @@ export class ValidationChain {
    * does not break step lookups.
    */
   private static readonly VERDICT_CLOSURE_MAP: Record<string, string> = {
-    "poll:state": "closure.externalState",
-    "count:iteration": "closure.iterate",
+    "poll:state": "closure.polling",
+    "count:iteration": "closure.iteration",
     "count:check": "closure.check",
     "detect:keyword": "closure.keyword",
     "detect:structured": "closure.structured",

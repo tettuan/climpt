@@ -172,7 +172,7 @@ pathTemplateNoAdaptation: "{c1}/{c2}/{c3}/f_{edition}.md"
 # ------------------------------------------------------------
 entryStepMapping:
   poll:state: "initial.issue"
-  count:iteration: "initial.iterate"
+  count:iteration: "initial.iteration"
 
 # ============================================================
 # failurePatterns
@@ -411,9 +411,9 @@ validationSteps:
       Validate issue with git-clean and type-check.
       Branch merge is handled by run-agent.ts in worktree mode.
 
-  # Validation for externalState closure
-  closure.externalState:
-    stepId: "closure.externalState"
+  # Validation for polling closure
+  closure.polling:
+    stepId: "closure.polling"
     name: "External State Validation"
     c2: "retry"
     c3: "issue"
@@ -424,8 +424,8 @@ validationSteps:
       action: "retry"
       maxAttempts: 3
     outputSchemaRef:
-      file: "externalState.schema.json"
-      schema: "closure.externalState"
+      file: "polling.schema.json"
+      schema: "closure.polling"
     description: "Validate external state with git-clean and type-check."
 
 # ============================================================
@@ -506,7 +506,7 @@ steps:
     # Type        : string
     # Required    : yes
     # Common values: "issue", "project", "iterate",
-    #                "externalState"
+    #                "polling"
     # Why         : Third segment of the C3L path. Determines
     #               the subdirectory within the c2 directory.
     c3: "issue"
@@ -831,23 +831,23 @@ steps:
   # While validationSteps above handle pre-closure validation
   # using command validators, a verification step can also
   # exist in the "steps" section as a normal flow step. The
-  # externalState closure step serves this role — it verifies
+  # polling closure step serves this role — it verifies
   # external state before terminating.
   # ==========================================================
-  closure.externalState:
-    stepId: "closure.externalState"
+  closure.polling:
+    stepId: "closure.polling"
     name: "External State Closure Prompt"
     type: "prompt"
     stepKind: "closure"
     c2: "closure"
-    c3: "externalState"
+    c3: "polling"
     edition: "default"
-    fallbackKey: "externalState_closure_default"
+    fallbackKey: "polling_closure_default"
     uvVariables: ["issue_number"]
     usesStdin: false
     outputSchemaRef:
-      file: "externalState.schema.json"
-      schema: "closure.externalState"
+      file: "polling.schema.json"
+      schema: "closure.polling"
     structuredGate:
       allowedIntents: ["closing", "repeat"]
       intentSchemaRef: "#/properties/next_action/properties/action"
@@ -858,7 +858,7 @@ steps:
       closing:
         target: null
       repeat:
-        target: "closure.externalState"
+        target: "closure.polling"
     description: "Completion prompt for external state (terminal step)"
 
   # ==========================================================
@@ -961,21 +961,21 @@ steps:
   #         "default": "initial.project.preparation"
   #   description: "Routes based on issueCount runtime variable"
 
-  # -- Initial step for externalState mode --
-  initial.externalState:
-    stepId: "initial.externalState"
+  # -- Initial step for polling mode --
+  initial.polling:
+    stepId: "initial.polling"
     name: "External State Initial Prompt"
     type: "prompt"
     stepKind: "work"
     c2: "initial"
-    c3: "externalState"
+    c3: "polling"
     edition: "default"
-    fallbackKey: "externalState_initial_default"
+    fallbackKey: "polling_initial_default"
     uvVariables: ["issue_number"]
     usesStdin: false
     outputSchemaRef:
-      file: "externalState.schema.json"
-      schema: "initial.externalState"
+      file: "polling.schema.json"
+      schema: "initial.polling"
     structuredGate:
       allowedIntents: ["next", "repeat"]
       intentSchemaRef: "#/properties/next_action/properties/action"
@@ -984,26 +984,26 @@ steps:
       handoffFields: ["analysis.understanding", "analysis.approach", "issue"]
     transitions:
       next:
-        target: "continuation.externalState"
+        target: "continuation.polling"
       repeat:
-        target: "initial.externalState"
+        target: "initial.polling"
     description: "Initial prompt for external state completion (GitHub Issue state)"
 
-  # -- Continuation step for externalState mode --
-  continuation.externalState:
-    stepId: "continuation.externalState"
+  # -- Continuation step for polling mode --
+  continuation.polling:
+    stepId: "continuation.polling"
     name: "External State Continuation Prompt"
     type: "prompt"
     stepKind: "work"
     c2: "continuation"
-    c3: "externalState"
+    c3: "polling"
     edition: "default"
-    fallbackKey: "externalState_continuation_default"
+    fallbackKey: "polling_continuation_default"
     uvVariables: ["issue_number", "completed_iterations"]
     usesStdin: false
     outputSchemaRef:
-      file: "externalState.schema.json"
-      schema: "continuation.externalState"
+      file: "polling.schema.json"
+      schema: "continuation.polling"
     structuredGate:
       allowedIntents: ["next", "repeat", "handoff"]
       intentSchemaRef: "#/properties/next_action/properties/action"
@@ -1012,9 +1012,9 @@ steps:
       handoffFields: ["iteration.work_done", "progress"]
     transitions:
       next:
-        target: "continuation.externalState"
+        target: "continuation.polling"
       repeat:
-        target: "continuation.externalState"
+        target: "continuation.polling"
       handoff:
-        target: "closure.externalState"
+        target: "closure.polling"
     description: "Continuation prompt for external state completion"

@@ -1,15 +1,14 @@
 ---
-stepId: closure.externalState
-name: External State Closure Prompt (Label and Close)
-description: Terminal step for external state closure - labels then closes
+stepId: closure.iteration
+name: Iterate Closure Prompt
+description: Terminal step for iteration-based completion (hands off to reviewer)
 uvVariables:
-  - issue_number
+  - completed_iterations
 customVariables:
   - summary_section
-adaptation: label-and-close
 ---
 
-# External State Closure: Issue #{uv-issue_number} (Label and Close)
+# Iteration Closure: {uv-completed_iterations} Iterations Completed
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -24,14 +23,21 @@ adaptation: label-and-close
 
 {summary_section}
 
-## Your Role: Implementation Complete, Label and Close Issue
+## Your Role: Implementation Complete, Hand Off to Reviewer
 
 You are an **implementation agent**. Your work is done when:
 
 1. All code changes are committed
-2. Labels are updated and the issue is closed
+2. You add the `done` label to signal completion (if applicable)
+
+**The Reviewer Agent will:**
+
+- Verify your implementation
+- Close the issue when approved (if applicable)
 
 ## Closure Verification
+
+The iteration budget has been exhausted or work is complete.
 
 ### Final Checklist
 
@@ -39,18 +45,15 @@ Verify the following before returning `closing` intent:
 
 1. **Git Status**: Run `git status --porcelain` - must be empty (no uncommitted
    changes)
-2. **Implementation**: All required changes should be committed
+2. **Implementation**: All changes should be committed
+3. **Progress**: Review what was accomplished across all iterations
 
 ### If Not Ready
 
 If any of the above are not satisfied:
 
-- Fix the issue (commit remaining changes, etc.)
+- Fix the issue (commit changes, etc.)
 - Report `next_action.action = "repeat"` to retry closure validation
-
-### Closure Action
-
-This step will **change labels and then close** Issue #{uv-issue_number}.
 
 ### Closure Report
 
@@ -58,21 +61,18 @@ When all conditions are met, report in structured output:
 
 - `status`: "completed"
 - `next_action.action`: "closing" (signals workflow completion)
-- `action`: "label-and-close"
-- `summary`: Brief closure summary describing what was accomplished
-- `issue.labels`: { add: [...], remove: [...] } (optional, to override defaults)
+- `summary`: Brief summary of all work done
 
 ## Boundary Hook
 
-**IMPORTANT**: Do NOT execute any of these commands directly:
+**IMPORTANT**: Do NOT execute any GitHub commands directly:
 
-- `gh issue close` - Issue closing
-- `gh issue edit --add-label` / `--remove-label` - Label changes
+- `gh issue close` / `gh issue edit` - Let boundary hook handle these
 
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
-- Apply label changes based on config (`github.labels.completion`)
-- Close Issue #{uv-issue_number}
+- Apply configured label changes (if applicable)
+- Close or keep open the issue based on `action` field
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

@@ -8,8 +8,8 @@
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
   "entryStepMapping": {
-    "poll:state": "initial.externalState",
-    "count:iteration": "initial.iterate"
+    "poll:state": "initial.polling",
+    "count:iteration": "initial.iteration"
   },
 
   "failurePatterns": {
@@ -157,8 +157,8 @@
       },
       "description": "Validate issue with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
     },
-    "closure.externalState": {
-      "stepId": "closure.externalState",
+    "closure.polling": {
+      "stepId": "closure.polling",
       "name": "External State Validation",
       "c2": "retry",
       "c3": "issue",
@@ -171,8 +171,8 @@
         "maxAttempts": 3
       },
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "closure.externalState"
+        "file": "polling.schema.json",
+        "schema": "closure.polling"
       },
       "description": "Validate external state with git-clean and type-check."
     }
@@ -581,19 +581,19 @@
       },
       "description": "Continuation message for closure phase"
     },
-    "initial.iterate": {
-      "stepId": "initial.iterate",
+    "initial.iteration": {
+      "stepId": "initial.iteration",
       "name": "Iterate Initial Prompt",
       "stepKind": "work",
       "c2": "initial",
-      "c3": "iterate",
+      "c3": "iteration",
       "edition": "default",
-      "fallbackKey": "iterate_initial_default",
+      "fallbackKey": "iteration_initial_default",
       "uvVariables": ["iterations"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "iterate.schema.json",
-        "schema": "initial.iterate"
+        "file": "iteration.schema.json",
+        "schema": "initial.iteration"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
@@ -603,24 +603,24 @@
         "handoffFields": ["work.work_done", "iteration.completed_iterations"]
       },
       "transitions": {
-        "next": { "target": "continuation.iterate" },
-        "repeat": { "target": "initial.iterate" }
+        "next": { "target": "continuation.iteration" },
+        "repeat": { "target": "initial.iteration" }
       },
       "description": "Initial prompt for iteration-based execution"
     },
-    "continuation.iterate": {
-      "stepId": "continuation.iterate",
+    "continuation.iteration": {
+      "stepId": "continuation.iteration",
       "name": "Iterate Continuation Prompt",
       "stepKind": "work",
       "c2": "continuation",
-      "c3": "iterate",
+      "c3": "iteration",
       "edition": "default",
-      "fallbackKey": "iterate_continuation_default",
+      "fallbackKey": "iteration_continuation_default",
       "uvVariables": ["completed_iterations", "remaining"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "iterate.schema.json",
-        "schema": "continuation.iterate"
+        "file": "iteration.schema.json",
+        "schema": "continuation.iteration"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
@@ -630,26 +630,26 @@
         "handoffFields": ["work.work_done", "iteration.completed_iterations", "cumulative_progress"]
       },
       "transitions": {
-        "next": { "target": "continuation.iterate" },
-        "repeat": { "target": "continuation.iterate" },
-        "handoff": { "target": "closure.iterate" }
+        "next": { "target": "continuation.iteration" },
+        "repeat": { "target": "continuation.iteration" },
+        "handoff": { "target": "closure.iteration" }
       },
       "description": "Continuation prompt for iteration-based execution"
     },
-    "initial.externalState": {
-      "stepId": "initial.externalState",
+    "initial.polling": {
+      "stepId": "initial.polling",
       "name": "External State Initial Prompt",
       "type": "prompt",
       "stepKind": "work",
       "c2": "initial",
-      "c3": "externalState",
+      "c3": "polling",
       "edition": "default",
-      "fallbackKey": "externalState_initial_default",
+      "fallbackKey": "polling_initial_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "initial.externalState"
+        "file": "polling.schema.json",
+        "schema": "initial.polling"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat"],
@@ -659,25 +659,25 @@
         "handoffFields": ["analysis.understanding", "analysis.approach", "issue"]
       },
       "transitions": {
-        "next": { "target": "continuation.externalState" },
-        "repeat": { "target": "initial.externalState" }
+        "next": { "target": "continuation.polling" },
+        "repeat": { "target": "initial.polling" }
       },
       "description": "Initial prompt for external state completion (GitHub Issue state)"
     },
-    "continuation.externalState": {
-      "stepId": "continuation.externalState",
+    "continuation.polling": {
+      "stepId": "continuation.polling",
       "name": "External State Continuation Prompt",
       "type": "prompt",
       "stepKind": "work",
       "c2": "continuation",
-      "c3": "externalState",
+      "c3": "polling",
       "edition": "default",
-      "fallbackKey": "externalState_continuation_default",
+      "fallbackKey": "polling_continuation_default",
       "uvVariables": ["issue_number", "completed_iterations"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "continuation.externalState"
+        "file": "polling.schema.json",
+        "schema": "continuation.polling"
       },
       "structuredGate": {
         "allowedIntents": ["next", "repeat", "handoff"],
@@ -687,26 +687,26 @@
         "handoffFields": ["iteration.work_done", "progress"]
       },
       "transitions": {
-        "next": { "target": "continuation.externalState" },
-        "repeat": { "target": "continuation.externalState" },
-        "handoff": { "target": "closure.externalState" }
+        "next": { "target": "continuation.polling" },
+        "repeat": { "target": "continuation.polling" },
+        "handoff": { "target": "closure.polling" }
       },
       "description": "Continuation prompt for external state completion"
     },
-    "closure.externalState": {
-      "stepId": "closure.externalState",
+    "closure.polling": {
+      "stepId": "closure.polling",
       "name": "External State Closure Prompt",
       "type": "prompt",
       "stepKind": "closure",
       "c2": "closure",
-      "c3": "externalState",
+      "c3": "polling",
       "edition": "default",
-      "fallbackKey": "externalState_closure_default",
+      "fallbackKey": "polling_closure_default",
       "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "externalState.schema.json",
-        "schema": "closure.externalState"
+        "file": "polling.schema.json",
+        "schema": "closure.polling"
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
@@ -717,24 +717,24 @@
       },
       "transitions": {
         "closing": { "target": null },
-        "repeat": { "target": "closure.externalState" }
+        "repeat": { "target": "closure.polling" }
       },
       "description": "Completion prompt for external state (terminal step)"
     },
-    "closure.iterate": {
-      "stepId": "closure.iterate",
+    "closure.iteration": {
+      "stepId": "closure.iteration",
       "name": "Iterate Closure Prompt",
       "type": "prompt",
       "stepKind": "closure",
       "c2": "closure",
-      "c3": "iterate",
+      "c3": "iteration",
       "edition": "default",
-      "fallbackKey": "iterate_closure_default",
+      "fallbackKey": "iteration_closure_default",
       "uvVariables": ["completed_iterations"],
       "usesStdin": false,
       "outputSchemaRef": {
-        "file": "iterate.schema.json",
-        "schema": "closure.iterate"
+        "file": "iteration.schema.json",
+        "schema": "closure.iteration"
       },
       "structuredGate": {
         "allowedIntents": ["closing", "repeat"],
@@ -745,7 +745,7 @@
       },
       "transitions": {
         "closing": { "target": null },
-        "repeat": { "target": "closure.iterate" }
+        "repeat": { "target": "closure.iteration" }
       },
       "description": "Completion prompt for iteration-based execution (terminal step)"
     }
