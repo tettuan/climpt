@@ -131,7 +131,7 @@ export class CompletionManager {
         );
       }
 
-      // Store registry before capability checks — FlowOrchestrator needs it
+      // Store registry before capability checks -- FlowOrchestrator needs it
       // even when no extended capabilities (completionPatterns/validators/structuredGate) exist.
       this.stepsRegistry = registry;
 
@@ -159,7 +159,7 @@ export class CompletionManager {
             await validatorFactory.initialize();
           }
           this.completionValidator = validatorFactory.create({
-            registry: stepsRegistry,
+            registry: registry,
             workingDir: cwd,
             logger,
             agentId: this.deps.definition.name,
@@ -174,7 +174,7 @@ export class CompletionManager {
             await retryFactory.initialize();
           }
           this.retryHandler = retryFactory.create({
-            registry: stepsRegistry,
+            registry: registry,
             workingDir: cwd,
             logger,
             agentId: this.deps.definition.name,
@@ -186,7 +186,7 @@ export class CompletionManager {
         this.completionChain = new CompletionChain({
           workingDir: cwd,
           logger,
-          stepsRegistry: stepsRegistry,
+          stepsRegistry: registry,
           completionValidator: this.completionValidator,
           retryHandler: this.retryHandler,
           agentId: this.deps.definition.name,
@@ -197,16 +197,16 @@ export class CompletionManager {
       // Initialize Flow routing components if supported
       if (hasFlowRouting) {
         // Validate that all Flow steps have structuredGate and transitions
-        schemaManager.validateFlowSteps(stepsRegistry, logger);
+        schemaManager.validateFlowSteps(registry, logger);
 
         this.stepGateInterpreter = new StepGateInterpreter();
         this.workflowRouter = new WorkflowRouter(
-          stepsRegistry as unknown as StepRegistry,
+          registry as unknown as StepRegistry,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 
         this.stepPromptResolver = new StepPromptResolver(
-          stepsRegistry as unknown as StepRegistry,
+          registry as unknown as StepRegistry,
           createFallbackProvider({}),
           { workingDir: cwd, configSuffix: "steps" },
         );
