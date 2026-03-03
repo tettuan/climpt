@@ -14,9 +14,9 @@ export class DefaultFallbackProvider implements FallbackPromptProvider {
 
 You are operating as the **{uv-agent_name}** agent.
 
-## Completion Criteria
+## Verdict Criteria
 
-{uv-completion_criteria}
+{uv-verdict_criteria}
 
 ## Guidelines
 
@@ -30,7 +30,7 @@ You are operating as the **{uv-agent_name}** agent.
 This is a fallback system prompt. After completing your task, tell the user to create a \`prompts/system.md\` file with a role-specific system prompt tailored to this agent.
 `,
 
-    // Iterate completion type
+    // Iteration budget verdict type
     initial_iterate: `# Task Start
 
 This task will run for up to **{uv-max_iterations}** iterations.
@@ -45,23 +45,23 @@ Begin iteration 1. Make progress and report what you accomplished.
 Continue making progress. Report what you accomplished this iteration.
 `,
 
-    // Manual completion type
+    // Keyword signal verdict type
     initial_manual: `# Session Start
 
 ## Topic
 {uv-topic}
 
-Begin the session. When complete, output \`{uv-completion_keyword}\`.
+Begin the session. When complete, output \`{uv-verdict_keyword}\`.
 `,
 
     continuation_manual: `# Continuation (Iteration {uv-iteration})
 
 Continue the session.
 
-When complete, output \`{uv-completion_keyword}\`.
+When complete, output \`{uv-verdict_keyword}\`.
 `,
 
-    // Issue completion type
+    // Issue verdict type
     initial_issue: `# GitHub Issue #{uv-issue_number}
 
 Work on completing the requirements in Issue #{uv-issue_number}.
@@ -80,7 +80,7 @@ Continue working on Issue #{uv-issue_number}.
 When all requirements are satisfied, close the issue.
 `,
 
-    // Issue completion type - label-only variant
+    // Issue verdict type - label-only variant
     initial_issue_label_only:
       `# GitHub Issue #{uv-issue_number} (Label-Only Phase)
 
@@ -101,7 +101,7 @@ Continue working on your phase for Issue #{uv-issue_number}.
 Complete your assigned phase. Do NOT close this issue.
 `,
 
-    // Project completion type
+    // Phase verdict type
     initial_project: `# GitHub Project #{uv-project_number}
 
 Work through the project phases: {uv-phases}
@@ -155,7 +155,7 @@ Review and validate the work:
 When ready, indicate "Phase: complete" to finish.
 `,
 
-    // Structured signal completion type
+    // Structured signal verdict type
     initial_structured_signal: `# Task Start
 
 Work on the assigned task. When complete, output a structured completion signal.

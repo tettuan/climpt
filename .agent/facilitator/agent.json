@@ -46,8 +46,8 @@
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
-      "type": "structuredSignal",
+    "verdict": {
+      "type": "detect:structured",
       "config": {
         "signalType": "facilitator_decision",
         "requiredFields": ["recommendations", "reasoning"],

@@ -6,9 +6,9 @@
 
 import type { Logger } from "../src_common/logger.ts";
 import type {
-  CompletionPattern,
-  CompletionStepConfig,
   ExtendedStepsRegistry,
+  FailurePattern,
+  ValidationStepConfig,
   ValidatorResult,
 } from "./types.ts";
 import { C3LPromptLoader } from "../common/c3l-prompt-loader.ts";
@@ -58,7 +58,7 @@ export class RetryHandler {
    * @returns Generated retry prompt
    */
   async buildRetryPrompt(
-    stepConfig: CompletionStepConfig,
+    stepConfig: ValidationStepConfig,
     validationResult: ValidatorResult,
   ): Promise<string> {
     const patternName = validationResult.pattern;
@@ -68,7 +68,7 @@ export class RetryHandler {
       return this.buildFallbackPrompt(stepConfig, validationResult);
     }
 
-    const pattern = this.registry.completionPatterns?.[patternName];
+    const pattern = this.registry.failurePatterns?.[patternName];
 
     if (!pattern) {
       this.ctx.logger.warn(`Pattern not found: ${patternName}, using fallback`);
@@ -146,7 +146,7 @@ export class RetryHandler {
    * Used when pattern-specific prompt is not found.
    */
   private async buildFallbackPrompt(
-    stepConfig: CompletionStepConfig,
+    stepConfig: ValidationStepConfig,
     validationResult: ValidatorResult,
   ): Promise<string> {
     // Fallback: try f_failed.md
@@ -198,7 +198,7 @@ export class RetryHandler {
     validationResult: ValidatorResult,
   ): string {
     const lines: string[] = [
-      "## Completion conditions not met",
+      "## Verdict conditions not met",
       "",
     ];
 
@@ -240,10 +240,10 @@ export class RetryHandler {
   }
 
   /**
-   * Get completion pattern
+   * Get failure pattern
    */
-  getPattern(patternName: string): CompletionPattern | undefined {
-    return this.registry.completionPatterns?.[patternName];
+  getPattern(patternName: string): FailurePattern | undefined {
+    return this.registry.failurePatterns?.[patternName];
   }
 }
 

@@ -12,7 +12,7 @@ import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
 import type { PromptResolver as StepPromptResolver } from "../common/prompt-resolver.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 
 export interface ClosureAdapterDeps {
   readonly definition: AgentDefinition;
@@ -93,7 +93,7 @@ export class ClosureAdapter {
       };
     } catch (error) {
       ctx.logger.debug(
-        `[ClosureAdaptation] Failed to resolve closure prompt, falling back to completionHandler: ${error}`,
+        `[ClosureAdaptation] Failed to resolve closure prompt, falling back to verdictHandler: ${error}`,
       );
       return null;
     }

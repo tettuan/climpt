@@ -32,7 +32,7 @@ these rules:
 ### References
 
 - `agents/docs/builder/01_quickstart.md` - Correct schema configuration format
-- `agents/docs/design/08_step_flow_design.md` - Flow step requirements
+- `agents/docs/design/04_step_flow_design.md` - Flow step requirements
 
 ---
 
@@ -76,7 +76,7 @@ Random values should be obtained from a new bash execution.
 
    Reference documents:
    - `agents/docs/builder/01_quickstart.md`
-   - `agents/docs/design/08_step_flow_design.md`
+   - `agents/docs/design/04_step_flow_design.md`
 
 - **Must** define `entryStepMapping` or `entryStep`
 - Create `.agent/{agent}/schemas/*.schema.json` and set `outputSchemaRef` for
@@ -189,7 +189,7 @@ Determines transition from AI's `next_action.action`:
 | `escalate`  | `abort`   | Abort                            |
 | `abort`     | `abort`   | Abort                            |
 
-Details: `agents/docs/design/08_step_flow_design.md`
+Details: `agents/docs/design/04_step_flow_design.md`
 
 ## Step Flow Configuration
 

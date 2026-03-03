@@ -2,7 +2,7 @@
  * Dry-Run Integration Test
  *
  * Exercises the full runner orchestration loop (FlowOrchestrator +
- * CompletionManager) over a converted iterator config without hitting
+ * ClosureManager) over a converted iterator config without hitting
  * real SDK calls. Mocks are injected at the component boundary so the
  * coordination between entry step selection, structured gate routing,
  * completion detection, and step context accumulation is all real.
@@ -18,18 +18,18 @@ import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
 
 const logger = new BreakdownLogger("integration");
-import { CompletionManager } from "./completion-manager.ts";
+import { ClosureManager } from "./closure-manager.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
-import { CompletionChain } from "./completion-chain.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import { ValidationChain } from "./validation-chain.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type {
   AgentDefinition,
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
-import type { CompletionType } from "../src_common/types/completion.ts";
+import type { VerdictType } from "../src_common/types/verdict.ts";
 import type { AgentDependencies } from "./builder.ts";
 
 // =============================================================================
@@ -44,7 +44,7 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
 }
 
 function createTestDefinition(
-  completionType: CompletionType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): AgentDefinition {
   return {
     name: "test-flow",
@@ -57,8 +57,8 @@ function createTestDefinition(
         systemPromptPath: "./prompts/system.md",
         prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
       },
-      completion: {
-        type: completionType,
+      verdict: {
+        type: verdictType,
         config: { maxIterations: 20 },
       },
       boundaries: {
@@ -96,7 +96,7 @@ function createMockContext(
   logger: RuntimeContext["logger"],
 ): RuntimeContext {
   return {
-    completionHandler: {} as RuntimeContext["completionHandler"],
+    verdictHandler: {} as RuntimeContext["verdictHandler"],
     promptResolver: {} as RuntimeContext["promptResolver"],
     logger,
     cwd: "/tmp/claude/test",
@@ -162,46 +162,46 @@ function createMockSdkResponses(): IterationSummary[] {
 
 /**
  * Simulate the runner's flow loop using real FlowOrchestrator +
- * CompletionManager but mocked SDK responses.
+ * ClosureManager but mocked SDK responses.
  *
  * This mirrors the logic in runner.ts:run() without QueryExecutor.
  */
 async function runDryLoop(
   registry: ExtendedStepsRegistry,
-  completionType: CompletionType,
+  verdictType: VerdictType,
   mockResponses: IterationSummary[],
 ): Promise<{
   iterations: number;
   completed: boolean;
-  completionReason: string;
+  verdictReason: string;
   stepSequence: string[];
   pendingRetryPrompt: string | null;
 }> {
-  const definition = createTestDefinition(completionType);
+  const definition = createTestDefinition(verdictType);
   const logger = createMockLogger();
   const ctx = createMockContext(logger);
 
-  // Wire CompletionManager (matches runner.ts constructor)
-  const completionManager = new CompletionManager({
+  // Wire ClosureManager (matches runner.ts constructor)
+  const closureManager = new ClosureManager({
     definition,
     dependencies: {
       loggerFactory: { create: () => Promise.resolve({} as never) },
-      completionHandlerFactory: { create: () => Promise.resolve({} as never) },
+      verdictHandlerFactory: { create: () => Promise.resolve({} as never) },
       promptResolverFactory: { create: () => Promise.resolve({} as never) },
     } as AgentDependencies,
   });
 
-  // Manually set up registry and components (simulates initializeCompletionValidation)
-  completionManager.stepsRegistry = registry;
-  completionManager.stepGateInterpreter = new StepGateInterpreter();
-  completionManager.workflowRouter = new WorkflowRouter(
+  // Manually set up registry and components (simulates initializeValidation)
+  closureManager.stepsRegistry = registry;
+  closureManager.stepGateInterpreter = new StepGateInterpreter();
+  closureManager.workflowRouter = new WorkflowRouter(
     registry as unknown as StepRegistry,
   );
-  completionManager.completionChain = new CompletionChain({
+  closureManager.validationChain = new ValidationChain({
     workingDir: "/tmp/claude/test",
     logger: logger as unknown as import("../src_common/logger.ts").Logger,
     stepsRegistry: registry,
-    completionValidator: null,
+    stepValidator: null,
     retryHandler: null,
     agentId: definition.name,
   });
@@ -210,10 +210,10 @@ async function runDryLoop(
   const flowOrchestrator = new FlowOrchestrator({
     definition,
     args: {},
-    getStepsRegistry: () => completionManager.stepsRegistry,
-    getStepGateInterpreter: () => completionManager.stepGateInterpreter,
-    getWorkflowRouter: () => completionManager.workflowRouter,
-    hasFlowRoutingEnabled: () => completionManager.hasFlowRoutingEnabled(),
+    getStepsRegistry: () => closureManager.stepsRegistry,
+    getStepGateInterpreter: () => closureManager.stepGateInterpreter,
+    getWorkflowRouter: () => closureManager.workflowRouter,
+    hasFlowRoutingEnabled: () => closureManager.hasFlowRoutingEnabled(),
   });
 
   // Initialize step context (matches runner.ts:run())
@@ -222,7 +222,7 @@ async function runDryLoop(
   const stepSequence: string[] = [];
   let pendingRetryPrompt: string | null = null;
   let completed = false;
-  let completionReason = "";
+  let verdictReason = "";
   let iteration = 0;
 
   // --- Flow loop (mirrors runner.ts while-true loop) ---
@@ -243,9 +243,9 @@ async function runDryLoop(
     flowOrchestrator.recordStepOutput(stepId, mockSummary, ctx);
 
     // Check AI completion declaration
-    if (completionManager.hasAICompletionDeclaration(mockSummary)) {
-      const completionStepId = completionManager.getCompletionStepId();
-      const validation = await completionManager.validateCompletionConditions(
+    if (closureManager.hasAIVerdictDeclaration(mockSummary)) {
+      const completionStepId = closureManager.getClosureStepId();
+      const validation = await closureManager.validateConditions(
         completionStepId,
         mockSummary,
         logger as unknown as import("../src_common/logger.ts").Logger,
@@ -269,9 +269,9 @@ async function runDryLoop(
       continue;
     }
 
-    if (routingResult?.signalCompletion) {
+    if (routingResult?.signalClosing) {
       completed = true;
-      completionReason = routingResult.reason;
+      verdictReason = routingResult.reason;
       break;
     }
   }
@@ -279,7 +279,7 @@ async function runDryLoop(
   return {
     iterations: iteration,
     completed,
-    completionReason,
+    verdictReason,
     stepSequence,
     pendingRetryPrompt,
   };
@@ -294,10 +294,10 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   const responses = createMockSdkResponses();
 
   logger.debug("dry-run loop input", {
-    completionType: "externalState",
+    verdictType: "poll:state",
     responseCount: responses.length,
   });
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
   logger.debug("dry-run loop result", {
     iterations: result.iterations,
     completed: result.completed,
@@ -306,7 +306,7 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
 
   assertEquals(result.iterations, 3);
   assertEquals(result.completed, true);
-  assertEquals(result.completionReason, "All checks pass");
+  assertEquals(result.verdictReason, "All checks pass");
   assertEquals(result.stepSequence, [
     "initial.test",
     "continuation.test",
@@ -315,11 +315,11 @@ Deno.test("Dry-run integration - 3-step issue flow completes in 3 iterations", a
   assertEquals(result.pendingRetryPrompt, null);
 });
 
-Deno.test("Dry-run integration - iterationBudget completionType uses same entry step", async () => {
+Deno.test("Dry-run integration - count:iteration verdictType uses same entry step", async () => {
   const registry = await loadFixtureRegistry();
   const responses = createMockSdkResponses();
 
-  const result = await runDryLoop(registry, "iterationBudget", responses);
+  const result = await runDryLoop(registry, "count:iteration", responses);
 
   assertEquals(result.iterations, 3);
   assertEquals(result.completed, true);
@@ -365,7 +365,7 @@ Deno.test("Dry-run integration - repeat iteration stays on same step", async () 
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 4);
   assertEquals(result.completed, true);
@@ -409,7 +409,7 @@ Deno.test("Dry-run integration - closure repeat delays completion", async () => 
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 4);
   assertEquals(result.completed, true);
@@ -419,36 +419,36 @@ Deno.test("Dry-run integration - closure repeat delays completion", async () => 
     "closure.test",
     "closure.test", // repeat on closure
   ]);
-  assertEquals(result.completionReason, "All clear");
+  assertEquals(result.verdictReason, "All clear");
 });
 
 Deno.test("Dry-run integration - step context accumulates across steps", async () => {
   const registry = await loadFixtureRegistry();
-  const definition = createTestDefinition("externalState");
+  const definition = createTestDefinition("poll:state");
   const logger = createMockLogger();
   const ctx = createMockContext(logger);
 
-  const completionManager = new CompletionManager({
+  const closureManager = new ClosureManager({
     definition,
     dependencies: {
       loggerFactory: { create: () => Promise.resolve({} as never) },
-      completionHandlerFactory: { create: () => Promise.resolve({} as never) },
+      verdictHandlerFactory: { create: () => Promise.resolve({} as never) },
       promptResolverFactory: { create: () => Promise.resolve({} as never) },
     } as AgentDependencies,
   });
-  completionManager.stepsRegistry = registry;
-  completionManager.stepGateInterpreter = new StepGateInterpreter();
-  completionManager.workflowRouter = new WorkflowRouter(
+  closureManager.stepsRegistry = registry;
+  closureManager.stepGateInterpreter = new StepGateInterpreter();
+  closureManager.workflowRouter = new WorkflowRouter(
     registry as unknown as StepRegistry,
   );
 
   const flowOrchestrator = new FlowOrchestrator({
     definition,
     args: { issue: 42 },
-    getStepsRegistry: () => completionManager.stepsRegistry,
-    getStepGateInterpreter: () => completionManager.stepGateInterpreter,
-    getWorkflowRouter: () => completionManager.workflowRouter,
-    hasFlowRoutingEnabled: () => completionManager.hasFlowRoutingEnabled(),
+    getStepsRegistry: () => closureManager.stepsRegistry,
+    getStepGateInterpreter: () => closureManager.stepGateInterpreter,
+    getWorkflowRouter: () => closureManager.workflowRouter,
+    hasFlowRoutingEnabled: () => closureManager.hasFlowRoutingEnabled(),
   });
 
   flowOrchestrator.initializeStepContext();
@@ -484,20 +484,20 @@ Deno.test("Dry-run integration - stepId normalization corrects LLM-returned step
   const logger = createMockLogger();
   const ctx = createMockContext(logger);
 
-  const completionManager = new CompletionManager({
-    definition: createTestDefinition("externalState"),
+  const closureManager = new ClosureManager({
+    definition: createTestDefinition("poll:state"),
     dependencies: {
       loggerFactory: { create: () => Promise.resolve({} as never) },
-      completionHandlerFactory: { create: () => Promise.resolve({} as never) },
+      verdictHandlerFactory: { create: () => Promise.resolve({} as never) },
       promptResolverFactory: { create: () => Promise.resolve({} as never) },
     } as AgentDependencies,
   });
-  completionManager.stepsRegistry = registry;
+  closureManager.stepsRegistry = registry;
 
   const flowOrchestrator = new FlowOrchestrator({
-    definition: createTestDefinition("externalState"),
+    definition: createTestDefinition("poll:state"),
     args: {},
-    getStepsRegistry: () => completionManager.stepsRegistry,
+    getStepsRegistry: () => closureManager.stepsRegistry,
     getStepGateInterpreter: () => null,
     getWorkflowRouter: () => null,
     hasFlowRoutingEnabled: () => false,
@@ -539,7 +539,7 @@ Deno.test("Dry-run integration - incomplete flow (no closing) does not complete"
     }),
   ];
 
-  const result = await runDryLoop(registry, "externalState", responses);
+  const result = await runDryLoop(registry, "poll:state", responses);
 
   assertEquals(result.iterations, 2);
   assertEquals(result.completed, false);

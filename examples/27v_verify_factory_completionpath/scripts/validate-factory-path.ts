@@ -1,8 +1,8 @@
 /**
- * Verify factory completion handler creation paths.
+ * Verify factory verdict handler creation paths.
  *
- * Tests that createRegistryCompletionHandler can produce a working
- * CompletionHandler for each registered completionType without LLM calls.
+ * Tests that createRegistryVerdictHandler can produce a working
+ * VerdictHandler for each registered verdictType without LLM calls.
  *
  * This catches regressions where a handler registration becomes a
  * throw-only stub (as happened with externalState during V2 migration).
@@ -10,8 +10,8 @@
 
 import { resolve } from "@std/path";
 import type { AgentDefinition } from "../../../agents/src_common/types.ts";
-import { createRegistryCompletionHandler } from "../../../agents/completion/factory.ts";
-import { ExternalStateCompletionAdapter } from "../../../agents/completion/external-state-adapter.ts";
+import { createRegistryVerdictHandler } from "../../../agents/verdict/factory.ts";
+import { ExternalStateVerdictAdapter } from "../../../agents/verdict/external-state-adapter.ts";
 
 // deno-lint-ignore no-console
 const log = console.log;
@@ -22,8 +22,8 @@ const repoRoot = resolve(import.meta.dirname ?? ".", "../../../");
 
 interface TestCase {
   name: string;
-  completionType: string;
-  completionConfig: Record<string, unknown>;
+  verdictType: string;
+  verdictConfig: Record<string, unknown>;
   args: Record<string, unknown>;
   expectedType: string;
   expectedClass?: string;
@@ -31,62 +31,62 @@ interface TestCase {
 
 const testCases: TestCase[] = [
   {
-    name: "externalState with --issue",
-    completionType: "externalState",
-    completionConfig: { maxIterations: 10 },
+    name: "poll:state with --issue",
+    verdictType: "poll:state",
+    verdictConfig: { maxIterations: 10 },
     args: { issue: 123, repository: "owner/repo" },
-    expectedType: "externalState",
-    expectedClass: "ExternalStateCompletionAdapter",
+    expectedType: "poll:state",
+    expectedClass: "ExternalStateVerdictAdapter",
   },
   {
-    name: "iterationBudget",
-    completionType: "iterationBudget",
-    completionConfig: { maxIterations: 5 },
+    name: "count:iteration",
+    verdictType: "count:iteration",
+    verdictConfig: { maxIterations: 5 },
     args: {},
-    expectedType: "iterationBudget",
+    expectedType: "count:iteration",
   },
   {
-    name: "keywordSignal",
-    completionType: "keywordSignal",
-    completionConfig: { completionKeyword: "DONE" },
+    name: "detect:keyword",
+    verdictType: "detect:keyword",
+    verdictConfig: { verdictKeyword: "DONE" },
     args: {},
-    expectedType: "keywordSignal",
+    expectedType: "detect:keyword",
   },
   {
-    name: "checkBudget",
-    completionType: "checkBudget",
-    completionConfig: { maxChecks: 10 },
+    name: "count:check",
+    verdictType: "count:check",
+    verdictConfig: { maxChecks: 10 },
     args: {},
-    expectedType: "checkBudget",
+    expectedType: "count:check",
   },
   {
-    name: "structuredSignal",
-    completionType: "structuredSignal",
-    completionConfig: { signalType: "test-signal" },
+    name: "detect:structured",
+    verdictType: "detect:structured",
+    verdictConfig: { signalType: "test-signal" },
     args: {},
-    expectedType: "structuredSignal",
+    expectedType: "detect:structured",
   },
 ];
 
 const errorCases: {
   name: string;
-  completionType: string;
+  verdictType: string;
   args: Record<string, unknown>;
-  completionConfig: Record<string, unknown>;
+  verdictConfig: Record<string, unknown>;
   expectedError: string;
 }[] = [
   {
-    name: "externalState without --issue",
-    completionType: "externalState",
-    completionConfig: { maxIterations: 10 },
+    name: "poll:state without --issue",
+    verdictType: "poll:state",
+    verdictConfig: { maxIterations: 10 },
     args: {},
     expectedError: "requires --issue",
   },
 ];
 
 function createTestDefinition(
-  completionType: string,
-  completionConfig: Record<string, unknown>,
+  verdictType: string,
+  verdictConfig: Record<string, unknown>,
 ): AgentDefinition {
   return {
     version: "1.0.0",
@@ -99,9 +99,9 @@ function createTestDefinition(
         systemPromptPath: "prompts/system.md",
         prompts: { registry: "steps_registry.json", fallbackDir: "prompts/" },
       },
-      completion: {
-        type: completionType as AgentDefinition["runner"]["completion"]["type"],
-        config: completionConfig,
+      verdict: {
+        type: verdictType as AgentDefinition["runner"]["verdict"]["type"],
+        config: verdictConfig,
       },
       boundaries: {
         allowedTools: ["Read"],
@@ -121,16 +121,16 @@ function createTestDefinition(
 let passed = 0;
 let failed = 0;
 
-log("=== Verify Factory Completion Paths ===\n");
+log("=== Verify Factory Verdict Paths ===\n");
 
 // Test successful handler creation
 log("--- Handler Creation Tests ---");
 for (const tc of testCases) {
   try {
-    const def = createTestDefinition(tc.completionType, tc.completionConfig);
+    const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
     const agentDir = resolve(repoRoot, ".agent/iterator");
     // deno-lint-ignore no-await-in-loop
-    const handler = await createRegistryCompletionHandler(
+    const handler = await createRegistryVerdictHandler(
       def,
       tc.args,
       agentDir,
@@ -144,23 +144,23 @@ for (const tc of testCases) {
       continue;
     }
 
-    if (tc.expectedClass === "ExternalStateCompletionAdapter") {
-      if (!(handler instanceof ExternalStateCompletionAdapter)) {
+    if (tc.expectedClass === "ExternalStateVerdictAdapter") {
+      if (!(handler instanceof ExternalStateVerdictAdapter)) {
         logErr(
-          `FAIL: ${tc.name} - expected ExternalStateCompletionAdapter instance`,
+          `FAIL: ${tc.name} - expected ExternalStateVerdictAdapter instance`,
         );
         failed++;
         continue;
       }
     }
 
-    // Verify CompletionHandler interface methods exist
+    // Verify VerdictHandler interface methods exist
     const methods = [
       "buildInitialPrompt",
       "buildContinuationPrompt",
-      "buildCompletionCriteria",
-      "isComplete",
-      "getCompletionDescription",
+      "buildVerdictCriteria",
+      "isFinished",
+      "getVerdictDescription",
     ];
     const handlerRecord = handler as unknown as Record<string, unknown>;
     const missing = methods.filter((m) =>
@@ -168,7 +168,7 @@ for (const tc of testCases) {
     );
     if (missing.length > 0) {
       logErr(
-        `FAIL: ${tc.name} - missing CompletionHandler methods: ${
+        `FAIL: ${tc.name} - missing VerdictHandler methods: ${
           missing.join(", ")
         }`,
       );
@@ -190,10 +190,10 @@ for (const tc of testCases) {
 log("\n--- Error Handling Tests ---");
 for (const tc of errorCases) {
   try {
-    const def = createTestDefinition(tc.completionType, tc.completionConfig);
+    const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
     const agentDir = resolve(repoRoot, ".agent/iterator");
     // deno-lint-ignore no-await-in-loop
-    await createRegistryCompletionHandler(def, tc.args, agentDir);
+    await createRegistryVerdictHandler(def, tc.args, agentDir);
     logErr(`FAIL: ${tc.name} - expected error but succeeded`);
     failed++;
   } catch (error) {

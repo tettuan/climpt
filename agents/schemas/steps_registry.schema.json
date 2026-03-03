@@ -50,10 +50,10 @@
       },
       "description": "Mode-based entry step mapping (e.g., { 'issue': 'initial.issue' })"
     },
-    "completionPatterns": {
+    "failurePatterns": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/definitions/CompletionPattern"
+        "$ref": "#/definitions/FailurePattern"
       },
       "description": "Named patterns for failure scenarios"
     },
@@ -62,14 +62,14 @@
       "additionalProperties": {
         "$ref": "#/definitions/Validator"
       },
-      "description": "Named validators for completion checks"
+      "description": "Named validators for validation checks"
     },
-    "completionSteps": {
+    "validationSteps": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/definitions/CompletionStep"
+        "$ref": "#/definitions/ValidationStep"
       },
-      "description": "Step definitions for completion validation"
+      "description": "Step definitions for validation"
     },
     "steps": {
       "type": "object",
@@ -157,13 +157,13 @@
         }
       }
     },
-    "CompletionStep": {
+    "ValidationStep": {
       "type": "object",
       "required": ["stepId", "name", "c2", "c3"],
       "properties": {
         "stepId": {
           "type": "string",
-          "description": "Completion step identifier"
+          "description": "Validation step identifier"
         },
         "name": {
           "type": "string",
@@ -177,12 +177,12 @@
           "type": "string",
           "description": "C3L Classification"
         },
-        "completionConditions": {
+        "validationConditions": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/CompletionCondition"
+            "$ref": "#/definitions/ValidationCondition"
           },
-          "description": "Conditions that must pass for completion"
+          "description": "Conditions that must pass for validation"
         },
         "onFailure": {
           "$ref": "#/definitions/FailureAction",
@@ -281,8 +281,8 @@
           "required": ["target"],
           "properties": {
             "target": {
-              "type": "string",
-              "description": "Target step ID"
+              "type": ["string", "null"],
+              "description": "Target step ID (null for terminal steps)"
             },
             "fallback": {
               "type": "string",
@@ -306,7 +306,7 @@
         }
       ]
     },
-    "CompletionPattern": {
+    "FailurePattern": {
       "type": "object",
       "required": ["description", "edition"],
       "properties": {
@@ -348,7 +348,7 @@
         },
         "failurePattern": {
           "type": "string",
-          "description": "Reference to completion pattern on failure"
+          "description": "Reference to failure pattern on failure"
         },
         "extractParams": {
           "type": "object",
@@ -357,7 +357,7 @@
         }
       }
     },
-    "CompletionCondition": {
+    "ValidationCondition": {
       "type": "object",
       "required": ["validator"],
       "properties": {

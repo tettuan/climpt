@@ -10,12 +10,12 @@ import type {
   LoggingConfig,
   ResolvedAgentDefinition,
 } from "../src_common/types.ts";
-import type { CompletionHandler } from "../completion/types.ts";
+import type { VerdictHandler } from "../verdict/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import type { CompletionValidator } from "../validators/completion/validator.ts";
+import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 
 // ============================================================================
 // Factory Interfaces
@@ -57,14 +57,14 @@ export interface LoggerFactoryOptions {
 }
 
 /**
- * Factory interface for CompletionHandler creation.
+ * Factory interface for VerdictHandler creation.
  */
-export interface CompletionHandlerFactory {
+export interface VerdictHandlerFactory {
   create(
     definition: AgentDefinition,
     args: Record<string, unknown>,
     agentDir: string,
-  ): Promise<CompletionHandler>;
+  ): Promise<VerdictHandler>;
 }
 
 /**
@@ -86,9 +86,9 @@ export interface PromptResolverFactoryOptions {
 }
 
 /**
- * Options for CompletionValidator creation via factory.
+ * Options for StepValidator creation via factory.
  */
-export interface CompletionValidatorFactoryOptions {
+export interface StepValidatorFactoryOptions {
   registry: ExtendedStepsRegistry;
   workingDir: string;
   logger: Logger;
@@ -96,10 +96,10 @@ export interface CompletionValidatorFactoryOptions {
 }
 
 /**
- * Factory interface for CompletionValidator creation.
+ * Factory interface for StepValidator creation.
  */
-export interface CompletionValidatorFactory {
-  create(options: CompletionValidatorFactoryOptions): CompletionValidator;
+export interface StepValidatorFactory {
+  create(options: StepValidatorFactoryOptions): StepValidator;
 }
 
 /**
@@ -128,9 +128,9 @@ export interface RetryHandlerFactory {
  */
 export interface AgentDependencies {
   readonly loggerFactory: LoggerFactory;
-  readonly completionHandlerFactory: CompletionHandlerFactory;
+  readonly verdictHandlerFactory: VerdictHandlerFactory;
   readonly promptResolverFactory: PromptResolverFactory;
-  readonly completionValidatorFactory?: CompletionValidatorFactory;
+  readonly stepValidatorFactory?: StepValidatorFactory;
   readonly retryHandlerFactory?: RetryHandlerFactory;
 }
 
@@ -139,9 +139,9 @@ export interface AgentDependencies {
  */
 interface MutableAgentDependencies {
   loggerFactory?: LoggerFactory;
-  completionHandlerFactory?: CompletionHandlerFactory;
+  verdictHandlerFactory?: VerdictHandlerFactory;
   promptResolverFactory?: PromptResolverFactory;
-  completionValidatorFactory?: CompletionValidatorFactory;
+  stepValidatorFactory?: StepValidatorFactory;
   retryHandlerFactory?: RetryHandlerFactory;
 }
 
@@ -160,19 +160,18 @@ export class DefaultLoggerFactory implements LoggerFactory {
 }
 
 /**
- * Default factory implementation for CompletionHandler.
+ * Default factory implementation for VerdictHandler.
  */
-export class DefaultCompletionHandlerFactory
-  implements CompletionHandlerFactory {
+export class DefaultVerdictHandlerFactory implements VerdictHandlerFactory {
   async create(
     definition: AgentDefinition,
     args: Record<string, unknown>,
     agentDir: string,
-  ): Promise<CompletionHandler> {
-    const { createRegistryCompletionHandler } = await import(
-      "../completion/mod.ts"
+  ): Promise<VerdictHandler> {
+    const { createRegistryVerdictHandler } = await import(
+      "../verdict/mod.ts"
     );
-    return createRegistryCompletionHandler(definition, args, agentDir);
+    return createRegistryVerdictHandler(definition, args, agentDir);
   }
 }
 
@@ -189,33 +188,32 @@ export class DefaultPromptResolverFactory implements PromptResolverFactory {
 }
 
 /**
- * Default factory implementation for CompletionValidator.
+ * Default factory implementation for StepValidator.
  */
-export class DefaultCompletionValidatorFactory
-  implements CompletionValidatorFactory, Initializable {
+export class DefaultStepValidatorFactory
+  implements StepValidatorFactory, Initializable {
   private createFn:
     | ((
-      registry: import("../validators/completion/types.ts").ValidatorRegistry,
-      ctx:
-        import("../validators/completion/types.ts").CompletionValidatorContext,
-    ) => CompletionValidator)
+      registry: import("../validators/step/types.ts").ValidatorRegistry,
+      ctx: import("../validators/step/types.ts").StepValidatorContext,
+    ) => StepValidator)
     | null = null;
 
   async initialize(): Promise<void> {
-    const mod = await import("../validators/completion/validator.ts");
-    this.createFn = mod.createCompletionValidator;
+    const mod = await import("../validators/step/validator.ts");
+    this.createFn = mod.createStepValidator;
   }
 
-  create(options: CompletionValidatorFactoryOptions): CompletionValidator {
+  create(options: StepValidatorFactoryOptions): StepValidator {
     if (!this.createFn) {
       throw new Error(
-        "DefaultCompletionValidatorFactory not initialized. Call initialize() first.",
+        "DefaultStepValidatorFactory not initialized. Call initialize() first.",
       );
     }
     return this.createFn(
       {
         validators: options.registry.validators ?? {},
-        completionPatterns: options.registry.completionPatterns,
+        failurePatterns: options.registry.failurePatterns,
       },
       {
         workingDir: options.workingDir,
@@ -267,9 +265,9 @@ export class DefaultRetryHandlerFactory
 export function createDefaultDependencies(): AgentDependencies {
   return {
     loggerFactory: new DefaultLoggerFactory(),
-    completionHandlerFactory: new DefaultCompletionHandlerFactory(),
+    verdictHandlerFactory: new DefaultVerdictHandlerFactory(),
     promptResolverFactory: new DefaultPromptResolverFactory(),
-    completionValidatorFactory: new DefaultCompletionValidatorFactory(),
+    stepValidatorFactory: new DefaultStepValidatorFactory(),
     retryHandlerFactory: new DefaultRetryHandlerFactory(),
   };
 }
@@ -304,10 +302,10 @@ export class AgentRunnerBuilder {
   }
 
   /**
-   * Set a custom completion handler factory.
+   * Set a custom verdict handler factory.
    */
-  withCompletionHandlerFactory(factory: CompletionHandlerFactory): this {
-    this.dependencies.completionHandlerFactory = factory;
+  withVerdictHandlerFactory(factory: VerdictHandlerFactory): this {
+    this.dependencies.verdictHandlerFactory = factory;
     return this;
   }
 
@@ -320,10 +318,10 @@ export class AgentRunnerBuilder {
   }
 
   /**
-   * Set a custom completion validator factory.
+   * Set a custom step validator factory.
    */
-  withCompletionValidatorFactory(factory: CompletionValidatorFactory): this {
-    this.dependencies.completionValidatorFactory = factory;
+  withStepValidatorFactory(factory: StepValidatorFactory): this {
+    this.dependencies.stepValidatorFactory = factory;
     return this;
   }
 
@@ -359,13 +357,12 @@ export class AgentRunnerBuilder {
     const defaults = createDefaultDependencies();
     return {
       loggerFactory: this.dependencies.loggerFactory ?? defaults.loggerFactory,
-      completionHandlerFactory: this.dependencies.completionHandlerFactory ??
-        defaults.completionHandlerFactory,
+      verdictHandlerFactory: this.dependencies.verdictHandlerFactory ??
+        defaults.verdictHandlerFactory,
       promptResolverFactory: this.dependencies.promptResolverFactory ??
         defaults.promptResolverFactory,
-      completionValidatorFactory:
-        this.dependencies.completionValidatorFactory ??
-          defaults.completionValidatorFactory,
+      stepValidatorFactory: this.dependencies.stepValidatorFactory ??
+        defaults.stepValidatorFactory,
       retryHandlerFactory: this.dependencies.retryHandlerFactory ??
         defaults.retryHandlerFactory,
     };

@@ -12,7 +12,7 @@
  * Specialized validation results should extend this interface:
  * - FormatValidationResult: Response format validation (loop/format-validator.ts)
  * - ValidatorResult: Pre-close validator checks (validators/types.ts)
- * - CompletionValidationResult: Completion condition validation (runner/runner.ts)
+ * - ValidationResult: Step validation condition checking (runner/runner.ts)
  */
 export interface BaseValidationResult {
   /** Whether the validation passed */

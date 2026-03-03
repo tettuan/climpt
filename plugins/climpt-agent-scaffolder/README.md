@@ -85,7 +85,8 @@ Options:
 1. Edit `prompts/system.md` to define the agent's role
 2. Customize prompts in `prompts/steps/`
 3. Add parameters to `agent.json` if needed
-4. Verify with:
+4. Validate configuration: `deno task agent --agent {name} --validate`
+5. Verify with:
    `deno run -A agents/scripts/run-agent.ts --agent {name} --dry-run`
 
 ## Documentation
@@ -94,6 +95,8 @@ Options:
   Detailed agent configuration guide
 - [Quickstart](https://github.com/tettuan/climpt/blob/main/agents/docs/builder/01_quickstart.md)
 - [Agent Definition](https://github.com/tettuan/climpt/blob/main/agents/docs/builder/02_agent_definition.md)
+- [YAML Reference](https://github.com/tettuan/climpt/tree/main/agents/docs/builder/reference) -
+  All fields with comments
 
 ## Uninstall
 

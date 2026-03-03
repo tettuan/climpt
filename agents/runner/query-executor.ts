@@ -20,7 +20,7 @@ import { isRecord, isString } from "../src_common/type-guards.ts";
 import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
 import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type {
   PromptStepDefinition,
   StepKind,

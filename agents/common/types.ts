@@ -86,7 +86,7 @@ export interface LogEntry {
       taskDescription: string;
       result: string;
     };
-    // Completion check
+    // Verdict check
     completionCheck?: {
       type?: string;
       current?: number;

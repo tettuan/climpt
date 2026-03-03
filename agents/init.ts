@@ -83,10 +83,10 @@ export async function initAgent(
           fallbackDir: `${PATHS.PROMPTS_DIR}/`,
         },
       },
-      completion: {
-        type: "keywordSignal",
+      verdict: {
+        type: "detect:keyword",
         config: {
-          completionKeyword: "TASK_COMPLETE",
+          verdictKeyword: "TASK_COMPLETE",
         },
       },
       boundaries: {
@@ -122,8 +122,8 @@ export async function initAgent(
   );
 
   // Create steps_registry.json
-  // Format: Compatible with agents/prompts/resolver.ts (keywordSignal completion type)
-  // For stepMachine completion type, use the scaffolder skill for advanced registry format
+  // Format: Compatible with agents/prompts/resolver.ts (keywordSignal verdict type)
+  // For stepMachine verdict type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
     version: "1.0.0",
     basePath: PATHS.PROMPTS_DIR,
@@ -132,7 +132,7 @@ export async function initAgent(
       system: {
         name: "System Prompt",
         path: "system.md",
-        variables: ["uv-agent_name", "uv-completion_criteria"],
+        variables: ["uv-agent_name", "uv-verdict_criteria"],
       },
       // Initial prompt: uses C3L path (c1/c2/c3)
       initial_manual: {
@@ -141,7 +141,7 @@ export async function initAgent(
         c2: STEP_PHASE.INITIAL,
         c3: "manual",
         edition: "default",
-        variables: ["uv-topic", "uv-completion_keyword"],
+        variables: ["uv-topic", "uv-verdict_keyword"],
       },
       // Continuation prompt: uses C3L path
       continuation_manual: {
@@ -150,7 +150,7 @@ export async function initAgent(
         c2: STEP_PHASE.CONTINUATION,
         c3: "manual",
         edition: "default",
-        variables: ["uv-iteration", "uv-completion_keyword"],
+        variables: ["uv-iteration", "uv-verdict_keyword"],
       },
     },
   };
@@ -165,9 +165,9 @@ export async function initAgent(
 
 You are operating as the **${agentName}** agent.
 
-## Completion Criteria
+## Verdict Criteria
 
-{uv-completion_criteria}
+{uv-verdict_criteria}
 
 ## Guidelines
 
@@ -190,7 +190,7 @@ You are operating as the **${agentName}** agent.
 
 ---
 
-Begin the session. When complete, output \`{uv-completion_keyword}\`.
+Begin the session. When complete, output \`{uv-verdict_keyword}\`.
 `;
 
   await Deno.writeTextFile(
@@ -210,7 +210,7 @@ Begin the session. When complete, output \`{uv-completion_keyword}\`.
 
 Continue working on the task.
 
-When complete, output \`{uv-completion_keyword}\`.
+When complete, output \`{uv-verdict_keyword}\`.
 `;
 
   await Deno.writeTextFile(
