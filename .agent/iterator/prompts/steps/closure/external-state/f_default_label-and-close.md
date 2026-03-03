@@ -1,14 +1,15 @@
 ---
-stepId: closure.externalState
-name: External State Closure Prompt (Close)
-description: Terminal step for external state closure - closes the issue
+stepId: closure.external-state
+name: External State Closure Prompt (Label and Close)
+description: Terminal step for external state closure - labels then closes
 uvVariables:
   - issue_number
 customVariables:
   - summary_section
+adaptation: label-and-close
 ---
 
-# External State Closure: Issue #{uv-issue_number}
+# External State Closure: Issue #{uv-issue_number} (Label and Close)
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -23,12 +24,12 @@ customVariables:
 
 {summary_section}
 
-## Your Role: Implementation Complete, Close Issue
+## Your Role: Implementation Complete, Label and Close Issue
 
 You are an **implementation agent**. Your work is done when:
 
 1. All code changes are committed
-2. The issue is closed
+2. Labels are updated and the issue is closed
 
 ## Closure Verification
 
@@ -49,7 +50,7 @@ If any of the above are not satisfied:
 
 ### Closure Action
 
-This step will **close** Issue #{uv-issue_number}.
+This step will **change labels and then close** Issue #{uv-issue_number}.
 
 ### Closure Report
 
@@ -57,7 +58,7 @@ When all conditions are met, report in structured output:
 
 - `status`: "completed"
 - `next_action.action`: "closing" (signals workflow completion)
-- `action`: "close"
+- `action`: "label-and-close"
 - `summary`: Brief closure summary describing what was accomplished
 - `issue.labels`: { add: [...], remove: [...] } (optional, to override defaults)
 

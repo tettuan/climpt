@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
-AGENT_DIR="${REPO_ROOT}/.agent/${AGENT_NAME}"
+AGENT_DIR=".agent/${AGENT_NAME}"
 
 main() {
   info "=== Initialize Agent: ${AGENT_NAME} ==="
@@ -18,9 +20,9 @@ main() {
     rm -rf "$AGENT_DIR"
   fi
 
-  # Init
-  show_cmd deno task agent --init --agent "$AGENT_NAME"
-  (cd "$REPO_ROOT" && deno task agent --init --agent "$AGENT_NAME")
+  # Init (cwd = examples/, so .agent/ is created under examples/)
+  show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --init --agent "$AGENT_NAME"
+  deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --init --agent "$AGENT_NAME"
 
   # Verify
   if [[ ! -f "${AGENT_DIR}/agent.json" ]]; then

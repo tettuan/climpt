@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
-AGENT_DIR="${REPO_ROOT}/.agent/${AGENT_NAME}"
-OUTPUTS_DIR="${REPO_ROOT}/examples/outputs/agents"
+AGENT_DIR=".agent/${AGENT_NAME}"
+OUTPUTS_DIR="outputs/agents"
 
 main() {
   info "=== Save Agent Results ==="
@@ -14,7 +16,7 @@ main() {
   mkdir -p "$OUTPUTS_DIR"
 
   # Save agent logs
-  local log_dir="${REPO_ROOT}/tmp/logs/agents/${AGENT_NAME}"
+  local log_dir="tmp/logs/agents/${AGENT_NAME}"
   if [[ -d "$log_dir" ]]; then
     mkdir -p "${OUTPUTS_DIR}/logs"
     cp -r "$log_dir" "${OUTPUTS_DIR}/logs/${AGENT_NAME}"

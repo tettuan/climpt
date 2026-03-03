@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
-  info "=== Install Climpt from JSR ==="
+  info "=== Install Climpt (local) ==="
 
   # Verify Deno is available
   check_deno
 
-  # Install Climpt globally with all permissions (-f to overwrite existing)
-  info "Installing @aidevtool/climpt/cli globally..."
-  run_example deno install -g -f -A jsr:@aidevtool/climpt/cli
+  # Install Climpt globally from local repo code (-f to overwrite existing)
+  info "Installing climpt globally from repo..."
+  run_example deno install -g --name climpt --root .deno -f -A "$REPO_ROOT/cli.ts"
 
   # Add .deno/bin to PATH for verification (Deno installs binaries there)
-  export PATH="${REPO_ROOT}/.deno/bin:${HOME}/.deno/bin:${PATH}"
+  export PATH="${EXAMPLES_DIR}/.deno/bin:${PATH}"
 
   # Verify installation
   info "Verifying installation..."

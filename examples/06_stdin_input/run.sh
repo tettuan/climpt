@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
-
-CLIMPT="deno run -A jsr:@aidevtool/climpt"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
   info "=== STDIN Input Patterns ==="
@@ -14,7 +14,7 @@ main() {
 
   # 1. Pipe a simple string
   info "1. Pipe a string via echo"
-  show_cmd 'echo "Hello from stdin" | deno run -A jsr:@aidevtool/climpt echo input --config=test'
+  show_cmd "echo \"Hello from stdin\" | deno run -A $REPO_ROOT/mod.ts echo input --config=test"
   output=$(echo "Hello from stdin" | ${CLIMPT} echo input --config=test 2>&1) \
     || { error "FAIL: pipe string command failed"; return 1; }
   if ! echo "$output" | grep -q "Hello from stdin"; then
@@ -24,7 +24,7 @@ main() {
 
   # 2. Multi-line here-document
   info "2. Multi-line input via here-document"
-  show_cmd 'deno run -A jsr:@aidevtool/climpt build frontmatter --config=meta <<EOF'
+  show_cmd "deno run -A $REPO_ROOT/mod.ts build frontmatter --config=meta <<EOF"
   output=$(${CLIMPT} build frontmatter --config=meta 2>&1 <<'EOF'
 Build a feature to validate user email addresses.
 Domain: code
@@ -42,7 +42,7 @@ EOF
 
   # 3. Pipe from a command output
   info "3. Pipe command output (git log) into a prompt"
-  show_cmd 'git log --oneline -5 | deno run -A jsr:@aidevtool/climpt echo input --config=test'
+  show_cmd "git log --oneline -5 | deno run -A $REPO_ROOT/mod.ts echo input --config=test"
   output=$(git log --oneline -5 | ${CLIMPT} echo input --config=test 2>&1) \
     || { error "FAIL: git log pipe command failed"; return 1; }
   if [[ -z "$output" ]]; then

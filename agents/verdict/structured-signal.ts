@@ -23,8 +23,27 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
   constructor(
     private readonly signalType: string,
     private readonly requiredFields?: Record<string, unknown>,
+    private readonly entryStepId?: string,
   ) {
     super();
+  }
+
+  /**
+   * Resolve the initial step ID from registry mapping or default.
+   */
+  private get initialStepId(): string {
+    return this.entryStepId ?? "initial.structured-signal";
+  }
+
+  /**
+   * Derive the continuation step ID from the initial step ID.
+   */
+  private get continuationStepId(): string {
+    const entry = this.initialStepId;
+    if (entry.startsWith("initial.")) {
+      return "continuation." + entry.slice("initial.".length);
+    }
+    return "continuation.structured-signal";
   }
 
   /**
@@ -44,7 +63,7 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.structuredSignal", {
+      return await this.promptResolver.resolve(this.initialStepId, {
         "uv-signal_type": this.signalType,
         "uv-required_fields": JSON.stringify(this.requiredFields ?? {}),
       });
@@ -94,7 +113,7 @@ ${requiredFieldsDesc}
         ? this.formatIterationSummary(previousSummary)
         : "";
       return await this.promptResolver.resolve(
-        "continuation.structuredSignal",
+        this.continuationStepId,
         {
           "uv-iteration": String(completedIterations),
           "uv-signal_type": this.signalType,

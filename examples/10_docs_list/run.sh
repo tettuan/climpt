@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
   info "=== List Available Docs ==="
@@ -11,8 +13,8 @@ main() {
 
   # List all available documentation packages
   info "Listing available documentation..."
-  show_cmd deno run -A jsr:@aidevtool/climpt/docs list
-  output=$(deno run -A jsr:@aidevtool/climpt/docs list 2>&1) \
+  show_cmd "deno run -A $REPO_ROOT/docs.ts list"
+  output=$(${CLIMPT_DOCS} list 2>&1) \
     || { error "FAIL: docs list command failed"; return 1; }
   if [[ -z "$output" ]]; then
     error "FAIL: docs list produced empty output"; return 1

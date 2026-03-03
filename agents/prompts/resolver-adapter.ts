@@ -167,11 +167,24 @@ export class PromptResolverAdapter {
 
       await this.logResolution(result, performance.now() - startTime);
       return result;
-    } catch {
+    } catch (innerErr) {
+      // deno-lint-ignore no-console
+      console.error(
+        "[PromptResolverAdapter] inner.resolve failed:",
+        stepId,
+        innerErr instanceof Error ? innerErr.message : String(innerErr),
+      );
       // Fall back to old DefaultFallbackProvider for known step IDs
       // Use fallbackKey from registry (underscore format) instead of stepId (dot format)
       try {
         const step = this.registry.steps[stepId];
+        // deno-lint-ignore no-console
+        console.error("[PromptResolverAdapter] fallback lookup:", {
+          stepId,
+          fallbackKey: step?.fallbackKey,
+          stepFound: !!step,
+          registrySteps: Object.keys(this.registry.steps),
+        });
         const fallbackKey = step?.fallbackKey ?? stepId;
         const content = this.fallbackProvider.get(fallbackKey, variables);
         const result: PromptResolutionResult = {
@@ -182,7 +195,14 @@ export class PromptResolverAdapter {
         };
         await this.logResolution(result, performance.now() - startTime);
         return result;
-      } catch {
+      } catch (fallbackErr) {
+        // deno-lint-ignore no-console
+        console.error(
+          "[PromptResolverAdapter] fallback also failed:",
+          fallbackErr instanceof Error
+            ? fallbackErr.message
+            : String(fallbackErr),
+        );
         throw new Error(`Unknown step: ${stepId}`);
       }
     }
