@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
-
-CLIMPT="deno run -A jsr:@aidevtool/climpt"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
   info "=== Custom Variables (--uv-*) ==="
@@ -14,7 +14,7 @@ main() {
 
   # 1. Run specific test with --uv-target (pipe from /dev/null to avoid stdin hang)
   info "1. Pass target variable to test runner"
-  show_cmd 'deno run -A jsr:@aidevtool/climpt run specific --config=test --uv-target=src/init_test.ts'
+  show_cmd "deno run -A $REPO_ROOT/mod.ts run specific --config=test --uv-target=src/init_test.ts"
   output=$(${CLIMPT} run specific --config=test --uv-target=src/init_test.ts < /dev/null 2>&1) \
     || { error "FAIL: --uv-target command failed"; return 1; }
   if [[ -z "$output" ]]; then
@@ -27,7 +27,7 @@ main() {
 
   # 2. Echo with custom variable to show --uv-* is forwarded
   info "2. Pass custom variable via echo test"
-  show_cmd 'echo "hello" | deno run -A jsr:@aidevtool/climpt echo input --config=test'
+  show_cmd "echo \"hello\" | deno run -A $REPO_ROOT/mod.ts echo input --config=test"
   output=$(echo "hello" \
     | ${CLIMPT} echo input --config=test 2>&1) \
     || { error "FAIL: echo input command failed"; return 1; }

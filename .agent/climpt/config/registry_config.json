@@ -1,6 +1,5 @@
 {
   "registries": {
-    "climpt": ".agent/climpt/registry.json",
-    "test-agent": ".agent/test-agent/registry.json"
+    "climpt": ".agent/climpt/registry.json"
   }
 }

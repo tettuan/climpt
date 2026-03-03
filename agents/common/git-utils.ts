@@ -216,6 +216,17 @@ export async function mergeBranch(
 }
 
 /**
+ * Check if a local branch exists
+ */
+export async function branchExists(
+  branchName: string,
+  cwd?: string,
+): Promise<boolean> {
+  const result = await runGitSafe(["branch", "--list", branchName], cwd);
+  return result.output.trim().length > 0;
+}
+
+/**
  * Delete a local branch
  *
  * @param branchName - Branch to delete

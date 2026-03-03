@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
-AGENT_DIR="${REPO_ROOT}/.agent/${AGENT_NAME}"
+AGENT_DIR=".agent/${AGENT_NAME}"
 AGENT_JSON="${AGENT_DIR}/agent.json"
 
 main() {

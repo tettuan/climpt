@@ -15,6 +15,7 @@ import {
   setupWorktree,
   worktreeExists,
 } from "./worktree.ts";
+import { branchExists } from "./git-utils.ts";
 import type { WorktreeCLIOptions, WorktreeSetupConfig } from "./types.ts";
 
 // ============================================================================
@@ -100,15 +101,15 @@ async function addCommit(
 // Unit Tests: generateBranchName
 // ============================================================================
 
-Deno.test("generateBranchName - creates timestamped branch name", () => {
+Deno.test("generateBranchName - creates timestamped branch name with random suffix", () => {
   const baseName = "feature/test";
   const result = generateBranchName(baseName);
 
   // Should start with the base name
   assertEquals(result.startsWith("feature/test-"), true);
 
-  // Should match pattern: baseName-yyyymmdd-hhmmss
-  assertMatch(result, /^feature\/test-\d{8}-\d{6}$/);
+  // Should match pattern: baseName-yyyymmdd-hhmmss-xxxx (4-char random suffix)
+  assertMatch(result, /^feature\/test-\d{8}-\d{6}-[a-z0-9]{4}$/);
 });
 
 Deno.test("generateBranchName - handles simple branch names", () => {
@@ -116,20 +117,15 @@ Deno.test("generateBranchName - handles simple branch names", () => {
   const result = generateBranchName(baseName);
 
   assertEquals(result.startsWith("develop-"), true);
-  assertMatch(result, /^develop-\d{8}-\d{6}$/);
+  assertMatch(result, /^develop-\d{8}-\d{6}-[a-z0-9]{4}$/);
 });
 
-Deno.test("generateBranchName - generates unique names on consecutive calls", async () => {
+Deno.test("generateBranchName - generates unique names on consecutive calls", () => {
   const baseName = "feature";
   const result1 = generateBranchName(baseName);
-
-  // Wait a bit to ensure different timestamp
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-
   const result2 = generateBranchName(baseName);
 
-  // Names should be different (different timestamps)
-  // Note: This could theoretically fail if both run in same second
+  // Names should be different due to random suffix (even within same second)
   assertEquals(result1 !== result2, true);
 });
 
@@ -207,8 +203,11 @@ Deno.test("setupWorktree - generates timestamped name when --branch not specifie
 
     const result = await setupWorktree(config, options, repo.path);
 
-    // Branch name should be timestamped (baseBranch-yyyymmdd-hhmmss)
-    assertMatch(result.branchName, /^master-\d{8}-\d{6}$|^main-\d{8}-\d{6}$/);
+    // Branch name should be timestamped with random suffix (baseBranch-yyyymmdd-hhmmss-xxxx)
+    assertMatch(
+      result.branchName,
+      /^master-\d{8}-\d{6}-[a-z0-9]{4}$|^main-\d{8}-\d{6}-[a-z0-9]{4}$/,
+    );
     assertEquals(result.created, true);
 
     // Cleanup
@@ -435,6 +434,74 @@ Deno.test("listWorktrees - returns at least main worktree", async () => {
 
     // Should have at least the main worktree
     assertEquals(worktrees.length >= 1, true);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+// ============================================================================
+// Integration Tests: branchExists
+// ============================================================================
+
+Deno.test("branchExists - returns true for existing branch", async () => {
+  const repo = await createTempGitRepo();
+  try {
+    const currentBranch = await getCurrentBranch(repo.path);
+    assertEquals(await branchExists(currentBranch, repo.path), true);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+Deno.test("branchExists - returns false for non-existent branch", async () => {
+  const repo = await createTempGitRepo();
+  try {
+    assertEquals(
+      await branchExists("nonexistent-branch-xyz", repo.path),
+      false,
+    );
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+// ============================================================================
+// Integration Tests: Branch collision handling
+// ============================================================================
+
+Deno.test("setupWorktree - retries on branch name collision", async () => {
+  const repo = await createTempGitRepo();
+
+  try {
+    const baseBranch = await getCurrentBranch(repo.path);
+
+    // Create a branch that matches the generated name pattern to force collision
+    // We create a worktree first, then the second call must generate a different name
+    const config: WorktreeSetupConfig = {
+      forceWorktree: true,
+      worktreeRoot: repo.worktreeRoot,
+    };
+
+    const options: WorktreeCLIOptions = {
+      // branch not specified - generates timestamped name
+    };
+
+    // First setup should succeed
+    const result1 = await setupWorktree(config, options, repo.path);
+    assertEquals(result1.created, true);
+    assertMatch(
+      result1.branchName,
+      new RegExp(`^${baseBranch}-\\d{8}-\\d{6}-[a-z0-9]{4}$`),
+    );
+
+    // Second setup should also succeed with a different branch name
+    const result2 = await setupWorktree(config, options, repo.path);
+    assertEquals(result2.created, true);
+    assertEquals(result1.branchName !== result2.branchName, true);
+
+    // Cleanup both worktrees
+    await cleanupWorktree(result2.worktreePath, repo.path);
+    await cleanupWorktree(result1.worktreePath, repo.path);
   } finally {
     await repo.cleanup();
   }
