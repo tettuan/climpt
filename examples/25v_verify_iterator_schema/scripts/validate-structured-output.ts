@@ -61,7 +61,7 @@ const config: SchemaValidationConfig = {
       schemaName: "closure.issue",
       expectedIntents: ["closing", "repeat"],
     },
-    // --- externalState path ---
+    // --- externalState path (poll:state verdict type) ---
     {
       stepId: "initial.externalState",
       schemaFile: "externalState.schema.json",

@@ -19,7 +19,7 @@ main() {
   success "PASS: facilitate-agent task exists"
 
   # Run facilitator agent WITHOUT --issue (issue.required is false)
-  info "Starting facilitator agent without --issue (structuredSignal pipeline test)..."
+  info "Starting facilitator agent without --issue (detect:structured pipeline test)..."
   show_cmd deno task facilitate-agent
   local exit_code=0
   output=$( (cd "$REPO_ROOT" && deno task facilitate-agent) 2>&1) \

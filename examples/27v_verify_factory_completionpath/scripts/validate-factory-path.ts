@@ -5,7 +5,7 @@
  * VerdictHandler for each registered verdictType without LLM calls.
  *
  * This catches regressions where a handler registration becomes a
- * throw-only stub (as happened with externalState during V2 migration).
+ * throw-only stub (as happened with poll:state during V2 migration).
  */
 
 import { resolve } from "@std/path";
