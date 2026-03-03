@@ -62,7 +62,7 @@ function verify(
     if (!markerOk) {
       reasons.push(`marker "${contentMarker}" not found in content`);
     }
-    console.log(`  FAIL: ${scenario} — ${reasons.join("; ")}`);
+    console.log(`  FAIL: ${scenario} -- ${reasons.join("; ")}`);
   }
 }
 
@@ -344,6 +344,7 @@ async function main(): Promise<void> {
     await Deno.remove(TMPDIR, { recursive: true });
     for (const suffix of ["-steps-app.yml", "-steps-user.yml"]) {
       try {
+        // deno-lint-ignore no-await-in-loop
         await Deno.remove(join(CONFIG_DIR, `example-agent${suffix}`));
       } catch { /* already removed */ }
     }
