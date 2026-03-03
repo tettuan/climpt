@@ -18,30 +18,43 @@ contribute to the project.
 - [Troubleshooting](../../agents/docs/builder/05_troubleshooting.md) - Common
   issues and solutions
 
-### Migration
+### Reference
 
-- [Migration Guide](../../agents/docs/builder/migration_guide.md) - Upgrading
-  from older versions
-- [Migration Incompatibilities](../../agents/docs/builder/migration_incompatibilities.md) -
-  Breaking changes reference
+- [agent.yaml Reference](../../agents/docs/builder/reference/agent.yaml) - All
+  agent.json fields with comments
+- [steps_registry.yaml Reference](../../agents/docs/builder/reference/steps_registry.yaml) -
+  All steps_registry.json fields with comments
+
+### Validation
+
+```bash
+deno task agent --agent <name> --validate
+```
+
+Validates agent.json (schema + config) and steps_registry.json (schema +
+cross-references) without running the agent.
 
 ## Architecture & Design
 
-- [Runner Architecture](../../agents/docs/design/01_runner.md) - How the agent
-  runner works
-- [Prompt System](../../agents/docs/design/02_prompt_system.md) - System and
-  step prompts design
-- [Structured Outputs](../../agents/docs/design/03_structured_outputs.md) -
-  Output handling design
-- [Design Philosophy](../../agents/docs/design/04_philosophy.md) - Core design
+- [Design Philosophy](../../agents/docs/design/01_philosophy.md) - Core design
   principles
-- [Core Architecture](../../agents/docs/design/05_core_architecture.md) - System
+- [Core Architecture](../../agents/docs/design/02_core_architecture.md) - System
   architecture overview
-- [Contracts](../../agents/docs/design/06_contracts.md) - Interface contracts
-- [Extension Points](../../agents/docs/design/07_extension_points.md) - How to
-  extend the system
-- [Step Flow Design](../../agents/docs/design/08_step_flow_design.md) -
+- [Concept Tree](../../agents/docs/design/03_concept_tree.md) - Agent Runner
+  concept hierarchy
+- [Step Flow Design](../../agents/docs/design/04_step_flow_design.md) -
   Step-based execution flow
+- [Structured Outputs](../../agents/docs/design/05_structured_outputs.md) -
+  Output handling design
+- [Runner Architecture](../../agents/docs/design/06_runner.md) - How the agent
+  runner works
+- [Prompt System](../../agents/docs/design/07_prompt_system.md) - System and
+  step prompts design
+- [Model Selection](../../agents/docs/design/08_model_selection.md) - Per-step
+  model selection
+- [Contracts](../../agents/docs/design/09_contracts.md) - Interface contracts
+- [Extension Points](../../agents/docs/design/10_extension_points.md) - How to
+  extend the system
 
 ## Plugin Development
 

@@ -44,7 +44,7 @@ export function getDefaults(): Partial<AgentDefinition> {
         systemPromptPath: "",
         prompts: { registry: "", fallbackDir: "" },
       },
-      completion: { type: "iterationBudget", config: {} },
+      verdict: { type: "count:iteration", config: {} },
       boundaries: {
         allowedTools: [],
         permissionMode: "plan",

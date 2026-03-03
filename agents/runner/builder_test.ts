@@ -10,22 +10,22 @@ import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   type AgentDependencies,
   AgentRunnerBuilder,
-  type CompletionHandlerFactory,
   createDefaultDependencies,
-  DefaultCompletionHandlerFactory,
-  DefaultCompletionValidatorFactory,
   DefaultLoggerFactory,
   DefaultPromptResolverFactory,
   DefaultRetryHandlerFactory,
+  DefaultStepValidatorFactory,
+  DefaultVerdictHandlerFactory,
   isInitializable,
   type LoggerFactory,
   type LoggerFactoryOptions,
   type PromptResolverFactory,
   type PromptResolverFactoryOptions,
+  type VerdictHandlerFactory,
 } from "./builder.ts";
 import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
-import type { CompletionHandler } from "../completion/types.ts";
+import type { VerdictHandler } from "../verdict/types.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
 
 const logger = new BreakdownLogger("factory");
@@ -52,8 +52,8 @@ function createMinimalDefinition(): ResolvedAgentDefinition {
           fallbackDir: "./prompts",
         },
       },
-      completion: {
-        type: "iterationBudget",
+      verdict: {
+        type: "count:iteration",
         config: { maxIterations: 10 },
       },
       boundaries: {
@@ -88,18 +88,18 @@ function createMockLogger(): Logger {
 }
 
 /**
- * Mock completion handler for testing
+ * Mock verdict handler for testing
  */
-function createMockCompletionHandler(): CompletionHandler {
+function createMockVerdictHandler(): VerdictHandler {
   return {
     shouldComplete: () => ({ complete: false }),
     onComplete: () => {},
-    getCompletionReason: () => "mock completion",
+    getVerdictReason: () => "mock verdict",
     getCurrentIteration: () => 1,
-    handleAICompletion: () => {},
+    handleAIVerdict: () => {},
     updateState: () => {},
     getState: () => ({ iteration: 1 }),
-  } as unknown as CompletionHandler;
+  } as unknown as VerdictHandler;
 }
 
 /**
@@ -154,15 +154,15 @@ Deno.test("createDefaultDependencies - returns all required factories", () => {
   const deps = createDefaultDependencies();
   logger.debug("createDefaultDependencies result", {
     hasLogger: !!deps.loggerFactory,
-    hasCompletion: !!deps.completionHandlerFactory,
+    hasVerdict: !!deps.verdictHandlerFactory,
     hasPrompt: !!deps.promptResolverFactory,
   });
 
   assertEquals(typeof deps.loggerFactory, "object");
   assertEquals(typeof deps.loggerFactory.create, "function");
 
-  assertEquals(typeof deps.completionHandlerFactory, "object");
-  assertEquals(typeof deps.completionHandlerFactory.create, "function");
+  assertEquals(typeof deps.verdictHandlerFactory, "object");
+  assertEquals(typeof deps.verdictHandlerFactory.create, "function");
 
   assertEquals(typeof deps.promptResolverFactory, "object");
   assertEquals(typeof deps.promptResolverFactory.create, "function");
@@ -171,7 +171,7 @@ Deno.test("createDefaultDependencies - returns all required factories", () => {
 Deno.test("createDefaultDependencies - includes optional factories", () => {
   const deps = createDefaultDependencies();
 
-  assertEquals(deps.completionValidatorFactory !== undefined, true);
+  assertEquals(deps.stepValidatorFactory !== undefined, true);
   assertEquals(deps.retryHandlerFactory !== undefined, true);
 });
 
@@ -180,13 +180,13 @@ Deno.test("createDefaultDependencies - factories are correct types", () => {
 
   assertInstanceOf(deps.loggerFactory, DefaultLoggerFactory);
   assertInstanceOf(
-    deps.completionHandlerFactory,
-    DefaultCompletionHandlerFactory,
+    deps.verdictHandlerFactory,
+    DefaultVerdictHandlerFactory,
   );
   assertInstanceOf(deps.promptResolverFactory, DefaultPromptResolverFactory);
   assertInstanceOf(
-    deps.completionValidatorFactory,
-    DefaultCompletionValidatorFactory,
+    deps.stepValidatorFactory,
+    DefaultStepValidatorFactory,
   );
   assertInstanceOf(deps.retryHandlerFactory, DefaultRetryHandlerFactory);
 });
@@ -195,19 +195,19 @@ Deno.test("createDefaultDependencies - factories are correct types", () => {
 // Default Factory Implementation Tests
 // =============================================================================
 
-Deno.test("DefaultCompletionValidatorFactory - is initializable", () => {
-  const factory = new DefaultCompletionValidatorFactory();
+Deno.test("DefaultStepValidatorFactory - is initializable", () => {
+  const factory = new DefaultStepValidatorFactory();
   assertEquals(isInitializable(factory), true);
 });
 
-Deno.test("DefaultCompletionValidatorFactory - throws before initialization", () => {
-  const factory = new DefaultCompletionValidatorFactory();
+Deno.test("DefaultStepValidatorFactory - throws before initialization", () => {
+  const factory = new DefaultStepValidatorFactory();
 
   try {
     factory.create({
       registry: {
         version: "1.0.0",
-      } as unknown as import("../common/completion-types.ts").ExtendedStepsRegistry,
+      } as unknown as import("../common/validation-types.ts").ExtendedStepsRegistry,
       workingDir: "/tmp",
       logger: createMockLogger(),
       agentId: "test",
@@ -231,7 +231,7 @@ Deno.test("DefaultRetryHandlerFactory - throws before initialization", () => {
     factory.create({
       registry: {
         version: "1.0.0",
-      } as unknown as import("../common/completion-types.ts").ExtendedStepsRegistry,
+      } as unknown as import("../common/validation-types.ts").ExtendedStepsRegistry,
       workingDir: "/tmp",
       logger: createMockLogger(),
       agentId: "test",
@@ -279,8 +279,8 @@ Deno.test("AgentRunnerBuilder - builder methods return this for chaining", () =>
       Promise.resolve(createMockLogger()),
   };
 
-  const mockCompletionFactory: CompletionHandlerFactory = {
-    create: () => Promise.resolve(createMockCompletionHandler()),
+  const mockVerdictFactory: VerdictHandlerFactory = {
+    create: () => Promise.resolve(createMockVerdictHandler()),
   };
 
   const mockPromptFactory: PromptResolverFactory = {
@@ -292,7 +292,7 @@ Deno.test("AgentRunnerBuilder - builder methods return this for chaining", () =>
   const result = builder
     .withDefinition(definition)
     .withLoggerFactory(mockLoggerFactory)
-    .withCompletionHandlerFactory(mockCompletionFactory)
+    .withVerdictHandlerFactory(mockVerdictFactory)
     .withPromptResolverFactory(mockPromptFactory);
 
   assertEquals(result, builder);
@@ -307,8 +307,8 @@ Deno.test("AgentRunnerBuilder - custom factories override defaults", async () =>
       Promise.resolve(createMockLogger()),
   };
 
-  const mockCompletionFactory: CompletionHandlerFactory = {
-    create: () => Promise.resolve(createMockCompletionHandler()),
+  const mockVerdictFactory: VerdictHandlerFactory = {
+    create: () => Promise.resolve(createMockVerdictHandler()),
   };
 
   const mockPromptFactory: PromptResolverFactory = {
@@ -319,7 +319,7 @@ Deno.test("AgentRunnerBuilder - custom factories override defaults", async () =>
   const builder = new AgentRunnerBuilder()
     .withDefinition(definition)
     .withLoggerFactory(mockLoggerFactory)
-    .withCompletionHandlerFactory(mockCompletionFactory)
+    .withVerdictHandlerFactory(mockVerdictFactory)
     .withPromptResolverFactory(mockPromptFactory);
 
   // Build creates the runner which uses the factories
@@ -345,7 +345,7 @@ Deno.test("AgentDependencies - required properties are present", () => {
   // Required factories must be present
   const requiredKeys: (keyof AgentDependencies)[] = [
     "loggerFactory",
-    "completionHandlerFactory",
+    "verdictHandlerFactory",
     "promptResolverFactory",
   ];
 
@@ -358,11 +358,11 @@ Deno.test("AgentDependencies - optional properties can be undefined", () => {
   // Create minimal dependencies without optional factories
   const minimalDeps: AgentDependencies = {
     loggerFactory: new DefaultLoggerFactory(),
-    completionHandlerFactory: new DefaultCompletionHandlerFactory(),
+    verdictHandlerFactory: new DefaultVerdictHandlerFactory(),
     promptResolverFactory: new DefaultPromptResolverFactory(),
   };
 
   // Optional factories can be undefined
-  assertEquals(minimalDeps.completionValidatorFactory, undefined);
+  assertEquals(minimalDeps.stepValidatorFactory, undefined);
   assertEquals(minimalDeps.retryHandlerFactory, undefined);
 });

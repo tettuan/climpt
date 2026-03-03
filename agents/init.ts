@@ -83,10 +83,10 @@ export async function initAgent(
           fallbackDir: `${PATHS.PROMPTS_DIR}/`,
         },
       },
-      completion: {
-        type: "keywordSignal",
+      verdict: {
+        type: "detect:keyword",
         config: {
-          completionKeyword: "TASK_COMPLETE",
+          verdictKeyword: "TASK_COMPLETE",
         },
       },
       boundaries: {
@@ -122,38 +122,35 @@ export async function initAgent(
   );
 
   // Create steps_registry.json
-  // Format: Compatible with flow-orchestrator.ts (keywordSignal completion type)
-  // For stepMachine completion type, use the scaffolder skill for advanced registry format
+  // Format: Compatible with agents/prompts/resolver.ts (keywordSignal verdict type)
+  // For stepMachine verdict type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
-    agentId: agentName,
-    version: "3.0.0",
-    userPromptsBase:
-      `${PATHS.AGENT_DIR_PREFIX}/${agentName}/${PATHS.PROMPTS_DIR}`,
-    c1: "steps",
-    entryStepMapping: {
-      keywordSignal: "initial.manual",
-    },
-    entryStep: "initial.manual",
+    version: "1.0.0",
+    basePath: PATHS.PROMPTS_DIR,
     steps: {
-      "initial.manual": {
+      // System prompt: uses direct path
+      system: {
+        name: "System Prompt",
+        path: "system.md",
+        variables: ["uv-agent_name", "uv-verdict_criteria"],
+      },
+      // Initial prompt: uses C3L path (c1/c2/c3)
+      initial_manual: {
         name: "Manual Initial Prompt",
-        stepId: "initial.manual",
+        c1: "steps",
         c2: STEP_PHASE.INITIAL,
         c3: "manual",
         edition: "default",
-        fallbackKey: "initial_manual",
-        uvVariables: ["topic", "completion_keyword"],
-        usesStdin: false,
+        variables: ["uv-topic", "uv-verdict_keyword"],
       },
-      "continuation.manual": {
+      // Continuation prompt: uses C3L path
+      continuation_manual: {
         name: "Manual Continuation Prompt",
-        stepId: "continuation.manual",
+        c1: "steps",
         c2: STEP_PHASE.CONTINUATION,
         c3: "manual",
         edition: "default",
-        fallbackKey: "continuation_manual",
-        uvVariables: ["iteration", "completion_keyword"],
-        usesStdin: false,
+        variables: ["uv-iteration", "uv-verdict_keyword"],
       },
     },
   };
@@ -168,9 +165,9 @@ export async function initAgent(
 
 You are operating as the **${agentName}** agent.
 
-## Completion Criteria
+## Verdict Criteria
 
-{uv-completion_criteria}
+{uv-verdict_criteria}
 
 ## Guidelines
 
@@ -193,7 +190,7 @@ You are operating as the **${agentName}** agent.
 
 ---
 
-Begin the session. When complete, output \`{uv-completion_keyword}\`.
+Begin the session. When complete, output \`{uv-verdict_keyword}\`.
 `;
 
   await Deno.writeTextFile(
@@ -213,7 +210,7 @@ Begin the session. When complete, output \`{uv-completion_keyword}\`.
 
 Continue working on the task.
 
-When complete, output \`{uv-completion_keyword}\`.
+When complete, output \`{uv-verdict_keyword}\`.
 `;
 
   await Deno.writeTextFile(

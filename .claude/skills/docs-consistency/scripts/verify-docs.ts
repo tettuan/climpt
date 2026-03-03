@@ -331,7 +331,7 @@ async function checkAgents(): Promise<void> {
     return;
   }
 
-  const completionTypes = ["externalState", "iterationBudget", "keywordSignal", "stepMachine"];
+  const completionTypes = ["poll:state", "count:iteration", "detect:keyword", "detect:graph"];
   const docTypes = completionTypes.filter((t) => agentsReadme.includes(t));
 
   report({

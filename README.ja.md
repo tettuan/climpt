@@ -194,11 +194,12 @@ deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
 |-------------|------|------|
 | クイックスタート | `agents/docs/builder/01_quickstart.md` | エージェント作成ガイド |
 | 定義リファレンス | `agents/docs/builder/02_agent_definition.md` | agent.json フィールド |
+| YAML リファレンス | `agents/docs/builder/reference/` | 全フィールドのコメント付き解説 |
 | トラブルシューティング | `agents/docs/builder/05_troubleshooting.md` | よくある問題と解決策 |
 | 設計ドキュメント | `agents/docs/design/` | アーキテクチャとコンセプト |
 | JSON スキーマ | `agents/schemas/` | agent.schema.json, steps_registry.schema.json |
 
-CLIオプションは `deno task agent --help` を参照。
+CLIオプションは `deno task agent --help` を参照。設定の検証は `deno task agent --agent <name> --validate` で実行可能。
 
 ### 設定例
 

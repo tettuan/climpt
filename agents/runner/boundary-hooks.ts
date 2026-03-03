@@ -17,7 +17,7 @@
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { AgentEventEmitter } from "./events.ts";
 
 export interface BoundaryHookDeps {
@@ -68,11 +68,11 @@ export class BoundaryHooks {
 
     ctx.logger.info(`[BoundaryHook] Invoked for closure step: ${stepId}`);
 
-    // Delegate to completionHandler for actual side effects
-    // The completionHandler is responsible for implementing the boundary actions
+    // Delegate to verdictHandler for actual side effects
+    // The verdictHandler is responsible for implementing the boundary actions
     // based on the agent's configuration
-    if (ctx.completionHandler.onBoundaryHook) {
-      await ctx.completionHandler.onBoundaryHook({
+    if (ctx.verdictHandler.onBoundaryHook) {
+      await ctx.verdictHandler.onBoundaryHook({
         stepId,
         stepKind,
         structuredOutput: summary.structuredOutput,

@@ -3,7 +3,7 @@
  *
  * Runner config hierarchy mirrors runtime ownership:
  * - flow: FlowOrchestrator (prompts, schemas, system prompt, defaultModel, askUserAutoResponse)
- * - completion: CompletionManager (type, config)
+ * - verdict: VerdictManager (type, config)
  * - boundaries: QueryExecutor (tools, permissions, sandbox)
  * - integrations: external service configs (github)
  * - actions: ActionDetector (detection, types, handlers)
@@ -11,7 +11,7 @@
  * - logging: log output config
  */
 
-import type { CompletionConfigUnion, CompletionType } from "./completion.ts";
+import type { VerdictConfigUnion, VerdictType } from "./verdict.ts";
 
 // ============================================================================
 // Agent Definition Types
@@ -35,7 +35,7 @@ export interface AgentDefinition {
 
 export interface RunnerConfig {
   flow: RunnerFlowConfig;
-  completion: RunnerCompletionConfig;
+  verdict: RunnerVerdictConfig;
   boundaries: RunnerBoundariesConfig;
   integrations?: RunnerIntegrationsConfig;
   actions?: ActionConfig;
@@ -75,9 +75,9 @@ export interface RunnerFlowConfig {
   askUserAutoResponse?: string;
 }
 
-export interface RunnerCompletionConfig {
-  type: CompletionType;
-  config: CompletionConfigUnion;
+export interface RunnerVerdictConfig {
+  type: VerdictType;
+  config: VerdictConfigUnion;
 }
 
 export interface RunnerBoundariesConfig {

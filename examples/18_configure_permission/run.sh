@@ -30,7 +30,7 @@ main() {
   # Set permissionMode to "plan", limit to 1 iteration
   # Keep Write/Edit in allowedTools intentionally — plan mode should block them
   jq '.runner.boundaries.permissionMode = "plan"
-    | .runner.completion.config.maxIterations = 1' \
+    | .runner.verdict.config.maxIterations = 1' \
     "$AGENT_JSON" > "${AGENT_JSON}.tmp" && mv "${AGENT_JSON}.tmp" "$AGENT_JSON"
 
   # Show after

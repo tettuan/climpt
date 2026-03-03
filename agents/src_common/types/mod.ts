@@ -4,7 +4,7 @@
  */
 
 export * from "./agent-definition.ts";
-export * from "./completion.ts";
+export * from "./verdict.ts";
 export * from "./step-flow.ts";
 export * from "./validation.ts";
 export * from "./runtime.ts";

@@ -61,11 +61,11 @@ Deno.test("WorkflowRouter - closing intent signals completion", () => {
     createInterpretation({ intent: "closing", reason: "Task done" }),
   );
   logger.debug("route result", {
-    signalCompletion: result.signalCompletion,
+    signalClosing: result.signalClosing,
     nextStepId: result.nextStepId,
   });
 
-  assertEquals(result.signalCompletion, true);
+  assertEquals(result.signalClosing, true);
   assertEquals(result.nextStepId, "initial.issue");
   assertEquals(result.reason, "Task done");
 });
@@ -81,7 +81,7 @@ Deno.test("WorkflowRouter - abort intent signals completion", () => {
     createInterpretation({ intent: "abort" }),
   );
 
-  assertEquals(result.signalCompletion, true);
+  assertEquals(result.signalClosing, true);
   assertEquals(result.reason, "Intent: abort");
 });
 
@@ -97,7 +97,7 @@ Deno.test("WorkflowRouter - repeat intent stays on current step", () => {
   );
 
   assertEquals(result.nextStepId, "initial.issue");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
   assertEquals(result.reason, "Retry needed");
 });
 
@@ -114,7 +114,7 @@ Deno.test("WorkflowRouter - jump intent uses explicit target", () => {
   );
 
   assertEquals(result.nextStepId, "s_review");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
 });
 
 Deno.test("WorkflowRouter - jump to invalid target throws error", () => {
@@ -151,7 +151,7 @@ Deno.test("WorkflowRouter - next intent uses transitions config", () => {
   );
 
   assertEquals(result.nextStepId, "continuation.issue");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
 });
 
 Deno.test("WorkflowRouter - transitions with invalid target throws error", () => {
@@ -193,11 +193,11 @@ Deno.test("WorkflowRouter - default transition initial -> continuation", () => {
   );
   logger.debug("default transition result", {
     nextStepId: result.nextStepId,
-    signalCompletion: result.signalCompletion,
+    signalClosing: result.signalClosing,
   });
 
   assertEquals(result.nextStepId, "continuation.issue");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
 });
 
 Deno.test("WorkflowRouter - signals completion when no continuation exists", () => {
@@ -212,7 +212,7 @@ Deno.test("WorkflowRouter - signals completion when no continuation exists", () 
     createInterpretation({ intent: "next" }),
   );
 
-  assertEquals(result.signalCompletion, true);
+  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
@@ -376,7 +376,7 @@ Deno.test("WorkflowRouter - closure step can emit closing intent", () => {
     createInterpretation({ intent: "closing" }),
   );
 
-  assertEquals(result.signalCompletion, true);
+  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
@@ -459,7 +459,7 @@ Deno.test("WorkflowRouter - verification step can emit escalate intent", () => {
   );
 
   assertEquals(result.nextStepId, "continuation.support");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
 });
 
 Deno.test("WorkflowRouter - escalate without transition throws error", () => {
@@ -522,7 +522,7 @@ Deno.test("WorkflowRouter - handoff intent signals completion from continuation"
     }),
   );
 
-  assertEquals(result.signalCompletion, true);
+  assertEquals(result.signalClosing, true);
   assertEquals(result.reason, "Delegating to reviewer");
 });
 
@@ -548,7 +548,7 @@ Deno.test("WorkflowRouter - handoff from initial step emits warning", () => {
   );
 
   assertEquals(result.nextStepId, "closure.issue");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.signalClosing, false);
   assert(result.warning?.includes("Handoff from initial step"));
   assert(result.warning?.includes("initial.issue"));
 });
@@ -582,7 +582,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
   // Only closure steps emit 'closing' to complete
 
   const registry = createRegistry({
-    "initial.external-state": {
+    "initial.externalState": {
       c2: "initial",
       stepKind: "work",
       structuredGate: {
@@ -592,12 +592,12 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
         fallbackIntent: "next",
       },
       transitions: {
-        next: { target: "continuation.external-state" },
-        repeat: { target: "initial.external-state" },
-        handoff: { target: "closure.external-state" },
+        next: { target: "continuation.externalState" },
+        repeat: { target: "initial.externalState" },
+        handoff: { target: "closure.externalState" },
       },
     },
-    "continuation.external-state": {
+    "continuation.externalState": {
       c2: "continuation",
       stepKind: "work",
       structuredGate: {
@@ -607,12 +607,12 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
         fallbackIntent: "next",
       },
       transitions: {
-        next: { target: "continuation.external-state" },
-        repeat: { target: "continuation.external-state" },
-        handoff: { target: "closure.external-state" },
+        next: { target: "continuation.externalState" },
+        repeat: { target: "continuation.externalState" },
+        handoff: { target: "closure.externalState" },
       },
     },
-    "closure.external-state": {
+    "closure.externalState": {
       c2: "closure",
       stepKind: "closure",
       structuredGate: {
@@ -623,7 +623,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
       },
       transitions: {
         closing: { target: null },
-        repeat: { target: "closure.external-state" },
+        repeat: { target: "closure.externalState" },
       },
     },
   });
@@ -631,48 +631,48 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
 
   // Step 1: Initial work step emits 'next' to continue
   const step1 = router.route(
-    "initial.external-state",
+    "initial.externalState",
     createInterpretation({ intent: "next", reason: "Analysis complete" }),
   );
   logger.debug("full flow step1", {
-    from: "initial.external-state",
+    from: "initial.externalState",
     intent: "next",
     nextStepId: step1.nextStepId,
   });
-  assertEquals(step1.nextStepId, "continuation.external-state");
-  assertEquals(step1.signalCompletion, false);
+  assertEquals(step1.nextStepId, "continuation.externalState");
+  assertEquals(step1.signalClosing, false);
 
   // Step 2: Continuation work step emits 'handoff' to transition to closure
   const step2 = router.route(
-    "continuation.external-state",
+    "continuation.externalState",
     createInterpretation({ intent: "handoff", reason: "All work done" }),
   );
   logger.debug("full flow step2", {
-    from: "continuation.external-state",
+    from: "continuation.externalState",
     intent: "handoff",
     nextStepId: step2.nextStepId,
   });
-  assertEquals(step2.nextStepId, "closure.external-state");
-  assertEquals(step2.signalCompletion, false);
+  assertEquals(step2.nextStepId, "closure.externalState");
+  assertEquals(step2.signalClosing, false);
 
   // Step 3: Closure step emits 'closing' to complete workflow
   const step3 = router.route(
-    "closure.external-state",
+    "closure.externalState",
     createInterpretation({ intent: "closing", reason: "Closure verified" }),
   );
   logger.debug("full flow step3", {
-    from: "closure.external-state",
+    from: "closure.externalState",
     intent: "closing",
-    signalCompletion: step3.signalCompletion,
+    signalClosing: step3.signalClosing,
   });
-  assertEquals(step3.signalCompletion, true);
+  assertEquals(step3.signalClosing, true);
   assertEquals(step3.reason, "Closure verified");
 });
 
 Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
   // Regression test: work steps must use 'handoff', not 'closing'
   const registry = createRegistry({
-    "initial.external-state": {
+    "initial.externalState": {
       c2: "initial",
       stepKind: "work",
       structuredGate: {
@@ -681,10 +681,10 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
         intentSchemaRef: "#/test",
       },
       transitions: {
-        handoff: { target: "closure.external-state" },
+        handoff: { target: "closure.externalState" },
       },
     },
-    "closure.external-state": {
+    "closure.externalState": {
       c2: "closure",
       stepKind: "closure",
     },
@@ -695,7 +695,7 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
   assertThrows(
     () =>
       router.route(
-        "initial.external-state",
+        "initial.externalState",
         createInterpretation({ intent: "closing" }),
       ),
     RoutingError,
@@ -707,7 +707,7 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
   // Per design 08_step_flow_design.md Section 3.2:
   // Closure step repeat should route to work step, not self-loop
   const registry = createRegistry({
-    "continuation.external-state": {
+    "continuation.externalState": {
       c2: "continuation",
       stepKind: "work",
       structuredGate: {
@@ -716,10 +716,10 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
         intentSchemaRef: "#/test",
       },
       transitions: {
-        handoff: { target: "closure.external-state" },
+        handoff: { target: "closure.externalState" },
       },
     },
-    "closure.external-state": {
+    "closure.externalState": {
       c2: "closure",
       stepKind: "closure",
       structuredGate: {
@@ -729,7 +729,7 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
       },
       transitions: {
         closing: { target: null },
-        repeat: { target: "continuation.external-state" }, // Routes to work step
+        repeat: { target: "continuation.externalState" }, // Routes to work step
       },
     },
   });
@@ -737,11 +737,11 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
 
   // Closure step emits 'repeat' - should route to continuation (work step)
   const result = router.route(
-    "closure.external-state",
+    "closure.externalState",
     createInterpretation({ intent: "repeat" }),
   );
 
-  assertEquals(result.nextStepId, "continuation.external-state");
-  assertEquals(result.signalCompletion, false);
+  assertEquals(result.nextStepId, "continuation.externalState");
+  assertEquals(result.signalClosing, false);
   assert(result.reason.includes("Closure repeat"));
 });

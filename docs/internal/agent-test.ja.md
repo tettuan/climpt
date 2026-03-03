@@ -29,7 +29,7 @@ Agent のテストを開始する。
 ### 参照
 
 - `agents/docs/builder/01_quickstart.md` - スキーマ設定の正しい形式
-- `agents/docs/design/08_step_flow_design.md` - Flow ステップの要件
+- `agents/docs/design/04_step_flow_design.md` - Flow ステップの要件
 
 ---
 
@@ -70,7 +70,7 @@ Agent のテストを開始する。
 
    参照ドキュメント:
    - `agents/docs/builder/01_quickstart.md`
-   - `agents/docs/design/08_step_flow_design.md`
+   - `agents/docs/design/04_step_flow_design.md`
 
 - `entryStepMapping` または `entryStep` を**必ず**定義する
 - `.agent/{agent}/schemas/*.schema.json` を作成し、すべての Flow/Closure Step に
@@ -180,7 +180,7 @@ AI の `next_action.action` から遷移を決定:
 | `escalate` | `abort`   | 中断                      |
 | `abort`    | `abort`   | 中断                      |
 
-詳細: `agents/docs/design/08_step_flow_design.md`
+詳細: `agents/docs/design/04_step_flow_design.md`
 
 ## Step フロー構成
 

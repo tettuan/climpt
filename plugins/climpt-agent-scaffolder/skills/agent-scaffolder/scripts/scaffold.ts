@@ -26,10 +26,10 @@ interface ScaffoldOptions {
 }
 
 const COMPLETION_TYPES = [
-  "externalState",
-  "iterationBudget",
-  "keywordSignal",
-  "stepMachine",
+  "poll:state",
+  "count:iteration",
+  "detect:keyword",
+  "detect:graph",
 ] as const;
 
 function toDisplayName(kebabName: string): string {
@@ -198,7 +198,7 @@ if (import.meta.main) {
     string: ["name", "description", "completion-type", "display-name"],
     boolean: ["dry-run", "help"],
     default: {
-      "completion-type": "externalState",
+      "completion-type": "poll:state",
       description: "A new Climpt agent",
     },
     alias: {
@@ -219,24 +219,24 @@ Usage:
 Options:
   -n, --name <name>              Agent name (required, kebab-case)
   -d, --description <desc>       Agent description
-  -c, --completion-type <type>   Completion type (default: externalState)
+  -c, --completion-type <type>   Completion type (default: poll:state)
       --display-name <name>      Display name (default: derived from name)
       --dry-run                  Preview without creating files
   -h, --help                     Show this help
 
 Completion Types (supported):
-  externalState    - Monitor external resource state (Issue/PR)
-  iterationBudget  - Fixed number of iterations
-  keywordSignal    - Completion keyword detection
-  stepMachine      - Step graph-based flow
+  poll:state       - Monitor external resource state (Issue/PR)
+  count:iteration  - Fixed number of iterations
+  detect:keyword   - Completion keyword detection
+  detect:graph     - Step graph-based flow
 
 Advanced types (require manual agent.json edits):
-  checkBudget, structuredSignal, composite, custom
+  count:check, detect:structured, meta:composite, meta:custom
   See: agents/docs/builder/02_agent_definition.md
 
 Examples:
   deno run -A scaffold.ts --name code-reviewer --description "Reviews pull requests"
-  deno run -A scaffold.ts -n my-agent -c iterationBudget --dry-run
+  deno run -A scaffold.ts -n my-agent -c count:iteration --dry-run
 `);
     Deno.exit(args.help ? 0 : 1);
   }

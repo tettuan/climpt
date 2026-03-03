@@ -29,8 +29,8 @@ import { STEP_PHASE } from "../shared/step-phases.ts";
 export interface RoutingResult {
   /** Next step ID to execute */
   nextStepId: string;
-  /** Whether to signal completion (intent was "closing") */
-  signalCompletion: boolean;
+  /** Whether to signal closing (intent was "closing") */
+  signalClosing: boolean;
   /** Reason for routing decision */
   reason: string;
   /** Optional warning message (e.g., handoff from initial step) */
@@ -81,7 +81,7 @@ export class WorkflowRouter {
       // Only closure steps can emit closing intent - signal completion
       return {
         nextStepId: currentStepId,
-        signalCompletion: true,
+        signalClosing: true,
         reason: interpretation.reason ?? "Intent: closing",
       };
     }
@@ -89,7 +89,7 @@ export class WorkflowRouter {
     if (intent === "abort") {
       return {
         nextStepId: currentStepId,
-        signalCompletion: true,
+        signalClosing: true,
         reason: interpretation.reason ?? "Intent: abort",
       };
     }
@@ -108,7 +108,7 @@ export class WorkflowRouter {
         ) {
           return {
             nextStepId: resolved.nextStepId,
-            signalCompletion: false,
+            signalClosing: false,
             reason: interpretation.reason ??
               `Closure repeat -> ${resolved.nextStepId}`,
           };
@@ -116,7 +116,7 @@ export class WorkflowRouter {
       }
       return {
         nextStepId: currentStepId,
-        signalCompletion: false,
+        signalClosing: false,
         reason: interpretation.reason ?? "Intent: repeat",
       };
     }
@@ -143,7 +143,7 @@ export class WorkflowRouter {
       }
       return {
         nextStepId: target,
-        signalCompletion: false,
+        signalClosing: false,
         reason: interpretation.reason ?? `Jump to: ${target}`,
       };
     }
@@ -178,7 +178,7 @@ export class WorkflowRouter {
         if (resolved.isTerminal) {
           return {
             nextStepId: currentStepId,
-            signalCompletion: true,
+            signalClosing: true,
             reason: interpretation.reason ??
               `Terminal transition: ${intent} -> completion`,
           };
@@ -195,7 +195,7 @@ export class WorkflowRouter {
           }
           return {
             nextStepId: resolved.nextStepId,
-            signalCompletion: false,
+            signalClosing: false,
             reason: interpretation.reason ??
               `Transition: ${intent} -> ${resolved.nextStepId}`,
           };
@@ -280,7 +280,7 @@ export class WorkflowRouter {
       if (this.validateStepExists(continuationStep)) {
         return {
           nextStepId: continuationStep,
-          signalCompletion: false,
+          signalClosing: false,
           reason: interpretation.reason ??
             `Default transition: ${currentStepId} -> ${continuationStep}`,
         };
@@ -290,7 +290,7 @@ export class WorkflowRouter {
     // If no continuation step, signal completion
     return {
       nextStepId: currentStepId,
-      signalCompletion: true,
+      signalClosing: true,
       reason: interpretation.reason ??
         "No explicit transition or continuation step",
     };
@@ -382,7 +382,7 @@ export class WorkflowRouter {
           }
           return {
             nextStepId: transitionRule.target,
-            signalCompletion: false,
+            signalClosing: false,
             reason: interpretation.reason ??
               `Handoff to closure: ${transitionRule.target}`,
             warning: initialStepWarning,
@@ -392,7 +392,7 @@ export class WorkflowRouter {
         if (transitionRule.target === null) {
           return {
             nextStepId: currentStepId,
-            signalCompletion: true,
+            signalClosing: true,
             reason: interpretation.reason ?? "Handoff: terminal transition",
             warning: initialStepWarning,
           };
@@ -403,7 +403,7 @@ export class WorkflowRouter {
     // No transition defined - signal completion for backward compatibility
     return {
       nextStepId: currentStepId,
-      signalCompletion: true,
+      signalClosing: true,
       reason: interpretation.reason ?? "Intent: handoff (no transition)",
       warning: initialStepWarning,
     };
@@ -442,7 +442,7 @@ export class WorkflowRouter {
       }
       return {
         nextStepId: transitionRule.target,
-        signalCompletion: false,
+        signalClosing: false,
         reason: interpretation.reason ??
           `Escalate to: ${transitionRule.target}`,
       };

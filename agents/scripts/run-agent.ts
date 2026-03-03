@@ -55,6 +55,9 @@ Options:
   --init                 Initialize new agent with basic template
   --list                 List available agents
 
+Validation:
+  --validate             Validate agent configuration without running
+
 Common Options:
   --issue, -i <number>   GitHub Issue number
   --iterate-max <n>      Maximum iterations
@@ -78,6 +81,7 @@ Examples:
 Documentation:
   Quick Start:      agents/docs/builder/01_quickstart.md
   Definition Ref:   agents/docs/builder/02_agent_definition.md
+  YAML Reference:   agents/docs/builder/reference/
   Troubleshooting:  agents/docs/builder/05_troubleshooting.md
   Design Docs:      agents/docs/design/
   JSON Schemas:     agents/schemas/
@@ -104,6 +108,7 @@ async function main(): Promise<void> {
       "push",
       "create-pr",
       "verbose",
+      "validate",
     ],
     alias: {
       a: "agent",
@@ -132,6 +137,102 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log("");
     Deno.exit(0);
+  }
+
+  // Validate agent configuration
+  if (args.validate) {
+    if (!args.agent) {
+      // deno-lint-ignore no-console
+      console.error("Error: --validate requires --agent <name>");
+      Deno.exit(1);
+    }
+    const { validateFull } = await import("../config/mod.ts");
+    const result = await validateFull(args.agent, Deno.cwd());
+
+    // deno-lint-ignore no-console
+    console.log(`\nValidating agent: ${args.agent}`);
+
+    let totalErrors = 0;
+
+    // Agent schema
+    if (result.agentSchemaResult.valid) {
+      // deno-lint-ignore no-console
+      console.log("  \u2713 agent.json \u2014 Schema valid");
+    } else {
+      // deno-lint-ignore no-console
+      console.log("  \u2717 agent.json \u2014 Schema errors:");
+      for (const err of result.agentSchemaResult.errors) {
+        // deno-lint-ignore no-console
+        console.log(`    - ${err.path}: ${err.message}`);
+      }
+      totalErrors += result.agentSchemaResult.errors.length;
+    }
+
+    // Agent config
+    if (result.agentConfigResult.valid) {
+      // deno-lint-ignore no-console
+      console.log("  \u2713 agent.json \u2014 Configuration valid");
+    } else {
+      // deno-lint-ignore no-console
+      console.log("  \u2717 agent.json \u2014 Configuration errors:");
+      for (const err of result.agentConfigResult.errors) {
+        // deno-lint-ignore no-console
+        console.log(`    - ${err}`);
+      }
+      totalErrors += result.agentConfigResult.errors.length;
+    }
+
+    // Registry schema
+    if (result.registrySchemaResult) {
+      if (result.registrySchemaResult.valid) {
+        // deno-lint-ignore no-console
+        console.log("  \u2713 steps_registry.json \u2014 Schema valid");
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 steps_registry.json \u2014 Schema errors:");
+        for (const err of result.registrySchemaResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err.path}: ${err.message}`);
+        }
+        totalErrors += result.registrySchemaResult.errors.length;
+      }
+    }
+
+    // Cross-references
+    if (result.crossRefResult) {
+      if (result.crossRefResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 steps_registry.json \u2014 Cross-references valid",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2717 steps_registry.json \u2014 Cross-reference errors:",
+        );
+        for (const err of result.crossRefResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.crossRefResult.errors.length;
+      }
+    }
+
+    // deno-lint-ignore no-console
+    console.log("");
+    if (result.valid) {
+      // deno-lint-ignore no-console
+      console.log("Validation passed.");
+    } else {
+      // deno-lint-ignore no-console
+      console.log(
+        `Validation failed (${totalErrors} error${
+          totalErrors !== 1 ? "s" : ""
+        }).`,
+      );
+    }
+
+    Deno.exit(result.valid ? 0 : 1);
   }
 
   // Initialize new agent

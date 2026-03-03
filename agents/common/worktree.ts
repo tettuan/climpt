@@ -151,7 +151,7 @@ export async function setupWorktree(
 }
 
 /**
- * Cleanup worktree after agent completion
+ * Cleanup worktree after agent verdict
  *
  * @param worktreePath - Path to the worktree to remove
  * @param cwd - Original working directory

@@ -117,7 +117,7 @@ export interface CheckDefinition {
 /**
  * Expected response format from check prompt
  *
- * @deprecated Use ResponseFormat from agents/common/completion-types.ts instead.
+ * @deprecated Use ResponseFormat from agents/common/validation-types.ts instead.
  * This legacy format is not used in the current step flow implementation.
  */
 export interface ResponseFormat {
@@ -186,6 +186,6 @@ export interface StepFlowResult {
   success: boolean;
   finalStepId: string;
   state: StepFlowState;
-  completionReason: string;
+  verdictReason: string;
   error?: string;
 }

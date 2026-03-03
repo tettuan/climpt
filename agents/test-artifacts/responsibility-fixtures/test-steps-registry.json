@@ -5,12 +5,12 @@
   "schemasBase": ".agent/test-flow/schemas",
 
   "entryStepMapping": {
-    "externalState": "initial.test",
-    "iterationBudget": "initial.test",
-    "stepMachine": "initial.test"
+    "poll:state": "initial.test",
+    "count:iteration": "initial.test",
+    "detect:graph": "initial.test"
   },
 
-  "completionPatterns": {
+  "failurePatterns": {
     "git-dirty": {
       "description": "Uncommitted changes present",
       "edition": "failed",
@@ -29,13 +29,13 @@
     }
   },
 
-  "completionSteps": {
+  "validationSteps": {
     "closure.test": {
       "stepId": "closure.test",
-      "name": "Test Completion Validation",
+      "name": "Test Validation",
       "c2": "retry",
       "c3": "test",
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "always-pass" }
       ],
       "onFailure": {
@@ -43,12 +43,12 @@
         "maxAttempts": 2
       }
     },
-    "closure.external-state": {
-      "stepId": "closure.external-state",
-      "name": "External State Completion Validation",
+    "closure.externalState": {
+      "stepId": "closure.externalState",
+      "name": "External State Validation",
       "c2": "retry",
-      "c3": "external-state",
-      "completionConditions": [
+      "c3": "externalState",
+      "validationConditions": [
         { "validator": "always-pass" }
       ],
       "onFailure": {

@@ -8,11 +8,11 @@ import type { Logger } from "../src_common/logger.ts";
 
 // Re-export common types
 export type {
-  CompletionPattern,
-  CompletionStepConfig,
   ExtendedStepsRegistry,
+  FailurePattern,
+  ValidationStepConfig,
   ValidatorResult,
-} from "../common/completion-types.ts";
+} from "../common/validation-types.ts";
 
 /**
  * RetryHandler context

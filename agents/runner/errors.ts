@@ -18,12 +18,12 @@ export {
 
 // Runner errors
 export {
-  AgentCompletionError,
   AgentMaxIterationsError,
   AgentNotInitializedError,
   AgentQueryError,
   AgentRetryableQueryError,
   AgentTimeoutError,
+  AgentVerdictError,
   normalizeToAgentError,
 } from "../shared/errors/runner-errors.ts";
 export type { SdkErrorCategoryType } from "../shared/errors/runner-errors.ts";

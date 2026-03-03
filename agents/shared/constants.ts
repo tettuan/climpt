@@ -10,12 +10,12 @@
  * Agent iteration and failure limits
  */
 export const AGENT_LIMITS = {
-  /** Default maxIterations for iterationBudget completion type (used in config/defaults.ts) */
+  /** Default maxIterations for iterationBudget verdict type (used in config/defaults.ts) */
   DEFAULT_MAX_ITERATIONS: 10,
-  /** Fallback maxIterations when completionConfig doesn't specify (used in runner.ts getMaxIterations) */
+  /** Fallback maxIterations when verdictConfig doesn't specify (used in runner.ts getMaxIterations) */
   FALLBACK_MAX_ITERATIONS: 20,
-  /** Fallback maxIterations for completion handlers (factory.ts, composite.ts) */
-  COMPLETION_FALLBACK_MAX_ITERATIONS: 100,
+  /** Fallback maxIterations for verdict handlers (factory.ts, composite.ts) */
+  VERDICT_FALLBACK_MAX_ITERATIONS: 100,
   /** Maximum consecutive rate-limit retries before aborting */
   MAX_RATE_LIMIT_RETRIES: 5,
   /** Maximum consecutive schema resolution failures before aborting (2-strike rule) */

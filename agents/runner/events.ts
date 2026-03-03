@@ -21,7 +21,7 @@ export type AgentEvent =
   | "iterationEnd"
   | "promptBuilt"
   | "queryExecuted"
-  | "completionChecked"
+  | "verdictChecked"
   | "stateChange"
   | "boundaryHook"
   | "error"
@@ -45,7 +45,7 @@ export interface AgentEventPayloads {
   iterationEnd: { iteration: number; summary: IterationSummary };
   promptBuilt: { prompt: string; systemPrompt: string };
   queryExecuted: { summary: IterationSummary };
-  completionChecked: { isComplete: boolean; reason?: string };
+  verdictChecked: { isComplete: boolean; reason?: string };
   stateChange: { previous: AgentState; current: AgentState };
   boundaryHook: BoundaryHookPayload;
   error: { error: Error; recoverable: boolean };
