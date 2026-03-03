@@ -18,7 +18,7 @@ import type {
 import { isRecord, isString } from "../src_common/type-guards.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
 import type { StepGateInterpreter } from "./step-gate-interpreter.ts";
@@ -92,11 +92,11 @@ export class FlowOrchestrator {
     const stepsRegistry = this.deps.getStepsRegistry();
 
     // For iteration 1: Use registry-based lookup
-    const completionType = this.deps.definition.runner.completion.type;
+    const verdictType = this.deps.definition.runner.verdict.type;
 
     // Try entryStepMapping first
-    if (stepsRegistry?.entryStepMapping?.[completionType]) {
-      return stepsRegistry.entryStepMapping[completionType];
+    if (stepsRegistry?.entryStepMapping?.[verdictType]) {
+      return stepsRegistry.entryStepMapping[verdictType];
     }
 
     // Try generic entryStep
@@ -106,8 +106,8 @@ export class FlowOrchestrator {
 
     // No implicit fallback - entry step must be explicitly configured
     throw new Error(
-      `[StepFlow] No entry step configured for completionType "${completionType}". ` +
-        `Define either "entryStepMapping.${completionType}" or "entryStep" in ${PATHS.STEPS_REGISTRY}.`,
+      `[StepFlow] No entry step configured for verdictType "${verdictType}". ` +
+        `Define either "entryStepMapping.${verdictType}" or "entryStep" in ${PATHS.STEPS_REGISTRY}.`,
     );
   }
 
@@ -287,13 +287,13 @@ export class FlowOrchestrator {
       {
         stepKind,
         intent: interpretation.intent,
-        signalCompletion: routing.signalCompletion,
+        signalClosing: routing.signalClosing,
         reason: routing.reason,
       },
     );
 
     // Update current step ID
-    if (!routing.signalCompletion && routing.nextStepId !== stepId) {
+    if (!routing.signalClosing && routing.nextStepId !== stepId) {
       this.currentStepId = routing.nextStepId;
     }
 

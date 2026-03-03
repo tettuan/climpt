@@ -28,8 +28,8 @@ const DEFAULTS = {
         fallbackDir: PATHS.PROMPTS_DIR,
       },
     },
-    completion: {
-      type: "iterationBudget" as const,
+    verdict: {
+      type: "count:iteration" as const,
       config: {
         maxIterations: AGENT_LIMITS.DEFAULT_MAX_ITERATIONS,
       },
@@ -70,9 +70,7 @@ export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
   const def = raw;
   const rawRunner = isRecord(def.runner) ? def.runner : {};
   const rawFlow = isRecord(rawRunner.flow) ? rawRunner.flow : {};
-  const rawCompletion = isRecord(rawRunner.completion)
-    ? rawRunner.completion
-    : {};
+  const rawVerdict = isRecord(rawRunner.verdict) ? rawRunner.verdict : {};
   const rawBoundaries = isRecord(rawRunner.boundaries)
     ? rawRunner.boundaries
     : {};
@@ -83,9 +81,7 @@ export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
   const rawLogging = isRecord(rawRunner.logging) ? rawRunner.logging : {};
 
   const rawPrompts = isRecord(rawFlow.prompts) ? rawFlow.prompts : {};
-  const rawCompletionConfig = isRecord(rawCompletion.config)
-    ? rawCompletion.config
-    : {};
+  const rawVerdictConfig = isRecord(rawVerdict.config) ? rawVerdict.config : {};
 
   // Deep merge with defaults
   return {
@@ -111,13 +107,13 @@ export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
         askUserAutoResponse: rawFlow
           .askUserAutoResponse as string | undefined,
       },
-      completion: {
-        type: (rawCompletion
-          .type as AgentDefinition["runner"]["completion"]["type"]) ??
-          DEFAULTS.runner.completion.type,
+      verdict: {
+        type: (rawVerdict
+          .type as AgentDefinition["runner"]["verdict"]["type"]) ??
+          DEFAULTS.runner.verdict.type,
         config: {
-          ...DEFAULTS.runner.completion.config,
-          ...rawCompletionConfig,
+          ...DEFAULTS.runner.verdict.config,
+          ...rawVerdictConfig,
         },
       },
       boundaries: {

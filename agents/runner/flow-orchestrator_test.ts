@@ -19,7 +19,7 @@ import {
 const logger = new BreakdownLogger("flow");
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type {
   PromptStepDefinition,
   StepRegistry,
@@ -29,7 +29,7 @@ import type {
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
-import type { CompletionType } from "../src_common/types/completion.ts";
+import type { VerdictType } from "../src_common/types/verdict.ts";
 
 // =============================================================================
 // Shared Fixtures
@@ -43,9 +43,9 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   return JSON.parse(raw) as ExtendedStepsRegistry;
 }
 
-/** Create a minimal AgentDefinition. completionType must be a valid CompletionType. */
+/** Create a minimal AgentDefinition. verdictType must be a valid VerdictType. */
 function createTestDefinition(
-  completionType: CompletionType = "externalState",
+  verdictType: VerdictType = "poll:state",
 ): AgentDefinition {
   return {
     name: "test-flow",
@@ -58,8 +58,8 @@ function createTestDefinition(
         systemPromptPath: "./prompts/system.md",
         prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
       },
-      completion: {
-        type: completionType,
+      verdict: {
+        type: verdictType,
         config: { maxIterations: 10 },
       },
       boundaries: {
@@ -76,13 +76,13 @@ function createTestDefinition(
 function buildDeps(
   registry: ExtendedStepsRegistry | null,
   options: {
-    completionType?: CompletionType;
+    verdictType?: VerdictType;
     withRouting?: boolean;
     args?: Record<string, unknown>;
   } = {},
 ): FlowOrchestratorDeps {
   const definition = createTestDefinition(
-    options.completionType ?? "externalState",
+    options.verdictType ?? "poll:state",
   );
   const interpreter = options.withRouting ? new StepGateInterpreter() : null;
   const router = options.withRouting && registry
@@ -116,7 +116,7 @@ function createMockContext(): RuntimeContext {
     clearToolContext: () => {},
   };
   return {
-    completionHandler: {} as RuntimeContext["completionHandler"],
+    verdictHandler: {} as RuntimeContext["verdictHandler"],
     promptResolver: {} as RuntimeContext["promptResolver"],
     logger: noopLogger as unknown as RuntimeContext["logger"],
     cwd: "/tmp/claude/test",
@@ -141,12 +141,12 @@ function createSummary(
 
 Deno.test("FlowOrchestrator - entry step via entryStepMapping for externalState", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { completionType: "externalState" });
+  const deps = buildDeps(registry, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   logger.debug("getStepIdForIteration input", {
     iteration: 1,
-    completionType: "externalState",
+    verdictType: "poll:state",
   });
   const stepId = orchestrator.getStepIdForIteration(1);
   logger.debug("getStepIdForIteration result", { stepId });
@@ -155,7 +155,7 @@ Deno.test("FlowOrchestrator - entry step via entryStepMapping for externalState"
 
 Deno.test("FlowOrchestrator - entry step via entryStepMapping for iterationBudget", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { completionType: "iterationBudget" });
+  const deps = buildDeps(registry, { verdictType: "count:iteration" });
   const orchestrator = new FlowOrchestrator(deps);
 
   const stepId = orchestrator.getStepIdForIteration(1);
@@ -181,7 +181,7 @@ Deno.test("FlowOrchestrator - entry step falls back to generic entryStep", () =>
       },
     },
   };
-  const deps = buildDeps(registry, { completionType: "custom" });
+  const deps = buildDeps(registry, { verdictType: "meta:custom" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertEquals(orchestrator.getStepIdForIteration(1), "generic.entry");
@@ -194,18 +194,18 @@ Deno.test("FlowOrchestrator - throws when no entry step configured", () => {
     c1: "steps",
     steps: {},
   };
-  const deps = buildDeps(registry, { completionType: "custom" });
+  const deps = buildDeps(registry, { verdictType: "meta:custom" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertThrows(
     () => orchestrator.getStepIdForIteration(1),
     Error,
-    'No entry step configured for completionType "custom"',
+    'No entry step configured for verdictType "meta:custom"',
   );
 });
 
 Deno.test("FlowOrchestrator - throws when no registry available", () => {
-  const deps = buildDeps(null, { completionType: "externalState" });
+  const deps = buildDeps(null, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertThrows(
@@ -254,7 +254,7 @@ Deno.test("FlowOrchestrator - iteration > 1 throws when no routed step ID", asyn
 
 Deno.test("FlowOrchestrator - initializeStepContext creates context and sets entry step", async () => {
   const registry = await loadFixtureRegistry();
-  const deps = buildDeps(registry, { completionType: "externalState" });
+  const deps = buildDeps(registry, { verdictType: "poll:state" });
   const orchestrator = new FlowOrchestrator(deps);
 
   assertEquals(orchestrator.stepContext, null);
@@ -497,12 +497,12 @@ Deno.test("FlowOrchestrator - handleStepTransition routes next intent to continu
   );
   logger.debug("handleStepTransition result", {
     nextStepId: result?.nextStepId,
-    signalCompletion: result?.signalCompletion,
+    signalClosing: result?.signalClosing,
   });
 
   assertEquals(result !== null, true);
   assertEquals(result!.nextStepId, "continuation.test");
-  assertEquals(result!.signalCompletion, false);
+  assertEquals(result!.signalClosing, false);
   // currentStepId updated to next step
   assertEquals(orchestrator.currentStepId, "continuation.test");
 });
@@ -530,7 +530,7 @@ Deno.test("FlowOrchestrator - handleStepTransition routes handoff intent to clos
 
   assertEquals(result !== null, true);
   assertEquals(result!.nextStepId, "closure.test");
-  assertEquals(result!.signalCompletion, false);
+  assertEquals(result!.signalClosing, false);
   assertEquals(orchestrator.currentStepId, "closure.test");
 });
 
@@ -555,7 +555,7 @@ Deno.test("FlowOrchestrator - handleStepTransition signals completion for closin
   );
 
   assertEquals(result !== null, true);
-  assertEquals(result!.signalCompletion, true);
+  assertEquals(result!.signalClosing, true);
 });
 
 Deno.test("FlowOrchestrator - handleStepTransition stores handoff data in step context", async () => {
@@ -635,7 +635,7 @@ Deno.test("FlowOrchestrator - full issue flow: initial -> continuation -> closur
   orchestrator.recordStepOutput("initial.test", s1, ctx);
   const r1 = orchestrator.handleStepTransition("initial.test", s1, ctx);
   assertEquals(r1!.nextStepId, "continuation.test");
-  assertEquals(r1!.signalCompletion, false);
+  assertEquals(r1!.signalClosing, false);
 
   // Iteration 2: continuation.test -> "handoff" -> closure.test
   assertEquals(orchestrator.getStepIdForIteration(2), "continuation.test");
@@ -649,7 +649,7 @@ Deno.test("FlowOrchestrator - full issue flow: initial -> continuation -> closur
   orchestrator.recordStepOutput("continuation.test", s2, ctx);
   const r2 = orchestrator.handleStepTransition("continuation.test", s2, ctx);
   assertEquals(r2!.nextStepId, "closure.test");
-  assertEquals(r2!.signalCompletion, false);
+  assertEquals(r2!.signalClosing, false);
 
   // Iteration 3: closure.test -> "closing" -> completion
   assertEquals(orchestrator.getStepIdForIteration(3), "closure.test");
@@ -661,7 +661,7 @@ Deno.test("FlowOrchestrator - full issue flow: initial -> continuation -> closur
   });
   orchestrator.recordStepOutput("closure.test", s3, ctx);
   const r3 = orchestrator.handleStepTransition("closure.test", s3, ctx);
-  assertEquals(r3!.signalCompletion, true);
+  assertEquals(r3!.signalClosing, true);
 
   // Verify step context accumulated outputs
   assertEquals(
@@ -698,7 +698,7 @@ Deno.test("FlowOrchestrator - repeat intent keeps same step", async () => {
     ctx,
   );
   assertEquals(result!.nextStepId, "initial.test");
-  assertEquals(result!.signalCompletion, false);
+  assertEquals(result!.signalClosing, false);
   // currentStepId should remain initial.test (repeat stays)
   assertEquals(orchestrator.currentStepId, "initial.test");
 });

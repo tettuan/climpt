@@ -7,8 +7,8 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import type { Logger } from "../src_common/logger.ts";
 import type {
-  CompletionStepConfig,
   ExtendedStepsRegistry,
+  ValidationStepConfig,
   ValidatorResult,
 } from "./types.ts";
 import { RetryHandler, type RetryHandlerContext } from "./retry-handler.ts";
@@ -27,12 +27,12 @@ const mockLogger: Logger = {
 } as unknown as Logger;
 
 // Test fixtures
-const testStepConfig: CompletionStepConfig = {
+const testStepConfig: ValidationStepConfig = {
   stepId: "test-step",
   name: "Test Step",
   c2: "retry",
   c3: "issue",
-  completionConditions: [],
+  validationConditions: [],
   onFailure: { action: "retry", maxAttempts: 3 },
 };
 
@@ -50,10 +50,10 @@ const baseRegistryProps = {
   steps: {},
 };
 
-// Test registry with completionPatterns
+// Test registry with failurePatterns
 const testRegistry: ExtendedStepsRegistry = {
   ...baseRegistryProps,
-  completionPatterns: {
+  failurePatterns: {
     "git-dirty": {
       description: "Git working directory is not clean",
       edition: "failed",
@@ -93,7 +93,7 @@ Deno.test("getPattern - returns undefined for unknown pattern", () => {
   assertEquals(pattern, undefined);
 });
 
-Deno.test("getPattern - returns undefined when registry has no completionPatterns", () => {
+Deno.test("getPattern - returns undefined when registry has no failurePatterns", () => {
   const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };
@@ -109,7 +109,7 @@ Deno.test("getPattern - returns undefined when registry has no completionPattern
 // ============================================================================
 
 Deno.test("buildGenericRetryPrompt - loads fallback f_failed.md template", async () => {
-  // Use empty registry with no completionPatterns to trigger fallback path
+  // Use empty registry with no failurePatterns to trigger fallback path
   const emptyRegistry: ExtendedStepsRegistry = {
     ...baseRegistryProps,
   };

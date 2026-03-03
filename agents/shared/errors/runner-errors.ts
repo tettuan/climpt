@@ -1,9 +1,9 @@
 /**
- * Runner Errors - Errors related to query execution, completion, and timeouts
+ * Runner Errors - Errors related to query execution, verdict, and timeouts
  *
  * These errors occur during the agent runner lifecycle:
  * - Query execution failures
- * - Completion check failures
+ * - Verdict check failures
  * - Operation timeouts
  * - Max iterations exceeded
  * - Runner not initialized
@@ -43,10 +43,10 @@ export class AgentQueryError extends ClimptError {
 }
 
 /**
- * Completion check failed
+ * Verdict check failed
  */
-export class AgentCompletionError extends ClimptError {
-  readonly code = "AGENT_COMPLETION_ERROR";
+export class AgentVerdictError extends ClimptError {
+  readonly code = "AGENT_VERDICT_ERROR";
   readonly recoverable = true;
 
   constructor(
@@ -87,7 +87,7 @@ export class AgentTimeoutError extends ClimptError {
 }
 
 /**
- * Maximum iterations reached without completion
+ * Maximum iterations reached without finishing
  */
 export class AgentMaxIterationsError extends ClimptError {
   readonly code = "AGENT_MAX_ITERATIONS";
@@ -100,7 +100,7 @@ export class AgentMaxIterationsError extends ClimptError {
 
   constructor(maxIterations: number, iteration?: number) {
     super(
-      `Maximum iterations (${maxIterations}) reached without completion`,
+      `Maximum iterations (${maxIterations}) reached without finishing`,
       { iteration },
     );
     this.maxIterations = maxIterations;

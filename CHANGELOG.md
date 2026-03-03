@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-03-04
+
 ### Changed
-- **Breaking**: agent.json config restructured from flat `behavior`/`prompts`/`logging`/`github`/`worktree` to `runner.*` hierarchy (`runner.flow`, `runner.completion`, `runner.boundaries`, `runner.execution`, `runner.logging`). See [migration guide](agents/docs/builder/migration_guide.md#v1120-config-migration-behavior---runner) for field mapping.
+- **Breaking**: Verdict type naming changed to `category:variant` pattern — `poll:state`, `count:iteration`, `count:check`, `detect:keyword`, `detect:structured`, `detect:graph`, `meta:composite`, `meta:custom` (was `externalState`, `iterationBudget`, `checkBudget`, `keywordSignal`, `structuredSignal`, `stepMachine`, `composite`, `custom`)
+- **Breaking**: agent.json config restructured from flat `behavior`/`prompts`/`logging`/`github`/`worktree` to `runner.*` hierarchy (`runner.flow`, `runner.verdict`, `runner.boundaries`, `runner.execution`, `runner.logging`). See [agent.yaml reference](agents/docs/builder/reference/agent.yaml) for field mapping.
+- Renamed Completion identifiers to Verdict/Validation/Closure across all implementation code, design docs, and builder docs
+- `VERDICT_CLOSURE_MAP` decouples verdict type names from step IDs in validation-chain
+
+### Removed
+- Dead routing code from `StepMachineVerdictHandler` (`transition()`, `getNextStep()`, `recordStepOutput()`, `getStepContext()`, `StepTransition` interface)
+
+### Added
+- Schema and registry validator tests
+- YAML reference docs (`agent.yaml`, `steps_registry.yaml`) with cross-references
+- `--validate` command for agent config validation
+- Design docs: concept tree, iteration structure, StepMachine verdict contract, naming rationale
 
 ## [1.11.24] - 2026-02-16
 

@@ -39,8 +39,8 @@
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
-      "type": "externalState",
+    "verdict": {
+      "type": "poll:state",
       "config": {
         "type": "issueClose",
         "issueParam": "issue",

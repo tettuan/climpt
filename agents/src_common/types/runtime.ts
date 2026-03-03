@@ -4,7 +4,7 @@
 
 // Forward declarations for RuntimeContext dependencies
 // These are imported from other modules, but we need the interface here
-import type { CompletionHandler } from "../../completion/mod.ts";
+import type { VerdictHandler } from "../../verdict/mod.ts";
 import type { PromptResolverAdapter as PromptResolver } from "../../prompts/resolver-adapter.ts";
 import type { Logger } from "../logger.ts";
 import type { PromptLogger } from "../../common/prompt-logger.ts";
@@ -160,7 +160,7 @@ export const INITIAL_AGENT_STATE: AgentState = {
  * are available only after successful initialization.
  */
 export interface RuntimeContext {
-  readonly completionHandler: CompletionHandler;
+  readonly verdictHandler: VerdictHandler;
   readonly promptResolver: PromptResolver;
   readonly logger: Logger;
   readonly cwd: string;

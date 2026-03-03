@@ -8,12 +8,11 @@
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
 
   "entryStepMapping": {
-    "issue": "initial.issue",
-    "externalState": "initial.externalState",
-    "iterate": "initial.iterate"
+    "poll:state": "initial.externalState",
+    "count:iteration": "initial.iterate"
   },
 
-  "completionPatterns": {
+  "failurePatterns": {
     "git-dirty": {
       "description": "未コミットの変更がある",
       "edition": "failed",
@@ -138,13 +137,13 @@
     }
   },
 
-  "completionSteps": {
+  "validationSteps": {
     "closure.issue": {
       "stepId": "closure.issue",
-      "name": "Issue Completion Validation",
+      "name": "Issue Validation",
       "c2": "retry",
       "c3": "issue",
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "type-check" }
       ],
@@ -156,14 +155,14 @@
         "file": "issue.schema.json",
         "schema": "closure.issue"
       },
-      "description": "Validate issue completion with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+      "description": "Validate issue with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
     },
     "closure.externalState": {
       "stepId": "closure.externalState",
-      "name": "External State Completion Validation",
+      "name": "External State Validation",
       "c2": "retry",
       "c3": "issue",
-      "completionConditions": [
+      "validationConditions": [
         { "validator": "git-clean" },
         { "validator": "type-check" }
       ],
@@ -175,7 +174,7 @@
         "file": "externalState.schema.json",
         "schema": "closure.externalState"
       },
-      "description": "Validate external state completion with git-clean and type-check."
+      "description": "Validate external state with git-clean and type-check."
     }
   },
 

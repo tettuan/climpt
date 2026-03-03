@@ -137,7 +137,7 @@ async function printAgentList(cwd?: string): Promise<void> {
       // deno-lint-ignore no-console
       console.log(`    ${definition.description}`);
       // deno-lint-ignore no-console
-      console.log(`    Type: ${definition.runner.completion.type}`);
+      console.log(`    Type: ${definition.runner.verdict.type}`);
       // deno-lint-ignore no-console
       console.log("");
     }

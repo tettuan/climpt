@@ -46,8 +46,8 @@
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
-      "type": "externalState",
+    "verdict": {
+      "type": "poll:state",
       "config": {
         "maxIterations": 500
       }

@@ -22,7 +22,7 @@
       "issueTemplate": {
         "titlePrefix": "[Gap]",
         "labels": ["implementation-gap", "from-reviewer"],
-        "bodyTemplate": "## Gap Summary\n{summary}\n\n## Requirement Reference\n- Source Docs Issue: {source_issue}\n- Review Target: {review_issue}\n- Completion criteria: \"{completion_criteria}\"\n\n## Current State\n{current_state}\n\n## Expected State\n{expected_state}\n\n## Affected Files\n{affected_files}\n\n## Impact\n{impact}"
+        "bodyTemplate": "## Gap Summary\n{summary}\n\n## Requirement Reference\n- Source Docs Issue: {source_issue}\n- Review Target: {review_issue}\n- Verdict criteria: \"{verdict_criteria}\"\n\n## Current State\n{current_state}\n\n## Expected State\n{expected_state}\n\n## Affected Files\n{affected_files}\n\n## Impact\n{impact}"
       }
     },
     "reviewerComplete": {

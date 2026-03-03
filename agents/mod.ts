@@ -4,7 +4,7 @@
  * @module
  *
  * This module provides the agent framework for autonomous task execution,
- * including the AgentRunner, completion handlers, and type definitions.
+ * including the AgentRunner, verdict handlers, and type definitions.
  *
  * ## Usage Example
  *
@@ -20,8 +20,8 @@
  *
  * - **AgentRunner**: Main class for running agents
  * - **loadAgentDefinition**: Load agent configuration from .agent directory
- * - **CompletionHandlers**: Various completion strategies (issue, iterate, manual)
- * - **Types**: AgentDefinition, AgentResult, CompletionType, etc.
+ * - **VerdictHandlers**: Various verdict strategies (issue, iterationBudget, keywordSignal)
+ * - **Types**: AgentDefinition, AgentResult, VerdictType, etc.
  */
 
 // === Architecture ===
@@ -37,27 +37,25 @@ export type {
   AgentResult,
   AgentResultDetail,
   AgentState,
-  CheckBudgetCompletionConfig,
+  CheckBudgetVerdictConfig,
   CheckDefinition,
   CheckResponse,
-  CompletionConfigUnion,
-  CompletionType,
-  CompositeCompletionConfig,
-  CustomCompletionConfig,
+  CompositeVerdictConfig,
   CustomVariableDefinition,
-  ExternalStateCompletionConfig,
+  CustomVerdictConfig,
+  ExternalStateVerdictConfig,
   FinalizeConfig,
   FlowStepDefinition,
   GitHubConfig,
-  IterationBudgetCompletionConfig,
+  IterationBudgetVerdictConfig,
   IterationConfig,
   IterationSummary,
-  KeywordSignalCompletionConfig,
+  KeywordSignalVerdictConfig,
   LoggingConfig,
   ParameterDefinition,
   ParameterValidation,
   PermissionMode,
-  PhaseCompletionConfig,
+  PhaseVerdictConfig,
   PromptC3LReference,
   PromptPathReference,
   PromptReference,
@@ -70,31 +68,33 @@ export type {
   StepFlowResult,
   StepFlowState,
   StepHistoryEntry,
-  StepMachineCompletionConfig,
+  StepMachineVerdictConfig,
   StepsRegistry,
-  StructuredSignalCompletionConfig,
+  StructuredSignalVerdictConfig,
   TransitionDefinition,
   ValidationResult,
+  VerdictConfigUnion,
+  VerdictType,
   WorktreeConfig,
 } from "./src_common/types.ts";
 
 // Type utilities from src_common
 export {
-  ALL_COMPLETION_TYPES,
+  ALL_VERDICT_TYPES,
   INITIAL_AGENT_STATE,
   RuntimeContextNotInitializedError,
 } from "./src_common/types.ts";
 
-// === Completion ===
+// === Verdict ===
 export {
-  BaseCompletionHandler,
-  type CompletionCriteria,
-  type CompletionHandler,
-  createRegistryCompletionHandler,
-  IssueCompletionHandler,
-  IterateCompletionHandler,
-  ManualCompletionHandler,
-} from "./completion/mod.ts";
+  BaseVerdictHandler,
+  createRegistryVerdictHandler,
+  IssueVerdictHandler,
+  IterationBudgetVerdictHandler,
+  KeywordSignalVerdictHandler,
+  type VerdictCriteria,
+  type VerdictHandler,
+} from "./verdict/mod.ts";
 
 // === Init and Runtime ===
 export { initAgent } from "./init.ts";

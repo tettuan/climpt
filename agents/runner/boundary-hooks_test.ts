@@ -9,7 +9,7 @@ import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { type BoundaryHookDeps, BoundaryHooks } from "./boundary-hooks.ts";
 import { AgentEventEmitter } from "./events.ts";
 import type { BoundaryHookPayload } from "./events.ts";
-import type { ExtendedStepsRegistry } from "../common/completion-types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
 
 const logger = new BreakdownLogger("boundary");
@@ -51,9 +51,9 @@ function createMockContext(
   onBoundaryHook?: (payload: BoundaryHookPayload) => void,
 ): RuntimeContext {
   return {
-    completionHandler: {
+    verdictHandler: {
       onBoundaryHook,
-    } as unknown as RuntimeContext["completionHandler"],
+    } as unknown as RuntimeContext["verdictHandler"],
     promptResolver: {} as RuntimeContext["promptResolver"],
     logger: createMockLogger() as unknown as RuntimeContext["logger"],
     cwd: "/tmp/claude/test",
