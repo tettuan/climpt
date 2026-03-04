@@ -24,22 +24,22 @@ Climpt Agent の雛形を生成する Skill。
 
 | タイプ            | 用途                | 設定                  |
 | ----------------- | ------------------- | --------------------- |
-| `externalState`   | Issue/PR の状態監視 | `maxIterations`       |
-| `iterationBudget` | 固定回数で終了      | `maxIterations`       |
-| `keywordSignal`   | キーワードで終了    | `completionKeyword`   |
-| `stepMachine`     | Step グラフで判定   | `steps_registry.json` |
+| `poll:state`      | Issue/PR の状態監視 | `maxIterations`       |
+| `count:iteration` | 固定回数で終了      | `maxIterations`       |
+| `detect:keyword`  | キーワードで終了    | `completionKeyword`   |
+| `detect:graph`    | Step グラフで判定   | `steps_registry.json` |
 
 **上級タイプ（scaffolding 後に手動編集が必要）:**
 
-| タイプ             | 用途                              |
-| ------------------ | --------------------------------- |
-| `checkBudget`      | Status check の回数で終了         |
-| `structuredSignal` | JSON schema で完了宣言を受け取る  |
-| `composite`        | 複数条件 (any/all) の合成         |
-| `custom`           | 外部 CompletionHandler で任意判定 |
+| タイプ              | 用途                              |
+| ------------------- | --------------------------------- |
+| `count:check`       | Status check の回数で終了         |
+| `detect:structured` | JSON schema で完了宣言を受け取る  |
+| `meta:composite`    | 複数条件 (any/all) の合成         |
+| `meta:custom`       | 外部 CompletionHandler で任意判定 |
 
 上級タイプを使用する場合は、基本タイプで scaffold 後、 `agent.json` の
-`behavior.completionType` と `completionConfig` を手動で編集する。 詳細:
+`runner.verdict.type` と `runner.verdict.config` を手動で編集する。 詳細:
 `agents/docs/builder/02_agent_definition.md`
 
 ### 2. Scaffolding 実行

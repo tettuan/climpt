@@ -102,7 +102,7 @@ setting, and prevents naming collisions as new features are added.
   "version": "1.0.0",
   "behavior": {
     "systemPromptPath": "prompts/system.md",
-    "completionType": "iterationBudget",
+    "completionType": "count:iteration",
     "completionConfig": { "maxIterations": 10 },
     "allowedTools": ["Read", "Write"],
     "permissionMode": "plan"
@@ -231,13 +231,13 @@ Key structural changes to notice:
 If you are migrating `behavior.completionType`, here is a quick reference for
 valid `runner.completion.type` values:
 
-| Type              | Completes when...                                 | `runner.completion.config`          |
+| Type              | Completes when...                                 | `runner.verdict.config`             |
 | ----------------- | ------------------------------------------------- | ----------------------------------- |
-| `keywordSignal`   | Output contains a keyword                         | `{ "completionKeyword": "DONE" }`   |
-| `iterationBudget` | N iterations have run                             | `{ "maxIterations": 5 }`            |
-| `externalState`   | An external condition is met (e.g., Issue closed) | `{}` + `--issue` parameter          |
-| `stepMachine`     | All steps complete                                | `{}` + `steps_registry.json`        |
-| `custom`          | Custom handler returns true                       | `{ "handlerPath": "./handler.ts" }` |
+| `detect:keyword`  | Output contains a keyword                         | `{ "completionKeyword": "DONE" }`   |
+| `count:iteration` | N iterations have run                             | `{ "maxIterations": 5 }`            |
+| `poll:state`      | An external condition is met (e.g., Issue closed) | `{}` + `--issue` parameter          |
+| `detect:graph`    | All steps complete                                | `{}` + `steps_registry.json`        |
+| `meta:custom`     | Custom handler returns true                       | `{ "handlerPath": "./handler.ts" }` |
 
 ---
 

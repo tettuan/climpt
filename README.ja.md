@@ -162,14 +162,14 @@ deno task agent --agent {name} --iterate-max 10
 
 | タイプ | 説明 |
 |--------|------|
-| `externalState` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
-| `iterationBudget` | 指定回数（`maxIterations`）反復実行 |
-| `checkBudget` | 指定回数（`maxChecks`）ステータス確認 |
-| `keywordSignal` | エージェントが `completionKeyword` を出力したら終了 |
-| `structuredSignal` | 構造化アクションブロック出力を検出（`signalType`） |
-| `stepMachine` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
-| `composite` | 複合条件（and/or/first演算子） |
-| `custom` | カスタムハンドラー（`handlerPath`）を使用 |
+| `poll:state` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
+| `count:iteration` | 指定回数（`maxIterations`）反復実行 |
+| `count:check` | 指定回数（`maxChecks`）ステータス確認 |
+| `detect:keyword` | エージェントが `completionKeyword` を出力したら終了 |
+| `detect:structured` | 構造化アクションブロック出力を検出（`signalType`） |
+| `detect:graph` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
+| `meta:composite` | 複合条件（and/or/first演算子） |
+| `meta:custom` | カスタムハンドラー（`handlerPath`）を使用 |
 
 ### 組み込みエージェント
 

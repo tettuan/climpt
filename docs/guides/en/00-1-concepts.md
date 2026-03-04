@@ -94,14 +94,14 @@ The most important decision when creating an Agent.
 
 | Type              | Use When...                                                             | Example                                                                               |
 | ----------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `externalState`   | Agent should stop when external state changes (Issue closed, PR merged) | Issue-driven development (`github.defaultClosureAction` controls close vs label-only) |
-| `iterationBudget` | Agent should stop after N iterations                                    | Fixed-scope tasks                                                                     |
-| `keywordSignal`   | Agent should stop when it says a specific word                          | Simple completion detection                                                           |
-| `stepMachine`     | Agent follows a state machine with explicit transitions                 | Complex multi-phase workflows                                                         |
+| `poll:state`      | Agent should stop when external state changes (Issue closed, PR merged) | Issue-driven development (`github.defaultClosureAction` controls close vs label-only) |
+| `count:iteration` | Agent should stop after N iterations                                    | Fixed-scope tasks                                                                     |
+| `detect:keyword`  | Agent should stop when it says a specific word                          | Simple completion detection                                                           |
+| `detect:graph`    | Agent follows a state machine with explicit transitions                 | Complex multi-phase workflows                                                         |
 
-**Decision Guide:** Does completion depend on external state? ->
-`externalState`. Fixed iteration count? -> `iterationBudget`. Simple keyword
-signal? -> `keywordSignal`. Otherwise -> `stepMachine`.
+**Decision Guide:** Does completion depend on external state? -> `poll:state`.
+Fixed iteration count? -> `count:iteration`. Simple keyword signal? ->
+`detect:keyword`. Otherwise -> `detect:graph`.
 
 ### 2. C3L Path Structure: Why Three Levels?
 

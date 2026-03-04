@@ -159,14 +159,14 @@ deno task agent --agent {name} --iterate-max 10
 
 | Type | Description |
 |------|-------------|
-| `externalState` | Monitors external resource state (GitHub issue/project, file, API) |
-| `iterationBudget` | Runs for specified iterations (`maxIterations`) |
-| `checkBudget` | Runs for specified status checks (`maxChecks`) |
-| `keywordSignal` | Exits when agent outputs `completionKeyword` |
-| `structuredSignal` | Detects structured action block output (`signalType`) |
-| `stepMachine` | Follows step state machine (`registryPath`, `entryStep`) |
-| `composite` | Combined conditions with operator (and/or/first) |
-| `custom` | Uses custom handler (`handlerPath`) |
+| `poll:state` | Monitors external resource state (GitHub issue/project, file, API) |
+| `count:iteration` | Runs for specified iterations (`maxIterations`) |
+| `count:check` | Runs for specified status checks (`maxChecks`) |
+| `detect:keyword` | Exits when agent outputs `completionKeyword` |
+| `detect:structured` | Detects structured action block output (`signalType`) |
+| `detect:graph` | Follows step state machine (`registryPath`, `entryStep`) |
+| `meta:composite` | Combined conditions with operator (and/or/first) |
+| `meta:custom` | Uses custom handler (`handlerPath`) |
 
 ### Built-in Agents
 
