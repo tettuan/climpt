@@ -13,7 +13,7 @@ main() {
 
   # Install docs into the ./docs directory
   info "Installing documentation to ${DOCS_DIR}..."
-  run_example deno run -A jsr:@aidevtool/climpt/docs install "${DOCS_DIR}"
+  run_example ${CLIMPT_DOCS_CMD} install "${DOCS_DIR}"
 
   # Verify DOCS_DIR exists
   if [[ ! -d "${DOCS_DIR}" ]]; then

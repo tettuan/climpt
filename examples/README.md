@@ -9,28 +9,31 @@ Examples are **numbered 01–31** and designed to run in order. Each step builds
 on the state created by previous steps:
 
 ```
-01-04  Setup          install, init, verify    → .agent/climpt/ created
+01-04   Setup          install, init, verify       → .agent/climpt/ created
   ↓
-05-09  CLI Basic      echo, stdin, vars, meta  → uses .agent/climpt/
+05-09   CLI Basic      echo, stdin, vars, meta     → uses .agent/climpt/
   ↓
-10-12  Docs           list, install, filter    → docs/ installed
+10-12   Docs           list, install, filter       → docs/ installed
   ↓
-13-15  Agent Info     list, schema, config     → agents/ explored
+13-15   Agent Info     list, schema, config        → agents/ explored
   ↓
-16-20  Agent Build    init, show, perm, prompt → .agent/plan-scout/ built
+16-20   Agent Build    init, show, perm, prompt    → .agent/plan-scout/ built
   ↓
-21-23  Agent E2E      run, verify, save        → plan-mode tested
+21-23   Agent E2E      run, verify, contract, save → plan-mode tested (LLM required)
   ↓
-24-26  Agent Run      resolution, iterator,    → agents executed
-                      reviewer, facilitator
+24-26   Agent Contract resolution, schema, routing, → contracts verified (no LLM)
+                       negative load, stepKind
   ↓
-25v-26v Schema Verify  iterator, reviewer       → schema integrity verified
+25-26a  Agent Run      iterator, reviewer,         → agents executed (LLM required)
+                       facilitator
   ↓
-27-28  Registry       generate, structure      → registry.json updated
+25v-26v Schema Verify  iterator, reviewer          → schema integrity verified
   ↓
-29-30  MCP            server, config           → MCP ready
+27-28   Registry       generate, structure         → registry.json updated
   ↓
-31     Clean          reset all artifacts      → clean state
+29-30   MCP            server, config              → MCP ready
+  ↓
+31      Clean          reset all artifacts         → clean state
 ```
 
 The `outputs/` directory accumulates artifacts as examples progress. Each script
@@ -59,49 +62,57 @@ PR creation (release/* → develop)
 - Run `deno install` in the project root (for local development)
 - `jq` installed (for agent configuration examples)
 
-> **Note:** `ANTHROPIC_API_KEY` is **not required** when running from Claude
-> Code that is already authenticated. Claude Code handles API authentication
-> internally, so agent examples (21-26) can verify the runner pipeline,
-> configuration, and permission enforcement without setting the key separately.
+> **Note:** Agent examples (21–26a) require LLM access. Either:
+>
+> - Set `ANTHROPIC_API_KEY` environment variable, or
+> - Run from a Claude Code terminal session (internal auth)
+>
+> **Sandbox restriction:** Running agent examples from Claude Code's Bash tool
+> causes a double sandbox that blocks API access. Run from terminal directly.
 
 ## Directory Structure
 
-| #   | Folder                      | Description                           | State In             | State Out                    | Verifies                                        |
-| --- | --------------------------- | ------------------------------------- | -------------------- | ---------------------------- | ----------------------------------------------- |
-| 01  | 01_check_prerequisites/     | Check deno, jq                        | —                    | —                            |                                                 |
-| 02  | 02_install/                 | Install Climpt from JSR               | —                    | `climpt` on PATH             |                                                 |
-| 03  | 03_init/                    | Initialize project (`climpt init`)    | —                    | `.agent/climpt/`             |                                                 |
-| 04  | 04_verify_init/             | Verify init result and show options   | `.agent/climpt/`     | —                            | config/ and prompts/ dirs exist                 |
-| 05  | 05_echo_test/               | Simplest CLI invocation (echo)        | `.agent/climpt/`     | —                            |                                                 |
-| 06  | 06_stdin_input/             | STDIN piping patterns                 | `.agent/climpt/`     | —                            |                                                 |
-| 07  | 07_custom_variables/        | User-defined variables (`--uv-*`)     | `.agent/climpt/`     | —                            | --uv-target content; echo contains input string |
-| 08  | 08_meta_commands/           | Meta domain commands                  | `.agent/climpt/`     | —                            | naming pattern; YAML delimiter; content markers |
-| 09  | 09_git_commands/            | Git domain commands                   | `.agent/climpt/`     | —                            | branch-related content in output                |
-| 10  | 10_docs_list/               | List available documentation          | —                    | —                            |                                                 |
-| 11  | 11_docs_install/            | Install documentation files           | —                    | `docs/`                      |                                                 |
-| 12  | 12_docs_filter/             | Filter docs by category/language/mode | —                    | —                            | category, lang, flatten, single produce files   |
-| 13  | 13_list_agents/             | List available agents                 | —                    | —                            | deno tasks; agent.json configs; runner script   |
-| 14  | 14_show_agent_schema/       | Show agent.json schema                | —                    | —                            | valid JSON; contains "runner" property          |
-| 15  | 15_show_agent_config/       | Show agent configuration structure    | —                    | —                            | dynamic layout; schema required/properties      |
-| 16  | 16_init_agent/              | Initialize plan-scout agent           | —                    | `.agent/plan-scout/`         |                                                 |
-| 17  | 17_show_init_result/        | Show agent init result                | `.agent/plan-scout/` | —                            |                                                 |
-| 18  | 18_configure_permission/    | Set permissionMode to "plan"          | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                 |
-| 19  | 19_configure_prompt/        | Write custom system.md                | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                 |
-| 20  | 20_show_final_config/       | Show final agent config               | `.agent/plan-scout/` | —                            |                                                 |
-| 21  | 21_run_plan_agent/          | Run plan-scout agent (no API key)     | `.agent/plan-scout/` | sentinel check               |                                                 |
-| 22  | 22_verify_plan_mode/        | Verify plan mode enforcement          | sentinel             | `outputs/agents/`            |                                                 |
-| 23  | 23_save_results/            | Save agent logs and cleanup           | `.agent/plan-scout/` | `outputs/agents/`            |                                                 |
-| 24  | 24_prompt_resolution/       | Prompt file presence affects behavior | —                    | —                            | real resolver for all 4 scenarios               |
-| 25  | 25_run_iterator/            | Run iterator agent (no API key)       | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
-| 26  | 26_run_reviewer/            | Run reviewer agent (no API key)       | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
-| 26a | 26a_run_facilitator/        | Run facilitator agent (no --issue)    | `.agent/climpt/`     | —                            | no crash; agent-related output content          |
-| 25v | 25v_verify_iterator_schema/ | Verify iterator JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent    |
-| 26v | 26v_verify_reviewer_schema/ | Verify reviewer JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent    |
-| 27  | 27_generate_registry/       | Generate registry.json                | `.agent/climpt/`     | `registry.json`              |                                                 |
-| 28  | 28_show_registry_structure/ | Explain registry format               | `.agent/climpt/`     | —                            |                                                 |
-| 29  | 29_mcp_start_server/        | Start MCP server                      | —                    | MCP running                  | package resolves; server starts without crash   |
-| 30  | 30_mcp_show_config/         | MCP integration config guide          | —                    | —                            |                                                 |
-| 31  | 31_clean/                   | Cleanup all artifacts                 | all of the above     | —                            |                                                 |
+| #   | Folder                         | Description                           | State In             | State Out                    | Verifies                                         |
+| --- | ------------------------------ | ------------------------------------- | -------------------- | ---------------------------- | ------------------------------------------------ |
+| 01  | 01_check_prerequisites/        | Check deno, jq                        | —                    | —                            |                                                  |
+| 02  | 02_install/                    | Install Climpt from JSR               | —                    | `climpt` on PATH             |                                                  |
+| 03  | 03_init/                       | Initialize project (`climpt init`)    | —                    | `.agent/climpt/`             |                                                  |
+| 04  | 04_verify_init/                | Verify init result and show options   | `.agent/climpt/`     | —                            | config/ and prompts/ dirs exist                  |
+| 05  | 05_echo_test/                  | Simplest CLI invocation (echo)        | `.agent/climpt/`     | —                            |                                                  |
+| 06  | 06_stdin_input/                | STDIN piping patterns                 | `.agent/climpt/`     | —                            |                                                  |
+| 07  | 07_custom_variables/           | User-defined variables (`--uv-*`)     | `.agent/climpt/`     | —                            | --uv-target content; echo contains input string  |
+| 08  | 08_meta_commands/              | Meta domain commands                  | `.agent/climpt/`     | —                            | naming pattern; YAML delimiter; content markers  |
+| 09  | 09_git_commands/               | Git domain commands                   | `.agent/climpt/`     | —                            | branch-related content in output                 |
+| 10  | 10_docs_list/                  | List available documentation          | —                    | —                            |                                                  |
+| 11  | 11_docs_install/               | Install documentation files           | —                    | `docs/`                      |                                                  |
+| 12  | 12_docs_filter/                | Filter docs by category/language/mode | —                    | —                            | category, lang, flatten, single produce files    |
+| 13  | 13_list_agents/                | List available agents                 | —                    | —                            | deno tasks; agent.json configs; runner script    |
+| 14  | 14_show_agent_schema/          | Show agent.json schema                | —                    | —                            | valid JSON; contains "runner" property           |
+| 15  | 15_show_agent_config/          | Show agent configuration structure    | —                    | —                            | dynamic layout; schema required/properties       |
+| 16  | 16_init_agent/                 | Initialize plan-scout agent           | —                    | `.agent/plan-scout/`         |                                                  |
+| 17  | 17_show_init_result/           | Show agent init result                | `.agent/plan-scout/` | —                            | .runner, permissionMode, allowedTools validated  |
+| 18  | 18_configure_permission/       | Set permissionMode to "plan"          | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                  |
+| 19  | 19_configure_prompt/           | Write custom system.md                | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                  |
+| 20  | 20_show_final_config/          | Show final agent config               | `.agent/plan-scout/` | —                            |                                                  |
+| 21  | 21_run_plan_agent/             | Run plan-scout agent (LLM required)   | `.agent/plan-scout/` | sentinel check               | LLM evidence in output; check_llm_ready gate     |
+| 22  | 22_verify_plan_mode/           | Verify plan mode enforcement          | sentinel             | `outputs/agents/`            | sentinel absence proves Write was blocked        |
+| 22a | 22a_verify_plan_mode_contract/ | Plan mode config contracts (no LLM)   | `.agent/plan-scout/` | —                            | permissionMode=plan; Write in tools; no registry |
+| 23  | 23_save_results/               | Save agent logs and cleanup           | `.agent/plan-scout/` | `outputs/agents/`            |                                                  |
+| 24  | 24_prompt_resolution/          | Prompt file presence affects behavior | —                    | —                            | real resolver for all 4 scenarios                |
+| 24a | 24a_schema_fail_fast/          | Schema fail-fast contract             | —                    | —                            | invalid pointer throws; valid resolves           |
+| 24b | 24b_intent_routing/            | Intent routing contract               | —                    | —                            | transitions target exists; intents match         |
+| 25  | 25_run_iterator/               | Run iterator agent (LLM required)     | `.agent/climpt/`     | —                            | contract validation + LLM execution evidence     |
+| 25a | 25a_negative_agent_load/       | Negative agent load contract          | —                    | —                            | bad path/JSON/schema → proper errors             |
+| 26  | 26_run_reviewer/               | Run reviewer agent (LLM required)     | `.agent/climpt/`     | —                            | contract validation + LLM execution evidence     |
+| 26a | 26a_run_facilitator/           | Run facilitator agent (no --issue)    | `.agent/climpt/`     | —                            | contract validation + LLM execution evidence     |
+| 26b | 26b_stepkind_tool_policy/      | StepKind tool policy contract         | —                    | —                            | work/verify deny boundary; closure allows        |
+| 25v | 25v_verify_iterator_schema/    | Verify iterator JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent     |
+| 26v | 26v_verify_reviewer_schema/    | Verify reviewer JSON schema (4-level) | —                    | —                            | file existence, $ref, structure, gate intent     |
+| 27  | 27_generate_registry/          | Generate registry.json                | `.agent/climpt/`     | `registry.json`              |                                                  |
+| 28  | 28_show_registry_structure/    | Explain registry format               | `.agent/climpt/`     | —                            |                                                  |
+| 29  | 29_mcp_start_server/           | Start MCP server                      | —                    | MCP running                  | package resolves; server starts without crash    |
+| 30  | 30_mcp_show_config/            | MCP integration config guide          | —                    | —                            |                                                  |
+| 31  | 31_clean/                      | Cleanup all artifacts                 | all of the above     | —                            |                                                  |
 
 ## How to Run
 

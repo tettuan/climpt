@@ -12,7 +12,7 @@ main() {
   # Run climpt init to scaffold the project (use deno run to avoid global install dependency)
   # --force allows idempotent re-runs when .agent/climpt already exists
   info "Running climpt init..."
-  run_example deno run -A jsr:@aidevtool/climpt init --force
+  run_example ${CLIMPT_CMD} init --force
 
   # Verify created directories
   local fail=0

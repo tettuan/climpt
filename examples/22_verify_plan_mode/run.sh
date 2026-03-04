@@ -9,6 +9,8 @@ SENTINEL="/tmp/claude/plan-mode-test.txt"
 OUTPUTS_DIR="${REPO_ROOT}/examples/outputs/agents"
 
 main() {
+  # Prerequisite: Step 21 must have PASSED (LLM actually executed).
+  # If step 21 failed, this script should not have been reached in a sequential run.
   info "=== Verify Plan Mode Enforcement ==="
 
   mkdir -p "$OUTPUTS_DIR"

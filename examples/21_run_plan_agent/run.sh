@@ -12,6 +12,7 @@ main() {
   info "=== Run Plan Agent: ${AGENT_NAME} ==="
 
   check_deno
+  check_llm_ready
 
   # Verify agent exists
   if [[ ! -f "${AGENT_DIR}/agent.json" ]]; then
@@ -34,14 +35,23 @@ main() {
   show_cmd deno task agent --agent "$AGENT_NAME" \
     --topic "Create /tmp/claude/plan-mode-test.txt"
 
+  local exit_code=0
   output=$( (cd "$REPO_ROOT" && deno task agent --agent "$AGENT_NAME" \
     --topic "Create /tmp/claude/plan-mode-test.txt") 2>&1) \
-    || warn "Agent exited with non-zero (may be expected in plan mode)"
+    || exit_code=$?
 
   if [[ -z "$output" ]]; then
     error "FAIL: agent produced no output"; return 1
   fi
-  success "PASS: plan agent produced non-empty output"
+
+  # Verify LLM actually executed (not just a startup message)
+  if ! echo "$output" | grep -qiE "(TASK_COMPLETE|plan.mode|permission|blocked|tool.*denied|creating|boundary)"; then
+    error "FAIL: no evidence of LLM execution in output"
+    error "  Output may be just a startup/error message"
+    echo "$output" | head -10 >&2
+    return 1
+  fi
+  success "PASS: plan agent executed with LLM evidence (exit_code=${exit_code})"
 }
 
 main "$@"

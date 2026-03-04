@@ -9,8 +9,9 @@ main() {
 
   check_deno
   check_climpt_init
+  check_llm_ready
 
-  # Verify facilitate-agent task exists in deno.json
+  # Phase 1: Task existence
   local task_list
   task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
   if ! echo "$task_list" | grep -q "facilitate-agent"; then
@@ -18,8 +19,34 @@ main() {
   fi
   success "PASS: facilitate-agent task exists"
 
-  # Run facilitator agent WITHOUT --issue (issue.required is false)
-  info "Starting facilitator agent without --issue (detect:structured pipeline test)..."
+  # Phase 2: Contract validation (no LLM needed)
+  info "Validating agent configuration contracts..."
+  local registry
+  for reg_path in \
+    "${REPO_ROOT}/.agent/climpt/agents/facilitator/steps_registry.json" \
+    "${REPO_ROOT}/agents/facilitator/steps_registry.json"; do
+    if [[ -f "$reg_path" ]]; then
+      registry="$reg_path"
+      break
+    fi
+  done
+  if [[ -n "${registry:-}" ]]; then
+    if ! jq empty "$registry" 2>/dev/null; then
+      error "FAIL: steps_registry.json is not valid JSON"; return 1
+    fi
+    # Check entryStep or entryStepMapping exists
+    local has_entry
+    has_entry=$(jq 'has("entryStep") or has("entryStepMapping")' "$registry")
+    if [[ "$has_entry" != "true" ]]; then
+      error "FAIL: steps_registry.json missing entryStep/entryStepMapping"; return 1
+    fi
+    success "PASS: steps_registry.json has valid entry point"
+  else
+    warn "steps_registry.json not found (may use default config)"
+  fi
+
+  # Phase 3: LLM execution test
+  info "Starting facilitator agent without --issue..."
   show_cmd deno task facilitate-agent
   local exit_code=0
   output=$( (cd "$REPO_ROOT" && deno task facilitate-agent) 2>&1) \
@@ -36,11 +63,20 @@ main() {
     error "FAIL: facilitate-agent produced no output"; return 1
   fi
 
-  # Content validation: output should mention agent-related terms
-  if ! echo "$output" | grep -qiE "(facilitator|agent|step|running|anthropic|api)"; then
-    error "FAIL: output lacks agent-related content"; return 1
+  # Exit code must be respected
+  if [[ $exit_code -ne 0 ]]; then
+    error "FAIL: facilitate-agent exited with code ${exit_code}"
+    echo "$output" | tail -5 >&2
+    return 1
   fi
-  success "PASS: facilitate-agent ran without crash (exit_code=${exit_code})"
+
+  # Strict content validation: must show agent execution evidence
+  if ! echo "$output" | grep -qiE "(step.*complete|facilitat.*finish|AgentResult|success|running.*step)"; then
+    error "FAIL: output lacks agent execution evidence"
+    echo "$output" | tail -10 >&2
+    return 1
+  fi
+  success "PASS: facilitate-agent completed successfully"
 }
 
 main "$@"
