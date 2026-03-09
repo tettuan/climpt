@@ -98,6 +98,11 @@ Bash({
 
 詳細: `docs/internal/claude-agent-sdk.md`
 
+## Breakdown Config 命名規則
+
+`{agentId}-{c1}-app.yml` / `-user.yml` を `.agent/climpt/config/` に配置。詳細:
+`docs/internal/prompt-architecture.md`
+
 ## 禁止事項
 
 - Agent のエラーを手動でリカバリーすること

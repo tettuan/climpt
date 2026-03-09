@@ -125,32 +125,57 @@ export async function initAgent(
   // Format: Compatible with agents/prompts/resolver.ts (keywordSignal verdict type)
   // For stepMachine verdict type, use the scaffolder skill for advanced registry format
   const stepsRegistry = {
+    agentId: agentName,
     version: "1.0.0",
-    basePath: PATHS.PROMPTS_DIR,
+    c1: "steps",
+    entryStepMapping: {
+      "detect:keyword": `${STEP_PHASE.INITIAL}.manual`,
+    },
     steps: {
-      // System prompt: uses direct path
+      // System prompt: variable tracking only (resolution via flow.systemPromptPath)
       system: {
+        stepId: "system",
         name: "System Prompt",
-        path: "system.md",
-        variables: ["uv-agent_name", "uv-verdict_criteria"],
+        c2: "system",
+        c3: "prompt",
+        edition: "default",
+        fallbackKey: "system_prompt",
+        uvVariables: ["uv-agent_name", "uv-verdict_criteria"],
+        usesStdin: false,
       },
       // Initial prompt: uses C3L path (c1/c2/c3)
-      initial_manual: {
+      [`${STEP_PHASE.INITIAL}.manual`]: {
+        stepId: `${STEP_PHASE.INITIAL}.manual`,
         name: "Manual Initial Prompt",
-        c1: "steps",
         c2: STEP_PHASE.INITIAL,
         c3: "manual",
         edition: "default",
-        variables: ["uv-topic", "uv-verdict_keyword"],
+        stepKind: "work",
+        fallbackKey: "manual_initial_default",
+        uvVariables: ["uv-topic", "uv-verdict_keyword"],
+        usesStdin: false,
+        transitions: {
+          next: {
+            target: `${STEP_PHASE.CONTINUATION}.manual`,
+          },
+        },
       },
       // Continuation prompt: uses C3L path
-      continuation_manual: {
+      [`${STEP_PHASE.CONTINUATION}.manual`]: {
+        stepId: `${STEP_PHASE.CONTINUATION}.manual`,
         name: "Manual Continuation Prompt",
-        c1: "steps",
         c2: STEP_PHASE.CONTINUATION,
         c3: "manual",
         edition: "default",
-        variables: ["uv-iteration", "uv-verdict_keyword"],
+        stepKind: "work",
+        fallbackKey: "manual_continuation_default",
+        uvVariables: ["uv-iteration", "uv-verdict_keyword"],
+        usesStdin: false,
+        transitions: {
+          next: {
+            target: `${STEP_PHASE.CONTINUATION}.manual`,
+          },
+        },
       },
     },
   };
@@ -225,6 +250,34 @@ When complete, output \`{uv-verdict_keyword}\`.
     continuationPrompt,
   );
 
+  // Create breakdown configuration files for C3L prompt resolution
+  // Naming convention: {agentId}-{c1}-app.yml / {agentId}-{c1}-user.yml
+  //   agentId = agent name (e.g., "plan-scout")
+  //   c1      = steps_registry.json の c1 フィールド (通常 "steps")
+  // See: agents/CLAUDE.md "Breakdown Config 命名規則"
+  // See: agents/common/c3l-prompt-loader.ts (configName construction)
+  const configDir = join(cwd, PATHS.AGENT_DIR_PREFIX, "climpt", "config");
+  await ensureDir(configDir);
+
+  const appYmlPath = join(configDir, `${agentName}-steps-app.yml`);
+  const appYmlContent = `# Build Configuration for ${agentName}-steps
+working_dir: ".agent/${agentName}"
+app_prompt:
+  base_dir: "prompts/steps"
+`;
+  await Deno.writeTextFile(appYmlPath, appYmlContent);
+
+  const userYmlPath = join(configDir, `${agentName}-steps-user.yml`);
+  const userYmlContent = `# Breakdown Configuration for ${agentName}-steps
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation)$"
+    layerType:
+      pattern: "^(manual)$"
+`;
+  await Deno.writeTextFile(userYmlPath, userYmlContent);
+
   // deno-lint-ignore no-console
   console.log(`Agent '${agentName}' initialized at ${agentDir}`);
   // deno-lint-ignore no-console
@@ -261,6 +314,10 @@ When complete, output \`{uv-verdict_keyword}\`.
       )
     }`,
   );
+  // deno-lint-ignore no-console
+  console.log(`  - ${appYmlPath}`);
+  // deno-lint-ignore no-console
+  console.log(`  - ${userYmlPath}`);
   // deno-lint-ignore no-console
   console.log(
     `\nRun with: deno task agent --agent ${agentName} --topic "Your topic"`,
