@@ -312,7 +312,7 @@
         "handoffFields": ["report.recommendations", "report.next_agent"]
       },
       "transitions": {
-        "next": { "target": "continuation.statuscheck" },
+        "next": { "target": "closure.facilitation" },
         "repeat": { "target": "initial.report" },
         "handoff": { "target": "closure.facilitation" }
       }

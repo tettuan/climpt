@@ -232,6 +232,16 @@ Validate continuation completion.
 Respond with a JSON object with next_action.action = "closing".
 `,
 
+    // Facilitator continuation
+    statuscheck_continuation_default: `# Status Check Continuation
+
+Continue monitoring the project status. Check for any changes since the last status check.
+
+If all work is complete, use "handoff" intent to proceed to closure.
+
+Respond with a JSON object with next_action.action.
+`,
+
     // Structured signal verdict type
     initial_structured_signal: `# Task Start
 
