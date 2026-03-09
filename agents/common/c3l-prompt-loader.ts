@@ -109,14 +109,21 @@ export class C3LPromptLoader {
       const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
       const runBreakdown = mod.runBreakdown as (
         args: string[],
-        options?: { returnMode?: boolean; stdin?: string },
+        options?: { returnMode?: boolean },
       ) => Promise<{ ok: boolean; data?: string; error?: string }>;
 
-      // Call runBreakdown with returnMode: true
-      const result = await runBreakdown(args, {
-        returnMode: true,
-        stdin: variables.inputText,
-      });
+      // runBreakdown uses Deno.cwd() to locate config files, so we must
+      // chdir to this.workingDir before the call and restore afterwards.
+      const originalCwd = Deno.cwd();
+      let result: { ok: boolean; data?: string; error?: string };
+      try {
+        Deno.chdir(this.workingDir);
+        result = await runBreakdown(args, {
+          returnMode: true,
+        });
+      } finally {
+        Deno.chdir(originalCwd);
+      }
 
       if (result.ok && result.data) {
         return {

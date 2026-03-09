@@ -44,6 +44,36 @@ When all work is done:
 2. Set `next_action.action = "handoff"` to transition to Closure Step
 3. If more work needed: Set `next_action.action = "next"` to continue
 
+## Structured Output
+
+You MUST respond with a JSON object matching the following schema. This is how
+the runner detects your step result and determines the next action.
+
+```json
+{
+  "stepId": "continuation.polling",
+  "status": "in_progress",
+  "summary": "Brief description of what was done",
+  "issue": {
+    "issue_number": 123,
+    "issue_title": "...",
+    "issue_url": "..."
+  },
+  "analysis": {
+    "understanding": "...",
+    "approach": "..."
+  },
+  "next_action": {
+    "action": "next",
+    "reason": "Continuing work on next task",
+    "details": {}
+  }
+}
+```
+
+Your FINAL message in the conversation MUST be this JSON object. Do not wrap it
+in markdown code blocks.
+
 **IMPORTANT**: Use exact intent values:
 
 - `"next"` - continue working

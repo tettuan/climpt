@@ -91,9 +91,13 @@ check_llm_ready() {
     success "Running inside Claude Code (internal auth)"
     return 0
   fi
+  # Claude Code SDK uses OAuth when installed — no API key needed
+  if command -v claude &>/dev/null; then
+    success "Claude Code CLI found (OAuth auth)"
+    return 0
+  fi
   error "LLM authentication not available"
-  error "  Set ANTHROPIC_API_KEY or run from Claude Code terminal"
-  error "  Claude Code Bash tool has double sandbox — run from terminal directly"
+  error "  Install Claude Code CLI, set ANTHROPIC_API_KEY, or run from Claude Code terminal"
   return 1
 }
 

@@ -679,14 +679,13 @@ export class AgentRunner {
   }
 
   private getMaxIterations(): number {
-    if (this.definition.runner.verdict.type === "count:iteration") {
-      return (
-        (
-          this.definition.runner.verdict.config as {
-            maxIterations?: number;
-          }
-        ).maxIterations ?? AGENT_LIMITS.FALLBACK_MAX_ITERATIONS
-      );
+    const maxIterations = (
+      this.definition.runner.verdict.config as {
+        maxIterations?: number;
+      }
+    ).maxIterations;
+    if (maxIterations !== undefined) {
+      return maxIterations;
     }
     return AGENT_LIMITS.FALLBACK_MAX_ITERATIONS;
   }
@@ -715,7 +714,7 @@ export class AgentRunner {
     const verdictConfig = this.definition.runner?.verdict
       ?.config as Record<string, unknown> | undefined;
     if (verdictConfig?.verdictKeyword) {
-      uv.verdict_keyword = String(verdictConfig.verdictKeyword);
+      uv.completion_keyword = String(verdictConfig.verdictKeyword);
     }
     return uv;
   }

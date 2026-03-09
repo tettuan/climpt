@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/../common_functions.sh"
 
 main() {
-  info "=== Run Facilitator Agent (no --issue) ==="
+  info "=== Run Facilitator Agent (project #1) ==="
 
   check_deno
   check_climpt_init
@@ -47,9 +47,9 @@ main() {
 
   # Phase 3: LLM execution test
   info "Starting facilitator agent without --issue..."
-  show_cmd deno task facilitate-agent
+  show_cmd deno task facilitate-agent --project 1
   local exit_code=0
-  output=$( (cd "$REPO_ROOT" && deno task facilitate-agent) 2>&1) \
+  output=$( (cd "$REPO_ROOT" && deno task facilitate-agent --project 1) 2>&1) \
     || exit_code=$?
 
   # Crash detection: import/startup errors are always fatal

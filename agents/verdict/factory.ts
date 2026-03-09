@@ -14,6 +14,7 @@ import {
   createEmptyRegistry,
   loadStepRegistry,
 } from "../common/step-registry.ts";
+import { getDefaultFallbackTemplates } from "../prompts/fallback.ts";
 import { join } from "@std/path";
 import type { VerdictHandler, VerdictStepIds } from "./types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
@@ -294,7 +295,7 @@ export async function createRegistryVerdictHandler(
   } catch {
     registry = createEmptyRegistry(definition.name);
   }
-  const fallback = createFallbackProvider({});
+  const fallback = createFallbackProvider(getDefaultFallbackTemplates());
   const promptResolver = new PromptResolver(registry, fallback, {
     workingDir: Deno.cwd(),
     configSuffix: registry.c1,

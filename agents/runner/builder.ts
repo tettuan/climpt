@@ -186,6 +186,9 @@ export class DefaultPromptResolverFactory implements PromptResolverFactory {
     const { createFallbackProvider, PromptResolver } = await import(
       "../common/prompt-resolver.ts"
     );
+    const { getDefaultFallbackTemplates } = await import(
+      "../prompts/fallback.ts"
+    );
 
     let registry;
     try {
@@ -196,7 +199,7 @@ export class DefaultPromptResolverFactory implements PromptResolverFactory {
     } catch {
       registry = createEmptyRegistry(options.agentName);
     }
-    const fallback = createFallbackProvider({});
+    const fallback = createFallbackProvider(getDefaultFallbackTemplates());
     return new PromptResolver(registry, fallback, {
       workingDir: Deno.cwd(),
       configSuffix: registry.c1,

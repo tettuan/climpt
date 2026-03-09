@@ -1,6 +1,6 @@
 # Project Status Check
 
-Check the current status of GitHub Project #{{project_number}}.
+Check the current status of GitHub Project #{{project}}.
 
 ## Project Information
 
@@ -50,7 +50,7 @@ Provide a status summary with observation context:
 ```status-report
 {
   "type": "check",
-  "project": {{project_number}},
+  "project": {{project}},
   "observation": {
     "current": "ISO-8601-timestamp",
     "previous": "ISO-8601-timestamp-or-null",

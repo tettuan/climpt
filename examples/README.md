@@ -167,14 +167,63 @@ for f in examples/{25,26,26a}_*/run.sh; do bash "$f"; done
 
 ## How to Run
 
+### 推奨: run-all (スケジュール実行)
+
+Claude Code 内からの直接実行は `CLAUDECODE=1` 環境変数の継承により LLM
+ステップが失敗する。 `run-all.sh` をターミナルまたは launchd
+から実行することで回避する。
+
 ```bash
-# Run all examples in order
+# 1. トリガー (実行リクエスト)
+bash examples/trigger.sh
+#    → tmp/examples-runner/.trigger に日時が記載される
+
+# 2a. 即時実行 (ターミナルから)
+bash examples/run-all.sh
+
+# 2b. launchd 経由 (5分以内に自動実行)
+launchctl start com.climpt.run-all
+```
+
+#### フラグファイルによる状態管理
+
+| `.trigger` の内容        | 状態      | run-all.sh の動作         |
+| ------------------------ | --------- | ------------------------- |
+| (ファイルなし)           | idle      | スキップ                  |
+| `2026-03-09T12-06-03`    | requested | 実行開始、`started:` 追記 |
+| datetime + `started:...` | running   | 二重起動防止、スキップ    |
+| (削除済み)               | completed | スキップ                  |
+
+#### ログと結果分析
+
+```bash
+# 最新の summary.json を確認
+ls -t tmp/logs/examples/*/summary.json | head -1 | xargs cat
+
+# FAIL したステップのログを確認
+cat tmp/logs/examples/{datetime}/{step_name}.log
+```
+
+`summary.json` に全ステップの exit_code と PASS/FAIL が記録される。
+
+#### launchd 初回セットアップ
+
+```bash
+mkdir -p tmp/logs/examples
+cp examples/com.climpt.run-all.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.climpt.run-all.plist
+```
+
+### 手動実行 (個別ステップ)
+
+```bash
+# Run a single example
+bash examples/05_echo_test/run.sh
+
+# Run all examples in order (from terminal, NOT from Claude Code)
 for f in examples/[0-3][0-9]_*/run.sh; do
   bash "$f"
 done
-
-# Run a single example
-bash examples/05_echo_test/run.sh
 
 # Run the E2E agent pipeline (steps 16-23)
 for f in examples/{16,17,18,19,20,21,22,23}_*/run.sh; do

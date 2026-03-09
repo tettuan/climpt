@@ -125,6 +125,17 @@ export class QueryExecutor {
           toolName: string,
           input: Record<string, unknown>,
         ) => {
+          // Enforce allowedTools boundary
+          if (
+            allowedTools.length > 0 &&
+            !allowedTools.includes(toolName)
+          ) {
+            return {
+              behavior: "deny",
+              message: `Tool "${toolName}" not in allowedTools`,
+            };
+          }
+
           if (toolName === "AskUserQuestion") {
             const autoResponse =
               this.deps.definition.runner.flow.askUserAutoResponse ??
@@ -212,6 +223,27 @@ export class QueryExecutor {
         );
       }
 
+      // Augment prompt with schema instruction when outputFormat is configured.
+      // The SDK's outputFormat is a hint, not a hard constraint — the LLM may
+      // still return prose. Embedding the required schema shape directly in the
+      // prompt dramatically improves compliance.
+      let effectivePrompt = prompt;
+      if (queryOptions.outputFormat) {
+        const schemaObj =
+          (queryOptions.outputFormat as { schema?: Record<string, unknown> })
+            .schema;
+        if (schemaObj) {
+          const schemaJson = JSON.stringify(schemaObj, null, 2);
+          effectivePrompt =
+            `${prompt}\n\n---\n**STRUCTURED OUTPUT REQUIRED**\nYou MUST respond with a single JSON object matching this schema. Do NOT wrap it in markdown code blocks. Do NOT include any text before or after the JSON.\n\n\`\`\`json\n${schemaJson}\n\`\`\``;
+          ctx.logger.info(
+            `[StructuredOutput] Augmented prompt with inline schema instruction for step: ${
+              stepId ?? "unknown"
+            }`,
+          );
+        }
+      }
+
       // Verbose: Log full SDK request options
       const verboseLogger = this.deps.getVerboseLogger();
       if (verboseLogger) {
@@ -222,7 +254,7 @@ export class QueryExecutor {
       }
 
       const queryIterator = query({
-        prompt,
+        prompt: effectivePrompt,
         options: queryOptions,
       });
 
@@ -244,6 +276,21 @@ export class QueryExecutor {
             `The LLM may have returned natural language instead of JSON. ` +
             `Step: ${stepId ?? "unknown"}`,
         );
+
+        // Fallback: Try to parse JSON from the last assistant text response
+        const lastResponse =
+          summary.assistantResponses[summary.assistantResponses.length - 1];
+        if (lastResponse) {
+          const parsed = this.tryParseJsonFromText(lastResponse);
+          if (parsed) {
+            summary.structuredOutput = parsed;
+            ctx.logger.info(
+              `[StructuredOutput] Recovered structured output from assistant text response for step: ${
+                stepId ?? "unknown"
+              }`,
+            );
+          }
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error
@@ -330,6 +377,58 @@ export class QueryExecutor {
     } else if (isErrorMessage(message)) {
       summary.errors.push(message.error.message ?? "Unknown error");
     }
+  }
+
+  /**
+   * Try to extract a JSON object from LLM text response.
+   * Handles: pure JSON, JSON wrapped in markdown code blocks, or JSON embedded after prose.
+   */
+  private tryParseJsonFromText(
+    text: string,
+  ): Record<string, unknown> | null {
+    const trimmed = text.trim();
+
+    // 1. Try direct JSON parse (pure JSON response)
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Not valid JSON from start, try extracting
+      }
+    }
+
+    // 2. Try extracting JSON from markdown code block
+    const codeBlockMatch = trimmed.match(
+      /```(?:json)?\s*\n?([\s\S]*?)\n?```/,
+    );
+    if (codeBlockMatch?.[1]) {
+      try {
+        const parsed = JSON.parse(codeBlockMatch[1].trim());
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // Not valid JSON in code block
+      }
+    }
+
+    // 3. Try finding last JSON object in text (prose followed by JSON)
+    const lastBrace = trimmed.lastIndexOf("{");
+    if (lastBrace > 0) {
+      try {
+        const parsed = JSON.parse(trimmed.slice(lastBrace));
+        if (typeof parsed === "object" && parsed !== null) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // No valid JSON found
+      }
+    }
+
+    return null;
   }
 
   private extractContent(message: unknown): string {

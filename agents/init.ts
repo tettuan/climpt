@@ -152,7 +152,7 @@ export async function initAgent(
         edition: "default",
         stepKind: "work",
         fallbackKey: "manual_initial_default",
-        uvVariables: ["uv-topic", "uv-verdict_keyword"],
+        uvVariables: ["uv-topic", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
           next: {
@@ -169,7 +169,7 @@ export async function initAgent(
         edition: "default",
         stepKind: "work",
         fallbackKey: "manual_continuation_default",
-        uvVariables: ["uv-iteration", "uv-verdict_keyword"],
+        uvVariables: ["uv-iteration", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
           next: {
@@ -215,7 +215,7 @@ You are operating as the **${agentName}** agent.
 
 ---
 
-Begin the session. When complete, output \`{uv-verdict_keyword}\`.
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
 `;
 
   await Deno.writeTextFile(
@@ -235,7 +235,7 @@ Begin the session. When complete, output \`{uv-verdict_keyword}\`.
 
 Continue working on the task.
 
-When complete, output \`{uv-verdict_keyword}\`.
+When complete, output \`{uv-completion_keyword}\`.
 `;
 
   await Deno.writeTextFile(

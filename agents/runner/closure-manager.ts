@@ -34,6 +34,7 @@ import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
 } from "../common/prompt-resolver.ts";
+import { getDefaultFallbackTemplates } from "../prompts/fallback.ts";
 import type { SchemaManager } from "./schema-manager.ts";
 
 export interface ClosureManagerDeps {
@@ -140,7 +141,7 @@ export class ClosureManager {
       if (hasWorkSteps) {
         this.stepPromptResolver = new StepPromptResolver(
           stepsRegistry as unknown as StepRegistry,
-          createFallbackProvider({}),
+          createFallbackProvider(getDefaultFallbackTemplates()),
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
         logger.debug("StepPromptResolver initialized (work steps detected)");

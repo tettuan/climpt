@@ -51,14 +51,14 @@ Continue making progress. Report what you accomplished this iteration.
 ## Topic
 {uv-topic}
 
-Begin the session. When complete, output \`{uv-verdict_keyword}\`.
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
 `,
 
     continuation_manual: `# Continuation (Iteration {uv-iteration})
 
 Continue the session.
 
-When complete, output \`{uv-verdict_keyword}\`.
+When complete, output \`{uv-completion_keyword}\`.
 `,
 
     // Keyword signal verdict type (canonical names matching detect:keyword handler)
@@ -231,4 +231,21 @@ When complete, output the structured signal of type: {uv-signal_type}
   hasTemplate(stepId: string): boolean {
     return stepId in this.templates;
   }
+
+  /**
+   * Get all templates as a shallow copy
+   */
+  getTemplates(): Record<string, string> {
+    return { ...this.templates };
+  }
+}
+
+/**
+ * Get the default fallback templates map.
+ *
+ * Returns a Record<string, string> suitable for passing to
+ * createFallbackProvider() in prompt-resolver.ts.
+ */
+export function getDefaultFallbackTemplates(): Record<string, string> {
+  return new DefaultFallbackProvider().getTemplates();
 }
