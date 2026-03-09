@@ -145,6 +145,10 @@ Agent configurations are located in `/.agent/<agent-name>/`:
 
 ```
 .agent/
++-- climpt/
+|   +-- config/
+|       +-- {agentId}-{c1}-app.yml   # Breakdown build config (working_dir, base_dir)
+|       +-- {agentId}-{c1}-user.yml  # Breakdown user config (directiveType, layerType)
 +-- iterator/
 |   +-- agent.json            # Agent definition
 |   +-- config.json           # Runtime config (optional)
@@ -153,6 +157,9 @@ Agent configurations are located in `/.agent/<agent-name>/`:
 +-- reviewer/
     +-- ...
 ```
+
+Breakdown config naming: `{agentId}-{c1}-app.yml` where `c1` is from
+`steps_registry.json`. See `docs/internal/prompt-architecture.md`.
 
 ## Agent Definition (agent.json)
 
