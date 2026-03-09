@@ -312,7 +312,11 @@ export class AgentRunner {
           // Try closure adaptation for closure steps
           // deno-lint-ignore no-await-in-loop
           const closurePrompt = await this.closureAdapter
-            .tryClosureAdaptation(stepId, ctx);
+            .tryClosureAdaptation(
+              stepId,
+              ctx,
+              this.buildUvVariables(iteration),
+            );
           if (closurePrompt) {
             prompt = closurePrompt.content;
             promptSource = closurePrompt.source;

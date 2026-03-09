@@ -4,7 +4,6 @@ name: External State Continuation Prompt
 description: Continuation prompt for external state completion
 uvVariables:
   - issue_number
-  - completed_iterations
 customVariables:
   - summary_section
 ---
@@ -16,8 +15,7 @@ When complete, add the `done` label to hand off to the Reviewer Agent.
 
 ---
 
-You are continuing work on Issue #{uv-issue_number}. Iterations completed:
-{uv-completed_iterations}
+You are continuing work on Issue #{uv-issue_number}.
 
 {summary_section}
 

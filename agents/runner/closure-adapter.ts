@@ -36,6 +36,7 @@ export class ClosureAdapter {
   async tryClosureAdaptation(
     stepId: string,
     ctx: RuntimeContext,
+    uvVariables?: Record<string, string>,
   ): Promise<{ content: string; source: "user" | "fallback" } | null> {
     const stepPromptResolver = this.deps.getStepPromptResolver();
     const stepsRegistry = this.deps.getStepsRegistry();
@@ -66,15 +67,17 @@ export class ClosureAdapter {
       : undefined;
 
     try {
+      // Build UV dict: prefer caller-provided uvVariables (from runner.buildUvVariables),
+      // fall back to minimal dict from CLI args for backward compat
+      const uv: Record<string, string> = uvVariables ? { ...uvVariables } : {
+        ...(this.deps.args.issue !== undefined && {
+          issue_number: String(this.deps.args.issue),
+        }),
+      };
+
       const result = await stepPromptResolver.resolve(
         stepId,
-        {
-          uv: {
-            ...(this.deps.args.issue !== undefined && {
-              issue_number: String(this.deps.args.issue),
-            }),
-          },
-        },
+        { uv },
         overrides,
       );
 
