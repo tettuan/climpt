@@ -171,6 +171,67 @@ Review and validate the work:
 When ready, indicate "Phase: complete" to finish.
 `,
 
+    // Closure templates (terminal step validation)
+    polling_closure_default: `# Closure Validation
+
+Validate that the work on Issue #{uv-issue_number} is complete.
+
+## Checks
+- All changes are committed (git status is clean)
+- Implementation satisfies the issue requirements
+
+Respond with a JSON object:
+\`\`\`json
+{"stepId": "closure.polling", "status": "completed", "summary": "Validation result", "next_action": {"action": "closing", "reason": "All checks passed"}, "validation": {"git_clean": true}}
+\`\`\`
+`,
+
+    issue_closure_default: `# Issue Closure Validation
+
+Validate that all work on Issue #{uv-issue_number} is complete and ready to close.
+
+## Checks
+- Changes committed and pushed
+- Issue requirements satisfied
+
+Respond with a JSON object with next_action.action = "closing" when ready.
+`,
+
+    review_closure_default: `# Review Closure
+
+Finalize the review. Verify all findings have been reported.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    facilitation_closure_default: `# Facilitation Closure
+
+Finalize the facilitation session. Verify all actions have been completed.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    project_closure_default: `# Project Closure Validation
+
+Validate project completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    iteration_closure_default: `# Iteration Closure
+
+Validate iteration completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    project_continuation_closure_default: `# Project Continuation Closure
+
+Validate continuation completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
     // Structured signal verdict type
     initial_structured_signal: `# Task Start
 

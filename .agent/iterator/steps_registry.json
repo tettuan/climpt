@@ -673,7 +673,7 @@
       "c3": "polling",
       "edition": "default",
       "fallbackKey": "polling_continuation_default",
-      "uvVariables": ["issue_number", "completed_iterations"],
+      "uvVariables": ["issue_number"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "polling.schema.json",
