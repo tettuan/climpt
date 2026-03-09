@@ -60,7 +60,7 @@ Prompt paths follow the C3L (Command 3-Level) naming convention:
 | ----- | ------ | --------------- | ------------------------------------ |
 | c1    | Domain | Prompt category | `steps`, `dev`                       |
 | c2    | Action | Execution phase | `initial`, `continuation`, `section` |
-| c3    | Target | Mode/target     | `issue`, `project`, `iteration`      |
+| c3    | Target | Mode/target     | `issue`, `project`, `iterate`        |
 
 ### File Naming Convention
 
@@ -241,8 +241,8 @@ Use issue-action blocks to report findings.
 | `initial.project.review`      | Project review phase       | `project_number`, `project_title`, `label_info`, `issues_completed`, `label_filter` |
 | `initial.project.complete`    | Project completion message | `project_number`, `label_info`, `issues_completed`                                  |
 | `section.projectcontext`      | Project context section    | `project_number`, `project_title`, `label_info`, `current_index`, `total_issues`    |
-| `initial.iteration`           | Iterate mode initial       | `iterations`                                                                        |
-| `continuation.iteration`      | Iterate mode continuation  | `completed_iterations`, `remaining`                                                 |
+| `initial.iterate`             | Iterate mode initial       | `iterations`                                                                        |
+| `continuation.iterate`        | Iterate mode continuation  | `completed_iterations`, `remaining`                                                 |
 
 ### Reviewer Steps
 
