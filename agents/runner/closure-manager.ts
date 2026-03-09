@@ -128,16 +128,16 @@ export class ClosureManager {
         );
       }
 
+      // Store registry with proper typing (needed by FlowOrchestrator for entryStepMapping)
+      const stepsRegistry: ExtendedStepsRegistry = registry;
+      this.stepsRegistry = stepsRegistry;
+
       if (!hasValidationChain && !hasFlowRouting) {
         logger.debug(
           "Registry has no extended capabilities (no failurePatterns, validators, or structuredGate), skipping setup",
         );
         return;
       }
-
-      // Store registry with proper typing
-      const stepsRegistry: ExtendedStepsRegistry = registry;
-      this.stepsRegistry = stepsRegistry;
 
       const capabilities: string[] = [];
       if (hasValidationChain) capabilities.push("ValidationChain");
@@ -204,7 +204,7 @@ export class ClosureManager {
         this.stepPromptResolver = new StepPromptResolver(
           stepsRegistry as unknown as StepRegistry,
           createFallbackProvider({}),
-          { workingDir: cwd, configSuffix: "steps" },
+          { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
         logger.debug("StepPromptResolver initialized");
       }

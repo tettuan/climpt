@@ -10,18 +10,12 @@
  */
 
 import type { Logger } from "./logger.ts";
-// Support both resolver implementations
 import type { PromptResolutionResult as CommonPromptResolutionResult } from "./prompt-resolver.ts";
-import type { PromptResolutionResult as PromptsPromptResolutionResult } from "../prompts/resolver-adapter.ts";
 
 /**
- * Unified prompt resolution result type that supports both resolvers.
- * - common/prompt-resolver.ts uses source: "user" | "fallback"
- * - prompts/resolver.ts uses source: "file" | "climpt" | "fallback"
+ * Prompt resolution result type for logging.
  */
-export type PromptResolutionResult =
-  | CommonPromptResolutionResult
-  | PromptsPromptResolutionResult;
+export type PromptResolutionResult = CommonPromptResolutionResult;
 
 /**
  * Minimal logger interface for PromptLogger.
@@ -292,15 +286,6 @@ export class PromptLogger {
       entry.variables = result.substitutedVariables;
     }
 
-    // Include edition and adaptation if available (from prompts/resolver.ts)
-    const extendedResult = result as PromptsPromptResolutionResult;
-    if (extendedResult.edition) {
-      entry.edition = extendedResult.edition;
-    }
-    if (extendedResult.adaptation) {
-      entry.adaptation = extendedResult.adaptation;
-    }
-
     return entry;
   }
 }
@@ -329,9 +314,6 @@ export async function logPromptResolution(
   const sourceLabel = sourceLabels[result.source] ?? result.source;
   const pathInfo = result.promptPath ? ` [${result.promptPath}]` : "";
 
-  // Include edition and adaptation if available
-  const extendedResult = result as PromptsPromptResolutionResult;
-
   const metadata: Record<string, unknown> = {
     promptResolution: {
       stepId: result.stepId,
@@ -339,10 +321,6 @@ export async function logPromptResolution(
       contentLength: result.content.length,
       promptPath: result.promptPath,
       resolutionTimeMs: options.resolutionTimeMs,
-      ...(extendedResult.edition ? { edition: extendedResult.edition } : {}),
-      ...(extendedResult.adaptation
-        ? { adaptation: extendedResult.adaptation }
-        : {}),
       ...(options.logVariables && result.substitutedVariables
         ? { variables: result.substitutedVariables }
         : {}),

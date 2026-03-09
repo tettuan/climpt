@@ -36,13 +36,21 @@ main() {
   fi
   success "PASS: allowedTools includes Write (intentional for plan mode test)"
 
-  # Contract 3: plan-scout is NOT a step flow agent (no steps_registry)
+  # Contract 3: plan-scout must NOT be a step flow agent
+  # The runner determines step flow via hasFlowRoutingSupport(), which checks
+  # for structuredGate in steps_registry.json steps. A freshly --init'd agent
+  # has a template registry without structuredGate — that is expected.
   if [[ -f "${AGENT_DIR}/steps_registry.json" ]]; then
-    error "FAIL: plan-scout should not have steps_registry.json"
-    error "  plan-scout is a simple agent, not a step flow agent"
-    return 1
+    local gate_count
+    gate_count=$(jq '[.steps // {} | to_entries[] | select(.value.structuredGate != null)] | length' "${AGENT_DIR}/steps_registry.json")
+    if [[ "$gate_count" -gt 0 ]]; then
+      error "FAIL: plan-scout has ${gate_count} step(s) with structuredGate"
+      error "  plan-scout must be a simple agent for plan mode testing"
+      error "  See: agents/common/validation-types.ts hasFlowRoutingSupport()"
+      return 1
+    fi
   fi
-  success "PASS: no steps_registry.json (simple agent, not step flow)"
+  success "PASS: no structuredGate in steps (simple agent, not step flow)"
 
   success "All plan mode contracts verified"
 }

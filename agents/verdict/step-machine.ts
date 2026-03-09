@@ -7,7 +7,7 @@
  * Based on: agents/docs/design/01_runner.md and Issue #258
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import {
@@ -117,16 +117,16 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
     const stepDef = this.getStepDefinition(this.state.currentStepId);
 
     if (this.promptResolver && stepDef) {
-      const uvVars: Record<string, string> = {
-        "uv-step_id": this.state.currentStepId,
-        "uv-step_name": stepDef.name,
-      };
-
       try {
-        return await this.promptResolver.resolve(
+        return (await this.promptResolver.resolve(
           this.state.currentStepId,
-          uvVars,
-        );
+          {
+            uv: {
+              step_id: this.state.currentStepId,
+              step_name: stepDef.name,
+            },
+          },
+        )).content;
       } catch {
         // Fallback if prompt resolution fails
       }
@@ -166,19 +166,19 @@ ${this.buildStepInstructions(stepDef)}
         ? this.formatIterationSummary(previousSummary)
         : "";
 
-      const uvVars: Record<string, string> = {
-        "uv-step_id": this.state.currentStepId,
-        "uv-step_name": stepDef.name,
-        "uv-iteration": String(completedIterations),
-        "uv-step_iteration": String(this.state.stepIteration),
-        "uv-previous_summary": summaryText,
-      };
-
       try {
-        return await this.promptResolver.resolve(
+        return (await this.promptResolver.resolve(
           this.state.currentStepId,
-          uvVars,
-        );
+          {
+            uv: {
+              step_id: this.state.currentStepId,
+              step_name: stepDef.name,
+              iteration: String(completedIterations),
+              step_iteration: String(this.state.stepIteration),
+              previous_summary: summaryText,
+            },
+          },
+        )).content;
       } catch {
         // Fallback if prompt resolution fails
       }

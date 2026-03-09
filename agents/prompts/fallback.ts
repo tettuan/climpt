@@ -45,7 +45,7 @@ Begin iteration 1. Make progress and report what you accomplished.
 Continue making progress. Report what you accomplished this iteration.
 `,
 
-    // Keyword signal verdict type
+    // Keyword signal verdict type (legacy names)
     initial_manual: `# Session Start
 
 ## Topic
@@ -59,6 +59,22 @@ Begin the session. When complete, output \`{uv-verdict_keyword}\`.
 Continue the session.
 
 When complete, output \`{uv-verdict_keyword}\`.
+`,
+
+    // Keyword signal verdict type (canonical names matching detect:keyword handler)
+    initial_keyword: `# Session Start
+
+## Topic
+{uv-topic}
+
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
+`,
+
+    continuation_keyword: `# Continuation (Iteration {uv-iteration})
+
+Continue the session.
+
+When complete, output \`{uv-completion_keyword}\`.
 `,
 
     // Issue verdict type

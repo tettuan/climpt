@@ -51,6 +51,11 @@ main() {
     echo "$output" | head -10 >&2
     return 1
   fi
+  if [[ $exit_code -ne 0 ]]; then
+    error "FAIL: agent exited with code ${exit_code}"
+    echo "$output" | tail -10 >&2
+    return 1
+  fi
   success "PASS: plan agent executed with LLM evidence (exit_code=${exit_code})"
 }
 

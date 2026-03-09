@@ -7,7 +7,7 @@
  * - FIRST: First condition to complete wins
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type {
   AgentDefinition,
   VerdictConfigUnion,
@@ -153,10 +153,12 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
     }
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.composite", {
-        "uv-operator": this.operator,
-        "uv-conditions_count": String(this.conditions.length),
-      });
+      return (await this.promptResolver.resolve("initial.composite", {
+        uv: {
+          operator: this.operator,
+          conditions_count: String(this.conditions.length),
+        },
+      })).content;
     }
 
     // Fallback inline prompt

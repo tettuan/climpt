@@ -43,6 +43,7 @@ import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
 import { PromptLogger } from "../common/prompt-logger.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
+import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
@@ -72,6 +73,7 @@ export class AgentRunner {
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
   private args: Record<string, unknown> = {};
+  private agentDir = "";
 
   // Extracted module instances
   private readonly closureManager: ClosureManager;
@@ -164,8 +166,9 @@ export class AgentRunner {
     const cwd = options.cwd ?? Deno.cwd();
     const agentDir = getAgentDir(this.definition.name, cwd);
 
-    // Store args for later use
+    // Store args and agentDir for later use
     this.args = options.args;
+    this.agentDir = agentDir;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -194,7 +197,6 @@ export class AgentRunner {
         agentDir,
         registryPath: this.definition.runner.flow.prompts.registry,
         fallbackDir: this.definition.runner.flow.prompts.fallbackDir,
-        systemPromptPath: this.definition.runner.flow.systemPromptPath,
       },
     );
 
@@ -223,9 +225,6 @@ export class AgentRunner {
       logFailures: true,
       logVariables: true,
     });
-
-    // Inject prompt logger into resolver for automatic logging
-    promptResolver.setPromptLogger(promptLogger);
 
     // Assign all context at once (atomic initialization)
     this.context = {
@@ -364,14 +363,15 @@ export class AgentRunner {
 
         // Resolve system prompt
         // deno-lint-ignore no-await-in-loop
-        const systemPromptResult = await ctx.promptResolver
-          .resolveSystemPromptWithMetadata(
-            {
-              "uv-agent_name": this.definition.name,
-              "uv-verdict_criteria":
-                ctx.verdictHandler.buildVerdictCriteria().detailed,
-            },
-          );
+        const systemPromptResult = await resolveSystemPrompt({
+          agentDir: this.agentDir,
+          systemPromptPath: this.definition.runner.flow.systemPromptPath,
+          variables: {
+            "uv-agent_name": this.definition.name,
+            "uv-verdict_criteria":
+              ctx.verdictHandler.buildVerdictCriteria().detailed,
+          },
+        });
         const customSystemPrompt = systemPromptResult.content;
 
         // Build system prompt with claude_code preset + custom append

@@ -29,14 +29,14 @@ export {
 } from "./variable-substitutor.ts";
 
 // ============================================================================
-// Resolver Adapter (replaces old PromptResolver)
+// System Prompt Resolution
 // ============================================================================
 
 export {
-  type PromptResolutionResult,
-  PromptResolverAdapter,
-  type PromptResolverOptions,
-} from "./resolver-adapter.ts";
+  resolveSystemPrompt,
+  type SystemPromptOptions,
+  type SystemPromptResult,
+} from "./system-prompt.ts";
 
 // ============================================================================
 // Fallback

@@ -1,0 +1,4 @@
+# Build Configuration for reviewer-steps
+working_dir: ".agent/reviewer"
+app_prompt:
+  base_dir: "prompts/steps"

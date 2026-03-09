@@ -13,7 +13,16 @@
 
 import { join } from "@std/path";
 import { ensureDir } from "@std/fs";
-import { PromptResolverAdapter } from "../../../agents/prompts/resolver-adapter.ts";
+import {
+  createFallbackProvider,
+  PromptResolver,
+} from "../../../agents/common/prompt-resolver.ts";
+import {
+  addStepDefinition,
+  createEmptyRegistry,
+} from "../../../agents/common/step-registry.ts";
+import { resolveSystemPrompt } from "../../../agents/prompts/system-prompt.ts";
+import type { StepRegistry } from "../../../agents/common/step-registry.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -47,37 +56,30 @@ function printResult(
 // Setup temporary agent directory
 // ---------------------------------------------------------------------------
 
-async function setupTempAgent(agentName: string): Promise<string> {
+async function setupTempAgent(
+  agentName: string,
+): Promise<{ agentDir: string; registry: StepRegistry }> {
   const agentDir = join(TMPDIR, `.agent/${agentName}`);
   await ensureDir(join(agentDir, "prompts"));
 
-  // Minimal steps_registry.json
-  const registry = {
-    agentId: agentName,
-    version: "1.0.0",
-    c1: "steps",
-    userPromptsBase: `.agent/${agentName}/prompts`,
-    entryStep: "initial.issue",
-    steps: {
-      "initial.issue": {
-        stepId: "initial.issue",
-        name: "Issue Initial Prompt",
-        stepKind: "work",
-        c2: "initial",
-        c3: "issue",
-        edition: "default",
-        fallbackKey: "initial_issue",
-        uvVariables: ["issue_number"],
-        usesStdin: false,
-      },
-    },
-  };
-  await Deno.writeTextFile(
-    join(agentDir, "steps_registry.json"),
-    JSON.stringify(registry, null, 2),
-  );
+  // Build StepRegistry in-memory
+  const registry = createEmptyRegistry(agentName, "steps", "1.0.0");
+  registry.userPromptsBase = `.agent/${agentName}/prompts`;
+  registry.entryStep = "initial.issue";
 
-  return agentDir;
+  addStepDefinition(registry, {
+    stepId: "initial.issue",
+    name: "Issue Initial Prompt",
+    stepKind: "work",
+    c2: "initial",
+    c3: "issue",
+    edition: "default",
+    fallbackKey: "initial_issue",
+    uvVariables: ["issue_number"],
+    usesStdin: false,
+  });
+
+  return { agentDir, registry };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +89,11 @@ async function setupTempAgent(agentName: string): Promise<string> {
 async function scenarioSystemPrompt(agentDir: string): Promise<void> {
   const promptsDir = join(agentDir, "prompts");
   const systemPath = join(promptsDir, "system.md");
+
+  const systemVars: Record<string, string> = {
+    "uv-agent_name": "example-agent",
+    "uv-completion_criteria": "Close issue when all tests pass",
+  };
 
   // --- Scenario 1: system.md EXISTS with {uv-*} ---
   header("Scenario 1: system.md EXISTS with {uv-*} variables");
@@ -110,17 +117,16 @@ You are the **{uv-agent_name}** implementation agent.
 `,
   );
 
-  const resolver1 = await PromptResolverAdapter.create({
-    agentName: "example-agent",
+  const raw1 = await resolveSystemPrompt({
     agentDir,
-    registryPath: "steps_registry.json",
     systemPromptPath: "prompts/system.md",
+    variables: systemVars,
   });
-
-  const result1 = await resolver1.resolveSystemPromptWithMetadata({
-    "uv-agent_name": "example-agent",
-    "uv-completion_criteria": "Close issue when all tests pass",
-  });
+  const result1 = {
+    content: raw1.content,
+    source: raw1.source,
+    promptPath: raw1.path,
+  };
 
   printResult(result1);
 
@@ -130,17 +136,16 @@ You are the **{uv-agent_name}** implementation agent.
 
   await Deno.remove(systemPath);
 
-  const resolver2 = await PromptResolverAdapter.create({
-    agentName: "example-agent",
+  const raw2 = await resolveSystemPrompt({
     agentDir,
-    registryPath: "steps_registry.json",
     systemPromptPath: "prompts/system.md",
+    variables: systemVars,
   });
-
-  const result2 = await resolver2.resolveSystemPromptWithMetadata({
-    "uv-agent_name": "example-agent",
-    "uv-completion_criteria": "Close issue when all tests pass",
-  });
+  const result2 = {
+    content: raw2.content,
+    source: raw2.source,
+    promptPath: raw2.path,
+  };
 
   printResult(result2);
 
@@ -159,8 +164,21 @@ You are the **{uv-agent_name}** implementation agent.
 // Scenario 3 & 4: Step prompt file with/without
 // ---------------------------------------------------------------------------
 
-async function scenarioStepPrompt(agentDir: string): Promise<void> {
+async function scenarioStepPrompt(
+  agentDir: string,
+  registry: StepRegistry,
+): Promise<void> {
   const promptsDir = join(agentDir, "prompts");
+
+  // Build a FallbackPromptProvider for step prompts
+  const fallback = createFallbackProvider({
+    initial_issue: `# GitHub Issue #{uv-issue_number}
+
+Work on completing the requirements in Issue #{uv-issue_number}.
+
+Review the issue, understand the requirements, and begin implementation.
+`,
+  });
 
   // --- Scenario 3: Step prompt file EXISTS ---
   header("Scenario 3: Step prompt file EXISTS");
@@ -190,15 +208,13 @@ You are beginning work on Issue #{uv-issue_number}.
 `,
   );
 
-  const resolver3 = await PromptResolverAdapter.create({
-    agentName: "example-agent",
-    agentDir,
-    registryPath: "steps_registry.json",
-    systemPromptPath: "prompts/system.md",
+  const resolver3 = new PromptResolver(registry, fallback, {
+    workingDir: TMPDIR,
+    allowMissingVariables: true,
   });
 
-  const result3 = await resolver3.resolveWithMetadata("initial.issue", {
-    "uv-issue_number": "42",
+  const result3 = await resolver3.resolve("initial.issue", {
+    uv: { issue_number: "42" },
   });
 
   printResult(result3);
@@ -209,15 +225,13 @@ You are beginning work on Issue #{uv-issue_number}.
 
   await Deno.remove(join(stepDir, "f_default.md"));
 
-  const resolver4 = await PromptResolverAdapter.create({
-    agentName: "example-agent",
-    agentDir,
-    registryPath: "steps_registry.json",
-    systemPromptPath: "prompts/system.md",
+  const resolver4 = new PromptResolver(registry, fallback, {
+    workingDir: TMPDIR,
+    allowMissingVariables: true,
   });
 
-  const result4 = await resolver4.resolveWithMetadata("initial.issue", {
-    "uv-issue_number": "42",
+  const result4 = await resolver4.resolve("initial.issue", {
+    uv: { issue_number: "42" },
   });
 
   printResult(result4);
@@ -244,11 +258,11 @@ async function main(): Promise<void> {
 
   // Setup
   await ensureDir(TMPDIR);
-  const agentDir = await setupTempAgent("example-agent");
+  const { agentDir, registry } = await setupTempAgent("example-agent");
 
   try {
     await scenarioSystemPrompt(agentDir);
-    await scenarioStepPrompt(agentDir);
+    await scenarioStepPrompt(agentDir, registry);
 
     header("Summary");
     console.log(`

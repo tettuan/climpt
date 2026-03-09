@@ -26,7 +26,7 @@ import {
 import type { ResolvedAgentDefinition } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { VerdictHandler } from "../verdict/types.ts";
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 
 const logger = new BreakdownLogger("factory");
 

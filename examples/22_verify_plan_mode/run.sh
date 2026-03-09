@@ -25,7 +25,7 @@ main() {
       echo "permissionMode: plan"
       echo "timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       echo ""
-      echo "Root cause: canUseTool callback in runner.ts:703-704"
+      echo "Root cause: canUseTool callback in agents/runner/query-executor.ts:124"
       echo "  returns { behavior: 'allow' } for ALL tools,"
       echo "  overriding plan mode restrictions."
     } > "$result_file"

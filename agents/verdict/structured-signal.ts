@@ -5,11 +5,12 @@
  * a specific action block type with optional required field values.
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
   type VerdictCriteria,
+  type VerdictStepIds,
 } from "./types.ts";
 
 const COMPLETE = true;
@@ -19,12 +20,18 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
   readonly type = "detect:structured" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
+  private readonly stepIds: VerdictStepIds;
 
   constructor(
     private readonly signalType: string,
     private readonly requiredFields?: Record<string, unknown>,
+    stepIds?: VerdictStepIds,
   ) {
     super();
+    this.stepIds = stepIds ?? {
+      initial: "initial.structured",
+      continuation: "continuation.structured",
+    };
   }
 
   /**
@@ -44,10 +51,12 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.structured", {
-        "uv-signal_type": this.signalType,
-        "uv-required_fields": JSON.stringify(this.requiredFields ?? {}),
-      });
+      return (await this.promptResolver.resolve(this.stepIds.initial, {
+        uv: {
+          signal_type: this.signalType,
+          required_fields: JSON.stringify(this.requiredFields ?? {}),
+        },
+      })).content;
     }
 
     // Fallback inline prompt
@@ -93,15 +102,17 @@ ${requiredFieldsDesc}
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve(
-        "continuation.structured",
+      return (await this.promptResolver.resolve(
+        this.stepIds.continuation,
         {
-          "uv-iteration": String(completedIterations),
-          "uv-signal_type": this.signalType,
-          "uv-required_fields": JSON.stringify(this.requiredFields ?? {}),
-          "uv-previous_summary": summaryText,
+          uv: {
+            iteration: String(completedIterations),
+            signal_type: this.signalType,
+            required_fields: JSON.stringify(this.requiredFields ?? {}),
+            previous_summary: summaryText,
+          },
         },
-      );
+      )).content;
     }
 
     // Fallback inline prompt

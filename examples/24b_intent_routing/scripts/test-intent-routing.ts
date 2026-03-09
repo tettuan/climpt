@@ -29,6 +29,7 @@ for (const agent of agents) {
   const registryPath = join(repoRoot, ".agent", agent, "steps_registry.json");
   let registry: Record<string, unknown>;
   try {
+    // deno-lint-ignore no-await-in-loop
     registry = JSON.parse(await Deno.readTextFile(registryPath));
   } catch {
     log(`  SKIP: ${registryPath} not found`);

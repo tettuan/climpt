@@ -194,29 +194,3 @@ export class C3LPromptLoader {
     return this.configName;
   }
 }
-
-/**
- * Create a C3LPromptLoader for the iterator agent
- */
-export function createIteratorPromptLoader(
-  workingDir?: string,
-): C3LPromptLoader {
-  return new C3LPromptLoader({
-    agentId: "iterator",
-    configSuffix: "dev",
-    workingDir,
-  });
-}
-
-/**
- * Create a C3LPromptLoader for the reviewer agent
- */
-export function createReviewerPromptLoader(
-  workingDir?: string,
-): C3LPromptLoader {
-  return new C3LPromptLoader({
-    agentId: "reviewer",
-    configSuffix: "dev",
-    workingDir,
-  });
-}

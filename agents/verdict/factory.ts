@@ -6,8 +6,17 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
-import { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
-import type { VerdictHandler } from "./types.ts";
+import {
+  createFallbackProvider,
+  PromptResolver,
+} from "../common/prompt-resolver.ts";
+import {
+  createEmptyRegistry,
+  loadStepRegistry,
+} from "../common/step-registry.ts";
+import { join } from "@std/path";
+import type { VerdictHandler, VerdictStepIds } from "./types.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { type IssueContractConfig, IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
 import {
@@ -30,7 +39,32 @@ type HandlerFactory = (
   promptResolver: PromptResolver,
   definition: AgentDefinition,
   agentDir: string,
+  stepIds: VerdictStepIds,
 ) => VerdictHandler | Promise<VerdictHandler>;
+
+/**
+ * Resolve step IDs from registry's entryStepMapping.
+ *
+ * Derives continuation step ID by replacing "initial." prefix
+ * with "continuation." in the entry step ID.
+ */
+function resolveStepIds(
+  registry: ExtendedStepsRegistry,
+  verdictType: string,
+  defaultInitial: string,
+): VerdictStepIds {
+  const entryStep = registry.entryStepMapping?.[verdictType];
+  if (entryStep) {
+    const continuation = entryStep.startsWith("initial.")
+      ? "continuation." + entryStep.slice("initial.".length)
+      : "continuation." + entryStep.split(".").slice(1).join(".");
+    return { initial: entryStep, continuation };
+  }
+  const defaultContinuation = defaultInitial.startsWith("initial.")
+    ? "continuation." + defaultInitial.slice("initial.".length)
+    : defaultInitial;
+  return { initial: defaultInitial, continuation: defaultContinuation };
+}
 
 /**
  * Registry of completion handler factories by type
@@ -49,7 +83,7 @@ function registerHandler(type: string, factory: HandlerFactory): void {
 // poll:state - Complete when external resource reaches target state
 registerHandler(
   "poll:state",
-  (args, promptResolver, definition) => {
+  (args, promptResolver, definition, _agentDir, stepIds) => {
     const issueNumber = args.issue as number | undefined;
     if (issueNumber === undefined || issueNumber === null) {
       throw new Error(
@@ -83,6 +117,7 @@ registerHandler(
     const adapter = new ExternalStateVerdictAdapter(
       issueHandler,
       adapterConfig,
+      stepIds,
     );
     adapter.setPromptResolver(promptResolver);
     return adapter;
@@ -90,52 +125,68 @@ registerHandler(
 );
 
 // count:iteration - Complete after N iterations
-registerHandler("count:iteration", (_args, promptResolver, definition) => {
-  const iterateHandler = new IterationBudgetVerdictHandler(
-    definition.runner.verdict.config.maxIterations ??
-      AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
-  );
-  iterateHandler.setPromptResolver(promptResolver);
-  return iterateHandler;
-});
+registerHandler(
+  "count:iteration",
+  (_args, promptResolver, definition, _agentDir, stepIds) => {
+    const iterateHandler = new IterationBudgetVerdictHandler(
+      definition.runner.verdict.config.maxIterations ??
+        AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
+      stepIds,
+    );
+    iterateHandler.setPromptResolver(promptResolver);
+    return iterateHandler;
+  },
+);
 
 // detect:keyword - Complete when LLM outputs specific keyword
-registerHandler("detect:keyword", (_args, promptResolver, definition) => {
-  const manualHandler = new KeywordSignalVerdictHandler(
-    definition.runner.verdict.config.verdictKeyword ?? "TASK_COMPLETE",
-  );
-  manualHandler.setPromptResolver(promptResolver);
-  return manualHandler;
-});
+registerHandler(
+  "detect:keyword",
+  (_args, promptResolver, definition, _agentDir, stepIds) => {
+    const manualHandler = new KeywordSignalVerdictHandler(
+      definition.runner.verdict.config.verdictKeyword ?? "TASK_COMPLETE",
+      stepIds,
+    );
+    manualHandler.setPromptResolver(promptResolver);
+    return manualHandler;
+  },
+);
 
 // count:check - Complete after N status checks
-registerHandler("count:check", (_args, promptResolver, definition) => {
-  const checkHandler = new CheckBudgetVerdictHandler(
-    definition.runner.verdict.config.maxChecks ?? 10,
-  );
-  checkHandler.setPromptResolver(promptResolver);
-  return checkHandler;
-});
+registerHandler(
+  "count:check",
+  (_args, promptResolver, definition, _agentDir, stepIds) => {
+    const checkHandler = new CheckBudgetVerdictHandler(
+      definition.runner.verdict.config.maxChecks ?? 10,
+      stepIds,
+    );
+    checkHandler.setPromptResolver(promptResolver);
+    return checkHandler;
+  },
+);
 
 // detect:structured - Complete when LLM outputs specific JSON signal
-registerHandler("detect:structured", (_args, promptResolver, definition) => {
-  if (!definition.runner.verdict.config.signalType) {
-    throw new Error(
-      "detect:structured completion type requires signalType in verdictConfig",
+registerHandler(
+  "detect:structured",
+  (_args, promptResolver, definition, _agentDir, stepIds) => {
+    if (!definition.runner.verdict.config.signalType) {
+      throw new Error(
+        "detect:structured completion type requires signalType in verdictConfig",
+      );
+    }
+    const signalHandler = new StructuredSignalVerdictHandler(
+      definition.runner.verdict.config.signalType,
+      definition.runner.verdict.config.requiredFields,
+      stepIds,
     );
-  }
-  const signalHandler = new StructuredSignalVerdictHandler(
-    definition.runner.verdict.config.signalType,
-    definition.runner.verdict.config.requiredFields,
-  );
-  signalHandler.setPromptResolver(promptResolver);
-  return signalHandler;
-});
+    signalHandler.setPromptResolver(promptResolver);
+    return signalHandler;
+  },
+);
 
 // meta:composite - Combines multiple conditions
 registerHandler(
   "meta:composite",
-  (args, promptResolver, definition, agentDir) => {
+  (args, promptResolver, definition, agentDir, _stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
     if (!verdictConfig.conditions || !verdictConfig.operator) {
       throw new Error(
@@ -157,7 +208,7 @@ registerHandler(
 // detect:graph - Complete when step state machine reaches terminal
 registerHandler(
   "detect:graph",
-  async (_args, promptResolver, definition, agentDir) => {
+  async (_args, promptResolver, definition, agentDir, _stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
 
     // Load steps registry for step machine
@@ -201,7 +252,7 @@ registerHandler(
 // meta:custom - Fully custom handler implementation
 registerHandler(
   "meta:custom",
-  async (_args, _promptResolver, definition, agentDir) => {
+  async (_args, _promptResolver, definition, agentDir, _stepIds) => {
     if (!definition.runner.verdict.config.handlerPath) {
       throw new Error(
         "Custom completion type requires handlerPath in verdictConfig",
@@ -234,11 +285,19 @@ export async function createRegistryVerdictHandler(
   const { type: verdictType } = definition.runner.verdict;
 
   // Create prompt resolver for handlers
-  const promptResolver = await PromptResolver.create({
-    agentName: definition.name,
-    agentDir,
-    registryPath: definition.runner.flow.prompts.registry,
-    fallbackDir: definition.runner.flow.prompts.fallbackDir,
+  let registry;
+  try {
+    registry = await loadStepRegistry(definition.name, agentDir, {
+      registryPath: join(agentDir, definition.runner.flow.prompts.registry),
+      validateIntentEnums: false,
+    });
+  } catch {
+    registry = createEmptyRegistry(definition.name);
+  }
+  const fallback = createFallbackProvider({});
+  const promptResolver = new PromptResolver(registry, fallback, {
+    workingDir: Deno.cwd(),
+    configSuffix: registry.c1,
   });
 
   // Get factory from registry
@@ -247,7 +306,21 @@ export async function createRegistryVerdictHandler(
     throw new Error(`Unknown completion type: ${verdictType}`);
   }
 
-  return await factory(args, promptResolver, definition, agentDir);
+  // Resolve step IDs from entryStepMapping (default varies by verdict type)
+  const defaultInitialMap: Record<string, string> = {
+    "poll:state": "initial.polling",
+    "count:iteration": "initial.iteration",
+    "detect:keyword": "initial.keyword",
+    "count:check": "initial.check",
+    "detect:structured": "initial.structured",
+  };
+  const stepIds = resolveStepIds(
+    registry,
+    verdictType,
+    defaultInitialMap[verdictType] ?? "initial.default",
+  );
+
+  return await factory(args, promptResolver, definition, agentDir, stepIds);
 }
 
 /**

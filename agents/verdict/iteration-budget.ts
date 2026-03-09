@@ -2,20 +2,29 @@
  * Iterate completion handler - completes after N iterations
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
   type VerdictCriteria,
+  type VerdictStepIds,
 } from "./types.ts";
 
 export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "count:iteration" as const;
   private currentIteration = 0;
   private promptResolver?: PromptResolver;
+  private readonly stepIds: VerdictStepIds;
 
-  constructor(private readonly maxIterations: number) {
+  constructor(
+    private readonly maxIterations: number,
+    stepIds?: VerdictStepIds,
+  ) {
     super();
+    this.stepIds = stepIds ?? {
+      initial: "initial.iteration",
+      continuation: "continuation.iteration",
+    };
   }
 
   /**
@@ -34,9 +43,9 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.iteration", {
-        "uv-max_iterations": String(this.maxIterations),
-      });
+      return (await this.promptResolver.resolve(this.stepIds.initial, {
+        uv: { max_iterations: String(this.maxIterations) },
+      })).content;
     }
 
     // Fallback inline prompt
@@ -74,12 +83,14 @@ Work efficiently to complete your goal within the iteration limit.
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation.iteration", {
-        "uv-iteration": String(completedIterations),
-        "uv-max_iterations": String(this.maxIterations),
-        "uv-remaining": String(remaining),
-        "uv-previous_summary": summaryText,
-      });
+      return (await this.promptResolver.resolve(this.stepIds.continuation, {
+        uv: {
+          iteration: String(completedIterations),
+          max_iterations: String(this.maxIterations),
+          remaining: String(remaining),
+          previous_summary: summaryText,
+        },
+      })).content;
     }
 
     // Fallback inline prompt
