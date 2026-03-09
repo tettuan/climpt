@@ -264,6 +264,8 @@ When complete, output \`{uv-verdict_keyword}\`.
 working_dir: ".agent/${agentName}"
 app_prompt:
   base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"
 `;
   await Deno.writeTextFile(appYmlPath, appYmlContent);
 

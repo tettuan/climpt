@@ -696,11 +696,26 @@ export class AgentRunner {
    */
   private buildUvVariables(iteration: number): Record<string, string> {
     const uv: Record<string, string> = {};
+    // Generic: map all CLI parameters declared in agent.json to UV variables
+    for (const [key, value] of Object.entries(this.args)) {
+      if (value !== undefined && value !== null) {
+        uv[key] = String(value);
+      }
+    }
+    // Legacy alias: issue → issue_number (backward compat)
     if (this.args.issue !== undefined) {
       uv.issue_number = String(this.args.issue);
     }
+    // Runtime variables
+    uv.iteration = String(iteration);
     if (iteration > 1) {
       uv.completed_iterations = String(iteration - 1);
+    }
+    // Verdict keyword from agent config (for detect:keyword templates)
+    const verdictConfig = this.definition.runner?.verdict
+      ?.config as Record<string, unknown> | undefined;
+    if (verdictConfig?.verdictKeyword) {
+      uv.verdict_keyword = String(verdictConfig.verdictKeyword);
     }
     return uv;
   }

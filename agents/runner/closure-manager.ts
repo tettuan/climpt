@@ -132,6 +132,20 @@ export class ClosureManager {
       const stepsRegistry: ExtendedStepsRegistry = registry;
       this.stepsRegistry = stepsRegistry;
 
+      // Always create stepPromptResolver when registry has work steps
+      // (independent of flow routing / validation chain capabilities)
+      const hasWorkSteps = Object.values(stepsRegistry.steps).some(
+        (s) => typeof s === "object" && s !== null && "stepKind" in s,
+      );
+      if (hasWorkSteps) {
+        this.stepPromptResolver = new StepPromptResolver(
+          stepsRegistry as unknown as StepRegistry,
+          createFallbackProvider({}),
+          { workingDir: cwd, configSuffix: stepsRegistry.c1 },
+        );
+        logger.debug("StepPromptResolver initialized (work steps detected)");
+      }
+
       if (!hasValidationChain && !hasFlowRouting) {
         logger.debug(
           "Registry has no extended capabilities (no failurePatterns, validators, or structuredGate), skipping setup",
@@ -201,12 +215,7 @@ export class ClosureManager {
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 
-        this.stepPromptResolver = new StepPromptResolver(
-          stepsRegistry as unknown as StepRegistry,
-          createFallbackProvider({}),
-          { workingDir: cwd, configSuffix: stepsRegistry.c1 },
-        );
-        logger.debug("StepPromptResolver initialized");
+        // stepPromptResolver already created above (hasWorkSteps check)
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
