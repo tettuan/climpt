@@ -415,17 +415,20 @@ export class QueryExecutor {
       }
     }
 
-    // 3. Try finding last JSON object in text (prose followed by JSON)
-    const lastBrace = trimmed.lastIndexOf("{");
-    if (lastBrace > 0) {
+    // 3. Try finding JSON object in text (prose followed by JSON)
+    // Iterate from earliest { to find the outermost JSON object.
+    // lastIndexOf would pick up nested braces like {"action":"next"}.
+    let searchIdx = trimmed.indexOf("{", 1); // skip 0 (handled in step 1)
+    while (searchIdx >= 0) {
       try {
-        const parsed = JSON.parse(trimmed.slice(lastBrace));
+        const parsed = JSON.parse(trimmed.slice(searchIdx));
         if (typeof parsed === "object" && parsed !== null) {
           return parsed as Record<string, unknown>;
         }
       } catch {
-        // No valid JSON found
+        // Not valid JSON from this position, try next
       }
+      searchIdx = trimmed.indexOf("{", searchIdx + 1);
     }
 
     return null;
