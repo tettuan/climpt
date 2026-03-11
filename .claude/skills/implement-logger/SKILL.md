@@ -18,7 +18,7 @@ allowed-tools: [Read, Glob, Grep, Bash, Task]
 | `gate` | AI 出力からどの intent を抽出したか？ | `step-gate-interpreter_test.ts` |
 | `transition` | intent からどの step に飛んだか？ | `workflow-router_test.ts` |
 | `schema` | スキーマは解決できたか？ | `structured-output_test.ts` |
-| `completion` | 出力は完了条件を満たしたか？ | `completion-manager_test.ts` |
+| `closure` | 出力は完了条件を満たしたか？ | `closure-manager_test.ts` |
 | `error` | どのカテゴリに分類されたか？ | `error-classifier_test.ts` |
 | `iteration` | ループのどこで止まったか？ | `runner_test.ts` |
 | `integration` | E2E フロー全体は？ | `dry-run-integration_test.ts` |
@@ -51,7 +51,7 @@ LOG_KEY=flow/gate/transition  # → ["flow","gate","transition"] の OR
 
 ```bash
 LOG_KEY=flow/gate/transition  # ルーティング全体
-LOG_KEY=schema/completion     # 検証全体
+LOG_KEY=schema/closure        # 検証全体
 LOG_KEY=factory/config        # DI + 設定
 LOG_LEVEL=debug               # 全 concern（LOG_KEY 未設定）
 ```
@@ -102,7 +102,7 @@ logger.debug("schema validation", { valid, errors, fieldCount }); // P4
 | `gate` | `"gate input", { rawOutput }` | `"gate extracted", { intent, confidence }` |
 | `transition` | `"transition input", { currentStep, intent }` | `"transition resolved", { nextStep }` |
 | `schema` | `"schema resolve", { schemaId }` | `"schema found", { found: !!schema }` |
-| `completion` | `"completion check", { criteria }` | `"completion result", { met, missing }` |
+| `closure` | `"closure check", { criteria }` | `"closure result", { met, missing }` |
 | `error` | `"error input", { errorType, message }` | `"error classified", { category, retryable }` |
 | `iteration` | `"iteration start", { attempt, max }` | `"iteration end", { attempt, outcome }` |
 

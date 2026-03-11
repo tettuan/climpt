@@ -329,9 +329,9 @@ options:
 
 ```typescript
 export async function loadSystemPromptViaC3L(
-  mode: "project" | "issue" | "iterate",
+  mode: "project" | "issue" | "iteration",
 ): Promise<string> {
-  const c3 = mode === "iterate" ? "default" : mode;
+  const c3 = mode === "iteration" ? "default" : mode;
 
   const command = new Deno.Command("deno", {
     args: [
@@ -386,7 +386,7 @@ flowchart TD
 
     subgraph "実行時"
         F["iterate-agent --project 5"]
-        F --> G["CompletionHandler.type = 'project'"]
+        F --> G["VerdictHandler.type = 'project'"]
         G --> H["loadSystemPromptViaC3L('project')"]
         H --> I["climpt --config=iterator-dev start project"]
         I --> J[".agent/iterator/prompts/dev/start/project/f_default.md"]
