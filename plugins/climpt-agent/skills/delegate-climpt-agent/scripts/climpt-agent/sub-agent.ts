@@ -4,11 +4,8 @@
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/sub-agent
  */
 
-import { query } from "npm:@anthropic-ai/claude-agent-sdk@^0.2.39";
-import type {
-  Options,
-  SDKMessage,
-} from "npm:@anthropic-ai/claude-agent-sdk@^0.2.39";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import type { Logger } from "./logger.ts";
 import { resolvePluginPathsSafe } from "../../../../lib/plugin-resolver.ts";

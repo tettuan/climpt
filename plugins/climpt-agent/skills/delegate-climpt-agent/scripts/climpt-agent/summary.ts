@@ -3,7 +3,7 @@
  * @module climpt-plugins/skills/delegate-climpt-agent/scripts/summary
  */
 
-import { query } from "npm:@anthropic-ai/claude-agent-sdk@^0.2.39";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 
 /**
  * Read JSONL log and extract assistant messages
