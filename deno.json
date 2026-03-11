@@ -82,6 +82,8 @@
     "@aidevtool/frontmatter-to-schema": "jsr:@aidevtool/frontmatter-to-schema@^1.7.3",
     "@anthropic-ai/claude-agent-sdk": "npm:@anthropic-ai/claude-agent-sdk@~0.2.73",
 
+    "@modelcontextprotocol/sdk/client": "npm:@modelcontextprotocol/sdk@1.27.1/client/index.js",
+    "@modelcontextprotocol/sdk/client/stdio": "npm:@modelcontextprotocol/sdk@1.27.1/client/stdio.js",
     "@modelcontextprotocol/sdk/server": "npm:@modelcontextprotocol/sdk@1.27.1/server/index.js",
     "@modelcontextprotocol/sdk/server/stdio": "npm:@modelcontextprotocol/sdk@1.27.1/server/stdio.js",
     "@modelcontextprotocol/sdk/types": "npm:@modelcontextprotocol/sdk@1.27.1/types.js",
