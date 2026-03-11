@@ -235,7 +235,7 @@ SDK の権限モードについて詳細は
 `{uv-completion_criteria}`）。
 
 デフォルトの system.md テンプレートには `{uv-completion_criteria}`
-が含まれており、実行時に CompletionHandler
+が含まれており、実行時に VerdictHandler
 の値で自動的に展開されます。独自の完了条件を定義したい場合は、`{uv-completion_criteria}`
 を使わずに system.md に直接記述してください。
 

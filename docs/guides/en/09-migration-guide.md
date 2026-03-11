@@ -36,7 +36,7 @@ sub-groups:
 
 ```
 runner.flow.*
-runner.completion.*
+runner.verdict.*
 runner.boundaries.*
 runner.integrations.*
 runner.actions.*
@@ -57,8 +57,8 @@ setting, and prevents naming collisions as new features are added.
 | Old Path (v1.11.x)             | New Path (v1.12.0)                                |
 | ------------------------------ | ------------------------------------------------- |
 | `behavior.systemPromptPath`    | `runner.flow.systemPromptPath`                    |
-| `behavior.completionType`      | `runner.completion.type`                          |
-| `behavior.completionConfig`    | `runner.completion.config`                        |
+| `behavior.completionType`      | `runner.verdict.type`                             |
+| `behavior.completionConfig`    | `runner.verdict.config`                           |
 | `behavior.allowedTools`        | `runner.boundaries.allowedTools`                  |
 | `behavior.permissionMode`      | `runner.boundaries.permissionMode`                |
 | `behavior.sandboxConfig`       | `runner.boundaries.sandbox`                       |
@@ -141,7 +141,7 @@ setting, and prevents naming collisions as new features are added.
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
+    "verdict": {
       "type": "count:iteration",
       "config": { "maxIterations": 10 }
     },
@@ -166,7 +166,7 @@ setting, and prevents naming collisions as new features are added.
 
 Key structural changes to notice:
 
-- `behavior.*` splits across `runner.flow`, `runner.completion`, and
+- `behavior.*` splits across `runner.flow`, `runner.verdict`, and
   `runner.boundaries` based on what each field controls.
 - `prompts.*` moves inside `runner.flow.prompts`.
 - `github.*` moves to `runner.integrations.github`.
@@ -185,8 +185,8 @@ Key structural changes to notice:
 
 3. **Move `behavior` fields into `runner`.**
    - `behavior.systemPromptPath` --> `runner.flow.systemPromptPath`
-   - `behavior.completionType` --> `runner.completion.type`
-   - `behavior.completionConfig` --> `runner.completion.config`
+   - `behavior.completionType` --> `runner.verdict.type`
+   - `behavior.completionConfig` --> `runner.verdict.config`
    - `behavior.allowedTools` --> `runner.boundaries.allowedTools`
    - `behavior.permissionMode` --> `runner.boundaries.permissionMode`
    - `behavior.sandboxConfig` --> `runner.boundaries.sandbox`
@@ -229,15 +229,15 @@ Key structural changes to notice:
 ## 9.6 Completion Type Reference
 
 If you are migrating `behavior.completionType`, here is a quick reference for
-valid `runner.completion.type` values:
+valid `runner.verdict.type` values:
 
-| Type              | Completes when...                                 | `runner.completion.config`          |
+| Type              | Completes when...                                 | `runner.verdict.config`             |
 | ----------------- | ------------------------------------------------- | ----------------------------------- |
-| `keywordSignal`   | Output contains a keyword                         | `{ "completionKeyword": "DONE" }`   |
-| `iterationBudget` | N iterations have run                             | `{ "maxIterations": 5 }`            |
-| `externalState`   | An external condition is met (e.g., Issue closed) | `{}` + `--issue` parameter          |
-| `stepMachine`     | All steps complete                                | `{}` + `steps_registry.json`        |
-| `custom`          | Custom handler returns true                       | `{ "handlerPath": "./handler.ts" }` |
+| `detect:keyword`  | Output contains a keyword                         | `{ "verdictKeyword": "DONE" }`      |
+| `count:iteration` | N iterations have run                             | `{ "maxIterations": 5 }`            |
+| `poll:state`      | An external condition is met (e.g., Issue closed) | `{}` + `--issue` parameter          |
+| `detect:graph`    | All steps complete                                | `{}` + `steps_registry.json`        |
+| `meta:custom`     | Custom handler returns true                       | `{ "handlerPath": "./handler.ts" }` |
 
 ---
 

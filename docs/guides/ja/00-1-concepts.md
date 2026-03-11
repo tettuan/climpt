@@ -77,7 +77,7 @@ Iterator が作業を行い、Reviewer が検証する。**独立した役割間
 
 ## 基本概念
 
-### 1. completionType: Agent はいつ停止するか？
+### 1. runner.verdict.type: Agent はいつ停止するか？
 
 Agent 作成時の最も重要な判断です。
 

@@ -27,7 +27,7 @@ The skill will ask for:
 
 1. **Agent name** (required): kebab-case (e.g., `my-agent`, `code-reviewer`)
 2. **Description**: Agent purpose
-3. **completionType**: Completion condition type
+3. **runner.verdict.type**: Completion condition type
 
 ### Via CLI
 
@@ -54,7 +54,7 @@ Options:
 | ----------------- | ------------------------ | --------------------- |
 | `poll:state`      | Monitor Issue/PR state   | `maxIterations`       |
 | `count:iteration` | Fixed iteration count    | `maxIterations`       |
-| `detect:keyword`  | Keyword-based completion | `completionKeyword`   |
+| `detect:keyword`  | Keyword-based completion | `verdictKeyword`      |
 | `detect:graph`    | Step graph-based flow    | `steps_registry.json` |
 
 > **Note**: The scaffolder supports these 4 completion types. For advanced types

@@ -228,7 +228,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
 | ----------------- | ------------------- | --------------------- |
 | `poll:state`      | Issue/PR の状態監視 | `maxIterations`       |
 | `count:iteration` | 固定回数で終了      | `maxIterations`       |
-| `detect:keyword`  | キーワードで終了    | `completionKeyword`   |
+| `detect:keyword`  | キーワードで終了    | `verdictKeyword`      |
 | `detect:graph`    | Step グラフで判定   | `steps_registry.json` |
 
 詳細: `02_agent_definition.md`

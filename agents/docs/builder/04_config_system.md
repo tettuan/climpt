@@ -41,7 +41,7 @@ Agent の振る舞いを定義。変更頻度: 低。
     },
     "verdict": {
       "type": "detect:keyword",
-      "config": { "completionKeyword": "SESSION_COMPLETE" }
+      "config": { "verdictKeyword": "SESSION_COMPLETE" }
     },
     "boundaries": {
       "allowedTools": ["Read", "Write", "Edit", "Bash"],
