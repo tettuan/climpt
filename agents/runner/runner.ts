@@ -705,7 +705,7 @@ export class AgentRunner {
         uv[key] = String(value);
       }
     }
-    // Legacy alias: issue → issue_number (backward compat)
+    // Legacy alias: issue -> issue_number (backward compat)
     if (this.args.issue !== undefined) {
       uv.issue_number = String(this.args.issue);
     }

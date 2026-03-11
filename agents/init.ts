@@ -253,8 +253,8 @@ When complete, output \`{uv-completion_keyword}\`.
   // Create breakdown configuration files for C3L prompt resolution
   // Naming convention: {agentId}-{c1}-app.yml / {agentId}-{c1}-user.yml
   //   agentId = agent name (e.g., "plan-scout")
-  //   c1      = steps_registry.json の c1 フィールド (通常 "steps")
-  // See: agents/CLAUDE.md "Breakdown Config 命名規則"
+  //   c1      = steps_registry.json c1 field (usually "steps")
+  // See: agents/CLAUDE.md "Breakdown Config Naming Convention"
   // See: agents/common/c3l-prompt-loader.ts (configName construction)
   const configDir = join(cwd, PATHS.AGENT_DIR_PREFIX, "climpt", "config");
   await ensureDir(configDir);

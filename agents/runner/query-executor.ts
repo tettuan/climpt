@@ -224,7 +224,7 @@ export class QueryExecutor {
       }
 
       // Augment prompt with schema instruction when outputFormat is configured.
-      // The SDK's outputFormat is a hint, not a hard constraint — the LLM may
+      // The SDK's outputFormat is a hint, not a hard constraint -- the LLM may
       // still return prose. Embedding the required schema shape directly in the
       // prompt dramatically improves compliance.
       let effectivePrompt = prompt;
