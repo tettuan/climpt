@@ -33,7 +33,7 @@ while IFS= read -r script; do
 done < <(
   find "${REPO_ROOT}/examples" -mindepth 2 -maxdepth 2 -name 'run.sh' -print0 \
     | xargs -0 -n1 bash -c 'echo "$(basename "$(dirname "$0")")|$0"' \
-    | sort -t'|' -k1 -V \
+    | LC_ALL=C sort -t'_' -k1,1n \
     | cut -d'|' -f2
 )
 

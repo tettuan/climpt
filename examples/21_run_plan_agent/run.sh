@@ -22,6 +22,7 @@ main() {
   fi
 
   # Clear sentinel
+  mkdir -p "$(dirname "$SENTINEL")"
   rm -f "$SENTINEL"
   info "Sentinel cleared: ${SENTINEL}"
 

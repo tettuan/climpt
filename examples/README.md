@@ -145,7 +145,7 @@ for f in examples/{25,26,26a}_*/run.sh; do bash "$f"; done
 | 18  | 18_configure_permission/       | Set permissionMode to "plan"          | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                    |
 | 19  | 19_configure_prompt/           | Write custom system.md                | `.agent/plan-scout/` | `.agent/plan-scout/` patched |                                                    |
 | 20  | 20_show_final_config/          | Show final agent config               | `.agent/plan-scout/` | —                            |                                                    |
-| 21  | 21_run_plan_agent/             | Run plan-scout agent (LLM required)   | `.agent/plan-scout/` | sentinel check               | LLM evidence in output; check_llm_ready gate       |
+| 21  | 21_run_plan_agent/             | Run plan-scout agent (LLM required)   | `.agent/plan-scout/` | sentinel                     | LLM evidence in output; check_llm_ready gate       |
 | 22  | 22_verify_plan_mode/           | Verify plan mode enforcement          | sentinel             | `outputs/agents/`            | sentinel absence proves Write was blocked          |
 | 22a | 22a_verify_plan_mode_contract/ | Plan mode config contracts (no LLM)   | `.agent/plan-scout/` | —                            | permissionMode=plan; Write in tools; not step flow |
 | 23  | 23_save_results/               | Save agent logs and cleanup           | `.agent/plan-scout/` | `outputs/agents/`            |                                                    |
