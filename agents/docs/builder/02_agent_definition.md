@@ -65,7 +65,7 @@ agent.json で Agent
 | `poll:state`        | Issue や git 等の外部状態と同期           | 1 Issue = 1 Branch = 1 Worktree の境界を守るため          | `validators`, `github`, `worktree`, **parameters に `issue` 必須** |
 | `count:iteration`   | 所定回数の iteration で終了               | ループを有限に保ち暴走を防ぐ                              | `maxIterations`                                                    |
 | `count:check`       | Status check の回数で終了                 | 監視用途で「回数 = コスト」を明示し、作業計画を単純化     | `maxChecks`                                                        |
-| `detect:keyword`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `completionKeyword`                                                |
+| `detect:keyword`    | 指定キーワードを Structured Output で出す | LLM の宣言を Completion Loop へ透過させる                 | `verdictKeyword`                                                   |
 | `detect:structured` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
 | `detect:graph`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
 | `meta:composite`    | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `validationConditions`, `mode`                                     |

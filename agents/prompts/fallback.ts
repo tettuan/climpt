@@ -45,20 +45,36 @@ Begin iteration 1. Make progress and report what you accomplished.
 Continue making progress. Report what you accomplished this iteration.
 `,
 
-    // Keyword signal verdict type
+    // Keyword signal verdict type (legacy names)
     initial_manual: `# Session Start
 
 ## Topic
 {uv-topic}
 
-Begin the session. When complete, output \`{uv-verdict_keyword}\`.
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
 `,
 
     continuation_manual: `# Continuation (Iteration {uv-iteration})
 
 Continue the session.
 
-When complete, output \`{uv-verdict_keyword}\`.
+When complete, output \`{uv-completion_keyword}\`.
+`,
+
+    // Keyword signal verdict type (canonical names matching detect:keyword handler)
+    initial_keyword: `# Session Start
+
+## Topic
+{uv-topic}
+
+Begin the session. When complete, output \`{uv-completion_keyword}\`.
+`,
+
+    continuation_keyword: `# Continuation (Iteration {uv-iteration})
+
+Continue the session.
+
+When complete, output \`{uv-completion_keyword}\`.
 `,
 
     // Issue verdict type
@@ -155,6 +171,77 @@ Review and validate the work:
 When ready, indicate "Phase: complete" to finish.
 `,
 
+    // Closure templates (terminal step validation)
+    polling_closure_default: `# Closure Validation
+
+Validate that the work on Issue #{uv-issue_number} is complete.
+
+## Checks
+- All changes are committed (git status is clean)
+- Implementation satisfies the issue requirements
+
+Respond with a JSON object:
+\`\`\`json
+{"stepId": "closure.polling", "status": "completed", "summary": "Validation result", "next_action": {"action": "closing", "reason": "All checks passed"}, "validation": {"git_clean": true}}
+\`\`\`
+`,
+
+    issue_closure_default: `# Issue Closure Validation
+
+Validate that all work on Issue #{uv-issue_number} is complete and ready to close.
+
+## Checks
+- Changes committed and pushed
+- Issue requirements satisfied
+
+Respond with a JSON object with next_action.action = "closing" when ready.
+`,
+
+    review_closure_default: `# Review Closure
+
+Finalize the review. Verify all findings have been reported.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    facilitation_closure_default: `# Facilitation Closure
+
+Finalize the facilitation session. Verify all actions have been completed.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    project_closure_default: `# Project Closure Validation
+
+Validate project completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    iteration_closure_default: `# Iteration Closure
+
+Validate iteration completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    project_continuation_closure_default: `# Project Continuation Closure
+
+Validate continuation completion.
+
+Respond with a JSON object with next_action.action = "closing".
+`,
+
+    // Facilitator continuation
+    statuscheck_continuation_default: `# Status Check Continuation
+
+Continue monitoring the project status. Check for any changes since the last status check.
+
+If all work is complete, use "handoff" intent to proceed to closure.
+
+Respond with a JSON object with next_action.action.
+`,
+
     // Structured signal verdict type
     initial_structured_signal: `# Task Start
 
@@ -215,4 +302,21 @@ When complete, output the structured signal of type: {uv-signal_type}
   hasTemplate(stepId: string): boolean {
     return stepId in this.templates;
   }
+
+  /**
+   * Get all templates as a shallow copy
+   */
+  getTemplates(): Record<string, string> {
+    return { ...this.templates };
+  }
+}
+
+/**
+ * Get the default fallback templates map.
+ *
+ * Returns a Record<string, string> suitable for passing to
+ * createFallbackProvider() in prompt-resolver.ts.
+ */
+export function getDefaultFallbackTemplates(): Record<string, string> {
+  return new DefaultFallbackProvider().getTemplates();
 }

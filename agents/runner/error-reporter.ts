@@ -63,6 +63,7 @@ function generateSuggestions(error: ClassifiedError): string[] {
         "1. Run from terminal: deno task agents:run --agent <name> --issue <num>",
         "2. Disable sandbox: use dangerouslyDisableSandbox: true",
         "3. Run in CI: use GitHub Actions",
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#1-environment-errors",
       );
       break;
 
@@ -71,6 +72,7 @@ function generateSuggestions(error: ClassifiedError): string[] {
         "1. Check network connection",
         "2. Check VPN or proxy settings",
         "3. Wait and retry",
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#14-network--proxy-issues",
       );
       break;
 
@@ -80,12 +82,14 @@ function generateSuggestions(error: ClassifiedError): string[] {
           "1. Wait a few minutes and retry",
           "2. Reduce request frequency",
           "3. Use a different API key",
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#31-rate-limit--api-errors",
         );
       } else {
         suggestions.push(
           "1. Verify API key is valid",
           "2. Reconfigure authentication",
           "3. Check Anthropic dashboard",
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#31-rate-limit--api-errors",
         );
       }
       break;
@@ -95,6 +99,7 @@ function generateSuggestions(error: ClassifiedError): string[] {
         "1. Check prompt length",
         "2. Validate input format",
         "3. Check for special characters",
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
       break;
 
@@ -103,6 +108,7 @@ function generateSuggestions(error: ClassifiedError): string[] {
         "1. Wait and retry",
         "2. Check Anthropic status page",
         "3. Contact support if issue persists",
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#3-runtime-errors",
       );
       break;
 
@@ -111,6 +117,7 @@ function generateSuggestions(error: ClassifiedError): string[] {
         "1. Check logs for details",
         "2. Reproduce issue to identify cause",
         "3. Contact support if needed",
+        "\u2192 See: docs/guides/en/12-troubleshooting.md",
       );
   }
 
@@ -185,6 +192,11 @@ export function formatErrorForUser(report: ErrorReport): string {
       "",
     );
   }
+
+  lines.push(
+    "  \u2192 See: docs/guides/en/12-troubleshooting.md",
+    "",
+  );
 
   return lines.join("\n");
 }

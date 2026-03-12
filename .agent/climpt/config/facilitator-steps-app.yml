@@ -3,4 +3,4 @@ working_dir: ".agent/facilitator"
 app_prompt:
   base_dir: "prompts/steps"
 app_schema:
-  base_dir: "schema/steps"
+  base_dir: "schemas"

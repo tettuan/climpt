@@ -43,6 +43,7 @@ import { createVerboseLogger, type VerboseLogger } from "./verbose-logger.ts";
 import { PromptLogger } from "../common/prompt-logger.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
+import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
@@ -72,6 +73,7 @@ export class AgentRunner {
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
   private args: Record<string, unknown> = {};
+  private agentDir = "";
 
   // Extracted module instances
   private readonly closureManager: ClosureManager;
@@ -164,8 +166,9 @@ export class AgentRunner {
     const cwd = options.cwd ?? Deno.cwd();
     const agentDir = getAgentDir(this.definition.name, cwd);
 
-    // Store args for later use
+    // Store args and agentDir for later use
     this.args = options.args;
+    this.agentDir = agentDir;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -194,7 +197,6 @@ export class AgentRunner {
         agentDir,
         registryPath: this.definition.runner.flow.prompts.registry,
         fallbackDir: this.definition.runner.flow.prompts.fallbackDir,
-        systemPromptPath: this.definition.runner.flow.systemPromptPath,
       },
     );
 
@@ -223,9 +225,6 @@ export class AgentRunner {
       logFailures: true,
       logVariables: true,
     });
-
-    // Inject prompt logger into resolver for automatic logging
-    promptResolver.setPromptLogger(promptLogger);
 
     // Assign all context at once (atomic initialization)
     this.context = {
@@ -313,7 +312,11 @@ export class AgentRunner {
           // Try closure adaptation for closure steps
           // deno-lint-ignore no-await-in-loop
           const closurePrompt = await this.closureAdapter
-            .tryClosureAdaptation(stepId, ctx);
+            .tryClosureAdaptation(
+              stepId,
+              ctx,
+              this.buildUvVariables(iteration),
+            );
           if (closurePrompt) {
             prompt = closurePrompt.content;
             promptSource = closurePrompt.source;
@@ -364,14 +367,15 @@ export class AgentRunner {
 
         // Resolve system prompt
         // deno-lint-ignore no-await-in-loop
-        const systemPromptResult = await ctx.promptResolver
-          .resolveSystemPromptWithMetadata(
-            {
-              "uv-agent_name": this.definition.name,
-              "uv-verdict_criteria":
-                ctx.verdictHandler.buildVerdictCriteria().detailed,
-            },
-          );
+        const systemPromptResult = await resolveSystemPrompt({
+          agentDir: this.agentDir,
+          systemPromptPath: this.definition.runner.flow.systemPromptPath,
+          variables: {
+            "uv-agent_name": this.definition.name,
+            "uv-verdict_criteria":
+              ctx.verdictHandler.buildVerdictCriteria().detailed,
+          },
+        });
         const customSystemPrompt = systemPromptResult.content;
 
         // Build system prompt with claude_code preset + custom append
@@ -679,14 +683,13 @@ export class AgentRunner {
   }
 
   private getMaxIterations(): number {
-    if (this.definition.runner.verdict.type === "count:iteration") {
-      return (
-        (
-          this.definition.runner.verdict.config as {
-            maxIterations?: number;
-          }
-        ).maxIterations ?? AGENT_LIMITS.FALLBACK_MAX_ITERATIONS
-      );
+    const maxIterations = (
+      this.definition.runner.verdict.config as {
+        maxIterations?: number;
+      }
+    ).maxIterations;
+    if (maxIterations !== undefined) {
+      return maxIterations;
     }
     return AGENT_LIMITS.FALLBACK_MAX_ITERATIONS;
   }
@@ -696,11 +699,26 @@ export class AgentRunner {
    */
   private buildUvVariables(iteration: number): Record<string, string> {
     const uv: Record<string, string> = {};
+    // Generic: map all CLI parameters declared in agent.json to UV variables
+    for (const [key, value] of Object.entries(this.args)) {
+      if (value !== undefined && value !== null) {
+        uv[key] = String(value);
+      }
+    }
+    // Legacy alias: issue -> issue_number (backward compat)
     if (this.args.issue !== undefined) {
       uv.issue_number = String(this.args.issue);
     }
+    // Runtime variables
+    uv.iteration = String(iteration);
     if (iteration > 1) {
       uv.completed_iterations = String(iteration - 1);
+    }
+    // Verdict keyword from agent config (for detect:keyword templates)
+    const verdictConfig = this.definition.runner?.verdict
+      ?.config as Record<string, unknown> | undefined;
+    if (verdictConfig?.verdictKeyword) {
+      uv.completion_keyword = String(verdictConfig.verdictKeyword);
     }
     return uv;
   }

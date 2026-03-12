@@ -14,8 +14,8 @@ main() {
 
   # 1. Simple echo
   info "1. Echo a simple string"
-  show_cmd "echo \"Hello, Climpt!\" | deno run -A $REPO_ROOT/mod.ts echo input --config=test"
-  output=$(echo "Hello, Climpt!" | ${CLIMPT} echo input --config=test 2>&1) \
+  show_cmd 'echo "Hello, Climpt!" | '"${CLIMPT_CMD}"' echo input --config=test'
+  output=$(echo "Hello, Climpt!" | ${CLIMPT_CMD} echo input --config=test 2>&1) \
     || { error "FAIL: simple echo command failed"; return 1; }
   if ! echo "$output" | grep -q "Hello, Climpt!"; then
     error "FAIL: output missing 'Hello, Climpt!'"; return 1
@@ -24,8 +24,8 @@ main() {
 
   # 2. Multi-line echo
   info "2. Echo multi-line input"
-  show_cmd "printf \"Line 1\nLine 2\nLine 3\" | deno run -A $REPO_ROOT/mod.ts echo input --config=test"
-  output=$(printf "Line 1\nLine 2\nLine 3" | ${CLIMPT} echo input --config=test 2>&1) \
+  show_cmd 'printf "Line 1\nLine 2\nLine 3" | '"${CLIMPT_CMD}"' echo input --config=test'
+  output=$(printf "Line 1\nLine 2\nLine 3" | ${CLIMPT_CMD} echo input --config=test 2>&1) \
     || { error "FAIL: multi-line echo command failed"; return 1; }
   if ! echo "$output" | grep -q "Line 1"; then
     error "FAIL: output missing 'Line 1'"; return 1

@@ -1,5 +1,5 @@
 ---
-stepId: closure.iterate
+stepId: closure.iteration
 name: Iterate Closure Prompt
 description: Terminal step for iteration-based completion (hands off to reviewer)
 uvVariables:

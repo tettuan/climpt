@@ -1,65 +1,82 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
-cd "$EXAMPLES_DIR"
-source "${EXAMPLES_DIR}/common_functions.sh"
-
-AGENT_NAME="facilitator"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/../common_functions.sh"
 
 main() {
-  info "=== Run Facilitator Agent ==="
+  info "=== Run Facilitator Agent (project #1) ==="
 
   check_deno
   check_climpt_init
-  clear_claude_env
+  check_llm_ready
 
-  # Verify agent runner entry point exists
-  if [[ ! -f "$REPO_ROOT/agents/scripts/run-agent.ts" ]]; then
-    error "FAIL: agents/scripts/run-agent.ts not found"; return 1
+  # Phase 1: Task existence
+  local task_list
+  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
+  if ! echo "$task_list" | grep -q "facilitate-agent"; then
+    error "FAIL: 'facilitate-agent' task not found in deno.json"; return 1
   fi
-  success "PASS: agent runner script exists"
+  success "PASS: facilitate-agent task exists"
 
-  # Init agent under examples/.agent/ if not present
-  if [[ ! -d ".agent/${AGENT_NAME}" ]]; then
-    info "Initializing ${AGENT_NAME} agent for E2E..."
-    deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --init --agent "$AGENT_NAME"
+  # Phase 2: Contract validation (no LLM needed)
+  info "Validating agent configuration contracts..."
+  local registry
+  for reg_path in \
+    "${REPO_ROOT}/.agent/climpt/agents/facilitator/steps_registry.json" \
+    "${REPO_ROOT}/agents/facilitator/steps_registry.json"; do
+    if [[ -f "$reg_path" ]]; then
+      registry="$reg_path"
+      break
+    fi
+  done
+  if [[ -n "${registry:-}" ]]; then
+    if ! jq empty "$registry" 2>/dev/null; then
+      error "FAIL: steps_registry.json is not valid JSON"; return 1
+    fi
+    # Check entryStep or entryStepMapping exists
+    local has_entry
+    has_entry=$(jq 'has("entryStep") or has("entryStepMapping")' "$registry")
+    if [[ "$has_entry" != "true" ]]; then
+      error "FAIL: steps_registry.json missing entryStep/entryStepMapping"; return 1
+    fi
+    success "PASS: steps_registry.json has valid entry point"
+  else
+    warn "steps_registry.json not found (may use default config)"
   fi
 
-  # Write E2E system.md (terse prompt for fast completion)
-  mkdir -p ".agent/${AGENT_NAME}/prompts"
-
-  cat > ".agent/${AGENT_NAME}/prompts/system.md" << 'PROMPT'
-# Facilitator Agent (E2E Pipeline Test)
-
-This is an E2E pipeline verification run. Do NOT perform real work.
-
-Return the structured JSON output immediately with intent "next".
-Keep responses minimal. Do not use tools unless the schema requires it.
-PROMPT
-
-  # Run facilitator agent with a synthetic topic (E2E pipeline test)
-  info "Starting facilitator agent with synthetic topic (E2E pipeline test)..."
-  show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --agent facilitator --topic "E2E pipeline test"
+  # Phase 3: LLM execution test
+  info "Starting facilitator agent without --issue..."
+  show_cmd deno task facilitate-agent --project 1
   local exit_code=0
-  output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" --agent facilitator --topic "E2E pipeline test" 2>&1) \
+  output=$( (cd "$REPO_ROOT" && deno task facilitate-agent --project 1) 2>&1) \
     || exit_code=$?
 
-  # Pipeline verification: prompt resolution proves config + init + flow are correct
-  # Note: AGENT_QUERY_ERROR is expected when running nested inside Claude Code
-  # (the Claude subprocess cannot start in a sandboxed environment)
+  # Crash detection: import/startup errors are always fatal
+  if echo "$output" | grep -qE "error: (Module not found|Cannot resolve|Uncaught)"; then
+    error "FAIL: facilitate-agent crashed with import/startup error"
+    echo "$output" | grep -E "error:" | head -5 >&2
+    return 1
+  fi
+
   if [[ -z "$output" ]]; then
     error "FAIL: facilitate-agent produced no output"; return 1
   fi
 
-  if ! echo "$output" | grep -q "Prompt resolved"; then
-    error "FAIL: pipeline did not reach prompt resolution"
-    echo "$output" | tail -20 >&2
+  # Exit code must be respected
+  if [[ $exit_code -ne 0 ]]; then
+    error "FAIL: facilitate-agent exited with code ${exit_code}"
+    echo "$output" | tail -5 >&2
     return 1
   fi
 
-  success "PASS: facilitate-agent pipeline verified (exit_code=${exit_code})"
+  # Strict content validation: must show agent execution evidence
+  if ! echo "$output" | grep -qiE "(step.*complete|facilitat.*finish|AgentResult|success|running.*step)"; then
+    error "FAIL: output lacks agent execution evidence"
+    echo "$output" | tail -10 >&2
+    return 1
+  fi
+  success "PASS: facilitate-agent completed successfully"
 }
 
 main "$@"

@@ -25,6 +25,6 @@ Every Sub Agent launch must specify four elements in the prompt:
 | Element | Example |
 |---------|---------|
 | Goal | "Find all consumers of createCompletionHandler" |
-| Input | "Start from agents/completion/factory.ts" |
+| Input | "Start from agents/verdict/factory.ts" |
 | Expected output | "List of file:line pairs with import/call sites" |
 | Output path | "Write results to tmp/investigation/consumers.md" |

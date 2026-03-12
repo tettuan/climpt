@@ -16,10 +16,13 @@ CLIMPT_DIR=".agent/climpt"
 CLIMPT_CONFIG_DIR="${CLIMPT_DIR}/config"
 CLIMPT_PROMPTS_DIR="${CLIMPT_DIR}/prompts"
 
-# Execution entry points — use repo code, not JSR
-CLIMPT="deno run -A ${REPO_ROOT}/mod.ts"
-CLIMPT_DOCS="deno run -A ${REPO_ROOT}/docs.ts"
-CLIMPT_MCP="deno run -A ${REPO_ROOT}/mcp.ts"
+# Detect repo root (common_functions.sh is at examples/common_functions.sh)
+CLIMPT_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Local workspace commands (run local code, not JSR published versions)
+CLIMPT_CMD="deno run -A ${CLIMPT_REPO_ROOT}/cli.ts"
+CLIMPT_DOCS_CMD="deno run -A ${CLIMPT_REPO_ROOT}/docs.ts"
+CLIMPT_MCP_CMD="deno run -A ${CLIMPT_REPO_ROOT}/mcp.ts"
 
 # Colors (disabled when stdout is not a terminal)
 if [[ -t 1 ]]; then
@@ -80,6 +83,27 @@ check_command() {
   success "Found command: ${cmd}"
 }
 
+# Verify LLM authentication is available (required for agent examples)
+check_llm_ready() {
+  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+    success "ANTHROPIC_API_KEY is set"
+    return 0
+  fi
+  # Claude Code internal auth detection
+  if [[ -n "${CLAUDE_CODE_ENTRYPOINT:-}" ]]; then
+    success "Running inside Claude Code (internal auth)"
+    return 0
+  fi
+  # Claude Code SDK uses OAuth when installed — no API key needed
+  if command -v claude &>/dev/null; then
+    success "Claude Code CLI found (OAuth auth)"
+    return 0
+  fi
+  error "LLM authentication not available"
+  error "  Install Claude Code CLI, set ANTHROPIC_API_KEY, or run from Claude Code terminal"
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
@@ -120,9 +144,9 @@ clear_claude_env() {
   unset SANDBOX_ENABLED SANDBOX_ID SANDBOX_ALLOWED_PATHS SANDBOX_RUNTIME
 }
 
-export EXAMPLES_DIR REPO_ROOT
-export CLIMPT CLIMPT_DOCS CLIMPT_MCP
+export EXAMPLES_DIR REPO_ROOT CLIMPT_REPO_ROOT
+export CLIMPT_CMD CLIMPT_DOCS_CMD CLIMPT_MCP_CMD
 export -f info success warn error show_cmd
-export -f check_deno check_climpt_init check_command
+export -f check_deno check_climpt_init check_command check_llm_ready
 export -f cleanup_temp_files run_example
 export -f clear_claude_env

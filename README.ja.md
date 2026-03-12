@@ -125,10 +125,10 @@ MCPでClaudeまたはCursorと連携：
 
 **agent.json** の主要プロパティ：
 - `name`, `displayName`, `version` - エージェント識別情報
-- `behavior.completionType` - 実行モード（後述）
-- `behavior.allowedTools` - エージェントが利用可能なツール
-- `prompts.registry` - ステップレジストリへのパス
-- `logging.directory` - ログ出力先
+- `runner.verdict.type` - 実行モード（後述）
+- `runner.boundaries.allowedTools` - エージェントが利用可能なツール
+- `runner.flow.prompts.registry` - ステップレジストリへのパス
+- `runner.logging.directory` - ログ出力先
 
 **steps_registry.json** は各実行ステップのプロンプト選択ロジックを定義します。
 
@@ -158,18 +158,18 @@ deno task agent --agent {name} --project {number}
 deno task agent --agent {name} --iterate-max 10
 ```
 
-### 完了タイプ
+### 判定タイプ
 
 | タイプ | 説明 |
 |--------|------|
-| `externalState` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
-| `iterationBudget` | 指定回数（`maxIterations`）反復実行 |
-| `checkBudget` | 指定回数（`maxChecks`）ステータス確認 |
-| `keywordSignal` | エージェントが `completionKeyword` を出力したら終了 |
-| `structuredSignal` | 構造化アクションブロック出力を検出（`signalType`） |
-| `stepMachine` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
-| `composite` | 複合条件（and/or/first演算子） |
-| `custom` | カスタムハンドラー（`handlerPath`）を使用 |
+| `poll:state` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
+| `count:iteration` | 指定回数（`maxIterations`）反復実行 |
+| `count:check` | 指定回数（`maxChecks`）ステータス確認 |
+| `detect:keyword` | エージェントが `verdictKeyword` を出力したら終了 |
+| `detect:structured` | 構造化アクションブロック出力を検出（`signalType`） |
+| `detect:graph` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
+| `meta:composite` | 複合条件（and/or/first演算子） |
+| `meta:custom` | カスタムハンドラー（`handlerPath`）を使用 |
 
 ### 組み込みエージェント
 
@@ -211,13 +211,6 @@ CLIオプションは `deno task agent --help` を参照。設定の検証は `d
   "displayName": "My Agent",
   "version": "1.0.0",
   "description": "カスタムエージェントの説明",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "issue",
-    "completionConfig": {},
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "plan"
-  },
   "parameters": {
     "issue": {
       "type": "number",
@@ -226,13 +219,25 @@ CLIオプションは `deno task agent --help` を参照。設定の検証は `d
       "cli": "--issue"
     }
   },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/my-agent",
-    "format": "jsonl"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "verdict": {
+      "type": "poll:state"
+    },
+    "boundaries": {
+      "allowedTools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+      "permissionMode": "plan"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/my-agent",
+      "format": "jsonl"
+    }
   }
 }
 ```

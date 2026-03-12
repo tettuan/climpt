@@ -120,7 +120,7 @@ agents/
 |   +-- builder.ts            # Dependency injection builder
 |   +-- cli.ts                # CLI argument parser
 |   +-- loader.ts             # Agent definition loader
-+-- completion/               # Completion handlers
++-- verdict/                  # Verdict handlers
 |   +-- factory.ts            # Handler factory
 |   +-- handlers/             # Built-in handlers
 +-- loop/                     # Loop utilities
@@ -145,6 +145,10 @@ Agent configurations are located in `/.agent/<agent-name>/`:
 
 ```
 .agent/
++-- climpt/
+|   +-- config/
+|       +-- {agentId}-{c1}-app.yml   # Breakdown build config (working_dir, base_dir)
+|       +-- {agentId}-{c1}-user.yml  # Breakdown user config (directiveType, layerType)
 +-- iterator/
 |   +-- agent.json            # Agent definition
 |   +-- config.json           # Runtime config (optional)
@@ -153,6 +157,9 @@ Agent configurations are located in `/.agent/<agent-name>/`:
 +-- reviewer/
     +-- ...
 ```
+
+Breakdown config naming: `{agentId}-{c1}-app.yml` where `c1` is from
+`steps_registry.json`. See `docs/internal/prompt-architecture.md`.
 
 ## Agent Definition (agent.json)
 
@@ -187,10 +194,10 @@ Agent configurations are located in `/.agent/<agent-name>/`:
         "fallbackDir": "prompts/"
       }
     },
-    "completion": {
+    "verdict": {
       "type": "detect:keyword",
       "config": {
-        "completionKeyword": "REVIEW_COMPLETE"
+        "verdictKeyword": "REVIEW_COMPLETE"
       }
     },
     "boundaries": {
@@ -254,7 +261,7 @@ Configure Issue closure behavior in `runner.integrations.github`:
 
 The AI can override `defaultClosureAction` via structured output.
 
-## Completion Types
+## Verdict Types
 
 ### 1. poll:state - External State Monitoring
 
@@ -264,7 +271,7 @@ agent.
 ```json
 {
   "runner": {
-    "completion": {
+    "verdict": {
       "type": "poll:state",
       "config": { "maxIterations": 500 }
     }
@@ -279,7 +286,7 @@ Completes after specified number of iterations.
 ```json
 {
   "runner": {
-    "completion": {
+    "verdict": {
       "type": "count:iteration",
       "config": { "maxIterations": 5 }
     }
@@ -294,9 +301,9 @@ Completes when agent outputs a specific keyword.
 ```json
 {
   "runner": {
-    "completion": {
+    "verdict": {
       "type": "detect:keyword",
-      "config": { "completionKeyword": "TASK_COMPLETE" }
+      "config": { "verdictKeyword": "TASK_COMPLETE" }
     }
   }
 }
@@ -309,7 +316,7 @@ Completes through state machine-like step transitions.
 ```json
 {
   "runner": {
-    "completion": {
+    "verdict": {
       "type": "detect:graph",
       "config": {}
     }

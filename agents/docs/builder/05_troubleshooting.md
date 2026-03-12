@@ -54,7 +54,7 @@ Failed to load schema from undefined#undefined
 **関連ドキュメント**
 
 - スキーマ定義: `agents/schemas/steps_registry.schema.json`
-- 型定義: `agents/common/completion-types.ts` (OutputSchemaRef interface)
+- 型定義: `agents/common/validation-types.ts` (OutputSchemaRef interface)
 
 ---
 

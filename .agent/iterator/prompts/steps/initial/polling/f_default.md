@@ -1,5 +1,5 @@
 ---
-stepId: initial.external-state
+stepId: initial.polling
 name: External State Initial Prompt
 description: Initial prompt for external state completion (GitHub Issue state)
 uvVariables:
@@ -33,7 +33,7 @@ This issue uses **external state completion** - the workflow completes when:
 ## Step Flow (Sequential Enforcement)
 
 ```
-initial.external-state → (next) → continuation.external-state → (handoff) → closure.external-state → (closing) → end
+initial.polling → (next) → continuation.polling → (handoff) → closure.polling → (closing) → end
 ```
 
 **This is an initial step.** You MUST use `next` to continue to continuation
@@ -66,9 +66,39 @@ When initial work is done:
 2. In continuation step, you can use `handoff` when all work is complete
 3. Closure step handles final verification and `closing` intent
 
+## Structured Output
+
+You MUST respond with a JSON object matching the following schema. This is how
+the runner detects your step result and determines the next action.
+
+```json
+{
+  "stepId": "initial.polling",
+  "status": "in_progress",
+  "summary": "Brief description of what was done",
+  "issue": {
+    "issue_number": 123,
+    "issue_title": "...",
+    "issue_url": "..."
+  },
+  "analysis": {
+    "understanding": "...",
+    "approach": "..."
+  },
+  "next_action": {
+    "action": "next",
+    "reason": "Moving to continuation step",
+    "details": {}
+  }
+}
+```
+
+Your FINAL message in the conversation MUST be this JSON object. Do not wrap it
+in markdown code blocks.
+
 **IMPORTANT**: Use exact intent values for THIS step:
 
-- `"next"` - continue to continuation.external-state
+- `"next"` - continue to continuation.polling
 - `"repeat"` - retry this initial step
 
 ## Issue Actions (Allowed in Work Steps)

@@ -1,6 +1,6 @@
 # Issue State Judgment
 
-Judge the state of each issue in Project #{{project_number}}.
+Judge the state of each issue in Project #{{project}}.
 
 ## Purpose
 

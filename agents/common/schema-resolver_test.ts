@@ -163,11 +163,11 @@ Deno.test("SchemaResolver - handles allOf merge correctly", async () => {
   assertEquals(properties.tools_used !== undefined, true);
 });
 
-Deno.test("SchemaResolver - resolves iterate schema with external refs", async () => {
+Deno.test("SchemaResolver - resolves iteration schema with external refs", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
   const schema = await resolver.resolve(
-    "iterate.schema.json",
-    "initial.iterate",
+    "iteration.schema.json",
+    "initial.iteration",
   );
 
   // Should have resolved external refs from common.schema.json
@@ -183,11 +183,11 @@ Deno.test("SchemaResolver - resolves iterate schema with external refs", async (
   assertEquals(work.additionalProperties, false);
 });
 
-Deno.test("SchemaResolver - resolves external-state schema", async () => {
+Deno.test("SchemaResolver - resolves polling schema", async () => {
   const resolver = new SchemaResolver(TEST_SCHEMAS_DIR);
   const schema = await resolver.resolve(
-    "external-state.schema.json",
-    "initial.external-state",
+    "polling.schema.json",
+    "initial.polling",
   );
 
   assertEquals(schema.type, "object");

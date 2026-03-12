@@ -72,8 +72,9 @@ main() {
     cat "$example_config"
     success "PASS: mcp-config.example.json is valid with mcpServers key"
   else
-    warn "mcp-config.example.json not found (template file may have been removed)"
-    success "PASS: MCP configuration guide displayed"
+    error "FAIL: mcp-config.example.json not found"
+    error "  Expected at: ${SCRIPT_DIR}/mcp-config.example.json"
+    return 1
   fi
 
   info "After editing, restart Claude Desktop or Cursor to pick up changes."

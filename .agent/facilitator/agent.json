@@ -11,6 +11,12 @@
       "required": false,
       "cli": "--issue"
     },
+    "project": {
+      "type": "number",
+      "required": false,
+      "cli": "--project",
+      "description": "GitHub Project number to facilitate"
+    },
     "iterateMax": {
       "type": "number",
       "description": "Maximum number of iterations",

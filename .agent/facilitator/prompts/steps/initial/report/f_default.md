@@ -1,6 +1,6 @@
 # Generate Recommendation Report
 
-Generate a recommendation report for Project #{{project_number}}.
+Generate a recommendation report for Project #{{project}}.
 
 ## Project Information
 
@@ -111,7 +111,7 @@ Output the recommendation:
     },
     {
       "agent": "reviewer",
-      "command": "deno task agents:run reviewer --project {{project_number}}",
+      "command": "deno task agents:run reviewer --project {{project}}",
       "description": "Review completed work if any PRs pending",
       "priority": "low",
       "score": 0.3,

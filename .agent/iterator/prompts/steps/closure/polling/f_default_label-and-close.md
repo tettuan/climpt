@@ -1,5 +1,5 @@
 ---
-stepId: closure.external-state
+stepId: closure.polling
 name: External State Closure Prompt (Label and Close)
 description: Terminal step for external state closure - labels then closes
 uvVariables:

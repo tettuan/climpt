@@ -77,19 +77,19 @@ Iterator が作業を行い、Reviewer が検証する。**独立した役割間
 
 ## 基本概念
 
-### 1. completionType: Agent はいつ停止するか？
+### 1. runner.verdict.type: Agent はいつ停止するか？
 
 Agent 作成時の最も重要な判断です。
 
 | タイプ            | 用途                                              | 例                                                                             |
 | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `externalState`   | 外部状態の変化で停止（Issue クローズ、PR マージ） | Issue 駆動開発（`github.defaultClosureAction` でクローズ or ラベルのみを制御） |
-| `iterationBudget` | N 回のイテレーション後に停止                      | 固定スコープのタスク                                                           |
-| `keywordSignal`   | 特定のキーワード発話で停止                        | シンプルな完了検知                                                             |
-| `stepMachine`     | 明示的な遷移を持つステートマシン                  | 複雑な多段階ワークフロー                                                       |
+| `poll:state`      | 外部状態の変化で停止（Issue クローズ、PR マージ） | Issue 駆動開発（`github.defaultClosureAction` でクローズ or ラベルのみを制御） |
+| `count:iteration` | N 回のイテレーション後に停止                      | 固定スコープのタスク                                                           |
+| `detect:keyword`  | 特定のキーワード発話で停止                        | シンプルな完了検知                                                             |
+| `detect:graph`    | 明示的な遷移を持つステートマシン                  | 複雑な多段階ワークフロー                                                       |
 
-**判断ガイド:** 外部状態に依存？→ `externalState`。固定回数？→
-`iterationBudget`。キーワード？→ `keywordSignal`。それ以外 → `stepMachine`。
+**判断ガイド:** 外部状態に依存？→ `poll:state`。固定回数？→
+`count:iteration`。キーワード？→ `detect:keyword`。それ以外 → `detect:graph`。
 
 ### 2. C3L パス構造: なぜ3階層か？
 

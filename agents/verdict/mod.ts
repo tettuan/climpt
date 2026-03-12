@@ -20,7 +20,11 @@
  */
 
 // Types
-export type { VerdictCriteria, VerdictHandler } from "./types.ts";
+export type {
+  VerdictCriteria,
+  VerdictHandler,
+  VerdictStepIds,
+} from "./types.ts";
 export { BaseVerdictHandler, formatIterationSummary } from "./types.ts";
 export type { IterationSummary, VerdictType } from "./types.ts";
 

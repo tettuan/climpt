@@ -38,18 +38,23 @@ agents/
 │   └── scripts/
 │       ├── agent.ts           # メインエントリ
 │       ├── cli.ts             # CLI 解析
-│       └── completion/        # 完了ハンドラー
+│       └── verdict/           # 完了ハンドラー
 ├── reviewer/                  # Reviewer Agent
 │   └── (同様の構造)
 ├── schemas/                   # JSON Schema
 │   ├── agent.schema.json
 │   └── steps_registry.schema.json
 └── docs/                      # 設計ドキュメント
-    ├── 01_architecture.md
-    ├── 02_agent_definition.md
-    ├── 03_runner.md
-    ├── 04_completion_handlers.md
-    └── 05_prompt_system.md
+    ├── 01_philosophy.md
+    ├── 02_core_architecture.md
+    ├── 03_concept_tree.md
+    ├── 04_step_flow_design.md
+    ├── 05_structured_outputs.md
+    ├── 06_runner.md
+    ├── 07_prompt_system.md
+    ├── 08_model_selection.md
+    ├── 09_contracts.md
+    └── 10_extension_points.md
 ```
 
 ### ユーザープロジェクト側構造
@@ -82,7 +87,7 @@ Agent の完了条件を判定するハンドラー。
 | `issue`   | GitHub Issue がクローズ        | `--issue 123`               |
 | `project` | Project フェーズが完了         | `--project 5`               |
 | `iterate` | 指定回数の反復完了             | `--iterate-max 10`          |
-| `manual`  | 特定キーワード出力             | `completionKeyword` 設定    |
+| `manual`  | 特定キーワード出力             | `verdictKeyword` 設定       |
 | `custom`  | カスタムハンドラー             | `handlerPath` 設定          |
 
 ### Prompt System (プロンプトシステム)
@@ -98,7 +103,7 @@ steps/
 │   │   ├── f_preparation.md
 │   │   ├── f_processing.md
 │   │   └── f_review.md
-│   └── iterate/       # C3: iterate
+│   └── iteration/     # C3: iteration
 │       └── f_default.md
 └── continuation/      # C2: continuation
     └── ...
@@ -340,11 +345,16 @@ Bash({
 
 ## 関連ドキュメント
 
-- `agents/docs/01_architecture.md` - 全体アーキテクチャ
-- `agents/docs/02_agent_definition.md` - Agent 定義スキーマ
-- `agents/docs/03_runner.md` - Runner 設計
-- `agents/docs/04_completion_handlers.md` - 完了ハンドラー
-- `agents/docs/05_prompt_system.md` - プロンプトシステム
+- `agents/docs/design/01_philosophy.md` - 設計哲学
+- `agents/docs/design/02_core_architecture.md` - コアアーキテクチャ
+- `agents/docs/design/03_concept_tree.md` - コンセプトツリー
+- `agents/docs/design/04_step_flow_design.md` - ステップフロー設計
+- `agents/docs/design/05_structured_outputs.md` - 構造化出力
+- `agents/docs/design/06_runner.md` - Runner 設計
+- `agents/docs/design/07_prompt_system.md` - プロンプトシステム
+- `agents/docs/design/08_model_selection.md` - モデル選択
+- `agents/docs/design/09_contracts.md` - コントラクト
+- `agents/docs/design/10_extension_points.md` - 拡張ポイント
 - `agents/iterator/README.md` - Iterator Agent 詳細
 - `agents/reviewer/README.md` - Reviewer Agent 詳細
 - `agents/common/README.md` - 共有モジュール

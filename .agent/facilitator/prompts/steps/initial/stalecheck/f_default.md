@@ -1,6 +1,6 @@
 # Stale Item Check
 
-Identify issues with no recent activity in GitHub Project #{{project_number}}.
+Identify issues with no recent activity in GitHub Project #{{project}}.
 
 ## Parameters
 

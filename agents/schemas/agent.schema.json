@@ -151,7 +151,7 @@
             "maxIterations": {
               "type": "number",
               "minimum": 1,
-              "description": "Maximum iterations (for count:iteration type)"
+              "description": "For count:iteration verdict type: completion threshold (agent completes when this count is reached). For all other verdict types: safety limit (fallback stop count when verdict fails to detect completion)."
             },
             "verdictKeyword": {
               "type": "string",

@@ -143,7 +143,11 @@ async function main(): Promise<void> {
   if (args.validate) {
     if (!args.agent) {
       // deno-lint-ignore no-console
-      console.error("Error: --validate requires --agent <name>");
+      console.error(
+        "Error: [CONFIGURATION] --validate requires --agent <name>\n" +
+          "  \u2192 Resolution: Add --agent <name> to your command\n" +
+          "  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
       Deno.exit(1);
     }
     const { validateFull } = await import("../config/mod.ts");
@@ -228,7 +232,8 @@ async function main(): Promise<void> {
       console.log(
         `Validation failed (${totalErrors} error${
           totalErrors !== 1 ? "s" : ""
-        }).`,
+        }).\n` +
+          `  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
       );
     }
 
@@ -239,7 +244,11 @@ async function main(): Promise<void> {
   if (args.init) {
     if (!args.agent) {
       // deno-lint-ignore no-console
-      console.error("Error: --agent <name> is required for init");
+      console.error(
+        "Error: [CONFIGURATION] --agent <name> is required for init\n" +
+          "  \u2192 Resolution: Add --agent <name> to your command\n" +
+          "  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
       Deno.exit(1);
     }
     try {
@@ -257,10 +266,11 @@ async function main(): Promise<void> {
   // Agent name is required
   if (!args.agent) {
     // deno-lint-ignore no-console
-    console.error("Error: --agent <name> is required");
-    // deno-lint-ignore no-console
     console.error(
-      "Use --help for usage information or --list to see available agents",
+      "Error: [CONFIGURATION] --agent <name> is required\n" +
+        "  \u2192 Resolution: Add --agent <name> to your command, " +
+        "or use --list to see available agents\n" +
+        "  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
     );
     Deno.exit(1);
   }
@@ -298,7 +308,9 @@ async function main(): Promise<void> {
         if (param.required === true && runnerArgs[key] === undefined) {
           // deno-lint-ignore no-console
           console.error(
-            `Error: Required parameter ${param.cli} is not provided for agent '${agentName}'`,
+            `Error: [CONFIGURATION] Required parameter ${param.cli} is not provided for agent '${agentName}'\n` +
+              `  \u2192 Resolution: Add ${param.cli} <value> to your command\n` +
+              `  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
           );
           Deno.exit(1);
         }
@@ -482,9 +494,11 @@ async function main(): Promise<void> {
 
     Deno.exit(result.success ? 0 : 1);
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     // deno-lint-ignore no-console
     console.error(
-      `\nError: ${error instanceof Error ? error.message : String(error)}`,
+      `\nError: [RUNTIME] ${msg}\n` +
+        `  \u2192 See: docs/guides/en/12-troubleshooting.md`,
     );
     Deno.exit(1);
   }

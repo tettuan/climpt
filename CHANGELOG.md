@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.13.0] - 2026-03-04
+## [1.13.0] - 2026-03-12
+
+### Added
+- Getting Started guide with CLI/Agent/MCP/Plugin decision flow (`10-getting-started-guide.md`)
+- Runner configuration complete reference (`11-runner-reference.md`)
+- Unified troubleshooting guide with error index and debugging techniques (`12-troubleshooting.md`)
+- Agent creation tutorial: zero-to-running step-by-step (`13-agent-creation-tutorial.md`)
+- Steps registry writing guide with flow design patterns (`14-steps-registry-guide.md`)
+- Full JSON Schema validation in `format-validator.ts` (was TODO stub)
+
+### Changed
+- `maxIterations` semantics clarified per verdict type: completion threshold for `count:iteration`, safety limit for all others (`agent.schema.json`, `validator.ts`)
+- Error messages unified with `[CATEGORY]` prefix, resolution hint, and docs reference (`run-agent.ts`, `validator.ts`, `error-reporter.ts`)
 
 ### Changed
 - **Breaking**: Verdict type naming changed to `category:variant` pattern — `poll:state`, `count:iteration`, `count:check`, `detect:keyword`, `detect:structured`, `detect:graph`, `meta:composite`, `meta:custom` (was `externalState`, `iterationBudget`, `checkBudget`, `keywordSignal`, `structuredSignal`, `stepMachine`, `composite`, `custom`)

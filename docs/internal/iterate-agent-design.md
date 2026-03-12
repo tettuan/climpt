@@ -468,8 +468,8 @@ interface LogEntry {
       taskDescription: string;
       result: string;
     };
-    completionCheck?: { // Completion criteria check
-      type: "issue" | "project" | "iterate";
+    verdictCheck?: { // Completion criteria check
+      type: "issue" | "project" | "iteration";
       current: number;
       target: number;
       complete: boolean;
@@ -571,7 +571,7 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
     await logger.write("info", `Iteration ${iterationCount} completed`);
 
     // 7. Check completion criteria
-    isComplete = await checkCompletionCriteria({
+    isComplete = await checkVerdictCriteria({
       issue,
       project,
       iterateMax,
@@ -580,7 +580,7 @@ async function autonomousAgentLoop(options: AgentOptions): Promise<void> {
 
     if (isComplete) {
       await logger.write("result", "Completion criteria met", {
-        completionCheck: { type: getCompletionType(), complete: true },
+        verdictCheck: { type: getVerdictType(), complete: true },
       });
       break;
     }
@@ -857,7 +857,7 @@ agents/iterator/                         # プロジェクトルート直下に�
 │   ├── logger.ts                        # JSONL logger
 │   ├── prompts.ts                       # System prompt builder
 │   ├── types.ts                         # TypeScript type definitions
-│   └── completion/                      # Completion handlers
+│   └── verdict/                         # Verdict handlers
 │       ├── mod.ts
 │       ├── project.ts
 │       ├── issue.ts

@@ -1,0 +1,7 @@
+# Breakdown Configuration for plan-scout-steps
+params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation)$"
+    layerType:
+      pattern: "^(manual)$"

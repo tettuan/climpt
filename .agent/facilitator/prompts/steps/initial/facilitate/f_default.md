@@ -1,7 +1,7 @@
 # Facilitation Action
 
 Execute facilitation action for Issue #{{issue_number}} in Project
-#{{project_number}}.
+#{{project}}.
 
 ## Action Type: {{action_type}}
 
