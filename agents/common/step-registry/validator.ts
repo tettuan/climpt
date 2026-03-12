@@ -357,6 +357,12 @@ export function validateStepRegistry(registry: StepRegistry): void {
     }
     if (typeof step.c3 !== "string" || !step.c3) {
       errors.push(`Step "${stepId}": c3 must be a non-empty string`);
+    } else if (!/^[a-z]+(-[a-z]+)*$/.test(step.c3)) {
+      errors.push(
+        `Step "${stepId}": c3 "${step.c3}" is invalid. ` +
+          `c3 must be lowercase kebab-case (e.g., "issue", "external-state"). ` +
+          `camelCase like "externalState" is rejected by @tettuan/breakdown LayerType validation.`,
+      );
     }
     if (typeof step.edition !== "string" || !step.edition) {
       errors.push(`Step "${stepId}": edition must be a non-empty string`);

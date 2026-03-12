@@ -11,6 +11,7 @@ import type {
   WorktreeSetupResult,
 } from "./types.ts";
 import {
+  branchExists,
   checkoutBranch,
   deleteBranch,
   getCommitsAhead,
@@ -38,7 +39,8 @@ export function generateBranchName(baseName: string): string {
     .replace(/[-:]/g, "")
     .replace("T", "-")
     .slice(0, 15); // yyyymmdd-hhmmss
-  return `${baseName}-${timestamp}`;
+  const suffix = Math.random().toString(36).substring(2, 6);
+  return `${baseName}-${timestamp}-${suffix}`;
 }
 
 /**
@@ -112,8 +114,17 @@ export async function setupWorktree(
   // Get current branch as base if not specified
   const baseBranch = options.baseBranch ?? await getCurrentBranch(cwd);
 
-  // Determine branch name
-  const branchName = options.branch ?? generateBranchName(baseBranch);
+  // Determine branch name, with collision retry for generated names
+  let branchName: string;
+  if (options.branch) {
+    branchName = options.branch;
+  } else {
+    branchName = generateBranchName(baseBranch);
+    if (await branchExists(branchName, cwd)) {
+      // Single retry with new random suffix
+      branchName = generateBranchName(baseBranch);
+    }
+  }
 
   // Get repository root to calculate worktree path
   const repoRoot = await getRepoRoot(cwd);

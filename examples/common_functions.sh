@@ -2,13 +2,16 @@
 # common_functions.sh - Shared functions for Climpt examples
 #
 # Source this file from example scripts:
-#   source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common_functions.sh"
+#   source "${EXAMPLES_DIR}/common_functions.sh"
 
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# Constants
+# Directory constants — all examples run with cwd = examples/
 # ---------------------------------------------------------------------------
+EXAMPLES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+
 CLIMPT_DIR=".agent/climpt"
 CLIMPT_CONFIG_DIR="${CLIMPT_DIR}/config"
 CLIMPT_PROMPTS_DIR="${CLIMPT_DIR}/prompts"
@@ -128,6 +131,22 @@ run_example() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Environment sanitisation
+# ---------------------------------------------------------------------------
+
+# Unset env vars that cause Claude Code nesting detection to fail when
+# examples spawn a child Claude Code process via `deno task agent`.
+clear_claude_env() {
+  unset CLAUDE_CODE CLAUDECODE ANTHROPIC_CLI CLAUDE_SESSION_ID CLAUDE_NEST_LEVEL
+  unset CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+  unset CLAUDE_CODE_TMPDIR
+  unset SANDBOX_ENABLED SANDBOX_ID SANDBOX_ALLOWED_PATHS SANDBOX_RUNTIME
+}
+
+export EXAMPLES_DIR REPO_ROOT CLIMPT_REPO_ROOT
+export CLIMPT_CMD CLIMPT_DOCS_CMD CLIMPT_MCP_CMD
 export -f info success warn error show_cmd
 export -f check_deno check_climpt_init check_command check_llm_ready
 export -f cleanup_temp_files run_example
+export -f clear_claude_env

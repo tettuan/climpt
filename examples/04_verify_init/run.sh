@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 main() {
   info "=== Verify Init & Init Options ==="
@@ -27,6 +29,23 @@ main() {
   else
     error "FAIL: Prompts directory not found: ${CLIMPT_PROMPTS_DIR}"; return 1
   fi
+
+  # Verify fixture deployment (test and git domains)
+  local fixture_fail=0
+  for cfg in test-app.yml test-user.yml git-app.yml git-user.yml; do
+    if [[ ! -f "${CLIMPT_CONFIG_DIR}/${cfg}" ]]; then
+      error "FAIL: fixture config not found: ${CLIMPT_CONFIG_DIR}/${cfg}"
+      fixture_fail=1
+    fi
+  done
+  for prompt in test/echo/input/f_default.md test/run/specific/f_default.md git/decide-branch/working-branch/f_default.md; do
+    if [[ ! -f "${CLIMPT_PROMPTS_DIR}/${prompt}" ]]; then
+      error "FAIL: fixture prompt not found: ${CLIMPT_PROMPTS_DIR}/${prompt}"
+      fixture_fail=1
+    fi
+  done
+  if [[ $fixture_fail -ne 0 ]]; then return 1; fi
+  success "PASS: fixture configs and prompts deployed"
 
   success "PASS: init directories verified"
 

@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
 
 AGENT_NAME="plan-scout"
 SENTINEL="/tmp/claude/plan-mode-test.txt"
-OUTPUTS_DIR="${REPO_ROOT}/examples/outputs/agents"
+OUTPUTS_DIR="outputs/agents"
 
 main() {
   # Prerequisite: Step 21 must have PASSED (LLM actually executed).

@@ -121,6 +121,12 @@ for f in examples/{21,22,23}_*/run.sh; do bash "$f"; done
 for f in examples/{25,26,26a}_*/run.sh; do bash "$f"; done
 ```
 
+> **Warning: Nested Claude Code execution is not supported.** Examples 21-26a
+> invoke `deno task agent` which internally spawns a Claude Code process. If you
+> run these examples from within a Claude Code session (e.g., via the Bash
+> tool), the nested Claude Code process will fail. Always delegate example
+> execution to a **sub-agent** or run from an external terminal.
+
 ## Directory Structure
 
 | #   | Folder                         | Description                           | State In             | State Out                    | Verifies                                           |

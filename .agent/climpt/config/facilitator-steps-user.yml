@@ -4,4 +4,4 @@ params:
     directiveType:
       pattern: "^(initial|continuation|closure|retry)$"
     layerType:
-      pattern: "^(discover|statuscheck|blockercheck|stalecheck|judge|facilitate|report|facilitation)$"
+      pattern: "^(discover|statuscheck|blockercheck|stalecheck|judge|facilitate|report|facilitation|complete)$"

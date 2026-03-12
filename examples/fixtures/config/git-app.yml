@@ -1,0 +1,6 @@
+# Build Configuration
+working_dir: ".agent/climpt"
+app_prompt:
+  base_dir: "prompts/git"
+app_schema:
+  base_dir: "schema/git"
