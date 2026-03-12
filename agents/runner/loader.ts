@@ -85,40 +85,83 @@ export function validateAgentDefinition(
   const warnings: string[] = [];
 
   // Required root fields
-  if (!def.version) errors.push("version is required");
-  if (!def.name) errors.push("name is required");
-  if (!def.displayName) errors.push("displayName is required");
-  if (!def.description) errors.push("description is required");
-  if (!def.runner) errors.push("runner is required");
+  if (!def.version) {
+    errors.push(
+      "[CONFIGURATION] version is required. " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
+  }
+  if (!def.name) {
+    errors.push(
+      "[CONFIGURATION] name is required. " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
+  }
+  if (!def.displayName) {
+    errors.push(
+      "[CONFIGURATION] displayName is required. " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
+  }
+  if (!def.description) {
+    errors.push(
+      "[CONFIGURATION] description is required. " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
+  }
+  if (!def.runner) {
+    errors.push(
+      "[CONFIGURATION] runner is required. " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
+  }
 
   // Name format validation
   if (def.name && !/^[a-z][a-z0-9-]*$/.test(def.name)) {
-    errors.push("name must be lowercase kebab-case (e.g., 'my-agent')");
+    errors.push(
+      "[CONFIGURATION] name must be lowercase kebab-case (e.g., 'my-agent'). " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
   }
 
   // Version format validation
   if (def.version && !/^\d+\.\d+\.\d+$/.test(def.version)) {
-    errors.push("version must be semver format (e.g., '1.0.0')");
+    errors.push(
+      "[CONFIGURATION] version must be semver format (e.g., '1.0.0'). " +
+        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+    );
   }
 
   // Runner validation
   if (def.runner) {
     // Flow validation
     if (!def.runner.flow?.systemPromptPath) {
-      errors.push("runner.flow.systemPromptPath is required");
+      errors.push(
+        "[CONFIGURATION] runner.flow.systemPromptPath is required. " +
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
     }
 
     // Verdict validation
     if (!def.runner.verdict?.type) {
-      errors.push("runner.verdict.type is required");
+      errors.push(
+        "[CONFIGURATION] runner.verdict.type is required. " +
+          "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+      );
     }
 
     // Boundaries validation
     if (!def.runner.boundaries?.allowedTools) {
-      errors.push("runner.boundaries.allowedTools is required");
+      errors.push(
+        "[CONFIGURATION] runner.boundaries.allowedTools is required. " +
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
     }
     if (!def.runner.boundaries?.permissionMode) {
-      errors.push("runner.boundaries.permissionMode is required");
+      errors.push(
+        "[CONFIGURATION] runner.boundaries.permissionMode is required. " +
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
     }
 
     // Validate verdict type
@@ -127,7 +170,10 @@ export function validateAgentDefinition(
       !ALL_VERDICT_TYPES.includes(def.runner.verdict.type)
     ) {
       errors.push(
-        `runner.verdict.type must be one of: ${ALL_VERDICT_TYPES.join(", ")}`,
+        `[CONFIGURATION] runner.verdict.type must be one of: ${
+          ALL_VERDICT_TYPES.join(", ")
+        }. ` +
+          `\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict`,
       );
     }
 
@@ -143,9 +189,10 @@ export function validateAgentDefinition(
       !validPermissionModes.includes(def.runner.boundaries.permissionMode)
     ) {
       errors.push(
-        `runner.boundaries.permissionMode must be one of: ${
+        `[CONFIGURATION] runner.boundaries.permissionMode must be one of: ${
           validPermissionModes.join(", ")
-        }`,
+        }. ` +
+          `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
       );
     }
 
@@ -154,22 +201,30 @@ export function validateAgentDefinition(
 
     // Prompts validation
     if (!def.runner.flow?.prompts?.registry) {
-      errors.push("runner.flow.prompts.registry is required");
+      errors.push(
+        "[CONFIGURATION] runner.flow.prompts.registry is required. " +
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
     }
     if (!def.runner.flow?.prompts?.fallbackDir) {
-      errors.push("runner.flow.prompts.fallbackDir is required");
+      errors.push(
+        "[CONFIGURATION] runner.flow.prompts.fallbackDir is required. " +
+          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+      );
     }
 
     // Logging validation (logging is optional; defaults fill it in)
     if (def.runner.logging) {
       if (!def.runner.logging.directory) {
         errors.push(
-          "runner.logging.directory is required when logging is specified",
+          "[CONFIGURATION] runner.logging.directory is required when logging is specified. " +
+            "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
         );
       }
       if (!def.runner.logging.format) {
         errors.push(
-          "runner.logging.format is required when logging is specified",
+          "[CONFIGURATION] runner.logging.format is required when logging is specified. " +
+            "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
         );
       }
       const validFormats = ["jsonl", "text"];
@@ -178,7 +233,10 @@ export function validateAgentDefinition(
         !validFormats.includes(def.runner.logging.format)
       ) {
         errors.push(
-          `runner.logging.format must be one of: ${validFormats.join(", ")}`,
+          `[CONFIGURATION] runner.logging.format must be one of: ${
+            validFormats.join(", ")
+          }. ` +
+            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
     }
@@ -188,12 +246,21 @@ export function validateAgentDefinition(
   if (def.parameters) {
     for (const [name, param] of Object.entries(def.parameters)) {
       if (!param.cli) {
-        errors.push(`Parameter '${name}' missing cli flag`);
+        errors.push(
+          `[CONFIGURATION] Parameter '${name}' missing cli flag. ` +
+            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+        );
       } else if (!param.cli.startsWith("--")) {
-        errors.push(`Parameter '${name}' cli flag must start with '--'`);
+        errors.push(
+          `[CONFIGURATION] Parameter '${name}' cli flag must start with '--'. ` +
+            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+        );
       }
       if (!param.type) {
-        errors.push(`Parameter '${name}' missing type`);
+        errors.push(
+          `[CONFIGURATION] Parameter '${name}' missing type. ` +
+            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+        );
       }
       if (!param.description) {
         warnings.push(`Parameter '${name}' missing description`);
@@ -220,14 +287,16 @@ function validateVerdictConfig(
     case "count:iteration":
       if (!verdictConfig?.maxIterations) {
         errors.push(
-          "runner.verdict.config.maxIterations is required for count:iteration verdict type",
+          "[CONFIGURATION] runner.verdict.config.maxIterations is required for count:iteration verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       } else if (
         typeof verdictConfig.maxIterations !== "number" ||
         verdictConfig.maxIterations < 1
       ) {
         errors.push(
-          "runner.verdict.config.maxIterations must be a positive number",
+          "[CONFIGURATION] runner.verdict.config.maxIterations must be a positive number. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -235,7 +304,8 @@ function validateVerdictConfig(
     case "detect:keyword":
       if (!verdictConfig?.verdictKeyword) {
         errors.push(
-          "runner.verdict.config.verdictKeyword is required for detect:keyword verdict type",
+          "[CONFIGURATION] runner.verdict.config.verdictKeyword is required for detect:keyword verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -243,7 +313,8 @@ function validateVerdictConfig(
     case "meta:custom":
       if (!verdictConfig?.handlerPath) {
         errors.push(
-          "runner.verdict.config.handlerPath is required for meta:custom verdict type",
+          "[CONFIGURATION] runner.verdict.config.handlerPath is required for meta:custom verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -251,14 +322,16 @@ function validateVerdictConfig(
     case "count:check":
       if (!verdictConfig?.maxChecks) {
         errors.push(
-          "runner.verdict.config.maxChecks is required for count:check verdict type",
+          "[CONFIGURATION] runner.verdict.config.maxChecks is required for count:check verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       } else if (
         typeof verdictConfig.maxChecks !== "number" ||
         verdictConfig.maxChecks < 1
       ) {
         errors.push(
-          "runner.verdict.config.maxChecks must be a positive number",
+          "[CONFIGURATION] runner.verdict.config.maxChecks must be a positive number. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -266,7 +339,8 @@ function validateVerdictConfig(
     case "detect:structured":
       if (!verdictConfig?.signalType) {
         errors.push(
-          "runner.verdict.config.signalType is required for detect:structured verdict type",
+          "[CONFIGURATION] runner.verdict.config.signalType is required for detect:structured verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -274,7 +348,8 @@ function validateVerdictConfig(
     case "meta:composite":
       if (!verdictConfig?.operator) {
         errors.push(
-          "runner.verdict.config.operator is required for meta:composite verdict type",
+          "[CONFIGURATION] runner.verdict.config.operator is required for meta:composite verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       if (
@@ -283,7 +358,8 @@ function validateVerdictConfig(
         verdictConfig.conditions.length === 0
       ) {
         errors.push(
-          "runner.verdict.config.conditions is required for meta:composite verdict type",
+          "[CONFIGURATION] runner.verdict.config.conditions is required for meta:composite verdict type. " +
+            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;

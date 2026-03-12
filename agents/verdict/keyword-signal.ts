@@ -2,11 +2,12 @@
  * Manual completion handler - completes when LLM outputs a specific keyword
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
   type VerdictCriteria,
+  type VerdictStepIds,
 } from "./types.ts";
 
 const INCOMPLETE = false;
@@ -15,9 +16,17 @@ export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
   readonly type = "detect:keyword" as const;
   private promptResolver?: PromptResolver;
   private lastSummary?: IterationSummary;
+  private readonly stepIds: VerdictStepIds;
 
-  constructor(private readonly verdictKeyword: string) {
+  constructor(
+    private readonly verdictKeyword: string,
+    stepIds?: VerdictStepIds,
+  ) {
     super();
+    this.stepIds = stepIds ?? {
+      initial: "initial.keyword",
+      continuation: "continuation.keyword",
+    };
   }
 
   /**
@@ -29,9 +38,9 @@ export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.manual", {
-        "uv-completion_keyword": this.verdictKeyword,
-      });
+      return (await this.promptResolver.resolve(this.stepIds.initial, {
+        uv: { completion_keyword: this.verdictKeyword },
+      })).content;
     }
 
     // Fallback inline prompt
@@ -61,11 +70,13 @@ When ready, output exactly: ${this.verdictKeyword}
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation.manual", {
-        "uv-iteration": String(completedIterations),
-        "uv-completion_keyword": this.verdictKeyword,
-        "uv-previous_summary": summaryText,
-      });
+      return (await this.promptResolver.resolve(this.stepIds.continuation, {
+        uv: {
+          iteration: String(completedIterations),
+          completion_keyword: this.verdictKeyword,
+          previous_summary: summaryText,
+        },
+      })).content;
     }
 
     // Fallback inline prompt

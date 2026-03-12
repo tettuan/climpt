@@ -12,10 +12,10 @@ Prove the new path inherits every contract from the old path before deleting it.
 
 | Date | What happened | Why | Impact |
 |------|--------------|-----|--------|
-| 2/14 | externalState handler became a throw stub | New path was not implemented when old path was deleted | completionType functionality lost |
+| 2/14 | externalState handler became a throw stub | New path was not implemented when old path was deleted | completionType (now `runner.verdict.type`) functionality lost |
 | 2/14 | Deno cache served stale version | --reload not run, so fixed code was not picked up | Fix existed but bug reproduced |
 | 2/13 | V1 handler exports removed | Adapter not created, old interface compatibility lost | import errors |
-| 1/18 | Legacy completionType aliases removed | Old agent.json configs broken with no migration grace period | Config file incompatibility |
+| 1/18 | Legacy completionType aliases removed (now `runner.verdict.type`) | Old agent.json configs broken with no migration grace period | Config file incompatibility |
 | 1/9 | Dead code left behind (cli.ts, runner/cli.ts) | Old entry points not cleaned up after migration | Multiple paths caused confusion |
 
 ## Failure Patterns

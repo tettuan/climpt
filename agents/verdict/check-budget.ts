@@ -5,20 +5,29 @@
  * the number of status checks performed, not iterations.
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
   type VerdictCriteria,
+  type VerdictStepIds,
 } from "./types.ts";
 
 export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "count:check" as const;
   private checkCount = 0;
   private promptResolver?: PromptResolver;
+  private readonly stepIds: VerdictStepIds;
 
-  constructor(private readonly maxChecks: number) {
+  constructor(
+    private readonly maxChecks: number,
+    stepIds?: VerdictStepIds,
+  ) {
     super();
+    this.stepIds = stepIds ?? {
+      initial: "initial.check",
+      continuation: "continuation.check",
+    };
   }
 
   /**
@@ -44,9 +53,9 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.check-budget", {
-        "uv-max_checks": String(this.maxChecks),
-      });
+      return (await this.promptResolver.resolve(this.stepIds.initial, {
+        uv: { max_checks: String(this.maxChecks) },
+      })).content;
     }
 
     // Fallback inline prompt
@@ -85,13 +94,15 @@ Work efficiently to complete your monitoring goal within the check budget.
       const summaryText = previousSummary
         ? this.formatIterationSummary(previousSummary)
         : "";
-      return await this.promptResolver.resolve("continuation.check-budget", {
-        "uv-check_count": String(this.checkCount),
-        "uv-max_checks": String(this.maxChecks),
-        "uv-remaining": String(remaining),
-        "uv-iteration": String(completedIterations),
-        "uv-previous_summary": summaryText,
-      });
+      return (await this.promptResolver.resolve(this.stepIds.continuation, {
+        uv: {
+          check_count: String(this.checkCount),
+          max_checks: String(this.maxChecks),
+          remaining: String(remaining),
+          iteration: String(completedIterations),
+          previous_summary: summaryText,
+        },
+      })).content;
     }
 
     // Fallback inline prompt

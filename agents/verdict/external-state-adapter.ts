@@ -11,11 +11,12 @@
  * - Gap 5: Prompt construction (PromptResolver integration)
  */
 
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
   type VerdictCriteria,
+  type VerdictStepIds,
 } from "./types.ts";
 import type { IssueVerdictHandler } from "./issue.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
@@ -42,8 +43,8 @@ export interface ExternalStateAdapterConfig {
  * and exposes VerdictHandler interface expected by AgentRunner.
  *
  * Method mapping:
- * - buildInitialPrompt() -> PromptResolver.resolve("initial.externalState") || handler.buildPrompt(INITIAL, 1)
- * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.externalState") || handler.buildPrompt(CONTINUATION, n)
+ * - buildInitialPrompt() -> PromptResolver.resolve("initial.polling") || handler.buildPrompt(INITIAL, 1)
+ * - buildContinuationPrompt() -> PromptResolver.resolve("continuation.polling") || handler.buildPrompt(CONTINUATION, n)
  * - buildVerdictCriteria() -> handler.getVerdictCriteria() with field name mapping
  * - isFinished() -> handler.refreshState() + handler.check()
  * - getVerdictDescription() -> derived from check result
@@ -54,12 +55,18 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   readonly type = "poll:state" as const;
   private promptResolver?: PromptResolver;
   private currentSummary?: IterationSummary;
+  private readonly stepIds: VerdictStepIds;
 
   constructor(
     private readonly handler: IssueVerdictHandler,
     private readonly config: ExternalStateAdapterConfig,
+    stepIds?: VerdictStepIds,
   ) {
     super();
+    this.stepIds = stepIds ?? {
+      initial: "initial.polling",
+      continuation: "continuation.polling",
+    };
   }
 
   /**
@@ -78,10 +85,13 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
 
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("initial.externalState", {
-        "uv-issue_number": String(this.config.issueNumber),
-        "uv-repository": this.config.repo ?? "",
-      });
+      return (await this.promptResolver.resolve(this.stepIds.initial, {
+        uv: {
+          issue: String(this.config.issueNumber),
+          issue_number: String(this.config.issueNumber),
+          repository: this.config.repo ?? "",
+        },
+      })).content;
     }
     return this.handler.buildPrompt(STEP_PHASE.INITIAL, 1);
   }
@@ -95,11 +105,14 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
-      return await this.promptResolver.resolve("continuation.externalState", {
-        "uv-issue_number": String(this.config.issueNumber),
-        "uv-iteration": String(completedIterations),
-        "uv-previous_summary": summaryText,
-      });
+      return (await this.promptResolver.resolve(this.stepIds.continuation, {
+        uv: {
+          issue: String(this.config.issueNumber),
+          issue_number: String(this.config.issueNumber),
+          iteration: String(completedIterations),
+          previous_summary: summaryText,
+        },
+      })).content;
     }
 
     return this.handler.buildPrompt(

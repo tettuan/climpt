@@ -12,7 +12,7 @@ import type {
 } from "../src_common/types.ts";
 import type { VerdictHandler } from "../verdict/types.ts";
 import type { Logger } from "../src_common/logger.ts";
-import type { PromptResolverAdapter as PromptResolver } from "../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
@@ -82,7 +82,6 @@ export interface PromptResolverFactoryOptions {
   agentDir: string;
   registryPath: string;
   fallbackDir?: string;
-  systemPromptPath?: string;
 }
 
 /**
@@ -180,10 +179,31 @@ export class DefaultVerdictHandlerFactory implements VerdictHandlerFactory {
  */
 export class DefaultPromptResolverFactory implements PromptResolverFactory {
   async create(options: PromptResolverFactoryOptions): Promise<PromptResolver> {
-    const { PromptResolverAdapter } = await import(
-      "../prompts/resolver-adapter.ts"
+    const { join } = await import("@std/path");
+    const { loadStepRegistry, createEmptyRegistry } = await import(
+      "../common/step-registry.ts"
     );
-    return PromptResolverAdapter.create(options);
+    const { createFallbackProvider, PromptResolver } = await import(
+      "../common/prompt-resolver.ts"
+    );
+    const { getDefaultFallbackTemplates } = await import(
+      "../prompts/fallback.ts"
+    );
+
+    let registry;
+    try {
+      registry = await loadStepRegistry(options.agentName, options.agentDir, {
+        registryPath: join(options.agentDir, options.registryPath),
+        validateIntentEnums: false,
+      });
+    } catch {
+      registry = createEmptyRegistry(options.agentName);
+    }
+    const fallback = createFallbackProvider(getDefaultFallbackTemplates());
+    return new PromptResolver(registry, fallback, {
+      workingDir: Deno.cwd(),
+      configSuffix: registry.c1,
+    });
   }
 }
 

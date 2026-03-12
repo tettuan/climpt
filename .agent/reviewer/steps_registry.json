@@ -129,7 +129,7 @@
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "continuation_issue",
-      "uvVariables": ["issue", "completed_iterations"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "description": "Continuation prompt for issue review iterations",
       "outputSchemaRef": {

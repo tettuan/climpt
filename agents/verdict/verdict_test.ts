@@ -29,6 +29,8 @@ import { StepMachineVerdictHandler } from "./step-machine.ts";
 import type { IterationSummary } from "./types.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
+import type { PromptResolver } from "../common/prompt-resolver.ts";
+import type { PromptResolutionResult } from "../common/prompt-resolver.ts";
 
 // =============================================================================
 // Test Utilities
@@ -1336,15 +1338,19 @@ const STEP_ID_PATTERN = /^(initial|continuation|closure)\.[a-zA-Z]+$/;
 class MockPromptResolver {
   readonly calls: Array<{
     stepId: string;
-    variables: Record<string, string>;
+    variables?: import("../common/prompt-resolver.ts").PromptVariables;
   }> = [];
 
   async resolve(
     stepId: string,
-    variables: Record<string, string>,
-  ): Promise<string> {
+    variables?: import("../common/prompt-resolver.ts").PromptVariables,
+  ): Promise<PromptResolutionResult> {
     this.calls.push({ stepId, variables });
-    return `RICH_PROMPT_CONTENT_FOR_${stepId}`;
+    return {
+      content: `RICH_PROMPT_CONTENT_FOR_${stepId}`,
+      stepId,
+      source: "user",
+    };
   }
 
   lastStepId(): string | undefined {
@@ -1365,15 +1371,15 @@ Deno.test("ExternalStateVerdictAdapter + resolver - buildInitialPrompt uses dot-
     { issueNumber: 1 },
   );
   adapter.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await adapter.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.externalState");
+  assertEquals(mock.lastStepId(), "initial.polling");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.externalState");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.polling");
 });
 
 Deno.test("ExternalStateVerdictAdapter + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
@@ -1383,17 +1389,17 @@ Deno.test("ExternalStateVerdictAdapter + resolver - buildContinuationPrompt uses
     { issueNumber: 1 },
   );
   adapter.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await adapter.buildContinuationPrompt(3);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.externalState");
+  assertEquals(mock.lastStepId(), "continuation.polling");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.externalState",
+    "RICH_PROMPT_CONTENT_FOR_continuation.polling",
   );
 });
 
@@ -1403,32 +1409,32 @@ Deno.test("IterationBudgetVerdictHandler + resolver - buildInitialPrompt uses do
   const mock = new MockPromptResolver();
   const handler = new IterationBudgetVerdictHandler(10);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.iterate");
+  assertEquals(mock.lastStepId(), "initial.iteration");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iterate");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iteration");
 });
 
 Deno.test("IterationBudgetVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
   const handler = new IterationBudgetVerdictHandler(10);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(5);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.iterate");
+  assertEquals(mock.lastStepId(), "continuation.iteration");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.iterate",
+    "RICH_PROMPT_CONTENT_FOR_continuation.iteration",
   );
 });
 
@@ -1438,32 +1444,32 @@ Deno.test("CheckBudgetVerdictHandler + resolver - buildInitialPrompt uses dot-fo
   const mock = new MockPromptResolver();
   const handler = new CheckBudgetVerdictHandler(5);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.checkBudget");
+  assertEquals(mock.lastStepId(), "initial.check");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.checkBudget");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.check");
 });
 
 Deno.test("CheckBudgetVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
   const handler = new CheckBudgetVerdictHandler(5);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(2);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.checkBudget");
+  assertEquals(mock.lastStepId(), "continuation.check");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.checkBudget",
+    "RICH_PROMPT_CONTENT_FOR_continuation.check",
   );
 });
 
@@ -1473,32 +1479,32 @@ Deno.test("KeywordSignalVerdictHandler + resolver - buildInitialPrompt uses dot-
   const mock = new MockPromptResolver();
   const handler = new KeywordSignalVerdictHandler("DONE");
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.manual");
+  assertEquals(mock.lastStepId(), "initial.keyword");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.manual");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.keyword");
 });
 
 Deno.test("KeywordSignalVerdictHandler + resolver - buildContinuationPrompt uses dot-format stepId", async () => {
   const mock = new MockPromptResolver();
   const handler = new KeywordSignalVerdictHandler("DONE");
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(2);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.manual");
+  assertEquals(mock.lastStepId(), "continuation.keyword");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.manual",
+    "RICH_PROMPT_CONTENT_FOR_continuation.keyword",
   );
 });
 
@@ -1508,17 +1514,17 @@ Deno.test("StructuredSignalVerdictHandler + resolver - buildInitialPrompt uses d
   const mock = new MockPromptResolver();
   const handler = new StructuredSignalVerdictHandler("complete");
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.structuredSignal");
+  assertEquals(mock.lastStepId(), "initial.structured");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_initial.structuredSignal",
+    "RICH_PROMPT_CONTENT_FOR_initial.structured",
   );
 });
 
@@ -1526,17 +1532,17 @@ Deno.test("StructuredSignalVerdictHandler + resolver - buildContinuationPrompt u
   const mock = new MockPromptResolver();
   const handler = new StructuredSignalVerdictHandler("complete");
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(3);
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "continuation.structuredSignal");
+  assertEquals(mock.lastStepId(), "continuation.structured");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(
     prompt,
-    "RICH_PROMPT_CONTENT_FOR_continuation.structuredSignal",
+    "RICH_PROMPT_CONTENT_FOR_continuation.structured",
   );
 });
 
@@ -1547,7 +1553,7 @@ Deno.test("StepMachineVerdictHandler + resolver - buildInitialPrompt resolves vi
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
@@ -1563,7 +1569,7 @@ Deno.test("StepMachineVerdictHandler + resolver - buildContinuationPrompt resolv
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(2);
@@ -1582,7 +1588,7 @@ Deno.test("StepMachineVerdictHandler + resolver - entryStep determines initial s
     "continuation.test",
   );
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildContinuationPrompt(2);
@@ -1620,23 +1626,22 @@ Deno.test("CompositeVerdictHandler + resolver - propagates resolver to sub-handl
     definition,
   );
   handler.setPromptResolver(
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter,
+    mock as unknown as PromptResolver,
   );
 
   const prompt = await handler.buildInitialPrompt();
 
   assertEquals(mock.calls.length, 1);
-  assertEquals(mock.lastStepId(), "initial.iterate");
+  assertEquals(mock.lastStepId(), "initial.iteration");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
-  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iterate");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iteration");
 });
 
 // --- Contract: all handler stepIds match dot-format ---
 
 Deno.test("Contract - all handler stepIds use dot-format (phase.type)", async () => {
   const mock = new MockPromptResolver();
-  const cast =
-    mock as unknown as import("../prompts/resolver-adapter.ts").PromptResolverAdapter;
+  const cast = mock as unknown as PromptResolver;
 
   const handlers: Array<{
     name: string;

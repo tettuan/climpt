@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "external-state.schema.json",
+  "$id": "polling.schema.json",
   "description": "External State完了判定stepのスキーマ定義（GitHub Issue状態で完了を判定）",
 
   "$defs": {
@@ -50,7 +50,7 @@
     }
   },
 
-  "initial.external-state": {
+  "initial.polling": {
     "type": "object",
     "description": "External State作業開始時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -58,7 +58,7 @@
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "initial.external-state",
+        "const": "initial.polling",
         "description": "実行されたstep識別子"
       },
       "next_action": {
@@ -103,7 +103,7 @@
     }
   },
 
-  "continuation.external-state": {
+  "continuation.polling": {
     "type": "object",
     "description": "External State継続作業時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -111,7 +111,7 @@
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "continuation.external-state",
+        "const": "continuation.polling",
         "description": "実行されたstep識別子"
       },
       "next_action": {
@@ -151,7 +151,7 @@
     }
   },
 
-  "closure.external-state": {
+  "closure.polling": {
     "type": "object",
     "description": "External State完了時のレスポンス",
     "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
@@ -159,7 +159,7 @@
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "closure.external-state",
+        "const": "closure.polling",
         "description": "実行されたstep識別子"
       },
       "next_action": {

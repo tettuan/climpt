@@ -294,9 +294,12 @@ export class PromptResolver {
     variables: PromptVariables,
   ): string {
     // Validate required UV variables
+    // UV dict uses keys without "uv-" prefix (matching substitution regex),
+    // but uvVariables entries may include the "uv-" prefix for documentation.
     if (!this.allowMissingVariables && step.uvVariables.length > 0) {
       for (const uvName of step.uvVariables) {
-        if (!variables.uv?.[uvName]) {
+        const key = uvName.startsWith("uv-") ? uvName.slice(3) : uvName;
+        if (!variables.uv?.[key]) {
           throw new Error(
             `Missing required UV variable "${uvName}" for step "${step.stepId}"`,
           );

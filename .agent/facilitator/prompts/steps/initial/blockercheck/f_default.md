@@ -1,6 +1,6 @@
 # Blocker Check
 
-Identify and analyze blockers in GitHub Project #{{project_number}}.
+Identify and analyze blockers in GitHub Project #{{project}}.
 
 ## Known Blocked Issues
 

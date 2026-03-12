@@ -17,6 +17,15 @@ import type { STEP_PHASE } from "../shared/step-phases.ts";
 // Re-export for convenience
 export type { IterationSummary, VerdictType };
 
+/**
+ * Step IDs for prompt resolution in verdict handlers.
+ * Resolved from entryStepMapping in steps_registry.json.
+ */
+export interface VerdictStepIds {
+  readonly initial: string;
+  readonly continuation: string;
+}
+
 // Re-export contract types for V2 API
 export type { CheckContext, StepResult, VerdictResult };
 

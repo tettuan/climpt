@@ -1,0 +1,6 @@
+# Build Configuration for plan-scout-steps
+working_dir: ".agent/plan-scout"
+app_prompt:
+  base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"

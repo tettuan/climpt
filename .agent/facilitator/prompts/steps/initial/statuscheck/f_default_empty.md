@@ -1,6 +1,6 @@
 # Project Status Check - No Issues Found
 
-Check GitHub Project #{{project_number}} which currently has no issues matching
+Check GitHub Project #{{project}} which currently has no issues matching
 the filter criteria.
 
 ## Project Information
@@ -28,5 +28,5 @@ the filter criteria.
 ## Output
 
 ```status-report
-{"type":"empty","project":{{project_number}},"summary":"No issues found matching criteria","metrics":{"open":0,"in_progress":0,"done":0,"blocked":0}}
+{"type":"empty","project":{{project}},"summary":"No issues found matching criteria","metrics":{"open":0,"in_progress":0,"done":0,"blocked":0}}
 ```

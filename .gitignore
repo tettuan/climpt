@@ -108,4 +108,5 @@ examples/outputs/
 # CI local state
 .ci-local/
 
-
+# Example-generated docs (11_docs_install)
+examples/docs/

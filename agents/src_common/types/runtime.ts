@@ -5,7 +5,7 @@
 // Forward declarations for RuntimeContext dependencies
 // These are imported from other modules, but we need the interface here
 import type { VerdictHandler } from "../../verdict/mod.ts";
-import type { PromptResolverAdapter as PromptResolver } from "../../prompts/resolver-adapter.ts";
+import type { PromptResolver } from "../../common/prompt-resolver.ts";
 import type { Logger } from "../logger.ts";
 import type { PromptLogger } from "../../common/prompt-logger.ts";
 

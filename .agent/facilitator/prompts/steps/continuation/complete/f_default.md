@@ -1,6 +1,6 @@
 # Facilitation Cycle Complete
 
-Complete the current facilitation cycle for GitHub Project #{{project_number}}.
+Complete the current facilitation cycle for GitHub Project #{{project}}.
 
 ## Actions Taken
 
@@ -30,7 +30,7 @@ Final cycle summary:
 ```status-report
 {
   "type": "cycle-complete",
-  "project": {{project_number}},
+  "project": {{project}},
   "summary": "Facilitation cycle complete",
   "actions_taken": N,
   "issues_flagged": N,

@@ -1,14 +1,14 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-env
 // deno-lint-ignore-file no-console prefer-ascii explicit-function-return-type
 
-import { Server } from "npm:@modelcontextprotocol/sdk@1.26.0/server/index.js";
-import { StdioServerTransport } from "npm:@modelcontextprotocol/sdk@1.26.0/server/stdio.js";
+import { Server } from "@modelcontextprotocol/sdk/server";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio";
 import {
   type CallToolRequest,
   CallToolRequestSchema,
   type ListToolsRequest,
   ListToolsRequestSchema,
-} from "npm:@modelcontextprotocol/sdk@1.26.0/types.js";
+} from "@modelcontextprotocol/sdk/types";
 
 console.error("🧪 Simple MCP Test Server starting...");
 

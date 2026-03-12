@@ -14,7 +14,7 @@ main() {
   # Run climpt init to scaffold the project (use repo code, not JSR)
   # --force allows idempotent re-runs when .agent/climpt already exists
   info "Running climpt init..."
-  run_example ${CLIMPT} init --force
+  run_example ${CLIMPT_CMD} init --force
 
   # Deploy fixtures: test and git domain configs + prompts
   info "Deploying fixtures..."

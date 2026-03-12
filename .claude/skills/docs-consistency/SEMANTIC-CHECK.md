@@ -142,13 +142,13 @@ grep -i "note\|warning\|注意" README.md docs/guides/
 ```
 
 **設計→実装:**
-- [ ] completionType が全種類実装済み
+- [ ] runner.verdict.type が全種類実装済み
 - [ ] ステップフローが設計通り
 - [ ] ログ出力形式が設計通り
 
 **実装→説明:**
 - [ ] agent.json の全プロパティが説明済み
-- [ ] 各completionTypeの動作が説明済み
+- [ ] 各runner.verdict.typeの動作が説明済み
 - [ ] エラー時のリカバリーが説明済み
 
 ---

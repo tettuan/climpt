@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
-cd "$EXAMPLES_DIR"
-source "${EXAMPLES_DIR}/common_functions.sh"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/../common_functions.sh"
 
-DOCS_DIR="./docs"
+DOCS_DIR="${SCRIPT_DIR}/../docs"
 
 main() {
   info "=== Install Documentation ==="
 
   check_deno
 
-  # Install docs into the ./docs directory
+  # Install docs into examples/docs/ (SCRIPT_DIR-relative, not CWD-relative)
   info "Installing documentation to ${DOCS_DIR}..."
-  run_example ${CLIMPT_DOCS} install "${DOCS_DIR}"
+  run_example ${CLIMPT_DOCS_CMD} install "${DOCS_DIR}"
 
   # Verify DOCS_DIR exists
   if [[ ! -d "${DOCS_DIR}" ]]; then
@@ -28,6 +26,8 @@ main() {
   if [[ "$file_count" -eq 0 ]]; then
     error "FAIL: ${DOCS_DIR} contains no files"; return 1
   fi
+  # Create sentinel so 31_clean knows this was example-installed
+  touch "${DOCS_DIR}/.climpt-installed"
   success "PASS: ${DOCS_DIR} exists with ${file_count} files"
 }
 

@@ -35,7 +35,25 @@ main() {
   info "Default allowedTools:"
   jq -r '.runner.boundaries.allowedTools[]' "${AGENT_DIR}/agent.json"
 
-  success "Agent init result displayed."
+  # Validate initial agent configuration structure
+  local runner
+  runner=$(jq '.runner' "${AGENT_DIR}/agent.json")
+  if [[ "$runner" == "null" ]] || [[ -z "$runner" ]]; then
+    error "FAIL: agent.json .runner is null or missing"; return 1
+  fi
+
+  local perm_mode
+  perm_mode=$(jq -r '.runner.boundaries.permissionMode' "${AGENT_DIR}/agent.json")
+  if [[ -z "$perm_mode" ]] || [[ "$perm_mode" == "null" ]]; then
+    error "FAIL: permissionMode is empty or null"; return 1
+  fi
+
+  local tools_count
+  tools_count=$(jq '.runner.boundaries.allowedTools | length' "${AGENT_DIR}/agent.json")
+  if [[ "$tools_count" -lt 1 ]]; then
+    error "FAIL: allowedTools is empty"; return 1
+  fi
+  success "PASS: initial agent config validated (permissionMode=${perm_mode}, tools=${tools_count})"
 }
 
 main "$@"

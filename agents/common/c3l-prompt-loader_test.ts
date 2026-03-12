@@ -3,11 +3,7 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import {
-  C3LPromptLoader,
-  createIteratorPromptLoader,
-  createReviewerPromptLoader,
-} from "./c3l-prompt-loader.ts";
+import { C3LPromptLoader } from "./c3l-prompt-loader.ts";
 
 Deno.test("C3LPromptLoader - creates correct config name", () => {
   const loader = new C3LPromptLoader({
@@ -24,13 +20,19 @@ Deno.test("C3LPromptLoader - creates config name without suffix", () => {
   assertEquals(loader.getConfigName(), "myagent");
 });
 
-Deno.test("createIteratorPromptLoader - creates iterator loader", () => {
-  const loader = createIteratorPromptLoader();
+Deno.test("C3LPromptLoader - creates iterator loader via constructor", () => {
+  const loader = new C3LPromptLoader({
+    agentId: "iterator",
+    configSuffix: "dev",
+  });
   assertEquals(loader.getConfigName(), "iterator-dev");
 });
 
 Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
-  const loader = createIteratorPromptLoader();
+  const loader = new C3LPromptLoader({
+    agentId: "iterator",
+    configSuffix: "dev",
+  });
 
   const result = await loader.load(
     { c1: "dev", c2: "start", c3: "issue" },
@@ -75,7 +77,10 @@ Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
 });
 
 Deno.test("C3LPromptLoader - load with custom edition", async () => {
-  const loader = createIteratorPromptLoader();
+  const loader = new C3LPromptLoader({
+    agentId: "iterator",
+    configSuffix: "dev",
+  });
 
   // Try loading a non-default edition (processing)
   const result = await loader.load(
@@ -109,13 +114,19 @@ Deno.test("C3LPromptLoader - load with custom edition", async () => {
 // Reviewer Integration Tests
 // ============================================================================
 
-Deno.test("createReviewerPromptLoader - creates reviewer loader", () => {
-  const loader = createReviewerPromptLoader();
+Deno.test("C3LPromptLoader - creates reviewer loader via constructor", () => {
+  const loader = new C3LPromptLoader({
+    agentId: "reviewer",
+    configSuffix: "dev",
+  });
   assertEquals(loader.getConfigName(), "reviewer-dev");
 });
 
 Deno.test("Reviewer - load default prompt", async () => {
-  const loader = createReviewerPromptLoader();
+  const loader = new C3LPromptLoader({
+    agentId: "reviewer",
+    configSuffix: "dev",
+  });
 
   const result = await loader.load(
     { c1: "dev", c2: "start", c3: "default" },

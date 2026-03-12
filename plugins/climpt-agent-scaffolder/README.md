@@ -27,7 +27,7 @@ The skill will ask for:
 
 1. **Agent name** (required): kebab-case (e.g., `my-agent`, `code-reviewer`)
 2. **Description**: Agent purpose
-3. **completionType**: Completion condition type
+3. **runner.verdict.type**: Completion condition type
 
 ### Via CLI
 
@@ -35,7 +35,7 @@ The skill will ask for:
 deno run -A ${CLAUDE_PLUGIN_ROOT}/skills/agent-scaffolder/scripts/scaffold.ts \
   --name my-agent \
   --description "My agent description" \
-  --completion-type externalState
+  --completion-type poll:state
 ```
 
 Options:
@@ -44,7 +44,7 @@ Options:
 | ------------------- | ----- | ----------------------------------------- |
 | `--name`            | `-n`  | Agent name (required, kebab-case)         |
 | `--description`     | `-d`  | Agent description                         |
-| `--completion-type` | `-c`  | Completion type (default: externalState)  |
+| `--completion-type` | `-c`  | Completion type (default: `poll:state`)   |
 | `--display-name`    |       | Display name (default: derived from name) |
 | `--dry-run`         |       | Preview without creating files            |
 
@@ -52,14 +52,14 @@ Options:
 
 | Type              | Use Case                 | Config                |
 | ----------------- | ------------------------ | --------------------- |
-| `externalState`   | Monitor Issue/PR state   | `maxIterations`       |
-| `iterationBudget` | Fixed iteration count    | `maxIterations`       |
-| `keywordSignal`   | Keyword-based completion | `completionKeyword`   |
-| `stepMachine`     | Step graph-based flow    | `steps_registry.json` |
+| `poll:state`      | Monitor Issue/PR state   | `maxIterations`       |
+| `count:iteration` | Fixed iteration count    | `maxIterations`       |
+| `detect:keyword`  | Keyword-based completion | `verdictKeyword`      |
+| `detect:graph`    | Step graph-based flow    | `steps_registry.json` |
 
 > **Note**: The scaffolder supports these 4 completion types. For advanced types
-> (`checkBudget`, `structuredSignal`, `composite`, `custom`), scaffold with a
-> base type and manually edit `agent.json`. See
+> (`count:check`, `detect:structured`, `meta:composite`, `meta:custom`),
+> scaffold with a base type and manually edit `agent.json`. See
 > [Agent Definition](https://github.com/tettuan/climpt/blob/main/agents/docs/builder/02_agent_definition.md#completiontype)
 > for details.
 

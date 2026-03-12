@@ -125,10 +125,10 @@ Each agent is defined in `.agent/{agent-name}/` with:
 
 **agent.json** key properties:
 - `name`, `displayName`, `version` - Agent identification
-- `behavior.completionType` - Execution mode (see below)
-- `behavior.allowedTools` - Available tools for the agent
-- `prompts.registry` - Path to steps registry
-- `logging.directory` - Log output location
+- `runner.verdict.type` - Execution mode (see below)
+- `runner.boundaries.allowedTools` - Available tools for the agent
+- `runner.flow.prompts.registry` - Path to steps registry
+- `runner.logging.directory` - Log output location
 
 **steps_registry.json** defines prompt selection logic for each execution step.
 
@@ -155,18 +155,18 @@ deno task agent --agent {name} --issue {number}
 deno task agent --agent {name} --iterate-max 10
 ```
 
-### Completion Types
+### Verdict Types
 
 | Type | Description |
 |------|-------------|
-| `externalState` | Monitors external resource state (GitHub issue/project, file, API) |
-| `iterationBudget` | Runs for specified iterations (`maxIterations`) |
-| `checkBudget` | Runs for specified status checks (`maxChecks`) |
-| `keywordSignal` | Exits when agent outputs `completionKeyword` |
-| `structuredSignal` | Detects structured action block output (`signalType`) |
-| `stepMachine` | Follows step state machine (`registryPath`, `entryStep`) |
-| `composite` | Combined conditions with operator (and/or/first) |
-| `custom` | Uses custom handler (`handlerPath`) |
+| `poll:state` | Monitors external resource state (GitHub issue/project, file, API) |
+| `count:iteration` | Runs for specified iterations (`maxIterations`) |
+| `count:check` | Runs for specified status checks (`maxChecks`) |
+| `detect:keyword` | Exits when agent outputs `verdictKeyword` |
+| `detect:structured` | Detects structured action block output (`signalType`) |
+| `detect:graph` | Follows step state machine (`registryPath`, `entryStep`) |
+| `meta:composite` | Combined conditions with operator (and/or/first) |
+| `meta:custom` | Uses custom handler (`handlerPath`) |
 
 ### Built-in Agents
 
@@ -208,13 +208,6 @@ Minimal `agent.json`:
   "displayName": "My Agent",
   "version": "1.0.0",
   "description": "Custom agent description",
-  "behavior": {
-    "systemPromptPath": "prompts/system.md",
-    "completionType": "issue",
-    "completionConfig": {},
-    "allowedTools": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    "permissionMode": "plan"
-  },
   "parameters": {
     "issue": {
       "type": "number",
@@ -229,13 +222,25 @@ Minimal `agent.json`:
       "cli": "--iterate-max"
     }
   },
-  "prompts": {
-    "registry": "steps_registry.json",
-    "fallbackDir": "prompts/"
-  },
-  "logging": {
-    "directory": "tmp/logs/agents/my-agent",
-    "format": "jsonl"
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json",
+        "fallbackDir": "prompts/"
+      }
+    },
+    "verdict": {
+      "type": "poll:state"
+    },
+    "boundaries": {
+      "allowedTools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+      "permissionMode": "plan"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/my-agent",
+      "format": "jsonl"
+    }
   }
 }
 ```

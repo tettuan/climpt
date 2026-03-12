@@ -364,7 +364,7 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
 
   // Step IDs are resolved via entryStepMapping, not by concatenation.
   // The mapping from verdict type to step ID is configured in steps_registry.json.
-  // e.g., "poll:state" -> "initial.externalState" (the step ID is independent of verdict type name)
+  // e.g., "poll:state" -> "initial.polling" (the step ID is independent of verdict type name)
 });
 
 /**
@@ -372,13 +372,13 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
  */
 Deno.test("StructuredOutput - log message format is correct", () => {
   // Expected log format from runner.ts line 504
-  const stepId = "initial.external-state";
+  const stepId = "initial.polling";
   const expectedLogMessage =
     `[StructuredOutput] Using schema for step: ${stepId}`;
 
   assertEquals(
     expectedLogMessage,
-    "[StructuredOutput] Using schema for step: initial.external-state",
+    "[StructuredOutput] Using schema for step: initial.polling",
   );
 });
 
@@ -439,72 +439,72 @@ Deno.test("StructuredOutput - closure.issue schema has validation fields", async
 // =============================================================================
 
 // =============================================================================
-// externalState VerdictType Tests (Issue #246)
+// polling VerdictType Tests (Issue #246)
 // =============================================================================
 
 /**
- * Test that steps_registry.json has outputSchemaRef for initial.external-state
+ * Test that steps_registry.json has outputSchemaRef for initial.polling
  */
-Deno.test("StructuredOutput - steps_registry.json has outputSchemaRef for initial.external-state", async () => {
+Deno.test("StructuredOutput - steps_registry.json has outputSchemaRef for initial.polling", async () => {
   const registryPath = ".agent/iterator/steps_registry.json";
 
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  // Verify initial.external-state step has outputSchemaRef
-  const step = registry.steps["initial.external-state"];
-  assertExists(step, "initial.external-state step should exist");
+  // Verify initial.polling step has outputSchemaRef
+  const step = registry.steps["initial.polling"];
+  assertExists(step, "initial.polling step should exist");
   assertExists(
     step.outputSchemaRef,
-    "initial.external-state should have outputSchemaRef",
+    "initial.polling should have outputSchemaRef",
   );
   assertEquals(
     step.outputSchemaRef.file,
-    "external-state.schema.json",
-    "Should reference external-state.schema.json",
+    "polling.schema.json",
+    "Should reference polling.schema.json",
   );
   assertEquals(
     step.outputSchemaRef.schema,
-    "initial.external-state",
-    "Should reference initial.external-state schema",
+    "initial.polling",
+    "Should reference initial.polling schema",
   );
 });
 
 /**
- * Test that continuation.external-state also has outputSchemaRef
+ * Test that continuation.polling also has outputSchemaRef
  */
-Deno.test("StructuredOutput - continuation.external-state has outputSchemaRef", async () => {
+Deno.test("StructuredOutput - continuation.polling has outputSchemaRef", async () => {
   const registryPath = ".agent/iterator/steps_registry.json";
 
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const step = registry.steps["continuation.external-state"];
-  assertExists(step, "continuation.external-state step should exist");
+  const step = registry.steps["continuation.polling"];
+  assertExists(step, "continuation.polling step should exist");
   assertExists(
     step.outputSchemaRef,
-    "continuation.external-state should have outputSchemaRef",
+    "continuation.polling should have outputSchemaRef",
   );
-  assertEquals(step.outputSchemaRef.file, "external-state.schema.json");
-  assertEquals(step.outputSchemaRef.schema, "continuation.external-state");
+  assertEquals(step.outputSchemaRef.file, "polling.schema.json");
+  assertEquals(step.outputSchemaRef.schema, "continuation.polling");
 });
 
 /**
- * Test that external-state.schema.json contains valid initial.external-state schema
+ * Test that polling.schema.json contains valid initial.polling schema
  */
-Deno.test("StructuredOutput - external-state.schema.json contains valid initial.external-state schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/external-state.schema.json";
+Deno.test("StructuredOutput - polling.schema.json contains valid initial.polling schema", async () => {
+  const schemaPath = ".agent/iterator/schemas/polling.schema.json";
 
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
 
-  // Verify initial.external-state schema exists
+  // Verify initial.polling schema exists
   assertExists(
-    schemas["initial.external-state"],
-    "initial.external-state schema should exist",
+    schemas["initial.polling"],
+    "initial.polling schema should exist",
   );
 
-  const schema = schemas["initial.external-state"];
+  const schema = schemas["initial.polling"];
 
   // Verify schema structure
   assertEquals(schema.type, "object");
@@ -537,21 +537,21 @@ Deno.test("StructuredOutput - external-state.schema.json contains valid initial.
 });
 
 /**
- * Test that external-state.schema.json contains valid continuation.external-state schema
+ * Test that polling.schema.json contains valid continuation.polling schema
  */
-Deno.test("StructuredOutput - external-state.schema.json contains valid continuation.external-state schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/external-state.schema.json";
+Deno.test("StructuredOutput - polling.schema.json contains valid continuation.polling schema", async () => {
+  const schemaPath = ".agent/iterator/schemas/polling.schema.json";
 
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
 
-  // Verify continuation.external-state schema exists
+  // Verify continuation.polling schema exists
   assertExists(
-    schemas["continuation.external-state"],
-    "continuation.external-state schema should exist",
+    schemas["continuation.polling"],
+    "continuation.polling schema should exist",
   );
 
-  const schema = schemas["continuation.external-state"];
+  const schema = schemas["continuation.polling"];
 
   // Verify schema structure
   assertEquals(schema.type, "object");
@@ -584,24 +584,24 @@ Deno.test("StructuredOutput - external-state.schema.json contains valid continua
 });
 
 /**
- * Verify the log message format for StructuredOutput with external-state
+ * Verify the log message format for StructuredOutput with polling
  */
-Deno.test("StructuredOutput - log message format is correct for external-state", () => {
+Deno.test("StructuredOutput - log message format is correct for polling", () => {
   // Expected log format from runner.ts line 508
-  const stepId = "initial.external-state";
+  const stepId = "initial.polling";
   const expectedLogMessage =
     `[StructuredOutput] Using schema for step: ${stepId}`;
 
   assertEquals(
     expectedLogMessage,
-    "[StructuredOutput] Using schema for step: initial.external-state",
+    "[StructuredOutput] Using schema for step: initial.polling",
   );
 });
 
 /**
- * Test the full schema loading path simulation for external-state
+ * Test the full schema loading path simulation for polling
  */
-Deno.test("StructuredOutput - external-state schema loading path simulation", async () => {
+Deno.test("StructuredOutput - polling schema loading path simulation", async () => {
   // This test simulates the path that loadSchemaForStep would take
 
   // 1. Load registry
@@ -610,7 +610,7 @@ Deno.test("StructuredOutput - external-state schema loading path simulation", as
   const registry = JSON.parse(registryContent) as ExtendedStepsRegistry;
 
   // 2. Get step definition
-  const stepId = "initial.external-state";
+  const stepId = "initial.polling";
   const stepDef = registry.steps[stepId];
   assertExists(stepDef, "Step definition should exist");
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
@@ -643,15 +643,15 @@ Deno.test("StructuredOutput - external-state schema loading path simulation", as
   assertExists(outputFormat.schema);
   assertExists(outputFormat.schema.required);
 
-  // 7. Verify externalState-specific fields
+  // 7. Verify polling-specific fields
   assertExists(schema.properties.issue, "Should have issue property");
   assertExists(schema.properties.analysis, "Should have analysis property");
 });
 
 /**
- * Test that external-state schema file is included in all referenced schemas check
+ * Test that polling schema file is included in all referenced schemas check
  */
-Deno.test("StructuredOutput - external-state.schema.json exists in referenced files", async () => {
+Deno.test("StructuredOutput - polling.schema.json exists in referenced files", async () => {
   const registryPath = ".agent/iterator/steps_registry.json";
 
   const content = await Deno.readTextFile(registryPath);
@@ -659,8 +659,8 @@ Deno.test("StructuredOutput - external-state.schema.json exists in referenced fi
 
   const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
 
-  // Check external-state.schema.json specifically
-  const schemaPath = join(schemasBase, "external-state.schema.json");
+  // Check polling.schema.json specifically
+  const schemaPath = join(schemasBase, "polling.schema.json");
   try {
     const stat = await Deno.stat(schemaPath);
     assertEquals(stat.isFile, true, `${schemaPath} should be a file`);

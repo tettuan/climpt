@@ -20,7 +20,7 @@
  *
  * - **AgentRunner**: Main class for running agents
  * - **loadAgentDefinition**: Load agent configuration from .agent directory
- * - **VerdictHandlers**: Various verdict strategies (issue, iterationBudget, keywordSignal)
+ * - **VerdictHandlers**: Various verdict strategies (poll:state, count:iteration, detect:keyword)
  * - **Types**: AgentDefinition, AgentResult, VerdictType, etc.
  */
 

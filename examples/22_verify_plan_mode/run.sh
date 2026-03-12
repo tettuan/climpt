@@ -11,6 +11,8 @@ SENTINEL="/tmp/claude/plan-mode-test.txt"
 OUTPUTS_DIR="outputs/agents"
 
 main() {
+  # Prerequisite: Step 21 must have PASSED (LLM actually executed).
+  # If step 21 failed, this script should not have been reached in a sequential run.
   info "=== Verify Plan Mode Enforcement ==="
 
   mkdir -p "$OUTPUTS_DIR"
@@ -25,7 +27,7 @@ main() {
       echo "permissionMode: plan"
       echo "timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       echo ""
-      echo "Root cause: canUseTool callback in runner.ts:703-704"
+      echo "Root cause: canUseTool callback in agents/runner/query-executor.ts:124"
       echo "  returns { behavior: 'allow' } for ALL tools,"
       echo "  overriding plan mode restrictions."
     } > "$result_file"

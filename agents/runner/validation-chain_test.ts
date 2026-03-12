@@ -85,11 +85,11 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         }],
         onFailure: { action: "retry" },
       },
-      "closure.externalState": {
-        stepId: "closure.externalState",
+      "closure.polling": {
+        stepId: "closure.polling",
         name: "External State Closure",
         c2: "closure",
-        c3: "externalState",
+        c3: "polling",
         validationConditions: [],
         onFailure: { action: "retry" },
       },
@@ -158,8 +158,8 @@ Deno.test("ValidationChain - validate returns valid for step with empty conditio
   const chain = createChain();
   const summary = createSummary();
 
-  // closure.externalState has empty completionConditions
-  const result = await chain.validate("closure.externalState", summary);
+  // closure.polling has empty completionConditions
+  const result = await chain.validate("closure.polling", summary);
 
   assertEquals(result.valid, true);
 });
@@ -178,18 +178,18 @@ Deno.test("ValidationChain - getClosureStepId returns registry step for known ty
   assertEquals(stepId, "closure.issue");
 });
 
-Deno.test("ValidationChain - getClosureStepId returns closure.externalState for poll:state", () => {
+Deno.test("ValidationChain - getClosureStepId returns closure.polling for poll:state", () => {
   const chain = createChain();
 
   const stepId = chain.getClosureStepId("poll:state");
 
-  assertEquals(stepId, "closure.externalState");
+  assertEquals(stepId, "closure.polling");
 });
 
-Deno.test("ValidationChain - getClosureStepId returns closure.iterate for count:iteration", () => {
+Deno.test("ValidationChain - getClosureStepId returns closure.iteration for count:iteration", () => {
   const chain = createChain();
 
-  assertEquals(chain.getClosureStepId("count:iteration"), "closure.iterate");
+  assertEquals(chain.getClosureStepId("count:iteration"), "closure.iteration");
 });
 
 Deno.test("ValidationChain - getClosureStepId falls back to closure.{type}", () => {

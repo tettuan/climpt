@@ -1,5 +1,5 @@
 ---
-stepId: initial.iterate
+stepId: initial.iteration
 name: Iterate Initial Prompt
 description: Initial prompt for iteration-based execution
 uvVariables:

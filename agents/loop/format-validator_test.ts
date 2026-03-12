@@ -68,7 +68,12 @@ Deno.test("FormatValidator", async (t) => {
       const format: ResponseFormat = {
         type: "json",
         schema: {
+          type: "object",
           required: ["name", "value"],
+          properties: {
+            name: { type: "string" },
+            value: { type: "number" },
+          },
         },
       };
 
@@ -76,7 +81,251 @@ Deno.test("FormatValidator", async (t) => {
 
       assertEquals(result.valid, false);
       assertEquals(result.error?.includes("value"), true);
+      assertEquals(result.error?.includes("Required"), true);
     });
+
+    await st.step(
+      "should pass when valid JSON matches schema with all required fields",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"name": "test", "value": 42}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            required: ["name", "value"],
+            properties: {
+              name: { type: "string" },
+              value: { type: "number" },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, true);
+        assertExists(result.extracted);
+        const data = result.extracted as Record<string, unknown>;
+        assertEquals(data.name, "test");
+        assertEquals(data.value, 42);
+      },
+    );
+
+    await st.step(
+      "should fail when property type does not match schema",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"name": 123, "value": "not-a-number"}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              value: { type: "number" },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, false);
+        assertEquals(result.error?.includes("Schema validation failed"), true);
+        // Error should mention the field path for debuggability
+        assertEquals(result.error?.includes("name"), true);
+      },
+    );
+
+    await st.step(
+      "should fail when value violates enum constraint",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"status": "unknown"}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["ok", "error", "pending"] },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, false);
+        assertEquals(result.error?.includes("Schema validation failed"), true);
+        assertEquals(
+          result.error?.includes("enum") || result.error?.includes("not in"),
+          true,
+        );
+      },
+    );
+
+    await st.step(
+      "should validate nested object properties",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"result": {"code": 200, "message": "ok"}}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            required: ["result"],
+            properties: {
+              result: {
+                type: "object",
+                required: ["code", "message"],
+                properties: {
+                  code: { type: "number" },
+                  message: { type: "string" },
+                },
+              },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, true);
+        assertExists(result.extracted);
+      },
+    );
+
+    await st.step(
+      "should fail when nested required field is missing",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"result": {"code": 200}}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            properties: {
+              result: {
+                type: "object",
+                required: ["code", "message"],
+                properties: {
+                  code: { type: "number" },
+                  message: { type: "string" },
+                },
+              },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, false);
+        assertEquals(result.error?.includes("message"), true);
+        assertEquals(result.error?.includes("Required"), true);
+      },
+    );
+
+    await st.step(
+      "should perform basic JSON validation only when no schema provided",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"any": "structure", "is": true}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, true);
+        assertExists(result.extracted);
+        assertEquals(
+          (result.extracted as Record<string, unknown>).any,
+          "structure",
+        );
+      },
+    );
+
+    await st.step(
+      "should validate array items against schema",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"items": [1, 2, "three"]}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            properties: {
+              items: {
+                type: "array",
+                items: { type: "number" },
+              },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, false);
+        assertEquals(result.error?.includes("Schema validation failed"), true);
+        // Should report the specific array index
+        assertEquals(result.error?.includes("[2]"), true);
+      },
+    );
+
+    await st.step(
+      "should report multiple schema errors in single message",
+      () => {
+        const summary = createSummary({
+          assistantResponses: [
+            '```json\n{"name": 123}\n```',
+          ],
+        });
+
+        const format: ResponseFormat = {
+          type: "json",
+          schema: {
+            type: "object",
+            required: ["name", "age"],
+            properties: {
+              name: { type: "string" },
+              age: { type: "number" },
+            },
+          },
+        };
+
+        const result = validator.validate(summary, format);
+
+        assertEquals(result.valid, false);
+        // Should contain errors for both type mismatch and missing required
+        assertEquals(result.error?.includes("name"), true);
+        assertEquals(result.error?.includes("age"), true);
+      },
+    );
   });
 
   await t.step("text-pattern validation", async (st) => {
