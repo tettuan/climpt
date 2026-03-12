@@ -22,6 +22,11 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included.
 - [Config Files](06-config-files.md)
 - [Dependencies](07-dependencies.md)
 - [Prompt Structure](08-prompt-structure.md)
+- [Getting Started Guide](10-getting-started-guide.md)
+- [Runner Configuration Reference](11-runner-reference.md)
+- [Troubleshooting Guide](12-troubleshooting.md)
+- [Agent Creation Tutorial](13-agent-creation-tutorial.md)
+- [Steps Registry Guide](14-steps-registry-guide.md)
 
 ## Examples (E2E Verification)
 

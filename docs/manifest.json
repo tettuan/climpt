@@ -124,6 +124,86 @@
       "bytes": 9488
     },
     {
+      "id": "guides-en-10-getting-started-guide",
+      "path": "guides/en/10-getting-started-guide.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "10. Getting Started Guide",
+      "bytes": 7040
+    },
+    {
+      "id": "guides-ja-10-getting-started-guide",
+      "path": "guides/ja/10-getting-started-guide.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "10. はじめに",
+      "bytes": 7961
+    },
+    {
+      "id": "guides-en-11-runner-reference",
+      "path": "guides/en/11-runner-reference.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "11. Runner Configuration Reference",
+      "bytes": 21564
+    },
+    {
+      "id": "guides-ja-11-runner-reference",
+      "path": "guides/ja/11-runner-reference.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "11. Runner 設定リファレンス",
+      "bytes": 23909
+    },
+    {
+      "id": "guides-en-12-troubleshooting",
+      "path": "guides/en/12-troubleshooting.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "12. Troubleshooting Guide",
+      "bytes": 17867
+    },
+    {
+      "id": "guides-ja-12-troubleshooting",
+      "path": "guides/ja/12-troubleshooting.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "12. トラブルシューティングガイド",
+      "bytes": 20893
+    },
+    {
+      "id": "guides-en-13-agent-creation-tutorial",
+      "path": "guides/en/13-agent-creation-tutorial.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "13. Agent Creation Tutorial",
+      "bytes": 9740
+    },
+    {
+      "id": "guides-ja-13-agent-creation-tutorial",
+      "path": "guides/ja/13-agent-creation-tutorial.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "13. Agent 作成チュートリアル",
+      "bytes": 11399
+    },
+    {
+      "id": "guides-en-14-steps-registry-guide",
+      "path": "guides/en/14-steps-registry-guide.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "14. Steps Registry Guide",
+      "bytes": 15547
+    },
+    {
+      "id": "guides-ja-14-steps-registry-guide",
+      "path": "guides/ja/14-steps-registry-guide.md",
+      "category": "guides",
+      "lang": "ja",
+      "title": "14. Steps Registry ガイド",
+      "bytes": 17580
+    },
+    {
       "id": "mcp-setup",
       "path": "mcp-setup.md",
       "category": "guides",

@@ -285,6 +285,21 @@ function checkType(value: unknown, expected: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
+ * Validate data against an arbitrary JSON Schema object.
+ *
+ * This is the general-purpose entry point used by format-validator and
+ * any other caller that has an inline schema (not loaded from a file).
+ */
+export function validateDataAgainstSchema(
+  data: unknown,
+  schema: Record<string, unknown>,
+): SchemaValidationResult {
+  const defs = (schema.definitions ?? {}) as Record<string, SchemaNode>;
+  const errors = validateValue(data, schema as SchemaNode, "", defs);
+  return { valid: errors.length === 0, errors };
+}
+
+/**
  * Validate data against agent.schema.json.
  */
 export async function validateAgentSchema(

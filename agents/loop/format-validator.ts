@@ -11,6 +11,7 @@ import type {
   IterationSummary,
 } from "../src_common/types.ts";
 import type { ResponseFormat } from "../common/validation-types.ts";
+import { validateDataAgainstSchema } from "../config/schema-validator.ts";
 
 // Re-export ResponseFormat for backwards compatibility
 export type { ResponseFormat } from "../common/validation-types.ts";
@@ -33,7 +34,7 @@ export interface FormatValidationResult extends BaseValidationResult {
  * Validates agent responses against expected format specifications.
  *
  * Supports two format types:
- * - json: Validates against JSON Schema
+ * - json: Validates against JSON Schema (using SchemaValidator engine)
  * - text-pattern: Validates against regex pattern
  */
 export class FormatValidator {
@@ -64,8 +65,9 @@ export class FormatValidator {
   /**
    * Validate JSON format against schema.
    *
-   * Currently performs basic structure validation.
-   * TODO: Implement full JSON Schema validation if needed.
+   * Extracts JSON from ```json code blocks in assistant responses,
+   * then validates against the provided JSON Schema using the
+   * SchemaValidator engine from config/schema-validator.ts.
    */
   private validateJson(
     summary: IterationSummary,
@@ -79,20 +81,18 @@ export class FormatValidator {
         try {
           const data = JSON.parse(jsonMatch[1].trim());
 
-          // Basic schema validation if provided
+          // Full JSON Schema validation using SchemaValidator engine
           if (format.schema) {
-            // NOTE: Full JSON Schema validation not yet implemented
-            // For now, just check required properties exist
-            const required = format.schema.required as string[] | undefined;
-            if (required) {
-              for (const prop of required) {
-                if (!(prop in data)) {
-                  return {
-                    valid: false,
-                    error: `Required property "${prop}" is missing`,
-                  };
-                }
-              }
+            const result = validateDataAgainstSchema(data, format.schema);
+            if (!result.valid) {
+              // Build a descriptive error from all schema validation errors
+              const errorMessages = result.errors.map((e) =>
+                e.path ? `${e.path}: ${e.message}` : e.message
+              );
+              return {
+                valid: false,
+                error: `Schema validation failed: ${errorMessages.join("; ")}`,
+              };
             }
           }
 
@@ -150,16 +150,5 @@ export class FormatValidator {
         error: `Invalid regex pattern: ${(e as Error).message}`,
       };
     }
-  }
-
-  /**
-   * Check if a value matches the expected type.
-   */
-  private checkType(
-    value: unknown,
-    expectedType: "string" | "number" | "boolean",
-  ): boolean {
-    const actualType = typeof value;
-    return actualType === expectedType;
   }
 }
