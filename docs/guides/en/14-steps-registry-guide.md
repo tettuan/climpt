@@ -189,6 +189,70 @@ Each step can specify a `model` field (`"sonnet"`, `"opus"`, `"haiku"`).
 Resolution order: `step.model` > `runner.flow.defaultModel` > `"opus"` (system
 default). Use `"haiku"` for cost optimization on routine steps.
 
+#### fallbackKey Naming Convention
+
+`fallbackKey` must use **underscore-separated** format matching a key in the
+default template registry.
+
+| Field       | Format               | Example         |
+| ----------- | -------------------- | --------------- |
+| stepId      | dot-separated        | `initial.issue` |
+| fallbackKey | underscore-separated | `initial_issue` |
+
+Using a dot-separated key (e.g., `"initial.issue"`) as a `fallbackKey` will
+result in:
+
+```
+No fallback prompt found for key: "initial.issue" (step: initial.issue)
+```
+
+#### Available fallbackKey Values
+
+**Initial / Continuation pairs:**
+
+| fallbackKey                                                    | Description                                     |
+| -------------------------------------------------------------- | ----------------------------------------------- |
+| `initial_iterate` / `continuation_iterate`                     | Iteration-based verdict (`count:iteration`)     |
+| `initial_issue` / `continuation_issue`                         | Issue polling verdict (`poll:state`)            |
+| `initial_issue_label_only` / `continuation_issue_label_only`   | Issue label-only variant (`poll:state`)         |
+| `initial_project` / `continuation_project`                     | Project-based verdict                           |
+| `initial_keyword` / `continuation_keyword`                     | Keyword detection verdict (`detect:keyword`)    |
+| `initial_manual` / `continuation_manual`                       | Manual mode (alias for keyword)                 |
+| `initial_structured_signal` / `continuation_structured_signal` | Structured signal verdict (`detect:structured`) |
+
+**Project phase variants:**
+
+| fallbackKey                        | Description               |
+| ---------------------------------- | ------------------------- |
+| `continuation_project_preparation` | Project preparation phase |
+| `continuation_project_processing`  | Project processing phase  |
+| `continuation_project_review`      | Project review phase      |
+
+**Closure and other prompts:**
+
+| fallbackKey                            | Description                     |
+| -------------------------------------- | ------------------------------- |
+| `issue_closure_default`                | Issue completion                |
+| `project_closure_default`              | Project completion              |
+| `polling_closure_default`              | Generic polling completion      |
+| `review_closure_default`               | Review completion               |
+| `iteration_closure_default`            | Iteration budget exhausted      |
+| `facilitation_closure_default`         | Facilitation completion         |
+| `project_continuation_closure_default` | Project continuation completion |
+| `statuscheck_continuation_default`     | Status check continuation       |
+| `system`                               | Default system prompt           |
+
+#### UV Variable Constraints
+
+- breakdown rejects empty-value UV variables (e.g., `--uv-repository=` produces
+  `Empty value not allowed` error)
+- Some verdict types automatically inject UV variables that may be empty (e.g.,
+  `poll:state` injects `repository` which defaults to empty string when not
+  configured)
+- When C3L resolution fails due to empty UV variables, the runner falls back to
+  `fallbackKey`
+- Ensure `fallbackKey` is correctly set to handle this fallback gracefully
+
 ### 14.4.2 Structured Gate
 
 The `structuredGate` configuration controls how AI structured output is

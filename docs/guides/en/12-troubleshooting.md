@@ -24,7 +24,8 @@ Iterate Agent.
 | `FAILED_STEP_ROUTING`                          | [4.2 Step routing errors](#42-step-routing-errors)                    |
 | `GATE_INTERPRETATION_ERROR`                    | [4.2 Step routing errors](#42-step-routing-errors)                    |
 | `Maximum iterations (N) reached`               | [4.3 Verdict / completion failures](#43-verdict--completion-failures) |
-| `AGENT_NOT_INITIALIZED`                        | [4.4 Initialization errors](#44-initialization-and-worktree-errors)   |
+| `No fallback prompt found`                     | [4.4 No fallback prompt found](#44-no-fallback-prompt-found)          |
+| `AGENT_NOT_INITIALIZED`                        | [4.5 Initialization errors](#45-initialization-and-worktree-errors)   |
 
 ---
 
@@ -393,7 +394,51 @@ other verdict types.
 
 ---
 
-### 4.4 Initialization and worktree errors
+### 4.4 No Fallback Prompt Found
+
+**Error**:
+
+```
+No fallback prompt found for key: "initial.issue" (step: initial.issue)
+```
+
+**Cause**: The `fallbackKey` in `steps_registry.json` does not match any default
+template key. Most commonly, dot-separated format is used instead of
+underscore-separated format.
+
+**Fix**:
+
+1. Open `steps_registry.json` for the failing agent
+2. Find the step referenced in the error message
+3. Change dot-separated `fallbackKey` to underscore-separated format:
+
+| Incorrect (dot)      | Correct (underscore)    |
+| -------------------- | ----------------------- |
+| `initial.issue`      | `initial_issue`         |
+| `continuation.issue` | `continuation_issue`    |
+| `initial.default`    | `initial_iterate`       |
+| `closure.issue`      | `issue_closure_default` |
+
+4. See
+   [Steps Registry Guide - fallbackKey Naming Convention](14-steps-registry-guide.md)
+   for the complete list of available keys
+
+**Verification**:
+
+```bash
+deno task climpt --agent <name> --dry-run --issue 1
+```
+
+**Tip**: Compare with a generated scaffold:
+
+```bash
+deno task climpt --init --agent test-compare
+# Compare generated steps_registry.json fallbackKey values with yours
+```
+
+---
+
+### 4.5 Initialization and worktree errors
 
 **Symptom**: `AgentNotInitializedError` (code: `AGENT_NOT_INITIALIZED`) or
 worktree setup failures.
