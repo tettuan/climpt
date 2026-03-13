@@ -173,10 +173,12 @@ export class C3LPromptLoader {
       args.push(`--adaptation=${path.adaptation}`);
     }
 
-    // UV variables
+    // UV variables (skip empty values -- breakdown rejects them)
     if (variables.uv) {
       for (const [key, value] of Object.entries(variables.uv)) {
-        args.push(`--uv-${key}=${value}`);
+        if (value !== undefined && value !== "") {
+          args.push(`--uv-${key}=${value}`);
+        }
       }
     }
 

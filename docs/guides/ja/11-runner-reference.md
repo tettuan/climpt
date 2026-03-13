@@ -146,6 +146,49 @@ verdict config で `maxIterations` が未指定かつ type が `count:iteration`
 ハンドラ内部では
 `AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS`（**100**）が絶対最大値として使用されます。
 
+### 11.3.5 プロンプト解決の優先順位
+
+Runner は2つの解決パスを順に試行する。最初に非 null の結果が使用される。
+
+- **Path A** -- `stepPromptResolver` / `closureAdapter` による C3L ファイル解決
+- **Path B** -- Verdict handler 解決、次に `fallbackKey` 参照
+
+```
+Iteration 1:
+  +-- Path A: stepPromptResolver.resolve()
+  |   +-- 成功 -> コンテンツ使用
+  +-- Path B: verdictHandler.buildInitialPrompt()
+      +-- C3L 解決 -> fallbackKey 参照
+
+Iteration > 1:
+  +-- Path A: closureAdapter.tryClosureAdaptation()
+  |   +-- 成功 -> コンテンツ使用
+  +-- Path A: stepPromptResolver.resolve()
+  |   +-- 成功 -> コンテンツ使用
+  +-- Path B: verdictHandler.buildContinuationPrompt()
+      +-- C3L 解決 -> fallbackKey 参照
+```
+
+#### `poll:state` の注意点
+
+`poll:state` では Path B が UV 変数を自動注入する:
+
+| 変数               | 値                       | 備考                   |
+| ------------------ | ------------------------ | ---------------------- |
+| `issue`            | Issue 番号               | `--issue` CLI 引数から |
+| `issue_number`     | Issue 番号               | `issue` と同値         |
+| `repository`       | リポジトリパス           | 未設定時は空文字列     |
+| `iteration`        | 現在のイテレーション     | Continuation のみ      |
+| `previous_summary` | フォーマット済みサマリー | Continuation のみ      |
+
+空 UV 値 (例: `--uv-repository=`) は `breakdown` の C3L
+解決を拒否させる。`fallbackKey`
+が最終的なセーフティネットとして正しく設定されている必要がある。
+
+> `poll:state` エージェントで `fallbackKey`
+> 設定ミスが即エラーとなる理由。`count:iteration` (Path A のみ、UV 注入なし)
+> には影響しない。
+
 ---
 
 ## 11.4 runner.boundaries

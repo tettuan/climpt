@@ -32,6 +32,62 @@ graph LR
     F -->|edition/adaptation| G[C3L プロンプトファイル]
 ```
 
+### 設計モデル: Runner-LLM 間の JSON 契約
+
+3つの設定フィールド — `outputSchemaRef`、`structuredGate`、`transitions` — が
+Runner と LLM の間の送受信契約を構成します。
+
+```mermaid
+sequenceDiagram
+    participant R as Runner
+    participant L as LLM
+
+    R->>R: Schema 読み込み<br/>enum: ["next","repeat","handoff"]
+    R->>L: プロンプト + Schema 送信
+    Note right of L: enum に従い<br/>構造化出力を生成
+    L-->>R: { "action": "handoff" }
+    R->>R: intentField で intent 抽出<br/>→ "handoff"
+    R->>R: transitions["handoff"]<br/>→ closure.issue へ遷移
+```
+
+- **送信（JSON Schema）**: `outputSchemaRef`
+  がスキーマファイルを指す。スキーマ内の `enum` が LLM の返却値を制約する。
+- **受信（transitions）**: `transitions`
+  がその制約された値をキーにして遷移先を宣言 する。
+- **接続（structuredGate）**: `intentSchemaRef` がスキーマ内の `enum`
+  の位置を指定し、 `intentField` が LLM
+  レスポンスから値を抽出するパスを指定する。
+
+利用可能な intent は Runner が定義する固定の7種です：
+
+| intent     | 意味                     | 使える stepKind    |
+| ---------- | ------------------------ | ------------------ |
+| `next`     | 次のステップへ進む       | work, verification |
+| `repeat`   | 現在のステップを再実行   | all                |
+| `jump`     | 指定ステップへ飛ぶ       | work, verification |
+| `handoff`  | closure や別フローへ委譲 | work               |
+| `closing`  | ワークフロー完了         | closure            |
+| `escalate` | 検証サポートへ転送       | verification       |
+| `abort`    | エラー終了               | all（常に許可）    |
+
+カスタマイズできるのは、この7種から**ステップごとにどの組み合わせを許可するか**と、
+**各 intent の遷移先をどこにするか**です。独自の intent
+を追加することはできません （`StepGateInterpreter`
+が未知の値をエラーにします）。
+
+送信と受信が同じ JSON 語彙を共有するため、スキーマの `enum` と `transitions`
+キーを並べるだけで整合性を検証できます：
+
+| ステップ             | Schema enum（送信）         | transitions キー（受信）    |
+| -------------------- | --------------------------- | --------------------------- |
+| `initial.issue`      | `next`, `repeat`            | `next`, `repeat`            |
+| `continuation.issue` | `next`, `repeat`, `handoff` | `next`, `repeat`, `handoff` |
+| `closure.issue`      | `closing`, `repeat`         | `closing`, `repeat`         |
+
+**ルール**: ステップのスキーマ `enum` で intent を選択したら、`transitions` にも
+対応するキーを追加します。`enum` と `transitions` キーは一致させます。これにより
+契約の一貫性が保たれます。
+
 ## 14.2 全体構造
 
 | キー                       | 必須 | 説明                                             |
@@ -113,11 +169,15 @@ iterator エージェントの例:
 
 **stepKind と許可される intent:**
 
-| stepKind       | 許可される Intent                    | 目的           |
-| -------------- | ------------------------------------ | -------------- |
-| `work`         | `next`, `repeat`, `jump`, `handoff`  | 成果物の生成   |
-| `verification` | `next`, `repeat`, `jump`, `escalate` | 作業成果の検証 |
-| `closure`      | `closing`, `repeat`                  | 最終検証/完了  |
+| stepKind       | 許可される Intent                    | 目的           | 制限理由                                         |
+| -------------- | ------------------------------------ | -------------- | ------------------------------------------------ |
+| `work`         | `next`, `repeat`, `jump`, `handoff`  | 成果物の生成   | `closing` 不可 — フロー終了は closure のみが行う |
+| `verification` | `next`, `repeat`, `jump`, `escalate` | 作業成果の検証 | `handoff` 不可 — 検証が closure を飛ばせない     |
+| `closure`      | `closing`, `repeat`                  | 最終検証/完了  | 最小セット — 完了か再実行のみ                    |
+
+Intent が固定 7 種に限定されているのは、AI の出力揺れを最小化しフローの安全性を
+保証するためです。設計の詳細と Runner-LLM 間の契約モデルについては、上の
+[設計モデル](#設計モデル-runner-llm-間の-json-契約) を参照してください。
 
 `stepKind` を省略した場合、`c2` から推論されます：
 
@@ -130,6 +190,69 @@ iterator エージェントの例:
 各ステップは `model` フィールド（`"sonnet"`, `"opus"`, `"haiku"`）を指定可能
 です。解決順序: `step.model` > `runner.flow.defaultModel` > `"opus"`（システム
 デフォルト）。ルーチンステップのコスト最適化には `"haiku"` を使用します。
+
+#### fallbackKey 命名規則
+
+`fallbackKey`
+はデフォルトテンプレートレジストリのキーと一致する**アンダースコア区切り**形式で指定する。
+
+| フィールド  | 形式                 | 例              |
+| ----------- | -------------------- | --------------- |
+| stepId      | ドット区切り         | `initial.issue` |
+| fallbackKey | アンダースコア区切り | `initial_issue` |
+
+ドット区切りのキー (例: `"initial.issue"`) を `fallbackKey`
+に使用すると以下のエラーが発生する:
+
+```
+No fallback prompt found for key: "initial.issue" (step: initial.issue)
+```
+
+#### 利用可能な fallbackKey 一覧
+
+**Initial / Continuation ペア:**
+
+| fallbackKey                                                    | 説明                                         |
+| -------------------------------------------------------------- | -------------------------------------------- |
+| `initial_iterate` / `continuation_iterate`                     | イテレーション verdict (`count:iteration`)   |
+| `initial_issue` / `continuation_issue`                         | Issue ポーリング verdict (`poll:state`)      |
+| `initial_issue_label_only` / `continuation_issue_label_only`   | Issue ラベルのみ variant (`poll:state`)      |
+| `initial_project` / `continuation_project`                     | プロジェクト verdict                         |
+| `initial_keyword` / `continuation_keyword`                     | キーワード検出 verdict (`detect:keyword`)    |
+| `initial_manual` / `continuation_manual`                       | 手動モード (keyword のエイリアス)            |
+| `initial_structured_signal` / `continuation_structured_signal` | 構造化シグナル verdict (`detect:structured`) |
+
+**プロジェクトフェーズ variant:**
+
+| fallbackKey                        | 説明                         |
+| ---------------------------------- | ---------------------------- |
+| `continuation_project_preparation` | プロジェクト準備フェーズ     |
+| `continuation_project_processing`  | プロジェクト処理フェーズ     |
+| `continuation_project_review`      | プロジェクトレビューフェーズ |
+
+**Closure およびその他のプロンプト:**
+
+| fallbackKey                            | 説明                         |
+| -------------------------------------- | ---------------------------- |
+| `issue_closure_default`                | Issue 完了                   |
+| `project_closure_default`              | プロジェクト完了             |
+| `polling_closure_default`              | ポーリング完了 (汎用)        |
+| `review_closure_default`               | レビュー完了                 |
+| `iteration_closure_default`            | イテレーション予算消化       |
+| `facilitation_closure_default`         | ファシリテーション完了       |
+| `project_continuation_closure_default` | プロジェクト継続完了         |
+| `statuscheck_continuation_default`     | ステータスチェック継続       |
+| `system`                               | デフォルトシステムプロンプト |
+
+#### UV 変数の制約
+
+- breakdown は空値の UV 変数を拒否する (例: `--uv-repository=` は
+  `Empty value not allowed` エラーになる)
+- 一部の verdict type は空になりうる UV 変数を自動注入する (例: `poll:state`
+  は未設定時に空文字列の `repository` を注入)
+- 空 UV 変数により C3L 解決が失敗した場合、runner は `fallbackKey`
+  にフォールバックする
+- このフォールバックを正しく機能させるために、`fallbackKey` を正確に設定すること
 
 ### 14.4.2 Structured Gate
 

@@ -144,6 +144,49 @@ When `maxIterations` is not specified in the verdict config and the type is not
 `AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS` (**100**) as the absolute
 maximum.
 
+### 11.3.5 Prompt Resolution Priority
+
+The Runner tries two resolution paths in order. The first non-null result is
+used.
+
+- **Path A** -- C3L file resolution via `stepPromptResolver` / `closureAdapter`
+- **Path B** -- Verdict handler resolution, then `fallbackKey` lookup
+
+```
+Iteration 1:
+  +-- Path A: stepPromptResolver.resolve()
+  |   +-- Success -> use content
+  +-- Path B: verdictHandler.buildInitialPrompt()
+      +-- C3L resolve -> fallbackKey lookup
+
+Iteration > 1:
+  +-- Path A: closureAdapter.tryClosureAdaptation()
+  |   +-- Success -> use content
+  +-- Path A: stepPromptResolver.resolve()
+  |   +-- Success -> use content
+  +-- Path B: verdictHandler.buildContinuationPrompt()
+      +-- C3L resolve -> fallbackKey lookup
+```
+
+#### `poll:state` Considerations
+
+Path B injects UV variables automatically for `poll:state`:
+
+| Variable           | Value             | Notes                          |
+| ------------------ | ----------------- | ------------------------------ |
+| `issue`            | Issue number      | From `--issue` CLI argument    |
+| `issue_number`     | Issue number      | Same as `issue`                |
+| `repository`       | Repository path   | Empty string if not configured |
+| `iteration`        | Current iteration | Continuation only              |
+| `previous_summary` | Formatted summary | Continuation only              |
+
+Empty UV values (e.g., `--uv-repository=`) cause `breakdown` to reject C3L
+resolution. The `fallbackKey` must be correctly configured as the final safety
+net.
+
+> This is why `poll:state` agents fail when `fallbackKey` is wrong, while
+> `count:iteration` agents (Path A only, no UV injection) are unaffected.
+
 ---
 
 ## 11.4 runner.boundaries

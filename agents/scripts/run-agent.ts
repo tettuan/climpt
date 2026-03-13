@@ -157,6 +157,7 @@ async function main(): Promise<void> {
     console.log(`\nValidating agent: ${args.agent}`);
 
     let totalErrors = 0;
+    let totalWarnings = 0;
 
     // Agent schema
     if (result.agentSchemaResult.valid) {
@@ -184,6 +185,15 @@ async function main(): Promise<void> {
         console.log(`    - ${err}`);
       }
       totalErrors += result.agentConfigResult.errors.length;
+    }
+
+    // Agent config warnings
+    if (result.agentConfigResult.warnings.length > 0) {
+      for (const warn of result.agentConfigResult.warnings) {
+        // deno-lint-ignore no-console
+        console.log(`  \u26A0 agent.json \u2014 ${warn}`);
+      }
+      totalWarnings += result.agentConfigResult.warnings.length;
     }
 
     // Registry schema
@@ -222,16 +232,95 @@ async function main(): Promise<void> {
       }
     }
 
+    // Path validation
+    if (result.pathResult) {
+      if (result.pathResult.valid) {
+        // deno-lint-ignore no-console
+        console.log("  \u2713 Paths \u2014 All referenced paths exist");
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Paths \u2014 Missing paths:");
+        for (const err of result.pathResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.pathResult.errors.length;
+      }
+      if (result.pathResult.warnings.length > 0) {
+        for (const warn of result.pathResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Paths \u2014 ${warn}`);
+        }
+        totalWarnings += result.pathResult.warnings.length;
+      }
+    }
+
+    // Flow reachability
+    if (result.flowResult) {
+      if (result.flowResult.valid) {
+        // deno-lint-ignore no-console
+        console.log("  \u2713 Flow \u2014 Reachability check passed");
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Flow \u2014 Reachability errors:");
+        for (const err of result.flowResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.flowResult.errors.length;
+      }
+      if (result.flowResult.warnings.length > 0) {
+        for (const warn of result.flowResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Flow \u2014 ${warn}`);
+        }
+        totalWarnings += result.flowResult.warnings.length;
+      }
+    }
+
+    // Prompt resolution
+    if (result.promptResult) {
+      if (result.promptResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Prompts \u2014 All steps have valid prompt configuration",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Prompts \u2014 Prompt configuration errors:");
+        for (const err of result.promptResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.promptResult.errors.length;
+      }
+      if (result.promptResult.warnings.length > 0) {
+        for (const warn of result.promptResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Prompts \u2014 ${warn}`);
+        }
+        totalWarnings += result.promptResult.warnings.length;
+      }
+    }
+
     // deno-lint-ignore no-console
     console.log("");
+    const warningsSuffix = totalWarnings > 0
+      ? ` (${totalWarnings} warning${totalWarnings !== 1 ? "s" : ""})`
+      : "";
+
     if (result.valid) {
       // deno-lint-ignore no-console
-      console.log("Validation passed.");
+      console.log(`Validation passed.${warningsSuffix}`);
     } else {
       // deno-lint-ignore no-console
       console.log(
         `Validation failed (${totalErrors} error${
           totalErrors !== 1 ? "s" : ""
+        }${
+          totalWarnings > 0
+            ? `, ${totalWarnings} warning${totalWarnings !== 1 ? "s" : ""}`
+            : ""
         }).\n` +
           `  \u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
       );

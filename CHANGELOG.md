@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-03-14
+
+### Fixed
+- Empty UV variables (`--uv-repository=`) rejected by breakdown when `--repository` not provided (`c3l-prompt-loader.ts`, `external-state-adapter.ts`)
+- Schema loading via `Deno.readTextFile(URL)` fails when imported from JSR (`schema-validator.ts`)
+- `--validate` path/flow validators had lint errors (`path-validator.ts`, `flow-validator.ts`)
+
+### Added
+- Prompt resolution validation in `--validate`: fallbackKey existence, C3L component check, stepId consistency (`prompt-validator.ts`)
+- `--validate` path existence and flow reachability checks (`path-validator.ts`, `flow-validator.ts`)
+- fallbackKey reference, prompt resolution flow, and troubleshooting docs (`11-runner-reference.md`, `12-troubleshooting.md`, `14-steps-registry-guide.md`)
+- Runner-LLM contract design model and stepKind rationale (`14-steps-registry-guide.md`)
+
+### Changed
+- `--dry-run` doc references corrected to `--validate` (`README.md`, `scaffold.ts`)
+
 ## [1.13.0] - 2026-03-12
 
 ### Added

@@ -14,7 +14,7 @@ Agent を作成する際は、以下の順序で進める。
 3. steps_registry.json を作成 → Step 遷移の定義
 4. Schema を用意              → Structured Output の契約
 5. プロンプトを配置           → C3L 構造に従う
-6. 実行して検証               → dry-run → 本実行
+6. 実行して検証               → --validate → 本実行
 ```
 
 ## ドキュメント一覧
