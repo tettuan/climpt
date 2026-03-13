@@ -23,6 +23,7 @@ import { validateCrossReferences } from "./registry-validator.ts";
 import type { CrossRefResult } from "./registry-validator.ts";
 import { validatePaths } from "./path-validator.ts";
 import { validateFlowReachability } from "./flow-validator.ts";
+import { validatePrompts } from "./prompt-validator.ts";
 
 // Re-export for convenience
 export { ConfigurationLoadError } from "./loader.ts";
@@ -121,6 +122,7 @@ export interface FullValidationResult {
   crossRefResult: CrossRefResult | null;
   pathResult: ValidationResult | null;
   flowResult: ValidationResult | null;
+  promptResult: ValidationResult | null;
 }
 
 /**
@@ -144,7 +146,7 @@ export async function validateFull(
   const raw = await loadRaw(agentDir);
 
   // 2. Schema validation on agent.json
-  const agentSchemaResult = await validateAgentSchema(raw);
+  const agentSchemaResult = validateAgentSchema(raw);
 
   // 3. Config-level validation (validate + validateComplete)
   const rawValidation = validate(raw);
@@ -169,7 +171,7 @@ export async function validateFull(
       registry = loaded as Record<string, unknown>;
 
       // 5. Schema validation on registry
-      registrySchemaResult = await validateRegistrySchema(loaded);
+      registrySchemaResult = validateRegistrySchema(loaded);
 
       // 6. Cross-reference validation
       crossRefResult = validateCrossReferences(registry);
@@ -195,13 +197,17 @@ export async function validateFull(
   // 6b. Flow reachability validation (only when registry exists)
   const flowResult = registry ? validateFlowReachability(registry) : null;
 
+  // 6c. Prompt resolution validation (only when registry exists)
+  const promptResult = registry ? validatePrompts(registry) : null;
+
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
     agentConfigResult.valid &&
     (registrySchemaResult?.valid ?? true) &&
     (crossRefResult?.valid ?? true) &&
     pathResult.valid &&
-    (flowResult?.valid ?? true);
+    (flowResult?.valid ?? true) &&
+    (promptResult?.valid ?? true);
 
   return {
     valid,
@@ -211,5 +217,6 @@ export async function validateFull(
     crossRefResult,
     pathResult,
     flowResult,
+    promptResult,
   };
 }

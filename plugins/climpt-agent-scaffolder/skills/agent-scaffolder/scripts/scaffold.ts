@@ -188,7 +188,7 @@ async function scaffold(options: ScaffoldOptions): Promise<void> {
   console.log(`  2. Customize prompts in ${baseDir}/prompts/steps/`);
   console.log(`  3. Add parameters to ${baseDir}/agent.json if needed`);
   console.log(
-    `  4. Verify with: deno run -A agents/scripts/run-agent.ts --agent ${name} --dry-run`,
+    `  4. Verify with: deno run -A agents/scripts/run-agent.ts --agent ${name} --validate`,
   );
 }
 

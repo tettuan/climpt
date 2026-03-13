@@ -278,6 +278,31 @@ async function main(): Promise<void> {
       }
     }
 
+    // Prompt resolution
+    if (result.promptResult) {
+      if (result.promptResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Prompts \u2014 All steps have valid prompt configuration",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Prompts \u2014 Prompt configuration errors:");
+        for (const err of result.promptResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.promptResult.errors.length;
+      }
+      if (result.promptResult.warnings.length > 0) {
+        for (const warn of result.promptResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Prompts \u2014 ${warn}`);
+        }
+        totalWarnings += result.promptResult.warnings.length;
+      }
+    }
+
     // deno-lint-ignore no-console
     console.log("");
     const warningsSuffix = totalWarnings > 0

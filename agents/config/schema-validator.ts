@@ -43,30 +43,22 @@ interface SchemaNode {
 }
 
 // ---------------------------------------------------------------------------
-// Schema loading (module-level, lazy)
+// Schema loading (static JSON import -- works both locally and via JSR)
 // ---------------------------------------------------------------------------
 
-let _agentSchema: SchemaNode | null = null;
-let _registrySchema: SchemaNode | null = null;
+import _agentSchemaJson from "../schemas/agent.schema.json" with {
+  type: "json",
+};
+import _registrySchemaJson from "../schemas/steps_registry.schema.json" with {
+  type: "json",
+};
 
-async function loadSchema(relPath: string): Promise<SchemaNode> {
-  const url = new URL(relPath, import.meta.url);
-  const text = await Deno.readTextFile(url);
-  return JSON.parse(text) as SchemaNode;
+function agentSchema(): SchemaNode {
+  return _agentSchemaJson as unknown as SchemaNode;
 }
 
-async function agentSchema(): Promise<SchemaNode> {
-  if (!_agentSchema) {
-    _agentSchema = await loadSchema("../schemas/agent.schema.json");
-  }
-  return _agentSchema;
-}
-
-async function registrySchema(): Promise<SchemaNode> {
-  if (!_registrySchema) {
-    _registrySchema = await loadSchema("../schemas/steps_registry.schema.json");
-  }
-  return _registrySchema;
+function registrySchema(): SchemaNode {
+  return _registrySchemaJson as unknown as SchemaNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,10 +294,10 @@ export function validateDataAgainstSchema(
 /**
  * Validate data against agent.schema.json.
  */
-export async function validateAgentSchema(
+export function validateAgentSchema(
   data: unknown,
-): Promise<SchemaValidationResult> {
-  const schema = await agentSchema();
+): SchemaValidationResult {
+  const schema = agentSchema();
   const defs = schema.definitions ?? {};
   const errors = validateValue(data, schema, "", defs);
   return { valid: errors.length === 0, errors };
@@ -314,10 +306,10 @@ export async function validateAgentSchema(
 /**
  * Validate data against steps_registry.schema.json.
  */
-export async function validateRegistrySchema(
+export function validateRegistrySchema(
   data: unknown,
-): Promise<SchemaValidationResult> {
-  const schema = await registrySchema();
+): SchemaValidationResult {
+  const schema = registrySchema();
   const defs = schema.definitions ?? {};
   const errors = validateValue(data, schema, "", defs);
   return { valid: errors.length === 0, errors };
