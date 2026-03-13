@@ -32,6 +32,62 @@ graph LR
     F -->|edition/adaptation| G[C3L プロンプトファイル]
 ```
 
+### 設計モデル: Runner-LLM 間の JSON 契約
+
+3つの設定フィールド — `outputSchemaRef`、`structuredGate`、`transitions` — が
+Runner と LLM の間の送受信契約を構成します。
+
+```mermaid
+sequenceDiagram
+    participant R as Runner
+    participant L as LLM
+
+    R->>R: Schema 読み込み<br/>enum: ["next","repeat","handoff"]
+    R->>L: プロンプト + Schema 送信
+    Note right of L: enum に従い<br/>構造化出力を生成
+    L-->>R: { "action": "handoff" }
+    R->>R: intentField で intent 抽出<br/>→ "handoff"
+    R->>R: transitions["handoff"]<br/>→ closure.issue へ遷移
+```
+
+- **送信（JSON Schema）**: `outputSchemaRef`
+  がスキーマファイルを指す。スキーマ内の `enum` が LLM の返却値を制約する。
+- **受信（transitions）**: `transitions`
+  がその制約された値をキーにして遷移先を宣言 する。
+- **接続（structuredGate）**: `intentSchemaRef` がスキーマ内の `enum`
+  の位置を指定し、 `intentField` が LLM
+  レスポンスから値を抽出するパスを指定する。
+
+利用可能な intent は Runner が定義する固定の7種です：
+
+| intent     | 意味                     | 使える stepKind    |
+| ---------- | ------------------------ | ------------------ |
+| `next`     | 次のステップへ進む       | work, verification |
+| `repeat`   | 現在のステップを再実行   | all                |
+| `jump`     | 指定ステップへ飛ぶ       | work, verification |
+| `handoff`  | closure や別フローへ委譲 | work               |
+| `closing`  | ワークフロー完了         | closure            |
+| `escalate` | 検証サポートへ転送       | verification       |
+| `abort`    | エラー終了               | all（常に許可）    |
+
+カスタマイズできるのは、この7種から**ステップごとにどの組み合わせを許可するか**と、
+**各 intent の遷移先をどこにするか**です。独自の intent
+を追加することはできません （`StepGateInterpreter`
+が未知の値をエラーにします）。
+
+送信と受信が同じ JSON 語彙を共有するため、スキーマの `enum` と `transitions`
+キーを並べるだけで整合性を検証できます：
+
+| ステップ             | Schema enum（送信）         | transitions キー（受信）    |
+| -------------------- | --------------------------- | --------------------------- |
+| `initial.issue`      | `next`, `repeat`            | `next`, `repeat`            |
+| `continuation.issue` | `next`, `repeat`, `handoff` | `next`, `repeat`, `handoff` |
+| `closure.issue`      | `closing`, `repeat`         | `closing`, `repeat`         |
+
+**ルール**: ステップのスキーマ `enum` で intent を選択したら、`transitions` にも
+対応するキーを追加します。`enum` と `transitions` キーは一致させます。これにより
+契約の一貫性が保たれます。
+
 ## 14.2 全体構造
 
 | キー                       | 必須 | 説明                                             |
@@ -113,11 +169,15 @@ iterator エージェントの例:
 
 **stepKind と許可される intent:**
 
-| stepKind       | 許可される Intent                    | 目的           |
-| -------------- | ------------------------------------ | -------------- |
-| `work`         | `next`, `repeat`, `jump`, `handoff`  | 成果物の生成   |
-| `verification` | `next`, `repeat`, `jump`, `escalate` | 作業成果の検証 |
-| `closure`      | `closing`, `repeat`                  | 最終検証/完了  |
+| stepKind       | 許可される Intent                    | 目的           | 制限理由                                         |
+| -------------- | ------------------------------------ | -------------- | ------------------------------------------------ |
+| `work`         | `next`, `repeat`, `jump`, `handoff`  | 成果物の生成   | `closing` 不可 — フロー終了は closure のみが行う |
+| `verification` | `next`, `repeat`, `jump`, `escalate` | 作業成果の検証 | `handoff` 不可 — 検証が closure を飛ばせない     |
+| `closure`      | `closing`, `repeat`                  | 最終検証/完了  | 最小セット — 完了か再実行のみ                    |
+
+Intent が固定 7 種に限定されているのは、AI の出力揺れを最小化しフローの安全性を
+保証するためです。設計の詳細と Runner-LLM 間の契約モデルについては、上の
+[設計モデル](#設計モデル-runner-llm-間の-json-契約) を参照してください。
 
 `stepKind` を省略した場合、`c2` から推論されます：
 
