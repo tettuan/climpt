@@ -32,6 +32,61 @@ graph LR
     F -->|edition/adaptation| G[C3L Prompt File]
 ```
 
+### Design Model: Runner-LLM Contract via JSON
+
+Three configuration fields — `outputSchemaRef`, `structuredGate`, and
+`transitions` — form a single send/receive contract between Runner and LLM.
+
+```mermaid
+sequenceDiagram
+    participant R as Runner
+    participant L as LLM
+
+    R->>R: Load Schema<br/>enum: ["next","repeat","handoff"]
+    R->>L: Prompt + Schema
+    Note right of L: Generate structured output<br/>constrained by enum
+    L-->>R: { "action": "handoff" }
+    R->>R: Extract intent via intentField<br/>→ "handoff"
+    R->>R: transitions["handoff"]<br/>→ closure.issue
+```
+
+- **Send (JSON Schema)**: `outputSchemaRef` points to a schema file. The `enum`
+  in the schema constrains which values the LLM can return.
+- **Receive (transitions)**: `transitions` uses those same constrained values as
+  keys to declare the next step.
+- **Link (structuredGate)**: `intentSchemaRef` points to the exact `enum`
+  location in the schema, and `intentField` specifies where to extract the value
+  from the LLM response.
+
+The available intents are a fixed set of 7 defined by the Runner:
+
+| Intent     | Meaning                        | Allowed in stepKind  |
+| ---------- | ------------------------------ | -------------------- |
+| `next`     | Proceed to the next step       | work, verification   |
+| `repeat`   | Retry the current step         | all                  |
+| `jump`     | Go to a specific step by ID    | work, verification   |
+| `handoff`  | Delegate to closure/other flow | work                 |
+| `closing`  | Signal workflow completion     | closure              |
+| `escalate` | Route to verification support  | verification         |
+| `abort`    | Terminate with error           | all (always allowed) |
+
+You customize by choosing **which subset** of these 7 intents each step allows,
+and **where each intent transitions to**. Custom intent values cannot be added —
+the `StepGateInterpreter` rejects unknown values.
+
+Because send and receive share the same JSON vocabulary, you can verify
+consistency by comparing the schema `enum` and `transitions` keys side by side:
+
+| Step                 | Schema enum (send)          | transitions keys (receive)  |
+| -------------------- | --------------------------- | --------------------------- |
+| `initial.issue`      | `next`, `repeat`            | `next`, `repeat`            |
+| `continuation.issue` | `next`, `repeat`, `handoff` | `next`, `repeat`, `handoff` |
+| `closure.issue`      | `closing`, `repeat`         | `closing`, `repeat`         |
+
+**Rule**: When you select intents for a step's schema `enum`, add corresponding
+keys to `transitions`. The `enum` and `transitions` keys must match — this keeps
+the contract consistent.
+
 ## 14.2 Overall Structure
 
 | Key                        | Required | Description                                        |
@@ -112,11 +167,15 @@ Each step is a keyed entry in the `steps` object. The key must match `stepId`.
 
 **stepKind and allowed intents:**
 
-| stepKind       | Allowed Intents                      | Purpose                     |
-| -------------- | ------------------------------------ | --------------------------- |
-| `work`         | `next`, `repeat`, `jump`, `handoff`  | Generates artifacts         |
-| `verification` | `next`, `repeat`, `jump`, `escalate` | Validates work output       |
-| `closure`      | `closing`, `repeat`                  | Final validation/completion |
+| stepKind       | Allowed Intents                      | Purpose                     | Why restricted                                        |
+| -------------- | ------------------------------------ | --------------------------- | ----------------------------------------------------- |
+| `work`         | `next`, `repeat`, `jump`, `handoff`  | Generates artifacts         | Cannot `closing` — only closure may end the flow      |
+| `verification` | `next`, `repeat`, `jump`, `escalate` | Validates work output       | Cannot `handoff` — verification must not skip closure |
+| `closure`      | `closing`, `repeat`                  | Final validation/completion | Minimal set — either complete or retry                |
+
+Intent is limited to a fixed set of 7 to minimize AI output variance and ensure
+flow safety. For the full design rationale and the Runner-LLM contract model,
+see [Design Model](#design-model-runner-llm-contract-via-json) above.
 
 If `stepKind` is omitted, it is inferred from `c2`:
 
@@ -129,6 +188,70 @@ If `stepKind` is omitted, it is inferred from `c2`:
 Each step can specify a `model` field (`"sonnet"`, `"opus"`, `"haiku"`).
 Resolution order: `step.model` > `runner.flow.defaultModel` > `"opus"` (system
 default). Use `"haiku"` for cost optimization on routine steps.
+
+#### fallbackKey Naming Convention
+
+`fallbackKey` must use **underscore-separated** format matching a key in the
+default template registry.
+
+| Field       | Format               | Example         |
+| ----------- | -------------------- | --------------- |
+| stepId      | dot-separated        | `initial.issue` |
+| fallbackKey | underscore-separated | `initial_issue` |
+
+Using a dot-separated key (e.g., `"initial.issue"`) as a `fallbackKey` will
+result in:
+
+```
+No fallback prompt found for key: "initial.issue" (step: initial.issue)
+```
+
+#### Available fallbackKey Values
+
+**Initial / Continuation pairs:**
+
+| fallbackKey                                                    | Description                                     |
+| -------------------------------------------------------------- | ----------------------------------------------- |
+| `initial_iterate` / `continuation_iterate`                     | Iteration-based verdict (`count:iteration`)     |
+| `initial_issue` / `continuation_issue`                         | Issue polling verdict (`poll:state`)            |
+| `initial_issue_label_only` / `continuation_issue_label_only`   | Issue label-only variant (`poll:state`)         |
+| `initial_project` / `continuation_project`                     | Project-based verdict                           |
+| `initial_keyword` / `continuation_keyword`                     | Keyword detection verdict (`detect:keyword`)    |
+| `initial_manual` / `continuation_manual`                       | Manual mode (alias for keyword)                 |
+| `initial_structured_signal` / `continuation_structured_signal` | Structured signal verdict (`detect:structured`) |
+
+**Project phase variants:**
+
+| fallbackKey                        | Description               |
+| ---------------------------------- | ------------------------- |
+| `continuation_project_preparation` | Project preparation phase |
+| `continuation_project_processing`  | Project processing phase  |
+| `continuation_project_review`      | Project review phase      |
+
+**Closure and other prompts:**
+
+| fallbackKey                            | Description                     |
+| -------------------------------------- | ------------------------------- |
+| `issue_closure_default`                | Issue completion                |
+| `project_closure_default`              | Project completion              |
+| `polling_closure_default`              | Generic polling completion      |
+| `review_closure_default`               | Review completion               |
+| `iteration_closure_default`            | Iteration budget exhausted      |
+| `facilitation_closure_default`         | Facilitation completion         |
+| `project_continuation_closure_default` | Project continuation completion |
+| `statuscheck_continuation_default`     | Status check continuation       |
+| `system`                               | Default system prompt           |
+
+#### UV Variable Constraints
+
+- breakdown rejects empty-value UV variables (e.g., `--uv-repository=` produces
+  `Empty value not allowed` error)
+- Some verdict types automatically inject UV variables that may be empty (e.g.,
+  `poll:state` injects `repository` which defaults to empty string when not
+  configured)
+- When C3L resolution fails due to empty UV variables, the runner falls back to
+  `fallbackKey`
+- Ensure `fallbackKey` is correctly set to handle this fallback gracefully
 
 ### 14.4.2 Structured Gate
 

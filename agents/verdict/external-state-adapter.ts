@@ -89,7 +89,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
         uv: {
           issue: String(this.config.issueNumber),
           issue_number: String(this.config.issueNumber),
-          repository: this.config.repo ?? "",
+          ...(this.config.repo ? { repository: this.config.repo } : {}),
         },
       })).content;
     }

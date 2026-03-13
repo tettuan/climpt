@@ -21,6 +21,9 @@ import {
 import type { SchemaValidationResult } from "./schema-validator.ts";
 import { validateCrossReferences } from "./registry-validator.ts";
 import type { CrossRefResult } from "./registry-validator.ts";
+import { validatePaths } from "./path-validator.ts";
+import { validateFlowReachability } from "./flow-validator.ts";
+import { validatePrompts } from "./prompt-validator.ts";
 
 // Re-export for convenience
 export { ConfigurationLoadError } from "./loader.ts";
@@ -117,6 +120,9 @@ export interface FullValidationResult {
   agentConfigResult: ValidationResult;
   registrySchemaResult: SchemaValidationResult | null;
   crossRefResult: CrossRefResult | null;
+  pathResult: ValidationResult | null;
+  flowResult: ValidationResult | null;
+  promptResult: ValidationResult | null;
 }
 
 /**
@@ -140,7 +146,7 @@ export async function validateFull(
   const raw = await loadRaw(agentDir);
 
   // 2. Schema validation on agent.json
-  const agentSchemaResult = await validateAgentSchema(raw);
+  const agentSchemaResult = validateAgentSchema(raw);
 
   // 3. Config-level validation (validate + validateComplete)
   const rawValidation = validate(raw);
@@ -157,28 +163,51 @@ export async function validateFull(
   // 4. Steps registry (optional)
   let registrySchemaResult: SchemaValidationResult | null = null;
   let crossRefResult: CrossRefResult | null = null;
+  let registry: Record<string, unknown> | null = null;
 
   try {
-    const registry = await loadStepsRegistry(agentDir);
-    if (registry) {
+    const loaded = await loadStepsRegistry(agentDir);
+    if (loaded) {
+      registry = loaded as Record<string, unknown>;
+
       // 5. Schema validation on registry
-      registrySchemaResult = await validateRegistrySchema(registry);
+      registrySchemaResult = validateRegistrySchema(loaded);
 
       // 6. Cross-reference validation
-      crossRefResult = validateCrossReferences(
-        registry as Record<string, unknown>,
-      );
+      crossRefResult = validateCrossReferences(registry);
     }
-  } catch {
-    // Registry file doesn't exist or can't be parsed - not an error for
-    // agents that don't use step flow.
+  } catch (error: unknown) {
+    if (error instanceof Deno.errors.NotFound) {
+      // Registry file doesn't exist - not an error for agents that don't use step flow.
+    } else {
+      const msg = error instanceof Error ? error.message : String(error);
+      registrySchemaResult = {
+        valid: false,
+        errors: [{
+          path: "steps_registry.json",
+          message: `Failed to load steps_registry.json: ${msg}`,
+        }],
+      };
+    }
   }
+
+  // 5b. Path validation (runs after registry loading so schema file paths can be checked)
+  const pathResult = await validatePaths(definition, agentDir, registry);
+
+  // 6b. Flow reachability validation (only when registry exists)
+  const flowResult = registry ? validateFlowReachability(registry) : null;
+
+  // 6c. Prompt resolution validation (only when registry exists)
+  const promptResult = registry ? validatePrompts(registry) : null;
 
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
     agentConfigResult.valid &&
     (registrySchemaResult?.valid ?? true) &&
-    (crossRefResult?.valid ?? true);
+    (crossRefResult?.valid ?? true) &&
+    pathResult.valid &&
+    (flowResult?.valid ?? true) &&
+    (promptResult?.valid ?? true);
 
   return {
     valid,
@@ -186,5 +215,8 @@ export async function validateFull(
     agentConfigResult,
     registrySchemaResult,
     crossRefResult,
+    pathResult,
+    flowResult,
+    promptResult,
   };
 }
