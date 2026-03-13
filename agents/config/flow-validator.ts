@@ -161,7 +161,8 @@ export function validateFlowReachability(
   const queue: string[] = [...entryPoints];
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (current === undefined) break;
     if (visited.has(current)) continue;
     visited.add(current);
 

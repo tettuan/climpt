@@ -79,7 +79,7 @@ export async function validatePaths(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // 1. runner.flow.systemPromptPath — file must exist
+  // 1. runner.flow.systemPromptPath -- file must exist
   const systemPromptPath = definition.runner?.flow?.systemPromptPath;
   if (typeof systemPromptPath === "string" && systemPromptPath !== "") {
     const resolved = join(agentDir, systemPromptPath);
@@ -90,7 +90,7 @@ export async function validatePaths(
     }
   }
 
-  // 2. runner.flow.prompts.fallbackDir — directory must exist
+  // 2. runner.flow.prompts.fallbackDir -- directory must exist
   const fallbackDir = definition.runner?.flow?.prompts?.fallbackDir;
   if (typeof fallbackDir === "string" && fallbackDir !== "") {
     const resolved = join(agentDir, fallbackDir);
@@ -101,7 +101,7 @@ export async function validatePaths(
     }
   }
 
-  // 3. runner.flow.prompts.registry — file must exist
+  // 3. runner.flow.prompts.registry -- file must exist
   const registryPath = definition.runner?.flow?.prompts?.registry;
   if (typeof registryPath === "string" && registryPath !== "") {
     const resolved = join(agentDir, registryPath);
@@ -116,6 +116,11 @@ export async function validatePaths(
   if (registry) {
     const steps = asRecord(registry.steps);
     if (steps) {
+      const schemaChecks: {
+        stepId: string;
+        schemaFile: string;
+        resolved: string;
+      }[] = [];
       for (const [stepId, stepDef] of Object.entries(steps)) {
         const step = asRecord(stepDef);
         if (!step) continue;
@@ -126,10 +131,21 @@ export async function validatePaths(
         const schemaFile = schemaRef.file;
         if (typeof schemaFile !== "string" || schemaFile === "") continue;
 
-        const resolved = join(agentDir, "schemas", schemaFile);
-        if (!await fileExists(resolved)) {
+        schemaChecks.push({
+          stepId,
+          schemaFile,
+          resolved: join(agentDir, "schemas", schemaFile),
+        });
+      }
+
+      const results = await Promise.all(
+        schemaChecks.map((c) => fileExists(c.resolved)),
+      );
+      for (let i = 0; i < schemaChecks.length; i++) {
+        if (!results[i]) {
+          const c = schemaChecks[i];
           errors.push(
-            `[PATH] Path not found: steps["${stepId}"].outputSchemaRef.file \u2192 "schemas/${schemaFile}" does not exist`,
+            `[PATH] Path not found: steps["${c.stepId}"].outputSchemaRef.file \u2192 "schemas/${c.schemaFile}" does not exist`,
           );
         }
       }
