@@ -24,6 +24,8 @@ import type { CrossRefResult } from "./registry-validator.ts";
 import { validatePaths } from "./path-validator.ts";
 import { validateFlowReachability } from "./flow-validator.ts";
 import { validatePrompts } from "./prompt-validator.ts";
+import { validateUvReachability } from "./uv-reachability-validator.ts";
+import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
 
 // Re-export for convenience
 export { ConfigurationLoadError } from "./loader.ts";
@@ -123,6 +125,8 @@ export interface FullValidationResult {
   pathResult: ValidationResult | null;
   flowResult: ValidationResult | null;
   promptResult: ValidationResult | null;
+  uvReachabilityResult: ValidationResult | null;
+  templateUvResult: ValidationResult | null;
 }
 
 /**
@@ -200,6 +204,16 @@ export async function validateFull(
   // 6c. Prompt resolution validation (only when registry exists)
   const promptResult = registry ? validatePrompts(registry) : null;
 
+  // 6d. UV reachability validation (only when registry exists)
+  const uvReachabilityResult = registry
+    ? validateUvReachability(registry, raw as Record<string, unknown>)
+    : null;
+
+  // 6e. Template UV consistency validation (only when registry exists)
+  const templateUvResult = registry
+    ? await validateTemplateUvConsistency(registry, agentDir, baseDir)
+    : null;
+
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
     agentConfigResult.valid &&
@@ -207,7 +221,9 @@ export async function validateFull(
     (crossRefResult?.valid ?? true) &&
     pathResult.valid &&
     (flowResult?.valid ?? true) &&
-    (promptResult?.valid ?? true);
+    (promptResult?.valid ?? true) &&
+    (uvReachabilityResult?.valid ?? true) &&
+    (templateUvResult?.valid ?? true);
 
   return {
     valid,
@@ -218,5 +234,7 @@ export async function validateFull(
     pathResult,
     flowResult,
     promptResult,
+    uvReachabilityResult,
+    templateUvResult,
   };
 }
