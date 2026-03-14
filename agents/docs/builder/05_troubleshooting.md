@@ -271,6 +271,63 @@ grep -E "(outputSchemaRef|Loaded.*schema|Failed.*schema)" tmp/logs/*.jsonl
 
 ---
 
+## permissionMode の設定ミス
+
+### bypassPermissions で Claude Code がクラッシュする
+
+**症状**
+
+```
+Claude Code process exited with code 1
+```
+
+他の agent（`acceptEdits` を使用）は同じ環境で正常に動作する。
+
+**原因**
+
+`permissionMode: "bypassPermissions"` は Claude Code CLI に
+`--dangerously-skip-permissions` フラグを要求する。このフラグなしでは Claude
+Code が即座に exit code 1 で終了する。
+
+**解決方法**
+
+対話的な開発では `acceptEdits` を使用する:
+
+```json
+{
+  "runner": {
+    "boundaries": {
+      "permissionMode": "acceptEdits"
+    }
+  }
+}
+```
+
+**permissionMode の選択基準**
+
+| モード              | 用途                   | 前提条件                              |
+| ------------------- | ---------------------- | ------------------------------------- |
+| `default`           | 厳格な権限制御         | なし                                  |
+| `plan`              | 計画モード             | なし                                  |
+| `acceptEdits`       | ファイル編集を自動承認 | なし                                  |
+| `bypassPermissions` | 全操作を自動承認       | `--dangerously-skip-permissions` 必須 |
+
+**二次エラーに注意**
+
+この問題が発生すると、以下のエラーが連鎖的に発生する:
+
+```
+Claude Code process exited with code 1
+  → assistantResponses: []
+  → structuredOutput: null
+  → [StepFlow] No intent produced for iteration 2 on step "..."
+```
+
+`No intent produced` はプロセスクラッシュの結果であり、スキーマや intent 設定の
+問題ではない。根本原因（permissionMode）を先に確認すること。
+
+---
+
 ## よくある質問
 
 ### Q: スキーマロードに失敗した場合、エージェントは停止すべきか？
