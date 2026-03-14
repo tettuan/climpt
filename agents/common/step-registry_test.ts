@@ -513,6 +513,42 @@ Deno.test("loadStepRegistry - loads from file", async () => {
   }
 });
 
+Deno.test("loadStepRegistry - normalizes null/undefined step fields", async () => {
+  const tempDir = await Deno.makeTempDir();
+  const registryPath = `${tempDir}/registry.json`;
+  // Simulate JSON with null uvVariables and missing usesStdin
+  const raw = {
+    agentId: "norm-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "cont.issue",
+    steps: {
+      "cont.issue": {
+        stepId: "cont.issue",
+        name: "Continuation",
+        c2: "continuation",
+        c3: "issue",
+        edition: "default",
+        fallbackKey: "cont_issue",
+        uvVariables: null,
+        // usesStdin intentionally omitted
+      },
+    },
+  };
+  await Deno.writeTextFile(registryPath, JSON.stringify(raw));
+
+  try {
+    const loaded = await loadStepRegistry("norm-agent", tempDir, {
+      registryPath,
+    });
+
+    assertEquals(loaded.steps["cont.issue"].uvVariables, []);
+    assertEquals(loaded.steps["cont.issue"].usesStdin, false);
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
 Deno.test("loadStepRegistry - throws on missing file", async () => {
   await assertRejects(
     () => loadStepRegistry("nonexistent", "/nonexistent/path"),

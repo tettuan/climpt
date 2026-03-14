@@ -78,18 +78,18 @@ When complete, output \`{uv-completion_keyword}\`.
 `,
 
     // Issue verdict type
-    initial_issue: `# GitHub Issue #{uv-issue_number}
+    initial_issue: `# GitHub Issue #{uv-issue}
 
-Work on completing the requirements in Issue #{uv-issue_number}.
+Work on completing the requirements in Issue #{uv-issue}.
 
 Review the issue, understand the requirements, and begin implementation.
 
-When all requirements are satisfied, close the issue using \`gh issue close {uv-issue_number}\`.
+When all requirements are satisfied, close the issue using \`gh issue close {uv-issue}\`.
 `,
 
     continuation_issue: `# Continuation (Iteration {uv-iteration})
 
-Continue working on Issue #{uv-issue_number}.
+Continue working on Issue #{uv-issue}.
 
 {uv-previous_summary}
 
@@ -97,10 +97,9 @@ When all requirements are satisfied, close the issue.
 `,
 
     // Issue verdict type - label-only variant
-    initial_issue_label_only:
-      `# GitHub Issue #{uv-issue_number} (Label-Only Phase)
+    initial_issue_label_only: `# GitHub Issue #{uv-issue} (Label-Only Phase)
 
-Work on completing your assigned phase for Issue #{uv-issue_number}.
+Work on completing your assigned phase for Issue #{uv-issue}.
 
 Review the issue, understand the requirements, and begin your phase of implementation.
 
@@ -108,9 +107,9 @@ When your phase is complete, update labels via Boundary Hook. Do NOT close this 
 `,
 
     continuation_issue_label_only:
-      `# Continuation - Issue #{uv-issue_number} (Iteration {uv-iteration})
+      `# Continuation - Issue #{uv-issue} (Iteration {uv-iteration})
 
-Continue working on your phase for Issue #{uv-issue_number}.
+Continue working on your phase for Issue #{uv-issue}.
 
 {uv-previous_summary}
 
@@ -174,7 +173,7 @@ When ready, indicate "Phase: complete" to finish.
     // Closure templates (terminal step validation)
     polling_closure_default: `# Closure Validation
 
-Validate that the work on Issue #{uv-issue_number} is complete.
+Validate that the work on Issue #{uv-issue} is complete.
 
 ## Checks
 - All changes are committed (git status is clean)
@@ -188,7 +187,7 @@ Respond with a JSON object:
 
     issue_closure_default: `# Issue Closure Validation
 
-Validate that all work on Issue #{uv-issue_number} is complete and ready to close.
+Validate that all work on Issue #{uv-issue} is complete and ready to close.
 
 ## Checks
 - Changes committed and pushed

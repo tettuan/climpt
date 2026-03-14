@@ -5,7 +5,7 @@ description: Re-request prompt when output format is incorrect
 uvVariables:
   - expected_format
   - error_message
-  - issue_number
+  - issue
 ---
 
 # Format Error - Please Retry
@@ -23,7 +23,7 @@ Please output in the following format:
 ```issue-action
 {
   "action": "close",
-  "issue": {uv-issue_number},
+  "issue": {uv-issue},
   "body": "## Resolution\n\n- Summary of changes\n- Verification method\n- Git status: clean"
 }
 ```
@@ -33,7 +33,7 @@ Please output in the following format:
 1. Use the `issue-action` code block format (triple backticks with `issue-action` language identifier)
 2. Include all required fields:
    - `action`: must be "close"
-   - `issue`: must be the issue number ({uv-issue_number})
+   - `issue`: must be the issue number ({uv-issue})
    - `body`: resolution summary
 
 **Important**: Output ONLY the structured signal above. No additional explanation needed.

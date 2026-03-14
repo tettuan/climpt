@@ -260,12 +260,26 @@ Deno.test({
     try {
       const result = await install({
         output: tempDir,
-        mode: "flatten",
+        mode: "preserve",
         category: "guides",
       });
 
-      // Should only install guides
-      assert(result.installed.length > 0, "Should install files");
+      assert(result.installed.length > 0, "Should install at least one file");
+
+      // Verify every installed path belongs to the "guides" category
+      // by cross-referencing with list() entries for the same version
+      const listing = await list(result.version, "guides");
+      const guidePaths = listing.entries.map((e) => e.path);
+
+      for (const installedPath of result.installed) {
+        const matchesGuide = guidePaths.some((gp) =>
+          installedPath.includes(gp)
+        ) || installedPath.includes("guides");
+        assert(
+          matchesGuide,
+          `Installed path should belong to guides category: ${installedPath}`,
+        );
+      }
     } finally {
       await cleanupTempDir(tempDir);
     }
@@ -280,15 +294,32 @@ Deno.test({
     try {
       const result = await install({
         output: tempDir,
-        mode: "flatten",
+        mode: "preserve",
         lang: "ja",
       });
 
-      // Should install only ja or no-lang files
-      // We just verify the install completed successfully
+      // Cross-reference with list() to get the expected ja entries
+      const listing = await list(result.version, undefined, "ja");
+      const jaEntryPaths = listing.entries.map((e) => e.path);
+
+      if (result.installed.length > 0) {
+        // Every installed path must correspond to a ja (or no-lang) entry
+        for (const installedPath of result.installed) {
+          const matchesJa = jaEntryPaths.some((jp) =>
+            installedPath.includes(jp)
+          ) || installedPath.includes("/ja/");
+          assert(
+            matchesJa,
+            `Installed path should be a ja entry: ${installedPath}`,
+          );
+        }
+      }
+
+      // Verify no non-ja entries leaked through:
+      // installed count should not exceed the ja-filtered entry count
       assert(
-        result.installed.length >= 0,
-        "Install should complete (may be 0 if no ja docs)",
+        result.installed.length <= jaEntryPaths.length,
+        `Installed count (${result.installed.length}) should not exceed ja entries (${jaEntryPaths.length})`,
       );
     } finally {
       await cleanupTempDir(tempDir);
@@ -337,20 +368,21 @@ Deno.test({
         category: "guides",
       });
 
-      if (result.installed.length > 0) {
-        // In preserve mode, at least one file should have a subdirectory
-        const hasSubdir = result.installed.some((path) => {
-          const relativePath = path.substring(tempDir.length + 1);
-          return relativePath.includes("/");
-        });
+      assert(
+        result.installed.length > 0,
+        "Should install at least one file (no files installed; cannot verify preserve mode)",
+      );
 
-        // If there are files, at least some should preserve directory structure
-        // (this may not always be true if all files are at root level)
-        assert(
-          typeof hasSubdir === "boolean",
-          "Should check for subdirectories",
-        );
-      }
+      // In preserve mode (the default), at least one file should have a subdirectory
+      const hasSubdir = result.installed.some((path) => {
+        const relativePath = path.substring(tempDir.length + 1);
+        return relativePath.includes("/");
+      });
+
+      assert(
+        hasSubdir,
+        "Default mode should be preserve: at least one installed path must contain a subdirectory",
+      );
     } finally {
       await cleanupTempDir(tempDir);
     }

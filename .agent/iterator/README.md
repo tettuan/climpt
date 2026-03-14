@@ -80,7 +80,7 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
 
 | 変数 | モード | 用途 |
 |-----|--------|------|
-| `{uv-issue_number}` | Issue | GitHub Issue 番号 |
+| `{uv-issue}` | Issue | GitHub Issue 番号 |
 | `{uv-project_number}` | Project | GitHub Project 番号 |
 | `{uv-project_title}` | Project | プロジェクト名 |
 | `{uv-label_info}` | Project | ラベル情報 |
@@ -168,7 +168,7 @@ stepId: initial.issue
 name: Custom Issue Prompt
 ---
 
-## Issue #{uv-issue_number} の処理
+## Issue #{uv-issue} の処理
 
 {issue_content}
 

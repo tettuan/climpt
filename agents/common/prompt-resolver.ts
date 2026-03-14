@@ -98,7 +98,7 @@ export interface PromptResolverOptions {
  * ```typescript
  * const resolver = new PromptResolver(registry, fallbackProvider, { configSuffix: "steps" });
  * const result = await resolver.resolve("initial.issue", {
- *   uv: { issue_number: "123", repository: "owner/repo" }
+ *   uv: { issue: "123", repository: "owner/repo" }
  * });
  * console.log(result.content);
  * ```
@@ -171,6 +171,14 @@ export class PromptResolver {
       return breakdownResult;
     }
 
+    // Breakdown failed -- warn before falling back
+    const c3lPath = this.buildC3LPath(effectiveStep);
+    const c3lPathStr = this.formatC3LPath(c3lPath);
+    // deno-lint-ignore no-console
+    console.warn(
+      `[Prompt] Fallback: User file not found for "${effectiveStep.stepId}" (tried: ${c3lPathStr}), using fallback prompt (key: "${effectiveStep.fallbackKey}")`,
+    );
+
     // Fall back to embedded prompt
     return this.useFallback(effectiveStep, variables);
   }
@@ -241,6 +249,11 @@ export class PromptResolver {
       );
     }
 
+    // deno-lint-ignore no-console
+    console.warn(
+      `[Prompt] Fallback content for "${step.stepId}": ${rawContent.length} chars (key: "${step.fallbackKey}")`,
+    );
+
     const content = this.processContent(rawContent, step, variables);
 
     return {
@@ -301,7 +314,12 @@ export class PromptResolver {
         const key = uvName.startsWith("uv-") ? uvName.slice(3) : uvName;
         if (!variables.uv?.[key]) {
           throw new Error(
-            `Missing required UV variable "${uvName}" for step "${step.stepId}"`,
+            `Missing required UV variable "${uvName}" for step "${step.stepId}".` +
+              ` Check: (1) "${uvName}" exists in agent.json parameters,` +
+              ` (2) uvVariables in steps_registry.json includes "${uvName}".` +
+              ` If step was derived via prefix substitution` +
+              ` (initial.* -> continuation.*),` +
+              ` ensure both steps declare the same uvVariables.`,
           );
         }
       }
@@ -376,6 +394,17 @@ export class PromptResolver {
       ? `f_${edition}_${step.adaptation}.md`
       : `f_${edition}.md`;
     return `${this.registry.c1}/${step.c2}/${step.c3}/${filename}`;
+  }
+
+  /**
+   * Format C3L path as a human-readable string for log messages
+   */
+  private formatC3LPath(path: C3LPath): string {
+    const edition = path.edition ?? "default";
+    const filename = path.adaptation
+      ? `f_${edition}_${path.adaptation}.md`
+      : `f_${edition}.md`;
+    return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
   }
 
   /**

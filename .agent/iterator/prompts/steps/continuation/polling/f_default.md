@@ -3,7 +3,7 @@ stepId: continuation.polling
 name: External State Continuation Prompt
 description: Continuation prompt for external state completion
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - summary_section
 ---
@@ -15,7 +15,7 @@ When complete, add the `done` label to hand off to the Reviewer Agent.
 
 ---
 
-You are continuing work on Issue #{uv-issue_number}.
+You are continuing work on Issue #{uv-issue}.
 
 {summary_section}
 
@@ -83,7 +83,7 @@ in markdown code blocks.
 ### Report Progress
 
 ```issue-action
-{"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
+{"action":"progress","issue":{uv-issue},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
 ```
 
 ## Boundary Actions (NOT Allowed)

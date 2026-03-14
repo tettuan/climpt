@@ -187,6 +187,30 @@ net.
 > This is why `poll:state` agents fail when `fallbackKey` is wrong, while
 > `count:iteration` agents (Path A only, no UV injection) are unaffected.
 
+### 11.3.6 Step ID Prefix Substitution
+
+When using `count:iteration` verdict type, the runner automatically substitutes
+step ID prefixes:
+
+- `initial.*` steps are used for the first iteration
+- For subsequent iterations, `initial.X` is automatically routed to
+  `continuation.X`
+
+This substitution occurs in two places:
+
+1. **Default transition** (workflow-router): When no explicit transition is
+   configured, `initial.X` defaults to `continuation.X`
+2. **Verdict handler** (iteration-budget): The verdict handler resolves
+   `initial.X` entry steps to `continuation.X` for re-entry
+
+**Important implications:**
+
+- Both `initial.X` and `continuation.X` must exist in `steps_registry.json`
+- Both steps should declare the same `uvVariables` (CLI parameters are available
+  to both)
+- Renaming or deleting `continuation.X` will cause runtime errors
+- The `--validate` flag checks for UV variable consistency between paired steps
+
 ---
 
 ## 11.4 runner.boundaries

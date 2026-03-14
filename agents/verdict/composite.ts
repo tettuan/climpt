@@ -38,6 +38,7 @@ export interface CompositeCondition {
 export class CompositeVerdictHandler extends BaseVerdictHandler {
   readonly type = "meta:composite" as const;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private handlers: VerdictHandler[] = [];
   private completedConditionIndex?: number;
 
@@ -134,6 +135,17 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
   }
 
   /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   * Forwards to all sub-handlers.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+    for (const handler of this.handlers) {
+      handler.setUvVariables?.(uv);
+    }
+  }
+
+  /**
    * Set prompt resolver for all sub-handlers
    */
   setPromptResolver(resolver: PromptResolver): void {
@@ -155,6 +167,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve("initial.composite", {
         uv: {
+          ...this.uvVariables,
           operator: this.operator,
           conditions_count: String(this.conditions.length),
         },

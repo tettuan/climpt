@@ -71,7 +71,7 @@ export class ClosureAdapter {
       // fall back to minimal dict from CLI args for backward compat
       const uv: Record<string, string> = uvVariables ? { ...uvVariables } : {
         ...(this.deps.args.issue !== undefined && {
-          issue_number: String(this.deps.args.issue),
+          issue: String(this.deps.args.issue),
         }),
       };
 

@@ -3,12 +3,12 @@ stepId: closure.polling
 name: External State Closure Prompt (Close)
 description: Terminal step for external state closure - closes the issue
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - summary_section
 ---
 
-# External State Closure: Issue #{uv-issue_number}
+# External State Closure: Issue #{uv-issue}
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -49,7 +49,7 @@ If any of the above are not satisfied:
 
 ### Closure Action
 
-This step will **close** Issue #{uv-issue_number}.
+This step will **close** Issue #{uv-issue}.
 
 ### Closure Report
 
@@ -71,7 +71,7 @@ When all conditions are met, report in structured output:
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
 - Apply label changes based on config (`github.labels.completion`)
-- Close Issue #{uv-issue_number}
+- Close Issue #{uv-issue}
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

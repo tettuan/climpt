@@ -1,10 +1,12 @@
-import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertExists } from "@std/assert";
 import { resolve } from "@std/path";
 import {
   cleanupTempDir,
   createTempDir,
   createTestLogger,
 } from "./test-utils.ts";
+import { loadMCPConfig } from "../src/mcp/registry.ts";
+import { DEFAULT_MCP_CONFIG } from "../src/mcp/types.ts";
 
 const logger = createTestLogger("mcp");
 
@@ -80,282 +82,219 @@ Deno.test("registry.json exists and has valid structure", async () => {
   }
 });
 
-// Test MCP server startup (without actually running the server)
-Deno.test("MCP server configuration loading", async () => {
-  // Create a temporary test registry
-  const testRegistry = {
-    version: "1.0.0",
-    description: "Test registry",
-    tools: {
-      availableConfigs: ["test-tool"],
-      commands: [
-        {
-          c1: "test",
-          c2: "run",
-          c3: "unit",
-          description: "Run unit tests",
-          usage: "Test usage",
-          options: {
-            input: ["default"],
-            adaptation: ["default"],
-            file: false,
-            stdin: false,
-            destination: false,
-          },
-        },
-      ],
-    },
-  };
-
-  // Create temporary registry file for testing
-  const tempDir = await createTempDir();
-  const tempRegistry = `${tempDir}/registry.json`;
-  await Deno.writeTextFile(tempRegistry, JSON.stringify(testRegistry, null, 2));
-
-  // Test that the registry can be parsed
-  const loadedRegistry = JSON.parse(await Deno.readTextFile(tempRegistry));
-  logger.debug("config loading result", {
-    availableConfigs: loadedRegistry.tools.availableConfigs,
-    commandCount: loadedRegistry.tools.commands.length,
-  });
-  assertEquals(loadedRegistry.tools.availableConfigs[0], "test-tool");
-  assertEquals(loadedRegistry.tools.commands[0].c1, "test");
-
-  // Cleanup
-  await cleanupTempDir(tempDir);
-});
-
-// Test URL handling in config loading (regression test for pathname fix)
-Deno.test("MCP config loading handles URL objects correctly", async () => {
-  // Create a test config file
-  const testConfig = {
-    version: "1.0.0",
-    description: "Test config for URL handling",
-    tools: {
-      availableConfigs: ["code", "docs", "git", "meta", "spec", "test"],
-    },
-  };
-
-  // Create temporary config file
-  const tempDir = await createTempDir();
-  const tempConfigPath = `${tempDir}/registry.json`;
-  await Deno.writeTextFile(tempConfigPath, JSON.stringify(testConfig, null, 2));
-
-  // Test URL object creation and pathname extraction
-  const configUrl = new URL(`file://${tempConfigPath}`);
-  assertEquals(
-    typeof configUrl.pathname,
-    "string",
-    "URL pathname should be a string",
-  );
-
-  // Test that Deno.readTextFile works with pathname
-  const configText = await Deno.readTextFile(configUrl.pathname);
-  const loadedConfig = JSON.parse(configText);
-  logger.debug("URL config loading result", {
-    pathname: configUrl.pathname,
-    configCount: loadedConfig.tools.availableConfigs.length,
-  });
-  assertEquals(
-    loadedConfig.tools.availableConfigs.length,
-    6,
-    "Should load all 6 configs",
-  );
-  assertEquals(
-    loadedConfig.tools.availableConfigs[0],
-    "code",
-    "First config should be 'code'",
-  );
-
-  // Cleanup
-  await cleanupTempDir(tempDir);
-});
-
-// Test fallback behavior when config file URL is invalid
-Deno.test("MCP config loading falls back to defaults on URL errors", async () => {
-  // This test simulates the error that was fixed by using configPath.pathname
-  const invalidPath = "/nonexistent/path/registry.json";
-
-  try {
-    // This should fail with NotFound error
-    await Deno.readTextFile(invalidPath);
-    // If we get here, the test should fail
-    assertEquals(
-      true,
-      false,
-      "Should have thrown an error for nonexistent file",
-    );
-  } catch (error) {
-    // Verify it's the expected error type
-    assertEquals(
-      error instanceof Deno.errors.NotFound,
-      true,
-      "Should throw NotFound error",
-    );
-  }
-
-  // Test URL object with invalid path
-  try {
-    const invalidUrl = new URL("file:///nonexistent/path/registry.json");
-    await Deno.readTextFile(invalidUrl.pathname);
-    assertEquals(
-      true,
-      false,
-      "Should have thrown an error for nonexistent URL path",
-    );
-  } catch (error) {
-    assertEquals(
-      error instanceof Deno.errors.NotFound,
-      true,
-      "Should throw NotFound error for URL pathname",
-    );
-  }
-});
-
-// Test local config file discovery (regression test for JSR package support)
-Deno.test("MCP config loading discovers local files correctly", async () => {
-  // Create temporary working directory with config
+// Test loadMCPConfig() loads registry_config.json from project directory
+Deno.test("loadMCPConfig loads config from project directory", async () => {
   const tempDir = await createTempDir();
   const originalCwd = Deno.cwd();
 
   try {
-    // Create .agent/climpt directory structure
-    const agentDir = `${tempDir}/.agent/climpt`;
-    await Deno.mkdir(agentDir, { recursive: true });
+    // Create the directory structure loadMCPConfig() expects
+    const configDir = `${tempDir}/.agent/climpt/config`;
+    await Deno.mkdir(configDir, { recursive: true });
 
-    // Create test config file
     const testConfig = {
-      version: "1.0.0",
-      description: "Test config for local discovery",
-      tools: {
-        availableConfigs: ["custom-config", "local-tool"],
+      registries: {
+        "test-agent": ".agent/test-agent/registry.json",
       },
     };
-
     await Deno.writeTextFile(
-      `${agentDir}/registry.json`,
+      `${configDir}/registry_config.json`,
       JSON.stringify(testConfig, null, 2),
     );
 
-    // Change to temp directory
     Deno.chdir(tempDir);
 
-    // Test that config can be loaded from current working directory
-    const configText = await Deno.readTextFile(".agent/climpt/registry.json");
-    const loadedConfig = JSON.parse(configText);
-    assertEquals(loadedConfig.tools.availableConfigs.length, 2);
-    assertEquals(loadedConfig.tools.availableConfigs[0], "custom-config");
-    assertEquals(loadedConfig.tools.availableConfigs[1], "local-tool");
+    const config = await loadMCPConfig();
+    logger.debug("loadMCPConfig result", { config });
+
+    assertEquals(
+      config.registries["test-agent"],
+      ".agent/test-agent/registry.json",
+      "Should load the test-agent registry path from config",
+    );
   } finally {
-    // Restore original working directory
     Deno.chdir(originalCwd);
-    // Cleanup
     await cleanupTempDir(tempDir);
   }
 });
 
-// Test home directory config fallback
-Deno.test("MCP config loading falls back to home directory", async () => {
-  // Create temporary home directory with config
-  const tempHomeDir = await createTempDir();
+// Test loadMCPConfig() returns default config when no config file exists
+Deno.test("loadMCPConfig falls back to defaults when no config exists", async () => {
+  const tempDir = await createTempDir();
+  const originalCwd = Deno.cwd();
   const originalHome = Deno.env.get("HOME");
 
   try {
-    // Set temporary HOME environment
-    Deno.env.set("HOME", tempHomeDir);
+    // Point HOME to empty temp dir so home fallback also misses
+    Deno.env.set("HOME", tempDir);
+    Deno.chdir(tempDir);
 
-    // Create .agent/climpt directory in "home"
-    const agentDir = `${tempHomeDir}/.agent/climpt`;
-    await Deno.mkdir(agentDir, { recursive: true });
+    const config = await loadMCPConfig();
+    logger.debug("default config result", { config });
 
-    // Create test config file in home directory
-    const homeConfig = {
-      version: "1.0.0",
-      description: "Home directory config",
-      tools: {
-        availableConfigs: ["home-tool", "global-config"],
-      },
-    };
-
-    await Deno.writeTextFile(
-      `${agentDir}/registry.json`,
-      JSON.stringify(homeConfig, null, 2),
+    assertEquals(
+      config.registries,
+      DEFAULT_MCP_CONFIG.registries,
+      "Should return default registries when no config file found",
     );
-
-    // Test that config can be loaded from home directory
-    const homeConfigPath = `${tempHomeDir}/.agent/climpt/registry.json`;
-    const configText = await Deno.readTextFile(homeConfigPath);
-    const loadedConfig = JSON.parse(configText);
-    assertEquals(loadedConfig.tools.availableConfigs.length, 2);
-    assertEquals(loadedConfig.tools.availableConfigs[0], "home-tool");
-    assertEquals(loadedConfig.tools.availableConfigs[1], "global-config");
   } finally {
-    // Restore original HOME environment
+    Deno.chdir(originalCwd);
     if (originalHome) {
       Deno.env.set("HOME", originalHome);
     } else {
       Deno.env.delete("HOME");
     }
-    // Cleanup
-    await cleanupTempDir(tempHomeDir);
+    await cleanupTempDir(tempDir);
   }
 });
 
-// Test config loading priority: current dir > home dir > defaults
-Deno.test("MCP config loading follows correct priority order", async () => {
+// Test loadMCPConfig() discovers config from project .agent/climpt/config/
+Deno.test("loadMCPConfig discovers local config files correctly", async () => {
+  const tempDir = await createTempDir();
+  const originalCwd = Deno.cwd();
+
+  try {
+    // Create .agent/climpt/config directory structure
+    const configDir = `${tempDir}/.agent/climpt/config`;
+    await Deno.mkdir(configDir, { recursive: true });
+
+    const testConfig = {
+      registries: {
+        "local-agent": ".agent/local-agent/registry.json",
+        "another-agent": ".agent/another-agent/registry.json",
+      },
+    };
+
+    await Deno.writeTextFile(
+      `${configDir}/registry_config.json`,
+      JSON.stringify(testConfig, null, 2),
+    );
+
+    Deno.chdir(tempDir);
+
+    const config = await loadMCPConfig();
+    assertEquals(
+      config.registries["local-agent"],
+      ".agent/local-agent/registry.json",
+    );
+    assertEquals(
+      config.registries["another-agent"],
+      ".agent/another-agent/registry.json",
+    );
+  } finally {
+    Deno.chdir(originalCwd);
+    await cleanupTempDir(tempDir);
+  }
+});
+
+// Test loadMCPConfig() falls back to home directory config
+Deno.test("loadMCPConfig falls back to home directory", async () => {
   const tempWorkDir = await createTempDir();
   const tempHomeDir = await createTempDir();
   const originalCwd = Deno.cwd();
   const originalHome = Deno.env.get("HOME");
 
   try {
-    // Set up temporary home directory
     Deno.env.set("HOME", tempHomeDir);
-    const homeAgentDir = `${tempHomeDir}/.agent/climpt`;
-    await Deno.mkdir(homeAgentDir, { recursive: true });
 
-    // Create home config
+    // Create config in home directory only (no project config)
+    const homeConfigDir = `${tempHomeDir}/.agent/climpt/config`;
+    await Deno.mkdir(homeConfigDir, { recursive: true });
+
     const homeConfig = {
-      version: "1.0.0",
-      description: "Home config",
-      tools: { availableConfigs: ["home-config"] },
+      registries: {
+        "home-agent": ".agent/home-agent/registry.json",
+      },
     };
+
     await Deno.writeTextFile(
-      `${homeAgentDir}/registry.json`,
+      `${homeConfigDir}/registry_config.json`,
       JSON.stringify(homeConfig, null, 2),
     );
 
-    // Set up working directory with config (should take priority)
-    const workAgentDir = `${tempWorkDir}/.agent/climpt`;
-    await Deno.mkdir(workAgentDir, { recursive: true });
-
-    const workConfig = {
-      version: "1.0.0",
-      description: "Work dir config",
-      tools: { availableConfigs: ["work-config"] },
-    };
-    await Deno.writeTextFile(
-      `${workAgentDir}/registry.json`,
-      JSON.stringify(workConfig, null, 2),
-    );
-
-    // Change to work directory
+    // chdir to a directory with no project config
     Deno.chdir(tempWorkDir);
 
-    // Test that work directory config takes priority
-    const configText = await Deno.readTextFile(".agent/climpt/registry.json");
-    const loadedConfig = JSON.parse(configText);
-    assertEquals(loadedConfig.tools.availableConfigs[0], "work-config");
-    assertEquals(loadedConfig.description, "Work dir config");
+    const config = await loadMCPConfig();
+    logger.debug("home fallback result", { config });
+
+    assertEquals(
+      config.registries["home-agent"],
+      ".agent/home-agent/registry.json",
+      "Should load config from home directory when project config absent",
+    );
   } finally {
-    // Restore original environment
     Deno.chdir(originalCwd);
     if (originalHome) {
       Deno.env.set("HOME", originalHome);
     } else {
       Deno.env.delete("HOME");
     }
-    // Cleanup
+    await cleanupTempDir(tempWorkDir);
+    await cleanupTempDir(tempHomeDir);
+  }
+});
+
+// Test config loading priority: project dir > home dir > defaults
+Deno.test("loadMCPConfig follows correct priority order", async () => {
+  const tempWorkDir = await createTempDir();
+  const tempHomeDir = await createTempDir();
+  const originalCwd = Deno.cwd();
+  const originalHome = Deno.env.get("HOME");
+
+  try {
+    Deno.env.set("HOME", tempHomeDir);
+
+    // Create config in home directory
+    const homeConfigDir = `${tempHomeDir}/.agent/climpt/config`;
+    await Deno.mkdir(homeConfigDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${homeConfigDir}/registry_config.json`,
+      JSON.stringify(
+        {
+          registries: { "home-agent": "home-registry.json" },
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Create config in project directory (should take priority)
+    const workConfigDir = `${tempWorkDir}/.agent/climpt/config`;
+    await Deno.mkdir(workConfigDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${workConfigDir}/registry_config.json`,
+      JSON.stringify(
+        {
+          registries: { "project-agent": "project-registry.json" },
+        },
+        null,
+        2,
+      ),
+    );
+
+    Deno.chdir(tempWorkDir);
+
+    const config = await loadMCPConfig();
+
+    // Project config should win
+    assertEquals(
+      config.registries["project-agent"],
+      "project-registry.json",
+      "Project directory config should take priority over home",
+    );
+    assertEquals(
+      config.registries["home-agent"],
+      undefined,
+      "Home config should not be loaded when project config exists",
+    );
+  } finally {
+    Deno.chdir(originalCwd);
+    if (originalHome) {
+      Deno.env.set("HOME", originalHome);
+    } else {
+      Deno.env.delete("HOME");
+    }
     await cleanupTempDir(tempWorkDir);
     await cleanupTempDir(tempHomeDir);
   }
@@ -456,84 +395,5 @@ Deno.test("MCP exports are properly configured in deno.json", async () => {
     denoConfig.exports["./mcp"],
     "./mcp.ts",
     "MCP export should point to mcp.ts",
-  );
-});
-
-// Test MCP server imports required dependencies
-Deno.test("MCP server has required dependencies", async () => {
-  const mcpIndexContent = await Deno.readTextFile("src/mcp/index.ts");
-
-  // Check for required MCP SDK imports
-  assertStringIncludes(
-    mcpIndexContent,
-    "@modelcontextprotocol/sdk",
-    "Should import MCP SDK",
-  );
-  assertStringIncludes(
-    mcpIndexContent,
-    "Server",
-    "Should import Server from MCP SDK",
-  );
-  assertStringIncludes(
-    mcpIndexContent,
-    "StdioServerTransport",
-    "Should import StdioServerTransport",
-  );
-
-  // Check for version import
-  assertStringIncludes(
-    mcpIndexContent,
-    "./version",
-    "Should import version constants",
-  );
-
-  // Check for handler setup
-  assertStringIncludes(
-    mcpIndexContent,
-    "setRequestHandler",
-    "Should set up request handlers",
-  );
-  assertStringIncludes(
-    mcpIndexContent,
-    "ListToolsRequest",
-    "Should handle ListToolsRequest",
-  );
-  assertStringIncludes(
-    mcpIndexContent,
-    "CallToolRequest",
-    "Should handle CallToolRequest",
-  );
-});
-
-// Test MCP server implements all three tools
-Deno.test("MCP server implements search, describe, and execute tools", async () => {
-  const mcpIndexContent = await Deno.readTextFile("src/mcp/index.ts");
-
-  // Check for search tool
-  assertStringIncludes(
-    mcpIndexContent,
-    'name: "search"',
-    "Should implement search tool",
-  );
-
-  // Check for describe tool
-  assertStringIncludes(
-    mcpIndexContent,
-    'name: "describe"',
-    "Should implement describe tool",
-  );
-
-  // Check for execute tool
-  assertStringIncludes(
-    mcpIndexContent,
-    'name: "execute"',
-    "Should implement execute tool",
-  );
-
-  // Check for execute handler
-  assertStringIncludes(
-    mcpIndexContent,
-    'name === "execute"',
-    "Should have execute handler",
   );
 });

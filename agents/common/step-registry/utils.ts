@@ -109,7 +109,7 @@ export function createEmptyRegistry(
  *   c3: "issue",
  *   edition: "default",
  *   fallbackKey: "initial_issue",
- *   uvVariables: ["issue_number"],
+ *   uvVariables: ["issue"],
  *   usesStdin: false
  * });
  * ```

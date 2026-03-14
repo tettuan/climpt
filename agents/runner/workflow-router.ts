@@ -44,12 +44,23 @@ import { RoutingError } from "../shared/errors/flow-errors.ts";
 export { RoutingError };
 
 /**
+ * Minimal logger interface for WorkflowRouter.
+ * Accepts the RuntimeContext logger or any object with an info() method.
+ */
+export interface WorkflowRouterLogger {
+  info(message: string, data?: Record<string, unknown>): void;
+}
+
+/**
  * WorkflowRouter resolves next step from intent and transitions config.
  *
  * Follows the declarative transitions mapping with sensible defaults.
  */
 export class WorkflowRouter {
-  constructor(private readonly registry: StepRegistry) {}
+  constructor(
+    private readonly registry: StepRegistry,
+    private readonly logger?: WorkflowRouterLogger,
+  ) {}
 
   /**
    * Route to next step based on interpretation.
@@ -278,6 +289,9 @@ export class WorkflowRouter {
         parts.slice(1).join(".")
       }`;
       if (this.validateStepExists(continuationStep)) {
+        this.logger?.info(
+          `[StepFlow] Prefix substitution: ${currentStepId} -> ${continuationStep} (default transition)`,
+        );
         return {
           nextStepId: continuationStep,
           signalClosing: false,

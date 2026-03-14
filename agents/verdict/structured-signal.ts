@@ -19,6 +19,7 @@ const INCOMPLETE = false;
 export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
   readonly type = "detect:structured" as const;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private lastSummary?: IterationSummary;
   private readonly stepIds: VerdictStepIds;
 
@@ -41,6 +42,13 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
     this.promptResolver = resolver;
   }
 
+  /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+  }
+
   async buildInitialPrompt(): Promise<string> {
     const requiredFieldsDesc = this.requiredFields
       ? `\n\nRequired fields in the signal:\n${
@@ -53,6 +61,7 @@ export class StructuredSignalVerdictHandler extends BaseVerdictHandler {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
         uv: {
+          ...this.uvVariables,
           signal_type: this.signalType,
           required_fields: JSON.stringify(this.requiredFields ?? {}),
         },
@@ -106,6 +115,7 @@ ${requiredFieldsDesc}
         this.stepIds.continuation,
         {
           uv: {
+            ...this.uvVariables,
             iteration: String(completedIterations),
             signal_type: this.signalType,
             required_fields: JSON.stringify(this.requiredFields ?? {}),

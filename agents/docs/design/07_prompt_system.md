@@ -66,7 +66,7 @@ prompts/steps/continuation/manual/f_detailed.md
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
-      "variables": ["uv-issue_number"]
+      "variables": ["uv-issue"]
     },
     "continuation_issue": {
       "name": "Issue 継続プロンプト",
@@ -74,7 +74,7 @@ prompts/steps/continuation/manual/f_detailed.md
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
-      "variables": ["uv-iteration", "uv-issue_number"]
+      "variables": ["uv-iteration", "uv-issue"]
     }
   }
 }
@@ -88,7 +88,7 @@ User Variable。プロンプト内で `{uv-xxx}` で参照。
 | ------------------------ | ---------------- |
 | `uv-agent_name`          | Agent 識別子     |
 | `uv-completion_criteria` | 完了条件テキスト |
-| `uv-issue_number`        | Issue 番号       |
+| `uv-issue`               | Issue 番号       |
 | `uv-iteration`           | 現在の回数       |
 | `uv-max_iterations`      | 最大回数         |
 | `uv-completion_keyword`  | 完了キーワード   |
@@ -114,7 +114,7 @@ User Variable。プロンプト内で `{uv-xxx}` で参照。
 ### initial/issue/f_default.md
 
 ```markdown
-# Issue #{uv-issue_number} 対応開始
+# Issue #{uv-issue} 対応開始
 
 Issue の内容を確認し、作業を開始してください。 完了したら Issue
 をクローズしてください。

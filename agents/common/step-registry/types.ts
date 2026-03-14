@@ -90,7 +90,7 @@ export interface PromptStepDefinition {
 
   /**
    * List of UV (user variable) names required by this prompt
-   * Example: ["issue_number", "repository"]
+   * Example: ["issue", "repository"]
    */
   uvVariables: string[];
 
