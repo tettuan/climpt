@@ -14,6 +14,7 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "count:iteration" as const;
   private currentIteration = 0;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private readonly stepIds: VerdictStepIds;
 
   constructor(
@@ -35,6 +36,13 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   }
 
   /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+  }
+
+  /**
    * Set current iteration (called by runner)
    */
   setCurrentIteration(iteration: number): void {
@@ -44,7 +52,7 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
-        uv: { max_iterations: String(this.maxIterations) },
+        uv: { ...this.uvVariables, max_iterations: String(this.maxIterations) },
       })).content;
     }
 
@@ -85,6 +93,7 @@ Work efficiently to complete your goal within the iteration limit.
         : "";
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
+          ...this.uvVariables,
           iteration: String(completedIterations),
           max_iterations: String(this.maxIterations),
           remaining: String(remaining),

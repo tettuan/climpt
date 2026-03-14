@@ -51,6 +51,16 @@ export async function loadStepRegistry(
       );
     }
 
+    // Normalize step fields: default null/undefined to type-safe values
+    for (const step of Object.values(registry.steps)) {
+      if (!Array.isArray(step.uvVariables)) {
+        step.uvVariables = [];
+      }
+      if (typeof step.usesStdin !== "boolean") {
+        step.usesStdin = false;
+      }
+    }
+
     // Always validate stepKind/allowedIntents consistency (fail fast)
     validateStepKindIntents(registry);
 

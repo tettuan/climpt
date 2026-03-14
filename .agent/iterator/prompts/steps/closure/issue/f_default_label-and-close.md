@@ -3,13 +3,13 @@ stepId: closure.issue
 name: Issue Closure Prompt (Label and Close)
 description: Terminal step for issue completion - labels then closes
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - summary_section
 adaptation: label-and-close
 ---
 
-# Issue Closure: Issue #{uv-issue_number} (Label and Close)
+# Issue Closure: Issue #{uv-issue} (Label and Close)
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -53,7 +53,7 @@ If any of the above are not satisfied:
 
 ### Closure Action
 
-This step will **change labels and then close** Issue #{uv-issue_number}.
+This step will **change labels and then close** Issue #{uv-issue}.
 
 ### Closure Report
 
@@ -77,7 +77,7 @@ When all conditions are met, report in structured output:
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
 - Apply label changes based on config (`github.labels.completion`)
-- Close Issue #{uv-issue_number}
+- Close Issue #{uv-issue}
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

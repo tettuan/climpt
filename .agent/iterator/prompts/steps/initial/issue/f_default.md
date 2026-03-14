@@ -3,7 +3,7 @@ stepId: initial.issue
 name: Issue Initial Prompt
 description: Initial prompt when working on a single GitHub issue
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - project_context_section
   - issue_content
@@ -29,7 +29,7 @@ DO NOT perform work outside implementation:
 - DO NOT work on issues or tasks not assigned to you
 - If you complete the implementation, return structured output immediately - DO NOT continue with additional unassigned work
 
-## Current Task: Issue #{uv-issue_number}
+## Current Task: Issue #{uv-issue}
 
 {issue_content} {cross_repo_note}
 
@@ -91,7 +91,7 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 ### Report Progress (RECOMMENDED every 2-3 tasks)
 
 ```issue-action
-{"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Task 1 done\n- [x] Task 2 done\n- [ ] Task 3 in progress"}
+{"action":"progress","issue":{uv-issue},"body":"## Progress\n- [x] Task 1 done\n- [x] Task 2 done\n- [ ] Task 3 in progress"}
 ```
 
 ### Hand Off to Reviewer (REQUIRED when done)
@@ -117,19 +117,19 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 - Keep the issue **OPEN** for reviewer to verify
 
 ```issue-action
-{"action":"complete","issue":{uv-issue_number},"body":"## Implementation Complete\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N\n\nReady for reviewer."}
+{"action":"complete","issue":{uv-issue},"body":"## Implementation Complete\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N\n\nReady for reviewer."}
 ```
 
 ### Ask a Question (if blocked)
 
 ```issue-action
-{"action":"question","issue":{uv-issue_number},"body":"Need clarification on..."}
+{"action":"question","issue":{uv-issue},"body":"Need clarification on..."}
 ```
 
 ### Report Blocker (if cannot proceed)
 
 ```issue-action
-{"action":"blocked","issue":{uv-issue_number},"body":"Cannot proceed because...","label":"need clearance"}
+{"action":"blocked","issue":{uv-issue},"body":"Cannot proceed because...","label":"need clearance"}
 ```
 
 ## CRITICAL: Return Structured JSON
@@ -139,4 +139,4 @@ Your response MUST be valid JSON matching the step's schema. DO NOT return natur
 ---
 
 **Start NOW**: Use TodoWrite to create your task breakdown for Issue
-#{uv-issue_number}.
+#{uv-issue}.

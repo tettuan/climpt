@@ -45,6 +45,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
   readonly type = "detect:graph" as const;
 
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private state: StepState;
   private verdictReason?: string;
   private lastSummary?: IterationSummary;
@@ -77,6 +78,13 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
    */
   setPromptResolver(resolver: PromptResolver): void {
     this.promptResolver = resolver;
+  }
+
+  /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
   }
 
   /**
@@ -122,6 +130,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
           this.state.currentStepId,
           {
             uv: {
+              ...this.uvVariables,
               step_id: this.state.currentStepId,
               step_name: stepDef.name,
             },
@@ -171,6 +180,7 @@ ${this.buildStepInstructions(stepDef)}
           this.state.currentStepId,
           {
             uv: {
+              ...this.uvVariables,
               step_id: this.state.currentStepId,
               step_name: stepDef.name,
               iteration: String(completedIterations),

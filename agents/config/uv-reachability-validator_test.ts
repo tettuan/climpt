@@ -1,0 +1,439 @@
+/**
+ * Tests for agents/config/uv-reachability-validator.ts
+ *
+ * Covers validateUvReachability() with inline fixtures:
+ * - All UV variables have CLI sources -> valid
+ * - UV variable is a runtime variable -> valid
+ * - UV variable has no source -> error
+ * - Optional CLI param without default -> warning
+ * - Empty uvVariables -> valid (skipped)
+ * - No steps -> valid
+ * - Mix of valid and invalid variables
+ * - Prefix substitution consistency (initial.* vs continuation.*)
+ */
+
+import { assertEquals } from "@std/assert";
+import { validateUvReachability } from "./uv-reachability-validator.ts";
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/** Build a minimal steps registry with a single step entry. */
+function registryWith(
+  stepId: string,
+  stepDef: Record<string, unknown>,
+): Record<string, unknown> {
+  return { steps: { [stepId]: stepDef } };
+}
+
+/** Build a steps registry with multiple step entries. */
+function registryWithMultiple(
+  entries: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  return { steps: entries };
+}
+
+/** Build a minimal agent definition with parameters. */
+function agentWith(
+  parameters: Record<string, unknown>,
+): Record<string, unknown> {
+  return { parameters };
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+Deno.test("validateUvReachability - all UV variables have CLI sources -> valid", () => {
+  const registry = registryWithMultiple({
+    "initial.issue": { uvVariables: ["issue", "project"] },
+    "continuation.issue": { uvVariables: ["issue", "project"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+    project: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - UV variable is runtime variable (iteration) -> valid", () => {
+  const registry = registryWith("continuation.check", {
+    uvVariables: ["iteration", "completed_iterations", "completion_keyword"],
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - UV variable has no source -> error", () => {
+  // Use a non-initial prefix to avoid prefix substitution warnings
+  const registry = registryWith("step.issue", {
+    uvVariables: ["unknown_var"],
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 1);
+  assertEquals(
+    result.errors[0].includes("unknown_var"),
+    true,
+    `Expected error to mention "unknown_var", got: ${result.errors[0]}`,
+  );
+  assertEquals(
+    result.errors[0].includes("no supply source"),
+    true,
+    `Expected error to mention "no supply source", got: ${result.errors[0]}`,
+  );
+});
+
+Deno.test("validateUvReachability - optional CLI param without default -> warning", () => {
+  // Use a non-initial prefix to isolate the supply-source warning
+  const registry = registryWith("step.issue", {
+    uvVariables: ["issue"],
+  });
+  const agent = agentWith({
+    issue: { required: false },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 1);
+  assertEquals(
+    result.warnings[0].includes("optional CLI parameter"),
+    true,
+    `Expected warning about optional CLI parameter, got: ${result.warnings[0]}`,
+  );
+});
+
+Deno.test("validateUvReachability - required CLI param -> no warning", () => {
+  const registry = registryWithMultiple({
+    "initial.issue": { uvVariables: ["issue"] },
+    "continuation.issue": { uvVariables: ["issue"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - optional CLI param with default -> no warning", () => {
+  const registry = registryWithMultiple({
+    "initial.issue": { uvVariables: ["issue"] },
+    "continuation.issue": { uvVariables: ["issue"] },
+  });
+  const agent = agentWith({
+    issue: { required: false, default: "default_value" },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - empty uvVariables -> valid (skipped)", () => {
+  // Use a non-initial prefix to avoid prefix substitution warnings
+  const registry = registryWith("step.issue", {
+    uvVariables: [],
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - missing uvVariables key -> valid (skipped)", () => {
+  // Use a non-initial prefix to avoid prefix substitution warnings
+  const registry = registryWith("step.issue", {
+    c2: "step",
+    c3: "issue",
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - no steps -> valid", () => {
+  const registry: Record<string, unknown> = { steps: {} };
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - missing steps key -> valid", () => {
+  const registry: Record<string, unknown> = {};
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - mix of valid and invalid variables", () => {
+  // Use a non-initial prefix to isolate supply-source errors
+  const registry = registryWith("step.issue", {
+    uvVariables: ["issue", "iteration", "unknown_var", "another_missing"],
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 2);
+  assertEquals(
+    result.errors.some((e) => e.includes("unknown_var")),
+    true,
+    `Expected error for "unknown_var", got: ${JSON.stringify(result.errors)}`,
+  );
+  assertEquals(
+    result.errors.some((e) => e.includes("another_missing")),
+    true,
+    `Expected error for "another_missing", got: ${
+      JSON.stringify(result.errors)
+    }`,
+  );
+});
+
+Deno.test("validateUvReachability - multiple steps with mixed results", () => {
+  const registry: Record<string, unknown> = {
+    steps: {
+      "step.issue": {
+        uvVariables: ["issue", "iteration"],
+      },
+      "step.check": {
+        uvVariables: ["orphan_var"],
+      },
+    },
+  };
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 1);
+  assertEquals(
+    result.errors[0].includes("step.check"),
+    true,
+    `Expected error for step "step.check", got: ${result.errors[0]}`,
+  );
+  assertEquals(
+    result.errors[0].includes("orphan_var"),
+    true,
+    `Expected error for "orphan_var", got: ${result.errors[0]}`,
+  );
+});
+
+// =============================================================================
+// Prefix substitution consistency tests
+// =============================================================================
+
+Deno.test("prefix substitution - matching uvVariables -> no warning", () => {
+  const registry = registryWithMultiple({
+    "initial.assess": { uvVariables: ["issue", "repo"] },
+    "continuation.assess": { uvVariables: ["issue", "repo"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+    repo: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("prefix substitution - different uvVariables -> warning about mismatch", () => {
+  const registry = registryWithMultiple({
+    "initial.assess": { uvVariables: ["issue", "repo"] },
+    "continuation.assess": { uvVariables: ["issue"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+    repo: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 1);
+  assertEquals(
+    result.warnings[0].includes("initial.assess"),
+    true,
+    `Expected warning to mention "initial.assess", got: ${result.warnings[0]}`,
+  );
+  assertEquals(
+    result.warnings[0].includes("continuation.assess"),
+    true,
+    `Expected warning to mention "continuation.assess", got: ${
+      result.warnings[0]
+    }`,
+  );
+  assertEquals(
+    result.warnings[0].includes("Prefix substitution"),
+    true,
+    `Expected warning about prefix substitution, got: ${result.warnings[0]}`,
+  );
+});
+
+Deno.test("prefix substitution - initial.X exists but continuation.X missing -> warning", () => {
+  const registry = registryWith("initial.assess", {
+    uvVariables: ["issue"],
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 1);
+  assertEquals(
+    result.warnings[0].includes('steps["initial.assess"]'),
+    true,
+    `Expected warning to reference initial.assess, got: ${result.warnings[0]}`,
+  );
+  assertEquals(
+    result.warnings[0].includes('steps["continuation.assess"] is missing'),
+    true,
+    `Expected warning about missing continuation step, got: ${
+      result.warnings[0]
+    }`,
+  );
+  assertEquals(
+    result.warnings[0].includes("Default transition will fail"),
+    true,
+    `Expected warning about transition failure, got: ${result.warnings[0]}`,
+  );
+});
+
+Deno.test("prefix substitution - continuation.X without initial.X -> no warning", () => {
+  const registry = registryWith("continuation.assess", {
+    uvVariables: ["issue"],
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("prefix substitution - no initial.* steps at all -> no warnings", () => {
+  const registry = registryWithMultiple({
+    "step.assess": { uvVariables: ["issue"] },
+    "continuation.assess": { uvVariables: ["issue"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("prefix substitution - multiple initial.* steps with mixed match/mismatch", () => {
+  const registry = registryWithMultiple({
+    "initial.assess": { uvVariables: ["issue", "repo"] },
+    "continuation.assess": { uvVariables: ["issue", "repo"] },
+    "initial.plan": { uvVariables: ["issue", "label"] },
+    "continuation.plan": { uvVariables: ["issue"] },
+    "initial.execute": { uvVariables: ["issue"] },
+    // continuation.execute is missing
+  });
+  const agent = agentWith({
+    issue: { required: true },
+    repo: { required: true },
+    label: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  // Two warnings: mismatch for plan + missing for execute
+  assertEquals(result.warnings.length, 2);
+
+  const mismatchWarning = result.warnings.find((w) =>
+    w.includes("initial.plan")
+  );
+  assertEquals(
+    mismatchWarning !== undefined,
+    true,
+    `Expected mismatch warning for initial.plan, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+  assertEquals(
+    mismatchWarning!.includes("Prefix substitution"),
+    true,
+    `Expected prefix substitution mention, got: ${mismatchWarning}`,
+  );
+
+  const missingWarning = result.warnings.find((w) =>
+    w.includes("initial.execute")
+  );
+  assertEquals(
+    missingWarning !== undefined,
+    true,
+    `Expected missing warning for initial.execute, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+  assertEquals(
+    missingWarning!.includes("continuation.execute"),
+    true,
+    `Expected mention of continuation.execute, got: ${missingWarning}`,
+  );
+  assertEquals(
+    missingWarning!.includes("is missing"),
+    true,
+    `Expected "is missing" in warning, got: ${missingWarning}`,
+  );
+});

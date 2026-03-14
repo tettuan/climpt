@@ -303,6 +303,56 @@ async function main(): Promise<void> {
       }
     }
 
+    // UV Reachability
+    if (result.uvReachabilityResult) {
+      if (result.uvReachabilityResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 UV Reachability \u2014 All UV variables have supply sources",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 UV Reachability \u2014 Supply source errors:");
+        for (const err of result.uvReachabilityResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.uvReachabilityResult.errors.length;
+      }
+      if (result.uvReachabilityResult.warnings.length > 0) {
+        for (const warn of result.uvReachabilityResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 UV Reachability \u2014 ${warn}`);
+        }
+        totalWarnings += result.uvReachabilityResult.warnings.length;
+      }
+    }
+
+    // Template UV Consistency
+    if (result.templateUvResult) {
+      if (result.templateUvResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Template UV \u2014 Template placeholders match declarations",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Template UV \u2014 Consistency errors:");
+        for (const err of result.templateUvResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.templateUvResult.errors.length;
+      }
+      if (result.templateUvResult.warnings.length > 0) {
+        for (const warn of result.templateUvResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Template UV \u2014 ${warn}`);
+        }
+        totalWarnings += result.templateUvResult.warnings.length;
+      }
+    }
+
     // deno-lint-ignore no-console
     console.log("");
     const warningsSuffix = totalWarnings > 0

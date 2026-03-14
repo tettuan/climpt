@@ -3,7 +3,7 @@ stepId: continuation.issue
 name: Issue Continuation Prompt
 description: Continuation prompt for issue iterations
 uvVariables:
-  - issue_number
+  - issue
   - completed_iterations
 customVariables:
   - project_header
@@ -27,7 +27,7 @@ DO NOT perform work outside implementation:
 
 ---
 
-You are continuing work on Issue #{uv-issue_number}. Iterations completed:
+You are continuing work on Issue #{uv-issue}. Iterations completed:
 {uv-completed_iterations}{cross_repo_note}
 
 {summary_section}
@@ -58,7 +58,7 @@ You are continuing work on Issue #{uv-issue_number}. Iterations completed:
 ## Issue Actions
 
 ```issue-action
-{"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
+{"action":"progress","issue":{uv-issue},"body":"## Progress\n- [x] Completed tasks...\n- [ ] Current task..."}
 ```
 
 ### Hand Off to Reviewer
@@ -73,7 +73,7 @@ changes.
 - Issue stays **OPEN** for reviewer
 
 ```issue-action
-{"action":"complete","issue":{uv-issue_number},"body":"## Implementation Complete\n- Implementation summary\n- Verification done\n- Tasks: N completed\n\nReady for reviewer."}
+{"action":"complete","issue":{uv-issue},"body":"## Implementation Complete\n- Implementation summary\n- Verification done\n- Tasks: N completed\n\nReady for reviewer."}
 ```
 
 ## CRITICAL: Return Structured JSON

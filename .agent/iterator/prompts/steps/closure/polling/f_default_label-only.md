@@ -3,13 +3,13 @@ stepId: closure.polling
 name: External State Closure Prompt (Label Only)
 description: Terminal step for external state closure - labels only, keeps issue open
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - summary_section
 adaptation: label-only
 ---
 
-# External State Closure: Issue #{uv-issue_number} (Label Only)
+# External State Closure: Issue #{uv-issue} (Label Only)
 
 > **CRITICAL: DO NOT RUN `gh` COMMANDS**
 >
@@ -52,7 +52,7 @@ If any of the above are not satisfied:
 
 ### Closure Action
 
-This step will **change labels only** on Issue #{uv-issue_number}. The issue
+This step will **change labels only** on Issue #{uv-issue}. The issue
 will remain **OPEN** for the next agent.
 
 ### Closure Report
@@ -74,7 +74,7 @@ When all conditions are met, report in structured output:
 When you return `closing` intent, the **Boundary Hook** will automatically:
 
 - Apply label changes based on config (`github.labels.completion`)
-- Keep Issue #{uv-issue_number} **OPEN**
+- Keep Issue #{uv-issue} **OPEN**
 
 Your role is to **verify conditions and return the structured output only**. Do
 not perform GitHub operations yourself.

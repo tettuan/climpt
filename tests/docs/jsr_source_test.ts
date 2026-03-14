@@ -6,7 +6,7 @@
  * These tests use real network calls to jsr.io
  */
 
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   getContent,
   getLatestVersion,
@@ -101,17 +101,16 @@ Deno.test({
 });
 
 Deno.test({
-  name: "getManifest: returns empty or throws on invalid version",
+  name: "getManifest: throws on invalid version",
   ignore: !hasNetAccess,
   fn: async () => {
-    try {
-      const manifest = await getManifest("0.0.0-nonexistent");
-      // If the API returns without throwing, verify it's still an object
-      assertEquals(typeof manifest, "object", "Should return an object");
-    } catch (_e) {
-      // Throwing on invalid version is also acceptable behavior
-      assert(true);
-    }
+    await assertRejects(
+      async () => {
+        await getManifest("0.0.0-nonexistent");
+      },
+      Error,
+      "Failed to fetch manifest",
+    );
   },
 });
 
@@ -139,33 +138,32 @@ Deno.test({
 });
 
 Deno.test({
-  name: "getContent: returns empty or throws on invalid path",
+  name: "getContent: throws on invalid path",
   ignore: !hasNetAccess,
   fn: async () => {
     const version = await getLatestVersion();
 
-    try {
-      const content = await getContent(version, "nonexistent/path.md");
-      // If the API returns without throwing, verify content is empty or minimal
-      assertEquals(typeof content, "string", "Should return a string");
-    } catch (_e) {
-      // Throwing on invalid path is also acceptable behavior
-      assert(true);
-    }
+    await assertRejects(
+      async () => {
+        await getContent(version, "nonexistent/path.md");
+      },
+      Error,
+      "Failed to fetch content",
+    );
   },
 });
 
 Deno.test({
-  name: "getContent: returns empty or throws on invalid version",
+  name: "getContent: throws on invalid version",
   ignore: !hasNetAccess,
   fn: async () => {
-    try {
-      const content = await getContent("0.0.0-invalid", "some/path.md");
-      assertEquals(typeof content, "string", "Should return a string");
-    } catch (_e) {
-      // Throwing on invalid version is also acceptable behavior
-      assert(true);
-    }
+    await assertRejects(
+      async () => {
+        await getContent("0.0.0-invalid", "some/path.md");
+      },
+      Error,
+      "Failed to fetch content",
+    );
   },
 });
 

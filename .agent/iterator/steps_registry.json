@@ -188,7 +188,7 @@
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "issue_initial_default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
@@ -216,7 +216,7 @@
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "issue_continuation_default",
-      "uvVariables": ["issue_number", "completed_iterations"],
+      "uvVariables": ["issue", "completed_iterations"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
@@ -245,7 +245,7 @@
       "c3": "issue",
       "edition": "default",
       "fallbackKey": "issue_closure_default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
@@ -645,7 +645,7 @@
       "c3": "polling",
       "edition": "default",
       "fallbackKey": "polling_initial_default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "polling.schema.json",
@@ -673,7 +673,7 @@
       "c3": "polling",
       "edition": "default",
       "fallbackKey": "polling_continuation_default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "polling.schema.json",
@@ -702,7 +702,7 @@
       "c3": "polling",
       "edition": "default",
       "fallbackKey": "polling_closure_default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "polling.schema.json",

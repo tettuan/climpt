@@ -321,6 +321,14 @@ export async function createRegistryVerdictHandler(
     defaultInitialMap[verdictType] ?? "initial.default",
   );
 
+  // Log prefix substitution when initial.* was derived to continuation.*
+  if (stepIds.initial.startsWith("initial.")) {
+    // deno-lint-ignore no-console
+    console.info(
+      `[StepFlow] Prefix substitution: ${stepIds.initial} -> ${stepIds.continuation} (verdict: ${verdictType})`,
+    );
+  }
+
   return await factory(args, promptResolver, definition, agentDir, stepIds);
 }
 

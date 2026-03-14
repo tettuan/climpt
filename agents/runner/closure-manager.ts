@@ -213,6 +213,7 @@ export class ClosureManager {
         this.stepGateInterpreter = new StepGateInterpreter();
         this.workflowRouter = new WorkflowRouter(
           stepsRegistry as unknown as StepRegistry,
+          logger,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 

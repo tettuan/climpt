@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.3] - 2026-03-14
+
+### Fixed
+- Verdict fallback prompts missing CLI-derived UV variables (`buildUvVariables` not called in verdict path)
+- Unsourced `previous_status` UV variable in `continuation.statuscheck` facilitator prompt
+- Registry loader not normalizing `null` uvVariables and missing `usesStdin` fields
+
+### Added
+- UV variable reachability and template consistency validation in `--validate` (`uv-reachability-validator.ts`, `template-uv-validator.ts`)
+- Prefix substitution logging at both substitution sites: `workflow-router.ts` and `verdict/factory.ts`
+- Prompt fallback WARNING when user C3L file not found (`prompt-resolver.ts`)
+- Actionable hints in UV variable error messages with prefix substitution awareness
+- Initial/continuation UV consistency check in `--validate`
+- Prefix substitution documentation (`11-runner-reference.md`, `14-steps-registry-guide.md`)
+- `permissionMode` mismatch troubleshooting (`12-troubleshooting.md`)
+
+### Changed
+- Unified uvVariable name `issue_number` to `issue` across all agents
+- Query executor extracts tool name from content blocks (`query-executor.ts`)
+
 ## [1.13.2] - 2026-03-14
 
 ### Fixed

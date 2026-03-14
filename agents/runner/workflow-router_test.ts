@@ -4,7 +4,11 @@
 
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
-import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
+import {
+  RoutingError,
+  WorkflowRouter,
+  type WorkflowRouterLogger,
+} from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
@@ -744,4 +748,94 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
   assertEquals(result.nextStepId, "continuation.polling");
   assertEquals(result.signalClosing, false);
   assert(result.reason.includes("Closure repeat"));
+});
+
+// =============================================================================
+// Prefix substitution logging tests
+// =============================================================================
+
+Deno.test("WorkflowRouter - logs prefix substitution on default initial -> continuation transition", () => {
+  const registry = createRegistry({
+    "initial.issue": {},
+    "continuation.issue": {},
+  });
+
+  const logged: string[] = [];
+  const mockLogger: WorkflowRouterLogger = {
+    info(message: string) {
+      logged.push(message);
+    },
+  };
+
+  const router = new WorkflowRouter(registry, mockLogger);
+  router.route("initial.issue", createInterpretation({ intent: "next" }));
+
+  assertEquals(logged.length, 1);
+  assert(logged[0].includes("[StepFlow] Prefix substitution:"));
+  assert(logged[0].includes("initial.issue"));
+  assert(logged[0].includes("continuation.issue"));
+  assert(logged[0].includes("(default transition)"));
+});
+
+Deno.test("WorkflowRouter - no prefix substitution log when continuation step does not exist", () => {
+  const registry = createRegistry({
+    "initial.issue": {},
+    // No continuation.issue -- fallback to signalClosing
+  });
+
+  const logged: string[] = [];
+  const mockLogger: WorkflowRouterLogger = {
+    info(message: string) {
+      logged.push(message);
+    },
+  };
+
+  const router = new WorkflowRouter(registry, mockLogger);
+  const result = router.route(
+    "initial.issue",
+    createInterpretation({ intent: "next" }),
+  );
+
+  assertEquals(logged.length, 0, "No log when substitution does not occur");
+  assertEquals(result.signalClosing, true);
+});
+
+Deno.test("WorkflowRouter - no prefix substitution log when no logger provided", () => {
+  const registry = createRegistry({
+    "initial.issue": {},
+    "continuation.issue": {},
+  });
+
+  // No logger -- should not throw
+  const router = new WorkflowRouter(registry);
+  const result = router.route(
+    "initial.issue",
+    createInterpretation({ intent: "next" }),
+  );
+
+  assertEquals(result.nextStepId, "continuation.issue");
+});
+
+Deno.test("WorkflowRouter - logs prefix substitution for multi-part step IDs", () => {
+  const registry = createRegistry({
+    "initial.project.preparation": {},
+    "continuation.project.preparation": {},
+  });
+
+  const logged: string[] = [];
+  const mockLogger: WorkflowRouterLogger = {
+    info(message: string) {
+      logged.push(message);
+    },
+  };
+
+  const router = new WorkflowRouter(registry, mockLogger);
+  router.route(
+    "initial.project.preparation",
+    createInterpretation({ intent: "next" }),
+  );
+
+  assertEquals(logged.length, 1);
+  assert(logged[0].includes("initial.project.preparation"));
+  assert(logged[0].includes("continuation.project.preparation"));
 });

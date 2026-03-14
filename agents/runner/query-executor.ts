@@ -357,7 +357,14 @@ export class QueryExecutor {
       if (content) {
         summary.assistantResponses.push(content);
       }
+      // Extract tool names from tool_use content blocks in the assistant message.
+      // The SDK embeds tool uses inside message.content[], not as separate messages.
+      for (const name of extractToolNamesFromContent(message.message)) {
+        summary.toolsUsed.push(name);
+      }
     } else if (isToolUseMessage(message)) {
+      // Fallback: kept for forward-compatibility if the SDK ever emits
+      // top-level tool_use messages.
       summary.toolsUsed.push(message.tool_name);
     } else if (isResultMessage(message)) {
       summary.sessionId = message.session_id;
@@ -381,57 +388,12 @@ export class QueryExecutor {
 
   /**
    * Try to extract a JSON object from LLM text response.
-   * Handles: pure JSON, JSON wrapped in markdown code blocks, or JSON embedded after prose.
+   * Delegates to the module-level function.
    */
   private tryParseJsonFromText(
     text: string,
   ): Record<string, unknown> | null {
-    const trimmed = text.trim();
-
-    // 1. Try direct JSON parse (pure JSON response)
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (typeof parsed === "object" && parsed !== null) {
-          return parsed as Record<string, unknown>;
-        }
-      } catch {
-        // Not valid JSON from start, try extracting
-      }
-    }
-
-    // 2. Try extracting JSON from markdown code block
-    const codeBlockMatch = trimmed.match(
-      /```(?:json)?\s*\n?([\s\S]*?)\n?```/,
-    );
-    if (codeBlockMatch?.[1]) {
-      try {
-        const parsed = JSON.parse(codeBlockMatch[1].trim());
-        if (typeof parsed === "object" && parsed !== null) {
-          return parsed as Record<string, unknown>;
-        }
-      } catch {
-        // Not valid JSON in code block
-      }
-    }
-
-    // 3. Try finding JSON object in text (prose followed by JSON)
-    // Iterate from earliest { to find the outermost JSON object.
-    // lastIndexOf would pick up nested braces like {"action":"next"}.
-    let searchIdx = trimmed.indexOf("{", 1); // skip 0 (handled in step 1)
-    while (searchIdx >= 0) {
-      try {
-        const parsed = JSON.parse(trimmed.slice(searchIdx));
-        if (typeof parsed === "object" && parsed !== null) {
-          return parsed as Record<string, unknown>;
-        }
-      } catch {
-        // Not valid JSON from this position, try next
-      }
-      searchIdx = trimmed.indexOf("{", searchIdx + 1);
-    }
-
-    return null;
+    return tryParseJsonFromText(text);
   }
 
   private extractContent(message: unknown): string {
@@ -456,6 +418,7 @@ export class QueryExecutor {
 
   /**
    * Create a PreToolUse hook callback that blocks boundary bash commands.
+   * Delegates to the module-level function.
    */
   private createBoundaryBashBlockingHook(
     stepKind: StepKind,
@@ -465,39 +428,132 @@ export class QueryExecutor {
     toolUseId: string | undefined,
     options: { signal: AbortSignal },
   ) => Promise<Record<string, unknown>> {
-    return (input, _toolUseId, _options) => {
-      // Only check Bash commands
-      if (input.tool_name !== "Bash") {
-        return Promise.resolve({});
-      }
-
-      const command = input.tool_input.command as string | undefined;
-      if (!command) {
-        return Promise.resolve({});
-      }
-
-      // Check if command is allowed for this step kind
-      const result = isBashCommandAllowed(command, stepKind);
-
-      if (!result.allowed) {
-        ctx.logger.warn(
-          `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
-          {
-            command: command.substring(0, TRUNCATION.BASH_COMMAND),
-            reason: result.reason,
-          },
-        );
-
-        return Promise.resolve({
-          hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason: result.reason,
-          },
-        });
-      }
-
-      return Promise.resolve({});
-    };
+    return createBoundaryBashBlockingHook(stepKind, ctx);
   }
+}
+
+/**
+ * Extract tool names from an APIAssistantMessage's content array.
+ *
+ * The Claude SDK embeds tool_use blocks inside the assistant message's
+ * content array as `{ type: "tool_use", name: "Bash", ... }`.
+ * Returns an array of tool name strings found.
+ */
+export function extractToolNamesFromContent(message: unknown): string[] {
+  if (!isRecord(message) || !Array.isArray(message.content)) {
+    return [];
+  }
+  const names: string[] = [];
+  for (const block of message.content) {
+    if (isRecord(block) && block.type === "tool_use" && isString(block.name)) {
+      names.push(block.name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Try to extract a JSON object from LLM text response.
+ * Handles: pure JSON, JSON wrapped in markdown code blocks, or JSON embedded after prose.
+ *
+ * @internal Exported for testing. Used by QueryExecutor.tryParseJsonFromText.
+ */
+export function tryParseJsonFromText(
+  text: string,
+): Record<string, unknown> | null {
+  const trimmed = text.trim();
+
+  // 1. Try direct JSON parse (pure JSON response)
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Not valid JSON from start, try extracting
+    }
+  }
+
+  // 2. Try extracting JSON from markdown code block
+  const codeBlockMatch = trimmed.match(
+    /```(?:json)?\s*\n?([\s\S]*?)\n?```/,
+  );
+  if (codeBlockMatch?.[1]) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1].trim());
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Not valid JSON in code block
+    }
+  }
+
+  // 3. Try finding JSON object in text (prose followed by JSON)
+  // Iterate from earliest { to find the outermost JSON object.
+  // lastIndexOf would pick up nested braces like {"action":"next"}.
+  let searchIdx = trimmed.indexOf("{", 1); // skip 0 (handled in step 1)
+  while (searchIdx >= 0) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(searchIdx));
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // Not valid JSON from this position, try next
+    }
+    searchIdx = trimmed.indexOf("{", searchIdx + 1);
+  }
+
+  return null;
+}
+
+/**
+ * Create a PreToolUse hook callback that blocks boundary bash commands.
+ *
+ * @internal Exported for testing. Used by QueryExecutor.createBoundaryBashBlockingHook.
+ */
+export function createBoundaryBashBlockingHook(
+  stepKind: StepKind,
+  ctx: RuntimeContext,
+): (
+  input: { tool_name: string; tool_input: Record<string, unknown> },
+  toolUseId: string | undefined,
+  options: { signal: AbortSignal },
+) => Promise<Record<string, unknown>> {
+  return (input, _toolUseId, _options) => {
+    // Only check Bash commands
+    if (input.tool_name !== "Bash") {
+      return Promise.resolve({});
+    }
+
+    const command = input.tool_input.command as string | undefined;
+    if (!command) {
+      return Promise.resolve({});
+    }
+
+    // Check if command is allowed for this step kind
+    const result = isBashCommandAllowed(command, stepKind);
+
+    if (!result.allowed) {
+      ctx.logger.warn(
+        `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
+        {
+          command: command.substring(0, TRUNCATION.BASH_COMMAND),
+          reason: result.reason,
+        },
+      );
+
+      return Promise.resolve({
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: result.reason,
+        },
+      });
+    }
+
+    return Promise.resolve({});
+  };
 }

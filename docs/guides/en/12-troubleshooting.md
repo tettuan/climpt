@@ -9,23 +9,23 @@ Iterate Agent.
 
 ## Quick Error Index
 
-| Error Message / Keyword                        | Section                                                               |
-| ---------------------------------------------- | --------------------------------------------------------------------- |
-| `gh: command not found`                        | [1.2 gh CLI not found](#12-gh-cli-not-found--auth-failure)            |
-| `deno: command not found`                      | [1.1 Deno not found](#11-deno-not-found--version-mismatch)            |
-| `Permission denied` / `EACCES` / `EPERM`       | [1.3 Permission denied](#13-permission-denied)                        |
-| `Configuration load failed at`                 | [2.1 Configuration file not found](#21-configuration-file-not-found)  |
-| `Unknown key: runner.completion`               | [2.2 Unknown key warnings](#22-unknown-key-warnings-legacy-format)    |
-| `Prompt not found:`                            | [2.3 Validation failure](#23-validation-failure)                      |
-| `rate limit` / `429` / `Too many requests`     | [3.1 Rate limit / API errors](#31-rate-limit--api-errors)             |
-| `Cannot execute SDK query() in double sandbox` | [3.2 Sandbox restrictions](#32-sandbox-restrictions)                  |
-| `Claude Code process exited with code 1`       | [3.2 Sandbox restrictions](#32-sandbox-restrictions)                  |
-| `Empty output from breakdown CLI`              | [4.1 Empty output](#41-empty-output-from-breakdown-cli)               |
-| `FAILED_STEP_ROUTING`                          | [4.2 Step routing errors](#42-step-routing-errors)                    |
-| `GATE_INTERPRETATION_ERROR`                    | [4.2 Step routing errors](#42-step-routing-errors)                    |
-| `Maximum iterations (N) reached`               | [4.3 Verdict / completion failures](#43-verdict--completion-failures) |
-| `No fallback prompt found`                     | [4.4 No fallback prompt found](#44-no-fallback-prompt-found)          |
-| `AGENT_NOT_INITIALIZED`                        | [4.5 Initialization errors](#45-initialization-and-worktree-errors)   |
+| Error Message / Keyword                        | Section                                                                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `gh: command not found`                        | [1.2 gh CLI not found](#12-gh-cli-not-found--auth-failure)                                                        |
+| `deno: command not found`                      | [1.1 Deno not found](#11-deno-not-found--version-mismatch)                                                        |
+| `Permission denied` / `EACCES` / `EPERM`       | [1.3 Permission denied](#13-permission-denied)                                                                    |
+| `Configuration load failed at`                 | [2.1 Configuration file not found](#21-configuration-file-not-found)                                              |
+| `Unknown key: runner.completion`               | [2.2 Unknown key warnings](#22-unknown-key-warnings-legacy-format)                                                |
+| `Prompt not found:`                            | [2.3 Validation failure](#23-validation-failure)                                                                  |
+| `rate limit` / `429` / `Too many requests`     | [3.1 Rate limit / API errors](#31-rate-limit--api-errors)                                                         |
+| `Cannot execute SDK query() in double sandbox` | [3.2 Sandbox restrictions](#32-sandbox-restrictions)                                                              |
+| `Claude Code process exited with code 1`       | [3.2 Sandbox restrictions](#32-sandbox-restrictions) / [3.4 permissionMode mismatch](#34-permissionmode-mismatch) |
+| `Empty output from breakdown CLI`              | [4.1 Empty output](#41-empty-output-from-breakdown-cli)                                                           |
+| `FAILED_STEP_ROUTING`                          | [4.2 Step routing errors](#42-step-routing-errors)                                                                |
+| `GATE_INTERPRETATION_ERROR`                    | [4.2 Step routing errors](#42-step-routing-errors)                                                                |
+| `Maximum iterations (N) reached`               | [4.3 Verdict / completion failures](#43-verdict--completion-failures)                                             |
+| `No fallback prompt found`                     | [4.4 No fallback prompt found](#44-no-fallback-prompt-found)                                                      |
+| `AGENT_NOT_INITIALIZED`                        | [4.5 Initialization errors](#45-initialization-and-worktree-errors)                                               |
 
 ---
 
@@ -281,6 +281,10 @@ reports:
 
 **Prevention**: Prefer terminal execution for agent runs.
 
+> **Differential diagnosis**: If other agents succeed in the same environment,
+> the cause is not sandbox restrictions. Check
+> [3.4 permissionMode mismatch](#34-permissionmode-mismatch) instead.
+
 ---
 
 ### 3.3 Tool permission errors
@@ -317,6 +321,56 @@ include the required tool, or `permissionMode` is too restrictive.
 
 **Prevention**: Declare all needed tools explicitly in `allowedTools` and use
 `acceptEdits` for normal operation.
+
+---
+
+### 3.4 permissionMode mismatch
+
+**Symptom**: `Claude Code process exited with code 1`, but other agents run
+successfully in the same environment.
+
+**Cause**: The agent's `permissionMode` is set to `bypassPermissions`, which
+requires the `--dangerously-skip-permissions` CLI flag when launching Claude
+Code. Without this flag, Claude Code exits immediately with code 1.
+
+This error is often misdiagnosed as a sandbox issue because the error message is
+identical. The key differentiator is whether **other agents succeed** — if they
+do, the environment is fine and the problem is agent-specific configuration.
+
+**Resolution**:
+
+1. Check the agent's `permissionMode` setting:
+   ```bash
+   cat .agent/<name>/agent.json | jq '.runner.boundaries.permissionMode'
+   ```
+2. If it returns `"bypassPermissions"`, either:
+   - Change to `"acceptEdits"` (recommended for interactive use):
+     ```json
+     {
+       "runner": {
+         "boundaries": {
+           "permissionMode": "acceptEdits"
+         }
+       }
+     }
+     ```
+   - Or ensure the CLI flag is provided when running the agent (for
+     CI/unattended use only).
+
+**Comparison**:
+
+| Agent A (works) | Agent B (fails)     | Diagnosis            |
+| --------------- | ------------------- | -------------------- |
+| `acceptEdits`   | `bypassPermissions` | permissionMode issue |
+| `acceptEdits`   | `acceptEdits`       | Not this issue       |
+
+**Error chain**: When this occurs, the runner may also report
+`[StepFlow] No intent produced` — this is a secondary error caused by the
+process crash, not a schema configuration problem.
+
+**Prevention**: Use `bypassPermissions` only in CI/unattended environments where
+the required CLI flags are guaranteed. Use `acceptEdits` for interactive
+development.
 
 ---
 
