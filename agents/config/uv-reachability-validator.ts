@@ -8,6 +8,10 @@
  * Variables not matching either source are flagged as errors.
  * Optional CLI parameters without defaults are flagged as warnings.
  *
+ * Additionally validates prefix substitution consistency:
+ * - For each initial.X step, checks that a corresponding continuation.X exists
+ * - If both exist, compares their uvVariables declarations and warns on mismatch
+ *
  * Responsibility: Static UV supply analysis (no I/O)
  * Side effects: None
  *
@@ -45,6 +49,90 @@ function asRecord(
 }
 
 // ---------------------------------------------------------------------------
+// Prefix substitution constants
+// ---------------------------------------------------------------------------
+
+const INITIAL_PREFIX = "initial.";
+const CONTINUATION_PREFIX = "continuation.";
+
+// ---------------------------------------------------------------------------
+// Internal: prefix substitution consistency
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract string-typed uvVariables from a step definition.
+ * Returns a sorted array (for deterministic comparison) or null if absent.
+ */
+function extractUvVariables(
+  stepDef: Record<string, unknown>,
+): string[] | null {
+  const uv = stepDef.uvVariables;
+  if (!Array.isArray(uv)) return null;
+  return uv
+    .filter((v): v is string => typeof v === "string")
+    .slice()
+    .sort();
+}
+
+/**
+ * Check prefix substitution consistency between initial.* and continuation.* steps.
+ *
+ * For each initial.X step:
+ * - If continuation.X is missing, emit a warning (default transition will fail)
+ * - If both exist, compare uvVariables and warn on mismatch
+ *
+ * These are warnings (not errors) because not all agents use count:iteration
+ * and some may have explicit transitions that bypass continuation steps.
+ */
+function validatePrefixSubstitutionConsistency(
+  stepsRaw: Record<string, unknown>,
+): string[] {
+  const warnings: string[] = [];
+  const stepIds = new Set(Object.keys(stepsRaw));
+
+  for (const stepId of stepIds) {
+    if (!stepId.startsWith(INITIAL_PREFIX)) continue;
+
+    const suffix = stepId.slice(INITIAL_PREFIX.length);
+    const continuationId = `${CONTINUATION_PREFIX}${suffix}`;
+
+    const initialStep = asRecord(stepsRaw[stepId]);
+    if (!initialStep) continue;
+
+    if (!stepIds.has(continuationId)) {
+      // continuation.X is missing
+      warnings.push(
+        `steps["${stepId}"] exists but steps["${continuationId}"] is missing. ` +
+          `Default transition will fail if no explicit transition is configured.`,
+      );
+      continue;
+    }
+
+    const continuationStep = asRecord(stepsRaw[continuationId]);
+    if (!continuationStep) continue;
+
+    const initialUv = extractUvVariables(initialStep);
+    const continuationUv = extractUvVariables(continuationStep);
+
+    // Both null or both empty - no mismatch
+    if (initialUv === null && continuationUv === null) continue;
+
+    const initialStr = JSON.stringify(initialUv ?? []);
+    const continuationStr = JSON.stringify(continuationUv ?? []);
+
+    if (initialStr !== continuationStr) {
+      warnings.push(
+        `steps["${stepId}"] declares uvVariables ${initialStr} but ` +
+          `steps["${continuationId}"] declares ${continuationStr}. ` +
+          `Prefix substitution (initial.* -> continuation.*) may cause UV variable mismatch at runtime.`,
+      );
+    }
+  }
+
+  return warnings;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -54,6 +142,7 @@ function asRecord(
  * Checks per step:
  * 1. Each declared uvVariable has a supply source (runtime or CLI parameter)
  * 2. CLI-sourced variables with optional parameters and no default produce warnings
+ * 3. initial.* / continuation.* prefix substitution consistency
  *
  * @param registry - Parsed steps_registry.json content
  * @param agentDef - Parsed agent.json content
@@ -105,6 +194,10 @@ export function validateUvReachability(
       );
     }
   }
+
+  // Prefix substitution consistency (initial.* vs continuation.*)
+  const prefixWarnings = validatePrefixSubstitutionConsistency(stepsRaw);
+  warnings.push(...prefixWarnings);
 
   return {
     valid: errors.length === 0,

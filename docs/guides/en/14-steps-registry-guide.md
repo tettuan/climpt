@@ -253,6 +253,52 @@ No fallback prompt found for key: "initial.issue" (step: initial.issue)
   `fallbackKey`
 - Ensure `fallbackKey` is correctly set to handle this fallback gracefully
 
+#### Step Naming Convention: initial.\* and continuation.\*
+
+Steps using the `initial.*` prefix have special behavior in `count:iteration`
+flows:
+
+| Step ID               | Used when                                                      |
+| --------------------- | -------------------------------------------------------------- |
+| `initial.assess`      | First iteration only                                           |
+| `continuation.assess` | All subsequent iterations (auto-derived from `initial.assess`) |
+
+When you define an `initial.X` step, you should also define a matching
+`continuation.X` step with:
+
+- The same `uvVariables` declarations
+- Appropriate prompt templates for the continuation context
+- A `fallbackKey` if using fallback prompts
+
+Example:
+
+```json
+{
+  "steps": {
+    "initial.assess": {
+      "stepId": "initial.assess",
+      "c2": "initial",
+      "c3": "assess",
+      "edition": "default",
+      "uvVariables": ["issue"],
+      "fallbackKey": "initial_assess"
+    },
+    "continuation.assess": {
+      "stepId": "continuation.assess",
+      "c2": "continuation",
+      "c3": "assess",
+      "edition": "default",
+      "uvVariables": ["issue"],
+      "fallbackKey": "continuation_assess"
+    }
+  }
+}
+```
+
+**Common mistake:** Declaring `uvVariables: ["issue_number"]` when the CLI
+parameter is named `issue`. UV variable names must match the parameter names in
+`agent.json`.
+
 ### 14.4.2 Structured Gate
 
 The `structuredGate` configuration controls how AI structured output is
