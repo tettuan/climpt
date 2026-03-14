@@ -1,5 +1,5 @@
 {
-  "version": "1.13.0",
+  "version": "1.13.3",
   "entries": [
     {
       "id": "c3l_specification_v0.1",
@@ -41,7 +41,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Agent Configuration Concepts",
-      "bytes": 8154
+      "bytes": 9892
     },
     {
       "id": "guides-en-00-overview",
@@ -121,7 +121,7 @@
       "category": "guides",
       "lang": "en",
       "title": "9. Migration Guide: v1.11.x → v1.12.0 / v1.12.0 → v1.13.0",
-      "bytes": 9488
+      "bytes": 18038
     },
     {
       "id": "guides-en-10-getting-started-guide",
@@ -145,7 +145,7 @@
       "category": "guides",
       "lang": "en",
       "title": "11. Runner Configuration Reference",
-      "bytes": 21564
+      "bytes": 24971
     },
     {
       "id": "guides-ja-11-runner-reference",
@@ -161,7 +161,7 @@
       "category": "guides",
       "lang": "en",
       "title": "12. Troubleshooting Guide",
-      "bytes": 17867
+      "bytes": 21894
     },
     {
       "id": "guides-ja-12-troubleshooting",
@@ -193,7 +193,7 @@
       "category": "guides",
       "lang": "en",
       "title": "14. Steps Registry Guide",
-      "bytes": 15547
+      "bytes": 23582
     },
     {
       "id": "guides-ja-14-steps-registry-guide",
