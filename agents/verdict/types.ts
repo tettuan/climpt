@@ -132,6 +132,14 @@ export interface VerdictHandler {
   setCurrentSummary?(summary: IterationSummary): void;
 
   /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   * Called by runner before buildInitialPrompt() / buildContinuationPrompt().
+   * Handler-specific UV variables take precedence over these base values.
+   * Optional - not all handlers need this.
+   */
+  setUvVariables?(uv: Record<string, string>): void;
+
+  /**
    * Build continuation prompt for subsequent iterations
    *
    * @param completedIterations - Number of iterations completed

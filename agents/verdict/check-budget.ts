@@ -17,6 +17,7 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   readonly type = "count:check" as const;
   private checkCount = 0;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private readonly stepIds: VerdictStepIds;
 
   constructor(
@@ -38,6 +39,13 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   }
 
   /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+  }
+
+  /**
    * Increment check count (called externally when a status check is performed)
    */
   incrementCheckCount(): void {
@@ -54,7 +62,7 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
-        uv: { max_checks: String(this.maxChecks) },
+        uv: { ...this.uvVariables, max_checks: String(this.maxChecks) },
       })).content;
     }
 
@@ -96,6 +104,7 @@ Work efficiently to complete your monitoring goal within the check budget.
         : "";
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
+          ...this.uvVariables,
           check_count: String(this.checkCount),
           max_checks: String(this.maxChecks),
           remaining: String(remaining),

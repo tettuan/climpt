@@ -15,6 +15,7 @@ const INCOMPLETE = false;
 export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
   readonly type = "detect:keyword" as const;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private lastSummary?: IterationSummary;
   private readonly stepIds: VerdictStepIds;
 
@@ -36,10 +37,17 @@ export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
     this.promptResolver = resolver;
   }
 
+  /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+  }
+
   async buildInitialPrompt(): Promise<string> {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
-        uv: { completion_keyword: this.verdictKeyword },
+        uv: { ...this.uvVariables, completion_keyword: this.verdictKeyword },
       })).content;
     }
 
@@ -72,6 +80,7 @@ When ready, output exactly: ${this.verdictKeyword}
         : "";
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
+          ...this.uvVariables,
           iteration: String(completedIterations),
           completion_keyword: this.verdictKeyword,
           previous_summary: summaryText,

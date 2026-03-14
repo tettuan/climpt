@@ -54,6 +54,7 @@ export interface ExternalStateAdapterConfig {
 export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   readonly type = "poll:state" as const;
   private promptResolver?: PromptResolver;
+  private uvVariables: Record<string, string> = {};
   private currentSummary?: IterationSummary;
   private readonly stepIds: VerdictStepIds;
 
@@ -77,6 +78,13 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   }
 
   /**
+   * Supply base UV variables (CLI args + runtime) for prompt resolution.
+   */
+  setUvVariables(uv: Record<string, string>): void {
+    this.uvVariables = uv;
+  }
+
+  /**
    * Set current iteration summary (called by runner before isFinished).
    */
   setCurrentSummary(summary: IterationSummary): void {
@@ -87,7 +95,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
         uv: {
-          issue: String(this.config.issueNumber),
+          ...this.uvVariables,
           issue: String(this.config.issueNumber),
           ...(this.config.repo ? { repository: this.config.repo } : {}),
         },
@@ -107,7 +115,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
     if (this.promptResolver) {
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
-          issue: String(this.config.issueNumber),
+          ...this.uvVariables,
           issue: String(this.config.issueNumber),
           iteration: String(completedIterations),
           previous_summary: summaryText,

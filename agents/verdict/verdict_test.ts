@@ -1735,3 +1735,178 @@ Deno.test("CompositeVerdictHandler - poll:state condition with issue", async () 
   const complete = await handler.isFinished();
   assertEquals(complete, true);
 });
+
+// =============================================================================
+// setUvVariables Tests
+// =============================================================================
+
+Deno.test("setUvVariables - base UV variables appear in resolved prompt", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new IterationBudgetVerdictHandler(5);
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  handler.setUvVariables({ issue: "42", repository: "owner/repo" });
+  await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  assertEquals(passedUv?.issue, "42");
+  assertEquals(passedUv?.repository, "owner/repo");
+  // Handler-specific UV should also be present
+  assertEquals(passedUv?.max_iterations, "5");
+});
+
+Deno.test("setUvVariables - handler-specific UV takes precedence over base UV", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new KeywordSignalVerdictHandler("DONE");
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  // Set base UV with a completion_keyword value that should be overridden
+  handler.setUvVariables({
+    issue: "42",
+    completion_keyword: "SHOULD_BE_OVERRIDDEN",
+  });
+  await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  // Base UV should appear
+  assertEquals(passedUv?.issue, "42");
+  // Handler-specific completion_keyword must override base UV
+  assertEquals(passedUv?.completion_keyword, "DONE");
+});
+
+Deno.test("setUvVariables - existing behavior preserved when setUvVariables not called", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new IterationBudgetVerdictHandler(3);
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  // Do NOT call setUvVariables — default empty should not break anything
+  await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  assertEquals(passedUv?.max_iterations, "3");
+  // No base UV should be present
+  assertEquals(passedUv?.issue, undefined);
+});
+
+Deno.test("setUvVariables - continuation prompt also receives base UV", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new CheckBudgetVerdictHandler(10);
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  handler.setUvVariables({ issue: "99" });
+  await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  assertEquals(passedUv?.issue, "99");
+  assertEquals(passedUv?.max_checks, "10");
+});
+
+Deno.test("setUvVariables - ExternalStateVerdictAdapter config issue overrides base UV issue", async () => {
+  const mock = new MockPromptResolver();
+  const adapter = new ExternalStateVerdictAdapter(
+    new IssueVerdictHandler({ issueNumber: 100 }, new MockStateChecker()),
+    { issueNumber: 100 },
+  );
+  adapter.setPromptResolver(mock as unknown as PromptResolver);
+
+  // Base UV has issue=42 from CLI, but config.issueNumber=100 must win
+  adapter.setUvVariables({ issue: "42", iteration: "1" });
+  await adapter.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  // Config-derived issue must take precedence over base UV
+  assertEquals(passedUv?.issue, "100");
+  // Base UV should still be present for non-conflicting keys
+  assertEquals(passedUv?.iteration, "1");
+});
+
+Deno.test("setUvVariables - CompositeVerdictHandler forwards to sub-handlers", async () => {
+  const definition = createMockAgentDefinition({
+    verdict: {
+      type: "meta:composite",
+      config: {
+        operator: "or",
+        conditions: [
+          { type: "count:iteration", config: { maxIterations: 5 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
+        ],
+      },
+    },
+  });
+
+  const handler = new CompositeVerdictHandler(
+    "or",
+    definition.runner.verdict.config.conditions ?? [],
+    {},
+    "/test",
+    definition,
+  );
+
+  const mock = new MockPromptResolver();
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+  handler.setUvVariables({ issue: "77" });
+
+  // Build initial prompt uses first sub-handler
+  await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  // Base UV should have been forwarded to sub-handler
+  assertEquals(passedUv?.issue, "77");
+});
+
+Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial prompt", async () => {
+  const registry: ExtendedStepsRegistry = {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStep: "work.analyze",
+    steps: {
+      "work.analyze": {
+        name: "Analyze",
+        stepId: "work.analyze",
+        c2: "work",
+        c3: "analyze",
+        edition: "default",
+        fallbackKey: "work.analyze",
+        uvVariables: [],
+        usesStdin: false,
+      },
+    },
+  };
+
+  const mock = new MockPromptResolver();
+  const handler = new StepMachineVerdictHandler(registry, "work.analyze");
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  handler.setUvVariables({ issue: "55", repository: "org/repo" });
+  await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  assertEquals(passedUv?.issue, "55");
+  assertEquals(passedUv?.repository, "org/repo");
+  // Handler-specific UV should also be present
+  assertEquals(passedUv?.step_id, "work.analyze");
+  assertEquals(passedUv?.step_name, "Analyze");
+});
+
+Deno.test("setUvVariables - StructuredSignalVerdictHandler merges base UV", async () => {
+  const mock = new MockPromptResolver();
+  const handler = new StructuredSignalVerdictHandler("completion_signal");
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  handler.setUvVariables({ issue: "33" });
+  await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  const passedUv = mock.calls[0].variables?.uv;
+  assertEquals(passedUv?.issue, "33");
+  assertEquals(passedUv?.signal_type, "completion_signal");
+  assertEquals(passedUv?.iteration, "2");
+});

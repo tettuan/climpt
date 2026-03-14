@@ -303,6 +303,9 @@ export class AgentRunner {
               { source: workPrompt.source, promptPath: workPrompt.promptPath },
             );
           } else {
+            ctx.verdictHandler.setUvVariables?.(
+              this.buildUvVariables(iteration),
+            );
             // deno-lint-ignore no-await-in-loop
             prompt = await ctx.verdictHandler.buildInitialPrompt();
             promptSource = "user";
@@ -337,6 +340,9 @@ export class AgentRunner {
                 },
               );
             } else {
+              ctx.verdictHandler.setUvVariables?.(
+                this.buildUvVariables(iteration),
+              );
               // deno-lint-ignore no-await-in-loop
               prompt = await ctx.verdictHandler.buildContinuationPrompt(
                 iteration - 1,
