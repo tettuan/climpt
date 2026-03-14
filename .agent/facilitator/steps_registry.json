@@ -325,7 +325,7 @@
       "c3": "statuscheck",
       "edition": "default",
       "fallbackKey": "statuscheck_continuation_default",
-      "uvVariables": ["completed_iterations", "previous_status"],
+      "uvVariables": ["completed_iterations"],
       "usesStdin": false,
       "description": "Continuation prompt for ongoing status monitoring",
       "outputSchemaRef": {

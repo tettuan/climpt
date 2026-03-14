@@ -5,7 +5,6 @@ Continue monitoring GitHub project status.
 ## Context
 
 - Completed iterations: {{completed_iterations}}
-- Previous status: {{previous_status}}
 
 ## Tasks
 
