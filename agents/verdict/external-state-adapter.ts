@@ -88,7 +88,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       return (await this.promptResolver.resolve(this.stepIds.initial, {
         uv: {
           issue: String(this.config.issueNumber),
-          issue_number: String(this.config.issueNumber),
+          issue: String(this.config.issueNumber),
           ...(this.config.repo ? { repository: this.config.repo } : {}),
         },
       })).content;
@@ -108,7 +108,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
           issue: String(this.config.issueNumber),
-          issue_number: String(this.config.issueNumber),
+          issue: String(this.config.issueNumber),
           iteration: String(completedIterations),
           previous_summary: summaryText,
         },

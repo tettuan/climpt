@@ -98,7 +98,7 @@ export interface PromptResolverOptions {
  * ```typescript
  * const resolver = new PromptResolver(registry, fallbackProvider, { configSuffix: "steps" });
  * const result = await resolver.resolve("initial.issue", {
- *   uv: { issue_number: "123", repository: "owner/repo" }
+ *   uv: { issue: "123", repository: "owner/repo" }
  * });
  * console.log(result.content);
  * ```

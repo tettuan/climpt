@@ -3,7 +3,7 @@ stepId: initial.polling
 name: External State Initial Prompt
 description: Initial prompt for external state completion (GitHub Issue state)
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - issue_content
 ---
@@ -18,7 +18,7 @@ You are an **implementation agent**. Your job is to:
 **You do NOT close issues.** The Reviewer Agent will verify your work and close
 the issue.
 
-## Current Task: Issue #{uv-issue_number} (External State Completion)
+## Current Task: Issue #{uv-issue} (External State Completion)
 
 {issue_content}
 
@@ -106,7 +106,7 @@ in markdown code blocks.
 ### Report Progress
 
 ```issue-action
-{"action":"progress","issue":{uv-issue_number},"body":"## Progress\n- [x] Task 1 done\n- [ ] Task 2 in progress"}
+{"action":"progress","issue":{uv-issue},"body":"## Progress\n- [x] Task 1 done\n- [ ] Task 2 in progress"}
 ```
 
 ## Boundary Actions (NOT Allowed)
@@ -123,4 +123,4 @@ intent from Closure Step.
 ---
 
 **Start NOW**: Use TodoWrite to create your task breakdown for Issue
-#{uv-issue_number}.
+#{uv-issue}.
