@@ -11,7 +11,7 @@ import { initRegistryAndSchema } from "./registry-init.ts";
 import { generateRegistry } from "../reg/index.ts";
 import type { InitOptions, InitResult } from "./types.ts";
 
-const DEFAULT_OPTIONS: InitOptions = {
+export const DEFAULT_OPTIONS: InitOptions = {
   workingDir: ".agent/climpt",
   force: false,
   skipMeta: false,

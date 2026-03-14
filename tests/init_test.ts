@@ -13,6 +13,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import { join } from "@std/path";
 
 // Import modules under test
+import { DEFAULT_OPTIONS } from "../src/init/init.ts";
 import { detectExisting, hasExistingFiles } from "../src/init/detector.ts";
 import { initBasic } from "../src/init/basic-init.ts";
 import { initMetaDomain } from "../src/init/meta-init.ts";
@@ -33,12 +34,7 @@ const logger = createTestLogger("init");
 // =============================================================================
 
 Deno.test("init: default working directory is .agent/climpt", () => {
-  // This is the expected default - changing it would break existing installations
-  const expectedDefault = ".agent/climpt";
-
-  // Verify by checking the import behavior
-  // The actual default is defined in init.ts DEFAULT_OPTIONS
-  assertEquals(expectedDefault, ".agent/climpt");
+  assertEquals(DEFAULT_OPTIONS.workingDir, ".agent/climpt");
 });
 
 Deno.test("initBasic: creates exactly 3 directories", async () => {
