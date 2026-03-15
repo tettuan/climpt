@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.5] - 2026-03-15
+
+### Fixed
+- Flow validator now recognizes `entryStep` (singular) as BFS starting point for reachability checks (`flow-validator.ts`)
+- Template UV validator skips fallback template checks when no C3L prompt file exists (`template-uv-validator.ts`)
+- UV reachability validator reads `registry.runtimeUvVariables` and merges with hardcoded runtime variables (`uv-reachability-validator.ts`)
+
+### Changed
+- Blueprint schema enums converted to `oneOf`+`const`+`title` format for discoverability (`agent-blueprint.schema.json`)
+
+### Added
+- UV variable supply Channel 3 (VerdictHandler) documented in blueprint spec
+- Blueprint spec and schema added to docs manifest
+
 ## [1.13.4] - 2026-03-15
 
 ### Added

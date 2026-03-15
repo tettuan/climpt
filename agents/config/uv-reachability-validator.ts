@@ -3,9 +3,10 @@
  *
  * Validates that each step's declared uvVariables have a known supply source:
  * - CLI parameters (from agent.json parameters)
- * - Runtime variables (iteration, completed_iterations, completion_keyword)
+ * - Runtime variables (hardcoded: iteration, completed_iterations, completion_keyword)
+ * - Registry-declared runtime variables (from registry.runtimeUvVariables keys)
  *
- * Variables not matching either source are flagged as errors.
+ * Variables not matching any source are flagged as errors.
  * Optional CLI parameters without defaults are flagged as warnings.
  *
  * Additionally validates prefix substitution consistency:
@@ -159,6 +160,15 @@ export function validateUvReachability(
   const parametersRaw = asRecord(agentDef.parameters) ?? {};
   const parameterKeys = new Set(Object.keys(parametersRaw));
 
+  // Merge hardcoded runtime variables with registry-declared runtimeUvVariables
+  const registryRuntimeVars = asRecord(registry.runtimeUvVariables);
+  const allRuntimeVars = new Set(RUNTIME_VARIABLES);
+  if (registryRuntimeVars) {
+    for (const key of Object.keys(registryRuntimeVars)) {
+      allRuntimeVars.add(key);
+    }
+  }
+
   for (const [stepId, stepDef] of Object.entries(stepsRaw)) {
     const step = asRecord(stepDef);
     if (!step) continue;
@@ -170,8 +180,8 @@ export function validateUvReachability(
       const varName = typeof varEntry === "string" ? varEntry : null;
       if (varName === null) continue;
 
-      // Runtime variable - always available
-      if (RUNTIME_VARIABLES.has(varName)) continue;
+      // Runtime variable - always available (hardcoded + registry-declared)
+      if (allRuntimeVars.has(varName)) continue;
 
       // CLI parameter - check existence and optionality
       if (parameterKeys.has(varName)) {

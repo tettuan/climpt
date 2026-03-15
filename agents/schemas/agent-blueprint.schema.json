@@ -216,7 +216,11 @@
         },
         "defaultModel": {
           "type": "string",
-          "enum": ["sonnet", "opus", "haiku"],
+          "oneOf": [
+            { "const": "sonnet", "title": "Balanced speed and capability" },
+            { "const": "opus", "title": "Maximum capability" },
+            { "const": "haiku", "title": "Fastest, lightweight tasks" }
+          ],
           "description": "Default model for all steps. R-F13 (at runner level)."
         },
         "askUserAutoResponse": {
@@ -234,15 +238,36 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "poll:state",
-            "count:iteration",
-            "count:check",
-            "detect:keyword",
-            "detect:structured",
-            "detect:graph",
-            "meta:composite",
-            "meta:custom"
+          "oneOf": [
+            {
+              "const": "poll:state",
+              "title": "Complete when external resource reaches target state"
+            },
+            {
+              "const": "count:iteration",
+              "title": "Complete after N iterations"
+            },
+            {
+              "const": "count:check",
+              "title": "Complete after N status checks"
+            },
+            {
+              "const": "detect:keyword",
+              "title": "Complete when LLM outputs specific keyword"
+            },
+            {
+              "const": "detect:structured",
+              "title": "Complete when LLM outputs structured signal"
+            },
+            {
+              "const": "detect:graph",
+              "title": "Complete when step graph reaches terminal"
+            },
+            {
+              "const": "meta:composite",
+              "title": "Combine multiple conditions with and/or/first"
+            },
+            { "const": "meta:custom", "title": "Fully custom verdict handler" }
           ],
           "description": "How the agent determines verdict. R-F3."
         },
@@ -407,7 +432,11 @@
         },
         "operator": {
           "type": "string",
-          "enum": ["and", "or", "first"],
+          "oneOf": [
+            { "const": "and", "title": "All conditions must be met" },
+            { "const": "or", "title": "Any condition suffices" },
+            { "const": "first", "title": "First condition to complete wins" }
+          ],
           "description": "Logical operator for combining conditions (meta:composite)"
         },
         "conditions": {
@@ -468,7 +497,18 @@
         },
         "permissionMode": {
           "type": "string",
-          "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
+          "oneOf": [
+            { "const": "default", "title": "Standard permission prompts" },
+            {
+              "const": "plan",
+              "title": "Require plan approval before execution"
+            },
+            { "const": "acceptEdits", "title": "Auto-accept file edits" },
+            {
+              "const": "bypassPermissions",
+              "title": "Skip all permission prompts"
+            }
+          ],
           "description": "Claude permission mode. R-F4."
         },
         "sandbox": {
@@ -574,7 +614,14 @@
         },
         "defaultClosureAction": {
           "type": "string",
-          "enum": ["close", "label-only", "label-and-close"],
+          "oneOf": [
+            { "const": "close", "title": "Close the issue" },
+            { "const": "label-only", "title": "Add labels without closing" },
+            {
+              "const": "label-and-close",
+              "title": "Add labels and close the issue"
+            }
+          ],
           "default": "close",
           "description": "Default action for issue closure. R-F19."
         }
@@ -822,7 +869,20 @@
         },
         "stepKind": {
           "type": "string",
-          "enum": ["work", "verification", "closure"],
+          "oneOf": [
+            {
+              "const": "work",
+              "title": "Primary task execution (intents: next, repeat, jump, handoff)"
+            },
+            {
+              "const": "verification",
+              "title": "Quality gate check (intents: next, repeat, jump, escalate)"
+            },
+            {
+              "const": "closure",
+              "title": "Final completion step (intents: closing, repeat)"
+            }
+          ],
           "description": "Step kind for flow taxonomy. R-B10: required for flow steps. Determines allowed intents per R-B3."
         },
         "c2": {
@@ -862,7 +922,11 @@
         },
         "model": {
           "type": "string",
-          "enum": ["sonnet", "opus", "haiku"],
+          "oneOf": [
+            { "const": "sonnet", "title": "Balanced speed and capability" },
+            { "const": "opus", "title": "Maximum capability" },
+            { "const": "haiku", "title": "Fastest, lightweight tasks" }
+          ],
           "description": "Model override for this step. R-F13."
         },
         "priority": {
@@ -1013,13 +1077,25 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "next",
-              "repeat",
-              "jump",
-              "handoff",
-              "closing",
-              "escalate"
+            "oneOf": [
+              { "const": "next", "title": "Proceed to next step in flow" },
+              { "const": "repeat", "title": "Retry current step" },
+              {
+                "const": "jump",
+                "title": "Skip to a named target step (requires targetField)"
+              },
+              {
+                "const": "handoff",
+                "title": "Transfer context to another step (requires handoffFields)"
+              },
+              {
+                "const": "closing",
+                "title": "Begin completion sequence (closure steps only)"
+              },
+              {
+                "const": "escalate",
+                "title": "Escalate to higher authority (verification steps only)"
+              }
             ]
           },
           "minItems": 1,
@@ -1045,7 +1121,20 @@
         },
         "targetMode": {
           "type": "string",
-          "enum": ["explicit", "dynamic", "conditional"],
+          "oneOf": [
+            {
+              "const": "explicit",
+              "title": "Target step ID is hardcoded in transitions"
+            },
+            {
+              "const": "dynamic",
+              "title": "Target step ID comes from LLM output field"
+            },
+            {
+              "const": "conditional",
+              "title": "Target depends on output condition evaluation"
+            }
+          ],
           "default": "explicit",
           "description": "How target step IDs are determined. R-F14."
         },
@@ -1056,13 +1145,25 @@
         },
         "fallbackIntent": {
           "type": "string",
-          "enum": [
-            "next",
-            "repeat",
-            "jump",
-            "handoff",
-            "closing",
-            "escalate"
+          "oneOf": [
+            { "const": "next", "title": "Proceed to next step in flow" },
+            { "const": "repeat", "title": "Retry current step" },
+            {
+              "const": "jump",
+              "title": "Skip to a named target step (requires targetField)"
+            },
+            {
+              "const": "handoff",
+              "title": "Transfer context to another step (requires handoffFields)"
+            },
+            {
+              "const": "closing",
+              "title": "Begin completion sequence (closure steps only)"
+            },
+            {
+              "const": "escalate",
+              "title": "Escalate to higher authority (verification steps only)"
+            }
           ],
           "description": "Default intent if response parsing fails. R-B9: must be in STEP_KIND_ALLOWED_INTENTS[stepKind] (runtime validation)."
         }
@@ -1274,7 +1375,14 @@
       "properties": {
         "action": {
           "type": "string",
-          "enum": ["retry", "abort", "skip"],
+          "oneOf": [
+            {
+              "const": "retry",
+              "title": "Retry the step (requires maxAttempts)"
+            },
+            { "const": "abort", "title": "Stop execution immediately" },
+            { "const": "skip", "title": "Skip this step and continue" }
+          ],
           "description": "Failure action. R-C5."
         },
         "maxAttempts": {
