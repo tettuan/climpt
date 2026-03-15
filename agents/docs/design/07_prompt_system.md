@@ -110,6 +110,10 @@ Channel 3 は VerdictHandler が `promptResolver.resolve()`
 を呼ぶ際に独自に追加する変数。`setUvVariables()` で Channel 1+2
 の変数を受け取り、handler 固有の変数をマージして供給する。
 
+> **Validator scope**: UV reachability validator (`--validate`) は Channel 1
+> (CLI parameters) のみを検証する。Channel 2, 3
+> は実行時の関心事であり、validator は runtime 注入変数の検証を行わない。
+
 ## プロンプトテンプレート
 
 ### system.md

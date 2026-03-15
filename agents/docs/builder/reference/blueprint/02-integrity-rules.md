@@ -22,6 +22,12 @@ agent セクションと registry セクションの相互参照。
 | R-A5  | step の `condition` 内の `args.*` 参照が `agent.parameters` keys に存在                          | 条件式で参照するパラメータが宣言済み                                                                               | cross-ref         |
 | R-A6  | `registry.entryStep` (singular) 使用時: その値 ∈ `registry.steps` keys                           | entryStep の遷移先 step が存在                                                                                     | cross-ref         |
 
+> **Implementation note**: UV reachability validator は Channel 1 (CLI
+> parameters) のみを強制する。runtime 供給変数 (Channel 2, 3) で
+> `runtimeUvVariables` に宣言されたものは R-A2
+> のパラメータカバレッジチェックから除外されるが、validator はそれらの runtime
+> 可用性を検証しない。
+
 ### Category B: step 内部整合
 
 各 step 定義内のフィールド間整合性。

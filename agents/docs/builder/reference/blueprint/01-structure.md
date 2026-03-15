@@ -132,79 +132,83 @@ steps_registry.json の内容をそのまま書く。
     }
   },
   "entryStepMapping": {
-    "poll:state": "initial.polling",
-    "count:iteration": "initial.iteration"
-  },
-  "steps": {
-    "initial.issue": {
-      "stepId": "initial.issue",
-      "name": "Issue Analysis",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
-      "fallbackKey": "initial_issue",
-      "stepKind": "work",
-      "uvVariables": ["issue"],
-      "usesStdin": false,
-      "model": "sonnet",
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "initial.issue"
-      },
-      "structuredGate": {
-        "allowedIntents": ["next", "repeat"],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "targetField": "next_action.details.target",
-        "failFast": true
-      },
-      "transitions": {
-        "next": { "target": "continuation.issue" },
-        "repeat": { "target": "initial.issue" }
-      }
-    }
-  },
-  "validators": {
-    "git-clean": {
-      "type": "command",
-      "command": "git status --porcelain",
-      "successWhen": "empty",
-      "failurePattern": "git-dirty",
-      "extractParams": {
-        "changedFiles": "parseChangedFiles",
-        "untrackedFiles": "parseUntrackedFiles"
-      }
-    }
-  },
-  "failurePatterns": {
-    "git-dirty": {
-      "description": "Uncommitted changes present",
-      "edition": "failed",
-      "adaptation": "git-dirty",
-      "params": ["changedFiles", "untrackedFiles"]
-    }
-  },
-  "validationSteps": {
-    "closure.issue": {
-      "stepId": "closure.issue",
-      "name": "Issue Validation",
-      "c2": "retry",
-      "c3": "issue",
-      "validationConditions": [
-        { "validator": "git-clean" },
-        { "validator": "type-check" }
-      ],
-      "onFailure": { "action": "retry", "maxAttempts": 3 },
-      "outputSchemaRef": {
-        "file": "issue.schema.json",
-        "schema": "closure.issue"
-      }
+  "poll:state": "initial.polling",
+  "count:iteration": "initial.iteration"
+},
+"steps": {
+  "initial.issue": {
+    "stepId": "initial.issue",
+    "name": "Issue Analysis",
+    "c2": "initial",
+    "c3": "issue",
+    "edition": "default",
+    "fallbackKey": "initial_issue",
+    "stepKind": "work",
+    "uvVariables": ["issue"],
+    "usesStdin": false,
+    "model": "sonnet",
+    "outputSchemaRef": {
+      "file": "issue.schema.json",
+      "schema": "initial.issue"
+    },
+    "structuredGate": {
+      "allowedIntents": ["next", "repeat"],
+      "intentSchemaRef": "#/properties/next_action/properties/action",
+      "intentField": "next_action.action",
+      "targetField": "next_action.details.target",
+      "failFast": true
+    },
+    "transitions": {
+      "next": { "target": "continuation.issue" },
+      "repeat": { "target": "initial.issue" }
     }
   }
+},
+"validators": {
+  "git-clean": {
+    "type": "command",
+    "command": "git status --porcelain",
+    "successWhen": "empty",
+    "failurePattern": "git-dirty",
+    "extractParams": {
+      "changedFiles": "parseChangedFiles",
+      "untrackedFiles": "parseUntrackedFiles"
+    }
+  }
+},
+"failurePatterns": {
+  "git-dirty": {
+    "description": "Uncommitted changes present",
+    "edition": "failed",
+    "adaptation": "git-dirty",
+    "params": ["changedFiles", "untrackedFiles"]
+  }
+},
+"validationSteps": {
+  "closure.issue": {
+    "stepId": "closure.issue",
+    "name": "Issue Validation",
+    "c2": "retry",
+    "c3": "issue",
+    "validationConditions": [
+      { "validator": "git-clean" },
+      { "validator": "type-check" }
+    ],
+    "onFailure": { "action": "retry", "maxAttempts": 3 },
+    "outputSchemaRef": {
+      "file": "issue.schema.json",
+      "schema": "closure.issue"
+    }
+  }
+}
 }
 ```
 
 **steps_registry.schema.json と同じ構造。追加・省略なし。**
+
+> Note: `runtimeUvVariables` serves as documentation for blueprint integrity
+> rules (R-A2, R-A2b). The UV reachability validator does not enforce these ---
+> it only validates that CLI parameter-sourced variables are properly declared.
 
 ## Section 3: `schemas`
 
