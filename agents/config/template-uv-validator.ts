@@ -191,7 +191,7 @@ export async function validateTemplateUvConsistency(
 
     // Source 2: Fallback template (only when a C3L prompt file exists)
     // When promptContent is null, the step has no C3L file and the fallback
-    // is a system-provided safety net — its UV requirements should not be
+    // is a system-provided safety net -- its UV requirements should not be
     // imposed on the agent config.
     if (
       promptContent !== null && fallbackKey !== null &&
