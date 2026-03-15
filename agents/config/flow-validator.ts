@@ -153,6 +153,12 @@ export function validateFlowReachability(
     }
   }
 
+  // Also check entryStep (singular) as entry point
+  const entryStep = registry.entryStep;
+  if (typeof entryStep === "string" && allStepIds.has(entryStep)) {
+    entryPoints.add(entryStep);
+  }
+
   // -----------------------------------------------------------------------
   // 3. BFS from all entry points
   // -----------------------------------------------------------------------

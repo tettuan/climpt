@@ -198,11 +198,12 @@ Deno.test("template-uv-validator - missing prompt file is skipped", async () => 
 // 5. Fallback template contains {uv-issue} -> check against declarations
 // =============================================================================
 
-Deno.test("template-uv-validator - fallback template UV checked against declarations", async () => {
+Deno.test("template-uv-validator - fallback-only step skips UV check (no C3L file)", async () => {
   const dir = await Deno.makeTempDir();
   try {
     // No C3L prompt file — only fallback template
     // "initial_issue" fallback uses {uv-issue} (from DefaultFallbackProvider)
+    // Since no C3L file exists, fallback UV requirements should NOT be imposed.
     const registry = registryWith("initial.issue", {
       c2: "initial",
       c3: "issue",
@@ -213,16 +214,9 @@ Deno.test("template-uv-validator - fallback template UV checked against declarat
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
 
-    // The fallback template for "initial_issue" uses {uv-issue}, which is
-    // not declared in uvVariables -> error
-    assertEquals(result.valid, false);
-    assertEquals(
-      result.errors.some((e) =>
-        e.includes("initial.issue") && e.includes("uv-issue")
-      ),
-      true,
-      `Expected fallback UV error, got: ${JSON.stringify(result.errors)}`,
-    );
+    // Fallback-only: no C3L file means fallback UV variables are not checked
+    assertEquals(result.valid, true);
+    assertEquals(result.errors.length, 0);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

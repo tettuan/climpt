@@ -304,7 +304,67 @@ Deno.test("flow-validator - multiple entry points reaching different closures", 
 });
 
 // =============================================================================
-// 9. Integration test with real iterator registry
+// 9. entryStep (singular) as BFS starting point
+// =============================================================================
+
+Deno.test("flow-validator - entryStep (singular) reaches closure", () => {
+  const registry: Record<string, unknown> = {
+    entryStep: "initial.issue",
+    steps: {
+      "initial.issue": {
+        stepId: "initial.issue",
+        c2: "initial",
+        transitions: {
+          next: { target: "closure.issue" },
+        },
+      },
+      "closure.issue": {
+        stepId: "closure.issue",
+        c2: "closure",
+        transitions: {
+          closing: { target: null },
+        },
+      },
+    },
+  };
+
+  const result = validateFlowReachability(registry);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+});
+
+Deno.test("flow-validator - entryStep pointing to non-existent step is skipped", () => {
+  const registry: Record<string, unknown> = {
+    entryStep: "nonexistent.step",
+    steps: {
+      "initial.issue": {
+        stepId: "initial.issue",
+        c2: "initial",
+        transitions: {
+          next: { target: "closure.issue" },
+        },
+      },
+      "closure.issue": {
+        stepId: "closure.issue",
+        c2: "closure",
+        transitions: {
+          closing: { target: null },
+        },
+      },
+    },
+  };
+
+  const result = validateFlowReachability(registry);
+
+  // No entry points -> BFS visits nothing -> closure unreachable -> error
+  assertEquals(result.valid, false);
+  const closureError = result.errors.find((e) => e.includes("closure"));
+  assertEquals(closureError !== undefined, true);
+});
+
+// =============================================================================
+// 10. Integration test with real iterator registry
 // =============================================================================
 
 Deno.test("flow-validator/integration - iterator steps_registry has valid flow", async () => {
