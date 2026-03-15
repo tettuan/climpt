@@ -550,10 +550,13 @@ steps:
     # Description : User Variable names injected into prompt.
     # Type        : array of strings
     # Default     : []
-    # Why         : Lists the variable placeholders in the
-    #               prompt template. The runner resolves these
-    #               from CLI parameters or runtime state.
-    #               Missing variables produce empty strings.
+    # Why         : Lists the variable placeholders in the prompt template.
+    #               The runner resolves these from three supply channels:
+    #                 Channel 1: CLI parameters (agent.json parameters)
+    #                 Channel 2: Runner runtime (iteration, completed_iterations, completion_keyword)
+    #                 Channel 3: VerdictHandler (remaining, previous_summary, max_iterations, check_count, max_checks)
+    #               Channel 3 variables are supplied by VerdictHandler.buildContinuationPrompt()
+    #               via setUvVariables() interface. Missing variables produce empty strings.
     uvVariables: ["issue"]
 
     # usesStdin (optional)

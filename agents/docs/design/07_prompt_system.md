@@ -84,14 +84,31 @@ prompts/steps/continuation/manual/f_detailed.md
 
 User Variable。プロンプト内で `{uv-xxx}` で参照。
 
-| 変数                     | 説明             |
-| ------------------------ | ---------------- |
-| `uv-agent_name`          | Agent 識別子     |
-| `uv-completion_criteria` | 完了条件テキスト |
-| `uv-issue`               | Issue 番号       |
-| `uv-iteration`           | 現在の回数       |
-| `uv-max_iterations`      | 最大回数         |
-| `uv-completion_keyword`  | 完了キーワード   |
+| 変数                      | 説明             | 供給元                      |
+| ------------------------- | ---------------- | --------------------------- |
+| `uv-agent_name`           | Agent 識別子     | CLI parameter               |
+| `uv-completion_criteria`  | 完了条件テキスト | CLI parameter               |
+| `uv-issue`                | Issue 番号       | CLI parameter               |
+| `uv-iteration`            | 現在の回数       | Runner (Channel 2)          |
+| `uv-completed_iterations` | 完了済み回数     | Runner (Channel 2)          |
+| `uv-max_iterations`       | 最大回数         | Verdict Handler (Channel 3) |
+| `uv-completion_keyword`   | 完了キーワード   | Runner (Channel 2)          |
+| `uv-remaining`            | 残り回数         | Verdict Handler (Channel 3) |
+| `uv-previous_summary`     | 前回のサマリー   | Verdict Handler (Channel 3) |
+| `uv-check_count`          | 確認回数         | Verdict Handler (Channel 3) |
+| `uv-max_checks`           | 最大確認回数     | Verdict Handler (Channel 3) |
+
+### UV 変数の供給チャネル
+
+| Channel | 供給元                                   | 変数                                                                               |
+| ------- | ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1       | CLI parameters (agent.json)              | agent.json の parameters に宣言された全変数                                        |
+| 2       | Runner runtime (buildUvVariables)        | iteration, completed_iterations, completion_keyword                                |
+| 3       | VerdictHandler (buildContinuationPrompt) | handler 固有。remaining, previous_summary, max_iterations, check_count, max_checks |
+
+Channel 3 は VerdictHandler が `promptResolver.resolve()`
+を呼ぶ際に独自に追加する変数。`setUvVariables()` で Channel 1+2
+の変数を受け取り、handler 固有の変数をマージして供給する。
 
 ## プロンプトテンプレート
 
