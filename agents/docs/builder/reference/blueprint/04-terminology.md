@@ -53,15 +53,23 @@ Blueprint は以下の用語を Runtime から変更せずに使う:
 
 ### フロー制御
 
-| 用語             | 意味                                                                       | 所在                      |
-| ---------------- | -------------------------------------------------------------------------- | ------------------------- |
-| structuredGate   | 構造化出力からの intent 抽出設定                                           | steps_registry.json steps |
-| allowedIntents   | このステップで許可される intent                                            | steps_registry.json steps |
-| intentSchemaRef  | intent フィールドへの JSON Pointer                                         | steps_registry.json steps |
-| intentField      | intent 値の抽出パス                                                        | steps_registry.json steps |
-| GateIntent       | Intent の種類 (7値: next, repeat, jump, handoff, closing, escalate, abort) | Runtime 固定              |
-| transitions      | intent → 次の step のマッピング                                            | steps_registry.json steps |
-| entryStepMapping | verdict type → 開始 step のマッピング                                      | steps_registry.json       |
+| 用語             | 意味                                                                 | 所在                                       |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| structuredGate   | 構造化出力からの intent 抽出設定                                     | steps_registry.json steps                  |
+| allowedIntents   | このステップで許可される intent                                      | steps_registry.json steps                  |
+| intentSchemaRef  | intent フィールドへの JSON Pointer                                   | steps_registry.json steps                  |
+| intentField      | intent 値の抽出パス                                                  | steps_registry.json steps                  |
+| GateIntent       | Intent の種類 (6値: next, repeat, jump, handoff, closing, escalate)  | Runtime 固定                               |
+| transitions      | intent → 次の step のマッピング                                      | steps_registry.json steps                  |
+| entryStepMapping | verdict type → 開始 step のマッピング                                | steps_registry.json                        |
+| condition        | step の実行条件 (guard expression)。例: `"args.issue !== undefined"` | steps_registry.json steps                  |
+| priority         | 複数 step が condition を持つ場合の優先度 (正整数、大きいほど優先)   | steps_registry.json steps                  |
+| targetField      | jump intent 時の遷移先 step ID 抽出パス                              | steps_registry.json steps (structuredGate) |
+| targetMode       | 遷移先の決定方式 (explicit / dynamic / conditional)                  | steps_registry.json steps (structuredGate) |
+| handoffFields    | handoff intent 時に次 step へ渡すデータの JSON パス                  | steps_registry.json steps (structuredGate) |
+| fallbackIntent   | intent 解析失敗時のデフォルト intent                                 | steps_registry.json steps (structuredGate) |
+| failFast         | intent 解析失敗時にエラーを投げるか (true) fallback を使うか (false) | steps_registry.json steps (structuredGate) |
+| fallback         | 遷移先 step が失敗した場合の代替 step (transition のフィールド)      | steps_registry.json steps (transitions)    |
 
 ### バリデーション
 
@@ -71,6 +79,17 @@ Blueprint は以下の用語を Runtime から変更せずに使う:
 | failurePatterns | 検証失敗時のパターン定義     | steps_registry.json            |
 | validationSteps | closure 前検証ステップの定義 | steps_registry.json            |
 | extractParams   | 失敗時のパラメータ抽出ルール | steps_registry.json validators |
+
+### Runner 設定
+
+| 用語         | 意味                                                     | 所在                         |
+| ------------ | -------------------------------------------------------- | ---------------------------- |
+| defaultModel | 全 step のデフォルトモデル。step.model で個別上書き可    | agent.json runner.flow       |
+| sandbox      | ネットワーク・ファイルシステムのアクセス制御             | agent.json runner.boundaries |
+| worktree     | Git worktree の設定 (enabled, root)                      | agent.json runner.execution  |
+| finalize     | worktree 後処理 (autoMerge, push, createPr, prTarget)    | agent.json runner.execution  |
+| actions      | Action ブロック検出・実行設定 (enabled, types, handlers) | agent.json runner            |
+| handlers     | Action type → handler の対応表                           | agent.json runner.actions    |
 
 ## v1 からの変更
 

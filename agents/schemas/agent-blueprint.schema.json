@@ -33,6 +33,7 @@
     "R-A6": "When registry.entryStep (singular) is used: its value must be a key in registry.steps",
     "R-B1": "step.stepId must equal the object key under which it is defined",
     "R-B2": "c2 to stepKind correspondence: initial/continuation -> work or verification; closure -> closure; section -> stepKind absent",
+    "R-B3": "allowedIntents must be subset of STEP_KIND_ALLOWED_INTENTS[stepKind] — now also enforced structurally via if/then per stepKind (work: next/repeat/jump/handoff, verification: next/repeat/jump/escalate, closure: closing/repeat). 'abort' removed from intent enum.",
     "R-B4": "transitions intent keys must equal allowedIntents; fallback is a reserved non-intent key excluded from this check",
     "R-B5": "All transition targets (direct target, conditional targets values, fallback) must be keys in registry.steps or null",
     "R-B9": "structuredGate.fallbackIntent (when present) must be in STEP_KIND_ALLOWED_INTENTS[stepKind]",
@@ -881,6 +882,10 @@
           "$ref": "#/$defs/Transitions",
           "description": "Intent to step transition mapping"
         },
+        "condition": {
+          "type": "string",
+          "description": "Guard expression for conditional step entry (e.g., 'args.issue !== undefined'). R-A5: args.* references must match agent.parameters keys (runtime validation)."
+        },
         "description": {
           "type": "string",
           "description": "Optional description of what this step does"
@@ -916,6 +921,66 @@
                 { "required": ["outputSchemaRef"] },
                 { "required": ["stepKind"] }
               ]
+            }
+          }
+        },
+        {
+          "description": "R-B3: work steps (stepKind=work) may only use intents [next, repeat, jump, handoff].",
+          "if": {
+            "properties": { "stepKind": { "const": "work" } },
+            "required": ["stepKind"]
+          },
+          "then": {
+            "properties": {
+              "structuredGate": {
+                "properties": {
+                  "allowedIntents": {
+                    "items": {
+                      "enum": ["next", "repeat", "jump", "handoff"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "R-B3: verification steps (stepKind=verification) may only use intents [next, repeat, jump, escalate].",
+          "if": {
+            "properties": { "stepKind": { "const": "verification" } },
+            "required": ["stepKind"]
+          },
+          "then": {
+            "properties": {
+              "structuredGate": {
+                "properties": {
+                  "allowedIntents": {
+                    "items": {
+                      "enum": ["next", "repeat", "jump", "escalate"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "R-B3: closure steps (stepKind=closure) may only use intents [closing, repeat].",
+          "if": {
+            "properties": { "stepKind": { "const": "closure" } },
+            "required": ["stepKind"]
+          },
+          "then": {
+            "properties": {
+              "structuredGate": {
+                "properties": {
+                  "allowedIntents": {
+                    "items": {
+                      "enum": ["closing", "repeat"]
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -954,12 +1019,11 @@
               "jump",
               "handoff",
               "closing",
-              "escalate",
-              "abort"
+              "escalate"
             ]
           },
           "minItems": 1,
-          "description": "Intents this step can emit. R-B3: must be subset of STEP_KIND_ALLOWED_INTENTS[stepKind] (runtime validation for stepKind correspondence)."
+          "description": "Intents this step can emit. R-B3: must be subset of STEP_KIND_ALLOWED_INTENTS[stepKind]. 'abort' removed — not in any stepKind's allowed set."
         },
         "intentSchemaRef": {
           "type": "string",
@@ -998,8 +1062,7 @@
             "jump",
             "handoff",
             "closing",
-            "escalate",
-            "abort"
+            "escalate"
           ],
           "description": "Default intent if response parsing fails. R-B9: must be in STEP_KIND_ALLOWED_INTENTS[stepKind] (runtime validation)."
         }
