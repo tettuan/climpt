@@ -253,6 +253,12 @@ No fallback prompt found for key: "initial.issue" (step: initial.issue)
   `fallbackKey`
 - Ensure `fallbackKey` is correctly set to handle this fallback gracefully
 
+> **Validator scope**: The `--validate` flag checks UV variable reachability
+> only for Channel 1 (CLI parameters declared in `agent.parameters`).
+> Runtime-injected variables (Channels 2, 3) such as `iteration` or
+> `previous_summary` are silently skipped -- the runner guarantees their
+> availability at execution time.
+
 #### Step Naming Convention: initial.\* and continuation.\*
 
 Steps using the `initial.*` prefix have special behavior in `count:iteration`

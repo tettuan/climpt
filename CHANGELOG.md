@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.6] - 2026-03-16
+
+### Changed
+- UV reachability validator now only checks Channel 1 (CLI parameters); runtime-supplied variables are silently skipped (`uv-reachability-validator.ts`)
+
+### Removed
+- Hardcoded `RUNTIME_VARIABLES` set from UV reachability validator (previously: iteration, completed_iterations, completion_keyword)
+
 ## [1.13.5] - 2026-03-15
 
 ### Fixed

@@ -3,12 +3,11 @@
  *
  * Covers validateUvReachability() with inline fixtures:
  * - All UV variables have CLI sources -> valid
- * - UV variable is a runtime variable -> valid
- * - UV variable has no source -> error
+ * - UV variable not in params (runtime) -> silently skipped
  * - Optional CLI param without default -> warning
  * - Empty uvVariables -> valid (skipped)
  * - No steps -> valid
- * - Mix of valid and invalid variables
+ * - Mix of param and non-param variables
  * - Prefix substitution consistency (initial.* vs continuation.*)
  */
 
@@ -62,8 +61,8 @@ Deno.test("validateUvReachability - all UV variables have CLI sources -> valid",
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - UV variable is runtime variable (iteration) -> valid", () => {
-  const registry = registryWith("continuation.check", {
+Deno.test("validateUvReachability - UV variable not in params -> silently skipped (no error)", () => {
+  const registry = registryWith("step.check", {
     uvVariables: ["iteration", "completed_iterations", "completion_keyword"],
   });
   const agent = agentWith({});
@@ -75,7 +74,7 @@ Deno.test("validateUvReachability - UV variable is runtime variable (iteration) 
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - UV variable has no source -> error", () => {
+Deno.test("validateUvReachability - UV variable not in params -> no error (assumed runtime)", () => {
   // Use a non-initial prefix to avoid prefix substitution warnings
   const registry = registryWith("step.issue", {
     uvVariables: ["unknown_var"],
@@ -84,18 +83,9 @@ Deno.test("validateUvReachability - UV variable has no source -> error", () => {
 
   const result = validateUvReachability(registry, agent);
 
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 1);
-  assertEquals(
-    result.errors[0].includes("unknown_var"),
-    true,
-    `Expected error to mention "unknown_var", got: ${result.errors[0]}`,
-  );
-  assertEquals(
-    result.errors[0].includes("no supply source"),
-    true,
-    `Expected error to mention "no supply source", got: ${result.errors[0]}`,
-  );
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
 });
 
 Deno.test("validateUvReachability - optional CLI param without default -> warning", () => {
@@ -202,8 +192,8 @@ Deno.test("validateUvReachability - missing steps key -> valid", () => {
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - mix of valid and invalid variables", () => {
-  // Use a non-initial prefix to isolate supply-source errors
+Deno.test("validateUvReachability - mix of param and non-param variables -> no errors", () => {
+  // Use a non-initial prefix to isolate the check
   const registry = registryWith("step.issue", {
     uvVariables: ["issue", "iteration", "unknown_var", "another_missing"],
   });
@@ -213,23 +203,14 @@ Deno.test("validateUvReachability - mix of valid and invalid variables", () => {
 
   const result = validateUvReachability(registry, agent);
 
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 2);
-  assertEquals(
-    result.errors.some((e) => e.includes("unknown_var")),
-    true,
-    `Expected error for "unknown_var", got: ${JSON.stringify(result.errors)}`,
-  );
-  assertEquals(
-    result.errors.some((e) => e.includes("another_missing")),
-    true,
-    `Expected error for "another_missing", got: ${
-      JSON.stringify(result.errors)
-    }`,
-  );
+  // "issue" is a required param -> OK, no warning
+  // "iteration", "unknown_var", "another_missing" are not in params -> silently skipped
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - multiple steps with mixed results", () => {
+Deno.test("validateUvReachability - multiple steps with non-param variables -> no errors", () => {
   const registry: Record<string, unknown> = {
     steps: {
       "step.issue": {
@@ -246,99 +227,8 @@ Deno.test("validateUvReachability - multiple steps with mixed results", () => {
 
   const result = validateUvReachability(registry, agent);
 
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 1);
-  assertEquals(
-    result.errors[0].includes("step.check"),
-    true,
-    `Expected error for step "step.check", got: ${result.errors[0]}`,
-  );
-  assertEquals(
-    result.errors[0].includes("orphan_var"),
-    true,
-    `Expected error for "orphan_var", got: ${result.errors[0]}`,
-  );
-});
-
-// =============================================================================
-// Registry runtimeUvVariables tests
-// =============================================================================
-
-Deno.test("validateUvReachability - registry runtimeUvVariables recognized as valid source", () => {
-  const registry: Record<string, unknown> = {
-    runtimeUvVariables: {
-      previous_summary: { source: "verdict-handler" },
-      remaining: { source: "verdict-handler" },
-      max_iterations: { source: "verdict-handler" },
-    },
-    steps: {
-      "step.check": {
-        uvVariables: ["previous_summary", "remaining", "max_iterations"],
-      },
-    },
-  };
-  const agent = agentWith({});
-
-  const result = validateUvReachability(registry, agent);
-
-  assertEquals(result.valid, true);
-  assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
-});
-
-Deno.test("validateUvReachability - registry runtimeUvVariables merged with hardcoded set", () => {
-  const registry: Record<string, unknown> = {
-    runtimeUvVariables: {
-      check_count: { source: "verdict-handler" },
-      max_checks: { source: "verdict-handler" },
-    },
-    steps: {
-      "step.check": {
-        uvVariables: ["iteration", "check_count", "max_checks"],
-      },
-    },
-  };
-  const agent = agentWith({});
-
-  const result = validateUvReachability(registry, agent);
-
-  assertEquals(result.valid, true);
-  assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
-});
-
-Deno.test("validateUvReachability - variable not in registry runtimeUvVariables still errors", () => {
-  const registry: Record<string, unknown> = {
-    runtimeUvVariables: {
-      previous_summary: { source: "verdict-handler" },
-    },
-    steps: {
-      "step.check": {
-        uvVariables: ["previous_summary", "undeclared_var"],
-      },
-    },
-  };
-  const agent = agentWith({});
-
-  const result = validateUvReachability(registry, agent);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 1);
-  assertEquals(
-    result.errors[0].includes("undeclared_var"),
-    true,
-    `Expected error for "undeclared_var", got: ${result.errors[0]}`,
-  );
-});
-
-Deno.test("validateUvReachability - absent runtimeUvVariables field -> no change in behavior", () => {
-  const registry = registryWith("step.issue", {
-    uvVariables: ["iteration"],
-  });
-  const agent = agentWith({});
-
-  const result = validateUvReachability(registry, agent);
-
+  // "issue" is required param -> OK
+  // "iteration", "orphan_var" not in params -> silently skipped
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
   assertEquals(result.warnings.length, 0);

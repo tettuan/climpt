@@ -187,6 +187,11 @@ net.
 > This is why `poll:state` agents fail when `fallbackKey` is wrong, while
 > `count:iteration` agents (Path A only, no UV injection) are unaffected.
 
+> **Validation**: The `--validate` flag only checks UV variables sourced from
+> CLI parameters (agent.json `parameters`). Runtime-injected variables like
+> `iteration` and `previous_summary` are not validated -- they are guaranteed by
+> the runner at execution time.
+
 ### 11.3.6 Step ID Prefix Substitution
 
 When using `count:iteration` verdict type, the runner automatically substitutes

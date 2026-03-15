@@ -1,12 +1,12 @@
 /**
  * UV Variable Reachability Validator
  *
- * Validates that each step's declared uvVariables have a known supply source:
- * - CLI parameters (from agent.json parameters)
- * - Runtime variables (hardcoded: iteration, completed_iterations, completion_keyword)
- * - Registry-declared runtime variables (from registry.runtimeUvVariables keys)
+ * Validates that each step's declared uvVariables have a known supply source
+ * via CLI parameters (Channel 1 --from agent.json parameters).
  *
- * Variables not matching any source are flagged as errors.
+ * Variables not found in CLI parameters are silently skipped --they are
+ * assumed to be runtime-supplied and are not the validator's concern.
+ *
  * Optional CLI parameters without defaults are flagged as warnings.
  *
  * Additionally validates prefix substitution consistency:
@@ -20,20 +20,6 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/**
- * Runtime variables supplied by the runner at execution time.
- * See runner.ts buildUvVariables() for the authoritative source.
- */
-const RUNTIME_VARIABLES: ReadonlySet<string> = new Set([
-  "iteration",
-  "completed_iterations",
-  "completion_keyword",
-]);
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -141,8 +127,8 @@ function validatePrefixSubstitutionConsistency(
  * Validate UV variable reachability for all steps in a steps registry.
  *
  * Checks per step:
- * 1. Each declared uvVariable has a supply source (runtime or CLI parameter)
- * 2. CLI-sourced variables with optional parameters and no default produce warnings
+ * 1. If a uvVariable matches a CLI parameter, validate its optionality/default
+ * 2. Variables not in CLI parameters are silently skipped (runtime-supplied)
  * 3. initial.* / continuation.* prefix substitution consistency
  *
  * @param registry - Parsed steps_registry.json content
@@ -160,15 +146,6 @@ export function validateUvReachability(
   const parametersRaw = asRecord(agentDef.parameters) ?? {};
   const parameterKeys = new Set(Object.keys(parametersRaw));
 
-  // Merge hardcoded runtime variables with registry-declared runtimeUvVariables
-  const registryRuntimeVars = asRecord(registry.runtimeUvVariables);
-  const allRuntimeVars = new Set(RUNTIME_VARIABLES);
-  if (registryRuntimeVars) {
-    for (const key of Object.keys(registryRuntimeVars)) {
-      allRuntimeVars.add(key);
-    }
-  }
-
   for (const [stepId, stepDef] of Object.entries(stepsRaw)) {
     const step = asRecord(stepDef);
     if (!step) continue;
@@ -180,28 +157,20 @@ export function validateUvReachability(
       const varName = typeof varEntry === "string" ? varEntry : null;
       if (varName === null) continue;
 
-      // Runtime variable - always available (hardcoded + registry-declared)
-      if (allRuntimeVars.has(varName)) continue;
+      // Only check Channel 1 (CLI parameters).
+      // Variables not in params are assumed runtime-supplied --skip silently.
+      if (!parameterKeys.has(varName)) continue;
 
-      // CLI parameter - check existence and optionality
-      if (parameterKeys.has(varName)) {
-        const paramDef = asRecord(parametersRaw[varName]);
-        if (paramDef) {
-          const isRequired = paramDef.required === true;
-          const hasDefault = "default" in paramDef;
-          if (!isRequired && !hasDefault) {
-            warnings.push(
-              `Step "${stepId}": UV variable "${varName}" maps to optional CLI parameter with no default value.`,
-            );
-          }
+      const paramDef = asRecord(parametersRaw[varName]);
+      if (paramDef) {
+        const isRequired = paramDef.required === true;
+        const hasDefault = "default" in paramDef;
+        if (!isRequired && !hasDefault) {
+          warnings.push(
+            `Step "${stepId}": UV variable "${varName}" maps to optional CLI parameter with no default value.`,
+          );
         }
-        continue;
       }
-
-      // No known source
-      errors.push(
-        `Step "${stepId}": UV variable "${varName}" has no supply source. Not in CLI parameters (agent.json) or runtime variables.`,
-      );
     }
   }
 
