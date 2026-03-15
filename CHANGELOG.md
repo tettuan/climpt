@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.4] - 2026-03-15
+
+### Added
+- AgentBlueprint language spec: cross-file integrity rules for agent.json, steps_registry.json, and schemas (`agents/docs/builder/reference/blueprint/`)
+- `agent-blueprint.schema.json`: 1305-line JSON Schema enforcing 52 integrity rules with if/then per stepKind, verdict-type-specific config validation, and section step constraints
+- Blueprint design doc (`agents/docs/design/11_blueprint_language.md`)
+- `runtimeUvVariables` field in registry section for declaring runtime-supplied UV variables
+
+### Changed
+- Intent enum reduced from 7 to 6 values: removed `abort` (not in any STEP_KIND_ALLOWED_INTENTS)
+- R-B3 now enforced structurally in schema via stepKind-specific if/then blocks
+
 ## [1.13.3] - 2026-03-14
 
 ### Fixed
