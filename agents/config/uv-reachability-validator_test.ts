@@ -261,6 +261,90 @@ Deno.test("validateUvReachability - multiple steps with mixed results", () => {
 });
 
 // =============================================================================
+// Registry runtimeUvVariables tests
+// =============================================================================
+
+Deno.test("validateUvReachability - registry runtimeUvVariables recognized as valid source", () => {
+  const registry: Record<string, unknown> = {
+    runtimeUvVariables: {
+      previous_summary: { source: "verdict-handler" },
+      remaining: { source: "verdict-handler" },
+      max_iterations: { source: "verdict-handler" },
+    },
+    steps: {
+      "step.check": {
+        uvVariables: ["previous_summary", "remaining", "max_iterations"],
+      },
+    },
+  };
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - registry runtimeUvVariables merged with hardcoded set", () => {
+  const registry: Record<string, unknown> = {
+    runtimeUvVariables: {
+      check_count: { source: "verdict-handler" },
+      max_checks: { source: "verdict-handler" },
+    },
+    steps: {
+      "step.check": {
+        uvVariables: ["iteration", "check_count", "max_checks"],
+      },
+    },
+  };
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validateUvReachability - variable not in registry runtimeUvVariables still errors", () => {
+  const registry: Record<string, unknown> = {
+    runtimeUvVariables: {
+      previous_summary: { source: "verdict-handler" },
+    },
+    steps: {
+      "step.check": {
+        uvVariables: ["previous_summary", "undeclared_var"],
+      },
+    },
+  };
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 1);
+  assertEquals(
+    result.errors[0].includes("undeclared_var"),
+    true,
+    `Expected error for "undeclared_var", got: ${result.errors[0]}`,
+  );
+});
+
+Deno.test("validateUvReachability - absent runtimeUvVariables field -> no change in behavior", () => {
+  const registry = registryWith("step.issue", {
+    uvVariables: ["iteration"],
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 0);
+});
+
+// =============================================================================
 // Prefix substitution consistency tests
 // =============================================================================
 

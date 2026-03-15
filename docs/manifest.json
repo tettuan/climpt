@@ -468,6 +468,55 @@
       "category": "reference",
       "title": "サブエージェント",
       "bytes": 604674
+    },
+    {
+      "id": "blueprint-overview",
+      "path": "../agents/docs/builder/reference/blueprint/00-overview.md",
+      "category": "reference",
+      "title": "AgentBlueprint Language Overview",
+      "bytes": 2567
+    },
+    {
+      "id": "blueprint-structure",
+      "path": "../agents/docs/builder/reference/blueprint/01-structure.md",
+      "category": "reference",
+      "title": "AgentBlueprint Structure",
+      "bytes": 6950
+    },
+    {
+      "id": "blueprint-integrity-rules",
+      "path": "../agents/docs/builder/reference/blueprint/02-integrity-rules.md",
+      "category": "reference",
+      "title": "AgentBlueprint Integrity Rules (52 rules)",
+      "bytes": 20880
+    },
+    {
+      "id": "blueprint-constraints",
+      "path": "../agents/docs/builder/reference/blueprint/03-constraints.md",
+      "category": "reference",
+      "title": "AgentBlueprint Constraints",
+      "bytes": 2501
+    },
+    {
+      "id": "blueprint-terminology",
+      "path": "../agents/docs/builder/reference/blueprint/04-terminology.md",
+      "category": "reference",
+      "title": "AgentBlueprint Terminology",
+      "bytes": 7834
+    },
+    {
+      "id": "blueprint-examples",
+      "path": "../agents/docs/builder/reference/blueprint/05-examples.md",
+      "category": "reference",
+      "title": "AgentBlueprint Examples",
+      "bytes": 11833
+    },
+    {
+      "id": "schema-agent-blueprint",
+      "path": "../agents/schemas/agent-blueprint.schema.json",
+      "category": "reference",
+      "title": "AgentBlueprint JSON Schema",
+      "bytes": 45133
     }
   ]
 }
