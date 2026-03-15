@@ -1,0 +1,1242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/tettuan/climpt/main/agents/schemas/agent-blueprint.schema.json",
+  "title": "Climpt AgentBlueprint",
+  "description": "Unified schema that validates an AgentBlueprint file — a single JSON combining agent.json, steps_registry.json, and schemas/* into one validatable document. Enforces 52 integrity rules (02-integrity-rules.md v2.1).",
+  "type": "object",
+  "required": ["agent", "registry", "schemas"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema URL for validation"
+    },
+    "agent": {
+      "$ref": "#/$defs/AgentSection"
+    },
+    "registry": {
+      "$ref": "#/$defs/RegistrySection"
+    },
+    "schemas": {
+      "$ref": "#/$defs/SchemasSection"
+    }
+  },
+  "additionalProperties": false,
+
+  "x-integrity-rules": {
+    "description": "Rules that JSON Schema cannot fully express. These must be enforced by a runtime validator.",
+    "R-A1": "agent.name must equal registry.agentId (cross-section identity)",
+    "R-A2": "agent.parameters keys must be a superset of (union of all step uvVariables) minus registry.runtimeUvVariables keys",
+    "R-A2b": "Every key in registry.runtimeUvVariables must appear in at least one step's uvVariables (stale declaration prevention)",
+    "R-A3": "When entryStepMapping is used: agent.runner.verdict.type must be a key in registry.entryStepMapping",
+    "R-A4": "Every value in registry.entryStepMapping must be a key in registry.steps",
+    "R-A5": "args.* references inside step transition conditions must correspond to keys in agent.parameters",
+    "R-A6": "When registry.entryStep (singular) is used: its value must be a key in registry.steps",
+    "R-B1": "step.stepId must equal the object key under which it is defined",
+    "R-B2": "c2 to stepKind correspondence: initial/continuation -> work or verification; closure -> closure; section -> stepKind absent",
+    "R-B4": "transitions intent keys must equal allowedIntents; fallback is a reserved non-intent key excluded from this check",
+    "R-B5": "All transition targets (direct target, conditional targets values, fallback) must be keys in registry.steps or null",
+    "R-B9": "structuredGate.fallbackIntent (when present) must be in STEP_KIND_ALLOWED_INTENTS[stepKind]",
+    "R-B12": "The transitions 'fallback' key must not appear in allowedIntents",
+    "R-B13": "All steps must be reachable from the entry point(s) via transitions (reachability check)",
+    "R-C1": "validators[*].failurePattern must be a key in failurePatterns",
+    "R-C2": "validationSteps[*].validationConditions[*].validator must be a key in validators",
+    "R-C3": "Direct transition fallback field (when present) must be a key in registry.steps",
+    "R-C4": "Conditional transition targets values must all be keys in registry.steps or null",
+    "R-D1": "outputSchemaRef.file must be a key in the top-level schemas object",
+    "R-D2": "outputSchemaRef.schema must exist as a definition within schemas[file] (definitions, $defs, or top-level key)",
+    "R-D3": "The schema's next_action.action.enum must equal the step's allowedIntents",
+    "R-D4": "structuredGate.handoffFields paths must resolve within the referenced output schema",
+    "R-E1": "stepId prefix must match c2 (initial -> initial.*, continuation -> continuation.*, closure -> closure.*, section -> section.*, verification -> verification.*)",
+    "R-E2": "fallbackKey must equal {c2}_{c3} with dots replaced by underscores",
+    "R-F15": "meta:composite verdict config.conditions[*].type must be a valid VerdictType excluding meta:composite (no recursion)"
+  },
+
+  "$defs": {
+    "AgentSection": {
+      "description": "The agent definition section. Mirrors agent.json structure. Enforces: R-F1 (name pattern), R-F2 (version semver), R-F3 (verdict type enum), R-F4 (permissionMode enum), R-F5 (parameter type enum), R-F6 (cli pattern), R-F12 (verdict config per type), R-F16 (validation keys), R-F17 (required boolean), R-F18 (logging format enum), R-F19 (closureAction enum).",
+      "type": "object",
+      "required": ["name", "version", "displayName", "description", "runner"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Agent identifier (lowercase kebab-case). R-F1."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Agent description"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Agent version (semver). R-F2."
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterDefinition"
+          },
+          "description": "CLI parameters the agent accepts"
+        },
+        "runner": {
+          "$ref": "#/$defs/RunnerConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "ParameterDefinition": {
+      "description": "A single agent parameter. Enforces: R-F5 (type enum), R-F6 (cli pattern), R-F16 (validation keys), R-F17 (required is boolean).",
+      "type": "object",
+      "required": ["type", "description", "cli"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "number", "boolean", "array"],
+          "description": "Parameter type. R-F5."
+        },
+        "description": {
+          "type": "string",
+          "description": "Parameter description"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the parameter is required. R-F17."
+        },
+        "default": {
+          "description": "Default value"
+        },
+        "cli": {
+          "type": "string",
+          "pattern": "^--[a-z][a-z0-9-]*$",
+          "description": "CLI flag (e.g., '--issue'). R-F6."
+        },
+        "validation": {
+          "$ref": "#/$defs/ParameterValidation"
+        }
+      }
+    },
+
+    "ParameterValidation": {
+      "description": "Validation constraints for a parameter. Enforces: R-F16 (only min, max, pattern, enum keys allowed).",
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number",
+          "description": "Minimum value (for numbers)"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum value (for numbers)"
+        },
+        "pattern": {
+          "type": "string",
+          "description": "Regex pattern (for strings)"
+        },
+        "enum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed values"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "RunnerConfig": {
+      "description": "Runner configuration. Requires flow, verdict, boundaries.",
+      "type": "object",
+      "required": ["flow", "verdict", "boundaries"],
+      "properties": {
+        "flow": {
+          "$ref": "#/$defs/RunnerFlowConfig"
+        },
+        "verdict": {
+          "$ref": "#/$defs/RunnerVerdictConfig"
+        },
+        "boundaries": {
+          "$ref": "#/$defs/RunnerBoundariesConfig"
+        },
+        "integrations": {
+          "$ref": "#/$defs/RunnerIntegrationsConfig"
+        },
+        "actions": {
+          "$ref": "#/$defs/ActionConfig"
+        },
+        "execution": {
+          "$ref": "#/$defs/RunnerExecutionConfig"
+        },
+        "logging": {
+          "$ref": "#/$defs/LoggingConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "RunnerFlowConfig": {
+      "description": "Flow configuration for the runner.",
+      "type": "object",
+      "required": ["systemPromptPath", "prompts"],
+      "properties": {
+        "systemPromptPath": {
+          "type": "string",
+          "description": "Path to system prompt"
+        },
+        "prompts": {
+          "type": "object",
+          "required": ["registry", "fallbackDir"],
+          "properties": {
+            "registry": {
+              "type": "string",
+              "description": "Path to steps registry JSON"
+            },
+            "fallbackDir": {
+              "type": "string",
+              "description": "Fallback directory for prompts"
+            }
+          }
+        },
+        "schemas": {
+          "type": "object",
+          "properties": {
+            "base": {
+              "type": "string",
+              "description": "Base directory for JSON schemas"
+            },
+            "inspection": {
+              "type": "boolean",
+              "description": "Enable schema inspection mode"
+            }
+          }
+        },
+        "defaultModel": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Default model for all steps. R-F13 (at runner level)."
+        },
+        "askUserAutoResponse": {
+          "type": "string",
+          "description": "Auto-response message for AskUserQuestion tool"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "RunnerVerdictConfig": {
+      "description": "Verdict configuration. Enforces: R-F3 (type enum with 8 values), R-F12 (verdict config required fields per type).",
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "poll:state",
+            "count:iteration",
+            "count:check",
+            "detect:keyword",
+            "detect:structured",
+            "detect:graph",
+            "meta:composite",
+            "meta:custom"
+          ],
+          "description": "How the agent determines verdict. R-F3."
+        },
+        "config": {
+          "$ref": "#/$defs/VerdictConfigObject"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "poll:state" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["maxIterations"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "count:iteration" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["maxIterations"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "count:check" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["maxChecks"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "detect:keyword" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["verdictKeyword"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "detect:structured" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["signalType"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "detect:graph" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["registryPath", "entryStep"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "meta:composite" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["operator", "conditions"]
+              }
+            },
+            "required": ["config"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "meta:custom" } }
+          },
+          "then": {
+            "properties": {
+              "config": {
+                "required": ["handlerPath"]
+              }
+            },
+            "required": ["config"]
+          }
+        }
+      ]
+    },
+
+    "VerdictConfigObject": {
+      "description": "Verdict-type-specific configuration. R-F12 defines required fields per verdict type (enforced via if/then on RunnerVerdictConfig).",
+      "type": "object",
+      "properties": {
+        "maxIterations": {
+          "type": "number",
+          "minimum": 1,
+          "description": "For count:iteration: completion threshold. For others: safety limit."
+        },
+        "verdictKeyword": {
+          "type": "string",
+          "description": "Keyword to signal verdict (detect:keyword)"
+        },
+        "handlerPath": {
+          "type": "string",
+          "description": "Path to custom handler (meta:custom)"
+        },
+        "maxChecks": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Maximum status checks (count:check)"
+        },
+        "resourceType": {
+          "type": "string",
+          "enum": ["github-issue", "github-project", "file", "api"],
+          "description": "Resource type being monitored (poll:state)"
+        },
+        "targetState": {
+          "description": "Target state to match (poll:state)"
+        },
+        "issueParam": {
+          "type": "string",
+          "description": "Parameter name for issue number (poll:state)"
+        },
+        "iterationParam": {
+          "type": "string",
+          "description": "Parameter name for iteration count (count:iteration)"
+        },
+        "counterParam": {
+          "type": "string",
+          "description": "Parameter name for check counter (count:check)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Sub-type discriminator for poll:state configs"
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["and", "or", "first"],
+          "description": "Logical operator for combining conditions (meta:composite)"
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Array of verdict conditions (meta:composite). R-F15: each condition.type must be a valid VerdictType excluding meta:composite.",
+          "items": {
+            "type": "object",
+            "required": ["type", "config"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "poll:state",
+                  "count:iteration",
+                  "count:check",
+                  "detect:keyword",
+                  "detect:structured",
+                  "detect:graph",
+                  "meta:custom"
+                ],
+                "description": "Verdict type for this condition. R-F15: meta:composite excluded to prevent recursion."
+              },
+              "config": {
+                "type": "object",
+                "description": "Configuration for this condition"
+              }
+            }
+          }
+        },
+        "signalType": {
+          "type": "string",
+          "description": "Action block type to detect (detect:structured)"
+        },
+        "requiredFields": {
+          "type": ["object", "array"],
+          "description": "Required fields for detect:structured"
+        },
+        "registryPath": {
+          "type": "string",
+          "description": "Path to steps registry (detect:graph)"
+        },
+        "entryStep": {
+          "type": "string",
+          "description": "Entry step ID (detect:graph)"
+        }
+      }
+    },
+
+    "RunnerBoundariesConfig": {
+      "description": "Boundary constraints for the runner. Enforces: R-F4 (permissionMode enum).",
+      "type": "object",
+      "required": ["allowedTools", "permissionMode"],
+      "properties": {
+        "allowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools the agent is allowed to use"
+        },
+        "permissionMode": {
+          "type": "string",
+          "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
+          "description": "Claude permission mode. R-F4."
+        },
+        "sandbox": {
+          "$ref": "#/$defs/SandboxConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "SandboxConfig": {
+      "description": "Sandbox configuration for controlled access.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable sandbox mode"
+        },
+        "network": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["trusted", "none", "custom"],
+              "default": "trusted",
+              "description": "Network access mode"
+            },
+            "trustedDomains": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Allowed domains"
+            }
+          }
+        },
+        "filesystem": {
+          "type": "object",
+          "properties": {
+            "allowedPaths": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Additional paths to allow write access"
+            }
+          }
+        }
+      }
+    },
+
+    "RunnerIntegrationsConfig": {
+      "description": "External integrations configuration.",
+      "type": "object",
+      "properties": {
+        "github": {
+          "$ref": "#/$defs/GitHubConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "GitHubConfig": {
+      "description": "GitHub integration. Enforces: R-F19 (defaultClosureAction enum).",
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable GitHub integration"
+        },
+        "labels": {
+          "type": "object",
+          "properties": {
+            "requirements": {
+              "type": "string",
+              "description": "Label for requirements documentation"
+            },
+            "inProgress": {
+              "type": "string",
+              "description": "Label for in-progress state"
+            },
+            "blocked": {
+              "type": "string",
+              "description": "Label for blocked state"
+            },
+            "completion": {
+              "type": "object",
+              "properties": {
+                "add": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Labels to add on completion"
+                },
+                "remove": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Labels to remove on completion"
+                }
+              }
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Label mappings"
+        },
+        "defaultClosureAction": {
+          "type": "string",
+          "enum": ["close", "label-only", "label-and-close"],
+          "default": "close",
+          "description": "Default action for issue closure. R-F19."
+        }
+      }
+    },
+
+    "ActionConfig": {
+      "description": "Action detection and execution configuration.",
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable action detection and execution"
+        },
+        "types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed action types"
+        },
+        "outputFormat": {
+          "type": "string",
+          "description": "Markdown code block marker format"
+        },
+        "handlers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Handler mapping (type -> handler spec)"
+        }
+      }
+    },
+
+    "RunnerExecutionConfig": {
+      "description": "Execution configuration (worktree, finalize).",
+      "type": "object",
+      "properties": {
+        "worktree": {
+          "$ref": "#/$defs/WorktreeConfig"
+        },
+        "finalize": {
+          "$ref": "#/$defs/FinalizeConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "WorktreeConfig": {
+      "description": "Git worktree configuration.",
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable git worktree"
+        },
+        "root": {
+          "type": "string",
+          "description": "Worktree root directory"
+        }
+      }
+    },
+
+    "FinalizeConfig": {
+      "description": "Post-execution finalization configuration.",
+      "type": "object",
+      "properties": {
+        "autoMerge": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to automatically merge worktree branch to base"
+        },
+        "push": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to push after merge"
+        },
+        "remote": {
+          "type": "string",
+          "default": "origin",
+          "description": "Remote to push to"
+        },
+        "createPr": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to create a PR instead of direct merge"
+        },
+        "prTarget": {
+          "type": "string",
+          "description": "Target branch for PR"
+        }
+      }
+    },
+
+    "LoggingConfig": {
+      "description": "Logging configuration. Enforces: R-F18 (format enum).",
+      "type": "object",
+      "required": ["directory", "format"],
+      "properties": {
+        "directory": {
+          "type": "string",
+          "description": "Log directory path"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["jsonl", "text"],
+          "description": "Log format. R-F18."
+        },
+        "maxFiles": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Maximum number of log files to keep"
+        }
+      }
+    },
+
+    "RegistrySection": {
+      "description": "The steps registry section. Mirrors steps_registry.json structure. Enforces: R-F11 (entryStep XOR entryStepMapping via oneOf).",
+      "type": "object",
+      "required": ["agentId", "version", "c1", "steps"],
+      "properties": {
+        "agentId": {
+          "type": "string",
+          "description": "Agent identifier. R-A1: must equal agent.name (runtime validation)."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Registry version (semver)"
+        },
+        "c1": {
+          "type": "string",
+          "description": "C3L path component: c1 (e.g., 'steps')"
+        },
+        "userPromptsBase": {
+          "type": "string",
+          "description": "Base directory for user prompts"
+        },
+        "schemasBase": {
+          "type": "string",
+          "description": "Base directory for schema files"
+        },
+        "pathTemplate": {
+          "type": "string",
+          "description": "Path template with adaptation: '{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md'"
+        },
+        "pathTemplateNoAdaptation": {
+          "type": "string",
+          "description": "Path template without adaptation: '{c1}/{c2}/{c3}/f_{edition}.md'"
+        },
+        "runtimeUvVariables": {
+          "$ref": "#/$defs/RuntimeUvVariables"
+        },
+        "entryStep": {
+          "type": "string",
+          "description": "Default entry step ID. R-A6: must be a key in steps (runtime validation)."
+        },
+        "entryStepMapping": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Verdict-type to entry step mapping. R-A3, R-A4: keys must include verdict type, values must be step keys (runtime validation)."
+        },
+        "steps": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/StepDefinition"
+          },
+          "description": "Map of step ID to step definition"
+        },
+        "validators": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Validator"
+          },
+          "description": "Named validators for validation checks"
+        },
+        "failurePatterns": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/FailurePattern"
+          },
+          "description": "Named failure patterns"
+        },
+        "validationSteps": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ValidationStep"
+          },
+          "description": "Step definitions for validation"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["entryStep"],
+          "not": { "required": ["entryStepMapping"] },
+          "description": "R-F11: entryStep (singular) mode"
+        },
+        {
+          "required": ["entryStepMapping"],
+          "not": { "required": ["entryStep"] },
+          "description": "R-F11: entryStepMapping mode"
+        }
+      ]
+    },
+
+    "RuntimeUvVariables": {
+      "description": "Runtime-supplied UV variables. Each key is a variable name injected by the runner, not from agent.parameters. R-A2: these keys are excluded from the parameter coverage check. R-A2b: every key here must appear in at least one step's uvVariables (runtime validation).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["source"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Source of the variable (e.g., 'runner')"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the variable"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "StepDefinition": {
+      "description": "A single step in the flow. Enforces: R-F9 (name, c2, c3, edition, fallbackKey are required non-empty strings), R-F7 (uvVariables is array of strings), R-F8 (usesStdin is boolean), R-F13 (model enum), R-F20 (priority positive integer), R-B7 (intentSchemaRef ^#/ pattern), R-B8 (intentField required in structuredGate), R-B3 (allowedIntents from valid enum), R-F14 (targetMode enum), R-F10 (outputSchemaRef structure), R-B6 (flow steps require structuredGate + transitions + outputSchemaRef), R-B10 (flow steps require stepKind), R-B11 (section steps must not have flow control fields), R-B14 (jump requires targetField), R-B15 (handoff requires handoffFields), R-E3 (c3 kebab-case pattern).",
+      "type": "object",
+      "required": ["stepId", "name", "c2", "c3", "edition", "fallbackKey"],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique step identifier. R-B1: must equal the object key (runtime validation)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable step name. R-F9."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["prompt"],
+          "default": "prompt",
+          "description": "Step type for categorization"
+        },
+        "stepKind": {
+          "type": "string",
+          "enum": ["work", "verification", "closure"],
+          "description": "Step kind for flow taxonomy. R-B10: required for flow steps. Determines allowed intents per R-B3."
+        },
+        "c2": {
+          "type": "string",
+          "minLength": 1,
+          "description": "C3L Category (e.g., 'initial', 'continuation', 'closure', 'section', 'verification'). R-F9."
+        },
+        "c3": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z]+(-[a-z]+)*$",
+          "description": "C3L Classification (kebab-case). R-F9, R-E3."
+        },
+        "edition": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Edition variant (f_{edition}.md). R-F9."
+        },
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        },
+        "fallbackKey": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key for fallback prompt. R-F9. R-E2: must equal {c2}_{c3} (runtime validation)."
+        },
+        "uvVariables": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "User variable names required by this prompt. R-F7."
+        },
+        "usesStdin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this step accepts stdin input. R-F8."
+        },
+        "model": {
+          "type": "string",
+          "enum": ["sonnet", "opus", "haiku"],
+          "description": "Model override for this step. R-F13."
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Step priority. R-F20: must be a positive integer."
+        },
+        "outputSchemaRef": {
+          "$ref": "#/$defs/OutputSchemaRef",
+          "description": "Reference to output JSON Schema. R-F10. R-D1, R-D2: file and schema must resolve within the schemas section (runtime validation)."
+        },
+        "structuredGate": {
+          "$ref": "#/$defs/StructuredGate",
+          "description": "Structured gate configuration for intent/target routing"
+        },
+        "transitions": {
+          "$ref": "#/$defs/Transitions",
+          "description": "Intent to step transition mapping"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of what this step does"
+        }
+      },
+      "allOf": [
+        {
+          "description": "R-B6, R-B10: flow steps (c2 != section) require structuredGate, transitions, outputSchemaRef, and stepKind.",
+          "if": {
+            "not": {
+              "properties": { "c2": { "const": "section" } }
+            }
+          },
+          "then": {
+            "required": [
+              "structuredGate",
+              "transitions",
+              "outputSchemaRef",
+              "stepKind"
+            ]
+          }
+        },
+        {
+          "description": "R-B11: section steps (c2 = section) must not have structuredGate, transitions, outputSchemaRef, or stepKind.",
+          "if": {
+            "properties": { "c2": { "const": "section" } }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["structuredGate"] },
+                { "required": ["transitions"] },
+                { "required": ["outputSchemaRef"] },
+                { "required": ["stepKind"] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "OutputSchemaRef": {
+      "description": "Reference to an output JSON Schema. Enforces: R-F10 (file and schema are required strings). R-D1, R-D2: cross-referenced at runtime.",
+      "type": "object",
+      "required": ["file", "schema"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Schema file name (key in the top-level schemas object)"
+        },
+        "schema": {
+          "type": "string",
+          "description": "Schema definition name within the file"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "StructuredGate": {
+      "description": "Structured gate configuration for intent routing. Enforces: R-B3 (allowedIntents from enum), R-B7 (intentSchemaRef ^#/ pattern), R-B8 (intentField required), R-F14 (targetMode enum), R-B14 (jump requires targetField via allOf), R-B15 (handoff requires handoffFields via allOf).",
+      "type": "object",
+      "required": ["allowedIntents", "intentSchemaRef", "intentField"],
+      "properties": {
+        "allowedIntents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "next",
+              "repeat",
+              "jump",
+              "handoff",
+              "closing",
+              "escalate",
+              "abort"
+            ]
+          },
+          "minItems": 1,
+          "description": "Intents this step can emit. R-B3: must be subset of STEP_KIND_ALLOWED_INTENTS[stepKind] (runtime validation for stepKind correspondence)."
+        },
+        "intentSchemaRef": {
+          "type": "string",
+          "pattern": "^#/",
+          "description": "Internal JSON Pointer to intent enum in step schema. R-B7: must start with '#/'."
+        },
+        "intentField": {
+          "type": "string",
+          "description": "JSON path to extract intent from structured output. R-B8."
+        },
+        "targetField": {
+          "type": "string",
+          "description": "JSON path to extract target step ID for jump intent. R-B14: required when allowedIntents contains 'jump'."
+        },
+        "handoffFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "JSON paths to extract for handoff data. R-B15: required when allowedIntents contains 'handoff'. R-D4: paths must resolve in output schema (runtime validation)."
+        },
+        "targetMode": {
+          "type": "string",
+          "enum": ["explicit", "dynamic", "conditional"],
+          "default": "explicit",
+          "description": "How target step IDs are determined. R-F14."
+        },
+        "failFast": {
+          "type": "boolean",
+          "default": true,
+          "description": "Throw error instead of using fallback if intent cannot be determined"
+        },
+        "fallbackIntent": {
+          "type": "string",
+          "enum": [
+            "next",
+            "repeat",
+            "jump",
+            "handoff",
+            "closing",
+            "escalate",
+            "abort"
+          ],
+          "description": "Default intent if response parsing fails. R-B9: must be in STEP_KIND_ALLOWED_INTENTS[stepKind] (runtime validation)."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "description": "R-B14: when allowedIntents contains 'jump', targetField is required.",
+          "if": {
+            "properties": {
+              "allowedIntents": {
+                "contains": { "const": "jump" }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "allowedIntents",
+              "intentSchemaRef",
+              "intentField",
+              "targetField"
+            ]
+          }
+        },
+        {
+          "description": "R-B15: when allowedIntents contains 'handoff', handoffFields is required (empty array allowed).",
+          "if": {
+            "properties": {
+              "allowedIntents": {
+                "contains": { "const": "handoff" }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "allowedIntents",
+              "intentSchemaRef",
+              "intentField",
+              "handoffFields"
+            ]
+          }
+        }
+      ]
+    },
+
+    "Transitions": {
+      "description": "Map of intent (or 'fallback') to transition rule. R-B4: intent keys must equal allowedIntents (runtime validation). R-B5: all targets must be keys in steps or null (runtime validation). R-B12: 'fallback' is a reserved non-intent key (runtime validation).",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/TransitionRule"
+      }
+    },
+
+    "TransitionRule": {
+      "description": "A single transition. Supports two forms: direct ({target, fallback?}) and conditional ({condition, targets}). R-B5: target values must reference step keys or null (runtime validation). R-C3: fallback field must reference a step key (runtime validation). R-C4: conditional targets values must reference step keys or null (runtime validation).",
+      "type": "object",
+      "oneOf": [
+        {
+          "description": "Direct transition: target is a step ID or null (terminal).",
+          "required": ["target"],
+          "properties": {
+            "target": {
+              "type": ["string", "null"],
+              "description": "Target step ID (null for terminal steps)"
+            },
+            "fallback": {
+              "type": "string",
+              "description": "Fallback step if target fails. R-C3: must be a step key (runtime validation)."
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Conditional transition: condition expression with multiple targets.",
+          "required": ["condition", "targets"],
+          "properties": {
+            "condition": {
+              "type": "string",
+              "description": "Condition expression or variable name. R-A5: args.* references must match agent.parameters keys (runtime validation)."
+            },
+            "targets": {
+              "type": "object",
+              "additionalProperties": {
+                "type": ["string", "null"]
+              },
+              "description": "Map of condition values to target step IDs (null for terminal). R-C4."
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "Validator": {
+      "description": "A named validator definition. Enforces: type is 'command', command, successWhen, and failurePattern are required strings. R-C1: failurePattern must be a key in failurePatterns (runtime validation).",
+      "type": "object",
+      "required": ["type", "command", "successWhen", "failurePattern"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["command"],
+          "description": "Validator type"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute"
+        },
+        "successWhen": {
+          "type": "string",
+          "description": "Success condition (e.g., 'empty', 'exitCode0')"
+        },
+        "failurePattern": {
+          "type": "string",
+          "description": "Reference to failure pattern key. R-C1: must exist in failurePatterns (runtime validation)."
+        },
+        "extractParams": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Parameter extraction rules"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "FailurePattern": {
+      "description": "A named failure pattern with edition/adaptation for retry prompts.",
+      "type": "object",
+      "required": ["description", "edition"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable pattern description"
+        },
+        "edition": {
+          "type": "string",
+          "description": "Edition for failure prompt"
+        },
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation for failure prompt"
+        },
+        "params": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Parameters extracted on match"
+        }
+      }
+    },
+
+    "ValidationStep": {
+      "description": "A validation step definition. Enforces: R-C5 (onFailure.action enum), R-C6 (maxAttempts >= 1). R-C2: validationConditions[*].validator must be a key in validators (runtime validation).",
+      "type": "object",
+      "required": ["stepId", "name", "c2", "c3"],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "description": "Validation step identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name"
+        },
+        "c2": {
+          "type": "string",
+          "description": "C3L Category"
+        },
+        "c3": {
+          "type": "string",
+          "description": "C3L Classification"
+        },
+        "validationConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValidationCondition"
+          },
+          "description": "Conditions that must pass for validation"
+        },
+        "onFailure": {
+          "$ref": "#/$defs/FailureAction",
+          "description": "Action when validation fails"
+        },
+        "outputSchemaRef": {
+          "$ref": "#/$defs/OutputSchemaRef",
+          "description": "Reference to output schema"
+        },
+        "description": {
+          "type": "string",
+          "description": "Step description"
+        }
+      }
+    },
+
+    "ValidationCondition": {
+      "description": "A condition referencing a named validator. R-C2: validator must exist in validators (runtime validation).",
+      "type": "object",
+      "required": ["validator"],
+      "properties": {
+        "validator": {
+          "type": "string",
+          "description": "Reference to named validator key"
+        }
+      }
+    },
+
+    "FailureAction": {
+      "description": "Action to take on validation failure. Enforces: R-C5 (action enum: retry, abort, skip), R-C6 (maxAttempts >= 1, required when action = retry).",
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["retry", "abort", "skip"],
+          "description": "Failure action. R-C5."
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum retry attempts. R-C6: must be >= 1."
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": { "action": { "const": "retry" } }
+      },
+      "then": {
+        "required": ["action", "maxAttempts"],
+        "description": "R-C6: maxAttempts is required when action = retry."
+      }
+    },
+
+    "SchemasSection": {
+      "description": "Map of schema file names to their JSON Schema contents. Each key is a filename (e.g., 'issue.schema.json') and each value is a full JSON Schema document.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "description": "A JSON Schema document. No structural constraints imposed by the Blueprint schema — the content is an arbitrary valid JSON Schema."
+      }
+    }
+  }
+}
