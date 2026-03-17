@@ -38,6 +38,11 @@ understand implementation details.
   for AI systems
 - [Agent Testing](./agent-test.md) - Agent testing strategies and patterns
 
+### Decisions
+
+- [Deferred Decisions](./deferred-decisions.md) - Investigated but intentionally
+  deferred items with evidence and revisit conditions
+
 ## Project Guidelines
 
 See [CLAUDE.md](../../CLAUDE.md) at the repository root for:
