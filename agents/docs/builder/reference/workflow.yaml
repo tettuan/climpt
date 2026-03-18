@@ -1,0 +1,452 @@
+# ============================================================
+# Climpt Workflow Definition — YAML Reference
+# ============================================================
+# JSON Schema: agents/orchestrator/workflow-schema.json
+# Real example: .agent/workflow.json
+#
+# This file is NOT loaded at runtime.
+# It is a commented reference for workflow builders.
+# ============================================================
+
+# ------------------------------------------------------------
+# $schema
+# ------------------------------------------------------------
+# Description : JSON Schema URL for validation.
+# Type        : string
+# Required    : no (recommended)
+# Default     : none
+# Why         : Enables IDE autocompletion and linting for
+#               workflow.json files. Relative path from the
+#               .agent/ directory to the schema file.
+# ------------------------------------------------------------
+$schema: "../../agents/orchestrator/workflow-schema.json"
+
+# ------------------------------------------------------------
+# version
+# ------------------------------------------------------------
+# Description : Schema version in semver format.
+# Type        : string
+# Required    : yes
+# Default     : none
+# Why         : Ties the definition to a specific schema
+#               version so the orchestrator can detect
+#               incompatible changes.
+# ------------------------------------------------------------
+version: "1.0.0"
+
+# ------------------------------------------------------------
+# labelPrefix
+# ------------------------------------------------------------
+# Description : Label namespace prefix for multi-workflow
+#               isolation.
+# Type        : string
+# Required    : no
+# Default     : none (labels used as-is)
+# Why         : When multiple workflows share one repository,
+#               prefix prevents label collisions. E.g.,
+#               "docs" produces labels like "docs:ready".
+#               labelMapping keys remain bare ("ready"),
+#               and the prefix is applied/stripped at the
+#               label boundary layer.
+# Separator   : colon (:) — {prefix}:{label}
+# ------------------------------------------------------------
+# labelPrefix: "docs"
+
+# ============================================================
+# phases
+# ============================================================
+# Description : Workflow phase definitions. Each key is a
+#               phase ID used for routing and transitions.
+# Type        : object (keys: phase ID, values: PhaseDefinition)
+# Required    : yes
+# Min entries : 1
+# Why         : Declares the finite set of states in the
+#               workflow state machine. The orchestrator
+#               only operates on declared phases.
+# ============================================================
+phases:
+
+  # Example: actionable phase with agent assignment
+  implementation:
+    # ----------------------------------------------------------
+    # type
+    # ----------------------------------------------------------
+    # Description : Phase behavior classification.
+    # Type        : string (enum)
+    # Required    : yes
+    # Options     :
+    #   "actionable"  — Agent executes work in this phase
+    #   "terminal"    — Workflow is complete
+    #   "blocking"    — Waiting for human intervention
+    #   "inProgress"  — Agent is currently executing (transient)
+    # Why         : Determines whether the orchestrator
+    #               dispatches an agent, stops, or waits.
+    # ----------------------------------------------------------
+    type: "actionable"
+
+    # ----------------------------------------------------------
+    # priority
+    # ----------------------------------------------------------
+    # Description : Selection priority when multiple labels
+    #               map to different actionable phases.
+    # Type        : number
+    # Required    : yes (actionable phases only)
+    # Default     : none
+    # Why         : Lower value = higher priority. When an issue
+    #               has multiple known labels, the orchestrator
+    #               picks the actionable phase with the lowest
+    #               priority value. E.g., revision (1) wins
+    #               over implementation (3).
+    # ----------------------------------------------------------
+    priority: 3
+
+    # ----------------------------------------------------------
+    # agent
+    # ----------------------------------------------------------
+    # Description : Agent ID to dispatch when this phase is
+    #               active.
+    # Type        : string | null
+    # Required    : yes (actionable phases only)
+    # Default     : none
+    # Why         : Links the phase to an entry in the "agents"
+    #               section. Must reference an existing agent ID.
+    # ----------------------------------------------------------
+    agent: "iterator"
+
+  review:
+    type: "actionable"
+    priority: 2
+    agent: "reviewer"
+
+  revision:
+    type: "actionable"
+    priority: 1
+    agent: "iterator"
+
+  # Example: terminal phase (no agent needed)
+  complete:
+    type: "terminal"
+
+  # Example: blocking phase (no agent needed)
+  blocked:
+    type: "blocking"
+
+# ============================================================
+# labelMapping
+# ============================================================
+# Description : GitHub label to phase ID mapping.
+# Type        : object (keys: label name, values: phase ID)
+# Required    : yes
+# Min entries : 1
+# Why         : Labels are the orchestrator's only input.
+#               This mapping translates GitHub labels into
+#               workflow phases. Multiple labels can map to
+#               the same phase. Unknown labels are ignored.
+# Note        : Keys are bare label names even when
+#               labelPrefix is set.
+# ============================================================
+labelMapping:
+  ready: "implementation"
+  review: "review"
+  implementation-gap: "revision"
+  from-reviewer: "revision"
+  done: "complete"
+  blocked: "blocked"
+
+# ============================================================
+# agents
+# ============================================================
+# Description : Agent definitions. Each key is an agent ID
+#               referenced by phases.
+# Type        : object (keys: agent ID, values: AgentDefinition)
+# Required    : yes
+# Min entries : 1
+# Why         : Declares how each agent behaves within the
+#               workflow: its role, output transitions, and
+#               error fallback.
+# ============================================================
+agents:
+
+  # Example: transformer agent (single output phase)
+  iterator:
+
+    # ----------------------------------------------------------
+    # role
+    # ----------------------------------------------------------
+    # Description : Agent behavioral role.
+    # Type        : string (enum)
+    # Required    : yes
+    # Options     :
+    #   "transformer" — Produces a single output phase on
+    #                   success. Uses outputPhase + fallbackPhase.
+    #   "validator"   — Routes to different phases based on
+    #                   judgment. Uses outputPhases.
+    # Why         : Determines which output fields are required
+    #               and how the orchestrator interprets the
+    #               agent's result.
+    # ----------------------------------------------------------
+    role: "transformer"
+
+    # ----------------------------------------------------------
+    # directory
+    # ----------------------------------------------------------
+    # Description : Agent definition directory name under
+    #               .agent/.
+    # Type        : string
+    # Required    : no
+    # Default     : agent ID (the key name)
+    # Why         : Allows the workflow agent ID to differ
+    #               from the filesystem directory name.
+    # ----------------------------------------------------------
+    directory: "iterator"
+
+    # ----------------------------------------------------------
+    # outputPhase (transformer only)
+    # ----------------------------------------------------------
+    # Description : Phase to transition to on successful
+    #               completion.
+    # Type        : string (phase ID)
+    # Required    : yes (transformer)
+    # Default     : none
+    # Why         : Defines the happy path. Must reference
+    #               an existing phase.
+    # ----------------------------------------------------------
+    outputPhase: "review"
+
+    # ----------------------------------------------------------
+    # fallbackPhase
+    # ----------------------------------------------------------
+    # Description : Phase to transition to on error.
+    # Type        : string (phase ID)
+    # Required    : no
+    # Default     : none
+    # Why         : Error recovery. Typically points to a
+    #               blocking phase for human intervention.
+    #               Used by both transformer and validator.
+    # ----------------------------------------------------------
+    fallbackPhase: "blocked"
+
+  # Example: validator agent (multiple output phases)
+  reviewer:
+    role: "validator"
+    directory: "reviewer"
+
+    # ----------------------------------------------------------
+    # outputPhases (validator only)
+    # ----------------------------------------------------------
+    # Description : Judgment key to target phase mapping.
+    # Type        : object (keys: judgment key, values: phase ID)
+    # Required    : yes (validator)
+    # Default     : none
+    # Why         : Validators produce judgment results
+    #               ("approved", "rejected", etc.). Each result
+    #               routes to a different phase. Unknown
+    #               judgment keys fall back to fallbackPhase.
+    # ----------------------------------------------------------
+    outputPhases:
+      approved: "complete"
+      rejected: "revision"
+
+    fallbackPhase: "blocked"
+
+# ============================================================
+# rules
+# ============================================================
+# Description : Execution constraints for the orchestrator
+#               loop.
+# Type        : object
+# Required    : no
+# Why         : Safety and resource controls. Prevents
+#               runaway loops and excessive concurrency.
+# ============================================================
+rules:
+
+  # ----------------------------------------------------------
+  # maxCycles
+  # ----------------------------------------------------------
+  # Description : Maximum phase transition cycles per issue.
+  # Type        : number (minimum: 1)
+  # Required    : no
+  # Default     : 5
+  # Why         : Loop prevention. If an issue bounces between
+  #               phases (e.g., implementation → review →
+  #               revision → implementation) more than this
+  #               many times, the orchestrator forces a
+  #               transition to a blocking phase.
+  # ----------------------------------------------------------
+  maxCycles: 5
+
+  # ----------------------------------------------------------
+  # maxConcurrent
+  # ----------------------------------------------------------
+  # Description : Maximum concurrently dispatched agents.
+  # Type        : number (minimum: 1)
+  # Required    : no
+  # Default     : 1
+  # Why         : Resource control. Currently only sequential
+  #               execution (1) is supported. Future expansion
+  #               may allow parallel dispatch.
+  # ----------------------------------------------------------
+  maxConcurrent: 1
+
+  # ----------------------------------------------------------
+  # cycleDelayMs
+  # ----------------------------------------------------------
+  # Description : Delay in milliseconds between cycles.
+  # Type        : number (minimum: 0)
+  # Required    : no
+  # Default     : 5000
+  # Why         : Rate limiting. Prevents rapid-fire API
+  #               calls to GitHub between transitions. Set
+  #               to 0 for tests.
+  # ----------------------------------------------------------
+  cycleDelayMs: 5000
+
+# ============================================================
+# issueStore
+# ============================================================
+# Description : Issue store configuration for local caching
+#               of GitHub issue data.
+# Type        : object
+# Required    : no
+# Default     : { path: ".agent/issues" }
+# Why         : Provides a filesystem boundary between
+#               agents and GitHub. Agents read from the store
+#               instead of calling gh directly.
+# ============================================================
+# issueStore:
+#
+#   # path
+#   # Description : Directory path for the local issue store.
+#   # Type        : string
+#   # Required    : yes (when issueStore is present)
+#   # Default     : ".agent/issues"
+#   # Why         : Relative to cwd. Contains per-issue
+#   #               directories with meta.json, body.md,
+#   #               comments/, and outbox/.
+#   path: ".agent/issues"
+
+# ============================================================
+# prioritizer
+# ============================================================
+# Description : Prioritizer agent configuration for
+#               automatic priority labeling.
+# Type        : object
+# Required    : no
+# Why         : Enables --prioritize mode. A dedicated agent
+#               reads issue metadata and assigns priority
+#               labels. The orchestrator then processes
+#               issues in priority order.
+# ============================================================
+# prioritizer:
+#
+#   # agent
+#   # Description : Agent ID to dispatch for prioritization.
+#   # Type        : string
+#   # Required    : yes (when prioritizer is present)
+#   # Default     : none
+#   # Why         : Must reference an agent under .agent/
+#   #               that outputs priorities.json.
+#   agent: "triage-agent"
+#
+#   # labels
+#   # Description : Valid priority labels in order.
+#   # Type        : array of strings
+#   # Required    : yes (when prioritizer is present)
+#   # Default     : none
+#   # Why         : Index order = priority order. First
+#   #               element is highest priority. Used for
+#   #               validation and sorting.
+#   labels: ["P1", "P2", "P3"]
+#
+#   # defaultLabel
+#   # Description : Fallback label for unprioritized issues.
+#   # Type        : string
+#   # Required    : no
+#   # Default     : none
+#   # Why         : Applied when the prioritizer agent does
+#   #               not return a priority for an issue.
+#   defaultLabel: "P3"
+
+# ============================================================
+# handoff
+# ============================================================
+# Description : Inter-agent handoff communication
+#               configuration.
+# Type        : object
+# Required    : no
+# Why         : Defines comment templates posted to GitHub
+#               issues during phase transitions, and
+#               templates for auto-created gap issues.
+# ============================================================
+# handoff:
+#
+#   # commentTemplates
+#   # Description : Named comment templates with placeholder
+#   #               support.
+#   # Type        : object (keys: template name, values: string)
+#   # Required    : no
+#   # Default     : none
+#   # Why         : Posted to the GitHub issue during handoff.
+#   #               Placeholders: {session_id}, {issue_count},
+#   #               {summary}.
+#   commentTemplates:
+#     iteratorToReviewer: >-
+#       [Agent Handoff] Ready for review
+#       - Session: {session_id}
+#       - Issues: {issue_count}
+#     reviewerApproved: >-
+#       [Agent Review Complete] All requirements verified
+#       {summary}
+#     reviewerRejected: >-
+#       [Agent Review] Gaps found
+#       {summary}
+#
+#   # gapIssue
+#   # Description : Template for auto-created gap issues.
+#   # Type        : object
+#   # Required    : no
+#   # Required sub-keys: titlePrefix, labels, bodyTemplate
+#   # Why         : When a reviewer rejects, the orchestrator
+#   #               can create a gap issue with this template.
+#   gapIssue:
+#     titlePrefix: "[Gap]"
+#     labels: ["implementation-gap", "from-reviewer"]
+#     bodyTemplate: >-
+#       ## Gap Summary
+#       {summary}
+#
+#       ## Source
+#       - Issue: {source_issue}
+
+# ============================================================
+# traceability
+# ============================================================
+# Description : Cross-agent correlation tracking.
+# Type        : object
+# Required    : no
+# Required sub-keys: correlationIdFormat, requireInGapIssues
+# Why         : Enables tracing a workflow execution across
+#               multiple agents and issues.
+# ============================================================
+# traceability:
+#
+#   # correlationIdFormat
+#   # Description : Format string for generating correlation IDs.
+#   # Type        : string
+#   # Required    : yes (when traceability is present)
+#   # Default     : none
+#   # Placeholders: {timestamp}, {agent}
+#   # Why         : Unique identifier linking all actions in
+#   #               a single workflow execution.
+#   correlationIdFormat: "wf-{timestamp}-{agent}"
+#
+#   # requireInGapIssues
+#   # Description : Whether gap issues must include a
+#   #               correlation ID.
+#   # Type        : boolean
+#   # Required    : yes (when traceability is present)
+#   # Default     : none
+#   # Why         : Ensures gap issues can be traced back
+#   #               to the workflow execution that created them.
+#   requireInGapIssues: true

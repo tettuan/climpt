@@ -27,6 +27,7 @@ CLI Prompt Management Tool. Agents: Iterator, Reviewer also included.
 - [Troubleshooting Guide](12-troubleshooting.md)
 - [Agent Creation Tutorial](13-agent-creation-tutorial.md)
 - [Steps Registry Guide](14-steps-registry-guide.md)
+- [Workflow Guide](15-workflow-guide.md)
 
 ## Examples (E2E Verification)
 
