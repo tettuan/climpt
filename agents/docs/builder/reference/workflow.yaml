@@ -78,7 +78,6 @@ phases:
     #   "actionable"  — Agent executes work in this phase
     #   "terminal"    — Workflow is complete
     #   "blocking"    — Waiting for human intervention
-    #   "inProgress"  — Agent is currently executing (transient)
     # Why         : Determines whether the orchestrator
     #               dispatches an agent, stops, or waits.
     # ----------------------------------------------------------
@@ -277,19 +276,6 @@ rules:
   maxCycles: 5
 
   # ----------------------------------------------------------
-  # maxConcurrent
-  # ----------------------------------------------------------
-  # Description : Maximum concurrently dispatched agents.
-  # Type        : number (minimum: 1)
-  # Required    : no
-  # Default     : 1
-  # Why         : Resource control. Currently only sequential
-  #               execution (1) is supported. Future expansion
-  #               may allow parallel dispatch.
-  # ----------------------------------------------------------
-  maxConcurrent: 1
-
-  # ----------------------------------------------------------
   # cycleDelayMs
   # ----------------------------------------------------------
   # Description : Delay in milliseconds between cycles.
@@ -402,51 +388,3 @@ rules:
 #       [Agent Review] Gaps found
 #       {summary}
 #
-#   # gapIssue
-#   # Description : Template for auto-created gap issues.
-#   # Type        : object
-#   # Required    : no
-#   # Required sub-keys: titlePrefix, labels, bodyTemplate
-#   # Why         : When a reviewer rejects, the orchestrator
-#   #               can create a gap issue with this template.
-#   gapIssue:
-#     titlePrefix: "[Gap]"
-#     labels: ["implementation-gap", "from-reviewer"]
-#     bodyTemplate: >-
-#       ## Gap Summary
-#       {summary}
-#
-#       ## Source
-#       - Issue: {source_issue}
-
-# ============================================================
-# traceability
-# ============================================================
-# Description : Cross-agent correlation tracking.
-# Type        : object
-# Required    : no
-# Required sub-keys: correlationIdFormat, requireInGapIssues
-# Why         : Enables tracing a workflow execution across
-#               multiple agents and issues.
-# ============================================================
-# traceability:
-#
-#   # correlationIdFormat
-#   # Description : Format string for generating correlation IDs.
-#   # Type        : string
-#   # Required    : yes (when traceability is present)
-#   # Default     : none
-#   # Placeholders: {timestamp}, {agent}
-#   # Why         : Unique identifier linking all actions in
-#   #               a single workflow execution.
-#   correlationIdFormat: "wf-{timestamp}-{agent}"
-#
-#   # requireInGapIssues
-#   # Description : Whether gap issues must include a
-#   #               correlation ID.
-#   # Type        : boolean
-#   # Required    : yes (when traceability is present)
-#   # Default     : none
-#   # Why         : Ensures gap issues can be traced back
-#   #               to the workflow execution that created them.
-#   requireInGapIssues: true

@@ -56,7 +56,7 @@ dispatches agents, and updates labels based on outcomes.
       "fallbackPhase": "blocked"
     }
   },
-  "rules": { "maxCycles": 5, "maxConcurrent": 1, "cycleDelayMs": 5000 }
+  "rules": { "maxCycles": 5, "cycleDelayMs": 5000 }
 }
 ```
 
@@ -94,11 +94,10 @@ Defines agent behavior:
 
 ### rules
 
-| Field         | Default | Description                            |
-| ------------- | ------- | -------------------------------------- |
-| maxCycles     | 5       | Max transitions per issue (loop guard) |
-| maxConcurrent | 1       | Max concurrent agents                  |
-| cycleDelayMs  | 5000    | Delay between cycles (ms)              |
+| Field        | Default | Description                            |
+| ------------ | ------- | -------------------------------------- |
+| maxCycles    | 5       | Max transitions per issue (loop guard) |
+| cycleDelayMs | 5000    | Delay between cycles (ms)              |
 
 ## Running Workflows
 
@@ -125,7 +124,6 @@ deno task workflow --label P1 --label docs --state open --limit 10
 | -------------- | ------- | ---------------------- | --------------------------- |
 | `--workflow`   | string  | `.agent/workflow.json` | Workflow file path          |
 | `--label`      | string  | —                      | Label filter (repeatable)   |
-| `--project`    | string  | —                      | GitHub Project name         |
 | `--repo`       | string  | current                | Repository (`owner/repo`)   |
 | `--state`      | string  | `open`                 | `open` / `closed` / `all`   |
 | `--limit`      | number  | `30`                   | Max issues to fetch         |

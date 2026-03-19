@@ -62,7 +62,6 @@ workflow.json の書き方とワークフロー実行の手引き。
   },
   "rules": {
     "maxCycles": 5,
-    "maxConcurrent": 1,
     "cycleDelayMs": 5000
   }
 }
@@ -72,12 +71,11 @@ workflow.json の書き方とワークフロー実行の手引き。
 
 Phase は `type` で分類する。
 
-| type         | 用途                 | `agent` 必須 | `priority` 必須 |
-| ------------ | -------------------- | ------------ | --------------- |
-| `actionable` | Agent が処理を実行   | yes          | yes             |
-| `terminal`   | ワークフロー完了     | no           | no              |
-| `blocking`   | 人間の介入待ち       | no           | no              |
-| `inProgress` | Agent 実行中の一時的 | no           | no              |
+| type         | 用途               | `agent` 必須 | `priority` 必須 |
+| ------------ | ------------------ | ------------ | --------------- |
+| `actionable` | Agent が処理を実行 | yes          | yes             |
+| `terminal`   | ワークフロー完了   | no           | no              |
+| `blocking`   | 人間の介入待ち     | no           | no              |
 
 `priority` は複数ラベルが同時に存在する場合の解決に使用する。**値が小さいほど高
 優先**。
@@ -130,11 +128,10 @@ GitHub issue label をキー、phase ID を値とする。
 
 ## Rules
 
-| フィールド      | 型     | デフォルト | 説明                       |
-| --------------- | ------ | ---------- | -------------------------- |
-| `maxCycles`     | number | 5          | 同一 issue の最大遷移回数  |
-| `maxConcurrent` | number | 1          | 同時実行 Agent 数          |
-| `cycleDelayMs`  | number | 5000       | サイクル間の待機（ミリ秒） |
+| フィールド     | 型     | デフォルト | 説明                       |
+| -------------- | ------ | ---------- | -------------------------- |
+| `maxCycles`    | number | 5          | 同一 issue の最大遷移回数  |
+| `cycleDelayMs` | number | 5000       | サイクル間の待機（ミリ秒） |
 
 ## Label Prefix
 
@@ -205,7 +202,6 @@ deno task workflow --label docs --dry-run --verbose
 | -------------- | ------- | ---------------------- | ---------------------------- |
 | `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス        |
 | `--label`      | string  | —                      | ラベルフィルタ（複数指定可） |
-| `--project`    | string  | —                      | GitHub Project 名            |
 | `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）   |
 | `--state`      | string  | `open`                 | `open` / `closed` / `all`    |
 | `--limit`      | number  | `30`                   | 最大取得 issue 数            |

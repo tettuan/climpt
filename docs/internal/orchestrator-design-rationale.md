@@ -38,7 +38,7 @@ Applicable ADK patterns mapped to orchestrator equivalents:
 | ------------------- | --------------------------------------------------------------------- |
 | LLM-Driven Transfer | Label-based deterministic routing preferred for predictability        |
 | AgentTool           | One-way dependency (orchestrator → runner); no inter-agent tool calls |
-| ParallelAgent       | `maxConcurrent: 1` currently; deferred to future expansion            |
+| ParallelAgent       | Sequential execution only; no concurrency control needed              |
 
 ### Key Difference: Label-Based vs Code-First
 
@@ -64,12 +64,11 @@ Patterns extracted from guimpt (GUI Climpt) and applied to CLI orchestration:
 
 ### Phase Types
 
-| Type         | Description               | Agent Execution |
-| ------------ | ------------------------- | --------------- |
-| `actionable` | Agent processes work      | yes             |
-| `terminal`   | Workflow complete         | no              |
-| `blocking`   | Awaiting human input      | no              |
-| `inProgress` | Agent currently executing | no              |
+| Type         | Description          | Agent Execution |
+| ------------ | -------------------- | --------------- |
+| `actionable` | Agent processes work | yes             |
+| `terminal`   | Workflow complete    | no              |
+| `blocking`   | Awaiting human input | no              |
 
 ### Agent Roles
 
@@ -101,7 +100,7 @@ into workflow.json:
 | `orchestration.cycleDelayMs` | `rules.cycleDelayMs`                            | Same concept                         |
 | `orchestration.autoTrigger`  | CLI option                                      | Runtime option, not config file      |
 | `logging.*`                  | Removed                                         | Logging is runner's responsibility   |
-| `traceability.*`             | `traceability.*`                                | Kept as-is                           |
+| `traceability.*`             | Removed                                         | Unnecessary complexity               |
 
 ### Deleted Files
 
@@ -123,13 +122,10 @@ into workflow.json:
 
 ## Deferred Decisions
 
-| Item                        | Options                                | Decision Timing                      |
-| --------------------------- | -------------------------------------- | ------------------------------------ |
-| DAG visualization           | CLI table vs guimpt integration        | After guimpt implementation          |
-| maxConcurrent > 1           | Promise.all vs worker threads          | When expanding `rules.maxConcurrent` |
-| Auto-polling mode           | `--watch` flag vs separate command     | v2                                   |
-| inProgress label management | Add on dispatch / remove on completion | During implementation                |
-| Gap issue auto-creation     | Orchestrator vs runner boundary hook   | During handoff implementation        |
+| Item              | Options                            | Decision Timing             |
+| ----------------- | ---------------------------------- | --------------------------- |
+| DAG visualization | CLI table vs guimpt integration    | After guimpt implementation |
+| Auto-polling mode | `--watch` flag vs separate command | v2                          |
 
 ## Sources
 

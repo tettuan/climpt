@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow.schema.json",
+  "title": "Workflow Configuration",
+  "description": "Schema for .agent/workflow.json - orchestrator workflow definition",
+  "type": "object",
+  "required": ["version", "phases", "labelMapping", "agents"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema version"
+    },
+    "phases": {
+      "type": "object",
+      "description": "Phase definitions keyed by phase ID",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["actionable", "terminal", "blocking"]
+          },
+          "priority": {
+            "type": "number",
+            "description": "Selection priority for actionable phases (lower = higher priority)"
+          },
+          "agent": {
+            "type": ["string", "null"],
+            "description": "Agent ID to dispatch when this phase is active"
+          }
+        }
+      }
+    },
+    "labelMapping": {
+      "type": "object",
+      "description": "GitHub label to phase ID mapping",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent definitions keyed by agent ID",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["transformer", "validator"]
+          },
+          "directory": {
+            "type": "string",
+            "description": "Agent directory name (defaults to agent ID if omitted)"
+          },
+          "fallbackPhase": {
+            "type": "string",
+            "description": "Phase to transition to on error"
+          },
+          "outputPhase": {
+            "type": "string",
+            "description": "Phase to transition to on successful completion (transformer only)"
+          },
+          "outputPhases": {
+            "type": "object",
+            "description": "Judgment key to target phase mapping (validator only)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "role": { "const": "transformer" } },
+              "required": ["role"]
+            },
+            "then": {
+              "required": ["role", "outputPhase"]
+            }
+          },
+          {
+            "if": {
+              "properties": { "role": { "const": "validator" } },
+              "required": ["role"]
+            },
+            "then": {
+              "required": ["role", "outputPhases"]
+            }
+          }
+        ]
+      }
+    },
+    "rules": {
+      "type": "object",
+      "description": "Execution constraints for the orchestrator loop",
+      "additionalProperties": false,
+      "properties": {
+        "maxCycles": {
+          "type": "number",
+          "description": "Maximum phase transition cycles per issue",
+          "minimum": 1
+        },
+        "cycleDelayMs": {
+          "type": "number",
+          "description": "Delay in milliseconds between cycles",
+          "minimum": 0
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "description": "Inter-agent handoff configuration",
+      "additionalProperties": false,
+      "properties": {
+        "commentTemplates": {
+          "type": "object",
+          "description": "Named comment templates with placeholder support",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "issueStore": {
+      "type": "object",
+      "description": "Issue store configuration",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" }
+      }
+    },
+    "prioritizer": {
+      "type": "object",
+      "description": "Prioritizer configuration",
+      "additionalProperties": false,
+      "required": ["agent", "labels"],
+      "properties": {
+        "agent": { "type": "string" },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "defaultLabel": { "type": "string" }
+      }
+    },
+    "labelPrefix": {
+      "type": "string",
+      "description": "Optional label namespace prefix (e.g. 'docs' produces 'docs:ready')"
+    }
+  }
+}
