@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "phases": {
+    "implementation": {
+      "type": "inProgress",
+      "priority": 1,
+      "agent": "iterator"
+    },
+    "complete": { "type": "terminal" }
+  },
+  "labelMapping": { "ready": "implementation", "done": "complete" },
+  "agents": {
+    "iterator": { "role": "transformer", "outputPhase": "complete" }
+  }
+}

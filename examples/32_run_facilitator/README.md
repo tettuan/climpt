@@ -1,4 +1,4 @@
-# 26a: Run Facilitator Agent (no --issue)
+# 32: Run Facilitator Agent (no --issue)
 
 **What:** Runs the facilitator agent without `--issue` to verify agents with
 `parameters.issue.required: false` work without it. **Why:** Demonstrates that

@@ -106,10 +106,10 @@ PR.**
 | [01-04 Setup](../../examples/01_check_prerequisites/)   | Installation, init, verification                 |
 | [05-09 CLI Basic](../../examples/05_echo_test/)         | CLI invocation: echo, meta, git, stdin, `--uv-*` |
 | [10-12 Docs](../../examples/10_docs_list/)              | Documentation installer and filtering            |
-| [13-23 Agents](../../examples/13_list_agents/)          | Agent init, config, run, E2E verify              |
-| [24-26 Agent Run](../../examples/24_prompt_resolution/) | Prompt resolution, iterator, reviewer            |
-| [27-28 Registry](../../examples/27_generate_registry/)  | Registry generation and structure                |
-| [29-30 MCP](../../examples/29_mcp_start_server/)        | MCP server start and IDE integration             |
+| [13-24 Agents](../../examples/13_list_agents/)          | Agent init, config, run, E2E verify              |
+| [25-34 Agent Run](../../examples/25_prompt_resolution/) | Prompt resolution, iterator, reviewer            |
+| [35-37 Registry](../../examples/35_generate_registry/)  | Registry generation and structure                |
+| [38-39 MCP](../../examples/38_mcp_start_server/)        | MCP server start and IDE integration             |
 
 See [`examples/README.md`](../../examples/README.md) for prerequisites and run
 instructions.

@@ -25,19 +25,45 @@
  * ```bash
  * deno run --allow-all agents/scripts/run-workflow.ts --label docs --dry-run
  * ```
+ *
+ * @example Local mode (file-based, no GitHub API)
+ * ```bash
+ * deno run --allow-all agents/scripts/run-workflow.ts --local --issue 1 --dry-run
+ * ```
+ *
+ * @example Stub dispatch (preconfigured agent outcomes)
+ * ```bash
+ * deno run --allow-all agents/scripts/run-workflow.ts --local --stub-dispatch '{"iterator":"success"}' --issue 1
+ * ```
  */
 
+import { join } from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
 import { loadWorkflow } from "../orchestrator/workflow-loader.ts";
 import { Orchestrator } from "../orchestrator/orchestrator.ts";
 import { GhCliClient } from "../orchestrator/github-client.ts";
-import { RunnerDispatcher } from "../orchestrator/dispatcher.ts";
+import type { GitHubClient } from "../orchestrator/github-client.ts";
+import {
+  RunnerDispatcher,
+  StubDispatcher,
+} from "../orchestrator/dispatcher.ts";
+import type { AgentDispatcher } from "../orchestrator/dispatcher.ts";
+import { FileGitHubClient } from "../orchestrator/file-github-client.ts";
+import { IssueStore } from "../orchestrator/issue-store.ts";
 import type { IssueCriteria } from "../orchestrator/workflow-types.ts";
 
 async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
-    string: ["workflow", "label", "repo", "state", "limit", "issue"],
-    boolean: ["verbose", "dry-run", "help", "prioritize"],
+    string: [
+      "workflow",
+      "label",
+      "repo",
+      "state",
+      "limit",
+      "issue",
+      "stub-dispatch",
+    ],
+    boolean: ["verbose", "dry-run", "help", "prioritize", "local"],
     alias: { h: "help", w: "workflow", v: "verbose", p: "prioritize" },
     collect: ["label"],
   });
@@ -60,6 +86,8 @@ Options:
   --prioritize, -p       Run prioritizer agent only, then exit (batch mode)
   --verbose, -v          Enable verbose logging
   --dry-run              Skip label updates and comments (simulation mode)
+  --local                Use file-based GitHub client (no GitHub API)
+  --stub-dispatch <json> Use stub dispatcher with preconfigured outcomes (JSON)
   --help, -h             Show this help message
 `);
     Deno.exit(0);
@@ -70,6 +98,8 @@ Options:
     verbose: args.verbose,
     dryRun: args["dry-run"],
     workflowPath: args.workflow,
+    local: args.local,
+    stubDispatch: args["stub-dispatch"],
   };
 
   // Single-issue mode: --issue <number>
@@ -124,11 +154,26 @@ async function runSingleIssue(
     verbose: boolean;
     dryRun: boolean;
     workflowPath?: string;
+    local: boolean;
+    stubDispatch?: string;
   },
 ): Promise<void> {
   const config = await loadWorkflow(cwd, options.workflowPath);
-  const github = new GhCliClient(cwd);
-  const dispatcher = new RunnerDispatcher(config, cwd);
+
+  const github: GitHubClient = options.local
+    ? new FileGitHubClient(
+      new IssueStore(
+        join(cwd, config.issueStore?.path ?? ".agent/issues"),
+      ),
+    )
+    : new GhCliClient(cwd);
+
+  const dispatcher: AgentDispatcher = options.stubDispatch !== undefined
+    ? new StubDispatcher(
+      JSON.parse(options.stubDispatch) as Record<string, string>,
+    )
+    : new RunnerDispatcher(config, cwd);
+
   const orchestrator = new Orchestrator(config, github, dispatcher, cwd);
 
   const result = await orchestrator.run(issueNumber, {
@@ -150,11 +195,26 @@ async function runBatchWorkflow(
     dryRun: boolean;
     prioritizeOnly: boolean;
     workflowPath?: string;
+    local: boolean;
+    stubDispatch?: string;
   },
 ): Promise<void> {
   const config = await loadWorkflow(cwd, options.workflowPath);
-  const github = new GhCliClient(cwd);
-  const dispatcher = new RunnerDispatcher(config, cwd);
+
+  const github: GitHubClient = options.local
+    ? new FileGitHubClient(
+      new IssueStore(
+        join(cwd, config.issueStore?.path ?? ".agent/issues"),
+      ),
+    )
+    : new GhCliClient(cwd);
+
+  const dispatcher: AgentDispatcher = options.stubDispatch !== undefined
+    ? new StubDispatcher(
+      JSON.parse(options.stubDispatch) as Record<string, string>,
+    )
+    : new RunnerDispatcher(config, cwd);
+
   const orchestrator = new Orchestrator(config, github, dispatcher, cwd);
 
   const result = await orchestrator.runBatch(criteria, {

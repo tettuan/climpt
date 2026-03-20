@@ -23,7 +23,7 @@ const logErr = console.error;
 const repoRoot = resolve(import.meta.dirname ?? ".", "../../../");
 const tmpDir = join(
   Deno.env.get("TMPDIR") ?? "/private/tmp/claude-502",
-  "25a-negative-load-test",
+  "29-negative-load-test",
 );
 
 let passed = 0;

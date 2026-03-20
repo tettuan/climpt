@@ -52,6 +52,7 @@ export type {
   IssueListItem,
 } from "./github-client.ts";
 export { GhCliClient } from "./github-client.ts";
+export { FileGitHubClient } from "./file-github-client.ts";
 
 // Dispatcher
 export type {

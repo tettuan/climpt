@@ -38,10 +38,10 @@ functionality before each release:
   initialization
 - [05-09 CLI Basic](../../../examples/05_echo_test/) - Core CLI commands
 - [10-12 Docs](../../../examples/10_docs_list/) - Documentation installer
-- [13-23 Agents](../../../examples/13_list_agents/) - Agent framework
-- [27-28 Registry](../../../examples/27_generate_registry/) - Registry
+- [13-24 Agents](../../../examples/13_list_agents/) - Agent framework
+- [35-37 Registry](../../../examples/35_generate_registry/) - Registry
   generation
-- [29-30 MCP](../../../examples/29_mcp_start_server/) - MCP server and IDE
+- [38-39 MCP](../../../examples/38_mcp_start_server/) - MCP server and IDE
   integration
 
 ## Links
