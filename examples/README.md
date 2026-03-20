@@ -176,32 +176,31 @@ for f in examples/{28,31,32}_*/run.sh; do bash "$f"; done
 
 ## How to Run
 
-### 推奨: run-all (スケジュール実行)
+### 推奨: run-all (別ターミナルで実行 + Claude Code で監視)
 
 Claude Code 内からの直接実行は `CLAUDECODE=1` 環境変数の継承により LLM
-ステップが失敗する。 `run-all.sh` をターミナルまたは launchd
-から実行することで回避する。
+ステップが失敗する。別ターミナルから `run-all.sh` を実行し、Claude Code の
+sub-agent でログを監視する。
+
+#### 1. 別ターミナルで実行
 
 ```bash
-# 1. トリガー (実行リクエスト)
-bash examples/trigger.sh
-#    → tmp/examples-runner/.trigger に日時が記載される
-
-# 2a. 即時実行 (ターミナルから)
+# フォアグラウンド (ターミナルを開いたまま)
 bash examples/run-all.sh
 
-# 2b. launchd 経由 (5分以内に自動実行)
-launchctl start com.climpt.run-all
+# バックグラウンド (ターミナルを閉じても継続)
+nohup bash examples/run-all.sh > /dev/null 2>&1 &
 ```
 
-#### フラグファイルによる状態管理
+#### 2. Claude Code でログ監視を依頼
 
-| `.trigger` の内容        | 状態      | run-all.sh の動作         |
-| ------------------------ | --------- | ------------------------- |
-| (ファイルなし)           | idle      | スキップ                  |
-| `2026-03-09T12-06-03`    | requested | 実行開始、`started:` 追記 |
-| datetime + `started:...` | running   | 二重起動防止、スキップ    |
-| (削除済み)               | completed | スキップ                  |
+実行開始後、Claude Code に以下のように指示する:
+
+> examples の run-all ログを sub-agent で監視して
+
+Claude Code は background sub-agent を起動し、`tmp/logs/examples/` 配下の
+`summary.json` の出現を監視する。完了後、PASS/FAIL 結果と FAIL ステップの
+ログ抜粋を報告する。メインのコンテキストを消費しない。
 
 #### ログと結果分析
 
@@ -214,14 +213,6 @@ cat tmp/logs/examples/{datetime}/{step_name}.log
 ```
 
 `summary.json` に全ステップの exit_code と PASS/FAIL が記録される。
-
-#### launchd 初回セットアップ
-
-```bash
-mkdir -p tmp/logs/examples
-cp examples/com.climpt.run-all.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.climpt.run-all.plist
-```
 
 ### 手動実行 (個別ステップ)
 

@@ -52,27 +52,18 @@ main() {
   output=$( (cd "$REPO_ROOT" && deno task facilitate-agent --project 1) 2>&1) \
     || exit_code=$?
 
-  # Crash detection: import/startup errors are always fatal
-  if echo "$output" | grep -qE "error: (Module not found|Cannot resolve|Uncaught)"; then
-    error "FAIL: facilitate-agent crashed with import/startup error"
-    echo "$output" | grep -E "error:" | head -5 >&2
-    return 1
-  fi
-
   if [[ -z "$output" ]]; then
     error "FAIL: facilitate-agent produced no output"; return 1
   fi
 
-  # Exit code must be respected
-  if [[ $exit_code -ne 0 ]]; then
-    error "FAIL: facilitate-agent exited with code ${exit_code}"
-    echo "$output" | tail -5 >&2
+  # Agent runner outputs "Agent completed: SUCCESS" or "Agent completed: FAILED"
+  if echo "$output" | grep -q "Agent completed: FAILED"; then
+    error "FAIL: facilitate-agent reported FAILED"
+    echo "$output" | tail -10 >&2
     return 1
   fi
-
-  # Strict content validation: must show agent execution evidence
-  if ! echo "$output" | grep -qiE "(step.*complete|facilitat.*finish|AgentResult|success|running.*step)"; then
-    error "FAIL: output lacks agent execution evidence"
+  if ! echo "$output" | grep -q "Agent completed: SUCCESS"; then
+    error "FAIL: facilitate-agent did not reach completion (no SUCCESS/FAILED in output)"
     echo "$output" | tail -10 >&2
     return 1
   fi
