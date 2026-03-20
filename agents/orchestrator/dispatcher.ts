@@ -13,6 +13,8 @@ export interface DispatchOptions {
   iterateMax?: number;
   branch?: string;
   verbose?: boolean;
+  issueStorePath?: string;
+  outboxPath?: string;
 }
 
 /** Result of a single agent dispatch. */
@@ -96,6 +98,12 @@ export class RunnerDispatcher implements AgentDispatcher {
     }
     if (options?.verbose) {
       args.push("--verbose");
+    }
+    if (options?.issueStorePath) {
+      args.push("--issue-store-path", options.issueStorePath);
+    }
+    if (options?.outboxPath) {
+      args.push("--outbox-path", options.outboxPath);
     }
 
     const cmd = new Deno.Command("deno", {

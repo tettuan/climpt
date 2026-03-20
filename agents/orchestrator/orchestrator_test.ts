@@ -756,7 +756,10 @@ Deno.test("runBatch skips non-actionable issues", async () => {
     labelSeqs.set(10, [["ready"], ["done"]]);
 
     const github = new BatchStubGitHubClient(listItems, details, labelSeqs);
-    const dispatcher = new StubDispatcher({ iterator: "success" });
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
     const result = await orchestrator.runBatch({});
@@ -835,4 +838,216 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }
+});
+
+// === Store-backed run() tests ===
+
+Deno.test("run with store reads labels from store instead of GitHub", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // GitHub client that would return different labels - should NOT be called for label reads
+    const github = new StubGitHubClient([["done"]]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Store labels ["ready"] -> iterator (success) -> review -> reviewer (approved) -> complete
+    // GitHub's getIssueLabels should NOT be called (callIndex stays 0)
+    assertEquals(github.callIndex, 0);
+    assertEquals(result.status, "completed");
+    assertEquals(result.finalPhase, "complete");
+    assertEquals(result.cycleCount, 2);
+    assertEquals(result.history[0].from, "implementation");
+    assertEquals(result.history[0].agent, "iterator");
+    assertEquals(result.history[1].from, "review");
+    assertEquals(result.history[1].agent, "reviewer");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run with store persists workflow state after each cycle", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    await orchestrator.run(1, {}, store);
+
+    // Workflow state should be persisted with final state after both cycles
+    const state = await store.readWorkflowState(1, "default");
+    assertEquals(state !== null, true);
+    assertEquals(state!.issueNumber, 1);
+    assertEquals(state!.cycleCount, 2);
+    assertEquals(state!.history.length, 2);
+    assertEquals(state!.history[0].from, "implementation");
+    assertEquals(state!.history[0].to, "review");
+    assertEquals(state!.history[1].from, "review");
+    assertEquals(state!.history[1].to, "complete");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run with store updates store meta labels after transition", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    await orchestrator.run(1, {}, store);
+
+    // Store meta should be updated with final labels after both cycles
+    // ready -> review (cycle 1) -> done (cycle 2, approved)
+    const meta = await store.readMeta(1);
+    assertEquals(meta.labels.includes("ready"), false);
+    assertEquals(meta.labels.includes("review"), false);
+    assertEquals(meta.labels.includes("done"), true);
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run with store restores cycle count from persisted state", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 3;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // Pre-seed workflow state with 2 existing cycles
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "revision",
+      cycleCount: 2,
+      correlationId: "wf-test",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          from: "review",
+          to: "revision",
+          agent: "reviewer",
+          outcome: "rejected",
+          timestamp: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({ iterator: "success" });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Should dispatch one more cycle (cycle 3), then be exceeded
+    // Total cycles = 2 (restored) + 1 (new) = 3
+    assertEquals(result.cycleCount, 3);
+    assertEquals(result.status, "cycle_exceeded");
+    assertEquals(result.history.length, 3);
+    // First two are restored, third is new
+    assertEquals(result.history[0].from, "implementation");
+    assertEquals(result.history[2].from, "implementation");
+    assertEquals(result.history[2].agent, "iterator");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run without store works exactly as before (backward compatibility)", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["done"],
+  ]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  // Call run() without store parameter - should work identically to original
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 2);
+  assertEquals(result.history.length, 2);
+  // getIssueLabels called twice (once per cycle); terminal phase breaks before 3rd read
+  assertEquals(github.callIndex, 2);
 });

@@ -10,7 +10,10 @@
  *   {storePath}/{number}/body.md
  *   {storePath}/{number}/comments/{id}.md
  *   {storePath}/{number}/outbox/
+ *   {storePath}/{number}/workflow-state.{workflowId}.json
  */
+
+import type { IssueWorkflowState } from "./workflow-types.ts";
 
 /** Issue metadata stored in meta.json */
 export interface IssueMeta {
@@ -148,6 +151,100 @@ export class IssueStore {
     for await (const entry of Deno.readDir(outboxDir)) {
       await Deno.remove(`${outboxDir}/${entry.name}`, { recursive: true });
     }
+  }
+
+  /** Write workflow state to {storePath}/{issueNumber}/workflow-state.{workflowId}.json. */
+  async writeWorkflowState(
+    issueNumber: number,
+    state: IssueWorkflowState,
+    workflowId: string,
+  ): Promise<void> {
+    const dir = this.getIssuePath(issueNumber);
+    await Deno.mkdir(dir, { recursive: true });
+    await Deno.writeTextFile(
+      `${dir}/workflow-state.${workflowId}.json`,
+      JSON.stringify(state, null, 2) + "\n",
+    );
+  }
+
+  /** Read workflow state from {storePath}/{issueNumber}/workflow-state.{workflowId}.json. Returns null if not found. */
+  async readWorkflowState(
+    issueNumber: number,
+    workflowId: string,
+  ): Promise<IssueWorkflowState | null> {
+    const path = `${
+      this.getIssuePath(issueNumber)
+    }/workflow-state.${workflowId}.json`;
+    try {
+      const text = await Deno.readTextFile(path);
+      return JSON.parse(text) as IssueWorkflowState;
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Try to acquire an advisory workflow-level lock.
+   *
+   * Uses `Deno.open({ createNew: true })` for atomic lock creation.
+   * Lock file is at `{storePath}/.lock.{workflowId}` — scoped per workflow,
+   * not per issue. This prevents concurrent batch runs from breaking
+   * priority ordering.
+   *
+   * Returns a release function on success, or `null` if already locked.
+   * Stale locks (older than 30 minutes) are automatically cleaned up.
+   */
+  async acquireLock(
+    workflowId: string,
+  ): Promise<{ release: () => Promise<void> } | null> {
+    await Deno.mkdir(this.#storePath, { recursive: true });
+    const lockPath = `${this.#storePath}/.lock.${workflowId}`;
+
+    // Check for stale lock (older than 30 minutes)
+    try {
+      const stat = await Deno.stat(lockPath);
+      if (stat.mtime) {
+        const ageMs = Date.now() - stat.mtime.getTime();
+        if (ageMs > 30 * 60 * 1000) {
+          await Deno.remove(lockPath);
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error;
+      }
+    }
+
+    let file: Deno.FsFile;
+    try {
+      file = await Deno.open(lockPath, { createNew: true, write: true });
+    } catch (error) {
+      if (error instanceof Deno.errors.AlreadyExists) {
+        return null;
+      }
+      throw error;
+    }
+
+    // Write PID and timestamp for diagnostics
+    const info = JSON.stringify({
+      pid: Deno.pid,
+      acquiredAt: new Date().toISOString(),
+    });
+    await file.write(new TextEncoder().encode(info));
+    file.close();
+
+    return {
+      release: async () => {
+        try {
+          await Deno.remove(lockPath);
+        } catch {
+          // Lock file already removed — not fatal
+        }
+      },
+    };
   }
 
   /** Get issue directory path. */

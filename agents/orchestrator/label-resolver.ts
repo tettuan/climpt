@@ -41,9 +41,12 @@ export function resolvePhase(
 
     if (phase.type !== "actionable") continue;
 
+    const currentPriority = phase.priority ?? Infinity;
+    const bestPriority = best?.phase.priority ?? Infinity;
     if (
       best === null ||
-      (phase.priority ?? Infinity) < (best.phase.priority ?? Infinity)
+      currentPriority < bestPriority ||
+      (currentPriority === bestPriority && phaseId < best.phaseId)
     ) {
       best = { phaseId, phase };
     }

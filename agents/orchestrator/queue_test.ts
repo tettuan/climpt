@@ -103,17 +103,30 @@ Deno.test("buildQueue skips terminal and blocking issues", async () => {
   }
 });
 
-Deno.test("buildQueue handles issues without priority label", async () => {
+Deno.test("buildQueue includes issues without priority label with lowest sort order", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const store = new IssueStore(tmp);
-    await store.writeIssue(makeIssue(1, ["ready"]));
+    await store.writeIssue(makeIssue(1, ["ready", "P1"]));
+    await store.writeIssue(makeIssue(2, ["ready"]));
+    await store.writeIssue(makeIssue(3, ["ready", "P2"]));
 
-    const queue = new Queue(makeWorkflowConfig(), store, makePriorityConfig());
+    const queue = new Queue(
+      makeWorkflowConfig(),
+      store,
+      makePriorityConfig({ labels: ["P1", "P2"] }),
+    );
     const items = await queue.buildQueue();
 
-    // No priority label and no defaultLabel => skipped
-    assertEquals(items.length, 0);
+    // All three issues are included; issue 2 has no priority label
+    assertEquals(items.length, 3);
+    // P1 first, P2 second, unassigned ("") last
+    assertEquals(items[0].issueNumber, 1);
+    assertEquals(items[0].priority, "P1");
+    assertEquals(items[1].issueNumber, 3);
+    assertEquals(items[1].priority, "P2");
+    assertEquals(items[2].issueNumber, 2);
+    assertEquals(items[2].priority, "");
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }

@@ -63,7 +63,6 @@ export class Queue {
       if (agentResult === null) continue;
 
       const priority = this.#extractPriority(meta.labels);
-      if (priority === null) continue;
 
       items.push({
         issueNumber: num,
@@ -83,7 +82,7 @@ export class Queue {
   }
 
   /** Extract the first matching priority label from issue labels. */
-  #extractPriority(labels: string[]): string | null {
+  #extractPriority(labels: string[]): string {
     if (this.#priorityOrder.length === 0) {
       return this.#defaultLabel ?? "";
     }
@@ -93,10 +92,7 @@ export class Queue {
         return label;
       }
     }
-    if (this.#defaultLabel !== undefined) {
-      return this.#defaultLabel;
-    }
-    return null;
+    return this.#defaultLabel ?? "";
   }
 
   /** Get sort index for a priority label. Unknown labels sort last. */

@@ -50,13 +50,45 @@ export class Orchestrator {
     this.#cwd = cwd ?? Deno.cwd();
   }
 
+  /** Derive a stable workflow identity from config for state file isolation. */
+  get workflowId(): string {
+    return this.#config.labelPrefix ?? "default";
+  }
+
   async run(
     issueNumber: number,
     options?: OrchestratorOptions,
+    store?: IssueStore,
+  ): Promise<OrchestratorResult> {
+    return await this.#runInner(
+      issueNumber,
+      options,
+      store,
+      this.workflowId,
+    );
+  }
+
+  async #runInner(
+    issueNumber: number,
+    options?: OrchestratorOptions,
+    store?: IssueStore,
+    workflowId?: string,
   ): Promise<OrchestratorResult> {
     const verbose = options?.verbose ?? false;
     const dryRun = options?.dryRun ?? false;
-    const tracker = new CycleTracker(this.#config.rules.maxCycles);
+    const maxCycles = this.#config.rules.maxCycles;
+    const wfId = workflowId ?? this.workflowId;
+
+    // Restore cycle tracker from persisted state if available
+    let tracker: CycleTracker;
+    if (store) {
+      const existingState = await store.readWorkflowState(issueNumber, wfId);
+      tracker = existingState
+        ? CycleTracker.fromState(existingState, maxCycles)
+        : new CycleTracker(maxCycles);
+    } else {
+      tracker = new CycleTracker(maxCycles);
+    }
 
     let finalPhase = "unknown";
     let status: OrchestratorResult["status"] = "blocked";
@@ -64,11 +96,17 @@ export class Orchestrator {
     // Each cycle depends on the previous: labels are read, agent dispatched,
     // labels updated, then re-read. Awaits must be sequential.
     while (true) {
-      // Step 3: Get current labels
+      // Step 3: Get current labels (prefer store when available)
       let currentLabels: string[];
       try {
-        // deno-lint-ignore no-await-in-loop
-        currentLabels = await this.#github.getIssueLabels(issueNumber);
+        if (store) {
+          // deno-lint-ignore no-await-in-loop
+          const meta = await store.readMeta(issueNumber);
+          currentLabels = meta.labels;
+        } else {
+          // deno-lint-ignore no-await-in-loop
+          currentLabels = await this.#github.getIssueLabels(issueNumber);
+        }
       } catch (error) {
         if (verbose) {
           this.#log(
@@ -161,13 +199,24 @@ export class Orchestrator {
       const dispatchResult = await this.#dispatcher.dispatch(
         agentId,
         issueNumber,
-        { verbose },
+        {
+          verbose,
+          issueStorePath: store?.storePath,
+          outboxPath: store?.getOutboxPath(issueNumber),
+        },
       );
 
       if (verbose) {
         this.#log(
           `Agent "${agentId}" outcome: "${dispatchResult.outcome}" (${dispatchResult.durationMs}ms)`,
         );
+      }
+
+      // Step 7b: Process outbox after agent dispatch (when store available)
+      if (store) {
+        const outboxProcessor = new OutboxProcessor(this.#github, store);
+        // deno-lint-ignore no-await-in-loop
+        await outboxProcessor.process(issueNumber);
       }
 
       // Step 8: Compute transition
@@ -211,6 +260,19 @@ export class Orchestrator {
           }
           // Label update failure is not fatal; continue to next cycle
         }
+
+        // Step 10b: Update store meta to reflect new labels
+        if (store) {
+          const newLabels = currentLabels
+            .filter((l) => !labelsToRemove.includes(l))
+            .concat(labelsToAdd);
+          try {
+            // deno-lint-ignore no-await-in-loop
+            await store.updateMeta(issueNumber, { labels: newLabels });
+          } catch {
+            // Store update failure is not fatal
+          }
+        }
       }
 
       // Step 11: Record cycle
@@ -221,6 +283,16 @@ export class Orchestrator {
         agentId,
         dispatchResult.outcome,
       );
+
+      // Step 11b: Persist cycle tracker state
+      if (store) {
+        // deno-lint-ignore no-await-in-loop
+        await store.writeWorkflowState(
+          issueNumber,
+          tracker.toState(issueNumber, targetPhase),
+          wfId,
+        );
+      }
 
       // Step 12: Handoff comment
       if (!dryRun && this.#config.handoff?.commentTemplates) {
@@ -337,6 +409,38 @@ export class Orchestrator {
     const storeConfig = this.#config.issueStore ?? { path: ".agent/issues" };
     const storePath = join(this.#cwd, storeConfig.path);
     const store = new IssueStore(storePath);
+
+    // 0. Workflow-level lock — prevents concurrent batches from
+    //    breaking priority ordering. Different workflows (different
+    //    labelPrefix) use separate locks and never block each other.
+    const wfId = this.workflowId;
+    const lock = await store.acquireLock(wfId);
+    if (lock === null) {
+      if (options?.verbose) {
+        this.#log(
+          `Workflow "${wfId}" is already running, aborting batch`,
+        );
+      }
+      return {
+        processed: [],
+        skipped: [],
+        totalIssues: 0,
+        status: "failed",
+      };
+    }
+
+    try {
+      return await this.#runBatchInner(store, criteria, options);
+    } finally {
+      await lock.release();
+    }
+  }
+
+  async #runBatchInner(
+    store: IssueStore,
+    criteria: IssueCriteria,
+    options?: BatchOptions,
+  ): Promise<BatchResult> {
     const syncer = new IssueSyncer(this.#github, store);
 
     // 1. Sync issues from gh to local store
@@ -389,18 +493,12 @@ export class Orchestrator {
     // 4. Process each issue
     const processed: OrchestratorResult[] = [];
     const skipped: { issueNumber: number; reason: string }[] = [];
-    const outboxProcessor = new OutboxProcessor(this.#github, store);
 
     for (const item of queueItems) {
       try {
-        // Use existing run() for single-issue processing
+        // Use existing run() with store for single-truth-source processing
         // deno-lint-ignore no-await-in-loop
-        const result = await this.run(item.issueNumber, options);
-        // Process outbox after agent completes (skip in dry-run)
-        if (!options?.dryRun) {
-          // deno-lint-ignore no-await-in-loop
-          await outboxProcessor.process(item.issueNumber);
-        }
+        const result = await this.run(item.issueNumber, options, store);
         processed.push(result);
       } catch (error) {
         skipped.push({

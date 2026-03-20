@@ -120,3 +120,80 @@ Deno.test("generateCorrelationId is unique across calls", async () => {
   const id2 = tracker.generateCorrelationId("iterator");
   assertNotEquals(id1, id2);
 });
+
+// === toState / fromState ===
+
+Deno.test("toState serializes tracker state correctly", () => {
+  const tracker = new CycleTracker(5);
+  tracker.record(1, "implementation", "review", "iterator", "success");
+  tracker.record(1, "review", "complete", "reviewer", "approved");
+
+  const state = tracker.toState(1, "complete");
+
+  assertEquals(state.issueNumber, 1);
+  assertEquals(state.currentPhase, "complete");
+  assertEquals(state.cycleCount, 2);
+  assertEquals(state.history.length, 2);
+  assertEquals(state.history[0].from, "implementation");
+  assertEquals(state.history[0].to, "review");
+  assertEquals(state.history[1].from, "review");
+  assertEquals(state.history[1].to, "complete");
+  assertEquals(typeof state.correlationId, "string");
+  assertEquals(state.correlationId.startsWith("wf-"), true);
+});
+
+Deno.test("toState for unknown issue returns empty state", () => {
+  const tracker = new CycleTracker(5);
+  const state = tracker.toState(999, "unknown");
+
+  assertEquals(state.issueNumber, 999);
+  assertEquals(state.currentPhase, "unknown");
+  assertEquals(state.cycleCount, 0);
+  assertEquals(state.history.length, 0);
+});
+
+Deno.test("fromState reconstructs tracker with existing history", () => {
+  const tracker = new CycleTracker(5);
+  tracker.record(1, "implementation", "review", "iterator", "success");
+  tracker.record(1, "review", "revision", "reviewer", "rejected");
+
+  const state = tracker.toState(1, "revision");
+  const restored = CycleTracker.fromState(state, 5);
+
+  assertEquals(restored.getCount(1), 2);
+  assertEquals(restored.isExceeded(1), false);
+  const history = restored.getHistory(1);
+  assertEquals(history.length, 2);
+  assertEquals(history[0].from, "implementation");
+  assertEquals(history[1].from, "review");
+});
+
+Deno.test("fromState respects maxCycles for exceeded check", () => {
+  const tracker = new CycleTracker(10);
+  tracker.record(1, "implementation", "review", "iterator", "success");
+  tracker.record(1, "review", "revision", "reviewer", "rejected");
+  tracker.record(1, "revision", "review", "iterator", "success");
+
+  const state = tracker.toState(1, "review");
+  // Restore with lower maxCycles => should be exceeded
+  const restored = CycleTracker.fromState(state, 3);
+
+  assertEquals(restored.getCount(1), 3);
+  assertEquals(restored.isExceeded(1), true);
+});
+
+Deno.test("fromState allows continued recording", () => {
+  const tracker = new CycleTracker(5);
+  tracker.record(1, "implementation", "review", "iterator", "success");
+
+  const state = tracker.toState(1, "review");
+  const restored = CycleTracker.fromState(state, 5);
+  restored.record(1, "review", "complete", "reviewer", "approved");
+
+  assertEquals(restored.getCount(1), 2);
+  const history = restored.getHistory(1);
+  assertEquals(history.length, 2);
+  assertEquals(history[0].from, "implementation");
+  assertEquals(history[1].from, "review");
+  assertEquals(history[1].to, "complete");
+});

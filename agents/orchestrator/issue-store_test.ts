@@ -208,3 +208,230 @@ Deno.test("readMeta throws for nonexistent issue", async () => {
     await Deno.remove(tmp, { recursive: true });
   }
 });
+
+// === writeWorkflowState / readWorkflowState ===
+
+Deno.test("writeWorkflowState creates workflow-state.{workflowId}.json", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeWorkflowState(42, {
+      issueNumber: 42,
+      currentPhase: "review",
+      cycleCount: 2,
+      correlationId: "wf-test-001",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          from: "review",
+          to: "revision",
+          agent: "reviewer",
+          outcome: "rejected",
+          timestamp: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+    }, "docs");
+
+    const stat = await Deno.stat(`${tmp}/42/workflow-state.docs.json`);
+    assertEquals(stat.isFile, true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowState returns stored state", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const state = {
+      issueNumber: 7,
+      currentPhase: "review",
+      cycleCount: 1,
+      correlationId: "wf-test-002",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+    await store.writeWorkflowState(7, state, "default");
+
+    const loaded = await store.readWorkflowState(7, "default");
+    assertEquals(loaded, state);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowState returns null for nonexistent issue", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const result = await store.readWorkflowState(999, "default");
+    assertEquals(result, null);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowState returns null when issue dir exists but no state file", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeIssue(makeIssueData(5));
+    const result = await store.readWorkflowState(5, "default");
+    assertEquals(result, null);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("writeWorkflowState overwrites existing state", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeWorkflowState(3, {
+      issueNumber: 3,
+      currentPhase: "review",
+      cycleCount: 1,
+      correlationId: "wf-test-old",
+      history: [],
+    }, "default");
+    await store.writeWorkflowState(3, {
+      issueNumber: 3,
+      currentPhase: "complete",
+      cycleCount: 2,
+      correlationId: "wf-test-new",
+      history: [
+        {
+          from: "review",
+          to: "complete",
+          agent: "reviewer",
+          outcome: "approved",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const loaded = await store.readWorkflowState(3, "default");
+    assertEquals(loaded!.currentPhase, "complete");
+    assertEquals(loaded!.cycleCount, 2);
+    assertEquals(loaded!.correlationId, "wf-test-new");
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("different workflowIds do not collide", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "review",
+      cycleCount: 1,
+      correlationId: "wf-docs",
+      history: [],
+    }, "docs");
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "testing",
+      cycleCount: 3,
+      correlationId: "wf-code",
+      history: [],
+    }, "code");
+
+    const docs = await store.readWorkflowState(1, "docs");
+    const code = await store.readWorkflowState(1, "code");
+    assertEquals(docs!.currentPhase, "review");
+    assertEquals(docs!.cycleCount, 1);
+    assertEquals(code!.currentPhase, "testing");
+    assertEquals(code!.cycleCount, 3);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// === acquireLock ===
+
+Deno.test("acquireLock succeeds and release removes lock file", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+
+    // Lock file at store root
+    const stat = await Deno.stat(`${tmp}/.lock.default`);
+    assertEquals(stat.isFile, true);
+
+    await lock!.release();
+
+    // Lock file should be removed
+    await assertRejects(
+      () => Deno.stat(`${tmp}/.lock.default`),
+      Deno.errors.NotFound,
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock returns null when same workflow lock is already held", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const first = await store.acquireLock("default");
+    assertEquals(first !== null, true);
+
+    const second = await store.acquireLock("default");
+    assertEquals(second, null);
+
+    await first!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock allows reacquisition after release", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+
+    const first = await store.acquireLock("default");
+    await first!.release();
+
+    const second = await store.acquireLock("default");
+    await second!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: different workflowIds do not conflict", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+
+    const lockDocs = await store.acquireLock("docs");
+    const lockCode = await store.acquireLock("code");
+
+    assertEquals(lockDocs !== null, true);
+    assertEquals(lockCode !== null, true);
+
+    await lockDocs!.release();
+    await lockCode!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});

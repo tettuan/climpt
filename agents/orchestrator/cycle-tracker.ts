@@ -1,4 +1,7 @@
-import type { PhaseTransitionRecord } from "./workflow-types.ts";
+import type {
+  IssueWorkflowState,
+  PhaseTransitionRecord,
+} from "./workflow-types.ts";
 
 /**
  * Tracks phase transition cycles per issue and enforces maxCycles limits.
@@ -63,5 +66,38 @@ export class CycleTracker {
       "-",
     );
     return `wf-${timestamp}-${agent}`;
+  }
+
+  /** Serialize tracker state for a given issue into an IssueWorkflowState. */
+  toState(issueNumber: number, currentPhase: string): IssueWorkflowState {
+    const history = this.getHistory(issueNumber);
+    const lastAgent = history.length > 0
+      ? history[history.length - 1].agent
+      : "unknown";
+    return {
+      issueNumber,
+      currentPhase,
+      cycleCount: this.getCount(issueNumber),
+      correlationId: this.generateCorrelationId(lastAgent),
+      history,
+    };
+  }
+
+  /** Reconstruct a CycleTracker from persisted workflow state. */
+  static fromState(
+    state: IssueWorkflowState,
+    maxCycles: number,
+  ): CycleTracker {
+    const tracker = new CycleTracker(maxCycles);
+    for (const record of state.history) {
+      tracker.record(
+        state.issueNumber,
+        record.from,
+        record.to,
+        record.agent,
+        record.outcome,
+      );
+    }
+    return tracker;
   }
 }

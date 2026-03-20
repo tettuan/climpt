@@ -140,6 +140,66 @@ Deno.test("resolvePhase - multiple labels mapping to same phase", () => {
 });
 
 // =============================================================================
+// resolvePhase - tiebreaker (same priority)
+// =============================================================================
+
+Deno.test("resolvePhase - same priority selects alphabetically smaller phaseId", () => {
+  const config = createTestConfig();
+  // Add two phases with the same priority
+  config.phases["beta"] = {
+    type: "actionable",
+    priority: 1,
+    agent: "iterator",
+  };
+  config.phases["alpha"] = {
+    type: "actionable",
+    priority: 1,
+    agent: "iterator",
+  };
+  config.labelMapping["lbl-beta"] = "beta";
+  config.labelMapping["lbl-alpha"] = "alpha";
+
+  // beta label comes first, but alpha phaseId should win
+  const result = resolvePhase(["lbl-beta", "lbl-alpha"], config);
+
+  assertEquals(result?.phaseId, "alpha");
+});
+
+Deno.test("resolvePhase - tiebreaker is deterministic regardless of label order", () => {
+  const config = createTestConfig();
+  config.phases["beta"] = {
+    type: "actionable",
+    priority: 1,
+    agent: "iterator",
+  };
+  config.phases["alpha"] = {
+    type: "actionable",
+    priority: 1,
+    agent: "iterator",
+  };
+  config.labelMapping["lbl-beta"] = "beta";
+  config.labelMapping["lbl-alpha"] = "alpha";
+
+  // Reverse label order compared to previous test
+  const result = resolvePhase(["lbl-alpha", "lbl-beta"], config);
+
+  assertEquals(result?.phaseId, "alpha");
+});
+
+Deno.test("resolvePhase - no priority (Infinity) tiebreak by phaseId", () => {
+  const config = createTestConfig();
+  // Two phases with no priority field at all
+  config.phases["zulu"] = { type: "actionable", agent: "iterator" };
+  config.phases["mike"] = { type: "actionable", agent: "iterator" };
+  config.labelMapping["lbl-zulu"] = "zulu";
+  config.labelMapping["lbl-mike"] = "mike";
+
+  const result = resolvePhase(["lbl-zulu", "lbl-mike"], config);
+
+  assertEquals(result?.phaseId, "mike");
+});
+
+// =============================================================================
 // resolveAgent
 // =============================================================================
 
