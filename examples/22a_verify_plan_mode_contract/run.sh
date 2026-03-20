@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/../common_functions.sh"
 
 AGENT_NAME="plan-scout"
-AGENT_DIR="${REPO_ROOT}/.agent/${AGENT_NAME}"
+AGENT_DIR="${EXAMPLES_DIR}/.agent/${AGENT_NAME}"
 
 main() {
   info "=== Verify Plan Mode Contract (no LLM) ==="
