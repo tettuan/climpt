@@ -102,7 +102,13 @@ Defines agent behavior:
 ## Running Workflows
 
 ```bash
-# Process open issues with a specific label
+# Process a single issue
+deno task workflow --issue 123
+
+# Single issue dry run
+deno task workflow --issue 123 --dry-run --verbose
+
+# Process open issues with a specific label (batch mode)
 deno task workflow --label ready --state open
 
 # Custom workflow file
@@ -120,16 +126,17 @@ deno task workflow --label P1 --label docs --state open --limit 10
 
 ### CLI Options
 
-| Option         | Type    | Default                | Description                 |
-| -------------- | ------- | ---------------------- | --------------------------- |
-| `--workflow`   | string  | `.agent/workflow.json` | Workflow file path          |
-| `--label`      | string  | —                      | Label filter (repeatable)   |
-| `--repo`       | string  | current                | Repository (`owner/repo`)   |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`   |
-| `--limit`      | number  | `30`                   | Max issues to fetch         |
-| `--prioritize` | boolean | false                  | Run prioritizer only        |
-| `--verbose`    | boolean | false                  | Detailed log output         |
-| `--dry-run`    | boolean | false                  | Show changes without acting |
+| Option         | Type    | Default                | Description                               |
+| -------------- | ------- | ---------------------- | ----------------------------------------- |
+| `--issue`      | number  | —                      | Process a single issue (skips batch sync) |
+| `--workflow`   | string  | `.agent/workflow.json` | Workflow file path                        |
+| `--label`      | string  | —                      | Label filter (repeatable, batch mode)     |
+| `--repo`       | string  | current                | Repository (`owner/repo`)                 |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                 |
+| `--limit`      | number  | `30`                   | Max issues to fetch                       |
+| `--prioritize` | boolean | false                  | Run prioritizer only (batch mode)         |
+| `--verbose`    | boolean | false                  | Detailed log output                       |
+| `--dry-run`    | boolean | false                  | Show changes without acting               |
 
 ## Understanding Output
 

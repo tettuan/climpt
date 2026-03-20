@@ -102,7 +102,13 @@ Agent の動作を定義:
 ## ワークフローの実行
 
 ```bash
-# 特定ラベルの open issue を処理
+# 単一 issue を処理
+deno task workflow --issue 123
+
+# 単一 issue をドライラン
+deno task workflow --issue 123 --dry-run --verbose
+
+# 特定ラベルの open issue を処理（batch モード）
 deno task workflow --label ready --state open
 
 # カスタム workflow ファイル指定
@@ -120,16 +126,17 @@ deno task workflow --label P1 --label docs --state open --limit 10
 
 ### CLI オプション
 
-| オプション     | 型      | デフォルト             | 説明                         |
-| -------------- | ------- | ---------------------- | ---------------------------- |
-| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス        |
-| `--label`      | string  | —                      | ラベルフィルタ（複数指定可） |
-| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）   |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`    |
-| `--limit`      | number  | `30`                   | 最大取得 issue 数            |
-| `--prioritize` | boolean | false                  | Prioritizer のみ実行         |
-| `--verbose`    | boolean | false                  | 詳細ログ出力                 |
-| `--dry-run`    | boolean | false                  | 変更を表示のみ               |
+| オプション     | 型      | デフォルト             | 説明                                       |
+| -------------- | ------- | ---------------------- | ------------------------------------------ |
+| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ） |
+| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                      |
+| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）     |
+| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                 |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                  |
+| `--limit`      | number  | `30`                   | 最大取得 issue 数                          |
+| `--prioritize` | boolean | false                  | Prioritizer のみ実行（batch 用）           |
+| `--verbose`    | boolean | false                  | 詳細ログ出力                               |
+| `--dry-run`    | boolean | false                  | 変更を表示のみ                             |
 
 ## 出力の見方
 

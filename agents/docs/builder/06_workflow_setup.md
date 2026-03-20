@@ -149,9 +149,14 @@ GitHub issue label をキー、phase ID を値とする。
 GitHub 上のラベルは `docs:ready` になるが、`labelMapping` のキーはベア名
 `"ready"` のまま記述する。
 
-## Issue Store
+## Issue Store _(計画中 — v1.14 で導入予定)_
 
 Agent の gh 直接アクセスを禁止するための設定。
+
+> **現状 (v1.13):** Orchestrator 側の IssueStore クラスは実装済みだが、Agent に
+> `issueStorePath` を渡す仕組みが未接続。Agent は従来どおり `--issue` 番号のみで
+> 動作し、gh への直接アクセスは制限されない。Batch モードでは Orchestrator が
+> IssueStore を内部利用するが、Agent 側のデータ境界は未適用。
 
 ```json
 {
@@ -180,6 +185,12 @@ issue の優先度を自動判定する Agent の設定。
 ### 基本
 
 ```bash
+# 単一 issue を処理
+deno task workflow --issue 123
+
+# 単一 issue をドライラン
+deno task workflow --issue 123 --dry-run --verbose
+
 # 単一ラベルでフィルタして batch 処理
 deno task workflow --label docs --state open
 
@@ -198,16 +209,17 @@ deno task workflow --label docs --dry-run --verbose
 
 ### CLI 引数
 
-| 引数           | 型      | デフォルト             | 説明                         |
-| -------------- | ------- | ---------------------- | ---------------------------- |
-| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス        |
-| `--label`      | string  | —                      | ラベルフィルタ（複数指定可） |
-| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）   |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`    |
-| `--limit`      | number  | `30`                   | 最大取得 issue 数            |
-| `--prioritize` | boolean | `false`                | Prioritizer のみ実行         |
-| `--verbose`    | boolean | `false`                | 詳細ログ出力                 |
-| `--dry-run`    | boolean | `false`                | gh 操作を実行せず表示のみ    |
+| 引数           | 型      | デフォルト             | 説明                                       |
+| -------------- | ------- | ---------------------- | ------------------------------------------ |
+| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ） |
+| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                      |
+| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）     |
+| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                 |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                  |
+| `--limit`      | number  | `30`                   | 最大取得 issue 数                          |
+| `--prioritize` | boolean | `false`                | Prioritizer のみ実行（batch 用）           |
+| `--verbose`    | boolean | `false`                | 詳細ログ出力                               |
+| `--dry-run`    | boolean | `false`                | gh 操作を実行せず表示のみ                  |
 
 ## よくあるエラー
 
