@@ -245,12 +245,10 @@ Deno.test("cycle exceeded: always actionable -> hits maxCycles -> cycle_exceeded
   assertEquals(result.cycleCount, 2);
 });
 
-Deno.test("dry run: no label updates or comments", async () => {
+Deno.test("dry run: no dispatch, no label updates, no comments", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([
     ["ready"],
-    ["review"],
-    ["done"],
   ]);
   const dispatcher = new StubDispatcher({
     iterator: "success",
@@ -260,10 +258,27 @@ Deno.test("dry run: no label updates or comments", async () => {
 
   const result = await orchestrator.run(1, { dryRun: true });
 
-  assertEquals(result.status, "completed");
-  assertEquals(result.cycleCount, 2);
+  assertEquals(result.status, "dry-run");
+  assertEquals(result.finalPhase, "implementation");
+  assertEquals(result.cycleCount, 0);
+  assertEquals(result.history.length, 0);
+  assertEquals(dispatcher.callCount, 0);
   assertEquals(github.labelUpdates.length, 0);
   assertEquals(github.comments.length, 0);
+});
+
+Deno.test("dry run with terminal phase: returns completed immediately", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([["done"]]);
+  const dispatcher = new StubDispatcher();
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1, { dryRun: true });
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 0);
+  assertEquals(dispatcher.callCount, 0);
 });
 
 Deno.test("terminal phase at start: immediate completion", async () => {

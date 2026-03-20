@@ -141,6 +141,17 @@ export class Orchestrator {
         break;
       }
 
+      // dry-run: log what would happen, skip dispatch
+      if (dryRun) {
+        if (verbose) {
+          this.#log(
+            `[dry-run] Would dispatch agent "${agentId}" for issue #${issueNumber}`,
+          );
+        }
+        status = "dry-run";
+        break;
+      }
+
       if (verbose) {
         this.#log(`Dispatching agent "${agentId}" for issue #${issueNumber}`);
       }
@@ -373,7 +384,7 @@ export class Orchestrator {
       }
       : { labels: [], defaultLabel: undefined };
     const queue = new Queue(this.#config, store, priorityConfig);
-    const queueItems = await queue.buildQueue();
+    const queueItems = await queue.buildQueue(issueNumbers);
 
     // 4. Process each issue
     const processed: OrchestratorResult[] = [];
@@ -385,9 +396,11 @@ export class Orchestrator {
         // Use existing run() for single-issue processing
         // deno-lint-ignore no-await-in-loop
         const result = await this.run(item.issueNumber, options);
-        // Process outbox after agent completes
-        // deno-lint-ignore no-await-in-loop
-        await outboxProcessor.process(item.issueNumber);
+        // Process outbox after agent completes (skip in dry-run)
+        if (!options?.dryRun) {
+          // deno-lint-ignore no-await-in-loop
+          await outboxProcessor.process(item.issueNumber);
+        }
         processed.push(result);
       } catch (error) {
         skipped.push({

@@ -157,3 +157,37 @@ Deno.test("buildQueue assigns defaultLabel when no priority label found", async 
     await Deno.remove(tmp, { recursive: true });
   }
 });
+
+Deno.test("buildQueue with scopeIssues filters to specified issues", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeIssue(makeIssue(1, ["ready", "P1"]));
+    await store.writeIssue(makeIssue(2, ["ready", "P2"]));
+    await store.writeIssue(makeIssue(3, ["ready", "P3"]));
+
+    const queue = new Queue(makeWorkflowConfig(), store, makePriorityConfig());
+    const items = await queue.buildQueue([1, 3]);
+
+    assertEquals(items.length, 2);
+    assertEquals(items[0].issueNumber, 1);
+    assertEquals(items[1].issueNumber, 3);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("buildQueue with empty scopeIssues returns empty queue", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeIssue(makeIssue(1, ["ready", "P1"]));
+
+    const queue = new Queue(makeWorkflowConfig(), store, makePriorityConfig());
+    const items = await queue.buildQueue([]);
+
+    assertEquals(items.length, 0);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});

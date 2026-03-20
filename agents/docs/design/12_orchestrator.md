@@ -119,14 +119,25 @@ workflow-docs-user.json  → labelPrefix: "user-docs"  → user-docs:ready
 workflow-docs-designer.json → labelPrefix: "designer-docs" → designer-docs:ready
 ```
 
+## 現状 (v1.13)
+
+v1.13 における IssueStore / Outbox の接続状況を明記する。以下のセクションで
+記述する Issue Store・Outbox Pattern は **v1.14 の設計目標** であり、v1.13 では
+下記の動作が実態である。
+
+| 項目                       | v1.13 の動作                                                              |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `run()` のラベル取得       | 毎サイクル gh から直接取得（IssueStore を参照しない）                     |
+| `runBatch()` の IssueStore | gh → IssueStore 同期後にキューを構築するが、内部で呼ぶ `run()` は gh 直接 |
+| OutboxProcessor            | batch モードでのみ動作。単一 issue モード (`run()`) では呼ばれない        |
+| Agent への引数             | `--issue` 番号のみ。`--issue-store-path` / `--outbox-path` は渡されない   |
+| Dispatcher の転送          | `issueStorePath` / `outboxPath` を Agent に転送する仕組みは未接続         |
+
 ## Issue Store _(計画中 — v1.14 で導入予定)_
 
-> **現状 (v1.13):** Orchestrator 側の IssueStore / OutboxProcessor
-> クラスは実装済み だが、Agent 側の接続が未完了。Dispatcher は `issueStorePath`
-> / `outboxPath` を Agent に渡さず、Agent は従来どおり `--issue`
-> 番号のみを受け取る。 単一 issue モード (`orchestrator.run()`) は
-> OutboxProcessor を呼ばない。 したがって、以下に記述するデータ境界は
-> **設計目標であり、現時点では未適用** である。
+> **注意:** 以下は v1.14 の設計目標である。v1.13 の実態は上記「現状 (v1.13)」
+> セクションを参照のこと。Orchestrator 側の IssueStore / OutboxProcessor
+> クラスは実装済みだが、Agent 側の接続が未完了であり、データ境界は未適用である。
 
 Agent から gh API への直接アクセスを排除し、ローカルファイルシステムを
 唯一のインターフェースとする。
@@ -143,10 +154,10 @@ Agent から gh API への直接アクセスを排除し、ローカルファイ
 
 ### gh Access Boundary _(目標)_
 
-| 層               | gh アクセス | ファイルアクセス                       | 現状 (v1.13)            |
-| ---------------- | ----------- | -------------------------------------- | ----------------------- |
-| **Agent**        | **禁止**    | Issue Store 読み取り + outbox 書き出し | gh アクセス制限なし     |
-| **Orchestrator** | **許可**    | Issue Store 管理（同期・outbox 実行）  | gh 操作はすべて直接実行 |
+| 層               | gh アクセス (目標) | ファイルアクセス (目標)                | 現状 (v1.13)                                                        |
+| ---------------- | ------------------ | -------------------------------------- | ------------------------------------------------------------------- |
+| **Agent**        | **禁止**           | Issue Store 読み取り + outbox 書き出し | gh 制限なし。`--issue` 番号のみ受け取り、gh に直接アクセス          |
+| **Orchestrator** | **許可**           | Issue Store 管理（同期・outbox 実行）  | gh 操作はすべて直接実行。IssueStore は batch のキュー構築にのみ使用 |
 
 ### Outbox Pattern _(未接続)_
 
@@ -160,6 +171,21 @@ Agent は gh 操作をファイルとして `outbox/` に書き出す。Orchestr
 > 1. Dispatcher が `--issue-store-path` を Agent CLI 引数に追加
 > 2. `run-agent.ts` が Issue Store パスを受け取り、Agent に渡す
 > 3. 単一 issue モードでも OutboxProcessor を実行する
+
+## Dual Truth Source _(v1.13 の既知制約)_
+
+`runBatch()` は gh → IssueStore 同期後にキューを構築するが、各 issue の 処理時に
+`run()` が gh から直接ラベルを再取得する。これにより：
+
+- キュー構築: IssueStore のスナップショットに基づく
+- ディスパッチ判定: gh の最新状態に基づく
+
+この二重基準は v1.13 では許容される。`run()` は常に gh から最新状態を取得
+するため、ディスパッチ判定は正確である。ストアが古い場合の最悪ケースは、
+非アクション可能な issue にディスパッチを試み `status: "blocked"` で返る
+ことであり、データ破損は起きない。
+
+v1.14 では `run()` がストアを単一の真実源として使用し、この二重基準を解消する。
 
 ## コンポーネント一覧
 

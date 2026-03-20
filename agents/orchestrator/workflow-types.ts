@@ -150,7 +150,7 @@ export interface OrchestratorResult {
   finalPhase: string;
   cycleCount: number;
   history: PhaseTransitionRecord[];
-  status: "completed" | "blocked" | "cycle_exceeded";
+  status: "completed" | "blocked" | "cycle_exceeded" | "dry-run";
 }
 
 /** Options for batch orchestrator execution. */

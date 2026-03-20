@@ -48,8 +48,8 @@ export class Queue {
   }
 
   /** Build sorted queue from store contents. */
-  async buildQueue(): Promise<QueueItem[]> {
-    const issueNumbers = await this.#store.listIssues();
+  async buildQueue(scopeIssues?: number[]): Promise<QueueItem[]> {
+    const issueNumbers = scopeIssues ?? await this.#store.listIssues();
     const items: QueueItem[] = [];
 
     for (const num of issueNumbers) {

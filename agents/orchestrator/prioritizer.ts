@@ -42,10 +42,33 @@ export class Prioritizer {
   async run(): Promise<PrioritizerResult> {
     const storePath = this.#store.storePath;
 
+    // Guard: skip dispatch if store has no issues
+    const issueNumbers = await this.#store.listIssues();
+    if (issueNumbers.length === 0) {
+      return { assignments: [] };
+    }
+
+    // Write issue manifest for the agent to consume
+    const issueListPath = `${storePath}/issue-list.json`;
+    await Deno.writeTextFile(issueListPath, JSON.stringify(issueNumbers));
+
     await this.#dispatcher.dispatch(this.#config.agent, 0, {});
 
+    // Read and validate priorities.json produced by the agent
     const prioritiesPath = `${storePath}/priorities.json`;
-    const text = await Deno.readTextFile(prioritiesPath);
+    let text: string;
+    try {
+      text = await Deno.readTextFile(prioritiesPath);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        throw new Error(
+          `Prioritizer agent "${this.#config.agent}" did not produce ${prioritiesPath}. ` +
+            `The agent must write a JSON array of {issue, priority} entries to this path.`,
+        );
+      }
+      throw error;
+    }
+
     const raw = JSON.parse(text) as PriorityAssignment[];
 
     const allowedSet = new Set(this.#config.labels);
