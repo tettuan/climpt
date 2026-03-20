@@ -67,7 +67,7 @@
     "check": "deno check agents/**/*.ts src/**/*.ts",
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
     "test:common": "deno test --allow-all agents/common/",
-    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/",
+    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/ && deno test --allow-all agents/orchestrator/ && deno test --allow-all agents/runner/",
     "ci": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
     "workflow": "deno run --allow-all agents/scripts/run-workflow.ts",
