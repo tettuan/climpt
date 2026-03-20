@@ -41,14 +41,14 @@ done < <(
 total=0
 passed=0
 failed=0
-skipped_json='["31_clean"]'
+skipped_json='["36_clean"]'
 results_json=""
 
 for script in "${run_scripts[@]}"; do
   dir="$(basename "$(dirname "${script}")")"
 
-  # Skip 31_clean
-  if [[ "${dir}" == "31_clean" ]]; then
+  # Skip 36_clean
+  if [[ "${dir}" == "36_clean" ]]; then
     continue
   fi
 

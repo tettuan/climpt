@@ -5,7 +5,7 @@ Prompt).
 
 ## Progressive Pipeline
 
-Examples are **numbered 01–31** and designed to run in order. Each step builds
+Examples are **numbered 01–36** and designed to run in order. Each step builds
 on the state created by previous steps:
 
 ```
@@ -33,7 +33,10 @@ on the state created by previous steps:
   ↓
 29-30   MCP            server, config              → MCP ready
   ↓
-31      Clean          reset all artifacts         → clean state
+32-35   Workflow       config, resolution,         → workflow contracts verified (no LLM)
+                       transition, batch
+  ↓
+36      Clean          reset all artifacts         → clean state
 ```
 
 The `outputs/` directory accumulates artifacts as examples progress. Each script
@@ -91,7 +94,7 @@ verification to be complete.
 
 | Tier    | Requirement                           | Steps                                         |
 | ------- | ------------------------------------- | --------------------------------------------- |
-| Local   | Deno + jq                             | 01, 03-09, 13-20, 22a, 24-26b, 25v-27v, 27-31 |
+| Local   | Deno + jq                             | 01, 03-09, 13-20, 22a, 24-26b, 25v-27v, 27-36 |
 | Network | `jsr.io` reachable (HTTPS)            | 02, 10-12                                     |
 | LLM     | `api.anthropic.com` reachable (HTTPS) | 21-23, 25, 26, 26a                            |
 
@@ -111,6 +114,7 @@ for f in examples/22a_*/run.sh; do bash "$f"; done
 for f in examples/{24,24a,24b,25a,26b}_*/run.sh; do bash "$f"; done
 for f in examples/{25v,26v,27v}_*/run.sh; do bash "$f"; done
 for f in examples/{27,28,29,30}_*/run.sh; do bash "$f"; done
+for f in examples/{32,33,34,35}_*/run.sh; do bash "$f"; done
 
 # 2. Network tier (requires jsr.io)
 bash examples/02_install/run.sh
@@ -169,7 +173,11 @@ for f in examples/{25,26,26a}_*/run.sh; do bash "$f"; done
 | 28  | 28_show_registry_structure/    | Explain registry format               | `.agent/climpt/`     | —                            |                                                    |
 | 29  | 29_mcp_start_server/           | Start MCP server                      | —                    | MCP running                  | package resolves; server starts without crash      |
 | 30  | 30_mcp_show_config/            | MCP integration config guide          | —                    | —                            |                                                    |
-| 31  | 31_clean/                      | Cleanup all artifacts                 | all of the above     | —                            |                                                    |
+| 32  | 32_workflow_config/            | Workflow config load + validation     | —                    | —                            | loadWorkflow, defaults, error messages             |
+| 33  | 33_workflow_resolution/        | Label → phase → agent resolution      | —                    | —                            | resolvePhase, resolveAgent, stripPrefix            |
+| 34  | 34_workflow_transition/        | Outcome → phase routing + labels      | —                    | —                            | computeTransition, computeLabelChanges             |
+| 35  | 35_workflow_batch/             | Queue + Orchestrator integration      | —                    | —                            | Queue.buildQueue, Orchestrator.run/runBatch        |
+| 36  | 36_clean/                      | Cleanup all artifacts                 | all of the above     | —                            |                                                    |
 
 ## How to Run
 
@@ -240,7 +248,7 @@ done
 for f in examples/*v_*/run.sh; do bash "$f"; done
 
 # Clean up afterwards
-bash examples/31_clean/run.sh
+bash examples/36_clean/run.sh
 ```
 
 ## Shared Functions
@@ -264,4 +272,4 @@ outputs/
 └── registry/     # Generated registry snapshots
 ```
 
-This directory is removed by `31_clean/run.sh`.
+This directory is removed by `36_clean/run.sh`.
