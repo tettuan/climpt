@@ -14,7 +14,12 @@
 import { join } from "@std/path";
 import type { AgentDefinition, SandboxConfig } from "../src_common/types.ts";
 import { PATHS } from "./paths.ts";
-import { ConfigurationLoadError } from "./errors/env-errors.ts";
+import {
+  acServiceFileNotFound,
+  acServiceInvalidJson,
+  acServiceLoadFailed,
+  acServiceRegistryLoadFailed,
+} from "./errors/config-errors.ts";
 
 /**
  * Runtime configuration loaded from config.json
@@ -55,7 +60,7 @@ export class ConfigService {
    *
    * @param agentDir - Path to the agent directory
    * @returns Raw JSON content (unvalidated)
-   * @throws ConfigurationLoadError if file not found, invalid JSON, or read error
+   * @throws ConfigError (AC-SERVICE-*) if file not found, invalid JSON, or read error
    */
   async loadAgentDefinitionRaw(agentDir: string): Promise<unknown> {
     const configPath = join(agentDir, PATHS.AGENT_JSON);
@@ -65,15 +70,14 @@ export class ConfigService {
       return JSON.parse(content);
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        throw new ConfigurationLoadError(configPath, "File not found");
+        throw acServiceFileNotFound(configPath);
       }
       if (error instanceof SyntaxError) {
-        throw new ConfigurationLoadError(configPath, "Invalid JSON", error);
+        throw acServiceInvalidJson(configPath);
       }
-      throw new ConfigurationLoadError(
+      throw acServiceLoadFailed(
         configPath,
         error instanceof Error ? error.message : String(error),
-        error instanceof Error ? error : undefined,
       );
     }
   }
@@ -103,7 +107,7 @@ export class ConfigService {
    *
    * @param agentDir - Path to the agent directory
    * @returns Raw registry JSON or null if not found
-   * @throws ConfigurationLoadError if file exists but cannot be read/parsed
+   * @throws ConfigError (AC-SERVICE-004) if file exists but cannot be read/parsed
    */
   async loadStepsRegistry(agentDir: string): Promise<unknown> {
     const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
@@ -115,7 +119,7 @@ export class ConfigService {
       if (error instanceof Deno.errors.NotFound) {
         return null; // Registry is optional
       }
-      throw new ConfigurationLoadError(
+      throw acServiceRegistryLoadFailed(
         registryPath,
         error instanceof Error ? error.message : String(error),
       );

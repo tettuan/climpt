@@ -10,6 +10,7 @@
 
 import type { PromptAdapter } from "./adapter.ts";
 import { PromptNotFoundError } from "./adapter.ts";
+import { prC3lInvalidPathFormat } from "../shared/errors/config-errors.ts";
 
 /**
  * C3L reference structure for Climpt prompts.
@@ -93,9 +94,7 @@ export class ClimptAdapter implements PromptAdapter {
     const parts = pathPart.split("/");
 
     if (parts.length !== 3) {
-      throw new Error(
-        `Invalid C3L path format: ${path}. Expected "c1/c2/c3" or "c1/c2/c3:edition"`,
-      );
+      throw prC3lInvalidPathFormat(path);
     }
 
     return {

@@ -27,7 +27,7 @@ const configService = new ConfigService();
  *
  * @param agentDir - Path to the agent directory
  * @returns Raw JSON content (unvalidated)
- * @throws ConfigurationLoadError if file not found, invalid JSON, or read error
+ * @throws ConfigError (AC-SERVICE-*) if file not found, invalid JSON, or read error
  */
 export async function loadRaw(agentDir: string): Promise<unknown> {
   return await configService.loadAgentDefinitionRaw(agentDir);
@@ -38,7 +38,7 @@ export async function loadRaw(agentDir: string): Promise<unknown> {
  *
  * @param agentDir - Path to the agent directory
  * @returns Raw registry JSON or null if not found (registry is optional)
- * @throws ConfigurationLoadError if file exists but cannot be read/parsed
+ * @throws ConfigError (AC-SERVICE-004) if file exists but cannot be read/parsed
  */
 export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
   return await configService.loadStepsRegistry(agentDir);

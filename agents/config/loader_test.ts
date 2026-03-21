@@ -8,12 +8,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { join } from "@std/path";
-import {
-  ConfigurationLoadError,
-  getAgentDir,
-  loadRaw,
-  loadStepsRegistry,
-} from "./loader.ts";
+import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
+import { ConfigError } from "../shared/errors/config-errors.ts";
 
 const logger = new BreakdownLogger("config-loader");
 
@@ -73,7 +69,7 @@ Deno.test("config/loader - loadRaw throws for non-existent directory", async () 
     async () => {
       await loadRaw("/tmp/claude/nonexistent-agent-dir-xyz");
     },
-    ConfigurationLoadError,
+    ConfigError,
   );
 });
 

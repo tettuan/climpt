@@ -28,6 +28,11 @@ import { IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
 import { ExternalStateVerdictAdapter } from "./external-state-adapter.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
+import {
+  acVerdict008DetectStructuredConditionRequiresSignalType,
+  acVerdict009PollStateConditionRequiresIssue,
+  acVerdict010UnsupportedConditionTypeInComposite,
+} from "../shared/errors/config-errors.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
 
@@ -92,9 +97,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
 
         case "detect:structured": {
           if (!config.signalType) {
-            throw new Error(
-              "detect:structured condition requires signalType in config",
-            );
+            throw acVerdict008DetectStructuredConditionRequiresSignalType();
           }
           handler = new StructuredSignalVerdictHandler(
             config.signalType,
@@ -107,11 +110,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "poll:state": {
           const issueNumber = this.args.issue as number | undefined;
           if (issueNumber === undefined || issueNumber === null) {
-            throw new Error(
-              "poll:state condition in composite requires --issue parameter. " +
-                'Ensure agent.json declares issue in "parameters": ' +
-                '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
-            );
+            throw acVerdict009PollStateConditionRequiresIssue();
           }
           const repo = this.args.repository as string | undefined;
           const stateChecker = new GitHubStateChecker(repo);
@@ -131,9 +130,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         }
 
         default:
-          throw new Error(
-            `Unsupported condition type in composite: ${condition.type}`,
-          );
+          throw acVerdict010UnsupportedConditionTypeInComposite(condition.type);
       }
 
       this.handlers.push(handler);

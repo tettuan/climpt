@@ -5,6 +5,7 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
+  ConfigError,
   RoutingError,
   WorkflowRouter,
   type WorkflowRouterLogger,
@@ -133,8 +134,8 @@ Deno.test("WorkflowRouter - jump to invalid target throws error", () => {
         "initial.issue",
         createInterpretation({ intent: "jump", target: "nonexistent" }),
       ),
-    RoutingError,
-    "does not exist",
+    ConfigError,
+    "SR-TRANS-010",
   );
 });
 
@@ -174,8 +175,8 @@ Deno.test("WorkflowRouter - transitions with invalid target throws error", () =>
         "initial.issue",
         createInterpretation({ intent: "next" }),
       ),
-    RoutingError,
-    "does not exist",
+    ConfigError,
+    "SR-TRANS-001",
   );
 });
 
@@ -217,8 +218,8 @@ Deno.test("WorkflowRouter - throws RoutingError when no continuation exists", ()
         "initial.issue",
         createInterpretation({ intent: "next" }),
       ),
-    RoutingError,
-    'emitted "next" but has no transitions',
+    ConfigError,
+    "SR-TRANS-003",
   );
 });
 
@@ -412,8 +413,8 @@ Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
         "initial.issue",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -438,8 +439,8 @@ Deno.test("WorkflowRouter - verification step cannot emit closing intent", () =>
         "verification.default",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "not allowed for verification step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -484,8 +485,8 @@ Deno.test("WorkflowRouter - escalate without transition throws error", () => {
         "verification.default",
         createInterpretation({ intent: "escalate" }),
       ),
-    RoutingError,
-    "No 'escalate' transition defined",
+    ConfigError,
+    "SR-TRANS-007",
   );
 });
 
@@ -507,8 +508,8 @@ Deno.test("WorkflowRouter - work step cannot emit escalate intent", () => {
         "initial.issue",
         createInterpretation({ intent: "escalate" }),
       ),
-    RoutingError,
-    "not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -530,8 +531,8 @@ Deno.test("WorkflowRouter - handoff without transition throws RoutingError", () 
           reason: "Delegating to reviewer",
         }),
       ),
-    RoutingError,
-    'emitted "handoff" but has no transitions.handoff defined',
+    ConfigError,
+    "SR-TRANS-004",
   );
 });
 
@@ -576,8 +577,8 @@ Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {
         "closure.default",
         createInterpretation({ intent: "handoff" }),
       ),
-    RoutingError,
-    "not allowed for closure step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -707,8 +708,8 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
         "initial.polling",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -803,8 +804,8 @@ Deno.test("WorkflowRouter - no prefix substitution log when continuation step do
         "initial.issue",
         createInterpretation({ intent: "next" }),
       ),
-    RoutingError,
-    'emitted "next" but has no transitions',
+    ConfigError,
+    "SR-TRANS-003",
   );
 
   assertEquals(logged.length, 0, "No log when substitution does not occur");
@@ -873,8 +874,8 @@ Deno.test("WorkflowRouter - terminal transition (target: null) for non-closing i
         "initial.issue",
         createInterpretation({ intent: "next" }),
       ),
-    RoutingError,
-    "has transitions.next.target: null",
+    ConfigError,
+    "SR-TRANS-002",
   );
 });
 
@@ -896,7 +897,7 @@ Deno.test("WorkflowRouter - handoff with target: null throws RoutingError", () =
         "continuation.issue",
         createInterpretation({ intent: "handoff" }),
       ),
-    RoutingError,
-    "has transitions.handoff.target: null",
+    ConfigError,
+    "SR-TRANS-005",
   );
 });

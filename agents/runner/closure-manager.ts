@@ -23,6 +23,7 @@ import { loadStepRegistry } from "../common/step-registry.ts";
 import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
+import { srGateNoStructuredGateSteps } from "../shared/errors/config-errors.ts";
 import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
@@ -122,11 +123,7 @@ export class ClosureManager {
         this.deps.definition.runner.verdict.type === "detect:graph" &&
         !hasFlowRouting
       ) {
-        throw new Error(
-          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses verdictType "detect:graph" ` +
-            `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
-            `or change verdictType. See design/08_step_flow_design.md.`,
-        );
+        throw srGateNoStructuredGateSteps(this.deps.definition.name);
       }
 
       // Store registry with proper typing (needed by FlowOrchestrator for entryStepMapping)

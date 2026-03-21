@@ -62,6 +62,7 @@ import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
+import { prPromptNoC3lPrompt } from "../shared/errors/config-errors.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -421,11 +422,7 @@ export class AgentRunner {
             promptSource = "user";
           } else {
             // Steps registry exists but no C3L prompt — configuration error
-            throw new Error(
-              `[FlowLoop] No C3L prompt found for step "${stepId}" at iteration ${iteration}. ` +
-                `Flow steps must have C3L prompts when steps_registry is configured ` +
-                `(design: "プロンプト参照は C3L 形式のみ").`,
-            );
+            throw prPromptNoC3lPrompt(stepId, iteration);
           }
           promptType = iteration === 1
             ? STEP_PHASE.INITIAL

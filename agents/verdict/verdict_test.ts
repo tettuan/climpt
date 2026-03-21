@@ -1356,7 +1356,7 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
     throw new Error("Should have thrown");
   } catch (error) {
     assertEquals(
-      (error as Error).message.includes("requires --issue"),
+      (error as Error).message.includes("AC-VERDICT-001"),
       true,
     );
   }

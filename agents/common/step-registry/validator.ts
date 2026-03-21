@@ -8,6 +8,15 @@ import type { StepRegistry, StructuredGate } from "./types.ts";
 import { STEP_KIND_ALLOWED_INTENTS } from "./types.ts";
 import { inferStepKind } from "./utils.ts";
 import { SchemaResolver } from "../../common/schema-resolver.ts";
+import {
+  srEntryMappingInvalid,
+  srEntryMissingConfig,
+  srEntryStepNotFound,
+  srValidIntentSchemaEnumMismatch,
+  srValidIntentSchemaRef,
+  srValidRegistryFailed,
+  srValidStepKindIntentMismatch,
+} from "../../shared/errors/config-errors.ts";
 
 /**
  * Validate stepKind/allowedIntents consistency.
@@ -50,11 +59,7 @@ export function validateStepKindIntents(registry: StepRegistry): void {
   }
 
   if (errors.length > 0) {
-    throw new Error(
-      `Step registry validation failed (stepKind/intent mismatch):\n- ${
-        errors.join("\n- ")
-      }`,
-    );
+    throw srValidStepKindIntentMismatch(errors);
   }
 }
 
@@ -71,18 +76,12 @@ export function validateStepKindIntents(registry: StepRegistry): void {
 export function validateEntryStepMapping(registry: StepRegistry): void {
   // Require either entryStep or entryStepMapping
   if (!registry.entryStepMapping && !registry.entryStep) {
-    throw new Error(
-      `Step registry for "${registry.agentId}" missing entry configuration. ` +
-        `Define either "entryStep" or "entryStepMapping".`,
-    );
+    throw srEntryMissingConfig(registry.agentId);
   }
 
   // Validate entryStep exists if defined
   if (registry.entryStep && !registry.steps[registry.entryStep]) {
-    throw new Error(
-      `Step registry for "${registry.agentId}": entryStep "${registry.entryStep}" ` +
-        `does not exist in steps.`,
-    );
+    throw srEntryStepNotFound(registry.agentId, registry.entryStep);
   }
 
   // Validate all entryStepMapping targets exist
@@ -96,11 +95,7 @@ export function validateEntryStepMapping(registry: StepRegistry): void {
       }
     }
     if (errors.length > 0) {
-      throw new Error(
-        `Step registry for "${registry.agentId}" has invalid entryStepMapping:\n- ${
-          errors.join("\n- ")
-        }`,
-      );
+      throw srEntryMappingInvalid(registry.agentId, errors);
     }
   }
 }
@@ -156,11 +151,7 @@ export function validateIntentSchemaRef(registry: StepRegistry): void {
   }
 
   if (errors.length > 0) {
-    throw new Error(
-      `Step registry validation failed (intentSchemaRef):\n- ${
-        errors.join("\n- ")
-      }`,
-    );
+    throw srValidIntentSchemaRef(errors);
   }
 }
 
@@ -311,11 +302,7 @@ export async function validateIntentSchemaEnums(
   const errors = validationResults.filter((e): e is string => e !== null);
 
   if (errors.length > 0) {
-    throw new Error(
-      `Step registry validation failed (intent schema enum mismatch):\n- ${
-        errors.join("\n- ")
-      }`,
-    );
+    throw srValidIntentSchemaEnumMismatch(errors);
   }
 }
 
@@ -420,6 +407,6 @@ export function validateStepRegistry(registry: StepRegistry): void {
   }
 
   if (errors.length > 0) {
-    throw new Error(`Registry validation failed:\n- ${errors.join("\n- ")}`);
+    throw srValidRegistryFailed(errors);
   }
 }

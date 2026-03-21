@@ -31,6 +31,15 @@ import { StructuredSignalVerdictHandler } from "./structured-signal.ts";
 import { CompositeVerdictHandler } from "./composite.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
 import { PATHS } from "../shared/paths.ts";
+import {
+  acVerdict001PollStateRequiresIssue,
+  acVerdict002DetectStructuredRequiresSignalType,
+  acVerdict003CompositeRequiresConditionsAndOperator,
+  acVerdict004CustomRequiresHandlerPath,
+  acVerdict005UnknownCompletionType,
+  acVerdict006CustomHandlerMustExportFactory,
+  acVerdict007FailedToLoadCustomHandler,
+} from "../shared/errors/config-errors.ts";
 
 /**
  * Factory function type for creating completion handlers
@@ -87,11 +96,7 @@ registerHandler(
   (args, promptResolver, definition, _agentDir, stepIds) => {
     const issueNumber = args.issue as number | undefined;
     if (issueNumber === undefined || issueNumber === null) {
-      throw new Error(
-        "poll:state completion type requires --issue parameter. " +
-          'Ensure agent.json declares issue in "parameters": ' +
-          '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
-      );
+      throw acVerdict001PollStateRequiresIssue();
     }
 
     const repo = args.repository as string | undefined;
@@ -170,9 +175,7 @@ registerHandler(
   "detect:structured",
   (_args, promptResolver, definition, _agentDir, stepIds) => {
     if (!definition.runner.verdict.config.signalType) {
-      throw new Error(
-        "detect:structured completion type requires signalType in verdictConfig",
-      );
+      throw acVerdict002DetectStructuredRequiresSignalType();
     }
     const signalHandler = new StructuredSignalVerdictHandler(
       definition.runner.verdict.config.signalType,
@@ -190,9 +193,7 @@ registerHandler(
   (args, promptResolver, definition, agentDir, stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
     if (!verdictConfig.conditions || !verdictConfig.operator) {
-      throw new Error(
-        "composite completion type requires conditions and operator in verdictConfig",
-      );
+      throw acVerdict003CompositeRequiresConditionsAndOperator();
     }
     const compositeHandler = new CompositeVerdictHandler(
       verdictConfig.operator,
@@ -256,9 +257,7 @@ registerHandler(
   "meta:custom",
   async (_args, _promptResolver, definition, agentDir, _stepIds) => {
     if (!definition.runner.verdict.config.handlerPath) {
-      throw new Error(
-        "Custom completion type requires handlerPath in verdictConfig",
-      );
+      throw acVerdict004CustomRequiresHandlerPath();
     }
     return await loadCustomHandler(
       definition,
@@ -305,7 +304,7 @@ export async function createRegistryVerdictHandler(
   // Get factory from registry
   const factory = HANDLER_REGISTRY.get(verdictType);
   if (!factory) {
-    throw new Error(`Unknown completion type: ${verdictType}`);
+    throw acVerdict005UnknownCompletionType(verdictType);
   }
 
   // Resolve step IDs from entryStepMapping (default varies by verdict type)
@@ -348,20 +347,19 @@ async function loadCustomHandler(
     const module = await import(fullPath);
 
     if (typeof module.default !== "function") {
-      throw new Error(
-        `Custom handler must export default factory function: ${fullPath}`,
-      );
+      throw acVerdict006CustomHandlerMustExportFactory(fullPath);
     }
 
     return module.default(definition, args);
   } catch (error) {
-    if (error instanceof Error && error.message.includes("export default")) {
+    if (
+      error instanceof Error && error.message.includes("export default factory")
+    ) {
       throw error;
     }
-    throw new Error(
-      `Failed to load custom completion handler from ${fullPath}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    throw acVerdict007FailedToLoadCustomHandler(
+      fullPath,
+      error instanceof Error ? error.message : String(error),
     );
   }
 }

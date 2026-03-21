@@ -15,7 +15,7 @@ import {
   type IterationSummary,
   type VerdictCriteria,
 } from "./types.ts";
-import { PATHS } from "../shared/paths.ts";
+import { srEntryNotConfigured } from "../shared/errors/config-errors.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
@@ -108,10 +108,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
     }
 
     // No implicit fallback - entry step must be configured
-    throw new Error(
-      `[StepMachine] No entry step configured in registry. ` +
-        `Add "entryStep" or "entryStepMapping" to ${PATHS.STEPS_REGISTRY}.`,
-    );
+    throw srEntryNotConfigured();
   }
 
   /**

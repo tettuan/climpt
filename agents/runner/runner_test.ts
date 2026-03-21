@@ -565,7 +565,11 @@ import {
   GateInterpretationError,
   StepGateInterpreter,
 } from "./step-gate-interpreter.ts";
-import { RoutingError, WorkflowRouter } from "./workflow-router.ts";
+import {
+  ConfigError,
+  RoutingError,
+  WorkflowRouter,
+} from "./workflow-router.ts";
 import type {
   PromptStepDefinition,
   StepRegistry,
@@ -757,8 +761,8 @@ Deno.test("Structured Gate Flow - work step cannot emit closing intent", () => {
   // Work step (initial.*) cannot emit closing intent - only closure steps can
   assertThrows(
     () => router.route("initial.test", interpretation),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -1217,8 +1221,8 @@ Deno.test("BoundaryHook - work step closing intent rejected (no boundary hook po
         intent: "closing",
         usedFallback: false,
       }),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 

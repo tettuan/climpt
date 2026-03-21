@@ -12,6 +12,26 @@ import type {
   WorkflowConfig,
   WorkflowRules,
 } from "./workflow-types.ts";
+import {
+  wfLabelMappingEmpty,
+  wfLabelUnknownPhase,
+  wfLoadInvalidJson,
+  wfLoadNotFound,
+  wfLoadReadFailed,
+  wfPhaseAgentRequired,
+  wfPhaseInvalidType,
+  wfPhasePriorityRequired,
+  wfRefUnknownAgent,
+  wfRefUnknownFallbackPhase,
+  wfRefUnknownOutputPhase,
+  wfRefUnknownOutputPhasesEntry,
+  wfRuleCycleDelayInvalid,
+  wfRuleMaxCyclesInvalid,
+  wfSchemaAgentsRequired,
+  wfSchemaLabelMappingRequired,
+  wfSchemaPhasesRequired,
+  wfSchemaVersionRequired,
+} from "../shared/errors/config-errors.ts";
 
 const DEFAULT_WORKFLOW_PATH = ".agent/workflow.json";
 
@@ -26,7 +46,7 @@ const DEFAULT_RULES: WorkflowRules = {
  * @param cwd - Working directory containing the workflow file
  * @param workflowPath - Relative path to workflow JSON (default: .agent/workflow.json)
  * @returns Validated WorkflowConfig with defaults applied
- * @throws Error if file not found, invalid JSON, or validation fails
+ * @throws ConfigError if file not found, invalid JSON, or validation fails
  */
 export async function loadWorkflow(
   cwd: string,
@@ -39,16 +59,16 @@ export async function loadWorkflow(
     raw = await Deno.readTextFile(filePath);
   } catch (cause) {
     if (cause instanceof Deno.errors.NotFound) {
-      throw new Error(`Workflow config not found: ${filePath}`);
+      throw wfLoadNotFound(filePath);
     }
-    throw new Error(`Failed to read workflow config: ${filePath}`, { cause });
+    throw wfLoadReadFailed(filePath);
   }
 
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>;
-  } catch (cause) {
-    throw new Error(`Invalid JSON in workflow config: ${filePath}`, { cause });
+  } catch {
+    throw wfLoadInvalidJson(filePath);
   }
 
   validateRequiredFields(parsed);
@@ -78,24 +98,16 @@ export async function loadWorkflow(
 
 function validateRequiredFields(parsed: Record<string, unknown>): void {
   if (typeof parsed.version !== "string") {
-    throw new Error(
-      "Workflow config: 'version' is required and must be a string",
-    );
+    throw wfSchemaVersionRequired();
   }
   if (typeof parsed.phases !== "object" || parsed.phases === null) {
-    throw new Error(
-      "Workflow config: 'phases' is required and must be an object",
-    );
+    throw wfSchemaPhasesRequired();
   }
   if (typeof parsed.labelMapping !== "object" || parsed.labelMapping === null) {
-    throw new Error(
-      "Workflow config: 'labelMapping' is required and must be an object",
-    );
+    throw wfSchemaLabelMappingRequired();
   }
   if (typeof parsed.agents !== "object" || parsed.agents === null) {
-    throw new Error(
-      "Workflow config: 'agents' is required and must be an object",
-    );
+    throw wfSchemaAgentsRequired();
   }
 }
 
@@ -112,6 +124,7 @@ function applyDefaultRules(
 }
 
 const VALID_PHASE_TYPES = new Set(["actionable", "terminal", "blocking"]);
+const VALID_PHASE_TYPES_LIST = ["actionable", "terminal", "blocking"] as const;
 
 function validateCrossReferences(config: WorkflowConfig): void {
   const phaseIds = new Set(Object.keys(config.phases));
@@ -120,41 +133,30 @@ function validateCrossReferences(config: WorkflowConfig): void {
   // 0. Validate phase types, labelMapping non-empty, and rules bounds
   for (const [phaseId, phase] of Object.entries(config.phases)) {
     if (!VALID_PHASE_TYPES.has(phase.type)) {
-      throw new Error(
-        `Phase '${phaseId}' has invalid type '${phase.type}'. ` +
-          `Must be one of: ${[...VALID_PHASE_TYPES].join(", ")}`,
-      );
+      throw wfPhaseInvalidType(phaseId, phase.type, VALID_PHASE_TYPES_LIST);
     }
   }
 
   if (Object.keys(config.labelMapping).length === 0) {
-    throw new Error("Workflow config: 'labelMapping' must not be empty");
+    throw wfLabelMappingEmpty();
   }
 
   if (config.rules.maxCycles < 1) {
-    throw new Error(
-      `Workflow config: 'rules.maxCycles' must be >= 1, got ${config.rules.maxCycles}`,
-    );
+    throw wfRuleMaxCyclesInvalid(config.rules.maxCycles);
   }
 
   if (config.rules.cycleDelayMs < 0) {
-    throw new Error(
-      `Workflow config: 'rules.cycleDelayMs' must be >= 0, got ${config.rules.cycleDelayMs}`,
-    );
+    throw wfRuleCycleDelayInvalid(config.rules.cycleDelayMs);
   }
 
   // 1. Actionable phases must have agent and priority
   for (const [phaseId, phase] of Object.entries(config.phases)) {
     if (phase.type === "actionable") {
       if (phase.agent === null || phase.agent === undefined) {
-        throw new Error(
-          `Actionable phase '${phaseId}' must have 'agent' defined`,
-        );
+        throw wfPhaseAgentRequired(phaseId);
       }
       if (phase.priority === undefined) {
-        throw new Error(
-          `Actionable phase '${phaseId}' must have 'priority' defined`,
-        );
+        throw wfPhasePriorityRequired(phaseId);
       }
     }
   }
@@ -165,18 +167,14 @@ function validateCrossReferences(config: WorkflowConfig): void {
       phase.agent !== null && phase.agent !== undefined &&
       !agentIds.has(phase.agent)
     ) {
-      throw new Error(
-        `Phase '${phaseId}' references unknown agent '${phase.agent}'`,
-      );
+      throw wfRefUnknownAgent(phaseId, phase.agent);
     }
   }
 
   // 3. Every labelMapping value must exist in phases section
   for (const [label, targetPhase] of Object.entries(config.labelMapping)) {
     if (!phaseIds.has(targetPhase)) {
-      throw new Error(
-        `Label '${label}' maps to unknown phase '${targetPhase}'`,
-      );
+      throw wfLabelUnknownPhase(label, targetPhase);
     }
   }
 
@@ -192,23 +190,17 @@ function validateAgentPhaseReferences(
   phaseIds: Set<string>,
 ): void {
   if (agent.fallbackPhase !== undefined && !phaseIds.has(agent.fallbackPhase)) {
-    throw new Error(
-      `Agent '${agentId}' references unknown fallbackPhase '${agent.fallbackPhase}'`,
-    );
+    throw wfRefUnknownFallbackPhase(agentId, agent.fallbackPhase);
   }
 
   if (agent.role === "transformer") {
     if (!phaseIds.has(agent.outputPhase)) {
-      throw new Error(
-        `Agent '${agentId}' references unknown outputPhase '${agent.outputPhase}'`,
-      );
+      throw wfRefUnknownOutputPhase(agentId, agent.outputPhase);
     }
   } else if (agent.role === "validator") {
     for (const [key, targetPhase] of Object.entries(agent.outputPhases)) {
       if (!phaseIds.has(targetPhase)) {
-        throw new Error(
-          `Agent '${agentId}' outputPhases['${key}'] references unknown phase '${targetPhase}'`,
-        );
+        throw wfRefUnknownOutputPhasesEntry(agentId, key, targetPhase);
       }
     }
   }
