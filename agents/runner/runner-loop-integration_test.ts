@@ -465,12 +465,12 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
   });
 
   // AgentMaxIterationsError is NOT thrown - the loop breaks and returns.
-  // result.success is true because the break exits the try block normally.
+  // result.success is false because max iterations was reached without completion.
   assertEquals(result.iterations, 2, "Should have run exactly 2 iterations");
   assertEquals(
     result.success,
-    true,
-    "Run completes (breaks from loop, no throw)",
+    false,
+    "Max iterations without completion is a failure",
   );
 
   // Verify that an AgentMaxIterationsError was emitted via event
