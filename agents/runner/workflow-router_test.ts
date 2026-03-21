@@ -509,8 +509,8 @@ Deno.test("WorkflowRouter - work step cannot emit escalate intent", () => {
   );
 });
 
-Deno.test("WorkflowRouter - handoff intent signals completion from continuation", () => {
-  // Handoff is allowed from continuation steps (not initial steps)
+Deno.test("WorkflowRouter - handoff without transition throws RoutingError", () => {
+  // Handoff requires an explicit transition rule — no backward-compat fallback
   const registry = createRegistry({
     "continuation.issue": {
       c2: "continuation",
@@ -518,16 +518,18 @@ Deno.test("WorkflowRouter - handoff intent signals completion from continuation"
   });
   const router = new WorkflowRouter(registry);
 
-  const result = router.route(
-    "continuation.issue",
-    createInterpretation({
-      intent: "handoff",
-      reason: "Delegating to reviewer",
-    }),
+  assertThrows(
+    () =>
+      router.route(
+        "continuation.issue",
+        createInterpretation({
+          intent: "handoff",
+          reason: "Delegating to reviewer",
+        }),
+      ),
+    RoutingError,
+    "requires a transition rule",
   );
-
-  assertEquals(result.signalClosing, true);
-  assertEquals(result.reason, "Delegating to reviewer");
 });
 
 Deno.test("WorkflowRouter - handoff from initial step emits warning", () => {

@@ -414,13 +414,14 @@ export class WorkflowRouter {
       }
     }
 
-    // No transition defined - signal completion for backward compatibility
-    return {
-      nextStepId: currentStepId,
-      signalClosing: true,
-      reason: interpretation.reason ?? "Intent: handoff (no transition)",
-      warning: initialStepWarning,
-    };
+    // No transition defined — this is a configuration error.
+    // Handoff requires an explicit transition rule in steps_registry.
+    throw new RoutingError(
+      `Handoff intent requires a transition rule in steps_registry. ` +
+        `Add transitions.handoff to step "${currentStepId}".`,
+      currentStepId,
+      "handoff",
+    );
   }
 
   /**
