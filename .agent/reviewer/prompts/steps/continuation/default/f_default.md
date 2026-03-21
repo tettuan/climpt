@@ -9,7 +9,7 @@ uvVariables:
 # Continue Review - Iteration {uv-iteration}
 
 Continue the review process. If you have completed all verification tasks,
-output the completion action.
+output the closing action.
 
 ## Remaining Tasks
 
@@ -20,5 +20,5 @@ Review any remaining traceability IDs that have not been verified.
 When all requirements have been verified:
 
 ```review-action
-{"action":"complete","summary":"Review completed. Summary of findings..."}
+{"action":"closing","summary":"Review completed. Summary of findings..."}
 ```

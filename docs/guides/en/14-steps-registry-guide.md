@@ -449,6 +449,20 @@ with closure steps:
 }
 ```
 
+When the AI returns a `closing` intent from a closure step, the Runner does not
+terminate immediately. Instead, it runs the configured `validationConditions`
+first:
+
+1. AI returns `closing` intent from a closure step
+2. Each validator in `validationConditions` executes in order
+3. **All pass** → Agent terminates successfully
+4. **Any fail** → The matching `failurePattern` selects a retry prompt, and the
+   agent continues working (the `closing` intent is not treated as completion)
+
+This means `closing` is a **completion trigger**, not completion itself. The
+agent only finishes when all validators pass. If `onFailure.maxAttempts` is set,
+retries are limited to that count.
+
 ## 14.6 failurePatterns
 
 Failure patterns map validation failures to C3L edition/adaptation variants,

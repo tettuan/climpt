@@ -446,7 +446,7 @@ function createIterationSummary(
   };
 }
 
-// Helper to check if AI declared completion via structured output (matches runner.ts logic)
+// Helper to check if AI declared completion via structured output (matches ClosureManager logic)
 function hasAIVerdictDeclaration(summary: IterationSummary): boolean {
   if (!summary.structuredOutput) {
     return false;
@@ -454,16 +454,11 @@ function hasAIVerdictDeclaration(summary: IterationSummary): boolean {
 
   const so = summary.structuredOutput;
 
-  // Check status field
-  if (so.status === "completed") {
-    return true;
-  }
-
-  // Check next_action.action field
+  // Only "closing" intent triggers completion signal
   if (
     so.next_action &&
     typeof so.next_action === "object" &&
-    (so.next_action as Record<string, unknown>).action === "complete"
+    (so.next_action as Record<string, unknown>).action === "closing"
   ) {
     return true;
   }
@@ -471,7 +466,7 @@ function hasAIVerdictDeclaration(summary: IterationSummary): boolean {
   return false;
 }
 
-Deno.test("Verdict Validation - hasAIVerdictDeclaration detects status=completed", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration rejects status=completed (not a completion signal)", () => {
   const summary = createIterationSummary({
     structuredOutput: {
       status: "completed",
@@ -483,17 +478,17 @@ Deno.test("Verdict Validation - hasAIVerdictDeclaration detects status=completed
   });
   const result = hasAIVerdictDeclaration(summary);
   logger.debug("hasAIVerdictDeclaration result", { result });
-  assertEquals(result, true);
+  assertEquals(result, false);
 });
 
-Deno.test("Verdict Validation - hasAIVerdictDeclaration detects next_action.action=complete", () => {
+Deno.test("Verdict Validation - hasAIVerdictDeclaration rejects next_action.action=complete", () => {
   const summary = createIterationSummary({
     structuredOutput: {
       status: "in_progress",
       next_action: { action: "complete", reason: "All done" },
     },
   });
-  assertEquals(hasAIVerdictDeclaration(summary), true);
+  assertEquals(hasAIVerdictDeclaration(summary), false);
 });
 
 Deno.test("Verdict Validation - hasAIVerdictDeclaration returns false for in_progress", () => {

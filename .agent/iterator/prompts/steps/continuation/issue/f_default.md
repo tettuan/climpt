@@ -73,7 +73,7 @@ changes.
 - Issue stays **OPEN** for reviewer
 
 ```issue-action
-{"action":"complete","issue":{uv-issue},"body":"## Implementation Complete\n- Implementation summary\n- Verification done\n- Tasks: N completed\n\nReady for reviewer."}
+{"action":"closing","issue":{uv-issue},"body":"## Implementation Complete\n- Implementation summary\n- Verification done\n- Tasks: N completed\n\nReady for reviewer."}
 ```
 
 ## CRITICAL: Return Structured JSON

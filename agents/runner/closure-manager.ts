@@ -294,7 +294,6 @@ export class ClosureManager {
    * Check if AI declared verdict via structured output.
    *
    * Only "closing" intent from Closure Step triggers completion.
-   * Note: "complete" is accepted for backward compatibility.
    * Note: status: "completed" is NOT a completion signal.
    */
   hasAIVerdictDeclaration(summary: IterationSummary): boolean {
@@ -306,7 +305,7 @@ export class ClosureManager {
 
     if (isRecord(so.next_action)) {
       const nextAction = so.next_action as Record<string, unknown>;
-      if (nextAction.action === "closing" || nextAction.action === "complete") {
+      if (nextAction.action === "closing") {
         return true;
       }
     }
@@ -327,12 +326,13 @@ export class ClosureManager {
   }
 
   /**
-   * Resolve a work-step prompt via stepPromptResolver (C3L).
+   * Resolve a Flow Loop step prompt via stepPromptResolver (C3L).
    *
+   * Handles both work and verification steps (all Flow Loop steps).
    * Returns null when resolver is unavailable, step is not found,
-   * or the step is not a work step.
+   * or the step is a closure step (handled by Completion Loop).
    */
-  async resolveWorkStepPrompt(
+  async resolveFlowStepPrompt(
     stepId: string,
     variables: Record<string, string>,
   ): Promise<PromptResolutionResult | null> {
@@ -347,7 +347,7 @@ export class ClosureManager {
     }
 
     const stepKind = inferStepKind(stepDef);
-    if (stepKind !== "work") {
+    if (stepKind === "closure") {
       return null;
     }
 

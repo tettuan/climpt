@@ -30,5 +30,5 @@ Output using `review-action` blocks for GitHub operations:
 ### Complete Review
 
 ```review-action
-{"action":"complete","summary":"Review completed. N gaps found."}
+{"action":"closing","summary":"Review completed. N gaps found."}
 ```

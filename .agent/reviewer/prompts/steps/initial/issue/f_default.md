@@ -34,7 +34,7 @@ When you find implementation issues or gaps, report them:
 When all requirements are verified, complete the review:
 
 ```review-action
-{"action":"complete","issue":{uv-issue},"verdict":"APPROVE","summary":"Summary of the review"}
+{"action":"closing","issue":{uv-issue},"verdict":"APPROVE","summary":"Summary of the review"}
 ```
 
 ## Completion

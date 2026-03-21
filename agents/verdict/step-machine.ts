@@ -266,15 +266,6 @@ ${this.buildStepInstructions(stepDef)}
         this.verdictReason = "AI declared completion";
         return Promise.resolve(COMPLETE);
       }
-
-      // Check for next_action.action === "complete"
-      if (typeof so.next_action === "object" && so.next_action !== null) {
-        const nextAction = so.next_action as Record<string, unknown>;
-        if (nextAction.action === "complete") {
-          this.verdictReason = "AI requested completion action";
-          return Promise.resolve(COMPLETE);
-        }
-      }
     }
 
     return Promise.resolve(INCOMPLETE);

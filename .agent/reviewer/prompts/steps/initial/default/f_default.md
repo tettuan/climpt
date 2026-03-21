@@ -39,6 +39,6 @@ Review implementation for GitHub Project #{uv-project}
    the codebase
 2. Verify the implementation meets the requirements
 3. For any gaps found, output a review-action block to create an issue
-4. When complete, output a review-action block with action="complete"
+4. When complete, output a review-action block with action="closing"
 
 Start by analyzing the codebase for implementations related to the requirements.

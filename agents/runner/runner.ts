@@ -2,8 +2,14 @@
  * Agent Runner - main execution engine (slim coordinator)
  *
  * Dual-loop architecture:
- * - Flow Loop: Step advancement and handoff management
- * - Verdict Loop: Validates closure conditions
+ * - Flow Loop: Step advancement, handoff management, intent routing
+ *   (processes work and verification steps only)
+ * - Completion Loop: Closure prompt, validation, and verdict
+ *   (processes closure steps with independent LLM call)
+ *
+ * Closure steps are detected by isClosureStep() and processed as
+ * Completion Loop iterations: they use closureAdapter for prompts,
+ * skip step routing, and always go through runClosureLoop().
  *
  * Supports dependency injection for testability.
  * Use AgentRunnerBuilder for convenient construction with custom dependencies.
@@ -45,9 +51,13 @@ import { AGENT_LIMITS } from "../shared/constants.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 
+import { inferStepKind } from "../common/step-registry/utils.ts";
+import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
+import type { RoutingResult } from "./workflow-router.ts";
 import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
@@ -268,10 +278,103 @@ export class AgentRunner {
 
         // Verbose: Log iteration start
         const stepId = this.flowOrchestrator.getStepIdForIteration(iteration);
+
+        // Determine if this is a closure step (Completion Loop processing)
+        const isClosureIteration = this.isClosureStep(stepId);
+
         if (this.verboseLogger) {
           // deno-lint-ignore no-await-in-loop
           await this.verboseLogger.logIterationStart(iteration, stepId);
         }
+
+        // Completion Loop: separate procedure (design: "単発の手続き")
+        if (isClosureIteration) {
+          // deno-lint-ignore no-await-in-loop
+          const result = await this.runClosureIteration(
+            stepId,
+            iteration,
+            summaries,
+            ctx,
+            plugins,
+          );
+
+          sessionId = result.summary.sessionId;
+
+          if (result.isRateLimitRetry) {
+            iteration--;
+            continue;
+          }
+
+          const isFinished = result.done;
+          const verdictReason = result.reason;
+          if (!result.done && result.retryPrompt) {
+            this.pendingRetryPrompt = result.retryPrompt;
+          }
+
+          // Emit verdictChecked event
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("verdictChecked", {
+            isComplete: isFinished,
+            reason: verdictReason,
+          });
+
+          // Emit iterationEnd event
+          // deno-lint-ignore no-await-in-loop
+          await this.eventEmitter.emit("iterationEnd", {
+            iteration,
+            summary: result.summary,
+          });
+
+          // Verbose: Log iteration end with summary
+          if (this.verboseLogger) {
+            // deno-lint-ignore no-await-in-loop
+            await this.verboseLogger.logIterationEnd(iteration, {
+              toolsUsed: result.summary.toolsUsed,
+              errors: result.summary.errors,
+            });
+            // deno-lint-ignore no-await-in-loop
+            await this.verboseLogger.logSdkResult({
+              sessionId: result.summary.sessionId,
+              structuredOutput: result.summary.structuredOutput,
+              assistantResponses: result.summary.assistantResponses,
+              toolsUsed: result.summary.toolsUsed,
+              errors: result.summary.errors,
+              totalCostUsd: result.summary.totalCostUsd,
+              numTurns: result.summary.numTurns,
+              durationMs: result.summary.durationMs,
+            });
+          }
+
+          if (isFinished) {
+            completedNormally = true;
+            ctx.logger.info(
+              `Agent completed after ${iteration} iteration(s): ${verdictReason}`,
+            );
+            break;
+          }
+
+          // Max iteration check
+          const maxIterations = this.getMaxIterations();
+          if (iteration >= maxIterations) {
+            const maxIterError = new AgentMaxIterationsError(
+              maxIterations,
+              iteration,
+            );
+            ctx.logger.warn(maxIterError.message);
+
+            // deno-lint-ignore no-await-in-loop
+            await this.eventEmitter.emit("error", {
+              error: maxIterError,
+              recoverable: maxIterError.recoverable,
+            });
+
+            break;
+          }
+
+          continue; // Skip rest of Flow Loop body
+        }
+
+        // === Flow Loop: work/verification steps only ===
 
         // Build prompt
         const lastSummary = summaries.length > 0
@@ -291,68 +394,42 @@ export class AgentRunner {
           promptType = "retry";
           this.pendingRetryPrompt = null;
           ctx.logger.debug("Using retry prompt from validation");
-        } else if (iteration === 1) {
-          // Try stepPromptResolver for work-step rich prompts
+        } else {
+          // Flow Loop: C3L prompt resolution only (design: "プロンプト参照は C3L 形式のみ")
           // deno-lint-ignore no-await-in-loop
-          const workPrompt = await this.closureManager
-            .resolveWorkStepPrompt(stepId, this.buildUvVariables(iteration));
-          if (workPrompt) {
-            prompt = workPrompt.content;
-            promptSource = workPrompt.source;
+          const flowPrompt = await this.closureManager
+            .resolveFlowStepPrompt(stepId, this.buildUvVariables(iteration));
+          if (flowPrompt) {
+            prompt = flowPrompt.content;
+            promptSource = flowPrompt.source;
             ctx.logger.info(
-              `[WorkStepPrompt] Resolved via stepPromptResolver for "${stepId}"`,
-              { source: workPrompt.source, promptPath: workPrompt.promptPath },
+              `[FlowLoop] C3L prompt resolved for "${stepId}"`,
+              { source: flowPrompt.source, promptPath: flowPrompt.promptPath },
             );
-          } else {
+          } else if (!this.closureManager.stepsRegistry) {
+            // Legacy agent (no steps_registry): handler prompt is primary mechanism
             ctx.verdictHandler.setUvVariables?.(
               this.buildUvVariables(iteration),
             );
             // deno-lint-ignore no-await-in-loop
-            prompt = await ctx.verdictHandler.buildInitialPrompt();
-            promptSource = "user";
-          }
-          promptType = STEP_PHASE.INITIAL;
-        } else {
-          // Try closure adaptation for closure steps
-          // deno-lint-ignore no-await-in-loop
-          const closurePrompt = await this.closureAdapter
-            .tryClosureAdaptation(
-              stepId,
-              ctx,
-              this.buildUvVariables(iteration),
-            );
-          if (closurePrompt) {
-            prompt = closurePrompt.content;
-            promptSource = closurePrompt.source;
-            promptType = STEP_PHASE.CONTINUATION;
-          } else {
-            // Try stepPromptResolver for work-step rich prompts
-            // deno-lint-ignore no-await-in-loop
-            const workPrompt = await this.closureManager
-              .resolveWorkStepPrompt(stepId, this.buildUvVariables(iteration));
-            if (workPrompt) {
-              prompt = workPrompt.content;
-              promptSource = workPrompt.source;
-              ctx.logger.info(
-                `[WorkStepPrompt] Resolved via stepPromptResolver for "${stepId}"`,
-                {
-                  source: workPrompt.source,
-                  promptPath: workPrompt.promptPath,
-                },
-              );
-            } else {
-              ctx.verdictHandler.setUvVariables?.(
-                this.buildUvVariables(iteration),
-              );
-              // deno-lint-ignore no-await-in-loop
-              prompt = await ctx.verdictHandler.buildContinuationPrompt(
+            prompt = iteration === 1
+              ? await ctx.verdictHandler.buildInitialPrompt()
+              : await ctx.verdictHandler.buildContinuationPrompt(
                 iteration - 1,
                 lastSummary,
               );
-              promptSource = "user";
-            }
-            promptType = STEP_PHASE.CONTINUATION;
+            promptSource = "user";
+          } else {
+            // Steps registry exists but no C3L prompt — configuration error
+            throw new Error(
+              `[FlowLoop] No C3L prompt found for step "${stepId}" at iteration ${iteration}. ` +
+                `Flow steps must have C3L prompts when steps_registry is configured ` +
+                `(design: "プロンプト参照は C3L 形式のみ").`,
+            );
           }
+          promptType = iteration === 1
+            ? STEP_PHASE.INITIAL
+            : STEP_PHASE.CONTINUATION;
         }
 
         const promptTimeMs = performance.now() - promptStartTime;
@@ -374,36 +451,19 @@ export class AgentRunner {
 
         // Resolve system prompt
         // deno-lint-ignore no-await-in-loop
-        const systemPromptResult = await resolveSystemPrompt({
-          agentDir: this.agentDir,
-          systemPromptPath: this.definition.runner.flow.systemPromptPath,
-          variables: {
-            "uv-agent_name": this.definition.name,
-            "uv-verdict_criteria":
-              ctx.verdictHandler.buildVerdictCriteria().detailed,
-          },
-        });
-        const customSystemPrompt = systemPromptResult.content;
+        const systemPrompt = await this.resolveSystemPromptForIteration(ctx);
 
-        // Build system prompt with claude_code preset + custom append
-        const systemPrompt = {
-          type: "preset" as const,
-          preset: "claude_code" as const,
-          append: customSystemPrompt,
-        };
-
-        // Debug: Log system prompt structure
         ctx.logger.info("[SystemPrompt] Using preset configuration", {
           type: systemPrompt.type,
           preset: systemPrompt.preset,
-          appendLength: customSystemPrompt.length,
+          appendLength: systemPrompt.append.length,
         });
 
         // Emit promptBuilt event
         // deno-lint-ignore no-await-in-loop
         await this.eventEmitter.emit("promptBuilt", {
           prompt,
-          systemPrompt: customSystemPrompt,
+          systemPrompt: systemPrompt.append,
         });
 
         // Verbose: Log prompt and system prompt
@@ -458,37 +518,14 @@ export class AgentRunner {
           continue;
         }
 
-        // Verdict validation: trigger when AI declares verdict via structured output
-        if (this.closureManager.hasAIVerdictDeclaration(summary)) {
-          const closureStepId = this.closureManager
-            .getClosureStepId();
-          ctx.logger.info(
-            "AI declared verdict, validating external conditions",
-          );
-          // deno-lint-ignore no-await-in-loop
-          const validation = await this.closureManager
-            .validateConditions(
-              closureStepId,
-              summary,
-              ctx.logger,
-            );
-
-          if (!validation.valid) {
-            this.pendingRetryPrompt = validation.retryPrompt ?? null;
-            ctx.logger.info(
-              "Validation conditions not met, will retry in next iteration",
-            );
-          }
-        }
-
-        // Step transition for step flow orchestration
+        // Step transition (Flow Loop only — work/verification steps)
         const routingResult = this.flowOrchestrator.handleStepTransition(
           stepId,
           summary,
           ctx,
         );
 
-        // Warn if structured output was expected but not returned (all iterations)
+        // Warn if structured output was expected but not returned
         if (
           routingResult === null &&
           !summary.schemaResolutionFailed &&
@@ -519,37 +556,46 @@ export class AgentRunner {
           });
         }
 
-        // Check completion - prefer routing result, fall back to legacy handler
+        // Verdict: check completion via runClosureLoop()
         let isFinished: boolean;
         let verdictReason: string;
 
         if (this.pendingRetryPrompt) {
+          // Previous completion attempt returned retry prompt
           isFinished = false;
           // deno-lint-ignore no-await-in-loop
           verdictReason = await ctx.verdictHandler
             .getVerdictDescription();
-          ctx.logger.debug("Skipping verdict check due to pending retry");
-        } else if (routingResult?.signalClosing) {
-          // Structured gate routing signaled closing
-          isFinished = true;
-          verdictReason = routingResult.reason;
-          ctx.logger.info(
-            `[StepFlow] Router signaled closing: ${verdictReason}`,
-          );
-
-          // Invoke boundary hook for closure steps
-          // deno-lint-ignore no-await-in-loop
-          await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
+          ctx.logger.debug("Skipping completion check due to pending retry");
         } else {
-          // Fall back to legacy verdictHandler
-          if (ctx.verdictHandler.setCurrentSummary) {
-            ctx.verdictHandler.setCurrentSummary(summary);
+          const closingTriggered = routingResult?.signalClosing ||
+            this.closureManager.hasAIVerdictDeclaration(summary);
+
+          if (
+            closingTriggered || !this.closureManager.hasFlowRoutingEnabled()
+          ) {
+            const closingReason = routingResult?.signalClosing
+              ? routingResult.reason
+              : undefined;
+            // deno-lint-ignore no-await-in-loop
+            const verdict = await this.runClosureLoop(
+              stepId,
+              summary,
+              ctx,
+              closingReason,
+            );
+            isFinished = verdict.done;
+            verdictReason = verdict.reason;
+            if (!verdict.done && verdict.retryPrompt) {
+              this.pendingRetryPrompt = verdict.retryPrompt;
+            }
+          } else {
+            // Flow routing active, no closing signal — continue flow
+            isFinished = false;
+            // deno-lint-ignore no-await-in-loop
+            verdictReason = await ctx.verdictHandler
+              .getVerdictDescription();
           }
-          // deno-lint-ignore no-await-in-loop
-          isFinished = await ctx.verdictHandler.isFinished();
-          // deno-lint-ignore no-await-in-loop
-          verdictReason = await ctx.verdictHandler
-            .getVerdictDescription();
         }
 
         // Emit verdictChecked event
@@ -729,6 +775,275 @@ export class AgentRunner {
       }
       await ctx.logger.close();
     }
+  }
+
+  /**
+   * Completion Loop - single-shot closure procedure.
+   *
+   * Encapsulates the three stages of completion:
+   * Stage 1: Closure prompt (handled externally via closureAdapter)
+   * Stage 2: Validation (external conditions check)
+   * Stage 3: Verdict (handler decision + boundary hooks)
+   *
+   * Called when a completion signal is detected (closing intent,
+   * AI verdict declaration, or legacy handler check).
+   */
+  private async runClosureLoop(
+    stepId: string,
+    summary: IterationSummary,
+    ctx: RuntimeContext,
+    closingReason?: string,
+  ): Promise<{ done: boolean; reason: string; retryPrompt?: string }> {
+    // Stage 2: Validation
+    const closureStepId = this.closureManager.getClosureStepId();
+    const validation = await this.closureManager.validateConditions(
+      closureStepId,
+      summary,
+      ctx.logger,
+    );
+
+    if (!validation.valid) {
+      ctx.logger.info(
+        "Validation conditions not met, will retry in next iteration",
+      );
+      return {
+        done: false,
+        reason: "Validation conditions not met",
+        retryPrompt: validation.retryPrompt ?? undefined,
+      };
+    }
+
+    // Stage 3: Verdict
+    if (closingReason) {
+      // Router signaled closing - definitive
+      ctx.logger.info(
+        `[CompletionLoop] Router signaled closing: ${closingReason}`,
+      );
+      await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
+      return { done: true, reason: closingReason };
+    }
+
+    // Handler-based verdict
+    if (ctx.verdictHandler.setCurrentSummary) {
+      ctx.verdictHandler.setCurrentSummary(summary);
+    }
+    const isFinished = await ctx.verdictHandler.isFinished();
+    const reason = await ctx.verdictHandler.getVerdictDescription();
+
+    if (isFinished) {
+      ctx.logger.info(`[CompletionLoop] Handler verdict: ${reason}`);
+      await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
+      return { done: true, reason };
+    }
+
+    return { done: false, reason };
+  }
+
+  /**
+   * Completion Loop iteration - handles the ENTIRE lifecycle of a closure step.
+   *
+   * Encapsulates: prompt resolution, LLM query, post-query processing, and verdict.
+   * This is a "単発の手続き" (single-shot procedure) per design.
+   *
+   * Prompt priority:
+   * 1. pendingRetryPrompt (from previous validation failure)
+   * 2. closureAdapter.tryClosureAdaptation() (C3L closure prompt)
+   * 3. handler.buildContinuationPrompt() (Completion Loop fallback)
+   */
+  private async runClosureIteration(
+    stepId: string,
+    iteration: number,
+    summaries: IterationSummary[],
+    ctx: RuntimeContext,
+    plugins: string[] = [],
+  ): Promise<{
+    done: boolean;
+    reason: string;
+    retryPrompt?: string;
+    summary: IterationSummary;
+    isRateLimitRetry?: boolean;
+  }> {
+    const lastSummary = summaries.length > 0
+      ? summaries[summaries.length - 1]
+      : undefined;
+
+    // Step 1: Prompt resolution
+    let prompt: string;
+    let promptSource: "user" | "fallback";
+    let promptType:
+      | "retry"
+      | typeof STEP_PHASE.INITIAL
+      | typeof STEP_PHASE.CONTINUATION;
+    const promptStartTime = performance.now();
+
+    if (this.pendingRetryPrompt) {
+      prompt = this.pendingRetryPrompt;
+      promptSource = "user";
+      promptType = "retry";
+      this.pendingRetryPrompt = null;
+      ctx.logger.debug(
+        "[CompletionLoop] Using retry prompt from validation",
+      );
+    } else {
+      // Try C3L closure prompt via closureAdapter
+      const closurePrompt = await this.closureAdapter
+        .tryClosureAdaptation(
+          stepId,
+          ctx,
+          this.buildUvVariables(iteration),
+        );
+      if (closurePrompt) {
+        prompt = closurePrompt.content;
+        promptSource = closurePrompt.source;
+        ctx.logger.info(
+          `[CompletionLoop] Closure prompt resolved for "${stepId}"`,
+          { source: closurePrompt.source },
+        );
+      } else {
+        // Fallback: handler continuation prompt (design: "Completion Loop用プロンプトの生成")
+        ctx.verdictHandler.setUvVariables?.(
+          this.buildUvVariables(iteration),
+        );
+        prompt = await ctx.verdictHandler.buildContinuationPrompt(
+          iteration - 1,
+          lastSummary,
+        );
+        promptSource = "user";
+      }
+      promptType = STEP_PHASE.CONTINUATION;
+    }
+
+    const promptTimeMs = performance.now() - promptStartTime;
+
+    // Step 2: Prompt logging
+    if (ctx.promptLogger) {
+      await ctx.promptLogger.logResolution(
+        {
+          stepId,
+          source: promptSource,
+          content: prompt,
+          promptPath: `${this.definition.runner.verdict.type}/${promptType}`,
+        },
+        promptTimeMs,
+      );
+    }
+
+    // Step 3: System prompt
+    const systemPrompt = await this.resolveSystemPromptForIteration(ctx);
+
+    ctx.logger.info("[SystemPrompt] Using preset configuration", {
+      type: systemPrompt.type,
+      preset: systemPrompt.preset,
+      appendLength: systemPrompt.append.length,
+    });
+
+    // Step 4: Events
+    await this.eventEmitter.emit("promptBuilt", {
+      prompt,
+      systemPrompt: systemPrompt.append,
+    });
+
+    // Verbose: Log prompt and system prompt
+    if (this.verboseLogger) {
+      await this.verboseLogger.logPrompt(prompt);
+      await this.verboseLogger.logSystemPrompt(systemPrompt);
+    }
+
+    // Step 5: LLM query
+    const summary = await this.queryExecutor.executeQuery({
+      prompt,
+      systemPrompt,
+      plugins,
+      sessionId: lastSummary?.sessionId,
+      iteration,
+      stepId,
+    });
+
+    // Step 6: Event
+    await this.eventEmitter.emit("queryExecuted", { summary });
+
+    // Step 7: Post-query processing
+    summaries.push(summary);
+
+    // Sync schema resolution state to flow orchestrator
+    this.flowOrchestrator.setSchemaResolutionFailed(
+      this.schemaManager.schemaResolutionFailed,
+    );
+
+    // Normalize stepId in structured output
+    this.flowOrchestrator.normalizeStructuredOutputStepId(
+      stepId,
+      summary,
+      ctx,
+    );
+
+    // Record step output
+    this.flowOrchestrator.recordStepOutput(stepId, summary, ctx);
+
+    // Step 8: Rate limit check
+    if (summary.rateLimitRetry) {
+      const { waitMs, attempt } = summary.rateLimitRetry;
+      ctx.logger.info(
+        `Waiting ${waitMs}ms for rate limit retry (attempt ${attempt})`,
+      );
+      await this.delay(waitMs);
+      return {
+        done: false,
+        reason: "rate_limit_retry",
+        summary,
+        isRateLimitRetry: true,
+      };
+    }
+
+    // Step 9: Verdict (Stages 2+3 via runClosureLoop)
+    const verdict = await this.runClosureLoop(stepId, summary, ctx);
+    return {
+      done: verdict.done,
+      reason: verdict.reason,
+      retryPrompt: verdict.retryPrompt,
+      summary,
+    };
+  }
+
+  /**
+   * Check if a step is a closure step (stepKind: "closure").
+   * Closure steps are processed by the Completion Loop, not the Flow Loop.
+   */
+  private isClosureStep(stepId: string): boolean {
+    const registry = this.closureManager.stepsRegistry;
+    if (!registry?.steps) return false;
+    const stepDef = registry.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef) return false;
+    return inferStepKind(stepDef) === "closure";
+  }
+
+  /**
+   * Resolve system prompt for an iteration.
+   * Shared between Flow Loop and Completion Loop.
+   */
+  private async resolveSystemPromptForIteration(
+    ctx: RuntimeContext,
+  ): Promise<{
+    type: "preset";
+    preset: "claude_code";
+    append: string;
+  }> {
+    const result = await resolveSystemPrompt({
+      agentDir: this.agentDir,
+      systemPromptPath: this.definition.runner.flow.systemPromptPath,
+      variables: {
+        "uv-agent_name": this.definition.name,
+        "uv-verdict_criteria":
+          ctx.verdictHandler.buildVerdictCriteria().detailed,
+      },
+    });
+    return {
+      type: "preset" as const,
+      preset: "claude_code" as const,
+      append: result.content,
+    };
   }
 
   /**

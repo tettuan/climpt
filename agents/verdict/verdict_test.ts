@@ -1026,7 +1026,7 @@ Deno.test("StepMachineVerdictHandler - isFinishedwith structured output status=c
   assertEquals(complete, true);
 });
 
-Deno.test("StepMachineVerdictHandler - isFinishedwith next_action.action=complete", async () => {
+Deno.test("StepMachineVerdictHandler - isFinished rejects next_action.action=complete", async () => {
   const registry = createMockStepsRegistry();
   const handler = new StepMachineVerdictHandler(registry);
 
@@ -1036,7 +1036,7 @@ Deno.test("StepMachineVerdictHandler - isFinishedwith next_action.action=complet
   handler.setCurrentSummary(summary);
 
   const complete = await handler.isFinished();
-  assertEquals(complete, true);
+  assertEquals(complete, false);
 });
 
 Deno.test("StepMachineVerdictHandler - buildVerdictCriteria", () => {
