@@ -452,6 +452,58 @@ Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () =
   }
 });
 
+Deno.test("CompositeVerdictHandler - stepIds propagation to sub-handlers", () => {
+  const customStepIds: VerdictStepIds = {
+    initial: "initial.custom",
+    continuation: "continuation.custom",
+  };
+
+  const definition = createMockAgentDefinition({
+    verdict: {
+      type: "meta:composite",
+      config: {
+        operator: "and",
+        conditions: [
+          { type: "count:iteration", config: { maxIterations: 5 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
+          { type: "count:check", config: { maxChecks: 3 } },
+          { type: "detect:structured", config: { signalType: "test-signal" } },
+        ],
+      },
+    },
+  });
+
+  const handler = new CompositeVerdictHandler(
+    "and",
+    definition.runner.verdict.config.conditions ?? [],
+    {},
+    "/test",
+    definition,
+    customStepIds,
+  );
+
+  // Access internal handlers to verify stepIds propagation
+  // @ts-ignore - accessing private for testing
+  const handlers = handler.handlers;
+  assertEquals(handlers.length, 4);
+
+  // Each handler should have received the custom stepIds
+  for (const h of handlers) {
+    // @ts-ignore - accessing private stepIds
+    const ids = h.stepIds;
+    assertEquals(
+      ids.initial,
+      "initial.custom",
+      `${h.type} should receive custom initial stepId`,
+    );
+    assertEquals(
+      ids.continuation,
+      "continuation.custom",
+      `${h.type} should receive custom continuation stepId`,
+    );
+  }
+});
+
 // =============================================================================
 // IterationBudgetVerdictHandler Tests
 // =============================================================================
@@ -851,6 +903,110 @@ Deno.test("StructuredSignalVerdictHandler - getVerdictDescription", async () => 
 
   desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("detected"), true);
+});
+
+// =============================================================================
+// StructuredSignalVerdictHandler - Path 2 (code fence parsing) Tests
+// =============================================================================
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - code fence signal without required fields → COMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("task-done");
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: [
+        'Here is my result:\n```task-done\n{"status": "ok"}\n```\nDone.',
+      ],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, true);
+});
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - code fence signal with matching required fields → COMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("review", {
+    status: "approved",
+  });
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: [
+        '```review\n{"status": "approved", "notes": "LGTM"}\n```',
+      ],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, true);
+});
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - code fence signal with mismatched required fields → INCOMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("review", {
+    status: "approved",
+  });
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: [
+        '```review\n{"status": "rejected"}\n```',
+      ],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, false);
+});
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - code fence signal with unparseable JSON, no required fields → COMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("done");
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: [
+        "```done\nnot valid json\n```",
+      ],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, true);
+});
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - code fence signal with unparseable JSON, with required fields → INCOMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("done", {
+    status: "ok",
+  });
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: [
+        "```done\nnot valid json\n```",
+      ],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, false);
+});
+
+Deno.test("StructuredSignalVerdictHandler - Path 2 - no code fence in responses → INCOMPLETE", async () => {
+  const handler = new StructuredSignalVerdictHandler("my-signal");
+
+  handler.setCurrentSummary(
+    createMockIterationSummary({
+      structuredOutput: undefined,
+      assistantResponses: ["no signal here"],
+    }),
+  );
+
+  const complete = await handler.isFinished();
+  assertEquals(complete, false);
 });
 
 // =============================================================================
