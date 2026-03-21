@@ -204,19 +204,22 @@ Deno.test("WorkflowRouter - default transition initial -> continuation", () => {
   assertEquals(result.signalClosing, false);
 });
 
-Deno.test("WorkflowRouter - signals completion when no continuation exists", () => {
+Deno.test("WorkflowRouter - throws RoutingError when no continuation exists", () => {
   const registry = createRegistry({
     "initial.issue": {}, // No transitions
     // No continuation.issue
   });
   const router = new WorkflowRouter(registry);
 
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "next" }),
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    RoutingError,
+    'emitted "next" but has no transitions',
   );
-
-  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
@@ -528,7 +531,7 @@ Deno.test("WorkflowRouter - handoff without transition throws RoutingError", () 
         }),
       ),
     RoutingError,
-    "requires a transition rule",
+    'emitted "handoff" but has no transitions.handoff defined',
   );
 });
 
@@ -782,7 +785,7 @@ Deno.test("WorkflowRouter - logs prefix substitution on default initial -> conti
 Deno.test("WorkflowRouter - no prefix substitution log when continuation step does not exist", () => {
   const registry = createRegistry({
     "initial.issue": {},
-    // No continuation.issue -- fallback to signalClosing
+    // No continuation.issue -- throws RoutingError
   });
 
   const logged: string[] = [];
@@ -793,13 +796,18 @@ Deno.test("WorkflowRouter - no prefix substitution log when continuation step do
   };
 
   const router = new WorkflowRouter(registry, mockLogger);
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "next" }),
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    RoutingError,
+    'emitted "next" but has no transitions',
   );
 
   assertEquals(logged.length, 0, "No log when substitution does not occur");
-  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - no prefix substitution log when no logger provided", () => {
@@ -840,4 +848,55 @@ Deno.test("WorkflowRouter - logs prefix substitution for multi-part step IDs", (
   assertEquals(logged.length, 1);
   assert(logged[0].includes("initial.project.preparation"));
   assert(logged[0].includes("continuation.project.preparation"));
+});
+
+// ============================================================================
+// Defensive silent-completion -> RoutingError conversion tests
+// ============================================================================
+
+Deno.test("WorkflowRouter - terminal transition (target: null) for non-closing intent throws RoutingError", () => {
+  // Change A: target: null in a non-closing transition is a config error.
+  // Only closure steps with "closing" intent may use target: null.
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+      transitions: {
+        next: { target: null }, // invalid: target: null on "next" intent
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    RoutingError,
+    "has transitions.next.target: null",
+  );
+});
+
+Deno.test("WorkflowRouter - handoff with target: null throws RoutingError", () => {
+  // Change C: handoff must point to an existing step, not null.
+  const registry = createRegistry({
+    "continuation.issue": {
+      c2: "continuation",
+      transitions: {
+        handoff: { target: null }, // invalid: handoff must have a real target
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "continuation.issue",
+        createInterpretation({ intent: "handoff" }),
+      ),
+    RoutingError,
+    "has transitions.handoff.target: null",
+  );
 });

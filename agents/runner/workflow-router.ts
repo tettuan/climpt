@@ -185,14 +185,18 @@ export class WorkflowRouter {
           interpretation,
         );
 
-        // Handle terminal transition (target: null)
+        // Terminal transition (target: null) is only valid for closing intent,
+        // which is handled earlier. For other intents, this is a config error.
         if (resolved.isTerminal) {
-          return {
-            nextStepId: currentStepId,
-            signalClosing: true,
-            reason: interpretation.reason ??
-              `Terminal transition: ${intent} -> completion`,
-          };
+          throw new RoutingError(
+            `[steps_registry] Step "${currentStepId}" has transitions.${intent}.target: null, ` +
+              `but target: null is only allowed for "closing" intent on closure steps. ` +
+              `Fix: set a valid target step, e.g. transitions.${intent}.target: "continuation.${
+                currentStepId.split(".").slice(1).join(".")
+              }".`,
+            currentStepId,
+            intent,
+          );
         }
 
         // Handle normal transition
@@ -301,13 +305,18 @@ export class WorkflowRouter {
       }
     }
 
-    // If no continuation step, signal completion
-    return {
-      nextStepId: currentStepId,
-      signalClosing: true,
-      reason: interpretation.reason ??
-        "No explicit transition or continuation step",
-    };
+    // No continuation step found — this is a configuration error.
+    // Initial steps must have a corresponding continuation step or explicit transitions.
+    const expectedContinuation = `continuation.${
+      currentStepId.split(".").slice(1).join(".")
+    }`;
+    throw new RoutingError(
+      `[steps_registry] Step "${currentStepId}" emitted "${interpretation.intent}" but has no transitions ` +
+        `and no continuation step "${expectedContinuation}" in the registry. ` +
+        `Fix: add "${expectedContinuation}" to steps, or add explicit transitions to "${currentStepId}".`,
+      currentStepId,
+      interpretation.intent,
+    );
   }
 
   /**
@@ -402,14 +411,18 @@ export class WorkflowRouter {
             warning: initialStepWarning,
           };
         }
-        // target: null means signal completion
+        // Handoff must point to an existing step (typically a closure step).
+        // target: null is a configuration error for handoff.
         if (transitionRule.target === null) {
-          return {
-            nextStepId: currentStepId,
-            signalClosing: true,
-            reason: interpretation.reason ?? "Handoff: terminal transition",
-            warning: initialStepWarning,
-          };
+          throw new RoutingError(
+            `[steps_registry] Step "${currentStepId}" has transitions.handoff.target: null, ` +
+              `but handoff must route to an existing step (typically a closure step). ` +
+              `Fix: set transitions.handoff.target to e.g. "closure.${
+                currentStepId.split(".").slice(1).join(".")
+              }".`,
+            currentStepId,
+            "handoff",
+          );
         }
       }
     }
@@ -417,8 +430,10 @@ export class WorkflowRouter {
     // No transition defined — this is a configuration error.
     // Handoff requires an explicit transition rule in steps_registry.
     throw new RoutingError(
-      `Handoff intent requires a transition rule in steps_registry. ` +
-        `Add transitions.handoff to step "${currentStepId}".`,
+      `[steps_registry] Step "${currentStepId}" emitted "handoff" but has no transitions.handoff defined. ` +
+        `Fix: add transitions.handoff.target to e.g. "closure.${
+          currentStepId.split(".").slice(1).join(".")
+        }".`,
       currentStepId,
       "handoff",
     );
