@@ -28,14 +28,14 @@ done < <(
 total=0
 passed=0
 failed=0
-skipped_json='["44_clean"]'
+skipped_json='["53_clean"]'
 results_json=""
 
 for script in "${run_scripts[@]}"; do
   dir="$(basename "$(dirname "${script}")")"
 
-  # Skip 44_clean
-  if [[ "${dir}" == "44_clean" ]]; then
+  # Skip 53_clean
+  if [[ "${dir}" == "53_clean" ]]; then
     continue
   fi
 
@@ -86,4 +86,9 @@ ENDJSON
 
 echo "Log directory: ${LOG_DIR}"
 echo "Summary written: ${LOG_DIR}/summary.json"
+
+# Propagate failure to exit code
+if (( failed > 0 )); then
+  exit 1
+fi
 

@@ -1,11 +1,10 @@
-# 26: Run Reviewer Agent
+# 36: Run Reviewer Agent
 
-**What:** Runs the reviewer agent with a synthetic issue (no API key needed).
-**Why:** Catches import errors, missing modules, and startup crashes in the
-agent pipeline.
+**What:** Runs the reviewer agent built in steps 33-35 (LLM required). **Why:**
+Verifies the init → configure → run pipeline produces a working agent.
 
 ## Verifies
 
-- `review-agent` task exists in deno.json
-- Agent starts without import/startup crash
-- Output contains agent-related content
+- `.agent/reviewer/agent.json` exists (built by prior steps)
+- Agent starts and completes successfully
+- Output contains "Agent completed: SUCCESS"

@@ -10,7 +10,7 @@ main() {
   info "=== Cleanup Example Artifacts ==="
 
   # Remove output directories that examples may have created (cwd = examples/)
-  for dir in output tmp outputs .deno; do
+  for dir in output tmp outputs .deno agents; do
     if [[ -d "${dir}" ]]; then
       info "Removing examples/${dir}/"
       rm -rf "${dir}"

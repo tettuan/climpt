@@ -410,7 +410,7 @@ export class Orchestrator {
     const storePath = join(this.#cwd, storeConfig.path);
     const store = new IssueStore(storePath);
 
-    // 0. Workflow-level lock — prevents concurrent batches from
+    // 0. Workflow-level lock -- prevents concurrent batches from
     //    breaking priority ordering. Different workflows (different
     //    labelPrefix) use separate locks and never block each other.
     const wfId = this.workflowId;

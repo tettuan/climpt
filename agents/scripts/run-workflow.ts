@@ -160,12 +160,14 @@ async function runSingleIssue(
 ): Promise<void> {
   const config = await loadWorkflow(cwd, options.workflowPath);
 
-  const github: GitHubClient = options.local
-    ? new FileGitHubClient(
-      new IssueStore(
-        join(cwd, config.issueStore?.path ?? ".agent/issues"),
-      ),
+  const store = options.local
+    ? new IssueStore(
+      join(cwd, config.issueStore?.path ?? ".agent/issues"),
     )
+    : undefined;
+
+  const github: GitHubClient = store
+    ? new FileGitHubClient(store)
     : new GhCliClient(cwd);
 
   const dispatcher: AgentDispatcher = options.stubDispatch !== undefined
@@ -179,7 +181,7 @@ async function runSingleIssue(
   const result = await orchestrator.run(issueNumber, {
     verbose: options.verbose,
     dryRun: options.dryRun,
-  });
+  }, store);
 
   // deno-lint-ignore no-console
   console.log(JSON.stringify(result, null, 2));

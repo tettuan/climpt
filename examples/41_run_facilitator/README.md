@@ -1,11 +1,11 @@
-# 32: Run Facilitator Agent (no --issue)
+# 41: Run Facilitator Agent
 
-**What:** Runs the facilitator agent without `--issue` to verify agents with
-`parameters.issue.required: false` work without it. **Why:** Demonstrates that
-`--issue` is only required when `parameters.issue.required` is `true`.
+**What:** Runs the facilitator agent built in steps 38-40 with `--project 1`
+(LLM required). **Why:** Verifies the init → configure → run pipeline produces a
+working agent.
 
 ## Verifies
 
-- `facilitate-agent` deno task exists
-- Facilitator agent starts without `--issue` and without crash
-- Output contains agent-related content
+- `.agent/facilitator/agent.json` exists (built by prior steps)
+- Agent starts and completes successfully
+- Output contains "Agent completed: SUCCESS"

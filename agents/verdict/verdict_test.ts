@@ -26,7 +26,7 @@ import { CheckBudgetVerdictHandler } from "./check-budget.ts";
 import { StructuredSignalVerdictHandler } from "./structured-signal.ts";
 import { MockStateChecker } from "./external-state-checker.ts";
 import { StepMachineVerdictHandler } from "./step-machine.ts";
-import type { IterationSummary } from "./types.ts";
+import type { IterationSummary, VerdictStepIds } from "./types.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptResolver } from "../common/prompt-resolver.ts";
@@ -646,16 +646,16 @@ Deno.test("CheckBudgetVerdictHandler - buildVerdictCriteria", () => {
   assertEquals(criteria.detailed.includes("15"), true);
 });
 
-Deno.test("CheckBudgetVerdictHandler - buildContinuationPrompt increments count", async () => {
+Deno.test("CheckBudgetVerdictHandler - buildContinuationPrompt does NOT increment count", async () => {
   const handler = new CheckBudgetVerdictHandler(10);
 
   assertEquals(handler.getCheckCount(), 0);
 
   await handler.buildContinuationPrompt(1);
-  assertEquals(handler.getCheckCount(), 1);
+  assertEquals(handler.getCheckCount(), 0);
 
   await handler.buildContinuationPrompt(2);
-  assertEquals(handler.getCheckCount(), 2);
+  assertEquals(handler.getCheckCount(), 0);
 });
 
 Deno.test("CheckBudgetVerdictHandler - getVerdictDescription", async () => {
@@ -667,6 +667,65 @@ Deno.test("CheckBudgetVerdictHandler - getVerdictDescription", async () => {
   const desc = await handler.getVerdictDescription();
   assertEquals(desc.includes("2"), true);
   assertEquals(desc.includes("5"), true);
+});
+
+// =============================================================================
+// IterationBudgetVerdictHandler - setCurrentSummary Tests
+// =============================================================================
+
+Deno.test("IterationBudgetVerdictHandler - setCurrentSummary stores summary", () => {
+  const handler = new IterationBudgetVerdictHandler(10);
+  const summary = createMockIterationSummary({ iteration: 3 });
+
+  // Should not throw
+  handler.setCurrentSummary(summary);
+});
+
+// =============================================================================
+// CheckBudgetVerdictHandler - setCurrentSummary Tests
+// =============================================================================
+
+Deno.test("CheckBudgetVerdictHandler - setCurrentSummary stores summary and increments checkCount", () => {
+  const handler = new CheckBudgetVerdictHandler(10);
+
+  assertEquals(handler.getCheckCount(), 0);
+
+  const summary1 = createMockIterationSummary({ iteration: 1 });
+  handler.setCurrentSummary(summary1);
+  assertEquals(handler.getCheckCount(), 1);
+
+  const summary2 = createMockIterationSummary({ iteration: 2 });
+  handler.setCurrentSummary(summary2);
+  assertEquals(handler.getCheckCount(), 2);
+});
+
+Deno.test("CheckBudgetVerdictHandler - checkCount increments via setCurrentSummary not buildContinuationPrompt", async () => {
+  const handler = new CheckBudgetVerdictHandler(10);
+
+  assertEquals(handler.getCheckCount(), 0);
+
+  // buildContinuationPrompt alone should NOT increment
+  await handler.buildContinuationPrompt(1);
+  assertEquals(handler.getCheckCount(), 0);
+
+  // setCurrentSummary SHOULD increment
+  const summary = createMockIterationSummary({ iteration: 1 });
+  handler.setCurrentSummary(summary);
+  assertEquals(handler.getCheckCount(), 1);
+
+  // Another buildContinuationPrompt should still NOT increment
+  await handler.buildContinuationPrompt(2);
+  assertEquals(handler.getCheckCount(), 1);
+});
+
+Deno.test("CheckBudgetVerdictHandler - isFinished after setCurrentSummary reaches max", async () => {
+  const handler = new CheckBudgetVerdictHandler(2);
+
+  handler.setCurrentSummary(createMockIterationSummary({ iteration: 1 }));
+  assertEquals(await handler.isFinished(), false);
+
+  handler.setCurrentSummary(createMockIterationSummary({ iteration: 2 }));
+  assertEquals(await handler.isFinished(), true);
 });
 
 // =============================================================================
@@ -1635,6 +1694,54 @@ Deno.test("CompositeVerdictHandler + resolver - propagates resolver to sub-handl
   assertEquals(mock.lastStepId(), "initial.iteration");
   assertEquals(STEP_ID_PATTERN.test(mock.lastStepId()!), true);
   assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.iteration");
+});
+
+Deno.test("CompositeVerdictHandler - stepIds propagate to sub-handlers", async () => {
+  const mock = new MockPromptResolver();
+  const customStepIds: VerdictStepIds = {
+    initial: "initial.custom",
+    continuation: "continuation.custom",
+  };
+  const definition = createMockAgentDefinition({
+    verdict: {
+      type: "meta:composite",
+      config: {
+        operator: "or",
+        conditions: [
+          { type: "count:iteration", config: { maxIterations: 5 } },
+          { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
+        ],
+      },
+    },
+  });
+
+  const handler = new CompositeVerdictHandler(
+    "or",
+    definition.runner.verdict.config.conditions ?? [],
+    {},
+    "/test",
+    definition,
+    customStepIds,
+  );
+  handler.setPromptResolver(mock as unknown as PromptResolver);
+
+  // buildInitialPrompt delegates to the first sub-handler (IterationBudget)
+  const prompt = await handler.buildInitialPrompt();
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "initial.custom");
+  assertStringIncludes(prompt, "RICH_PROMPT_CONTENT_FOR_initial.custom");
+
+  // Verify continuation also uses the custom stepId
+  mock.reset();
+  const contPrompt = await handler.buildContinuationPrompt(2);
+
+  assertEquals(mock.calls.length, 1);
+  assertEquals(mock.lastStepId(), "continuation.custom");
+  assertStringIncludes(
+    contPrompt,
+    "RICH_PROMPT_CONTENT_FOR_continuation.custom",
+  );
 });
 
 // --- Contract: all handler stepIds match dot-format ---

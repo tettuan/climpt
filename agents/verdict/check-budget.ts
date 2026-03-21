@@ -19,6 +19,7 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
   private promptResolver?: PromptResolver;
   private uvVariables: Record<string, string> = {};
   private readonly stepIds: VerdictStepIds;
+  private lastSummary?: IterationSummary;
 
   constructor(
     private readonly maxChecks: number,
@@ -43,6 +44,16 @@ export class CheckBudgetVerdictHandler extends BaseVerdictHandler {
    */
   setUvVariables(uv: Record<string, string>): void {
     this.uvVariables = uv;
+  }
+
+  /**
+   * Set the current iteration summary before verdict check.
+   * Called by runner before isFinished() to provide structured output context.
+   * Increments checkCount once per iteration.
+   */
+  setCurrentSummary(summary: IterationSummary): void {
+    this.lastSummary = summary;
+    this.checkCount++;
   }
 
   /**
@@ -94,8 +105,6 @@ Work efficiently to complete your monitoring goal within the check budget.
     completedIterations: number,
     previousSummary?: IterationSummary,
   ): Promise<string> {
-    // Increment check count on continuation
-    this.checkCount++;
     const remaining = this.maxChecks - this.checkCount;
 
     if (this.promptResolver) {

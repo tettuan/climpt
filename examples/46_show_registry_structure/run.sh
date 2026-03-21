@@ -45,7 +45,7 @@ SAMPLE
   # Verify actual registry
   REGISTRY="${CLIMPT_DIR}/registry.json"
   if [[ ! -f "${REGISTRY}" ]]; then
-    error "FAIL: ${REGISTRY} not found. Run 35_generate_registry/run.sh first."; return 1
+    error "FAIL: ${REGISTRY} not found. Run 44_generate_registry/run.sh first."; return 1
   fi
 
   # Validate JSON

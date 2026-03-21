@@ -190,7 +190,7 @@ export class IssueStore {
    * Try to acquire an advisory workflow-level lock.
    *
    * Uses `Deno.open({ createNew: true })` for atomic lock creation.
-   * Lock file is at `{storePath}/.lock.{workflowId}` — scoped per workflow,
+   * Lock file is at `{storePath}/.lock.{workflowId}` -- scoped per workflow,
    * not per issue. This prevents concurrent batch runs from breaking
    * priority ordering.
    *
@@ -241,7 +241,7 @@ export class IssueStore {
         try {
           await Deno.remove(lockPath);
         } catch {
-          // Lock file already removed — not fatal
+          // Lock file already removed -- not fatal
         }
       },
     };

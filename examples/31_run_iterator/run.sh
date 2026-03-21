@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
+
+AGENT_NAME="iterator"
 
 main() {
   info "=== Run Iterator Agent ==="
@@ -11,30 +15,18 @@ main() {
   check_climpt_init
   check_llm_ready
 
-  # Phase 1: Task existence
-  local task_list
-  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
-  if ! echo "$task_list" | grep -q "iterate-agent"; then
-    error "FAIL: 'iterate-agent' task not found in deno.json"; return 1
+  # Require build steps (28-30) to have been run
+  if [[ ! -f ".agent/${AGENT_NAME}/agent.json" ]]; then
+    error ".agent/${AGENT_NAME}/agent.json not found — run build steps first"
+    return 1
   fi
-  success "PASS: iterate-agent task exists"
+  success "PASS: agent.json found"
 
-  # Phase 2: Contract validation (no LLM needed)
-  info "Validating agent configuration contracts..."
-  local registry
-  for reg_path in \
-    "${REPO_ROOT}/.agent/climpt/agents/iterator/steps_registry.json" \
-    "${REPO_ROOT}/agents/iterator/steps_registry.json"; do
-    if [[ -f "$reg_path" ]]; then
-      registry="$reg_path"
-      break
-    fi
-  done
-  if [[ -n "${registry:-}" ]]; then
+  local registry=".agent/${AGENT_NAME}/steps_registry.json"
+  if [[ -f "$registry" ]]; then
     if ! jq empty "$registry" 2>/dev/null; then
       error "FAIL: steps_registry.json is not valid JSON"; return 1
     fi
-    # Check entryStep or entryStepMapping exists
     local has_entry
     has_entry=$(jq 'has("entryStep") or has("entryStepMapping")' "$registry")
     if [[ "$has_entry" != "true" ]]; then
@@ -45,11 +37,26 @@ main() {
     warn "steps_registry.json not found (may use default config)"
   fi
 
-  # Phase 3: LLM execution test
-  info "Starting iterator agent for issue #123..."
-  show_cmd deno task iterate-agent --issue 123
+  # Create test fixture: a file with a known bug
+  mkdir -p tmp
+  cat > tmp/iterator-fixture.ts << 'FIXTURE'
+/**
+ * Adds two numbers and returns the sum.
+ */
+export function add(a: number, b: number): number {
+  return a * b; // BUG: should be a + b
+}
+FIXTURE
+  success "Test fixture created: tmp/iterator-fixture.ts"
+
+  # Run agent from examples/ as cwd
+  info "Starting iterator agent (bug fix task)..."
+  show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
+    --agent "$AGENT_NAME"
+
   local exit_code=0
-  output=$( (cd "$REPO_ROOT" && deno task iterate-agent --issue 123) 2>&1) \
+  output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
+    --agent "$AGENT_NAME" 2>&1) \
     || exit_code=$?
 
   if [[ -z "$output" ]]; then
@@ -67,6 +74,14 @@ main() {
     echo "$output" | tail -10 >&2
     return 1
   fi
+
+  # Verify the fixture was actually fixed
+  if grep -q "return a + b" tmp/iterator-fixture.ts; then
+    success "PASS: bug fix verified (a * b → a + b)"
+  else
+    warn "Agent completed but fixture was not modified as expected"
+  fi
+
   success "PASS: iterate-agent completed successfully"
 }
 

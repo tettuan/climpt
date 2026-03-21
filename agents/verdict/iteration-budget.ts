@@ -16,6 +16,7 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   private promptResolver?: PromptResolver;
   private uvVariables: Record<string, string> = {};
   private readonly stepIds: VerdictStepIds;
+  private lastSummary?: IterationSummary;
 
   constructor(
     private readonly maxIterations: number,
@@ -40,6 +41,14 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
    */
   setUvVariables(uv: Record<string, string>): void {
     this.uvVariables = uv;
+  }
+
+  /**
+   * Set the current iteration summary before verdict check.
+   * Called by runner before isFinished() to provide structured output context.
+   */
+  setCurrentSummary(summary: IterationSummary): void {
+    this.lastSummary = summary;
   }
 
   /**

@@ -111,6 +111,31 @@ Flow ループが再開するとき、`pendingRetryPrompt` があれば最優先
 | ValidationConditions     | 安定     | git/type/lint/test 等はここで宣言し、Flow から切り離す     |
 | RetryPrompts             | 運用中   | `steps/retry/*` を C3L で管理し、手作業リトライを排除      |
 
+## structuredOutput が undefined の場合の挙動
+
+**原因**: `outputSchemaRef` を持たないステップでは、SDK は `structured_output`
+をパースしない。 結果として `IterationSummary.structuredOutput` は `undefined`
+になる。
+
+**各 VerdictHandler の挙動**:
+
+| Handler           | structuredOutput 依存 | undefined 時の動作                                                                             |
+| ----------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
+| detect:keyword    | 不要                  | assistantResponses のテキスト検索で判定。影響なし                                              |
+| detect:structured | 条件付き              | Path 1 (structuredOutput あり): 既存ロジック。Path 2 (なし): code fence から JSON を直接パース |
+| count:iteration   | 不要                  | 内部カウンタで判定。影響なし                                                                   |
+| count:check       | 不要                  | 内部カウンタで判定。影響なし                                                                   |
+| poll:state        | 不要                  | 外部状態 (GitHub Issue 等) で判定。影響なし                                                    |
+| detect:graph      | 必要                  | structuredOutput から intent を抽出。undefined 時は intent 抽出失敗 → fail-fast                |
+| meta:composite    | 子に依存              | 各子ハンドラの挙動に従う                                                                       |
+
+**設計原則**: `detect:structured` 以外のハンドラは structuredOutput
+に依存しない設計。 `detect:structured` は outputSchemaRef なしでも code fence
+パースで動作する。 `detect:graph` は outputSchemaRef が必須 (schema fail-fast
+で保護)。
+
+---
+
 Completion Loop は「完璧な終了体験」を作るための最小構成であり、余計な判断を
 Flow に流さないことだけを約束する。Structured Output
 はその約束を支える骨格である。

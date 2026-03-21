@@ -1,40 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${SCRIPT_DIR}/../common_functions.sh"
+EXAMPLES_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
+cd "$EXAMPLES_DIR"
+source "${EXAMPLES_DIR}/common_functions.sh"
+
+AGENT_NAME="facilitator"
 
 main() {
-  info "=== Run Facilitator Agent (project #1) ==="
+  info "=== Run Facilitator Agent ==="
 
   check_deno
   check_climpt_init
   check_llm_ready
 
-  # Phase 1: Task existence
-  local task_list
-  task_list=$(cd "$REPO_ROOT" && deno task 2>&1) || true
-  if ! echo "$task_list" | grep -q "facilitate-agent"; then
-    error "FAIL: 'facilitate-agent' task not found in deno.json"; return 1
+  # Require build steps (38-40) to have been run
+  if [[ ! -f ".agent/${AGENT_NAME}/agent.json" ]]; then
+    error ".agent/${AGENT_NAME}/agent.json not found — run build steps first"
+    return 1
   fi
-  success "PASS: facilitate-agent task exists"
+  success "PASS: agent.json found"
 
-  # Phase 2: Contract validation (no LLM needed)
-  info "Validating agent configuration contracts..."
-  local registry
-  for reg_path in \
-    "${REPO_ROOT}/.agent/climpt/agents/facilitator/steps_registry.json" \
-    "${REPO_ROOT}/agents/facilitator/steps_registry.json"; do
-    if [[ -f "$reg_path" ]]; then
-      registry="$reg_path"
-      break
-    fi
-  done
-  if [[ -n "${registry:-}" ]]; then
+  local registry=".agent/${AGENT_NAME}/steps_registry.json"
+  if [[ -f "$registry" ]]; then
     if ! jq empty "$registry" 2>/dev/null; then
       error "FAIL: steps_registry.json is not valid JSON"; return 1
     fi
-    # Check entryStep or entryStepMapping exists
     local has_entry
     has_entry=$(jq 'has("entryStep") or has("entryStepMapping")' "$registry")
     if [[ "$has_entry" != "true" ]]; then
@@ -45,11 +37,40 @@ main() {
     warn "steps_registry.json not found (may use default config)"
   fi
 
-  # Phase 3: LLM execution test
-  info "Starting facilitator agent without --issue..."
-  show_cmd deno task facilitate-agent --project 1
+  # Create test fixture: project status for analysis
+  mkdir -p tmp
+  cat > tmp/project-status.md << 'FIXTURE'
+# Project Status Report
+
+## Sprint 12 Summary
+
+### Completed
+- User authentication module (100%)
+- Database migration scripts (100%)
+
+### In Progress
+- API rate limiting (60%) — blocked by load testing environment setup
+- Dashboard redesign (40%)
+
+### Not Started
+- Mobile push notifications
+- Audit logging
+
+## Risks
+- Load testing environment has been unavailable for 5 days
+- No backup developer assigned to the API rate limiting task
+- Sprint deadline is in 3 days
+FIXTURE
+  success "Test fixture created: tmp/project-status.md"
+
+  # Run agent from examples/ as cwd
+  info "Starting facilitator agent (status analysis task)..."
+  show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
+    --agent "$AGENT_NAME"
+
   local exit_code=0
-  output=$( (cd "$REPO_ROOT" && deno task facilitate-agent --project 1) 2>&1) \
+  output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
+    --agent "$AGENT_NAME" 2>&1) \
     || exit_code=$?
 
   if [[ -z "$output" ]]; then

@@ -187,7 +187,7 @@ registerHandler(
 // meta:composite - Combines multiple conditions
 registerHandler(
   "meta:composite",
-  (args, promptResolver, definition, agentDir, _stepIds) => {
+  (args, promptResolver, definition, agentDir, stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
     if (!verdictConfig.conditions || !verdictConfig.operator) {
       throw new Error(
@@ -200,6 +200,7 @@ registerHandler(
       args,
       agentDir,
       definition,
+      stepIds,
     );
     compositeHandler.setPromptResolver(promptResolver);
     return compositeHandler;

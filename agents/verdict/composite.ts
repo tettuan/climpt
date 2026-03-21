@@ -18,6 +18,7 @@ import {
   type IterationSummary,
   type VerdictCriteria,
   type VerdictHandler,
+  type VerdictStepIds,
 } from "./types.ts";
 import { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
 import { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
@@ -48,6 +49,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
     private readonly args: Record<string, unknown>,
     private readonly _agentDir: string,
     private readonly _definition: AgentDefinition,
+    private readonly stepIds?: VerdictStepIds,
   ) {
     super();
     this.initializeHandlers();
@@ -67,6 +69,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
           handler = new IterationBudgetVerdictHandler(
             config.maxIterations ??
               AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
+            this.stepIds,
           );
           break;
         }
@@ -74,6 +77,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "detect:keyword": {
           handler = new KeywordSignalVerdictHandler(
             config.verdictKeyword ?? "TASK_COMPLETE",
+            this.stepIds,
           );
           break;
         }
@@ -81,6 +85,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "count:check": {
           handler = new CheckBudgetVerdictHandler(
             config.maxChecks ?? 10,
+            this.stepIds,
           );
           break;
         }
@@ -94,6 +99,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
           handler = new StructuredSignalVerdictHandler(
             config.signalType,
             config.requiredFields,
+            this.stepIds,
           );
           break;
         }
@@ -120,7 +126,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
               labels?: { completion?: { add?: string[]; remove?: string[] } };
               defaultClosureAction?: string;
             },
-          });
+          }, this.stepIds);
           break;
         }
 

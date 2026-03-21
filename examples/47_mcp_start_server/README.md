@@ -1,4 +1,4 @@
-# 29: MCP Start Server
+# 47: MCP Start Server
 
 **What:** Verifies the MCP server package resolves and starts without crash.
 **Why:** MCP server availability is required for Claude Desktop / Cursor

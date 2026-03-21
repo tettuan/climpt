@@ -253,6 +253,7 @@ export class AgentRunner {
     let iteration = 0;
     let sessionId: string | undefined;
     const summaries: IterationSummary[] = [];
+    let completedNormally = false;
 
     try {
       // Flow loop: Sequential execution
@@ -583,6 +584,7 @@ export class AgentRunner {
         }
 
         if (isFinished) {
+          completedNormally = true;
           ctx.logger.info(
             `Agent completed after ${iteration} iteration(s): ${verdictReason}`,
           );
@@ -614,11 +616,59 @@ export class AgentRunner {
       const lastCostSummary = [...summaries].reverse().find((s) =>
         s.totalCostUsd !== undefined
       );
+
+      // Collect all errors across iterations for surfacing
+      const allErrors = summaries.flatMap((s) => s.errors);
+      const hasLlmResponses = summaries.some((s) =>
+        s.assistantResponses.length > 0
+      );
+
+      // Log accumulated errors
+      if (allErrors.length > 0) {
+        ctx.logger.error("Accumulated errors across iterations", {
+          count: allErrors.length,
+          errors: allErrors,
+        });
+      }
+
+      // Log zero-LLM-response condition
+      if (!hasLlmResponses && iteration > 0) {
+        ctx.logger.error(
+          "No LLM responses received across all iterations -- " +
+            "check SDK availability, API key, and network connectivity",
+          { iterations: iteration },
+        );
+      }
+
+      // Determine success: only true when completion condition was met
+      const success = completedNormally;
+      let reason: string;
+      let error: string | undefined;
+
+      if (completedNormally) {
+        reason = verdictDescription;
+      } else {
+        const maxIterations = this.getMaxIterations();
+        if (iteration >= maxIterations) {
+          reason =
+            `Maximum iterations (${maxIterations}) reached without completion`;
+        } else {
+          reason = "Agent loop exited without meeting completion condition";
+        }
+        // Surface accumulated errors
+        if (allErrors.length > 0) {
+          error = allErrors.join("; ");
+        } else if (!hasLlmResponses) {
+          error = "No LLM responses received across all iterations";
+        }
+      }
+
       const result: AgentResult = {
-        success: true,
+        success,
         iterations: iteration,
-        reason: verdictDescription,
+        reason,
         summaries,
+        ...(error && { error }),
         ...(lastCostSummary?.totalCostUsd !== undefined && {
           totalCostUsd: lastCostSummary.totalCostUsd,
         }),

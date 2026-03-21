@@ -529,6 +529,32 @@ async function main(): Promise<void> {
       console.error(`Error: ${result.error}`);
     }
 
+    // Surface per-iteration errors for diagnosis
+    if (!result.success) {
+      const iterationErrors = result.summaries
+        .filter((s) => s.errors.length > 0)
+        .map((s) => `  iteration ${s.iteration}: ${s.errors.join("; ")}`);
+      if (iterationErrors.length > 0) {
+        // deno-lint-ignore no-console
+        console.error(`Iteration errors:`);
+        for (const line of iterationErrors) {
+          // deno-lint-ignore no-console
+          console.error(line);
+        }
+      }
+      // Warn if no LLM interaction occurred at all
+      const hasAnyLlmResponse = result.summaries.some((s) =>
+        s.assistantResponses.length > 0
+      );
+      if (!hasAnyLlmResponse) {
+        // deno-lint-ignore no-console
+        console.error(
+          "WARNING: No LLM responses received. " +
+            "Check SDK availability, API key, and network connectivity.",
+        );
+      }
+    }
+
     // Finalize worktree on success
     if (result.success && worktreeResult) {
       const parentCwd = Deno.cwd();
