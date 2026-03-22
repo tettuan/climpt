@@ -929,3 +929,15 @@ export function acVerdict010UnsupportedConditionTypeInComposite(
     "agent.json",
   );
 }
+
+export function acVerdict011DetectGraphRequiresRegistry(
+  registryPath: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-VERDICT-011",
+    `detect:graph verdict type requires steps_registry.json but file not found at "${registryPath}".`,
+    `detect:graph uses StepMachineVerdictHandler which reads the step graph from steps_registry.json. Without it, the handler cannot determine completion. See design/02_core_architecture.md.`,
+    `Create steps_registry.json at the expected path, or change runner.verdict.type to a type that does not require a registry (e.g., "count:iteration").`,
+    "steps_registry.json",
+  );
+}

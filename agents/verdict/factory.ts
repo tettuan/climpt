@@ -39,6 +39,7 @@ import {
   acVerdict005UnknownCompletionType,
   acVerdict006CustomHandlerMustExportFactory,
   acVerdict007FailedToLoadCustomHandler,
+  acVerdict011DetectGraphRequiresRegistry,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -234,18 +235,8 @@ registerHandler(
       stepMachineHandler.setPromptResolver(promptResolver);
       return stepMachineHandler;
     } catch (error) {
-      // Fallback to iterate if registry not found
       if (error instanceof Deno.errors.NotFound) {
-        // deno-lint-ignore no-console
-        console.warn(
-          `[detect:graph] Steps registry not found at ${registryPath}, falling back to iterate`,
-        );
-        const iterateHandler = new IterationBudgetVerdictHandler(
-          verdictConfig.maxIterations ??
-            AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
-        );
-        iterateHandler.setPromptResolver(promptResolver);
-        return iterateHandler;
+        throw acVerdict011DetectGraphRequiresRegistry(registryPath);
       }
       throw error;
     }

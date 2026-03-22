@@ -99,7 +99,7 @@ Deno.test("StepContext - clear removes all stored outputs", () => {
 // UV Variable Conversion Tests (Design Doc: uv-stepId_key namespace)
 // =============================================================================
 
-Deno.test("StepContext - toUV converts inputs to UV variables with prefix", () => {
+Deno.test("StepContext - toUV converts inputs to UV variables with stepId_key namespace", () => {
   const ctx = new StepContextImpl();
 
   ctx.set("initial", { issue_number: 123, title: "Test" });
@@ -109,9 +109,9 @@ Deno.test("StepContext - toUV converts inputs to UV variables with prefix", () =
     issue_title: { from: "initial.title" },
   });
 
-  // UV variables have "uv-" prefix
-  assertEquals(uv["uv-issue_number"], "123");
-  assertEquals(uv["uv-issue_title"], "Test");
+  // UV keys use stepId_key namespace to avoid Channel 1 collision
+  assertEquals(uv["initial_issue_number"], "123");
+  assertEquals(uv["initial_title"], "Test");
 });
 
 Deno.test("StepContext - toUV uses default when value not found", () => {
@@ -121,7 +121,7 @@ Deno.test("StepContext - toUV uses default when value not found", () => {
     count: { from: "missing.step.count", default: "0" },
   });
 
-  assertEquals(uv["uv-count"], "0");
+  assertEquals(uv["missing_step_count"], "0");
 });
 
 Deno.test("StepContext - toUV throws when required value not found", () => {
@@ -144,7 +144,7 @@ Deno.test("StepContext - toUV omits undefined values without default", () => {
     optional: { from: "missing.value" },
   });
 
-  assertEquals(uv["uv-optional"], undefined);
+  assertEquals(uv["optional"], undefined);
   assertEquals(Object.keys(uv).length, 0);
 });
 
@@ -163,9 +163,33 @@ Deno.test("StepContext - toUV converts non-string values to string", () => {
     obj: { from: "step.object" },
   });
 
-  assertEquals(uv["uv-num"], "42");
-  assertEquals(uv["uv-bool"], "true");
-  assertEquals(uv["uv-obj"], "[object Object]");
+  assertEquals(uv["step_number"], "42");
+  assertEquals(uv["step_boolean"], "true");
+  assertEquals(uv["step_object"], "[object Object]");
+});
+
+Deno.test("StepContext - toUV handles composite stepIds with dot notation", () => {
+  const ctx = new StepContextImpl();
+  ctx.set("initial.issue", { status: "open", priority: "high" });
+
+  const uv = ctx.toUV({
+    my_status: { from: "initial.issue.status" },
+    my_priority: { from: "initial.issue.priority" },
+  });
+
+  // composite stepId "initial.issue" → dots replaced → "initial_issue"
+  assertEquals(uv["initial_issue_status"], "open");
+  assertEquals(uv["initial_issue_priority"], "high");
+});
+
+Deno.test("StepContext - toUV throws on invalid from format", () => {
+  const ctx = new StepContextImpl();
+
+  assertThrows(
+    () => ctx.toUV({ bad: { from: "nokey" } }),
+    Error,
+    "Invalid from format",
+  );
 });
 
 // =============================================================================
@@ -182,7 +206,7 @@ Deno.test("StepContext - simulates multi-step handoff flow", () => {
   const stepBInput = ctx.toUV({
     prior_finding: { from: "s_a.finding", required: true },
   });
-  assertEquals(stepBInput["uv-prior_finding"], "Performance issue in query");
+  assertEquals(stepBInput["s_a_finding"], "Performance issue in query");
 
   ctx.set("s_b", { fix: "Added index", verification_needed: true });
 
@@ -193,9 +217,9 @@ Deno.test("StepContext - simulates multi-step handoff flow", () => {
     needs_verify: { from: "s_b.verification_needed" },
   });
 
-  assertEquals(stepCInput["uv-finding"], "Performance issue in query");
-  assertEquals(stepCInput["uv-fix"], "Added index");
-  assertEquals(stepCInput["uv-needs_verify"], "true");
+  assertEquals(stepCInput["s_a_finding"], "Performance issue in query");
+  assertEquals(stepCInput["s_b_fix"], "Added index");
+  assertEquals(stepCInput["s_b_verification_needed"], "true");
 });
 
 Deno.test("StepContext - stores structured output data as handoff", () => {

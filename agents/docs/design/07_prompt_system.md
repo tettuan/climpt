@@ -105,13 +105,26 @@ User Variable。プロンプト内で `{uv-xxx}` で参照。
 | 1       | CLI parameters (agent.json)              | agent.json の parameters に宣言された全変数                                        |
 | 2       | Runner runtime (buildUvVariables)        | iteration, completed_iterations, completion_keyword                                |
 | 3       | VerdictHandler (buildContinuationPrompt) | handler 固有。remaining, previous_summary, max_iterations, check_count, max_checks |
+| 4       | StepContext handoff (InputSpec)          | `stepId_key` namespace: 前ステップの出力 (e.g., `s_a_finding`)                     |
 
 Channel 3 は VerdictHandler が `promptResolver.resolve()`
 を呼ぶ際に独自に追加する変数。`setUvVariables()` で Channel 1+2
 の変数を受け取り、handler 固有の変数をマージして供給する。
 
+### Channel 4: StepContext Handoff
+
+Channel 4 は `InputSpec.from` の参照を前ステップの出力から解決する。 UV キーは
+`stepId_key` 形式で、Channel 1 との衝突を防ぐ:
+
+- `from: "s_a.finding"` → UV key: `s_a_finding` → template: `{uv-s_a_finding}`
+- `from: "initial.issue.status"` → UV key: `initial_issue_status` → template:
+  `{uv-initial_issue_status}`
+
+複合 stepId 内のドットはアンダースコアに置換される。 解決は `StepContext.toUV()`
+が行い、`buildUvVariables()` でマージされる。
+
 > **Validator scope**: UV reachability validator (`--validate`) は Channel 1
-> (CLI parameters) のみを検証する。Channel 2, 3
+> (CLI parameters) のみを検証する。Channel 2, 3, 4
 > は実行時の関心事であり、validator は runtime 注入変数の検証を行わない。
 
 ## プロンプトテンプレート

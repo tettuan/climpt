@@ -713,9 +713,10 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
   );
 });
 
-Deno.test("WorkflowRouter - closure repeat routes to work step via transitions", () => {
-  // Per design 08_step_flow_design.md Section 3.2:
-  // Closure step repeat should route to work step, not self-loop
+Deno.test("WorkflowRouter - closure repeat stays on current step (closure routing via Stage 2.5)", () => {
+  // Closure steps never reach the router in production — they are processed
+  // by runClosureIteration → runClosureLoop (Stage 2.5). If a closure step's
+  // repeat intent does reach the router, it self-loops like any other repeat.
   const registry = createRegistry({
     "continuation.polling": {
       c2: "continuation",
@@ -739,21 +740,20 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
       },
       transitions: {
         closing: { target: null },
-        repeat: { target: "continuation.polling" }, // Routes to work step
+        repeat: { target: "continuation.polling" },
       },
     },
   });
   const router = new WorkflowRouter(registry);
 
-  // Closure step emits 'repeat' - should route to continuation (work step)
+  // Router treats closure repeat the same as any repeat: stay on current step
   const result = router.route(
     "closure.polling",
     createInterpretation({ intent: "repeat" }),
   );
 
-  assertEquals(result.nextStepId, "continuation.polling");
+  assertEquals(result.nextStepId, "closure.polling");
   assertEquals(result.signalClosing, false);
-  assert(result.reason.includes("Closure repeat"));
 });
 
 // =============================================================================

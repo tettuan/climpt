@@ -12,6 +12,7 @@ import { resolve } from "@std/path";
 import type { AgentDefinition } from "../../../agents/src_common/types.ts";
 import { createRegistryVerdictHandler } from "../../../agents/verdict/factory.ts";
 import { ExternalStateVerdictAdapter } from "../../../agents/verdict/external-state-adapter.ts";
+import { ConfigError } from "../../../agents/shared/errors/config-errors.ts";
 
 // deno-lint-ignore no-console
 const log = console.log;
@@ -74,13 +75,22 @@ const errorCases: {
   args: Record<string, unknown>;
   verdictConfig: Record<string, unknown>;
   expectedError: string;
+  agentDirOverride?: string;
 }[] = [
   {
     name: "poll:state without --issue",
     verdictType: "poll:state",
     verdictConfig: { maxIterations: 10 },
     args: {},
-    expectedError: "requires --issue",
+    expectedError: 'requires "issue" parameter',
+  },
+  {
+    name: "detect:graph with missing registry",
+    verdictType: "detect:graph",
+    verdictConfig: {},
+    args: {},
+    expectedError: "AC-VERDICT-011",
+    agentDirOverride: resolve(repoRoot, ".agent/__nonexistent_agent__"),
   },
 ];
 
@@ -191,21 +201,27 @@ log("\n--- Error Handling Tests ---");
 for (const tc of errorCases) {
   try {
     const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
-    const agentDir = resolve(repoRoot, ".agent/iterator");
+    const agentDir = tc.agentDirOverride ??
+      resolve(repoRoot, ".agent/iterator");
     // deno-lint-ignore no-await-in-loop
     await createRegistryVerdictHandler(def, tc.args, agentDir);
     logErr(`FAIL: ${tc.name} - expected error but succeeded`);
     failed++;
   } catch (error) {
     const msg = (error as Error).message;
-    if (msg.includes(tc.expectedError)) {
-      log(`  PASS: ${tc.name} -> throws "${tc.expectedError}"`);
-      passed++;
-    } else {
+    if (!msg.includes(tc.expectedError)) {
       logErr(
         `FAIL: ${tc.name} - expected "${tc.expectedError}" in error, got "${msg}"`,
       );
       failed++;
+    } else if (error instanceof ConfigError && !msg.includes(error.code)) {
+      logErr(
+        `FAIL: ${tc.name} - ConfigError code mismatch: "${error.code}"`,
+      );
+      failed++;
+    } else {
+      log(`  PASS: ${tc.name} -> throws "${tc.expectedError}"`);
+      passed++;
     }
   }
 }

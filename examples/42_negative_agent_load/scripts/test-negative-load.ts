@@ -4,13 +4,13 @@
  * Validates that the configuration loader rejects invalid inputs
  * with proper error types, without any LLM calls.
  *
- * Scenario 1: Non-existent agent path -> ConfigurationLoadError
- * Scenario 2: Broken JSON -> ConfigurationLoadError (wrapping SyntaxError)
+ * Scenario 1: Non-existent agent path -> ConfigError (AC-SERVICE-001)
+ * Scenario 2: Broken JSON -> ConfigError (AC-SERVICE-002)
  * Scenario 3: Missing required field (runner) -> validation error
  */
 
 import { join, resolve } from "@std/path";
-import { ConfigurationLoadError } from "../../../agents/config/mod.ts";
+import { ConfigError } from "../../../agents/shared/errors/config-errors.ts";
 import { loadRaw } from "../../../agents/config/loader.ts";
 import { validate } from "../../../agents/config/mod.ts";
 import type { AgentDefinition } from "../../../agents/src_common/types.ts";
@@ -43,16 +43,16 @@ log("Scenario 1: Non-existent agent path");
   const fakePath = join(repoRoot, ".agent", "nonexistent-agent-xyz-999");
   try {
     await loadRaw(fakePath);
-    logErr("  FAIL: expected ConfigurationLoadError but loadRaw succeeded");
+    logErr("  FAIL: expected ConfigError but loadRaw succeeded");
     failed++;
   } catch (err) {
-    if (err instanceof ConfigurationLoadError) {
-      log(`  PASS: ConfigurationLoadError thrown for non-existent path`);
+    if (err instanceof ConfigError && err.code === "AC-SERVICE-001") {
+      log(`  PASS: ConfigError thrown for non-existent path`);
       log(`    code: ${err.code}`);
       passed++;
     } else {
       logErr(
-        `  FAIL: expected ConfigurationLoadError, got ${
+        `  FAIL: expected ConfigError(AC-SERVICE-001), got ${
           (err as Error).constructor.name
         }: ${(err as Error).message}`,
       );
@@ -78,16 +78,16 @@ log("Scenario 2: Broken JSON");
 
   try {
     await loadRaw(brokenDir);
-    logErr("  FAIL: expected ConfigurationLoadError but loadRaw succeeded");
+    logErr("  FAIL: expected ConfigError but loadRaw succeeded");
     failed++;
   } catch (err) {
-    if (err instanceof ConfigurationLoadError) {
-      log(`  PASS: ConfigurationLoadError thrown for broken JSON`);
+    if (err instanceof ConfigError && err.code === "AC-SERVICE-002") {
+      log(`  PASS: ConfigError thrown for broken JSON`);
       log(`    code: ${err.code}`);
       passed++;
     } else {
       logErr(
-        `  FAIL: expected ConfigurationLoadError, got ${
+        `  FAIL: expected ConfigError(AC-SERVICE-002), got ${
           (err as Error).constructor.name
         }: ${(err as Error).message}`,
       );

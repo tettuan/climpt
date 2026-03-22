@@ -53,6 +53,7 @@ import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 
 import { inferStepKind } from "../common/step-registry/utils.ts";
 import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import { isRecord } from "../src_common/type-guards.ts";
 
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
@@ -407,21 +408,7 @@ export class AgentRunner {
               `[FlowLoop] C3L prompt resolved for "${stepId}"`,
               { source: flowPrompt.source, promptPath: flowPrompt.promptPath },
             );
-          } else if (!this.closureManager.stepsRegistry) {
-            // Legacy agent (no steps_registry): handler prompt is primary mechanism
-            ctx.verdictHandler.setUvVariables?.(
-              this.buildUvVariables(iteration),
-            );
-            // deno-lint-ignore no-await-in-loop
-            prompt = iteration === 1
-              ? await ctx.verdictHandler.buildInitialPrompt()
-              : await ctx.verdictHandler.buildContinuationPrompt(
-                iteration - 1,
-                lastSummary,
-              );
-            promptSource = "user";
           } else {
-            // Steps registry exists but no C3L prompt — configuration error
             throw prPromptNoC3lPrompt(stepId, iteration);
           }
           promptType = iteration === 1
@@ -799,6 +786,11 @@ export class AgentRunner {
       ctx.logger,
     );
 
+    ctx.logger.info("[CompletionLoop] Validation result", {
+      valid: validation.valid,
+      stepId: closureStepId,
+    });
+
     if (!validation.valid) {
       ctx.logger.info(
         "Validation conditions not met, will retry in next iteration",
@@ -808,6 +800,58 @@ export class AgentRunner {
         reason: "Validation conditions not met",
         retryPrompt: validation.retryPrompt ?? undefined,
       };
+    }
+
+    // Stage 2.5: Structured signal from closure step output
+    // Guard: only closure steps may emit closing/repeat signals.
+    // Non-closure steps with closing intent are a routing error.
+    ctx.logger.info("[CompletionLoop] Structured output extraction", {
+      hasStructuredOutput: !!summary.structuredOutput,
+    });
+
+    if (!closingReason && summary.structuredOutput) {
+      const so = summary.structuredOutput;
+      const nextAction = so.next_action;
+      if (isRecord(nextAction)) {
+        const action = (nextAction as Record<string, unknown>).action;
+        if (action === "closing" || action === "repeat") {
+          const stepDef = this.closureManager.stepsRegistry
+            ?.steps[stepId] as PromptStepDefinition | undefined;
+          const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+
+          if (stepKind !== "closure") {
+            throw new AgentStepRoutingError(
+              `Non-closure step "${stepId}" (kind: ${stepKind ?? "unknown"}) ` +
+                `emitted closing signal "${action}". ` +
+                `Only closure steps may emit closing/repeat signals.`,
+              { stepId },
+            );
+          }
+
+          if (action === "closing") {
+            ctx.logger.info(
+              `[CompletionLoop] Closure step structured signal: closing`,
+            );
+            await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
+            return {
+              done: true,
+              reason: "Closure step emitted closing signal",
+            };
+          }
+          // action === "repeat"
+          ctx.logger.info(
+            `[CompletionLoop] Closure step structured signal: repeat`,
+          );
+          return { done: false, reason: "Closure step requested repeat" };
+        } else if (action) {
+          ctx.logger.debug(
+            "[CompletionLoop] Structured signal action ignored",
+            {
+              action,
+            },
+          );
+        }
+      }
     }
 
     // Stage 3: Verdict
@@ -1083,6 +1127,17 @@ export class AgentRunner {
       ?.config as Record<string, unknown> | undefined;
     if (verdictConfig?.verdictKeyword) {
       uv.completion_keyword = String(verdictConfig.verdictKeyword);
+    }
+    // Channel 4: StepContext handoff - resolve inputs from previous step outputs
+    const currentStepId = this.flowOrchestrator.currentStepId;
+    if (currentStepId && this.closureManager.stepsRegistry) {
+      const stepDef = this.closureManager.stepsRegistry.steps[currentStepId];
+      if (stepDef?.inputs && this.flowOrchestrator.stepContext) {
+        const handoffUv = this.flowOrchestrator.stepContext.toUV(
+          stepDef.inputs,
+        );
+        Object.assign(uv, handoffUv);
+      }
     }
     return uv;
   }

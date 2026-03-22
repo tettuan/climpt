@@ -23,7 +23,10 @@ import { loadStepRegistry } from "../common/step-registry.ts";
 import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
-import { srGateNoStructuredGateSteps } from "../shared/errors/config-errors.ts";
+import {
+  srGateNoStructuredGateSteps,
+  srLoadNotFound,
+} from "../shared/errors/config-errors.ts";
 import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
@@ -218,12 +221,9 @@ export class ClosureManager {
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        logger.debug(
-          `Steps registry not found at ${registryPath}, using default verdict`,
-        );
-      } else {
-        logger.warn(`Failed to load steps registry: ${error}`);
+        throw srLoadNotFound(registryPath);
       }
+      throw error;
     }
   }
 
