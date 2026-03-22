@@ -2,7 +2,8 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含まれています。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude Agent SDK経由）で実行されます。
+CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含まれています。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude
+Agent SDK経由）で実行されます。
 
 ## クイックスタート
 
@@ -20,10 +21,10 @@ echo "ログインバグを修正" | deno run -A jsr:@aidevtool/climpt git decid
 
 Climptは事前に設定されたプロンプトを整理し、1つのコマンドで呼び出します。3つの利用方法：
 
-| 方法 | 説明 |
-|------|------|
-| **CLI** | コマンドラインから直接実行 |
-| **MCP** | Model Context ProtocolでClaude/Cursorと連携 |
+| 方法       | 説明                                        |
+| ---------- | ------------------------------------------- |
+| **CLI**    | コマンドラインから直接実行                  |
+| **MCP**    | Model Context ProtocolでClaude/Cursorと連携 |
 | **Plugin** | climpt-agentを使用したClaude Codeプラグイン |
 
 ### 詳細を知る
@@ -39,6 +40,7 @@ deno run -A jsr:@aidevtool/climpt <profile> <directive> <layer> [options]
 ```
 
 **例：**
+
 ```bash
 # 課題をタスクに分解
 deno run -A jsr:@aidevtool/climpt breakdown to task --from=issue.md --adaptation=detailed
@@ -49,13 +51,13 @@ echo "エラーログ" | deno run -A jsr:@aidevtool/climpt diagnose trace stack 
 
 ### 主要オプション
 
-| オプション | 短縮形 | 説明 |
-|------------|--------|------|
-| `--from` | `-f` | 入力ファイル |
-| `--destination` | `-o` | 出力パス |
-| `--edition` | `-e` | プロンプトエディション |
-| `--adaptation` | `-a` | プロンプトバリエーション |
-| `--uv-*` | - | カスタム変数 |
+| オプション      | 短縮形 | 説明                     |
+| --------------- | ------ | ------------------------ |
+| `--from`        | `-f`   | 入力ファイル             |
+| `--destination` | `-o`   | 出力パス                 |
+| `--edition`     | `-e`   | プロンプトエディション   |
+| `--adaptation`  | `-a`   | プロンプトバリエーション |
+| `--uv-*`        | -      | カスタム変数             |
 
 📖 [CLI完全リファレンス](https://tettuan.github.io/climpt/)
 
@@ -68,6 +70,7 @@ echo "エラーログ" | deno run -A jsr:@aidevtool/climpt diagnose trace stack 
 ```
 
 **テンプレート変数：**
+
 - `{input_text}` - 標準入力からのテキスト
 - `{input_text_file}` - 入力ファイルパス
 - `{destination_path}` - 出力パス
@@ -103,13 +106,15 @@ MCPでClaudeまたはCursorと連携：
 ```
 
 機能：
+
 - 自然言語によるコマンド実行
 - Gitワークフロー（コミット、ブランチ、PR）
 - プロンプト管理操作
 
 ## エージェント
 
-**前提条件**: エージェントには GitHub CLI (`gh`) のインストールと認証、および GitHub にプッシュされた Git リポジトリが必要です。
+**前提条件**: エージェントには GitHub CLI (`gh`) のインストールと認証、および
+GitHub にプッシュされた Git リポジトリが必要です。
 
 ### エージェント構成
 
@@ -124,6 +129,7 @@ MCPでClaudeまたはCursorと連携：
 ```
 
 **agent.json** の主要プロパティ：
+
 - `name`, `displayName`, `version` - エージェント識別情報
 - `runner.verdict.type` - 実行モード（後述）
 - `runner.boundaries.allowedTools` - エージェントが利用可能なツール
@@ -140,7 +146,8 @@ deno task agent --init --agent {agent-name}
 
 テンプレートファイルを含むディレクトリ構成が生成されます。
 
-**ビルダードキュメント**: エージェント設定とカスタマイズの詳細ガイドは [`agents/docs/builder/`](agents/docs/builder/) を参照。
+**ビルダードキュメント**: エージェント設定とカスタマイズの詳細ガイドは
+[`agents/docs/builder/`](agents/docs/builder/) を参照。
 
 ### エージェント実行
 
@@ -160,46 +167,70 @@ deno task agent --agent {name} --iterate-max 10
 
 ### 判定タイプ
 
-| タイプ | 説明 |
-|--------|------|
-| `poll:state` | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
-| `count:iteration` | 指定回数（`maxIterations`）反復実行 |
-| `count:check` | 指定回数（`maxChecks`）ステータス確認 |
-| `detect:keyword` | エージェントが `verdictKeyword` を出力したら終了 |
-| `detect:structured` | 構造化アクションブロック出力を検出（`signalType`） |
-| `detect:graph` | ステップステートマシンに従う（`registryPath`, `entryStep`） |
-| `meta:composite` | 複合条件（and/or/first演算子） |
-| `meta:custom` | カスタムハンドラー（`handlerPath`）を使用 |
+| タイプ              | 説明                                                          |
+| ------------------- | ------------------------------------------------------------- |
+| `poll:state`        | 外部リソース状態を監視（GitHub issue/project、ファイル、API） |
+| `count:iteration`   | 指定回数（`maxIterations`）反復実行                           |
+| `count:check`       | 指定回数（`maxChecks`）ステータス確認                         |
+| `detect:keyword`    | エージェントが `verdictKeyword` を出力したら終了              |
+| `detect:structured` | 構造化アクションブロック出力を検出（`signalType`）            |
+| `detect:graph`      | ステップステートマシンに従う（`registryPath`, `entryStep`）   |
+| `meta:composite`    | 複合条件（and/or/first演算子）                                |
+| `meta:custom`       | カスタムハンドラー（`handlerPath`）を使用                     |
 
 ### 組み込みエージェント
 
-**Iterator Agent** - 自律開発：
+エージェントは Runner（`./agents/runner`）経由で `--agent` を指定して実行する：
+
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+# Iterator - 自律開発
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent iterator --issue 123
+
+# Reviewer - コードレビュー
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent reviewer --project 1
+
+# Facilitator - プロジェクト監視
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent facilitator --project 1
 ```
 
-**Reviewer Agent** - コードレビュー：
+### エージェントドキュメント
+
+| ドキュメント           | パス                                         | 説明                                          |
+| ---------------------- | -------------------------------------------- | --------------------------------------------- |
+| クイックスタート       | `agents/docs/builder/01_quickstart.md`       | エージェント作成ガイド                        |
+| 定義リファレンス       | `agents/docs/builder/02_agent_definition.md` | agent.json フィールド                         |
+| YAML リファレンス      | `agents/docs/builder/reference/`             | 全フィールドのコメント付き解説                |
+| トラブルシューティング | `agents/docs/builder/05_troubleshooting.md`  | よくある問題と解決策                          |
+| 設計ドキュメント       | `agents/docs/design/`                        | アーキテクチャとコンセプト                    |
+| JSON スキーマ          | `agents/schemas/`                            | agent.schema.json, steps_registry.schema.json |
+
+CLIオプションは `deno task agent --help` を参照。設定の検証は
+`deno task agent --agent <name> --validate` で実行可能。
+
+## Orchestrator
+
+Orchestrator はラベル駆動の状態機械で複数エージェントを協調させる。エージェント
+ではなく、エージェントをディスパッチし Phase 遷移を管理する独立したエントリー
+ポイントである。
+
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 1
+# 単一 issue を処理
+deno task workflow --issue 123
+
+# ラベルでフィルタして処理（batch モード）
+deno task workflow --label ready --state open
+
+# ドライラン
+deno task workflow --issue 123 --dry-run --verbose
 ```
 
-**Facilitator Agent** - プロジェクト監視：
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
+# JSR エントリーポイント
+deno run -A jsr:@aidevtool/climpt/agents/orchestrator --issue 123
 ```
 
-### ドキュメント
-
-| ドキュメント | パス | 説明 |
-|-------------|------|------|
-| クイックスタート | `agents/docs/builder/01_quickstart.md` | エージェント作成ガイド |
-| 定義リファレンス | `agents/docs/builder/02_agent_definition.md` | agent.json フィールド |
-| YAML リファレンス | `agents/docs/builder/reference/` | 全フィールドのコメント付き解説 |
-| トラブルシューティング | `agents/docs/builder/05_troubleshooting.md` | よくある問題と解決策 |
-| 設計ドキュメント | `agents/docs/design/` | アーキテクチャとコンセプト |
-| JSON スキーマ | `agents/schemas/` | agent.schema.json, steps_registry.schema.json |
-
-CLIオプションは `deno task agent --help` を参照。設定の検証は `deno task agent --agent <name> --validate` で実行可能。
+ワークフローは `.agent/workflow.json` で設定する。詳細は
+[ワークフローガイド](docs/guides/ja/15-workflow-guide.md)を参照。
 
 ### 設定例
 
@@ -280,7 +311,8 @@ deno run -Ar jsr:@aidevtool/climpt/docs install ./docs
 
 ## Examples（E2E動作確認）
 
-[`examples/`](examples/) ディレクトリには、ユースケースごとに整理された実行可能なシェルスクリプトが含まれています。リリース前にこれらを実行して、エンドツーエンドの動作を確認してください：
+[`examples/`](examples/)
+ディレクトリには、ユースケースごとに整理された実行可能なシェルスクリプトが含まれています。リリース前にこれらを実行して、エンドツーエンドの動作を確認してください：
 
 ```bash
 # スクリプトに実行権限を付与
@@ -296,14 +328,14 @@ chmod +x examples/**/*.sh examples/*.sh
 ./examples/07_clean.sh
 ```
 
-| フォルダ | 説明 |
-|----------|------|
-| [01_setup/](examples/01_setup/) | インストールと初期化 |
-| [02_cli_basic/](examples/02_cli_basic/) | 基本CLIコマンド：分解、要約、欠陥分析 |
-| [03_mcp/](examples/03_mcp/) | MCPサーバー設定とIDE連携 |
-| [04_docs/](examples/04_docs/) | ドキュメントインストーラー |
-| [05_agents/](examples/05_agents/) | エージェントフレームワーク（iterator、reviewer） |
-| [06_registry/](examples/06_registry/) | レジストリ生成と構造 |
+| フォルダ                                | 説明                                             |
+| --------------------------------------- | ------------------------------------------------ |
+| [01_setup/](examples/01_setup/)         | インストールと初期化                             |
+| [02_cli_basic/](examples/02_cli_basic/) | 基本CLIコマンド：分解、要約、欠陥分析            |
+| [03_mcp/](examples/03_mcp/)             | MCPサーバー設定とIDE連携                         |
+| [04_docs/](examples/04_docs/)           | ドキュメントインストーラー                       |
+| [05_agents/](examples/05_agents/)       | エージェントフレームワーク（iterator、reviewer） |
+| [06_registry/](examples/06_registry/)   | レジストリ生成と構造                             |
 
 詳細は [`examples/README.md`](examples/README.md) を参照。
 

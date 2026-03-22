@@ -70,6 +70,20 @@ deno task workflow --label ready --state open
 
 ## workflow.json Structure
 
+### Top-Level Fields
+
+| Field          | Required | Default                     | Description                                                   |
+| -------------- | -------- | --------------------------- | ------------------------------------------------------------- |
+| `version`      | yes      | —                           | Schema version (e.g., `"1.0.0"`)                              |
+| `phases`       | yes      | —                           | Phase definitions (see below)                                 |
+| `labelMapping` | yes      | —                           | GitHub label → phase ID mapping                               |
+| `agents`       | yes      | —                           | Agent definitions (see below)                                 |
+| `rules`        | yes      | —                           | Execution constraints (see below)                             |
+| `labelPrefix`  | no       | —                           | Label namespace (e.g., `"docs"` → labels become `docs:ready`) |
+| `issueStore`   | no       | `{ path: ".agent/issues" }` | Local issue storage directory                                 |
+| `handoff`      | no       | —                           | Inter-agent handoff comment templates                         |
+| `prioritizer`  | no       | —                           | Prioritizer agent configuration (required for `--prioritize`) |
+
 ### phases
 
 Defines the workflow states. Each phase has a `type`:
@@ -77,6 +91,12 @@ Defines the workflow states. Each phase has a `type`:
 - `actionable` — An agent runs. Requires `agent` and `priority`.
 - `terminal` — Workflow ends.
 - `blocking` — Waits for human intervention.
+
+| Field      | Required       | Description                                                      |
+| ---------- | -------------- | ---------------------------------------------------------------- |
+| `type`     | yes            | `"actionable"`, `"terminal"`, or `"blocking"`                    |
+| `priority` | for actionable | Lower number = higher priority. Used when multiple labels match. |
+| `agent`    | for actionable | Agent ID to dispatch (must exist in `agents`)                    |
 
 ### labelMapping
 
@@ -92,12 +112,30 @@ Defines agent behavior:
 - **Validator** (`role: "validator"`) — Multiple outputs via `outputPhases` map
   (e.g., `approved` → complete, `rejected` → revision).
 
+| Field           | Required        | Description                                                 |
+| --------------- | --------------- | ----------------------------------------------------------- |
+| `role`          | yes             | `"transformer"` or `"validator"`                            |
+| `directory`     | no              | Agent directory name under `.agent/` (defaults to agent ID) |
+| `outputPhase`   | for transformer | Target phase on success                                     |
+| `outputPhases`  | for validator   | Outcome key → target phase mapping                          |
+| `fallbackPhase` | no              | Target phase on error (typically `"blocked"`)               |
+
 ### rules
 
-| Field        | Default | Description                            |
-| ------------ | ------- | -------------------------------------- |
-| maxCycles    | 5       | Max transitions per issue (loop guard) |
-| cycleDelayMs | 5000    | Delay between cycles (ms)              |
+| Field          | Default | Description                            |
+| -------------- | ------- | -------------------------------------- |
+| `maxCycles`    | 5       | Max transitions per issue (loop guard) |
+| `cycleDelayMs` | 5000    | Delay between cycles (ms)              |
+
+### prioritizer
+
+Required when using `--prioritize`. Configures the priority assignment agent.
+
+| Field          | Required | Description                                                   |
+| -------------- | -------- | ------------------------------------------------------------- |
+| `agent`        | yes      | Agent ID to dispatch for prioritization                       |
+| `labels`       | yes      | Allowed priority labels in order (e.g., `["P1", "P2", "P3"]`) |
+| `defaultLabel` | no       | Fallback label when priority is missing or invalid            |
 
 ## Running Workflows
 
@@ -124,20 +162,38 @@ deno task workflow --label ready --prioritize
 deno task workflow --label P1 --label docs --state open --limit 10
 ```
 
+### `--label` vs `labelPrefix`
+
+`--label` and `labelPrefix` are independent concepts:
+
+| Concept       | Where           | What it does                                                                |
+| ------------- | --------------- | --------------------------------------------------------------------------- |
+| `--label`     | CLI argument    | Filters which issues to fetch from GitHub (`gh issue list --label <value>`) |
+| `labelPrefix` | `workflow.json` | Namespaces workflow labels (e.g., `ready` becomes `docs:ready`)             |
+
+`--label` selects issues to process. `labelPrefix` controls how the orchestrator
+reads and writes phase labels during transitions. They do not affect each other.
+
+Example: `--label docs` fetches issues that have a `docs` label. The
+orchestrator then reads the issue's other labels (e.g., `ready`) to resolve the
+current phase and manages transitions using `labelMapping`. The `docs` label
+itself is not in `labelMapping`, so it remains untouched throughout the
+workflow.
+
 ### CLI Options
 
-| Option         | Type    | Default                | Description                               |
-| -------------- | ------- | ---------------------- | ----------------------------------------- |
-| `--issue`      | number  | —                      | Process a single issue (skips batch sync) |
-| `--workflow`   | string  | `.agent/workflow.json` | Workflow file path                        |
-| `--label`      | string  | —                      | Label filter (repeatable, batch mode)     |
-| `--repo`       | string  | current                | Repository (`owner/repo`)                 |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`                 |
-| `--limit`      | number  | `30`                   | Max issues to fetch                       |
-| `--prioritize` | boolean | false                  | Run prioritizer only (batch mode)         |
-| `--verbose`    | boolean | false                  | Detailed log output                       |
-| `--dry-run`    | boolean | false                  | Show what would happen without acting     |
-| `--local`      | boolean | false                  | Use local IssueStore (skip GitHub sync)   |
+| Option         | Type    | Default                | Description                                  |
+| -------------- | ------- | ---------------------- | -------------------------------------------- |
+| `--issue`      | number  | —                      | Process a single issue (skips batch sync)    |
+| `--workflow`   | string  | `.agent/workflow.json` | Workflow file path                           |
+| `--label`      | string  | —                      | GitHub issue filter (repeatable, batch mode) |
+| `--repo`       | string  | current                | Repository (`owner/repo`)                    |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                    |
+| `--limit`      | number  | `30`                   | Max issues to fetch                          |
+| `--prioritize` | boolean | false                  | Run prioritizer only (batch mode)            |
+| `--verbose`    | boolean | false                  | Detailed log output                          |
+| `--dry-run`    | boolean | false                  | Show what would happen without acting        |
+| `--local`      | boolean | false                  | Use local IssueStore (skip GitHub sync)      |
 
 ## Understanding Output
 
