@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.7] - 2026-03-22
+
+### Fixed
+- Workflow `--dry-run` now exits 0 for actionable issues (was always exit 1)
+- Empty/all-terminal batch returns status `"completed"` (was `"partial"` causing exit 1)
+- `--prioritize` without `prioritizer` config now throws `ConfigError` WF-BATCH-001 (was silent fallback)
+- `--prioritize` with `--dry-run` no longer writes to IssueStore or pushes labels
+- Defensive silent-completion paths in workflow router converted to explicit `RoutingError`
+- Backward-compat fallback for handoff without transition removed (now throws `RoutingError`)
+
+### Added
+- ConfigError catalog: 71 centralized error factories with SR/AC/WF/PR code prefixes (`config-errors.ts`)
+- StepContext Channel 4 handoff: `stepId_key` namespace UV variables via `toUV()` (`step-context.ts`)
+- CompletionLoopProcessor: extracted from runner as independent module (`completion-loop-processor.ts`)
+- Orchestrator design doc with status/exit code tables (`12_orchestrator.md`)
+- Workflow E2E examples 32-55 covering config, resolution, batch, handoff, and dual-loop scenarios
+
+### Changed
+- Flow Loop enforces C3L-only prompt resolution (no fallback prompt paths)
+- Batch status determined by `errorCount` (caught exceptions), not by presence of skipped issues
+
+### Removed
+- Dead CLI entry points: `agents/cli.ts`, `agents/runner/cli.ts` (replaced by `run-agent.ts`)
+- Defensive `intentField` fallback in StepGateInterpreter (field is required in type)
+- Unused imports: `RoutingResult`, `PATHS`, `lastSummary` in runner modules
+
 ## [1.13.6] - 2026-03-16
 
 ### Changed

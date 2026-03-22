@@ -13,6 +13,13 @@ import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
+import {
+  prResolveMissingInputText,
+  prResolveMissingRequiredUv,
+  prResolveNoFallback,
+  prResolveUnknownStepId,
+  prResolveUvNotProvided,
+} from "../shared/errors/config-errors.ts";
 
 /**
  * Result of prompt resolution
@@ -157,7 +164,7 @@ export class PromptResolver {
     variables = variables ?? {};
     const step = this.registry.steps[stepId];
     if (!step) {
-      throw new Error(`Unknown step ID: "${stepId}"`);
+      throw prResolveUnknownStepId(stepId);
     }
 
     // Apply adaptation override if provided
@@ -244,9 +251,7 @@ export class PromptResolver {
   ): PromptResolutionResult {
     const rawContent = this.fallbackProvider.getPrompt(step.fallbackKey);
     if (!rawContent) {
-      throw new Error(
-        `No fallback prompt found for key: "${step.fallbackKey}" (step: ${step.stepId})`,
-      );
+      throw prResolveNoFallback(step.fallbackKey, step.stepId);
     }
 
     // deno-lint-ignore no-console
@@ -313,14 +318,7 @@ export class PromptResolver {
       for (const uvName of step.uvVariables) {
         const key = uvName.startsWith("uv-") ? uvName.slice(3) : uvName;
         if (!variables.uv?.[key]) {
-          throw new Error(
-            `Missing required UV variable "${uvName}" for step "${step.stepId}".` +
-              ` Check: (1) "${uvName}" exists in agent.json parameters,` +
-              ` (2) uvVariables in steps_registry.json includes "${uvName}".` +
-              ` If step was derived via prefix substitution` +
-              ` (initial.* -> continuation.*),` +
-              ` ensure both steps declare the same uvVariables.`,
-          );
+          throw prResolveMissingRequiredUv(uvName, step.stepId);
         }
       }
     }
@@ -329,18 +327,14 @@ export class PromptResolver {
     if (
       !this.allowMissingVariables && step.usesStdin && !variables.inputText
     ) {
-      throw new Error(
-        `Step "${step.stepId}" requires input_text but none provided`,
-      );
+      throw prResolveMissingInputText(step.stepId);
     }
 
     // Substitute UV variables {uv-xxx}
     let result = content.replace(/\{uv-(\w+)\}/g, (_match, name) => {
       const value = variables.uv?.[name];
       if (value === undefined && !this.allowMissingVariables) {
-        throw new Error(
-          `UV variable "${name}" not provided for step "${step.stepId}"`,
-        );
+        throw prResolveUvNotProvided(name, step.stepId);
       }
       return value ?? "";
     });

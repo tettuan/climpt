@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(initial|continuation|closure|retry)$"
+      pattern: "^(initial|closure)$"
     layerType:
-      pattern: "^(issue|default|review)$"
+      pattern: "^(review)$"

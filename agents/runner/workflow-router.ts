@@ -43,6 +43,22 @@ export interface RoutingResult {
 import { RoutingError } from "../shared/errors/flow-errors.ts";
 export { RoutingError };
 
+import {
+  ConfigError,
+  srIntentNotAllowed,
+  srTransEscalateInvalid,
+  srTransEscalateNoTransition,
+  srTransEscalateTargetNotFound,
+  srTransHandoffNoTransition,
+  srTransHandoffNullTarget,
+  srTransHandoffTargetNotFound,
+  srTransJumpTargetNotFound,
+  srTransNoContinuation,
+  srTransTargetNotFound,
+  srTransTerminalNotAllowed,
+} from "../shared/errors/config-errors.ts";
+export { ConfigError };
+
 /**
  * Minimal logger interface for WorkflowRouter.
  * Accepts the RuntimeContext logger or any object with an info() method.
@@ -105,26 +121,9 @@ export class WorkflowRouter {
       };
     }
 
-    // Handle repeat - stay on current step, except for closure steps
-    // Per design 08_step_flow_design.md Section 3.2: closure repeat routes to work step via transitions
     if (intent === "repeat") {
-      if (stepDef?.c2 === STEP_PHASE.CLOSURE && stepDef.transitions?.repeat) {
-        const transitionRule = stepDef.transitions.repeat;
-        const resolved = this.resolveTransitionRule(
-          transitionRule,
-          interpretation,
-        );
-        if (
-          resolved.nextStepId && this.validateStepExists(resolved.nextStepId)
-        ) {
-          return {
-            nextStepId: resolved.nextStepId,
-            signalClosing: false,
-            reason: interpretation.reason ??
-              `Closure repeat -> ${resolved.nextStepId}`,
-          };
-        }
-      }
+      // Closure steps never reach the router — processed by
+      // runClosureIteration → runClosureLoop (Stage 2.5).
       return {
         nextStepId: currentStepId,
         signalClosing: false,
@@ -146,11 +145,7 @@ export class WorkflowRouter {
     // Handle jump with explicit target
     if (intent === "jump" && target) {
       if (!this.validateStepExists(target)) {
-        throw new RoutingError(
-          `Target step '${target}' does not exist in registry`,
-          currentStepId,
-          intent,
-        );
+        throw srTransJumpTargetNotFound(target, currentStepId);
       }
       return {
         nextStepId: target,
@@ -185,21 +180,17 @@ export class WorkflowRouter {
           interpretation,
         );
 
-        // Handle terminal transition (target: null)
+        // Terminal transition (target: null) is only valid for closing intent,
+        // which is handled earlier. For other intents, this is a config error.
         if (resolved.isTerminal) {
-          return {
-            nextStepId: currentStepId,
-            signalClosing: true,
-            reason: interpretation.reason ??
-              `Terminal transition: ${intent} -> completion`,
-          };
+          throw srTransTerminalNotAllowed(currentStepId, intent);
         }
 
         // Handle normal transition
         if (resolved.nextStepId) {
           if (!this.validateStepExists(resolved.nextStepId)) {
-            throw new RoutingError(
-              `Transition target '${resolved.nextStepId}' does not exist in registry`,
+            throw srTransTargetNotFound(
+              resolved.nextStepId,
               currentStepId,
               intent,
             );
@@ -301,13 +292,9 @@ export class WorkflowRouter {
       }
     }
 
-    // If no continuation step, signal completion
-    return {
-      nextStepId: currentStepId,
-      signalClosing: true,
-      reason: interpretation.reason ??
-        "No explicit transition or continuation step",
-    };
+    // No continuation step found — this is a configuration error.
+    // Initial steps must have a corresponding continuation step or explicit transitions.
+    throw srTransNoContinuation(currentStepId, interpretation.intent);
   }
 
   /**
@@ -349,12 +336,7 @@ export class WorkflowRouter {
 
     // Check if intent is allowed for this step kind
     if (!allowedIntents.includes(intent as never)) {
-      throw new RoutingError(
-        `Intent '${intent}' not allowed for ${stepKind} step '${stepId}'. ` +
-          `Allowed intents: ${allowedIntents.join(", ")}`,
-        stepId,
-        intent,
-      );
+      throw srIntentNotAllowed(intent, stepKind, stepId, allowedIntents);
     }
   }
 
@@ -388,10 +370,9 @@ export class WorkflowRouter {
       if ("target" in transitionRule) {
         if (transitionRule.target) {
           if (!this.validateStepExists(transitionRule.target)) {
-            throw new RoutingError(
-              `Handoff target '${transitionRule.target}' does not exist in registry`,
+            throw srTransHandoffTargetNotFound(
+              transitionRule.target,
               currentStepId,
-              "handoff",
             );
           }
           return {
@@ -402,25 +383,17 @@ export class WorkflowRouter {
             warning: initialStepWarning,
           };
         }
-        // target: null means signal completion
+        // Handoff must point to an existing step (typically a closure step).
+        // target: null is a configuration error for handoff.
         if (transitionRule.target === null) {
-          return {
-            nextStepId: currentStepId,
-            signalClosing: true,
-            reason: interpretation.reason ?? "Handoff: terminal transition",
-            warning: initialStepWarning,
-          };
+          throw srTransHandoffNullTarget(currentStepId);
         }
       }
     }
 
-    // No transition defined - signal completion for backward compatibility
-    return {
-      nextStepId: currentStepId,
-      signalClosing: true,
-      reason: interpretation.reason ?? "Intent: handoff (no transition)",
-      warning: initialStepWarning,
-    };
+    // No transition defined — this is a configuration error.
+    // Handoff requires an explicit transition rule in steps_registry.
+    throw srTransHandoffNoTransition(currentStepId);
   }
 
   /**
@@ -437,21 +410,15 @@ export class WorkflowRouter {
   ): RoutingResult {
     const stepDef = this.getStepDefinition(currentStepId);
     if (!stepDef?.transitions?.escalate) {
-      throw new RoutingError(
-        `No 'escalate' transition defined for step '${currentStepId}'. ` +
-          `Verification steps that use 'escalate' intent must define a transition target.`,
-        currentStepId,
-        "escalate",
-      );
+      throw srTransEscalateNoTransition(currentStepId);
     }
 
     const transitionRule = stepDef.transitions.escalate;
     if ("target" in transitionRule && transitionRule.target) {
       if (!this.validateStepExists(transitionRule.target)) {
-        throw new RoutingError(
-          `Escalate target '${transitionRule.target}' does not exist in registry`,
+        throw srTransEscalateTargetNotFound(
+          transitionRule.target,
           currentStepId,
-          "escalate",
         );
       }
       return {
@@ -462,11 +429,6 @@ export class WorkflowRouter {
       };
     }
 
-    throw new RoutingError(
-      `Invalid 'escalate' transition for step '${currentStepId}'. ` +
-        `Must specify a target step.`,
-      currentStepId,
-      "escalate",
-    );
+    throw srTransEscalateInvalid(currentStepId);
   }
 }

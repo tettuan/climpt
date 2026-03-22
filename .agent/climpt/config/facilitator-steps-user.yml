@@ -2,6 +2,6 @@
 params:
   two:
     directiveType:
-      pattern: "^(initial|continuation|closure|retry)$"
+      pattern: "^(initial|closure)$"
     layerType:
-      pattern: "^(discover|statuscheck|blockercheck|stalecheck|judge|facilitate|report|facilitation|complete)$"
+      pattern: "^(statuscheck|facilitation)$"

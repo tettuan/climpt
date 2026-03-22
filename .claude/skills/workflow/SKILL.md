@@ -1,6 +1,8 @@
 ---
 name: workflow
-description: How to approach work. Applies to all tasks including implementation, planning, investigation, design, review, and auditing.
+description: Orchestrate complex multi-step tasks using conductor pattern with sub-agent delegation. Use when a task requires 3+ steps, multi-file changes, or investigation before implementation.
+allowed-tools: [Read, Write, Edit, Agent, Bash]
+argument-hint: [task-description]
 ---
 
 # Workflow
@@ -17,13 +19,13 @@ flowchart LR
 
 ## Conductor Pattern
 
-Delegate all investigation and implementation to Sub Agents to preserve context for decision-making.
+Delegate all investigation and implementation to sub agents to preserve context for decision-making.
 
 | Do | Do NOT |
 |----|--------|
 | Plan, delegate, judge, integrate | Explore files, write code, run tests |
 | Record progress after each ToDo | Work on multiple ToDos simultaneously |
-| Launch parallel Sub Agents for independent tasks | Hold context that Sub Agents should hold |
+| Launch parallel sub agents for independent tasks | Hold context that sub agents should hold |
 
 ### Delegation criteria
 
@@ -34,7 +36,7 @@ Delegate all investigation and implementation to Sub Agents to preserve context 
 
 When in doubt, delegate. Conductor loses sight of the goal when immersed in hands-on work.
 
-### Sub Agent types
+### Sub agent types
 
 | Purpose | Agent Type |
 |---------|-----------|
@@ -42,33 +44,43 @@ When in doubt, delegate. Conductor loses sight of the goal when immersed in hand
 | Design comparison | Plan |
 | Implement, test, verify | general-purpose |
 
+### Agent tool parameters
+
+| Parameter | Values | When to use |
+|-----------|--------|-------------|
+| `subagent_type` | `Explore`, `Plan`, `general-purpose` | Match to task purpose |
+| `run_in_background` | `true` | Independent tasks that don't block next steps |
+| `isolation` | `"worktree"` | Parallel implementation agents editing files |
+| `model` | `sonnet`, `haiku`, `opus` | Cost optimization (e.g., haiku for exploration) |
+
+> Sub agents cannot spawn other sub agents. Design delegation as a flat structure: conductor -> sub agents. Never instruct a sub agent to further delegate.
+
 ### Coordination protocol
 
 | Phase | Conductor action |
 |-------|-----------------|
-| Launch | Specify goal, input, expected output, and output path in Task prompt |
-| Parallel | Call multiple Task tools in one message for independent tasks |
+| Launch | Specify goal, input, expected output, and output path in Agent prompt |
+| Parallel | Call multiple Agent tools in one message for independent tasks |
 | Receive | Read result, compare against Done Criteria |
-| Conflict | Judge manual merge when Sub Agents edit the same file |
-| Failure | Re-launch with revised prompt, or launch additional Sub Agent |
+| Conflict | Judge manual merge when sub agents edit the same file |
+| Failure: incomplete | Resume via SendMessage with clarifying prompt |
+| Failure: wrong target | Discard result, re-launch with explicit file paths |
+| Failure: scope exceeded | Extract relevant portion, re-scope next delegation |
 | Merge | Record integrated results in progress.md |
 
 ## Rules
 
 | # | Rule |
 |---|------|
-| 1 | Conductor delegates all hands-on work to Sub Agents |
-| 2 | Externalize thinking to `tmp/<task>/` (plan.md, progress.md, analysis.md) |
-| 3 | Complete one → record → next. No self-parallelism (Sub Agent parallelism is fine) |
-| 4 | Decompose Plan into ToDos via TaskCreate |
+| 1 | Conductor delegates all hands-on work to sub agents. Match agent type to task: explore=Explore / design=Plan / implement+verify=general-purpose |
+| 2 | Externalize thinking to `tmp/<task>/` (plan.md, progress.md). This is the conductor's only hands-on work -- all other file operations delegate to sub agents |
+| 3 | Complete one -> record -> next. No self-parallelism (sub agent parallelism is fine) |
+| 4 | Decompose Plan into ToDos via Agent tool |
 | 5 | Team table in plan.md. First row is always Conductor. 1 role = 1 purpose |
-| 6 | Delegate by type: explore=Explore / design=Plan / implement+verify=general-purpose |
-| 7 | Define Done Criteria first. Incomplete until all items pass |
-| 8 | Record to progress.md immediately on completion |
-| 9 | Technical decisions: decide without asking. Policy decisions: present options with recommendation |
-| 10 | Visualize dependencies and ToDo map in analysis.md with Mermaid |
-| 11 | Delegate detailed procedures to specialized skills. When direction is unclear, use `thinking-method` skill |
-| 12 | Structural code changes (module moves, renames, old path deletions) require `refactoring` skill first |
+| 6 | Define Done Criteria first. Incomplete until all items pass |
+| 7 | Record to progress.md immediately on completion |
+| 8 | Technical decisions: decide without asking. Policy decisions: present options with recommendation |
+| 9 | Delegate detailed procedures to specialized skills. Structural code changes (module moves, renames, old path deletions) require `refactoring` skill first |
 
 ---
 
@@ -78,8 +90,7 @@ When in doubt, delegate. Conductor loses sight of the goal when immersed in hand
 tmp/<task>/
 ├── plan.md        # Goal, Done Criteria, Team, Approach, Scope
 ├── progress.md    # Incremental records
-├── analysis.md    # Mermaid diagrams
-└── investigation/ # Sub Agent results
+└── investigation/ # Sub agent results
 ```
 
 ## Plan template
@@ -87,6 +98,7 @@ tmp/<task>/
 ```markdown
 # Plan: <task name>
 ## Goal
+$ARGUMENTS
 ## Done Criteria
 - [ ] <checkable condition>
 ## Team
@@ -117,9 +129,9 @@ Append after each ToDo completion. Separate What/Why (rationale) from How (proce
 |--------|---------|-----|-----|
 | A (recommended) | | | |
 | B | | | |
-→ Proceed with A?
+> Proceed with A?
 ```
 
 ## Reference
 
-For agent type mapping, conflict resolution, and Task prompt structure, read `delegation-protocol.md` in this skill's directory.
+For agent type mapping, conflict resolution, and Agent prompt structure, read `delegation-protocol.md` in this skill's directory.

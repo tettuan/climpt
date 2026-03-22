@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "phases": {
+    "implementation": {
+      "type": "actionable",
+      "priority": 2,
+      "agent": "iterator"
+    },
+    "review": { "type": "actionable", "priority": 1, "agent": "reviewer" },
+    "revision": { "type": "actionable", "priority": 3, "agent": "iterator" },
+    "complete": { "type": "terminal" },
+    "blocked": { "type": "blocking" }
+  },
+  "labelMapping": {
+    "ready": "implementation",
+    "review": "review",
+    "implementation-gap": "revision",
+    "done": "complete",
+    "blocked": "blocked"
+  },
+  "agents": {
+    "iterator": {
+      "role": "transformer",
+      "outputPhase": "review",
+      "fallbackPhase": "blocked"
+    },
+    "reviewer": {
+      "role": "validator",
+      "outputPhases": { "approved": "complete", "rejected": "revision" },
+      "fallbackPhase": "blocked"
+    }
+  },
+  "rules": { "maxCycles": 5, "cycleDelayMs": 0 },
+  "issueStore": { "path": ".agent/issues" }
+}

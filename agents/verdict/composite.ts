@@ -18,6 +18,7 @@ import {
   type IterationSummary,
   type VerdictCriteria,
   type VerdictHandler,
+  type VerdictStepIds,
 } from "./types.ts";
 import { IterationBudgetVerdictHandler } from "./iteration-budget.ts";
 import { KeywordSignalVerdictHandler } from "./keyword-signal.ts";
@@ -27,6 +28,11 @@ import { IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
 import { ExternalStateVerdictAdapter } from "./external-state-adapter.ts";
 import { AGENT_LIMITS } from "../shared/constants.ts";
+import {
+  acVerdict008DetectStructuredConditionRequiresSignalType,
+  acVerdict009PollStateConditionRequiresIssue,
+  acVerdict010UnsupportedConditionTypeInComposite,
+} from "../shared/errors/config-errors.ts";
 
 export type CompositeOperator = "and" | "or" | "first";
 
@@ -48,6 +54,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
     private readonly args: Record<string, unknown>,
     private readonly _agentDir: string,
     private readonly _definition: AgentDefinition,
+    private readonly stepIds?: VerdictStepIds,
   ) {
     super();
     this.initializeHandlers();
@@ -67,6 +74,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
           handler = new IterationBudgetVerdictHandler(
             config.maxIterations ??
               AGENT_LIMITS.VERDICT_FALLBACK_MAX_ITERATIONS,
+            this.stepIds,
           );
           break;
         }
@@ -74,6 +82,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "detect:keyword": {
           handler = new KeywordSignalVerdictHandler(
             config.verdictKeyword ?? "TASK_COMPLETE",
+            this.stepIds,
           );
           break;
         }
@@ -81,19 +90,19 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "count:check": {
           handler = new CheckBudgetVerdictHandler(
             config.maxChecks ?? 10,
+            this.stepIds,
           );
           break;
         }
 
         case "detect:structured": {
           if (!config.signalType) {
-            throw new Error(
-              "detect:structured condition requires signalType in config",
-            );
+            throw acVerdict008DetectStructuredConditionRequiresSignalType();
           }
           handler = new StructuredSignalVerdictHandler(
             config.signalType,
             config.requiredFields,
+            this.stepIds,
           );
           break;
         }
@@ -101,11 +110,7 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
         case "poll:state": {
           const issueNumber = this.args.issue as number | undefined;
           if (issueNumber === undefined || issueNumber === null) {
-            throw new Error(
-              "poll:state condition in composite requires --issue parameter. " +
-                'Ensure agent.json declares issue in "parameters": ' +
-                '{ "issue": { "type": "number", "required": true, "cli": "--issue" } }',
-            );
+            throw acVerdict009PollStateConditionRequiresIssue();
           }
           const repo = this.args.repository as string | undefined;
           const stateChecker = new GitHubStateChecker(repo);
@@ -120,14 +125,12 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
               labels?: { completion?: { add?: string[]; remove?: string[] } };
               defaultClosureAction?: string;
             },
-          });
+          }, this.stepIds);
           break;
         }
 
         default:
-          throw new Error(
-            `Unsupported condition type in composite: ${condition.type}`,
-          );
+          throw acVerdict010UnsupportedConditionTypeInComposite(condition.type);
       }
 
       this.handlers.push(handler);

@@ -23,7 +23,10 @@ import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
 import type { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import type { RoutingResult, WorkflowRouter } from "./workflow-router.ts";
-import { PATHS } from "../shared/paths.ts";
+import {
+  srGateNoEntryStep,
+  srGateNoRoutedStepId,
+} from "../shared/errors/config-errors.ts";
 
 export interface FlowOrchestratorDeps {
   readonly definition: AgentDefinition;
@@ -80,11 +83,7 @@ export class FlowOrchestrator {
     // For iteration > 1, require routed step ID
     if (iteration > 1) {
       if (!this.currentStepId) {
-        throw new Error(
-          `[StepFlow] No routed step ID for iteration ${iteration}. ` +
-            `All Flow steps must define structuredGate with transitions. ` +
-            `Check ${PATHS.STEPS_REGISTRY} for missing gate configuration.`,
-        );
+        throw srGateNoRoutedStepId(iteration);
       }
       return this.currentStepId;
     }
@@ -105,10 +104,7 @@ export class FlowOrchestrator {
     }
 
     // No implicit fallback - entry step must be explicitly configured
-    throw new Error(
-      `[StepFlow] No entry step configured for verdictType "${verdictType}". ` +
-        `Define either "entryStepMapping.${verdictType}" or "entryStep" in ${PATHS.STEPS_REGISTRY}.`,
-    );
+    throw srGateNoEntryStep(verdictType);
   }
 
   /**

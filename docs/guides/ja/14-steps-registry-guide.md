@@ -398,6 +398,19 @@ No fallback prompt found for key: "initial.issue" (step: initial.issue)
 }
 ```
 
+AI が closure ステップから `closing` intent を返しても、Runner
+は即座に終了しません。 先に設定された `validationConditions` を実行します:
+
+1. AI が closure ステップから `closing` intent を返す
+2. `validationConditions` の各バリデータを順次実行
+3. **全て PASS** → Agent が正常終了
+4. **いずれか FAIL** → マッチする `failurePattern`
+   がリトライプロンプトを選択し、作業を続行（`closing` は完了として扱われない）
+
+つまり `closing` は **完了トリガー** であり、完了そのものではありません。 Agent
+が終了するのは全バリデータが通過したときだけです。`onFailure.maxAttempts`
+が設定されている場合、リトライ回数はその値に制限されます。
+
 ## 14.6 failurePatterns
 
 失敗パターンはバリデーション失敗を C3L の edition/adaptation バリアントに

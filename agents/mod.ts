@@ -96,10 +96,5 @@ export {
   type VerdictHandler,
 } from "./verdict/mod.ts";
 
-// === Init and Runtime ===
+// === Init ===
 export { initAgent } from "./init.ts";
-export { run } from "./cli.ts";
-
-// To run agents, use the unified runner:
-//   deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123
-//   deno run -A agents/scripts/run-agent.ts --agent reviewer --project 5

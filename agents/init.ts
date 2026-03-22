@@ -151,7 +151,7 @@ export async function initAgent(
         c3: "manual",
         edition: "default",
         stepKind: "work",
-        fallbackKey: "manual_initial_default",
+        fallbackKey: "initial_manual",
         uvVariables: ["uv-topic", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
@@ -168,7 +168,7 @@ export async function initAgent(
         c3: "manual",
         edition: "default",
         stepKind: "work",
-        fallbackKey: "manual_continuation_default",
+        fallbackKey: "continuation_manual",
         uvVariables: ["uv-iteration", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {

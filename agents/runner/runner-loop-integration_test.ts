@@ -258,6 +258,18 @@ Deno.test("AgentRunner.run - pendingRetryPrompt is included in next iteration pr
   // Install minimal registry so flow orchestrator can resolve steps
   stubInitializeValidation(runner);
 
+  // Stub stepPromptResolver so resolveFlowStepPrompt() returns a prompt
+  // (required when stepsRegistry exists, after Phase C C3L-only enforcement)
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "fallback" as const,
+        promptPath: "stub",
+      }),
+  };
+
   // Track prompts received by executeQuery
   const receivedPrompts: string[] = [];
   const retryPromptText = "Validation failed: git is dirty. Please fix.";
@@ -358,6 +370,17 @@ Deno.test("AgentRunner.run - schemaResolutionFailed skips step gate routing", as
   // Install minimal registry
   stubInitializeValidation(runner);
 
+  // Stub stepPromptResolver (C3L-only enforcement)
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "fallback" as const,
+        promptPath: "stub",
+      }),
+  };
+
   stubExecuteQuery(runner, () => {
     return createSummary({
       iteration: 1,
@@ -437,6 +460,17 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
   // Install minimal registry
   stubInitializeValidation(runner);
 
+  // Stub stepPromptResolver (C3L-only enforcement)
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "fallback" as const,
+        promptPath: "stub",
+      }),
+  };
+
   stubExecuteQuery(runner, (callIndex) => {
     return createSummary({
       iteration: callIndex + 1,
@@ -465,12 +499,12 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
   });
 
   // AgentMaxIterationsError is NOT thrown - the loop breaks and returns.
-  // result.success is true because the break exits the try block normally.
+  // result.success is false because max iterations was reached without completion.
   assertEquals(result.iterations, 2, "Should have run exactly 2 iterations");
   assertEquals(
     result.success,
-    true,
-    "Run completes (breaks from loop, no throw)",
+    false,
+    "Max iterations without completion is a failure",
   );
 
   // Verify that an AgentMaxIterationsError was emitted via event
@@ -494,4 +528,112 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
     l.message.includes("Maximum iterations")
   );
   assertExists(maxIterWarn, "Should log a warning about max iterations");
+});
+
+// =============================================================================
+// Test 4: setCurrentSummary receives IterationSummary from QueryExecutor
+// =============================================================================
+
+/**
+ * Create a capturing VerdictHandler that records each IterationSummary
+ * passed to setCurrentSummary(), then finishes after the first iteration.
+ */
+function createCapturingVerdictHandler(): VerdictHandler & {
+  captured: IterationSummary[];
+} {
+  const captured: IterationSummary[] = [];
+  return {
+    type: "count:iteration",
+    buildInitialPrompt: () => Promise.resolve("Test initial prompt"),
+    buildContinuationPrompt: () => Promise.resolve("Test continuation prompt"),
+    buildVerdictCriteria: () => ({
+      short: "Test criteria",
+      detailed: "Detailed test criteria",
+    }),
+    isFinished: () => Promise.resolve(true), // finish after 1 iteration
+    getVerdictDescription: () => Promise.resolve("Test verdict"),
+    setCurrentSummary: (summary: IterationSummary) => {
+      captured.push(summary);
+    },
+    captured,
+  };
+}
+
+Deno.test("AgentRunner.run - setCurrentSummary receives IterationSummary from QueryExecutor", async () => {
+  logger.debug("setCurrentSummary capture test start");
+
+  const mockLog = createMockLogger();
+  const handler = createCapturingVerdictHandler();
+  const deps = createFakeDependencies(mockLog, handler);
+  const definition = createTestDefinition({ maxIterations: 5 });
+  const runner = new AgentRunner(definition, deps);
+
+  // Install minimal registry so flow orchestrator can resolve steps
+  stubInitializeValidation(runner);
+
+  // Stub stepPromptResolver on closureManager so resolveFlowStepPrompt()
+  // returns a prompt instead of null (which would throw when stepsRegistry exists).
+  // deno-lint-ignore no-explicit-any
+  const cm = (runner as any).closureManager;
+  cm.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "fallback" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  // Prepare the summary that QueryExecutor will return
+  const expectedAssistantResponses = [
+    'I have completed the task.\n```test-signal\n{"status": "done"}\n```',
+  ];
+  const expectedStructuredOutput = {
+    signal: "test-signal",
+    status: "done",
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-capture",
+      assistantResponses: expectedAssistantResponses,
+      toolsUsed: ["Bash", "Read"],
+      structuredOutput: expectedStructuredOutput,
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-capture-summary",
+  });
+
+  logger.debug("setCurrentSummary capture test result", {
+    iterations: result.iterations,
+    capturedCount: handler.captured.length,
+  });
+
+  // Assert: handler received at least one summary
+  assertEquals(
+    handler.captured.length >= 1,
+    true,
+    "VerdictHandler.setCurrentSummary should have been called at least once",
+  );
+
+  // Assert: the captured summary contains the assistantResponses from QueryExecutor
+  assertEquals(
+    handler.captured[0].assistantResponses,
+    expectedAssistantResponses,
+    "Captured summary should contain the assistantResponses returned by QueryExecutor",
+  );
+
+  // Assert: the captured summary contains the structuredOutput from QueryExecutor
+  assertEquals(
+    handler.captured[0].structuredOutput,
+    expectedStructuredOutput,
+    "Captured summary should contain the structuredOutput returned by QueryExecutor",
+  );
+
+  assertEquals(result.success, true);
+  assertEquals(result.iterations, 1);
 });

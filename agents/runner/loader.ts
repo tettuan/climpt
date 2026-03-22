@@ -21,6 +21,11 @@ import type {
 import { ALL_VERDICT_TYPES } from "../src_common/types.ts";
 import { applyDefaults } from "../src_common/config.ts";
 import { ConfigService } from "../shared/config-service.ts";
+import {
+  acLoadInvalid,
+  acLoadNotFound,
+  acLoadParseFailed,
+} from "../shared/errors/config-errors.ts";
 
 /** Shared ConfigService instance */
 const configService = new ConfigService();
@@ -41,7 +46,7 @@ export async function loadAgentDefinition(
   try {
     await Deno.stat(definitionPath);
   } catch {
-    throw new Error(`Agent definition not found: ${definitionPath}`);
+    throw acLoadNotFound(definitionPath);
   }
 
   // Load and parse via ConfigService
@@ -49,10 +54,9 @@ export async function loadAgentDefinition(
   try {
     raw = await configService.loadAgentDefinitionRaw(agentDir);
   } catch (error) {
-    throw new Error(
-      `Failed to parse agent definition: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+    throw acLoadParseFailed(
+      definitionPath,
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -62,9 +66,7 @@ export async function loadAgentDefinition(
   // Validate
   const validation = validateAgentDefinition(definition);
   if (!validation.valid) {
-    throw new Error(
-      `Invalid agent definition:\n${validation.errors.join("\n")}`,
-    );
+    throw acLoadInvalid(validation.errors.join("\n"));
   }
 
   // Log warnings

@@ -1,0 +1,22 @@
+{"level":"info","msg":"Starting agent: test-agent"}
+{"level":"info","msg":"=== Iteration 1 ==="}
+{"level":"info","msg":"[FlowLoop] Enter","iteration":1,"stepId":"initial.analysis"}
+{"level":"info","msg":"[FlowLoop] C3L prompt resolved for \"initial.analysis\"","stepId":"initial.analysis"}
+{"level":"info","msg":"=== Iteration 2 ==="}
+{"level":"info","msg":"[FlowLoop] Enter","iteration":2,"stepId":"initial.analysis"}
+{"level":"info","msg":"[FlowLoop] C3L prompt resolved for \"initial.analysis\"","stepId":"initial.analysis"}
+{"level":"info","msg":"=== Iteration 3 ==="}
+{"level":"info","msg":"[FlowLoop] Enter","iteration":3,"stepId":"closure.review"}
+{"level":"info","msg":"[CompletionLoop] Iteration enter","stepId":"closure.review","iteration":3}
+{"level":"info","msg":"[CompletionLoop] Enter","stepId":"closure.review"}
+{"level":"info","msg":"[CompletionLoop] Validation result","valid":true,"stepId":"closure.review"}
+{"level":"info","msg":"[CompletionLoop] Exit","stepId":"closure.review","done":false,"reason":"Validation conditions not met"}
+{"level":"info","msg":"[CompletionLoop] Iteration exit","stepId":"closure.review","done":false}
+{"level":"info","msg":"=== Iteration 4 ==="}
+{"level":"info","msg":"[FlowLoop] Enter","iteration":4,"stepId":"closure.review"}
+{"level":"info","msg":"[CompletionLoop] Iteration enter","stepId":"closure.review","iteration":4}
+{"level":"info","msg":"[CompletionLoop] Enter","stepId":"closure.review"}
+{"level":"info","msg":"[CompletionLoop] Handler verdict: Budget exhausted","done":true}
+{"level":"info","msg":"[CompletionLoop] Exit","stepId":"closure.review","done":true,"reason":"Budget exhausted"}
+{"level":"info","msg":"[CompletionLoop] Iteration exit","stepId":"closure.review","done":true}
+{"level":"info","msg":"Agent completed after 4 iteration(s): Budget exhausted"}

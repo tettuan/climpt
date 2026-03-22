@@ -38,6 +38,17 @@ understand implementation details.
   for AI systems
 - [Agent Testing](./agent-test.md) - Agent testing strategies and patterns
 
+### Orchestrator
+
+- [Orchestrator Design Rationale](./orchestrator-design-rationale.md) - Design
+  provenance, ADK pattern mapping, coordination-config migration, and deferred
+  decisions
+
+### Decisions
+
+- [Deferred Decisions](./deferred-decisions.md) - Investigated but intentionally
+  deferred items with evidence and revisit conditions
+
 ## Project Guidelines
 
 See [CLAUDE.md](../../CLAUDE.md) at the repository root for:

@@ -97,7 +97,7 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 ## Complete Review
 
 ```review-action
-{"action":"complete","summary":"## Review Summary\n\n### Reviewed Requirements\n- req:xxx Complete\n- req:yyy Partial\n- req:zzz Missing\n\n### Created Issues\n- #XX: Description\n\n### Statistics\n- Total: N\n- Complete: A (X%)\n- Partial: B (Y%)\n- Missing: C (Z%)"}
+{"action":"closing","summary":"## Review Summary\n\n### Reviewed Requirements\n- req:xxx Complete\n- req:yyy Partial\n- req:zzz Missing\n\n### Created Issues\n- #XX: Description\n\n### Statistics\n- Total: N\n- Complete: A (X%)\n- Partial: B (Y%)\n- Missing: C (Z%)"}
 ```
 
 # Guidelines

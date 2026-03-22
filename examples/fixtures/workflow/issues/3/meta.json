@@ -1,0 +1,8 @@
+{
+  "number": 3,
+  "title": "Completed feature",
+  "labels": ["done"],
+  "state": "open",
+  "assignees": [],
+  "milestone": null
+}

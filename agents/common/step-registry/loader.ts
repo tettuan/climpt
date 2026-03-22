@@ -14,6 +14,11 @@ import {
   validateStepRegistry,
 } from "./validator.ts";
 import { PATHS } from "../../shared/paths.ts";
+import {
+  srLoadAgentIdMismatch,
+  srLoadInvalidFormat,
+  srLoadNotFound,
+} from "../../shared/errors/config-errors.ts";
 
 /**
  * Load a step registry from JSON file
@@ -39,16 +44,12 @@ export async function loadStepRegistry(
 
     // Validate basic structure
     if (!registry.agentId || !registry.version || !registry.steps) {
-      throw new Error(
-        `Invalid registry format: missing required fields (agentId, version, steps)`,
-      );
+      throw srLoadInvalidFormat();
     }
 
     // Ensure agentId matches
     if (registry.agentId !== agentId) {
-      throw new Error(
-        `Registry agentId mismatch: expected "${agentId}", got "${registry.agentId}"`,
-      );
+      throw srLoadAgentIdMismatch(agentId, registry.agentId);
     }
 
     // Normalize step fields: default null/undefined to type-safe values
@@ -83,7 +84,7 @@ export async function loadStepRegistry(
     return registry;
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      throw new Error(`Step registry not found at ${registryPath}`);
+      throw srLoadNotFound(registryPath);
     }
     throw error;
   }

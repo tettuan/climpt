@@ -5,6 +5,7 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
+  ConfigError,
   RoutingError,
   WorkflowRouter,
   type WorkflowRouterLogger,
@@ -133,8 +134,8 @@ Deno.test("WorkflowRouter - jump to invalid target throws error", () => {
         "initial.issue",
         createInterpretation({ intent: "jump", target: "nonexistent" }),
       ),
-    RoutingError,
-    "does not exist",
+    ConfigError,
+    "SR-TRANS-010",
   );
 });
 
@@ -174,8 +175,8 @@ Deno.test("WorkflowRouter - transitions with invalid target throws error", () =>
         "initial.issue",
         createInterpretation({ intent: "next" }),
       ),
-    RoutingError,
-    "does not exist",
+    ConfigError,
+    "SR-TRANS-001",
   );
 });
 
@@ -204,19 +205,22 @@ Deno.test("WorkflowRouter - default transition initial -> continuation", () => {
   assertEquals(result.signalClosing, false);
 });
 
-Deno.test("WorkflowRouter - signals completion when no continuation exists", () => {
+Deno.test("WorkflowRouter - throws RoutingError when no continuation exists", () => {
   const registry = createRegistry({
     "initial.issue": {}, // No transitions
     // No continuation.issue
   });
   const router = new WorkflowRouter(registry);
 
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "next" }),
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    ConfigError,
+    "SR-TRANS-003",
   );
-
-  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - conditional transition based on handoff", () => {
@@ -409,8 +413,8 @@ Deno.test("WorkflowRouter - work step cannot emit closing intent", () => {
         "initial.issue",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -435,8 +439,8 @@ Deno.test("WorkflowRouter - verification step cannot emit closing intent", () =>
         "verification.default",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "not allowed for verification step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -481,8 +485,8 @@ Deno.test("WorkflowRouter - escalate without transition throws error", () => {
         "verification.default",
         createInterpretation({ intent: "escalate" }),
       ),
-    RoutingError,
-    "No 'escalate' transition defined",
+    ConfigError,
+    "SR-TRANS-007",
   );
 });
 
@@ -504,13 +508,13 @@ Deno.test("WorkflowRouter - work step cannot emit escalate intent", () => {
         "initial.issue",
         createInterpretation({ intent: "escalate" }),
       ),
-    RoutingError,
-    "not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
-Deno.test("WorkflowRouter - handoff intent signals completion from continuation", () => {
-  // Handoff is allowed from continuation steps (not initial steps)
+Deno.test("WorkflowRouter - handoff without transition throws RoutingError", () => {
+  // Handoff requires an explicit transition rule — no backward-compat fallback
   const registry = createRegistry({
     "continuation.issue": {
       c2: "continuation",
@@ -518,16 +522,18 @@ Deno.test("WorkflowRouter - handoff intent signals completion from continuation"
   });
   const router = new WorkflowRouter(registry);
 
-  const result = router.route(
-    "continuation.issue",
-    createInterpretation({
-      intent: "handoff",
-      reason: "Delegating to reviewer",
-    }),
+  assertThrows(
+    () =>
+      router.route(
+        "continuation.issue",
+        createInterpretation({
+          intent: "handoff",
+          reason: "Delegating to reviewer",
+        }),
+      ),
+    ConfigError,
+    "SR-TRANS-004",
   );
-
-  assertEquals(result.signalClosing, true);
-  assertEquals(result.reason, "Delegating to reviewer");
 });
 
 Deno.test("WorkflowRouter - handoff from initial step emits warning", () => {
@@ -571,8 +577,8 @@ Deno.test("WorkflowRouter - closure step cannot emit handoff intent", () => {
         "closure.default",
         createInterpretation({ intent: "handoff" }),
       ),
-    RoutingError,
-    "not allowed for closure step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
@@ -702,14 +708,15 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
         "initial.polling",
         createInterpretation({ intent: "closing" }),
       ),
-    RoutingError,
-    "Intent 'closing' not allowed for work step",
+    ConfigError,
+    "SR-INTENT-001",
   );
 });
 
-Deno.test("WorkflowRouter - closure repeat routes to work step via transitions", () => {
-  // Per design 08_step_flow_design.md Section 3.2:
-  // Closure step repeat should route to work step, not self-loop
+Deno.test("WorkflowRouter - closure repeat stays on current step (closure routing via Stage 2.5)", () => {
+  // Closure steps never reach the router in production — they are processed
+  // by runClosureIteration → runClosureLoop (Stage 2.5). If a closure step's
+  // repeat intent does reach the router, it self-loops like any other repeat.
   const registry = createRegistry({
     "continuation.polling": {
       c2: "continuation",
@@ -733,21 +740,20 @@ Deno.test("WorkflowRouter - closure repeat routes to work step via transitions",
       },
       transitions: {
         closing: { target: null },
-        repeat: { target: "continuation.polling" }, // Routes to work step
+        repeat: { target: "continuation.polling" },
       },
     },
   });
   const router = new WorkflowRouter(registry);
 
-  // Closure step emits 'repeat' - should route to continuation (work step)
+  // Router treats closure repeat the same as any repeat: stay on current step
   const result = router.route(
     "closure.polling",
     createInterpretation({ intent: "repeat" }),
   );
 
-  assertEquals(result.nextStepId, "continuation.polling");
+  assertEquals(result.nextStepId, "closure.polling");
   assertEquals(result.signalClosing, false);
-  assert(result.reason.includes("Closure repeat"));
 });
 
 // =============================================================================
@@ -780,7 +786,7 @@ Deno.test("WorkflowRouter - logs prefix substitution on default initial -> conti
 Deno.test("WorkflowRouter - no prefix substitution log when continuation step does not exist", () => {
   const registry = createRegistry({
     "initial.issue": {},
-    // No continuation.issue -- fallback to signalClosing
+    // No continuation.issue -- throws RoutingError
   });
 
   const logged: string[] = [];
@@ -791,13 +797,18 @@ Deno.test("WorkflowRouter - no prefix substitution log when continuation step do
   };
 
   const router = new WorkflowRouter(registry, mockLogger);
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "next" }),
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    ConfigError,
+    "SR-TRANS-003",
   );
 
   assertEquals(logged.length, 0, "No log when substitution does not occur");
-  assertEquals(result.signalClosing, true);
 });
 
 Deno.test("WorkflowRouter - no prefix substitution log when no logger provided", () => {
@@ -838,4 +849,55 @@ Deno.test("WorkflowRouter - logs prefix substitution for multi-part step IDs", (
   assertEquals(logged.length, 1);
   assert(logged[0].includes("initial.project.preparation"));
   assert(logged[0].includes("continuation.project.preparation"));
+});
+
+// ============================================================================
+// Defensive silent-completion -> RoutingError conversion tests
+// ============================================================================
+
+Deno.test("WorkflowRouter - terminal transition (target: null) for non-closing intent throws RoutingError", () => {
+  // Change A: target: null in a non-closing transition is a config error.
+  // Only closure steps with "closing" intent may use target: null.
+  const registry = createRegistry({
+    "initial.issue": {
+      c2: "initial",
+      transitions: {
+        next: { target: null }, // invalid: target: null on "next" intent
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "initial.issue",
+        createInterpretation({ intent: "next" }),
+      ),
+    ConfigError,
+    "SR-TRANS-002",
+  );
+});
+
+Deno.test("WorkflowRouter - handoff with target: null throws RoutingError", () => {
+  // Change C: handoff must point to an existing step, not null.
+  const registry = createRegistry({
+    "continuation.issue": {
+      c2: "continuation",
+      transitions: {
+        handoff: { target: null }, // invalid: handoff must have a real target
+      },
+    },
+  });
+  const router = new WorkflowRouter(registry);
+
+  assertThrows(
+    () =>
+      router.route(
+        "continuation.issue",
+        createInterpretation({ intent: "handoff" }),
+      ),
+    ConfigError,
+    "SR-TRANS-005",
+  );
 });
