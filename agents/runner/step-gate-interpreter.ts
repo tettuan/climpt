@@ -173,17 +173,7 @@ export class StepGateInterpreter {
     gate: StructuredGate,
     stepDef: PromptStepDefinition,
   ): { intent: GateIntent; usedFallback: boolean; reason?: string } {
-    // intentField is required - no inference fallback
     const intentField = gate.intentField;
-
-    // Defensive check for runtime data that bypasses type system
-    if (!intentField) {
-      return this.useFallback(
-        gate,
-        stepDef.stepId,
-        "intentField is required but missing - config error",
-      );
-    }
 
     // Extract raw value
     const rawValue = getValueAtPath(output, intentField);

@@ -1,4 +1,4 @@
-// deno-lint-ignore-file prefer-ascii
+// deno-lint-ignore-file
 /**
  * Agent Runner Module - Entry Point
  *
@@ -68,6 +68,3 @@ export {
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
-
-// CLI utilities (not deprecated, still useful)
-export { generateAgentHelp, parseCliArgs, type ParsedCliArgs } from "./cli.ts";

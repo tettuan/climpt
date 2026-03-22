@@ -54,7 +54,6 @@ import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
-import type { RoutingResult } from "./workflow-router.ts";
 import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
@@ -405,9 +404,6 @@ export class AgentRunner {
         // === Flow Loop: work/verification steps only ===
 
         // Build prompt
-        const lastSummary = summaries.length > 0
-          ? summaries[summaries.length - 1]
-          : undefined;
         let prompt: string;
         let promptSource: "user" | "fallback";
         let promptType:

@@ -45,7 +45,7 @@ log("--- Test 1: Basic Handoff ---");
   ctx.set("initial", { summary: "Issue analysis complete", count: 42 });
 
   const inputs: InputSpec = {
-    prev_summary: { from: "initial.summary", required: true },
+    "prev_summary": { from: "initial.summary", required: true },
   };
   const uv = ctx.toUV(inputs);
 
@@ -65,8 +65,8 @@ log("\n--- Test 2: Composite StepId ---");
   ctx.set("initial.issue", { status: "open", priority: "high" });
 
   const inputs: InputSpec = {
-    my_status: { from: "initial.issue.status", required: true },
-    my_priority: { from: "initial.issue.priority" },
+    "my_status": { from: "initial.issue.status", required: true },
+    "my_priority": { from: "initial.issue.priority" },
   };
   const uv = ctx.toUV(inputs);
 
@@ -93,7 +93,7 @@ log("\n--- Test 3: Required Missing Throws ---");
   // No data set for "nonexistent" step
 
   const inputs: InputSpec = {
-    missing_field: { from: "nonexistent.value", required: true },
+    "missing_field": { from: "nonexistent.value", required: true },
   };
 
   let threw = false;
@@ -123,7 +123,7 @@ log("\n--- Test 4: Default Fallback ---");
   // No data set for "missing" step
 
   const inputs: InputSpec = {
-    fallback_field: { from: "missing.count", default: "fallback_value" },
+    "fallback_field": { from: "missing.count", default: "fallback_value" },
   };
   const uv = ctx.toUV(inputs);
 
@@ -145,9 +145,9 @@ log("\n--- Test 5: Multiple Inputs ---");
   ctx.set("step_b", { fix: "Updated auth", verified: true });
 
   const inputs: InputSpec = {
-    a_finding: { from: "step_a.finding", required: true },
-    b_fix: { from: "step_b.fix", required: true },
-    b_verified: { from: "step_b.verified" },
+    "a_finding": { from: "step_a.finding", required: true },
+    "b_fix": { from: "step_b.fix", required: true },
+    "b_verified": { from: "step_b.verified" },
   };
   const uv = ctx.toUV(inputs);
 
@@ -180,8 +180,8 @@ log("\n--- Test 6: Channel 1 Collision Prevention ---");
   ctx.set("step_b", { result: "B result" });
 
   const inputs: InputSpec = {
-    a_result: { from: "step_a.result" },
-    b_result: { from: "step_b.result" },
+    "a_result": { from: "step_a.result" },
+    "b_result": { from: "step_b.result" },
   };
   const uv = ctx.toUV(inputs);
 

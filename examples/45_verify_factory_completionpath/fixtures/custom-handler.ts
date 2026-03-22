@@ -12,6 +12,8 @@ import type {
   VerdictCriteria,
 } from "../../../agents/verdict/types.ts";
 
+const NOT_FINISHED = false;
+
 class TestCustomVerdictHandler implements VerdictHandler {
   readonly type = "meta:custom" as const;
 
@@ -34,7 +36,7 @@ class TestCustomVerdictHandler implements VerdictHandler {
   }
 
   isFinished(): Promise<boolean> {
-    return Promise.resolve(false);
+    return Promise.resolve(NOT_FINISHED);
   }
 
   getVerdictDescription(): Promise<string> {

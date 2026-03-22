@@ -23,7 +23,6 @@ import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
 import type { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import type { RoutingResult, WorkflowRouter } from "./workflow-router.ts";
-import { PATHS } from "../shared/paths.ts";
 import {
   srGateNoEntryStep,
   srGateNoRoutedStepId,
