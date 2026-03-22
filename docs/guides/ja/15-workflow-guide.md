@@ -70,6 +70,20 @@ deno task workflow --label ready --state open
 
 ## workflow.json の構造
 
+### トップレベルフィールド
+
+| フィールド     | 必須 | デフォルト                  | 説明                                                          |
+| -------------- | ---- | --------------------------- | ------------------------------------------------------------- |
+| `version`      | yes  | —                           | スキーマバージョン（例: `"1.0.0"`）                           |
+| `phases`       | yes  | —                           | Phase 定義（後述）                                            |
+| `labelMapping` | yes  | —                           | GitHub ラベル → phase ID マッピング                           |
+| `agents`       | yes  | —                           | Agent 定義（後述）                                            |
+| `rules`        | yes  | —                           | 実行制約（後述）                                              |
+| `labelPrefix`  | no   | —                           | ラベル名前空間（例: `"docs"` → ラベルが `docs:ready` になる） |
+| `issueStore`   | no   | `{ path: ".agent/issues" }` | ローカル issue ストアのディレクトリ                           |
+| `handoff`      | no   | —                           | Agent 間ハンドオフのコメントテンプレート                      |
+| `prioritizer`  | no   | —                           | Prioritizer Agent 設定（`--prioritize` に必須）               |
+
 ### phases
 
 ワークフローの状態を定義する。各 phase は `type` を持つ:
@@ -77,6 +91,12 @@ deno task workflow --label ready --state open
 - `actionable` — Agent が実行される。`agent` と `priority` が必須。
 - `terminal` — ワークフロー完了。
 - `blocking` — 人間の介入待ち。
+
+| フィールド | 必須            | 説明                                                       |
+| ---------- | --------------- | ---------------------------------------------------------- |
+| `type`     | yes             | `"actionable"`、`"terminal"`、または `"blocking"`          |
+| `priority` | actionable のみ | 小さいほど高優先。複数ラベルがマッチしたときの選択に使用。 |
+| `agent`    | actionable のみ | ディスパッチする Agent ID（`agents` に存在する必要がある） |
 
 ### labelMapping
 
@@ -92,12 +112,30 @@ Agent の動作を定義:
 - **Validator** (`role: "validator"`) — 複数出力。`outputPhases`
   で判定結果に応じた遷移先を定義。
 
+| フィールド      | 必須             | 説明                                                       |
+| --------------- | ---------------- | ---------------------------------------------------------- |
+| `role`          | yes              | `"transformer"` または `"validator"`                       |
+| `directory`     | no               | `.agent/` 配下の Agent ディレクトリ名（省略時は Agent ID） |
+| `outputPhase`   | transformer のみ | 成功時の遷移先 phase                                       |
+| `outputPhases`  | validator のみ   | 判定キー → 遷移先 phase のマッピング                       |
+| `fallbackPhase` | no               | エラー時の遷移先 phase（通常 `"blocked"`）                 |
+
 ### rules
 
-| フィールド   | デフォルト | 説明                       |
-| ------------ | ---------- | -------------------------- |
-| maxCycles    | 5          | issue あたりの最大遷移回数 |
-| cycleDelayMs | 5000       | サイクル間の待機（ミリ秒） |
+| フィールド     | デフォルト | 説明                       |
+| -------------- | ---------- | -------------------------- |
+| `maxCycles`    | 5          | issue あたりの最大遷移回数 |
+| `cycleDelayMs` | 5000       | サイクル間の待機（ミリ秒） |
+
+### prioritizer
+
+`--prioritize` 使用時に必須。優先度ラベル付与 Agent の設定。
+
+| フィールド     | 必須 | 説明                                                         |
+| -------------- | ---- | ------------------------------------------------------------ |
+| `agent`        | yes  | 優先度付与に使用する Agent ID                                |
+| `labels`       | yes  | 許可する優先度ラベルの順序リスト（例: `["P1", "P2", "P3"]`） |
+| `defaultLabel` | no   | 優先度が未設定・無効な場合のフォールバックラベル             |
 
 ## ワークフローの実行
 
@@ -124,13 +162,30 @@ deno task workflow --label ready --prioritize
 deno task workflow --label P1 --label docs --state open --limit 10
 ```
 
+### `--label` と `labelPrefix` の違い
+
+`--label` と `labelPrefix` は独立した概念である:
+
+| 概念          | 設定場所        | 役割                                                                        |
+| ------------- | --------------- | --------------------------------------------------------------------------- |
+| `--label`     | CLI 引数        | GitHub から取得する issue のフィルタ（`gh issue list --label <値>` に変換） |
+| `labelPrefix` | `workflow.json` | Phase 遷移ラベルの名前空間（例: `ready` → `docs:ready`）                    |
+
+`--label` は処理対象の issue を選別する。`labelPrefix` は遷移時のラベル読み書き
+を制御する。両者は互いに影響しない。
+
+例: `--label docs` は `docs` ラベルが付いた issue を取得する。Orchestrator
+はその issue の他のラベル（例: `ready`）から現在の phase を解決し、
+`labelMapping` に従って遷移を管理する。`docs` ラベル自体は `labelMapping`
+に含まれないため、ワークフロー全体を通じて変更されない。
+
 ### CLI オプション
 
 | オプション     | 型      | デフォルト             | 説明                                          |
 | -------------- | ------- | ---------------------- | --------------------------------------------- |
 | `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ）    |
 | `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                         |
-| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）        |
+| `--label`      | string  | —                      | GitHub issue フィルタ（複数指定可、batch 用） |
 | `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                    |
 | `--state`      | string  | `open`                 | `open` / `closed` / `all`                     |
 | `--limit`      | number  | `30`                   | 最大取得 issue 数                             |

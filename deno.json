@@ -23,7 +23,8 @@
     "./docs": "./docs.ts",
     "./docs/cli": "./src/docs/cli.ts",
     "./agents": "./agents/mod.ts",
-    "./agents/runner": "./agents/scripts/run-agent.ts"
+    "./agents/runner": "./agents/scripts/run-agent.ts",
+    "./agents/orchestrator": "./agents/scripts/run-workflow.ts"
   },
   "include": [
     "README.md",
