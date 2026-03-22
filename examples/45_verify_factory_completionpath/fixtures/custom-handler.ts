@@ -5,25 +5,25 @@
  * in agents/verdict/factory.ts.
  */
 
-import type { AgentDefinition } from "../../../../agents/src_common/types.ts";
-import type { VerdictHandler } from "../../../../agents/verdict/types.ts";
+import type { AgentDefinition } from "../../../agents/src_common/types.ts";
+import type { VerdictHandler } from "../../../agents/verdict/types.ts";
 import type {
   IterationSummary,
   VerdictCriteria,
-} from "../../../../agents/verdict/types.ts";
+} from "../../../agents/verdict/types.ts";
 
 class TestCustomVerdictHandler implements VerdictHandler {
   readonly type = "meta:custom" as const;
 
-  async buildInitialPrompt(): Promise<string> {
-    return "Custom handler initial prompt";
+  buildInitialPrompt(): Promise<string> {
+    return Promise.resolve("Custom handler initial prompt");
   }
 
-  async buildContinuationPrompt(
+  buildContinuationPrompt(
     _completedIterations: number,
     _previousSummary?: IterationSummary,
   ): Promise<string> {
-    return "Custom handler continuation prompt";
+    return Promise.resolve("Custom handler continuation prompt");
   }
 
   buildVerdictCriteria(): VerdictCriteria {
@@ -33,12 +33,12 @@ class TestCustomVerdictHandler implements VerdictHandler {
     };
   }
 
-  async isFinished(): Promise<boolean> {
-    return false;
+  isFinished(): Promise<boolean> {
+    return Promise.resolve(false);
   }
 
-  async getVerdictDescription(): Promise<string> {
-    return "Custom handler - not finished";
+  getVerdictDescription(): Promise<string> {
+    return Promise.resolve("Custom handler - not finished");
   }
 }
 
