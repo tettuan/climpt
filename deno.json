@@ -151,7 +151,6 @@
         "no-throw-literal",
         "no-undef",
         "no-useless-rename",
-        "prefer-ascii",
         "single-var-declarator",
         "triple-slash-reference",
         "verbatim-module-syntax"
