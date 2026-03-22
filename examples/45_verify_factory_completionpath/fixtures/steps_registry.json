@@ -1,0 +1,23 @@
+{
+  "agentId": "test-graph",
+  "version": "1.0.0",
+  "c1": "steps",
+  "entryStep": "initial.analysis",
+  "steps": {
+    "initial.analysis": {
+      "stepId": "initial.analysis",
+      "name": "Analysis",
+      "c2": "initial",
+      "c3": "analysis",
+      "transitions": {
+        "next": { "target": "closure.review" }
+      }
+    },
+    "closure.review": {
+      "stepId": "closure.review",
+      "name": "Review",
+      "c2": "closure",
+      "c3": "review"
+    }
+  }
+}

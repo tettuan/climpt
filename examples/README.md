@@ -5,8 +5,8 @@ Prompt).
 
 ## Progressive Pipeline
 
-Examples are **numbered 01–53** and designed to run in order. Each step builds
-on the state created by previous steps:
+Examples are **numbered 01–55** and designed to run in order. Each step builds
+on the state created by previous steps (steps 54-55 are state-independent):
 
 ```
 01-04   Setup          install, init, verify       → .agent/climpt/ created
@@ -42,6 +42,10 @@ on the state created by previous steps:
                        transition, batch
   ↓
 53      Clean          reset all artifacts         → clean state
+  ↓
+54      Handoff E2E    StepContext data path        → namespace + collision verified
+  ↓
+55      Loop Analysis  dual-loop log boundaries    → FlowLoop + CompletionLoop paired
 ```
 
 The `outputs/` directory accumulates artifacts as examples progress. Each script
@@ -71,9 +75,10 @@ invoking `climpt` or `deno task agent` from the command line.
 
 ### Contract Verification Steps (Internal Contract Tests)
 
-Steps **25-27, 32, 37, 42-43, 45** validate internal contracts by importing
-TypeScript modules directly (e.g., `deno run` on `.ts` scripts that import
-resolvers, factories, or schema validators). They test invariants such as:
+Steps **25-27, 32, 37, 42-43, 45, 54-55** validate internal contracts by
+importing TypeScript modules directly (e.g., `deno run` on `.ts` scripts that
+import resolvers, factories, or schema validators). They test invariants such
+as:
 
 - Prompt resolution (step 25)
 - Schema fail-fast behavior (step 26)
@@ -81,6 +86,8 @@ resolvers, factories, or schema validators). They test invariants such as:
 - JSON schema structure (steps 32, 37)
 - Negative agent load / tool policy (steps 42-43)
 - Factory completion path coverage (step 45)
+- Handoff data path and collision prevention (step 54)
+- Dual-loop log boundary pairing (step 55)
 
 These steps are **not representative of user workflows**. They exist to verify
 that internal modules uphold their contracts (correct errors on invalid input,
@@ -131,7 +138,7 @@ verification to be complete.
 
 | Tier    | Requirement                           | Steps                                            |
 | ------- | ------------------------------------- | ------------------------------------------------ |
-| Local   | Deno + jq                             | 01, 03-09, 13-20, 23, 25-30, 32-35, 37-40, 42-53 |
+| Local   | Deno + jq                             | 01, 03-09, 13-20, 23, 25-30, 32-35, 37-40, 42-55 |
 | Network | `jsr.io` reachable (HTTPS)            | 02, 10-12                                        |
 | LLM     | `api.anthropic.com` reachable (HTTPS) | 21-22, 24, 31, 36, 41                            |
 
@@ -151,7 +158,7 @@ bash examples/23_*/run.sh
 for f in examples/{25,26,27,28,29,30}_*/run.sh; do bash "$f"; done
 for f in examples/{32,33,34,35}_*/run.sh; do bash "$f"; done
 for f in examples/{37,38,39,40}_*/run.sh; do bash "$f"; done
-for f in examples/{42,43,44,45,46,47,48,49,50,51,52,53}_*/run.sh; do bash "$f"; done
+for f in examples/{42,43,44,45,46,47,48,49,50,51,52,53,54,55}_*/run.sh; do bash "$f"; done
 
 # 2. Network tier (requires jsr.io)
 bash examples/02_install/run.sh
@@ -225,6 +232,8 @@ for f in examples/{31,36,41}_*/run.sh; do bash "$f"; done
 | 51 | 51_workflow_transition/           | Phase transition via file I/O (CLI E2E, --local) | —                     | —                                | label changes in meta.json after transitions       |
 | 52 | 52_workflow_batch/                | Batch processing (CLI E2E, --local)              | —                     | —                                | processed/skipped counts, file system changes      |
 | 53 | 53_clean/                         | Cleanup all artifacts                            | all of the above      | —                                |                                                    |
+| 54 | 54_handoff_e2e/                   | Handoff E2E data path verification               | —                     | —                                | StepContext toUV namespace, collision prevention   |
+| 55 | 55_dualloop_log_analysis/         | Dual-loop log boundary analysis                  | —                     | —                                | FlowLoop + CompletionLoop marker pairing, sequence |
 
 ## How to Run
 

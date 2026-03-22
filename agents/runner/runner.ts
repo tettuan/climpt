@@ -51,10 +51,6 @@ import { AGENT_LIMITS } from "../shared/constants.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 import { resolveSystemPrompt } from "../prompts/system-prompt.ts";
 
-import { inferStepKind } from "../common/step-registry/utils.ts";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
-import { isRecord } from "../src_common/type-guards.ts";
-
 // Extracted modules
 import { QueryExecutor } from "./query-executor.ts";
 import { FlowOrchestrator } from "./flow-orchestrator.ts";
@@ -63,6 +59,7 @@ import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
+import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
 import { prPromptNoC3lPrompt } from "../shared/errors/config-errors.ts";
 
 export interface RunnerOptions {
@@ -94,6 +91,7 @@ export class AgentRunner {
   private readonly queryExecutor: QueryExecutor;
   private readonly boundaryHooks: BoundaryHooks;
   private readonly closureAdapter: ClosureAdapter;
+  private completionLoopProcessor!: CompletionLoopProcessor;
 
   // Verdict validation
   private pendingRetryPrompt: string | null = null;
@@ -246,6 +244,30 @@ export class AgentRunner {
       cwd,
       promptLogger,
     };
+
+    // Completion Loop processor — extracted from runner for dual-loop separation
+    this.completionLoopProcessor = new CompletionLoopProcessor({
+      closureManager: this.closureManager,
+      boundaryHooks: this.boundaryHooks,
+      closureAdapter: this.closureAdapter,
+      queryExecutor: this.queryExecutor,
+      flowOrchestrator: this.flowOrchestrator,
+      schemaManager: this.schemaManager,
+      eventEmitter: this.eventEmitter,
+      definition: this.definition,
+      args: this.args,
+      agentDir: this.agentDir,
+      verboseLogger: this.verboseLogger,
+      pendingRetryPrompt: {
+        get: () => this.pendingRetryPrompt,
+        set: (v: string | null) => {
+          this.pendingRetryPrompt = v;
+        },
+      },
+      resolveSystemPromptForIteration: (ctx) =>
+        this.resolveSystemPromptForIteration(ctx),
+      buildUvVariables: (iteration) => this.buildUvVariables(iteration),
+    });
   }
 
   async run(options: RunnerOptions): Promise<AgentResult> {
@@ -281,8 +303,12 @@ export class AgentRunner {
         // Verbose: Log iteration start
         const stepId = this.flowOrchestrator.getStepIdForIteration(iteration);
 
+        ctx.logger.info("[FlowLoop] Enter", { iteration, stepId });
+
         // Determine if this is a closure step (Completion Loop processing)
-        const isClosureIteration = this.isClosureStep(stepId);
+        const isClosureIteration = this.completionLoopProcessor.isClosureStep(
+          stepId,
+        );
 
         if (this.verboseLogger) {
           // deno-lint-ignore no-await-in-loop
@@ -292,7 +318,7 @@ export class AgentRunner {
         // Completion Loop: separate procedure (design: "単発の手続き")
         if (isClosureIteration) {
           // deno-lint-ignore no-await-in-loop
-          const result = await this.runClosureIteration(
+          const result = await this.completionLoopProcessor.runClosureIteration(
             stepId,
             iteration,
             summaries,
@@ -562,7 +588,7 @@ export class AgentRunner {
               ? routingResult.reason
               : undefined;
             // deno-lint-ignore no-await-in-loop
-            const verdict = await this.runClosureLoop(
+            const verdict = await this.completionLoopProcessor.runClosureLoop(
               stepId,
               summary,
               ctx,
@@ -759,305 +785,6 @@ export class AgentRunner {
       }
       await ctx.logger.close();
     }
-  }
-
-  /**
-   * Completion Loop - single-shot closure procedure.
-   *
-   * Encapsulates the three stages of completion:
-   * Stage 1: Closure prompt (handled externally via closureAdapter)
-   * Stage 2: Validation (external conditions check)
-   * Stage 3: Verdict (handler decision + boundary hooks)
-   *
-   * Called when a completion signal is detected (closing intent,
-   * AI verdict declaration, or legacy handler check).
-   */
-  private async runClosureLoop(
-    stepId: string,
-    summary: IterationSummary,
-    ctx: RuntimeContext,
-    closingReason?: string,
-  ): Promise<{ done: boolean; reason: string; retryPrompt?: string }> {
-    // Stage 2: Validation
-    const closureStepId = this.closureManager.getClosureStepId();
-    const validation = await this.closureManager.validateConditions(
-      closureStepId,
-      summary,
-      ctx.logger,
-    );
-
-    ctx.logger.info("[CompletionLoop] Validation result", {
-      valid: validation.valid,
-      stepId: closureStepId,
-    });
-
-    if (!validation.valid) {
-      ctx.logger.info(
-        "Validation conditions not met, will retry in next iteration",
-      );
-      return {
-        done: false,
-        reason: "Validation conditions not met",
-        retryPrompt: validation.retryPrompt ?? undefined,
-      };
-    }
-
-    // Stage 2.5: Structured signal from closure step output
-    // Guard: only closure steps may emit closing/repeat signals.
-    // Non-closure steps with closing intent are a routing error.
-    ctx.logger.info("[CompletionLoop] Structured output extraction", {
-      hasStructuredOutput: !!summary.structuredOutput,
-    });
-
-    if (!closingReason && summary.structuredOutput) {
-      const so = summary.structuredOutput;
-      const nextAction = so.next_action;
-      if (isRecord(nextAction)) {
-        const action = (nextAction as Record<string, unknown>).action;
-        if (action === "closing" || action === "repeat") {
-          const stepDef = this.closureManager.stepsRegistry
-            ?.steps[stepId] as PromptStepDefinition | undefined;
-          const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
-
-          if (stepKind !== "closure") {
-            throw new AgentStepRoutingError(
-              `Non-closure step "${stepId}" (kind: ${stepKind ?? "unknown"}) ` +
-                `emitted closing signal "${action}". ` +
-                `Only closure steps may emit closing/repeat signals.`,
-              { stepId },
-            );
-          }
-
-          if (action === "closing") {
-            ctx.logger.info(
-              `[CompletionLoop] Closure step structured signal: closing`,
-            );
-            await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
-            return {
-              done: true,
-              reason: "Closure step emitted closing signal",
-            };
-          }
-          // action === "repeat"
-          ctx.logger.info(
-            `[CompletionLoop] Closure step structured signal: repeat`,
-          );
-          return { done: false, reason: "Closure step requested repeat" };
-        } else if (action) {
-          ctx.logger.debug(
-            "[CompletionLoop] Structured signal action ignored",
-            {
-              action,
-            },
-          );
-        }
-      }
-    }
-
-    // Stage 3: Verdict
-    if (closingReason) {
-      // Router signaled closing - definitive
-      ctx.logger.info(
-        `[CompletionLoop] Router signaled closing: ${closingReason}`,
-      );
-      await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
-      return { done: true, reason: closingReason };
-    }
-
-    // Handler-based verdict
-    if (ctx.verdictHandler.setCurrentSummary) {
-      ctx.verdictHandler.setCurrentSummary(summary);
-    }
-    const isFinished = await ctx.verdictHandler.isFinished();
-    const reason = await ctx.verdictHandler.getVerdictDescription();
-
-    if (isFinished) {
-      ctx.logger.info(`[CompletionLoop] Handler verdict: ${reason}`);
-      await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
-      return { done: true, reason };
-    }
-
-    return { done: false, reason };
-  }
-
-  /**
-   * Completion Loop iteration - handles the ENTIRE lifecycle of a closure step.
-   *
-   * Encapsulates: prompt resolution, LLM query, post-query processing, and verdict.
-   * This is a "単発の手続き" (single-shot procedure) per design.
-   *
-   * Prompt priority:
-   * 1. pendingRetryPrompt (from previous validation failure)
-   * 2. closureAdapter.tryClosureAdaptation() (C3L closure prompt)
-   * 3. handler.buildContinuationPrompt() (Completion Loop fallback)
-   */
-  private async runClosureIteration(
-    stepId: string,
-    iteration: number,
-    summaries: IterationSummary[],
-    ctx: RuntimeContext,
-    plugins: string[] = [],
-  ): Promise<{
-    done: boolean;
-    reason: string;
-    retryPrompt?: string;
-    summary: IterationSummary;
-    isRateLimitRetry?: boolean;
-  }> {
-    const lastSummary = summaries.length > 0
-      ? summaries[summaries.length - 1]
-      : undefined;
-
-    // Step 1: Prompt resolution
-    let prompt: string;
-    let promptSource: "user" | "fallback";
-    let promptType:
-      | "retry"
-      | typeof STEP_PHASE.INITIAL
-      | typeof STEP_PHASE.CONTINUATION;
-    const promptStartTime = performance.now();
-
-    if (this.pendingRetryPrompt) {
-      prompt = this.pendingRetryPrompt;
-      promptSource = "user";
-      promptType = "retry";
-      this.pendingRetryPrompt = null;
-      ctx.logger.debug(
-        "[CompletionLoop] Using retry prompt from validation",
-      );
-    } else {
-      // Try C3L closure prompt via closureAdapter
-      const closurePrompt = await this.closureAdapter
-        .tryClosureAdaptation(
-          stepId,
-          ctx,
-          this.buildUvVariables(iteration),
-        );
-      if (closurePrompt) {
-        prompt = closurePrompt.content;
-        promptSource = closurePrompt.source;
-        ctx.logger.info(
-          `[CompletionLoop] Closure prompt resolved for "${stepId}"`,
-          { source: closurePrompt.source },
-        );
-      } else {
-        // Fallback: handler continuation prompt (design: "Completion Loop用プロンプトの生成")
-        ctx.verdictHandler.setUvVariables?.(
-          this.buildUvVariables(iteration),
-        );
-        prompt = await ctx.verdictHandler.buildContinuationPrompt(
-          iteration - 1,
-          lastSummary,
-        );
-        promptSource = "user";
-      }
-      promptType = STEP_PHASE.CONTINUATION;
-    }
-
-    const promptTimeMs = performance.now() - promptStartTime;
-
-    // Step 2: Prompt logging
-    if (ctx.promptLogger) {
-      await ctx.promptLogger.logResolution(
-        {
-          stepId,
-          source: promptSource,
-          content: prompt,
-          promptPath: `${this.definition.runner.verdict.type}/${promptType}`,
-        },
-        promptTimeMs,
-      );
-    }
-
-    // Step 3: System prompt
-    const systemPrompt = await this.resolveSystemPromptForIteration(ctx);
-
-    ctx.logger.info("[SystemPrompt] Using preset configuration", {
-      type: systemPrompt.type,
-      preset: systemPrompt.preset,
-      appendLength: systemPrompt.append.length,
-    });
-
-    // Step 4: Events
-    await this.eventEmitter.emit("promptBuilt", {
-      prompt,
-      systemPrompt: systemPrompt.append,
-    });
-
-    // Verbose: Log prompt and system prompt
-    if (this.verboseLogger) {
-      await this.verboseLogger.logPrompt(prompt);
-      await this.verboseLogger.logSystemPrompt(systemPrompt);
-    }
-
-    // Step 5: LLM query
-    const summary = await this.queryExecutor.executeQuery({
-      prompt,
-      systemPrompt,
-      plugins,
-      sessionId: lastSummary?.sessionId,
-      iteration,
-      stepId,
-    });
-
-    // Step 6: Event
-    await this.eventEmitter.emit("queryExecuted", { summary });
-
-    // Step 7: Post-query processing
-    summaries.push(summary);
-
-    // Sync schema resolution state to flow orchestrator
-    this.flowOrchestrator.setSchemaResolutionFailed(
-      this.schemaManager.schemaResolutionFailed,
-    );
-
-    // Normalize stepId in structured output
-    this.flowOrchestrator.normalizeStructuredOutputStepId(
-      stepId,
-      summary,
-      ctx,
-    );
-
-    // Record step output
-    this.flowOrchestrator.recordStepOutput(stepId, summary, ctx);
-
-    // Step 8: Rate limit check
-    if (summary.rateLimitRetry) {
-      const { waitMs, attempt } = summary.rateLimitRetry;
-      ctx.logger.info(
-        `Waiting ${waitMs}ms for rate limit retry (attempt ${attempt})`,
-      );
-      await this.delay(waitMs);
-      return {
-        done: false,
-        reason: "rate_limit_retry",
-        summary,
-        isRateLimitRetry: true,
-      };
-    }
-
-    // Step 9: Verdict (Stages 2+3 via runClosureLoop)
-    const verdict = await this.runClosureLoop(stepId, summary, ctx);
-    return {
-      done: verdict.done,
-      reason: verdict.reason,
-      retryPrompt: verdict.retryPrompt,
-      summary,
-    };
-  }
-
-  /**
-   * Check if a step is a closure step (stepKind: "closure").
-   * Closure steps are processed by the Completion Loop, not the Flow Loop.
-   */
-  private isClosureStep(stepId: string): boolean {
-    const registry = this.closureManager.stepsRegistry;
-    if (!registry?.steps) return false;
-    const stepDef = registry.steps[stepId] as
-      | PromptStepDefinition
-      | undefined;
-    if (!stepDef) return false;
-    return inferStepKind(stepDef) === "closure";
   }
 
   /**

@@ -264,10 +264,7 @@ export class SchemaManager {
       if (error instanceof SchemaPointerError) {
         throw error;
       }
-      logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
-        error: String(error),
-      });
-      return undefined;
+      throw error;
     }
   }
 }

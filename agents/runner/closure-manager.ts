@@ -72,6 +72,8 @@ export class ClosureManager {
   // Step-level prompt resolver (for work-step and closure adaptation)
   stepPromptResolver: StepPromptResolver | null = null;
 
+  private logger: import("../src_common/logger.ts").Logger | null = null;
+
   constructor(deps: ClosureManagerDeps) {
     this.deps = deps;
   }
@@ -89,6 +91,7 @@ export class ClosureManager {
     logger: import("../src_common/logger.ts").Logger,
     schemaManager: SchemaManager,
   ): Promise<void> {
+    this.logger = logger;
     const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
 
     try {
@@ -350,7 +353,11 @@ export class ClosureManager {
 
     try {
       return await this.stepPromptResolver.resolve(stepId, { uv: variables });
-    } catch {
+    } catch (error) {
+      this.logger?.warn("[FlowLoop] C3L prompt resolution failed", {
+        stepId,
+        error: String(error),
+      });
       return null;
     }
   }

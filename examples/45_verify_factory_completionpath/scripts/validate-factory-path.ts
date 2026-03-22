@@ -21,6 +21,11 @@ const logErr = console.error;
 
 const repoRoot = resolve(import.meta.dirname ?? ".", "../../../");
 
+const fixturesDir = resolve(
+  import.meta.dirname ?? ".",
+  "../fixtures",
+);
+
 interface TestCase {
   name: string;
   verdictType: string;
@@ -28,6 +33,7 @@ interface TestCase {
   args: Record<string, unknown>;
   expectedType: string;
   expectedClass?: string;
+  agentDirOverride?: string;
 }
 
 const testCases: TestCase[] = [
@@ -66,6 +72,37 @@ const testCases: TestCase[] = [
     verdictConfig: { signalType: "test-signal" },
     args: {},
     expectedType: "detect:structured",
+  },
+  {
+    name: "detect:graph (success)",
+    verdictType: "detect:graph",
+    verdictConfig: {
+      registryPath: resolve(fixturesDir, "steps_registry.json"),
+    },
+    args: {},
+    expectedType: "detect:graph",
+    agentDirOverride: fixturesDir,
+  },
+  {
+    name: "meta:composite (and)",
+    verdictType: "meta:composite",
+    verdictConfig: {
+      operator: "and",
+      conditions: [
+        { type: "count:iteration", config: { maxIterations: 3 } },
+        { type: "detect:keyword", config: { verdictKeyword: "DONE" } },
+      ],
+    },
+    args: {},
+    expectedType: "meta:composite",
+  },
+  {
+    name: "meta:custom",
+    verdictType: "meta:custom",
+    verdictConfig: { handlerPath: "custom-handler.ts" },
+    args: {},
+    expectedType: "meta:custom",
+    agentDirOverride: fixturesDir,
   },
 ];
 
@@ -138,7 +175,8 @@ log("--- Handler Creation Tests ---");
 for (const tc of testCases) {
   try {
     const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
-    const agentDir = resolve(repoRoot, ".agent/iterator");
+    const agentDir = tc.agentDirOverride ??
+      resolve(repoRoot, ".agent/iterator");
     // deno-lint-ignore no-await-in-loop
     const handler = await createRegistryVerdictHandler(
       def,
