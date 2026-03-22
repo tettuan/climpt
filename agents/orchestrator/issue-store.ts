@@ -15,6 +15,20 @@
 
 import type { IssueWorkflowState } from "./workflow-types.ts";
 
+/** Check if a process is still running. Uses `kill -0` (no signal sent). */
+function isProcessAlive(pid: number): boolean {
+  try {
+    const cmd = new Deno.Command("kill", {
+      args: ["-0", String(pid)],
+      stdout: "null",
+      stderr: "null",
+    });
+    return cmd.outputSync().code === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Issue metadata stored in meta.json */
 export interface IssueMeta {
   number: number;
@@ -195,7 +209,8 @@ export class IssueStore {
    * priority ordering.
    *
    * Returns a release function on success, or `null` if already locked.
-   * Stale locks (older than 30 minutes) are automatically cleaned up.
+   * Stale locks are detected by checking if the owning PID is still alive.
+   * Falls back to a 30-minute timeout to guard against PID recycling.
    */
   async acquireLock(
     workflowId: string,
@@ -203,20 +218,8 @@ export class IssueStore {
     await Deno.mkdir(this.#storePath, { recursive: true });
     const lockPath = `${this.#storePath}/.lock.${workflowId}`;
 
-    // Check for stale lock (older than 30 minutes)
-    try {
-      const stat = await Deno.stat(lockPath);
-      if (stat.mtime) {
-        const ageMs = Date.now() - stat.mtime.getTime();
-        if (ageMs > 30 * 60 * 1000) {
-          await Deno.remove(lockPath);
-        }
-      }
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) {
-        throw error;
-      }
-    }
+    // Check for stale lock
+    await this.#cleanStaleLock(lockPath);
 
     let file: Deno.FsFile;
     try {
@@ -228,7 +231,7 @@ export class IssueStore {
       throw error;
     }
 
-    // Write PID and timestamp for diagnostics
+    // Write PID and timestamp for stale detection
     const info = JSON.stringify({
       pid: Deno.pid,
       acquiredAt: new Date().toISOString(),
@@ -245,6 +248,45 @@ export class IssueStore {
         }
       },
     };
+  }
+
+  /**
+   * Remove a lock file if the owning process is no longer alive,
+   * or if the lock is older than 30 minutes (PID recycling guard).
+   */
+  async #cleanStaleLock(lockPath: string): Promise<void> {
+    let text: string;
+    try {
+      text = await Deno.readTextFile(lockPath);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return;
+      throw error;
+    }
+
+    let stale = false;
+    try {
+      const info = JSON.parse(text) as { pid: number; acquiredAt: string };
+      if (!isProcessAlive(info.pid)) {
+        stale = true;
+      } else {
+        // PID alive — fall back to time-based check for PID recycling
+        const ageMs = Date.now() - new Date(info.acquiredAt).getTime();
+        if (ageMs > 30 * 60 * 1000) {
+          stale = true;
+        }
+      }
+    } catch {
+      // Corrupt lock file — treat as stale
+      stale = true;
+    }
+
+    if (stale) {
+      try {
+        await Deno.remove(lockPath);
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+      }
+    }
   }
 
   /** Get issue directory path. */

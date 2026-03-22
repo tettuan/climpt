@@ -435,3 +435,43 @@ Deno.test("acquireLock: different workflowIds do not conflict", async () => {
     await Deno.remove(tmp, { recursive: true });
   }
 });
+
+Deno.test("acquireLock: stale lock from dead PID is cleaned up", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lockPath = `${tmp}/.lock.default`;
+
+    // Simulate a leftover lock from a dead process (PID 999999 is very unlikely alive)
+    await Deno.mkdir(tmp, { recursive: true });
+    await Deno.writeTextFile(
+      lockPath,
+      JSON.stringify({ pid: 999999, acquiredAt: new Date().toISOString() }),
+    );
+
+    // acquireLock should detect dead PID and reclaim
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+    await lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: corrupt lock file is treated as stale", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lockPath = `${tmp}/.lock.default`;
+
+    // Write garbage to lock file
+    await Deno.mkdir(tmp, { recursive: true });
+    await Deno.writeTextFile(lockPath, "not json");
+
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+    await lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
