@@ -38,12 +38,17 @@ main() {
 
   local fail=0
 
-  # Scenario 1: ["ready"] → finalPhase == "implementation", status == "dry-run"
+  # Scenario 1: ["ready"] → finalPhase == "implementation", status == "dry-run", exit 0
   info "Scenario 1: ready label resolves to implementation phase"
-  local tmp output
+  local tmp output exit_code
   tmp=$(setup_with_labels '["ready"]')
-  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || true
-  if echo "$output" | grep -q '"finalPhase"' && echo "$output" | grep -q '"implementation"'; then
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 1: FAIL - dry-run should exit 0, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"finalPhase"' && echo "$output" | grep -q '"implementation"'; then
     if echo "$output" | grep -q '"dry-run"'; then
       success "Scenario 1: PASS"
     else
@@ -58,11 +63,16 @@ main() {
   fi
   rm -rf "$tmp"
 
-  # Scenario 2: ["done"] → status == "completed" (terminal, immediate exit)
+  # Scenario 2: ["done"] → status == "completed" (terminal, immediate exit), exit 0
   info "Scenario 2: done label resolves as terminal"
   tmp=$(setup_with_labels '["done"]')
-  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || true
-  if echo "$output" | grep -q '"completed"'; then
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 2: FAIL - terminal should exit 0, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"completed"'; then
     success "Scenario 2: PASS"
   else
     error "Scenario 2: FAIL - status not 'completed'"
@@ -71,11 +81,16 @@ main() {
   fi
   rm -rf "$tmp"
 
-  # Scenario 3: ["blocked"] → status == "blocked"
+  # Scenario 3: ["blocked"] → status == "blocked", exit 1
   info "Scenario 3: blocked label resolves as blocking"
   tmp=$(setup_with_labels '["blocked"]')
-  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || true
-  if echo "$output" | grep -q '"blocked"'; then
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 1 ]]; then
+    error "Scenario 3: FAIL - blocked should exit 1, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"blocked"'; then
     success "Scenario 3: PASS"
   else
     error "Scenario 3: FAIL - status not 'blocked'"
@@ -84,14 +99,61 @@ main() {
   fi
   rm -rf "$tmp"
 
-  # Scenario 4: no workflow label → status == "blocked"
+  # Scenario 4: no workflow label → status == "blocked", exit 1
   info "Scenario 4: no workflow label resolves as blocked"
   tmp=$(setup_with_labels '["unrelated-label"]')
-  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || true
-  if echo "$output" | grep -q '"blocked"'; then
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 1 ]]; then
+    error "Scenario 4: FAIL - no-label should exit 1, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"blocked"'; then
     success "Scenario 4: PASS"
   else
     error "Scenario 4: FAIL - status not 'blocked'"
+    echo "$output"
+    fail=1
+  fi
+  rm -rf "$tmp"
+
+  # Scenario 5: ["ready", "review"] → review wins (priority 1 < 2), exit 0
+  info "Scenario 5: multi-label priority resolution"
+  tmp=$(setup_with_labels '["ready", "review"]')
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 5: FAIL - dry-run should exit 0, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"finalPhase"' && echo "$output" | grep -q '"review"'; then
+    if echo "$output" | grep -q '"dry-run"'; then
+      success "Scenario 5: PASS"
+    else
+      error "Scenario 5: FAIL - status not 'dry-run'"
+      echo "$output"
+      fail=1
+    fi
+  else
+    error "Scenario 5: FAIL - finalPhase not 'review' (expected lowest priority number wins)"
+    echo "$output"
+    fail=1
+  fi
+  rm -rf "$tmp"
+
+  # Scenario 6: ["ready", "done", "review"] → terminal "done" takes precedence, exit 0
+  info "Scenario 6: terminal label takes precedence over actionable"
+  tmp=$(setup_with_labels '["ready", "done", "review"]')
+  exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 6: FAIL - terminal should exit 0, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"completed"' && echo "$output" | grep -q '"complete"'; then
+    success "Scenario 6: PASS"
+  else
+    error "Scenario 6: FAIL - expected terminal completion"
     echo "$output"
     fail=1
   fi

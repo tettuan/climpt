@@ -105,6 +105,31 @@ scripts/run-workflow.ts --label docs --state open
 6. BatchResult 出力
 ```
 
+### Status 判定ロジック
+
+**per-issue status** (`OrchestratorResult.status`):
+
+| status             | 条件                                          |
+| ------------------ | --------------------------------------------- |
+| `"completed"`      | terminal phase に到達                         |
+| `"blocked"`        | blocking phase、ラベルなし、Agent 未解決      |
+| `"cycle_exceeded"` | `maxCycles` 超過                              |
+| `"dry-run"`        | actionable phase を解決済み、`--dry-run` 中止 |
+
+**batch status** (`BatchResult.status`):
+
+| status        | 条件                                                   |
+| ------------- | ------------------------------------------------------ |
+| `"completed"` | 処理エラー 0 件（空バッチ・全件 terminal/skip も含む） |
+| `"partial"`   | 処理エラー 1 件以上                                    |
+| `"failed"`    | バッチ開始不可（ワークフローロック競合）               |
+
+**exit code** (`run-workflow.ts`):
+
+- 単一 issue: `status === "completed" \|\| status === "dry-run"` → 0、それ以外 →
+  1
+- Batch: `status === "failed" \|\| status === "partial"` → 1、それ以外 → 0
+
 ## Label Prefix
 
 複数ワークフローの共存。`labelPrefix: "docs"` を設定すると、GitHub ラベルは

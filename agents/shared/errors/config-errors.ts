@@ -589,6 +589,18 @@ export function wfRefUnknownOutputPhasesEntry(
   );
 }
 
+// --- WF-BATCH: Batch operation errors ---
+
+export function wfBatchPrioritizeMissingConfig(): ConfigError {
+  return new ConfigError(
+    "WF-BATCH-001",
+    "--prioritize requested but 'prioritizer' is not defined in workflow config.",
+    "Prioritize mode requires a 'prioritizer' section with agent, labels, and defaultLabel.",
+    "Add a 'prioritizer' section to workflow.json, or remove the --prioritize flag.",
+    "workflow.json",
+  );
+}
+
 // ============================================================
 // PR: Prompt Errors (prompts/)
 // ============================================================

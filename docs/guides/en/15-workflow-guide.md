@@ -136,7 +136,8 @@ deno task workflow --label P1 --label docs --state open --limit 10
 | `--limit`      | number  | `30`                   | Max issues to fetch                       |
 | `--prioritize` | boolean | false                  | Run prioritizer only (batch mode)         |
 | `--verbose`    | boolean | false                  | Detailed log output                       |
-| `--dry-run`    | boolean | false                  | Show changes without acting               |
+| `--dry-run`    | boolean | false                  | Show what would happen without acting     |
+| `--local`      | boolean | false                  | Use local IssueStore (skip GitHub sync)   |
 
 ## Understanding Output
 
@@ -158,9 +159,29 @@ The orchestrator outputs a JSON result:
 }
 ```
 
-- `status: "completed"` — Reached a terminal phase.
-- `status: "blocked"` — Reached a blocking phase or no actionable labels found.
-- `status: "cycle_exceeded"` — Hit `maxCycles` limit.
+### Per-Issue Status
+
+- `"completed"` — Reached a terminal phase.
+- `"blocked"` — Reached a blocking phase or no actionable labels found.
+- `"cycle_exceeded"` — Hit `maxCycles` limit.
+- `"dry-run"` — Actionable phase resolved; would dispatch but `--dry-run`
+  skipped it.
+
+### Batch Status
+
+- `"completed"` — All issues processed without errors (includes empty batches
+  and all-terminal batches).
+- `"partial"` — At least one issue caused a processing error.
+- `"failed"` — Batch could not start (e.g., workflow lock already held).
+
+### Exit Codes
+
+| Mode         | Condition                                | Exit Code |
+| ------------ | ---------------------------------------- | --------- |
+| Single issue | `status` is `"completed"` or `"dry-run"` | 0         |
+| Single issue | `status` is `"blocked"` or other         | 1         |
+| Batch        | `status` is `"completed"`                | 0         |
+| Batch        | `status` is `"partial"` or `"failed"`    | 1         |
 
 ## Multi-Workflow Setup
 
@@ -189,11 +210,11 @@ deno task workflow --label impl:ready --workflow .agent/workflow-impl.json
 
 ## Troubleshooting
 
-| Symptom                  | Cause                                     | Fix                                    |
-| ------------------------ | ----------------------------------------- | -------------------------------------- |
-| No issues processed      | No matching labels on open issues         | Check `--label` and `--state` filters  |
-| Agent not dispatched     | Phase resolved as blocking/terminal       | Verify `labelMapping` and phase types  |
-| Cycle limit exceeded     | Too many transitions                      | Increase `maxCycles` or fix loop logic |
-| Unknown label ignored    | Label not in `labelMapping`               | Add the label to `labelMapping`        |
-| Validation error on load | Cross-reference mismatch in workflow.json | Check agent/phase references exist     |
-| `--prioritize` fails     | Missing `prioritizer` config              | Add `prioritizer` section to workflow  |
+| Symptom                             | Cause                                     | Fix                                    |
+| ----------------------------------- | ----------------------------------------- | -------------------------------------- |
+| No issues processed                 | No matching labels on open issues         | Check `--label` and `--state` filters  |
+| Agent not dispatched                | Phase resolved as blocking/terminal       | Verify `labelMapping` and phase types  |
+| Cycle limit exceeded                | Too many transitions                      | Increase `maxCycles` or fix loop logic |
+| Unknown label ignored               | Label not in `labelMapping`               | Add the label to `labelMapping`        |
+| Validation error on load            | Cross-reference mismatch in workflow.json | Check agent/phase references exist     |
+| `--prioritize` fails (WF-BATCH-001) | Missing `prioritizer` config              | Add `prioritizer` section to workflow  |

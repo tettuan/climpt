@@ -29,6 +29,7 @@ import { IssueSyncer } from "./issue-syncer.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 import { Prioritizer } from "./prioritizer.ts";
 import { Queue } from "./queue.ts";
+import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -447,30 +448,35 @@ export class Orchestrator {
     const issueNumbers = await syncer.sync(criteria);
 
     // 2. If --prioritize mode
-    if (options?.prioritizeOnly && this.#config.prioritizer) {
+    if (options?.prioritizeOnly) {
+      if (!this.#config.prioritizer) {
+        throw wfBatchPrioritizeMissingConfig();
+      }
       const prioritizer = new Prioritizer(
         this.#config.prioritizer,
         store,
         this.#dispatcher,
       );
       const priorityResult = await prioritizer.run();
-      // Update meta.json for each assignment
-      for (const { issue, priority } of priorityResult.assignments) {
-        // deno-lint-ignore no-await-in-loop
-        const meta = await store.readMeta(issue);
-        const priorityLabels = this.#config.prioritizer.labels;
-        const newLabels = meta.labels.filter((l) =>
-          !priorityLabels.includes(l)
-        );
-        newLabels.push(priority);
-        // deno-lint-ignore no-await-in-loop
-        await store.updateMeta(issue, { labels: newLabels });
-        // Sync to gh
-        const oldPriorityLabels = meta.labels.filter((l) =>
-          priorityLabels.includes(l)
-        );
-        // deno-lint-ignore no-await-in-loop
-        await syncer.pushLabels(issue, oldPriorityLabels, [priority]);
+      // Update meta.json for each assignment (skip in dryRun)
+      if (!options.dryRun) {
+        for (const { issue, priority } of priorityResult.assignments) {
+          // deno-lint-ignore no-await-in-loop
+          const meta = await store.readMeta(issue);
+          const priorityLabels = this.#config.prioritizer.labels;
+          const newLabels = meta.labels.filter((l) =>
+            !priorityLabels.includes(l)
+          );
+          newLabels.push(priority);
+          // deno-lint-ignore no-await-in-loop
+          await store.updateMeta(issue, { labels: newLabels });
+          // Sync to gh
+          const oldPriorityLabels = meta.labels.filter((l) =>
+            priorityLabels.includes(l)
+          );
+          // deno-lint-ignore no-await-in-loop
+          await syncer.pushLabels(issue, oldPriorityLabels, [priority]);
+        }
       }
       return {
         processed: [],
@@ -493,6 +499,7 @@ export class Orchestrator {
     // 4. Process each issue
     const processed: OrchestratorResult[] = [];
     const skipped: { issueNumber: number; reason: string }[] = [];
+    let errorCount = 0;
 
     for (const item of queueItems) {
       try {
@@ -501,6 +508,7 @@ export class Orchestrator {
         const result = await this.run(item.issueNumber, options, store);
         processed.push(result);
       } catch (error) {
+        errorCount++;
         skipped.push({
           issueNumber: item.issueNumber,
           reason: error instanceof Error ? error.message : String(error),
@@ -508,7 +516,7 @@ export class Orchestrator {
       }
     }
 
-    // Issues in store but not in queue were skipped
+    // Issues in store but not in queue were skipped (normal, not error)
     for (const num of issueNumbers) {
       if (!queueItems.some((q) => q.issueNumber === num)) {
         skipped.push({ issueNumber: num, reason: "not actionable" });
@@ -519,7 +527,7 @@ export class Orchestrator {
       processed,
       skipped,
       totalIssues: issueNumbers.length,
-      status: processed.length > 0 ? "completed" : "partial",
+      status: errorCount > 0 ? "partial" : "completed",
     };
   }
 

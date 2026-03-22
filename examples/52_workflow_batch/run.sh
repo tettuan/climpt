@@ -34,18 +34,33 @@ main() {
 
   # Scenario 1: Batch with 3 issues (2 ready + 1 done)
   info "Scenario 1: Batch processes ready issues, skips terminal"
-  local tmp output
+  local tmp output exit_code
   tmp=$(setup_workdir)
 
+  exit_code=0
   output=$(cd "$tmp" && $WORKFLOW_CMD --local \
-    --stub-dispatch '{"iterator":"success","reviewer":"approved"}' 2>&1) || true
+    --stub-dispatch '{"iterator":"success","reviewer":"approved"}' 2>&1) || exit_code=$?
+
+  # Check exit code: should be 0
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 1: FAIL - expected exit code 0, got $exit_code"
+    echo "$output"
+    fail=1
+  fi
+
+  # Check status: should be "completed"
+  local batch_status
+  batch_status=$(echo "$output" | jq -r '.status' 2>/dev/null) || batch_status="?"
+  if [[ "$batch_status" != "completed" ]]; then
+    error "Scenario 1: FAIL - expected status 'completed', got $batch_status"
+    echo "$output"
+    fail=1
+  fi
 
   # Check processed count: should be 2
   local processed_count
   processed_count=$(echo "$output" | jq '.processed | length' 2>/dev/null) || processed_count="?"
-  if [[ "$processed_count" == "2" ]]; then
-    : # correct
-  else
+  if [[ "$processed_count" != "2" ]]; then
     error "Scenario 1: FAIL - expected 2 processed, got $processed_count"
     echo "$output"
     fail=1
@@ -54,9 +69,7 @@ main() {
   # Check skipped count: should be 1
   local skipped_count
   skipped_count=$(echo "$output" | jq '.skipped | length' 2>/dev/null) || skipped_count="?"
-  if [[ "$skipped_count" == "1" ]]; then
-    : # correct
-  else
+  if [[ "$skipped_count" != "1" ]]; then
     error "Scenario 1: FAIL - expected 1 skipped, got $skipped_count"
     echo "$output"
     fail=1

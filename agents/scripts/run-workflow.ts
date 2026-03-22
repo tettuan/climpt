@@ -186,7 +186,9 @@ async function runSingleIssue(
   // deno-lint-ignore no-console
   console.log(JSON.stringify(result, null, 2));
 
-  Deno.exit(result.status === "completed" ? 0 : 1);
+  Deno.exit(
+    result.status === "completed" || result.status === "dry-run" ? 0 : 1,
+  );
 }
 
 async function runBatchWorkflow(
@@ -228,7 +230,7 @@ async function runBatchWorkflow(
   // deno-lint-ignore no-console
   console.log(JSON.stringify(result, null, 2));
 
-  const hasFailure = result.status !== "completed";
+  const hasFailure = result.status === "failed" || result.status === "partial";
   Deno.exit(hasFailure ? 1 : 0);
 }
 

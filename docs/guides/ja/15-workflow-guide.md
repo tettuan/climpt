@@ -126,17 +126,18 @@ deno task workflow --label P1 --label docs --state open --limit 10
 
 ### CLI オプション
 
-| オプション     | 型      | デフォルト             | 説明                                       |
-| -------------- | ------- | ---------------------- | ------------------------------------------ |
-| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ） |
-| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                      |
-| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）     |
-| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                 |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`                  |
-| `--limit`      | number  | `30`                   | 最大取得 issue 数                          |
-| `--prioritize` | boolean | false                  | Prioritizer のみ実行（batch 用）           |
-| `--verbose`    | boolean | false                  | 詳細ログ出力                               |
-| `--dry-run`    | boolean | false                  | 変更を表示のみ                             |
+| オプション     | 型      | デフォルト             | 説明                                          |
+| -------------- | ------- | ---------------------- | --------------------------------------------- |
+| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ）    |
+| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                         |
+| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）        |
+| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                    |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                     |
+| `--limit`      | number  | `30`                   | 最大取得 issue 数                             |
+| `--prioritize` | boolean | false                  | Prioritizer のみ実行（batch 用）              |
+| `--verbose`    | boolean | false                  | 詳細ログ出力                                  |
+| `--dry-run`    | boolean | false                  | 実行せず結果を表示                            |
+| `--local`      | boolean | false                  | ローカル IssueStore を使用（GitHub 同期なし） |
 
 ## 出力の見方
 
@@ -158,10 +159,29 @@ Orchestrator は JSON で結果を出力する:
 }
 ```
 
-- `status: "completed"` — terminal phase に到達。
-- `status: "blocked"` — blocking phase
-  に到達、またはアクション可能なラベルなし。
-- `status: "cycle_exceeded"` — `maxCycles` 制限に到達。
+### Issue 単位の status
+
+- `"completed"` — terminal phase に到達。
+- `"blocked"` — blocking phase に到達、またはアクション可能なラベルなし。
+- `"cycle_exceeded"` — `maxCycles` 制限に到達。
+- `"dry-run"` — actionable phase を解決済み。`--dry-run`
+  によりディスパッチをスキップ。
+
+### Batch の status
+
+- `"completed"` — 全 issue がエラーなく処理完了（空バッチ・全件 terminal
+  含む）。
+- `"partial"` — 1 件以上の issue で処理エラーが発生。
+- `"failed"` — バッチ開始不可（例: ワークフローロック競合）。
+
+### 終了コード
+
+| モード     | 条件                                       | 終了コード |
+| ---------- | ------------------------------------------ | ---------- |
+| 単一 issue | status が `"completed"` または `"dry-run"` | 0          |
+| 単一 issue | status が `"blocked"` 等                   | 1          |
+| Batch      | status が `"completed"`                    | 0          |
+| Batch      | status が `"partial"` または `"failed"`    | 1          |
 
 ## マルチワークフロー設定
 
@@ -189,11 +209,11 @@ deno task workflow --label impl:ready --workflow .agent/workflow-impl.json
 
 ## トラブルシューティング
 
-| 症状                         | 原因                                    | 対処                                       |
-| ---------------------------- | --------------------------------------- | ------------------------------------------ |
-| issue が処理されない         | マッチするラベルが open issue にない    | `--label` と `--state` フィルタを確認      |
-| Agent がディスパッチされない | Phase が blocking/terminal に解決された | `labelMapping` と phase type を確認        |
-| Cycle limit exceeded         | 遷移回数が多すぎる                      | `maxCycles` を増やすかループ原因を修正     |
-| ラベルが無視される           | `labelMapping` に未定義                 | ラベルを `labelMapping` に追加             |
-| ロード時バリデーションエラー | workflow.json の相互参照不整合          | agent/phase の参照先が存在するか確認       |
-| `--prioritize` が失敗        | `prioritizer` 設定がない                | workflow に `prioritizer` セクションを追加 |
+| 症状                                 | 原因                                    | 対処                                       |
+| ------------------------------------ | --------------------------------------- | ------------------------------------------ |
+| issue が処理されない                 | マッチするラベルが open issue にない    | `--label` と `--state` フィルタを確認      |
+| Agent がディスパッチされない         | Phase が blocking/terminal に解決された | `labelMapping` と phase type を確認        |
+| Cycle limit exceeded                 | 遷移回数が多すぎる                      | `maxCycles` を増やすかループ原因を修正     |
+| ラベルが無視される                   | `labelMapping` に未定義                 | ラベルを `labelMapping` に追加             |
+| ロード時バリデーションエラー         | workflow.json の相互参照不整合          | agent/phase の参照先が存在するか確認       |
+| `--prioritize` が失敗 (WF-BATCH-001) | `prioritizer` 設定がない                | workflow に `prioritizer` セクションを追加 |

@@ -1,4 +1,5 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
+import { ConfigError } from "../shared/errors/config-errors.ts";
 import type { WorkflowConfig } from "./workflow-types.ts";
 import type {
   GitHubClient,
@@ -1050,4 +1051,276 @@ Deno.test("run without store works exactly as before (backward compatibility)", 
   assertEquals(result.history.length, 2);
   // getIssueLabels called twice (once per cycle); terminal phase breaks before 3rd read
   assertEquals(github.callIndex, 2);
+});
+
+// === Batch status and prioritize guard tests ===
+
+Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createBatchTestConfig();
+    delete config.prioritizer; // Remove prioritizer config
+    config.issueStore = { path: ".agent/issues" };
+
+    await setupBatchStore(tmpDir, [
+      { num: 10, labels: ["ready"] },
+    ]);
+
+    const listItems: IssueListItem[] = [
+      { number: 10, title: "Issue 10", labels: ["ready"], state: "open" },
+    ];
+    const details = new Map<number, IssueDetail>();
+    details.set(10, {
+      number: 10,
+      title: "Issue 10",
+      body: "Body 10",
+      labels: ["ready"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+    const github = new BatchStubGitHubClient(
+      listItems,
+      details,
+      new Map(),
+    );
+    const dispatcher = new StubDispatcher({});
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+    await assertRejects(
+      () => orchestrator.runBatch({}, { prioritizeOnly: true }),
+      ConfigError,
+      "WF-BATCH-001",
+    );
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createBatchTestConfig();
+    config.issueStore = { path: ".agent/issues" };
+
+    await setupBatchStore(tmpDir, [
+      { num: 10, labels: ["ready"] },
+      { num: 20, labels: ["ready"] },
+    ]);
+
+    const details = new Map<number, IssueDetail>();
+    details.set(10, {
+      number: 10,
+      title: "Issue 10",
+      body: "Body 10",
+      labels: ["ready"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+    details.set(20, {
+      number: 20,
+      title: "Issue 20",
+      body: "Body 20",
+      labels: ["ready"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+
+    const listItems: IssueListItem[] = [
+      { number: 10, title: "Issue 10", labels: ["ready"], state: "open" },
+      { number: 20, title: "Issue 20", labels: ["ready"], state: "open" },
+    ];
+    const github = new BatchStubGitHubClient(
+      listItems,
+      details,
+      new Map(),
+    );
+
+    const dispatchedAgents: string[] = [];
+    const dispatcher = {
+      dispatch(
+        agentId: string,
+        _issueNumber: number,
+      ): Promise<DispatchOutcome> {
+        dispatchedAgents.push(agentId);
+        return Promise.resolve({ outcome: "success", durationMs: 0 });
+      },
+    };
+
+    // Write priorities.json for prioritizer agent
+    const storePath = `${tmpDir}/.agent/issues`;
+    await Deno.writeTextFile(
+      `${storePath}/priorities.json`,
+      JSON.stringify([
+        { issue: 10, priority: "P1" },
+        { issue: 20, priority: "P2" },
+      ]),
+    );
+
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+    const result = await orchestrator.runBatch(
+      {},
+      { prioritizeOnly: true, dryRun: true },
+    );
+
+    // Prioritizer agent was dispatched
+    assertEquals(dispatchedAgents.includes("triage-agent"), true);
+    assertEquals(result.status, "completed");
+
+    // Store should NOT have been updated (dryRun)
+    const store = new IssueStore(storePath);
+    const meta10 = await store.readMeta(10);
+    assertEquals(meta10.labels.includes("P1"), false);
+    const meta20 = await store.readMeta(20);
+    assertEquals(meta20.labels.includes("P2"), false);
+
+    // GitHub should NOT have label updates
+    assertEquals(github.labelUpdates.length, 0);
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("runBatch all-terminal issues returns completed status", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createBatchTestConfig();
+    config.issueStore = { path: ".agent/issues" };
+
+    // All issues are terminal (done label)
+    await setupBatchStore(tmpDir, [
+      { num: 10, labels: ["done"] },
+      { num: 20, labels: ["done"] },
+    ]);
+
+    const details = new Map<number, IssueDetail>();
+    details.set(10, {
+      number: 10,
+      title: "Issue 10",
+      body: "Body 10",
+      labels: ["done"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+    details.set(20, {
+      number: 20,
+      title: "Issue 20",
+      body: "Body 20",
+      labels: ["done"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+
+    const listItems: IssueListItem[] = [
+      { number: 10, title: "Issue 10", labels: ["done"], state: "open" },
+      { number: 20, title: "Issue 20", labels: ["done"], state: "open" },
+    ];
+    const github = new BatchStubGitHubClient(
+      listItems,
+      details,
+      new Map(),
+    );
+    const dispatcher = new StubDispatcher({});
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+    const result = await orchestrator.runBatch({});
+
+    assertEquals(result.status, "completed");
+    assertEquals(result.processed.length, 0);
+    assertEquals(result.skipped.length, 2);
+    assertEquals(result.skipped[0].reason, "not actionable");
+    assertEquals(result.skipped[1].reason, "not actionable");
+    assertEquals(result.totalIssues, 2);
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("runBatch empty sync returns completed status", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createBatchTestConfig();
+    config.issueStore = { path: ".agent/issues" };
+
+    // No issues in store — empty listItems
+    const github = new BatchStubGitHubClient(
+      [],
+      new Map(),
+      new Map(),
+    );
+    const dispatcher = new StubDispatcher({});
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+    const result = await orchestrator.runBatch({});
+
+    assertEquals(result.status, "completed");
+    assertEquals(result.processed.length, 0);
+    assertEquals(result.skipped.length, 0);
+    assertEquals(result.totalIssues, 0);
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("runBatch with processing error returns partial status", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createBatchTestConfig();
+    config.issueStore = { path: ".agent/issues" };
+
+    await setupBatchStore(tmpDir, [
+      { num: 10, labels: ["ready", "P1"] },
+    ]);
+
+    const details = new Map<number, IssueDetail>();
+    details.set(10, {
+      number: 10,
+      title: "Issue 10",
+      body: "Body 10",
+      labels: ["ready", "P1"],
+      state: "open",
+      assignees: [],
+      milestone: null,
+      comments: [],
+    });
+
+    const listItems: IssueListItem[] = [
+      { number: 10, title: "Issue 10", labels: ["ready", "P1"], state: "open" },
+    ];
+
+    const labelSeqs = new Map<number, string[][]>();
+    labelSeqs.set(10, [["ready"]]);
+
+    const github = new BatchStubGitHubClient(listItems, details, labelSeqs);
+
+    // Dispatcher that throws for all agents
+    const dispatcher = {
+      dispatch(
+        _agentId: string,
+        _issueNumber: number,
+      ): Promise<DispatchOutcome> {
+        return Promise.reject(new Error("agent dispatch failed"));
+      },
+    };
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+    const result = await orchestrator.runBatch({});
+
+    assertEquals(result.status, "partial");
+    assertEquals(result.processed.length, 0);
+    assertEquals(result.skipped.length, 1);
+    assertEquals(result.skipped[0].issueNumber, 10);
+    assertEquals(result.skipped[0].reason, "agent dispatch failed");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
 });

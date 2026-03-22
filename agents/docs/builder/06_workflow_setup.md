@@ -217,26 +217,27 @@ deno task workflow --label docs --dry-run --verbose
 
 ### CLI 引数
 
-| 引数           | 型      | デフォルト             | 説明                                       |
-| -------------- | ------- | ---------------------- | ------------------------------------------ |
-| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ） |
-| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                      |
-| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）     |
-| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                 |
-| `--state`      | string  | `open`                 | `open` / `closed` / `all`                  |
-| `--limit`      | number  | `30`                   | 最大取得 issue 数                          |
-| `--prioritize` | boolean | `false`                | Prioritizer のみ実行（batch 用）           |
-| `--verbose`    | boolean | `false`                | 詳細ログ出力                               |
-| `--dry-run`    | boolean | `false`                | gh 操作を実行せず表示のみ                  |
+| 引数           | 型      | デフォルト             | 説明                                          |
+| -------------- | ------- | ---------------------- | --------------------------------------------- |
+| `--issue`      | number  | —                      | 単一 issue を処理（batch sync をスキップ）    |
+| `--workflow`   | string  | `.agent/workflow.json` | workflow ファイルパス                         |
+| `--label`      | string  | —                      | ラベルフィルタ（複数指定可、batch 用）        |
+| `--repo`       | string  | カレント               | リポジトリ（`owner/repo`）                    |
+| `--state`      | string  | `open`                 | `open` / `closed` / `all`                     |
+| `--limit`      | number  | `30`                   | 最大取得 issue 数                             |
+| `--prioritize` | boolean | `false`                | Prioritizer のみ実行（batch 用）              |
+| `--verbose`    | boolean | `false`                | 詳細ログ出力                                  |
+| `--dry-run`    | boolean | `false`                | 実行せず結果を表示（終了コード 0）            |
+| `--local`      | boolean | `false`                | ローカル IssueStore を使用（GitHub 同期なし） |
 
 ## よくあるエラー
 
-| エラー                                     | 原因                                              | 対処                                    |
-| ------------------------------------------ | ------------------------------------------------- | --------------------------------------- |
-| `Phase "X" references unknown agent "Y"`   | `phases[X].agent` が `agents` に存在しない        | `agents` セクションに `Y` を追加        |
-| `Label "X" maps to unknown phase "Y"`      | `labelMapping[X]` の値が `phases` に存在しない    | `phases` セクションに `Y` を追加        |
-| `Agent "X" outputPhase "Y" is unknown`     | `agents[X].outputPhase` が `phases` に存在しない  | 遷移先 phase を `phases` に追加         |
-| `Actionable phase "X" missing agent`       | `actionable` type の phase に `agent` が未定義    | `agent` フィールドを追加                |
-| `Actionable phase "X" missing priority`    | `actionable` type の phase に `priority` が未定義 | `priority` フィールドを追加             |
-| `Cycle limit exceeded`                     | `maxCycles` 回の遷移が発生                        | ワークフロー定義を見直すか maxCycles 増 |
-| `--prioritize requires prioritizer config` | `prioritizer` セクションが未定義                  | workflow.json に `prioritizer` を追加   |
+| エラー                                                   | 原因                                              | 対処                                    |
+| -------------------------------------------------------- | ------------------------------------------------- | --------------------------------------- |
+| `Phase "X" references unknown agent "Y"`                 | `phases[X].agent` が `agents` に存在しない        | `agents` セクションに `Y` を追加        |
+| `Label "X" maps to unknown phase "Y"`                    | `labelMapping[X]` の値が `phases` に存在しない    | `phases` セクションに `Y` を追加        |
+| `Agent "X" outputPhase "Y" is unknown`                   | `agents[X].outputPhase` が `phases` に存在しない  | 遷移先 phase を `phases` に追加         |
+| `Actionable phase "X" missing agent`                     | `actionable` type の phase に `agent` が未定義    | `agent` フィールドを追加                |
+| `Actionable phase "X" missing priority`                  | `actionable` type の phase に `priority` が未定義 | `priority` フィールドを追加             |
+| `Cycle limit exceeded`                                   | `maxCycles` 回の遷移が発生                        | ワークフロー定義を見直すか maxCycles 増 |
+| `WF-BATCH-001: --prioritize requires prioritizer config` | `prioritizer` セクションが未定義                  | workflow.json に `prioritizer` を追加   |

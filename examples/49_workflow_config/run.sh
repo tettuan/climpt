@@ -27,15 +27,17 @@ main() {
 
   local fail=0
 
-  # Scenario 1: Valid config → dry-run succeeds, JSON has issueNumber
+  # Scenario 1: Valid config → dry-run succeeds with exit 0
   info "Scenario 1: Valid config loads successfully"
   local tmp
   tmp=$(setup_workdir)
-  local output
-  if output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1); then
-    : # dry-run with terminal label would exit 0, but actionable exits 1
-  fi
-  if echo "$output" | grep -q '"issueNumber"'; then
+  local output exit_code=0
+  output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 --dry-run 2>&1) || exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    error "Scenario 1: FAIL - dry-run should exit 0, got $exit_code"
+    echo "$output"
+    fail=1
+  elif echo "$output" | grep -q '"issueNumber"'; then
     success "Scenario 1: PASS"
   else
     error "Scenario 1: FAIL - output missing 'issueNumber'"
