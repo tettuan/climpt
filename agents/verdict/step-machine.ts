@@ -15,7 +15,7 @@ import {
   type IterationSummary,
   type VerdictCriteria,
 } from "./types.ts";
-import { PATHS } from "../shared/paths.ts";
+import { srEntryNotConfigured } from "../shared/errors/config-errors.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
@@ -108,10 +108,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
     }
 
     // No implicit fallback - entry step must be configured
-    throw new Error(
-      `[StepMachine] No entry step configured in registry. ` +
-        `Add "entryStep" or "entryStepMapping" to ${PATHS.STEPS_REGISTRY}.`,
-    );
+    throw srEntryNotConfigured();
   }
 
   /**
@@ -265,15 +262,6 @@ ${this.buildStepInstructions(stepDef)}
       if (so.status === "completed" || so.complete === true) {
         this.verdictReason = "AI declared completion";
         return Promise.resolve(COMPLETE);
-      }
-
-      // Check for next_action.action === "complete"
-      if (typeof so.next_action === "object" && so.next_action !== null) {
-        const nextAction = so.next_action as Record<string, unknown>;
-        if (nextAction.action === "complete") {
-          this.verdictReason = "AI requested completion action";
-          return Promise.resolve(COMPLETE);
-        }
       }
     }
 

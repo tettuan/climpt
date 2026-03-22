@@ -2,7 +2,7 @@
  * Tests for malformed JSON handling in the config loader.
  *
  * Scope:
- * 1. loadRaw() with syntactically invalid agent.json throws ConfigurationLoadError
+ * 1. loadRaw() with syntactically invalid agent.json throws ConfigError (AC-SERVICE-002)
  *    whose message contains the file path.
  * 2. validatePaths() with runner.flow.prompts.registry configured but the file
  *    absent reports the correct key in its error output.
@@ -11,7 +11,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { join } from "@std/path";
-import { ConfigurationLoadError, loadRaw } from "./loader.ts";
+import { loadRaw } from "./loader.ts";
+import { ConfigError } from "../shared/errors/config-errors.ts";
 import { validatePaths } from "./path-validator.ts";
 import type { AgentDefinition } from "../src_common/types.ts";
 
@@ -56,7 +57,7 @@ function definitionWithRegistry(): AgentDefinition {
 // Test 1: Syntactically invalid agent.json -> thrown error contains file path
 // =============================================================================
 
-Deno.test("loadRaw - invalid JSON throws ConfigurationLoadError containing file path", async () => {
+Deno.test("loadRaw - invalid JSON throws ConfigError (AC-SERVICE-002) containing file path", async () => {
   const tempDir = await Deno.makeTempDir();
 
   try {
@@ -70,8 +71,15 @@ Deno.test("loadRaw - invalid JSON throws ConfigurationLoadError containing file 
       async () => {
         await loadRaw(tempDir);
       },
-      ConfigurationLoadError,
-    ) as ConfigurationLoadError;
+      ConfigError,
+    ) as ConfigError;
+
+    // The error code must be AC-SERVICE-002 (invalid JSON)
+    assertEquals(
+      error.code,
+      "AC-SERVICE-002",
+      `Expected error.code to be "AC-SERVICE-002", got: "${error.code}"`,
+    );
 
     // The error message must contain the file path so callers can locate the problem
     assertEquals(
@@ -80,11 +88,11 @@ Deno.test("loadRaw - invalid JSON throws ConfigurationLoadError containing file 
       `Expected error message to contain "${agentJsonPath}", got: "${error.message}"`,
     );
 
-    // The path property must also be set
+    // The configFile property must be set to "agent.json"
     assertEquals(
-      error.path,
-      agentJsonPath,
-      `Expected error.path to equal "${agentJsonPath}", got: "${error.path}"`,
+      error.configFile,
+      "agent.json",
+      `Expected error.configFile to equal "agent.json", got: "${error.configFile}"`,
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

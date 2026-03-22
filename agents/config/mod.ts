@@ -15,6 +15,10 @@ import { validate, validateComplete } from "./validator.ts";
 import { applyDefaults, freeze } from "./defaults.ts";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
+  acValidFailed,
+  acValidIncomplete,
+} from "../shared/errors/config-errors.ts";
+import {
   validateAgentSchema,
   validateRegistrySchema,
 } from "./schema-validator.ts";
@@ -42,8 +46,8 @@ export type { CrossRefResult } from "./registry-validator.ts";
  * @param agentName - Name of the agent
  * @param baseDir - Base directory containing .agent folder
  * @returns Frozen, validated AgentDefinition
- * @throws ConfigurationLoadError if loading fails
- * @throws Error if validation fails
+ * @throws ConfigError (AC-SERVICE-*) if loading fails
+ * @throws ConfigError (AC-VALID-*) if validation fails
  */
 export async function loadConfiguration(
   agentName: string,
@@ -57,9 +61,7 @@ export async function loadConfiguration(
   // Validate raw
   const rawValidation = validate(raw);
   if (!rawValidation.valid) {
-    throw new Error(
-      `Configuration validation failed: ${rawValidation.errors.join(", ")}`,
-    );
+    throw acValidFailed(rawValidation.errors.join(", "));
   }
 
   // Log warnings
@@ -76,9 +78,7 @@ export async function loadConfiguration(
   // Validate complete definition
   const completeValidation = validateComplete(definition);
   if (!completeValidation.valid) {
-    throw new Error(
-      `Configuration incomplete: ${completeValidation.errors.join(", ")}`,
-    );
+    throw acValidIncomplete(completeValidation.errors.join(", "));
   }
 
   // Load steps registry if referenced

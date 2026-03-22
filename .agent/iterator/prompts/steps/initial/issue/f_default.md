@@ -104,7 +104,7 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 > 2. **If changes exist**: Run `git add .` then `git commit -m "..."`
 > 3. **Verify clean state**: Run `git status` again to confirm "nothing to
 >    commit"
-> 4. **Only then**: Use the complete action below
+> 4. **Only then**: Use the closing action below
 >
 > **NEVER hand off with uncommitted changes. This is a hard requirement.**
 >
@@ -117,7 +117,7 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 - Keep the issue **OPEN** for reviewer to verify
 
 ```issue-action
-{"action":"complete","issue":{uv-issue},"body":"## Implementation Complete\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N\n\nReady for reviewer."}
+{"action":"closing","issue":{uv-issue},"body":"## Implementation Complete\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N\n\nReady for reviewer."}
 ```
 
 ### Ask a Question (if blocked)

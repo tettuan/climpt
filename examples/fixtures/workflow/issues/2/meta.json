@@ -1,0 +1,8 @@
+{
+  "number": 2,
+  "title": "Implement feature B",
+  "labels": ["ready"],
+  "state": "open",
+  "assignees": [],
+  "milestone": null
+}

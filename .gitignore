@@ -103,7 +103,11 @@ debug*.ts
 
 # Examples runtime artifacts (created by E2E pipeline)
 examples/.agent/
+examples/agents/
+examples/output/
 examples/outputs/
+examples/tmp/
+examples/.deno/
 
 # CI local state
 .ci-local/

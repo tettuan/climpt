@@ -95,7 +95,7 @@ export class ClosureAdapter {
         source: result.source,
       };
     } catch (error) {
-      ctx.logger.debug(
+      ctx.logger.warn(
         `[ClosureAdaptation] Failed to resolve closure prompt, falling back to verdictHandler: ${error}`,
       );
       return null;

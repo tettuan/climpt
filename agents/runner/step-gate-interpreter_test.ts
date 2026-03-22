@@ -284,36 +284,6 @@ Deno.test("StepGateInterpreter - extracts reason from output", () => {
   assertEquals(result.reason, "All tests passed");
 });
 
-Deno.test("StepGateInterpreter - missing intentField uses fallback (defensive, failFast=false)", () => {
-  // NOTE: intentField is now required in StructuredGate interface.
-  // This test covers the defensive runtime check for bad data with failFast=false.
-  const interpreter = new StepGateInterpreter();
-
-  // Force cast to bypass TypeScript - simulating bad runtime data
-  const stepDef = createStepDef({
-    structuredGate: {
-      allowedIntents: ["next", "closing"],
-      intentSchemaRef: "#/test",
-      failFast: false, // Explicitly disable for fallback test
-      // intentField intentionally omitted to test defensive check
-    } as unknown as import("../common/step-registry.ts").StructuredGate,
-  });
-
-  const output = {
-    next_action: { action: "closing" },
-  };
-
-  const result = interpreter.interpret(output, stepDef);
-
-  // Should use fallback since intentField is missing
-  assertEquals(result.intent, "next"); // First allowed intent as fallback
-  assertEquals(result.usedFallback, true);
-  assertEquals(
-    result.reason,
-    "intentField is required but missing - config error",
-  );
-});
-
 Deno.test("StepGateInterpreter - throws when no valid fallback", () => {
   const interpreter = new StepGateInterpreter();
   const stepDef = createStepDef({

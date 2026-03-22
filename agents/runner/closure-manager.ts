@@ -23,6 +23,10 @@ import { loadStepRegistry } from "../common/step-registry.ts";
 import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
+import {
+  srGateNoStructuredGateSteps,
+  srLoadNotFound,
+} from "../shared/errors/config-errors.ts";
 import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
@@ -68,6 +72,8 @@ export class ClosureManager {
   // Step-level prompt resolver (for work-step and closure adaptation)
   stepPromptResolver: StepPromptResolver | null = null;
 
+  private logger: import("../src_common/logger.ts").Logger | null = null;
+
   constructor(deps: ClosureManagerDeps) {
     this.deps = deps;
   }
@@ -85,6 +91,7 @@ export class ClosureManager {
     logger: import("../src_common/logger.ts").Logger,
     schemaManager: SchemaManager,
   ): Promise<void> {
+    this.logger = logger;
     const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
 
     try {
@@ -122,11 +129,7 @@ export class ClosureManager {
         this.deps.definition.runner.verdict.type === "detect:graph" &&
         !hasFlowRouting
       ) {
-        throw new Error(
-          `[StepFlow][ConfigError] Agent "${this.deps.definition.name}" uses verdictType "detect:graph" ` +
-            `but registry has no steps with structuredGate. Add structuredGate to at least one step ` +
-            `or change verdictType. See design/08_step_flow_design.md.`,
-        );
+        throw srGateNoStructuredGateSteps(this.deps.definition.name);
       }
 
       // Store registry with proper typing (needed by FlowOrchestrator for entryStepMapping)
@@ -221,12 +224,9 @@ export class ClosureManager {
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        logger.debug(
-          `Steps registry not found at ${registryPath}, using default verdict`,
-        );
-      } else {
-        logger.warn(`Failed to load steps registry: ${error}`);
+        throw srLoadNotFound(registryPath);
       }
+      throw error;
     }
   }
 
@@ -294,7 +294,6 @@ export class ClosureManager {
    * Check if AI declared verdict via structured output.
    *
    * Only "closing" intent from Closure Step triggers completion.
-   * Note: "complete" is accepted for backward compatibility.
    * Note: status: "completed" is NOT a completion signal.
    */
   hasAIVerdictDeclaration(summary: IterationSummary): boolean {
@@ -306,7 +305,7 @@ export class ClosureManager {
 
     if (isRecord(so.next_action)) {
       const nextAction = so.next_action as Record<string, unknown>;
-      if (nextAction.action === "closing" || nextAction.action === "complete") {
+      if (nextAction.action === "closing") {
         return true;
       }
     }
@@ -327,12 +326,13 @@ export class ClosureManager {
   }
 
   /**
-   * Resolve a work-step prompt via stepPromptResolver (C3L).
+   * Resolve a Flow Loop step prompt via stepPromptResolver (C3L).
    *
+   * Handles both work and verification steps (all Flow Loop steps).
    * Returns null when resolver is unavailable, step is not found,
-   * or the step is not a work step.
+   * or the step is a closure step (handled by Completion Loop).
    */
-  async resolveWorkStepPrompt(
+  async resolveFlowStepPrompt(
     stepId: string,
     variables: Record<string, string>,
   ): Promise<PromptResolutionResult | null> {
@@ -347,13 +347,17 @@ export class ClosureManager {
     }
 
     const stepKind = inferStepKind(stepDef);
-    if (stepKind !== "work") {
+    if (stepKind === "closure") {
       return null;
     }
 
     try {
       return await this.stepPromptResolver.resolve(stepId, { uv: variables });
-    } catch {
+    } catch (error) {
+      this.logger?.warn("[FlowLoop] C3L prompt resolution failed", {
+        stepId,
+        error: String(error),
+      });
       return null;
     }
   }

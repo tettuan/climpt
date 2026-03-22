@@ -48,11 +48,22 @@ export class StepContextImpl implements IStepContext {
 
     for (const [varName, spec] of Object.entries(inputs)) {
       let value: unknown;
+      let uvKey = varName; // fallback for inputs without `from`
 
       if (spec.from) {
-        // Parse "stepId.key" format
-        const [stepId, key] = spec.from.split(".");
+        // Parse "stepId.key" — use lastIndexOf to support composite stepIds
+        const dotPos = spec.from.lastIndexOf(".");
+        if (dotPos <= 0) {
+          throw new Error(
+            `Invalid from format '${spec.from}': expected 'stepId.key'`,
+          );
+        }
+        const stepId = spec.from.substring(0, dotPos);
+        const key = spec.from.substring(dotPos + 1);
         value = this.get(stepId, key);
+        // UV key uses stepId_key namespace to avoid Channel 1 collision
+        // Design: 02_core_architecture L99, 09_contracts L284
+        uvKey = stepId.replace(/\./g, "_") + "_" + key;
       }
 
       // Apply default if value is undefined
@@ -69,7 +80,7 @@ export class StepContextImpl implements IStepContext {
 
       // Convert to string for UV variable
       if (value !== undefined) {
-        result[`uv-${varName}`] = String(value);
+        result[uvKey] = String(value);
       }
     }
 

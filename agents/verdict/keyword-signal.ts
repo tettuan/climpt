@@ -38,6 +38,14 @@ export class KeywordSignalVerdictHandler extends BaseVerdictHandler {
   }
 
   /**
+   * Set the current iteration summary before verdict check.
+   * Called by runner before isFinished() to provide current response context.
+   */
+  setCurrentSummary(summary: IterationSummary): void {
+    this.lastSummary = summary;
+  }
+
+  /**
    * Supply base UV variables (CLI args + runtime) for prompt resolution.
    */
   setUvVariables(uv: Record<string, string>): void {

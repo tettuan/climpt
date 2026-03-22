@@ -12,6 +12,7 @@
 
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import { AgentSchemaResolutionError } from "./errors.ts";
+import { srGateFlowValidationFailed } from "../shared/errors/config-errors.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
 import type {
   ExtendedStepsRegistry,
@@ -109,13 +110,7 @@ export class SchemaManager {
         );
       }
 
-      throw new Error(
-        `[StepFlow] Flow validation failed. All Flow steps must define ` +
-          `structuredGate, transitions, and outputSchemaRef.\n${
-            errors.join("\n")
-          }\n` +
-          `See agents/docs/design/08_step_flow_design.md for requirements.`,
-      );
+      throw srGateFlowValidationFailed(errors.join("\n"));
     }
 
     logger.debug(
@@ -269,10 +264,7 @@ export class SchemaManager {
       if (error instanceof SchemaPointerError) {
         throw error;
       }
-      logger.warn(`Failed to load schema from ${ref.file}#${ref.schema}`, {
-        error: String(error),
-      });
-      return undefined;
+      throw error;
     }
   }
 }

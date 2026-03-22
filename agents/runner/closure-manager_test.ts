@@ -125,7 +125,7 @@ Deno.test("ClosureManager - hasAIVerdictDeclaration detects closing intent", () 
   assertEquals(result, true);
 });
 
-Deno.test("ClosureManager - hasAIVerdictDeclaration detects complete intent (backward compat)", () => {
+Deno.test("ClosureManager - hasAIVerdictDeclaration rejects 'complete' action", () => {
   const manager = new ClosureManager(createMockDeps());
 
   const summary = createSummary({
@@ -134,7 +134,7 @@ Deno.test("ClosureManager - hasAIVerdictDeclaration detects complete intent (bac
     },
   });
 
-  assertEquals(manager.hasAIVerdictDeclaration(summary), true);
+  assertEquals(manager.hasAIVerdictDeclaration(summary), false);
 });
 
 Deno.test("ClosureManager - hasAIVerdictDeclaration returns false for next intent", () => {
