@@ -125,7 +125,14 @@
       "examples/",
       "*.ts"
     ],
-    "exclude": ["dist/", "node_modules/", "tmp/", "**/*_test.ts", "tests/"],
+    "exclude": [
+      "dist/",
+      "node_modules/",
+      "tmp/",
+      "examples/tmp/",
+      "**/*_test.ts",
+      "tests/"
+    ],
     "rules": {
       "tags": ["recommended"],
       "include": [
