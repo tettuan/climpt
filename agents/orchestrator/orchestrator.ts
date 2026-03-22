@@ -30,6 +30,7 @@ import { OutboxProcessor } from "./outbox-processor.ts";
 import { Prioritizer } from "./prioritizer.ts";
 import { Queue } from "./queue.ts";
 import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
+import { OrchestratorLogger } from "./orchestrator-logger.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -60,25 +61,43 @@ export class Orchestrator {
     issueNumber: number,
     options?: OrchestratorOptions,
     store?: IssueStore,
+    logger?: OrchestratorLogger,
   ): Promise<OrchestratorResult> {
-    return await this.#runInner(
-      issueNumber,
-      options,
-      store,
-      this.workflowId,
-    );
+    const ownsLogger = !logger;
+    const log = logger ??
+      await OrchestratorLogger.create(this.#cwd, {
+        verbose: options?.verbose,
+      });
+    try {
+      return await this.#runInner(
+        issueNumber,
+        options,
+        store,
+        this.workflowId,
+        log,
+      );
+    } finally {
+      if (ownsLogger) await log.close();
+    }
   }
 
   async #runInner(
     issueNumber: number,
-    options?: OrchestratorOptions,
-    store?: IssueStore,
-    workflowId?: string,
+    options: OrchestratorOptions | undefined,
+    store: IssueStore | undefined,
+    workflowId: string | undefined,
+    log: OrchestratorLogger,
   ): Promise<OrchestratorResult> {
-    const verbose = options?.verbose ?? false;
     const dryRun = options?.dryRun ?? false;
     const maxCycles = this.#config.rules.maxCycles;
     const wfId = workflowId ?? this.workflowId;
+
+    await log.info(`Run start issue #${issueNumber}`, {
+      event: "run_start",
+      issueNumber,
+      workflowId: wfId,
+      dryRun,
+    });
 
     // Restore cycle tracker from persisted state if available
     let tracker: CycleTracker;
@@ -109,20 +128,26 @@ export class Orchestrator {
           currentLabels = await this.#github.getIssueLabels(issueNumber);
         }
       } catch (error) {
-        if (verbose) {
-          this.#log(
-            `Failed to get labels for issue #${issueNumber}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        }
+        const msg = error instanceof Error ? error.message : String(error);
+        // deno-lint-ignore no-await-in-loop
+        await log.error(
+          `Failed to get labels for issue #${issueNumber}: ${msg}`,
+          {
+            event: "labels_error",
+            issueNumber,
+            error: msg,
+          },
+        );
         status = "blocked";
         break;
       }
 
-      if (verbose) {
-        this.#log(`Labels: [${currentLabels.join(", ")}]`);
-      }
+      // deno-lint-ignore no-await-in-loop
+      await log.info(`Labels: [${currentLabels.join(", ")}]`, {
+        event: "labels",
+        issueNumber,
+        labels: currentLabels,
+      });
 
       // Step 4: Resolve phase
       // First check for terminal/blocking phases before resolving actionable
@@ -132,9 +157,13 @@ export class Orchestrator {
         status = terminalOrBlocking.phase.type === "terminal"
           ? "completed"
           : "blocked";
-        if (verbose) {
-          this.#log(`Phase "${finalPhase}" is ${status}`);
-        }
+        // deno-lint-ignore no-await-in-loop
+        await log.info(`Phase "${finalPhase}" is ${status}`, {
+          event: "phase_terminal_or_blocked",
+          issueNumber,
+          phase: finalPhase,
+          status,
+        });
         break;
       }
 
@@ -142,26 +171,34 @@ export class Orchestrator {
       if (resolved === null) {
         finalPhase = "unknown";
         status = "blocked";
-        if (verbose) {
-          this.#log("No actionable phase found, blocking");
-        }
+        // deno-lint-ignore no-await-in-loop
+        await log.info("No actionable phase found, blocking", {
+          event: "phase_unresolved",
+          issueNumber,
+        });
         break;
       }
 
       const { phaseId } = resolved;
       finalPhase = phaseId;
 
-      if (verbose) {
-        this.#log(`Resolved phase: "${phaseId}"`);
-      }
+      // deno-lint-ignore no-await-in-loop
+      await log.info(`Resolved phase: "${phaseId}"`, {
+        event: "phase_resolved",
+        issueNumber,
+        phase: phaseId,
+      });
 
       // Step 5: Resolve agent
       const agentResolution = resolveAgent(phaseId, this.#config);
       if (agentResolution === null) {
         status = "blocked";
-        if (verbose) {
-          this.#log(`No agent found for phase "${phaseId}"`);
-        }
+        // deno-lint-ignore no-await-in-loop
+        await log.warn(`No agent found for phase "${phaseId}"`, {
+          event: "agent_unresolved",
+          issueNumber,
+          phase: phaseId,
+        });
         break;
       }
 
@@ -170,30 +207,37 @@ export class Orchestrator {
       // Step 6: Cycle check
       if (tracker.isExceeded(issueNumber)) {
         status = "cycle_exceeded";
-        if (verbose) {
-          this.#log(
-            `Cycle limit exceeded (${
-              tracker.getCount(issueNumber)
-            }/${this.#config.rules.maxCycles})`,
-          );
-        }
+        // deno-lint-ignore no-await-in-loop
+        await log.warn(
+          `Cycle limit exceeded (${
+            tracker.getCount(issueNumber)
+          }/${maxCycles})`,
+          {
+            event: "cycle_exceeded",
+            issueNumber,
+            cycleCount: tracker.getCount(issueNumber),
+            maxCycles,
+          },
+        );
         break;
       }
 
       // dry-run: log what would happen, skip dispatch
       if (dryRun) {
-        if (verbose) {
-          this.#log(
-            `[dry-run] Would dispatch agent "${agentId}" for issue #${issueNumber}`,
-          );
-        }
+        // deno-lint-ignore no-await-in-loop
+        await log.info(
+          `[dry-run] Would dispatch agent "${agentId}" for issue #${issueNumber}`,
+          { event: "dry_run", issueNumber, agent: agentId },
+        );
         status = "dry-run";
         break;
       }
 
-      if (verbose) {
-        this.#log(`Dispatching agent "${agentId}" for issue #${issueNumber}`);
-      }
+      // deno-lint-ignore no-await-in-loop
+      await log.info(
+        `Dispatching agent "${agentId}" for issue #${issueNumber}`,
+        { event: "dispatch", issueNumber, agent: agentId },
+      );
 
       // Step 7: Dispatch agent
       // deno-lint-ignore no-await-in-loop
@@ -201,17 +245,23 @@ export class Orchestrator {
         agentId,
         issueNumber,
         {
-          verbose,
+          verbose: options?.verbose ?? false,
           issueStorePath: store?.storePath,
           outboxPath: store?.getOutboxPath(issueNumber),
         },
       );
 
-      if (verbose) {
-        this.#log(
-          `Agent "${agentId}" outcome: "${dispatchResult.outcome}" (${dispatchResult.durationMs}ms)`,
-        );
-      }
+      // deno-lint-ignore no-await-in-loop
+      await log.info(
+        `Agent "${agentId}" outcome: "${dispatchResult.outcome}" (${dispatchResult.durationMs}ms)`,
+        {
+          event: "dispatch_result",
+          issueNumber,
+          agent: agentId,
+          outcome: dispatchResult.outcome,
+          durationMs: dispatchResult.durationMs,
+        },
+      );
 
       // Step 7b: Process outbox after agent dispatch (when store available)
       if (store) {
@@ -233,14 +283,21 @@ export class Orchestrator {
         this.#config,
       );
 
-      if (verbose) {
-        this.#log(
-          `Transition: "${phaseId}" -> "${targetPhase}" ` +
-            `(remove: [${labelsToRemove.join(", ")}], add: [${
-              labelsToAdd.join(", ")
-            }])`,
-        );
-      }
+      // deno-lint-ignore no-await-in-loop
+      await log.info(
+        `Transition: "${phaseId}" -> "${targetPhase}" ` +
+          `(remove: [${labelsToRemove.join(", ")}], add: [${
+            labelsToAdd.join(", ")
+          }])`,
+        {
+          event: "transition",
+          issueNumber,
+          fromPhase: phaseId,
+          toPhase: targetPhase,
+          labelsToRemove,
+          labelsToAdd,
+        },
+      );
 
       // Step 10: Update labels
       if (!dryRun) {
@@ -252,13 +309,12 @@ export class Orchestrator {
             labelsToAdd,
           );
         } catch (error) {
-          if (verbose) {
-            this.#log(
-              `Failed to update labels for issue #${issueNumber}: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          }
+          const msg = error instanceof Error ? error.message : String(error);
+          // deno-lint-ignore no-await-in-loop
+          await log.warn(
+            `Failed to update labels for issue #${issueNumber}: ${msg}`,
+            { event: "label_update_failed", issueNumber, error: msg },
+          );
           // Label update failure is not fatal; continue to next cycle
         }
 
@@ -338,13 +394,20 @@ export class Orchestrator {
       }
     }
 
-    return {
+    const result: OrchestratorResult = {
       issueNumber,
       finalPhase,
       cycleCount: tracker.getCount(issueNumber),
       history: tracker.getHistory(issueNumber),
       status,
     };
+
+    await log.info(
+      `Run end issue #${issueNumber}: ${status} at "${finalPhase}" (${result.cycleCount} cycles)`,
+      { event: "run_end", ...result },
+    );
+
+    return result;
   }
 
   /**
@@ -398,60 +461,78 @@ export class Orchestrator {
     return s[0].toUpperCase() + s.slice(1);
   }
 
-  #log(message: string): void {
-    // deno-lint-ignore no-console
-    console.log(`[orchestrator] ${message}`);
-  }
-
   async runBatch(
     criteria: IssueCriteria,
     options?: BatchOptions,
   ): Promise<BatchResult> {
-    const storeConfig = this.#config.issueStore ?? { path: ".agent/issues" };
-    const storePath = join(this.#cwd, storeConfig.path);
-    const store = new IssueStore(storePath);
-
-    // 0. Workflow-level lock -- prevents concurrent batches from
-    //    breaking priority ordering. Different workflows (different
-    //    labelPrefix) use separate locks and never block each other.
-    const wfId = this.workflowId;
-    const lock = await store.acquireLock(wfId);
-    if (lock === null) {
-      if (options?.verbose) {
-        this.#log(
-          `Workflow "${wfId}" is already running, aborting batch`,
-        );
-      }
-      return {
-        processed: [],
-        skipped: [],
-        totalIssues: 0,
-        status: "failed",
-      };
-    }
+    const log = await OrchestratorLogger.create(this.#cwd, {
+      verbose: options?.verbose,
+    });
 
     try {
-      return await this.#runBatchInner(store, criteria, options);
+      const storeConfig = this.#config.issueStore ?? { path: ".agent/issues" };
+      const storePath = join(this.#cwd, storeConfig.path);
+      const store = new IssueStore(storePath);
+
+      const wfId = this.workflowId;
+      await log.info(`Batch start workflow "${wfId}"`, {
+        event: "batch_start",
+        workflowId: wfId,
+        criteria,
+      });
+
+      // 0. Workflow-level lock
+      const lock = await store.acquireLock(wfId);
+      if (lock === null) {
+        await log.warn(
+          `Workflow "${wfId}" is already running, aborting batch`,
+          { event: "lock_failed", workflowId: wfId },
+        );
+        return {
+          processed: [],
+          skipped: [],
+          totalIssues: 0,
+          status: "failed",
+        };
+      }
+
+      await log.info("Lock acquired", {
+        event: "lock_acquired",
+        workflowId: wfId,
+      });
+
+      try {
+        return await this.#runBatchInner(store, criteria, options, log);
+      } finally {
+        await lock.release();
+      }
     } finally {
-      await lock.release();
+      await log.close();
     }
   }
 
   async #runBatchInner(
     store: IssueStore,
     criteria: IssueCriteria,
-    options?: BatchOptions,
+    options: BatchOptions | undefined,
+    log: OrchestratorLogger,
   ): Promise<BatchResult> {
     const syncer = new IssueSyncer(this.#github, store);
 
     // 1. Sync issues from gh to local store
     const issueNumbers = await syncer.sync(criteria);
+    await log.info(`Synced ${issueNumbers.length} issues`, {
+      event: "sync_complete",
+      issueCount: issueNumbers.length,
+      issueNumbers,
+    });
 
     // 2. If --prioritize mode
     if (options?.prioritizeOnly) {
       if (!this.#config.prioritizer) {
         throw wfBatchPrioritizeMissingConfig();
       }
+      await log.info("Running prioritizer", { event: "prioritize_start" });
       const prioritizer = new Prioritizer(
         this.#config.prioritizer,
         store,
@@ -478,6 +559,13 @@ export class Orchestrator {
           await syncer.pushLabels(issue, oldPriorityLabels, [priority]);
         }
       }
+      await log.info(
+        `Prioritization complete: ${priorityResult.assignments.length} assignments`,
+        {
+          event: "prioritize_end",
+          assignmentCount: priorityResult.assignments.length,
+        },
+      );
       return {
         processed: [],
         skipped: [],
@@ -496,23 +584,51 @@ export class Orchestrator {
     const queue = new Queue(this.#config, store, priorityConfig);
     const queueItems = await queue.buildQueue(issueNumbers);
 
+    await log.info(`Queue built: ${queueItems.length} actionable issues`, {
+      event: "queue_built",
+      queueSize: queueItems.length,
+      issues: queueItems.map((q) => q.issueNumber),
+    });
+
     // 4. Process each issue
     const processed: OrchestratorResult[] = [];
     const skipped: { issueNumber: number; reason: string }[] = [];
     let errorCount = 0;
 
-    for (const item of queueItems) {
+    for (let i = 0; i < queueItems.length; i++) {
+      const item = queueItems[i];
+      // deno-lint-ignore no-await-in-loop
+      await log.info(
+        `Processing issue #${item.issueNumber} (${i + 1}/${queueItems.length})`,
+        {
+          event: "issue_start",
+          issueNumber: item.issueNumber,
+          index: i + 1,
+          total: queueItems.length,
+        },
+      );
       try {
-        // Use existing run() with store for single-truth-source processing
         // deno-lint-ignore no-await-in-loop
-        const result = await this.run(item.issueNumber, options, store);
+        const result = await this.run(
+          item.issueNumber,
+          options,
+          store,
+          log,
+        );
         processed.push(result);
       } catch (error) {
         errorCount++;
-        skipped.push({
-          issueNumber: item.issueNumber,
-          reason: error instanceof Error ? error.message : String(error),
-        });
+        const reason = error instanceof Error ? error.message : String(error);
+        skipped.push({ issueNumber: item.issueNumber, reason });
+        // deno-lint-ignore no-await-in-loop
+        await log.error(
+          `Issue #${item.issueNumber} failed: ${reason}`,
+          {
+            event: "issue_error",
+            issueNumber: item.issueNumber,
+            error: reason,
+          },
+        );
       }
     }
 
@@ -523,11 +639,23 @@ export class Orchestrator {
       }
     }
 
+    const batchStatus = errorCount > 0 ? "partial" : "completed";
+    await log.info(
+      `Batch end: ${processed.length} processed, ${skipped.length} skipped, status=${batchStatus}`,
+      {
+        event: "batch_end",
+        processedCount: processed.length,
+        skippedCount: skipped.length,
+        totalIssues: issueNumbers.length,
+        status: batchStatus,
+      },
+    );
+
     return {
       processed,
       skipped,
       totalIssues: issueNumbers.length,
-      status: errorCount > 0 ? "partial" : "completed",
+      status: batchStatus,
     };
   }
 
