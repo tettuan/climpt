@@ -2,7 +2,9 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-CLI Prompt Management Tool. Agents: Iterator, Reviewer also included. Besides CLI, it is available through MCP and plugins. The plugin skills run on a dedicated climpt-agent (via the Claude Agent SDK).
+CLI Prompt Management Tool. Agents: Iterator, Reviewer also included. Besides
+CLI, it is available through MCP and plugins. The plugin skills run on a
+dedicated climpt-agent (via the Claude Agent SDK).
 
 ## Quick Start
 
@@ -18,17 +20,19 @@ echo "Fix login bug" | deno run -A jsr:@aidevtool/climpt git decide-branch worki
 
 ## What is Climpt?
 
-Climpt organizes pre-configured prompts and invokes them with a single command. Three ways to use:
+Climpt organizes pre-configured prompts and invokes them with a single command.
+Three ways to use:
 
-| Method | Description |
-|--------|-------------|
-| **CLI** | Direct command-line execution |
-| **MCP** | Integration with Claude/Cursor via Model Context Protocol |
-| **Plugin** | Claude Code plugin with climpt-agent |
+| Method     | Description                                               |
+| ---------- | --------------------------------------------------------- |
+| **CLI**    | Direct command-line execution                             |
+| **MCP**    | Integration with Claude/Cursor via Model Context Protocol |
+| **Plugin** | Claude Code plugin with climpt-agent                      |
 
 ### Learn More
 
-Explore interactively: [Climpt NotebookLM](https://notebooklm.google.com/notebook/6a186ac9-70b2-4734-ad46-359e26043507)
+Explore interactively:
+[Climpt NotebookLM](https://notebooklm.google.com/notebook/6a186ac9-70b2-4734-ad46-359e26043507)
 
 ## CLI Usage
 
@@ -39,6 +43,7 @@ deno run -A jsr:@aidevtool/climpt <profile> <directive> <layer> [options]
 ```
 
 **Example:**
+
 ```bash
 # Break down issue into tasks
 deno run -A jsr:@aidevtool/climpt breakdown to task --from=issue.md --adaptation=detailed
@@ -49,13 +54,13 @@ echo "error log" | deno run -A jsr:@aidevtool/climpt diagnose trace stack -o=./o
 
 ### Key Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--from` | `-f` | Input file |
-| `--destination` | `-o` | Output path |
-| `--edition` | `-e` | Prompt edition |
-| `--adaptation` | `-a` | Prompt variation |
-| `--uv-*` | - | Custom variables |
+| Option          | Short | Description      |
+| --------------- | ----- | ---------------- |
+| `--from`        | `-f`  | Input file       |
+| `--destination` | `-o`  | Output path      |
+| `--edition`     | `-e`  | Prompt edition   |
+| `--adaptation`  | `-a`  | Prompt variation |
+| `--uv-*`        | -     | Custom variables |
 
 📖 [Full CLI Reference](https://tettuan.github.io/climpt/)
 
@@ -68,6 +73,7 @@ Prompts are organized in `.agent/climpt/prompts/`:
 ```
 
 **Template Variables:**
+
 - `{input_text}` - Text from stdin
 - `{input_text_file}` - Input file path
 - `{destination_path}` - Output path
@@ -103,13 +109,15 @@ Integrate with Claude or Cursor via MCP:
 ```
 
 Features:
+
 - Natural language command execution
 - Git workflows (commit, branch, PR)
 - Prompt management operations
 
 ## Agents
 
-**Prerequisites**: Agents require GitHub CLI (`gh`) installed and authenticated, plus a Git repository pushed to GitHub.
+**Prerequisites**: Agents require GitHub CLI (`gh`) installed and authenticated,
+plus a Git repository pushed to GitHub.
 
 ### Agent Structure
 
@@ -124,6 +132,7 @@ Each agent is defined in `.agent/{agent-name}/` with:
 ```
 
 **agent.json** key properties:
+
 - `name`, `displayName`, `version` - Agent identification
 - `runner.verdict.type` - Execution mode (see below)
 - `runner.boundaries.allowedTools` - Available tools for the agent
@@ -140,7 +149,8 @@ deno task agent --init --agent {agent-name}
 
 This generates the directory structure with template files.
 
-**Builder Documentation**: For detailed guides on agent configuration and customization, see [`agents/docs/builder/`](agents/docs/builder/).
+**Builder Documentation**: For detailed guides on agent configuration and
+customization, see [`agents/docs/builder/`](agents/docs/builder/).
 
 ### Running Agents
 
@@ -157,46 +167,71 @@ deno task agent --agent {name} --iterate-max 10
 
 ### Verdict Types
 
-| Type | Description |
-|------|-------------|
-| `poll:state` | Monitors external resource state (GitHub issue/project, file, API) |
-| `count:iteration` | Runs for specified iterations (`maxIterations`) |
-| `count:check` | Runs for specified status checks (`maxChecks`) |
-| `detect:keyword` | Exits when agent outputs `verdictKeyword` |
-| `detect:structured` | Detects structured action block output (`signalType`) |
-| `detect:graph` | Follows step state machine (`registryPath`, `entryStep`) |
-| `meta:composite` | Combined conditions with operator (and/or/first) |
-| `meta:custom` | Uses custom handler (`handlerPath`) |
+| Type                | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `poll:state`        | Monitors external resource state (GitHub issue/project, file, API) |
+| `count:iteration`   | Runs for specified iterations (`maxIterations`)                    |
+| `count:check`       | Runs for specified status checks (`maxChecks`)                     |
+| `detect:keyword`    | Exits when agent outputs `verdictKeyword`                          |
+| `detect:structured` | Detects structured action block output (`signalType`)              |
+| `detect:graph`      | Follows step state machine (`registryPath`, `entryStep`)           |
+| `meta:composite`    | Combined conditions with operator (and/or/first)                   |
+| `meta:custom`       | Uses custom handler (`handlerPath`)                                |
 
 ### Built-in Agents
 
-**Iterator Agent** - Autonomous development:
+Agents are run via the runner (`./agents/runner`) with `--agent`:
+
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/iterator --issue 123
+# Iterator - Autonomous development
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent iterator --issue 123
+
+# Reviewer - Code review
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent reviewer --project 1
+
+# Facilitator - Project monitoring
+deno run -A jsr:@aidevtool/climpt/agents/runner --agent facilitator --project 1
 ```
 
-**Reviewer Agent** - Code review:
+### Agent Documentation
+
+| Document             | Path                                         | Description                                   |
+| -------------------- | -------------------------------------------- | --------------------------------------------- |
+| Quick Start          | `agents/docs/builder/01_quickstart.md`       | Agent creation guide                          |
+| Definition Reference | `agents/docs/builder/02_agent_definition.md` | agent.json fields                             |
+| YAML Reference       | `agents/docs/builder/reference/`             | All fields with comments                      |
+| Troubleshooting      | `agents/docs/builder/05_troubleshooting.md`  | Common issues and solutions                   |
+| Design Docs          | `agents/docs/design/`                        | Architecture and concepts                     |
+| JSON Schemas         | `agents/schemas/`                            | agent.schema.json, steps_registry.schema.json |
+
+Use `deno task agent --help` for CLI options. Use
+`deno task agent --agent <name> --validate` to validate configuration without
+running.
+
+## Orchestrator
+
+The orchestrator coordinates multiple agents through a label-driven state
+machine. It is not an agent — it is a separate entry point that dispatches
+agents and manages phase transitions via GitHub labels.
+
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/reviewer --project 1
+# Process a single issue
+deno task workflow --issue 123
+
+# Process issues filtered by label (batch mode)
+deno task workflow --label ready --state open
+
+# Dry run
+deno task workflow --issue 123 --dry-run --verbose
 ```
 
-**Facilitator Agent** - Project monitoring:
 ```bash
-deno run -A jsr:@aidevtool/climpt/agents/facilitator --project 1
+# JSR entry point
+deno run -A jsr:@aidevtool/climpt/agents/orchestrator --issue 123
 ```
 
-### Documentation
-
-| Document | Path | Description |
-|----------|------|-------------|
-| Quick Start | `agents/docs/builder/01_quickstart.md` | Agent creation guide |
-| Definition Reference | `agents/docs/builder/02_agent_definition.md` | agent.json fields |
-| YAML Reference | `agents/docs/builder/reference/` | All fields with comments |
-| Troubleshooting | `agents/docs/builder/05_troubleshooting.md` | Common issues and solutions |
-| Design Docs | `agents/docs/design/` | Architecture and concepts |
-| JSON Schemas | `agents/schemas/` | agent.schema.json, steps_registry.schema.json |
-
-Use `deno task agent --help` for CLI options. Use `deno task agent --agent <name> --validate` to validate configuration without running.
+Configure workflows in `.agent/workflow.json`. See
+[Workflow Guide](docs/guides/en/15-workflow-guide.md) for details.
 
 ### Configuration Example
 
@@ -245,7 +280,8 @@ Minimal `agent.json`:
 }
 ```
 
-> `required` defaults to `false` when omitted; parameters without it are treated as optional.
+> `required` defaults to `false` when omitted; parameters without it are treated
+> as optional.
 
 📖 [Agent Documentation](https://tettuan.github.io/climpt/)
 
@@ -285,8 +321,9 @@ The `-r` flag (`--reload`) forces re-download of the latest version from JSR.
 
 ## Examples (E2E Verification)
 
-The [`examples/`](examples/) directory contains executable shell scripts organized
-by use case. Run these before each release to verify end-to-end functionality:
+The [`examples/`](examples/) directory contains executable shell scripts
+organized by use case. Run these before each release to verify end-to-end
+functionality:
 
 ```bash
 # Make scripts executable
@@ -302,14 +339,14 @@ chmod +x examples/**/*.sh examples/*.sh
 ./examples/07_clean.sh
 ```
 
-| Folder | Description |
-|--------|-------------|
-| [01_setup/](examples/01_setup/) | Installation and initialization |
+| Folder                                  | Description                                   |
+| --------------------------------------- | --------------------------------------------- |
+| [01_setup/](examples/01_setup/)         | Installation and initialization               |
 | [02_cli_basic/](examples/02_cli_basic/) | Core CLI commands: decompose, summary, defect |
-| [03_mcp/](examples/03_mcp/) | MCP server setup and IDE integration |
-| [04_docs/](examples/04_docs/) | Documentation installer |
-| [05_agents/](examples/05_agents/) | Agent framework (iterator, reviewer) |
-| [06_registry/](examples/06_registry/) | Registry generation and structure |
+| [03_mcp/](examples/03_mcp/)             | MCP server setup and IDE integration          |
+| [04_docs/](examples/04_docs/)           | Documentation installer                       |
+| [05_agents/](examples/05_agents/)       | Agent framework (iterator, reviewer)          |
+| [06_registry/](examples/06_registry/)   | Registry generation and structure             |
 
 See [`examples/README.md`](examples/README.md) for full details.
 

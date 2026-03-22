@@ -107,6 +107,30 @@ deno run -A agents/scripts/run-agent.ts --list
 deno run -A agents/scripts/run-agent.ts --agent reviewer --target src/
 ```
 
+## Workflow (Orchestrator)
+
+The orchestrator coordinates multiple agents through a label-driven state
+machine. It reads GitHub issue labels, dispatches agents, and updates labels
+based on outcomes.
+
+```bash
+# Process a single issue
+deno run -A agents/scripts/run-workflow.ts --issue 123
+
+# Or use deno task
+deno task workflow --issue 123
+
+# Batch: process issues filtered by label
+deno task workflow --label ready --state open
+
+# Dry run (no label changes)
+deno task workflow --issue 123 --dry-run --verbose
+```
+
+Configure workflows in `.agent/workflow.json`. See
+[Workflow Guide](../docs/guides/en/15-workflow-guide.md) and
+[design/12_orchestrator.md](./docs/design/12_orchestrator.md) for details.
+
 ## Directory Structure
 
 ```
@@ -115,6 +139,7 @@ agents/
 +-- CLAUDE.md                 # Agent development guidelines
 +-- scripts/
 |   +-- run-agent.ts          # Unified agent runner CLI
+|   +-- run-workflow.ts       # Workflow orchestrator CLI
 +-- runner/                   # Core runner implementation
 |   +-- runner.ts             # AgentRunner (dual-loop core)
 |   +-- builder.ts            # Dependency injection builder
@@ -132,6 +157,13 @@ agents/
 |   +-- types.ts
 |   +-- worktree.ts
 |   +-- git-utils.ts
++-- orchestrator/             # Workflow orchestrator
+|   +-- orchestrator.ts       # Main loop (label → dispatch → transition)
+|   +-- label-resolver.ts     # Label → Phase → Agent resolution
+|   +-- phase-transition.ts   # Phase transition & label change computation
+|   +-- dispatcher.ts         # Agent dispatch via runner
+|   +-- workflow-loader.ts    # workflow.json loader & validator
+|   +-- workflow-types.ts     # Type definitions
 +-- validators/               # Pre-close validators
 |   +-- registry.ts
 |   +-- plugins/
@@ -448,6 +480,8 @@ Design:
 - [design/09_contracts.md](./docs/design/09_contracts.md) - Contracts & I/O
 - [design/10_extension_points.md](./docs/design/10_extension_points.md) -
   Extension points
+- [design/12_orchestrator.md](./docs/design/12_orchestrator.md) - Workflow
+  orchestrator design
 
 Builder/Guides:
 

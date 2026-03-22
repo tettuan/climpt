@@ -83,6 +83,8 @@ Combines multiple search queries:
 | Registry Loading             | `src/mcp/registry.ts`                    |
 | Agent Runner                 | `agents/runner/`                         |
 | Agent Configuration          | `agents/config/`                         |
+| Workflow Orchestrator        | `agents/orchestrator/`                   |
+| Workflow CLI                 | `agents/scripts/run-workflow.ts`         |
 
 ## Related Documentation
 
