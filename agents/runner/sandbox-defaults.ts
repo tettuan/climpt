@@ -93,6 +93,8 @@ export function toSdkSandboxConfig(
     ignoreViolations: config.filesystem?.allowedPaths
       ? { write: config.filesystem.allowedPaths }
       : undefined,
+    // Commands that always bypass sandbox (e.g. gh/git need macOS Keychain for TLS)
+    excludedCommands: config.excludedCommands,
   };
 }
 
@@ -137,5 +139,6 @@ export function mergeSandboxConfig(
     enabled: agentConfig.enabled ?? defaults.enabled,
     network: mergedNetwork,
     filesystem: mergedFilesystem,
+    excludedCommands: agentConfig.excludedCommands,
   };
 }
