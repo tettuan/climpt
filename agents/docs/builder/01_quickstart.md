@@ -663,10 +663,10 @@ name: Continuation Prompt
 
 ```bash
 # Agent 一覧
-deno run -A agents/scripts/run-agent.ts --list
+deno task agent --list
 
 # 実行
-deno run -A agents/scripts/run-agent.ts \
+deno task agent \
   --agent my-agent \
   --issue 123
 

@@ -69,26 +69,23 @@ gh issue create --title "Task title" --body "Task description"
 
 ```bash
 # Basic execution with issue number
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue <ISSUE_NUMBER>
-
-# Or use deno task
-deno task iterate-agent --issue <ISSUE_NUMBER>
+deno task agent --agent iterator --issue <ISSUE_NUMBER>
 
 # With iteration limit
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --iterate-max 20
+deno task agent --agent iterator --issue 123 --iterate-max 20
 
 # Resume previous session
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue 123 --resume
+deno task agent --agent iterator --issue 123 --resume
 ```
 
 ### CLI Options
 
 ```bash
 # Show help
-deno run -A agents/scripts/run-agent.ts --help
+deno task agent --help
 
 # List available agents
-deno run -A agents/scripts/run-agent.ts --list
+deno task agent --list
 ```
 
 | Option                 | Description                       |
@@ -104,7 +101,7 @@ deno run -A agents/scripts/run-agent.ts --list
 ### Running the Reviewer Agent
 
 ```bash
-deno run -A agents/scripts/run-agent.ts --agent reviewer --target src/
+deno task agent --agent reviewer --target src/
 ```
 
 ## Workflow (Orchestrator)
@@ -115,16 +112,13 @@ based on outcomes.
 
 ```bash
 # Process a single issue
-deno run -A agents/scripts/run-workflow.ts --issue 123
-
-# Or use deno task
-deno task workflow --issue 123
+deno task orchestrator --issue 123
 
 # Batch: process issues filtered by label
-deno task workflow --label ready --state open
+deno task orchestrator --label ready --state open
 
 # Dry run (no label changes)
-deno task workflow --issue 123 --dry-run --verbose
+deno task orchestrator --issue 123 --dry-run --verbose
 ```
 
 Configure workflows in `.agent/workflow.json`. See
@@ -138,8 +132,8 @@ agents/
 +-- mod.ts                    # Public API exports
 +-- CLAUDE.md                 # Agent development guidelines
 +-- scripts/
-|   +-- run-agent.ts          # Unified agent runner CLI
-|   +-- run-workflow.ts       # Workflow orchestrator CLI
+|   +-- run-agent.ts          # @aidevtool/climpt/agents/runner
+|   +-- run-workflow.ts       # @aidevtool/climpt/agents/orchestrator
 +-- runner/                   # Core runner implementation
 |   +-- runner.ts             # AgentRunner (dual-loop core)
 |   +-- builder.ts            # Dependency injection builder
@@ -394,13 +388,13 @@ Completes through state machine-like step transitions.
 ### 1. Issue Resolution Agent
 
 ```bash
-deno run -A agents/scripts/run-agent.ts --agent iterator --issue 42
+deno task agent --agent iterator --issue 42
 ```
 
 ### 2. Code Review Agent
 
 ```bash
-deno run -A agents/scripts/run-agent.ts --agent reviewer --target src/
+deno task agent --agent reviewer --target src/
 ```
 
 ## Programmatic API

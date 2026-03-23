@@ -126,6 +126,12 @@ export interface SandboxConfig {
   network?: SandboxNetworkConfig;
   /** Filesystem access configuration */
   filesystem?: SandboxFilesystemConfig;
+  /**
+   * Commands excluded from sandbox restrictions.
+   * These commands always run outside the sandbox without model involvement.
+   * Example: ["gh", "git"] to bypass macOS Keychain/TLS restrictions.
+   */
+  excludedCommands?: string[];
 }
 
 export interface SandboxNetworkConfig {

@@ -194,25 +194,25 @@ issue の優先度を自動判定する Agent の設定。
 
 ```bash
 # 単一 issue を処理
-deno task workflow --issue 123
+deno task orchestrator --issue 123
 
 # 単一 issue をドライラン
-deno task workflow --issue 123 --dry-run --verbose
+deno task orchestrator --issue 123 --dry-run --verbose
 
 # 単一ラベルでフィルタして batch 処理
-deno task workflow --label docs --state open
+deno task orchestrator --label docs --state open
 
 # カスタム workflow ファイル指定
-deno task workflow --label docs --workflow .agent/workflow-docs-user.json
+deno task orchestrator --label docs --workflow .agent/workflow-docs-user.json
 
 # 優先度付けのみ実行
-deno task workflow --label docs --prioritize
+deno task orchestrator --label docs --prioritize
 
 # 複数ラベルでフィルタ
-deno task workflow --label P1 --label docs --state open --limit 10
+deno task orchestrator --label P1 --label docs --state open --limit 10
 
 # ドライラン（gh 操作を実行しない）
-deno task workflow --label docs --dry-run --verbose
+deno task orchestrator --label docs --dry-run --verbose
 ```
 
 ### CLI 引数

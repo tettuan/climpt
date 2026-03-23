@@ -7,12 +7,12 @@
  *
  * @example Run iterator agent
  * ```bash
- * deno run --allow-all agents/scripts/run-agent.ts --agent iterator --issue 123
+ * deno task agent --agent iterator --issue 123
  * ```
  *
  * @example Run reviewer agent
  * ```bash
- * deno run --allow-all agents/scripts/run-agent.ts --agent reviewer --issue 123
+ * deno task agent --agent reviewer --issue 123
  * ```
  */
 
@@ -32,10 +32,9 @@ import type {
 } from "../common/types.ts";
 import type { FinalizeConfig } from "../src_common/types.ts";
 
-const SCRIPT = "agents/scripts/run-agent.ts";
-const RUN = `deno run --allow-all ${SCRIPT}`;
-const RUN_RW = `deno run --allow-read --allow-write ${SCRIPT}`;
-const RUN_RO = `deno run --allow-read ${SCRIPT}`;
+const RUN = "deno task agent";
+const RUN_RW = "deno task agent";
+const RUN_RO = "deno task agent";
 
 function printHelp(): void {
   // deno-lint-ignore no-console
