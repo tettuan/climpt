@@ -165,7 +165,7 @@ Agent の gh 直接アクセスを禁止するための設定。
 ```json
 {
   "issueStore": {
-    "path": ".agent/issues"
+    "path": ".agent/climpt/tmp/issues"
   }
 }
 ```
