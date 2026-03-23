@@ -22,6 +22,23 @@ import type { SchemaManager } from "./schema-manager.ts";
 
 const logger = new BreakdownLogger("query-executor-test");
 
+// Suppress ProcessTransport rejection from MCP server in test environment.
+// In production, the SDK ProcessTransport is always available. In tests,
+// executeQuery creates an MCP server whose transport write fails
+// asynchronously. This module-level handler prevents the test runner from
+// crashing on the expected unhandled rejection.
+globalThis.addEventListener(
+  "unhandledrejection",
+  (e: PromiseRejectionEvent) => {
+    if (
+      e.reason instanceof Error &&
+      e.reason.message.includes("ProcessTransport")
+    ) {
+      e.preventDefault();
+    }
+  },
+);
+
 // =============================================================================
 // Shared helpers
 // =============================================================================
@@ -465,7 +482,7 @@ Deno.test({
     // the schema check. It will then call the SDK's query() function which
     // will fail (since we have no real API key), landing in the catch block.
     // The important assertion: schemaResolutionFailed is NOT set on the summary.
-
+    //
     const mockSchemaManager = {
       schemaResolutionFailed: false,
       loadSchemaForStep: (
@@ -539,7 +556,7 @@ Deno.test({
   fn: async () => {
     // When stepId is not provided, the schema loading block is skipped entirely.
     // executeQuery proceeds to call query(), which will fail in test env.
-
+    //
     const loadSchemaCallCount = { value: 0 };
     const mockSchemaManager = {
       schemaResolutionFailed: false,
