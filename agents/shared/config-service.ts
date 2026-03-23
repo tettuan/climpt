@@ -12,7 +12,7 @@
  */
 
 import { join } from "@std/path";
-import type { AgentDefinition, SandboxConfig } from "../src_common/types.ts";
+import type { AgentDefinition } from "../src_common/types.ts";
 import { PATHS } from "./paths.ts";
 import {
   acServiceFileNotFound,
@@ -38,7 +38,6 @@ export interface RuntimeConfig {
  * - loadAgentDefinitionRaw: Load raw agent.json (unvalidated)
  * - loadRuntimeConfig: Load optional config.json
  * - loadStepsRegistry: Load optional steps_registry.json
- * - getSandboxConfig: Merge sandbox config with defaults
  * - resolveAgentPaths: Resolve relative paths in definition
  * - getAgentDir: Get agent directory path
  */
@@ -127,48 +126,6 @@ export class ConfigService {
   }
 
   /**
-   * Merge agent sandbox config with defaults.
-   * Agent config takes precedence over defaults.
-   *
-   * @param agentConfig - Agent-specific sandbox config (optional)
-   * @returns Merged sandbox config
-   */
-  getSandboxConfig(agentConfig?: SandboxConfig): SandboxConfig {
-    const defaults = getDefaultSandboxConfig();
-
-    if (!agentConfig) {
-      return defaults;
-    }
-
-    if (agentConfig.enabled === false) {
-      return agentConfig;
-    }
-
-    const defaultNetwork = defaults.network;
-    const mergedNetwork = agentConfig.network
-      ? {
-        mode: agentConfig.network.mode ?? defaultNetwork?.mode,
-        trustedDomains: agentConfig.network.trustedDomains ??
-          defaultNetwork?.trustedDomains,
-      }
-      : defaultNetwork;
-
-    const defaultFilesystem = defaults.filesystem;
-    const mergedFilesystem = {
-      allowedPaths: [
-        ...(defaultFilesystem?.allowedPaths ?? []),
-        ...(agentConfig.filesystem?.allowedPaths ?? []),
-      ],
-    };
-
-    return {
-      enabled: agentConfig.enabled ?? defaults.enabled,
-      network: mergedNetwork,
-      filesystem: mergedFilesystem,
-    };
-  }
-
-  /**
    * Resolve relative paths in agent definition to absolute paths.
    *
    * @param definition - Agent definition with relative paths
@@ -211,50 +168,4 @@ export class ConfigService {
       },
     };
   }
-}
-
-// ============================================================================
-// Default sandbox config (extracted from runner/sandbox-defaults.ts)
-// ============================================================================
-
-const DEFAULT_TRUSTED_DOMAINS = [
-  "api.anthropic.com",
-  "statsig.anthropic.com",
-  "sentry.anthropic.com",
-  "*.anthropic.com",
-  "*.*.anthropic.com",
-  "api.github.com",
-  "github.com",
-  "*.githubusercontent.com",
-  "uploads.github.com",
-  "jsr.io",
-  "*.jsr.io",
-  "deno.land",
-  "*.deno.land",
-  "registry.npmjs.org",
-];
-
-function getDefaultFilesystemPaths(): string[] {
-  const home = Deno.env.get("HOME") ?? "";
-  if (!home) {
-    return [];
-  }
-  return [
-    `${home}/.claude/projects/`,
-    `${home}/.claude/statsig/`,
-    `${home}/.claude/telemetry/`,
-  ];
-}
-
-function getDefaultSandboxConfig(): SandboxConfig {
-  return {
-    enabled: true,
-    network: {
-      mode: "custom",
-      trustedDomains: DEFAULT_TRUSTED_DOMAINS,
-    },
-    filesystem: {
-      allowedPaths: getDefaultFilesystemPaths(),
-    },
-  };
 }

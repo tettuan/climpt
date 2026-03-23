@@ -77,6 +77,12 @@ export interface WorkflowRules {
 
   /** Delay in milliseconds between cycles */
   cycleDelayMs: number;
+
+  /** Utilization threshold to trigger rate limit wait (default 0.95) */
+  rateLimitThreshold?: number;
+
+  /** Interval in ms between log messages during rate limit wait (default 300000 = 5min) */
+  rateLimitPollIntervalMs?: number;
 }
 
 // === Top-Level ===

@@ -17,6 +17,7 @@ import type {
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
+import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 import { resolveAgent, resolvePhase, stripPrefix } from "./label-resolver.ts";
 import {
   computeLabelChanges,
@@ -268,6 +269,19 @@ export class Orchestrator {
         const outboxProcessor = new OutboxProcessor(this.#github, store);
         // deno-lint-ignore no-await-in-loop
         await outboxProcessor.process(issueNumber);
+      }
+
+      // Step 7c: Rate limit throttle check
+      if (dispatchResult.rateLimitInfo) {
+        const threshold = this.#config.rules.rateLimitThreshold ?? 0.95;
+        if (dispatchResult.rateLimitInfo.utilization >= threshold) {
+          // deno-lint-ignore no-await-in-loop
+          await this.#waitForRateLimitReset(
+            dispatchResult.rateLimitInfo,
+            threshold,
+            log,
+          );
+        }
       }
 
       // Step 8: Compute transition
@@ -657,6 +671,52 @@ export class Orchestrator {
       totalIssues: issueNumbers.length,
       status: batchStatus,
     };
+  }
+
+  async #waitForRateLimitReset(
+    info: RateLimitInfo,
+    threshold: number,
+    log: OrchestratorLogger,
+  ): Promise<void> {
+    const pollIntervalMs = this.#config.rules.rateLimitPollIntervalMs ??
+      300_000;
+
+    await log.warn(
+      `Rate limit throttle: ${info.rateLimitType} utilization ${info.utilization} >= ${threshold}, ` +
+        `waiting until reset at ${
+          new Date(info.resetsAt * 1000).toISOString()
+        }`,
+      {
+        event: "rate_limit_throttle_start",
+        utilization: info.utilization,
+        resetsAt: info.resetsAt,
+        rateLimitType: info.rateLimitType,
+        threshold,
+      },
+    );
+
+    while (true) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remainingSec = info.resetsAt - nowSec;
+      if (remainingSec <= 0) break;
+
+      const waitMs = Math.min(remainingSec * 1000, pollIntervalMs);
+      // deno-lint-ignore no-await-in-loop
+      await log.info(
+        `Rate limit throttle: ${remainingSec}s remaining until reset`,
+        {
+          event: "rate_limit_wait",
+          remainingSec,
+          resetsAt: info.resetsAt,
+        },
+      );
+      // deno-lint-ignore no-await-in-loop
+      await this.#delay(waitMs);
+    }
+
+    await log.info("Rate limit reset, resuming orchestrator", {
+      event: "rate_limit_resumed",
+    });
   }
 
   #delay(ms: number): Promise<void> {

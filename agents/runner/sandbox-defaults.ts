@@ -75,6 +75,7 @@ export function getDefaultSandboxConfig(): SandboxConfig {
     filesystem: {
       allowedPaths: getDefaultFilesystemPaths(),
     },
+    excludedCommands: ["gh", "git"],
   };
 }
 
@@ -95,7 +96,21 @@ export function toSdkSandboxConfig(
       : undefined,
     // Commands that always bypass sandbox (e.g. gh/git need macOS Keychain for TLS)
     excludedCommands: config.excludedCommands,
+    allowUnsandboxedCommands: config.allowUnsandboxedCommands,
   };
+}
+
+/**
+ * Merge excluded commands from defaults and agent config.
+ * Combines both arrays with deduplication.
+ */
+function mergeExcludedCommands(
+  defaults?: string[],
+  agent?: string[],
+): string[] | undefined {
+  if (!defaults && !agent) return undefined;
+  const merged = new Set([...(defaults ?? []), ...(agent ?? [])]);
+  return [...merged];
 }
 
 /**
@@ -139,6 +154,10 @@ export function mergeSandboxConfig(
     enabled: agentConfig.enabled ?? defaults.enabled,
     network: mergedNetwork,
     filesystem: mergedFilesystem,
-    excludedCommands: agentConfig.excludedCommands,
+    excludedCommands: mergeExcludedCommands(
+      defaults.excludedCommands,
+      agentConfig.excludedCommands,
+    ),
+    allowUnsandboxedCommands: agentConfig.allowUnsandboxedCommands,
   };
 }

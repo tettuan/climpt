@@ -1324,3 +1324,90 @@ Deno.test("runBatch with processing error returns partial status", async () => {
     await Deno.remove(tmpDir, { recursive: true });
   }
 });
+
+// === Rate limit throttle tests ===
+
+Deno.test("rate limit throttle: completes normally when resetsAt is in the past", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  // Cycle 1: ["ready"] -> iterator (success) -> transition to "review"
+  // Cycle 2: ["review"] -> reviewer (approved) -> transition to "complete"
+  // Cycle 3: ["done"] -> terminal -> break
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["done"],
+  ]);
+
+  // StubDispatcher with rateLimitInfo where utilization >= threshold
+  // and resetsAt is in the past so #waitForRateLimitReset exits immediately
+  const rateLimitInfo = {
+    utilization: 0.95,
+    resetsAt: Math.floor(Date.now() / 1000) - 60, // 60 seconds in the past
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success", reviewer: "approved" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 2);
+  // Dispatcher was called for both agents
+  assertEquals(dispatcher.callCount, 2);
+});
+
+Deno.test("rate limit throttle: skipped when utilization is below threshold", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.95;
+
+  // Single cycle to terminal
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // utilization (0.50) < threshold (0.95), so throttle should be skipped
+  const rateLimitInfo = {
+    utilization: 0.50,
+    resetsAt: Math.floor(Date.now() / 1000) + 3600, // far future - but should not wait
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  // Should complete without waiting (utilization below threshold)
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
+});
+
+Deno.test("rate limit throttle: no rateLimitInfo proceeds without throttle", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // No rateLimitInfo at all
+  const dispatcher = new StubDispatcher({ iterator: "success" });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
+});

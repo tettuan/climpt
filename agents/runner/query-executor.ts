@@ -34,6 +34,7 @@ import {
 import {
   isAssistantMessage,
   isErrorMessage,
+  isRateLimitEventMessage,
   isResultMessage,
   isToolUseMessage,
 } from "./message-types.ts";
@@ -380,6 +381,18 @@ export class QueryExecutor {
       }
       if (message.duration_ms !== undefined) {
         summary.durationMs = message.duration_ms;
+      }
+    } else if (isRateLimitEventMessage(message)) {
+      if (message.rate_limit_info.rateLimitType === "seven_day") {
+        summary.rateLimitInfo = {
+          utilization: message.rate_limit_info.utilization,
+          resetsAt: message.rate_limit_info.resetsAt,
+          rateLimitType: message.rate_limit_info.rateLimitType,
+        };
+        ctx.logger.info(
+          `[RateLimit] seven_day utilization: ${message.rate_limit_info.utilization}`,
+          { rateLimitInfo: summary.rateLimitInfo },
+        );
       }
     } else if (isErrorMessage(message)) {
       summary.errors.push(message.error.message ?? "Unknown error");
