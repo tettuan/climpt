@@ -110,6 +110,27 @@ Stage 3（Verdict）の VerdictHandler に渡される。詳細は
 }
 ```
 
+### サンドボックスと GitHub アクセス制御
+
+サンドボックスは **決定論的なネットワーク遮断** により、Agent の GitHub
+アクセスを制御する。
+
+| 設定項目                   | デフォルト値             | 設計意図                                                                      |
+| -------------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `trustedDomains`           | GitHub ドメイン **除外** | Agent が直接 GitHub にアクセスすることを物理的に防止                          |
+| `excludedCommands`         | `[]`（空）               | サンドボックスをバイパスするコマンドを一切許可しない                          |
+| `allowUnsandboxedCommands` | `false`                  | モデルが `dangerouslyDisableSandbox` を実行時にリクエスト可能にするオプション |
+
+**Agent の GitHub 読み取り** は `mcp__github__github_read` MCP ツールで行う。
+このツールはホストプロセス（サンドボックス外）で `gh` コマンドを実行するため、
+TLS/Keychain の制約を受けない。Runner が `allowedTools` に自動追加する。
+
+**Agent の GitHub 書き込み** は Boundary Hook（closure step のみ）が担う。 Agent
+は structured output で意図を宣言するだけであり、`gh` コマンドの実行は Runner の
+Boundary Hook がホストプロセス内で行う。
+
+参照: `agents/runner/sandbox-defaults.ts`, `agents/runner/github-read-tool.ts`
+
 ### runner.flow.defaultModel
 
 使用するモデルのデフォルト値。省略時は `opus`（システムデフォルト）。

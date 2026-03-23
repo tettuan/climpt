@@ -537,6 +537,24 @@ runner:
     permissionMode: "acceptEdits"
 
     # --------------------------------------------------------
+    # allowUnsandboxedCommands (optional)
+    # --------------------------------------------------------
+    # Description : Allow the model to request
+    #               dangerouslyDisableSandbox at runtime.
+    # Type        : boolean
+    # Required    : no
+    # Default     : false
+    # Why         : When false (default), the model cannot
+    #               bypass sandbox restrictions. When true,
+    #               the model may request unsandboxed execution
+    #               for individual commands. Use with caution
+    #               and only when the agent genuinely needs
+    #               unrestricted network/filesystem access for
+    #               specific operations.
+    # --------------------------------------------------------
+    # allowUnsandboxedCommands: false
+
+    # --------------------------------------------------------
     # sandbox (optional) — SandboxConfig
     # --------------------------------------------------------
     # Description : Fine-grained sandbox for network and
@@ -546,6 +564,12 @@ runner:
     # Why         : Additional layer on top of permissionMode.
     #               Restricts what the agent can reach even
     #               when tools are allowed.
+    # Note        : GitHub domains are intentionally excluded
+    #               from DEFAULT_TRUSTED_DOMAINS. Agent GitHub
+    #               reads use mcp__github__github_read MCP tool
+    #               (host process). Agent GitHub writes go
+    #               through Boundary Hook (closure step only).
+    #               See: agents/runner/sandbox-defaults.ts
     # --------------------------------------------------------
     # sandbox:
     #

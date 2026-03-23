@@ -22,11 +22,10 @@ export const DEFAULT_TRUSTED_DOMAINS = [
   "*.anthropic.com",
   "*.*.anthropic.com",
 
-  // GitHub
-  "api.github.com",
-  "github.com",
-  "*.githubusercontent.com",
-  "uploads.github.com",
+  // GitHub domains intentionally excluded from sandbox.
+  // Agent GitHub access is provided via GitHubRead MCP tool (host process).
+  // System paths (Boundary Hook, worktree, orchestrator) use Deno.Command
+  // outside the sandbox and are not affected.
 
   // Deno ecosystem
   "jsr.io",
@@ -97,7 +96,8 @@ export function toSdkSandboxConfig(
     ignoreViolations: config.filesystem?.allowedPaths
       ? { write: config.filesystem.allowedPaths }
       : undefined,
-    // Commands that always bypass sandbox (e.g. gh/git need macOS Keychain for TLS)
+    // Commands that always bypass sandbox (intentionally empty —
+    // no command should bypass the sandbox)
     excludedCommands: config.excludedCommands,
     allowUnsandboxedCommands: config.allowUnsandboxedCommands,
   };
