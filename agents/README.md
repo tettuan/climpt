@@ -112,13 +112,13 @@ based on outcomes.
 
 ```bash
 # Process a single issue
-deno task workflow --issue 123
+deno task orchestrator --issue 123
 
 # Batch: process issues filtered by label
-deno task workflow --label ready --state open
+deno task orchestrator --label ready --state open
 
 # Dry run (no label changes)
-deno task workflow --issue 123 --dry-run --verbose
+deno task orchestrator --issue 123 --dry-run --verbose
 ```
 
 Configure workflows in `.agent/workflow.json`. See

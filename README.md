@@ -216,13 +216,13 @@ agents and manages phase transitions via GitHub labels.
 
 ```bash
 # Process a single issue
-deno task workflow --issue 123
+deno task orchestrator --issue 123
 
 # Process issues filtered by label (batch mode)
-deno task workflow --label ready --state open
+deno task orchestrator --label ready --state open
 
 # Dry run
-deno task workflow --issue 123 --dry-run --verbose
+deno task orchestrator --issue 123 --dry-run --verbose
 ```
 
 ```bash

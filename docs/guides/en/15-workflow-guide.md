@@ -65,7 +65,7 @@ dispatches agents, and updates labels based on outcomes.
 3. Run the workflow:
 
 ```bash
-deno task workflow --label ready --state open
+deno task orchestrator --label ready --state open
 ```
 
 ## workflow.json Structure
@@ -141,25 +141,25 @@ Required when using `--prioritize`. Configures the priority assignment agent.
 
 ```bash
 # Process a single issue
-deno task workflow --issue 123
+deno task orchestrator --issue 123
 
 # Single issue dry run
-deno task workflow --issue 123 --dry-run --verbose
+deno task orchestrator --issue 123 --dry-run --verbose
 
 # Process open issues with a specific label (batch mode)
-deno task workflow --label ready --state open
+deno task orchestrator --label ready --state open
 
 # Custom workflow file
-deno task workflow --label docs --workflow .agent/workflow-docs.json
+deno task orchestrator --label docs --workflow .agent/workflow-docs.json
 
 # Dry run (no GitHub changes)
-deno task workflow --label ready --dry-run --verbose
+deno task orchestrator --label ready --dry-run --verbose
 
 # Prioritize only (assign priority labels, no agent dispatch)
-deno task workflow --label ready --prioritize
+deno task orchestrator --label ready --prioritize
 
 # Multiple label filters
-deno task workflow --label P1 --label docs --state open --limit 10
+deno task orchestrator --label P1 --label docs --state open --limit 10
 ```
 
 ### `--label` vs `labelPrefix`
@@ -260,8 +260,8 @@ remain bare names.
 Run with a custom workflow file:
 
 ```bash
-deno task workflow --label docs:ready --workflow .agent/workflow-docs.json
-deno task workflow --label impl:ready --workflow .agent/workflow-impl.json
+deno task orchestrator --label docs:ready --workflow .agent/workflow-docs.json
+deno task orchestrator --label impl:ready --workflow .agent/workflow-impl.json
 ```
 
 ## Troubleshooting

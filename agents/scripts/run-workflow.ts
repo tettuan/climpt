@@ -8,32 +8,32 @@
  *
  * @example Run workflow for a single issue
  * ```bash
- * deno task workflow --issue 123
+ * deno task orchestrator --issue 123
  * ```
  *
  * @example Run workflow for issues with label "docs"
  * ```bash
- * deno task workflow --label docs
+ * deno task orchestrator --label docs
  * ```
  *
  * @example Prioritize only
  * ```bash
- * deno task workflow --label docs --prioritize
+ * deno task orchestrator --label docs --prioritize
  * ```
  *
  * @example Dry run (no label changes)
  * ```bash
- * deno task workflow --label docs --dry-run
+ * deno task orchestrator --label docs --dry-run
  * ```
  *
  * @example Local mode (file-based, no GitHub API)
  * ```bash
- * deno task workflow --local --issue 1 --dry-run
+ * deno task orchestrator --local --issue 1 --dry-run
  * ```
  *
  * @example Stub dispatch (preconfigured agent outcomes)
  * ```bash
- * deno task workflow --local --stub-dispatch '{"iterator":"success"}' --issue 1
+ * deno task orchestrator --local --stub-dispatch '{"iterator":"success"}' --issue 1
  * ```
  */
 
@@ -75,7 +75,7 @@ Workflow Runner
 
 Usage:
   deno run --allow-all @aidevtool/climpt/agents/orchestrator [options]
-  deno task workflow [options]
+  deno task orchestrator [options]
 
 Options:
   --issue <number>       Run workflow for a single issue (skips batch sync)

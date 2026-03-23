@@ -54,7 +54,7 @@ Agent がエラーで失敗した場合の遷移先。通常は `blocking` phase
 ### 単一 Issue サイクル
 
 ```
-deno task workflow --issue 123
+deno task orchestrator --issue 123
   │
   ▼
 1. loadWorkflow(cwd)
@@ -91,7 +91,7 @@ deno task workflow --issue 123
 ### Batch 処理フロー
 
 ```
-deno task workflow --label docs --state open
+deno task orchestrator --label docs --state open
   │
   ▼
 1. loadWorkflow(cwd, workflowPath)
