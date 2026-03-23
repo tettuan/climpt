@@ -122,6 +122,11 @@ export interface IssueStoreConfig {
   path: string;
 }
 
+/** Default issue store configuration used when workflow.json omits issueStore. */
+export const DEFAULT_ISSUE_STORE: IssueStoreConfig = {
+  path: ".agent/climpt/tmp/issues",
+};
+
 /** Prioritizer configuration in workflow.json */
 export interface PrioritizerConfig {
   /** Agent ID to dispatch for prioritization */

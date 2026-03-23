@@ -7,13 +7,14 @@
  */
 
 import { join } from "@std/path";
-import type {
-  BatchOptions,
-  BatchResult,
-  IssueCriteria,
-  OrchestratorOptions,
-  OrchestratorResult,
-  WorkflowConfig,
+import {
+  type BatchOptions,
+  type BatchResult,
+  DEFAULT_ISSUE_STORE,
+  type IssueCriteria,
+  type OrchestratorOptions,
+  type OrchestratorResult,
+  type WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
@@ -484,7 +485,7 @@ export class Orchestrator {
     });
 
     try {
-      const storeConfig = this.#config.issueStore ?? { path: ".agent/issues" };
+      const storeConfig = this.#config.issueStore ?? DEFAULT_ISSUE_STORE;
       const storePath = join(this.#cwd, storeConfig.path);
       const store = new IssueStore(storePath);
 
