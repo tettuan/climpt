@@ -296,6 +296,11 @@
               "description": "Additional paths to allow write access"
             }
           }
+        },
+        "excludedCommands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Commands excluded from sandbox restrictions (e.g. [\"gh\", \"git\"] for macOS Keychain/TLS access)"
         }
       }
     },

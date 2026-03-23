@@ -132,9 +132,8 @@ Stage 3（Verdict）の VerdictHandler に渡される。詳細は
 
 ### github
 
-GitHub 連携（省略可）。`agents/scripts/run-agent.ts` が worktree の生成と
-`--branch` / `--base-branch` を既に解決しており、Issue ごとに
-孤立した作業空間を用意できる。
+GitHub 連携（省略可）。`deno task agent` が worktree の生成と `--branch` /
+`--base-branch` を既に解決しており、Issue ごとに 孤立した作業空間を用意できる。
 
 ```json
 {

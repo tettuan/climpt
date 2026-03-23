@@ -100,8 +100,8 @@ Agent Runner:
   deno task agent --agent <name> --issue <number>
 
 Workflow Orchestrator:
-  deno task workflow --issue <number> [--verbose] [--dry-run]
-  deno task workflow [--label <label>] [--prioritize] [--dry-run]
+  deno task orchestrator --issue <number> [--verbose] [--dry-run]
+  deno task orchestrator [--label <label>] [--prioritize] [--dry-run]
 
 MCP Server:
   Climpt supports Model Context Protocol (MCP) for AI assistant integration.

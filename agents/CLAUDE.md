@@ -89,7 +89,7 @@ Claude Code Bash tool sandbox (外側)
 
 ```typescript
 Bash({
-  command: "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
+  command: "deno task agent --agent iterator",
   dangerouslyDisableSandbox: true, // 外側の sandbox を無効化
 });
 ```

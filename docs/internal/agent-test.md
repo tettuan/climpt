@@ -110,16 +110,16 @@ Do not fix.
 
 ```bash
 # Agent list
-deno run -A agents/scripts/run-agent.ts --list
+deno task agent --list
 
 # Basic execution
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number}
+deno task agent --agent {agent-name} --issue {number}
 
 # With iteration limit
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} --iterate-max 10
+deno task agent --agent {agent-name} --issue {number} --iterate-max 10
 
 # Specify branch in worktree mode
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} \
+deno task agent --agent {agent-name} --issue {number} \
   --branch feature/test-{number} --base-branch release/x.x.x
 ```
 
