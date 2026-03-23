@@ -103,16 +103,16 @@ Agent のテストを開始する。
 
 ```bash
 # Agent 一覧
-deno run -A agents/scripts/run-agent.ts --list
+deno task agent --list
 
 # 基本実行
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number}
+deno task agent --agent {agent-name} --issue {number}
 
 # イテレーション制限付き
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} --iterate-max 10
+deno task agent --agent {agent-name} --issue {number} --iterate-max 10
 
 # worktree モードでブランチ指定
-deno run -A agents/scripts/run-agent.ts --agent {agent-name} --issue {number} \
+deno task agent --agent {agent-name} --issue {number} \
   --branch feature/test-{number} --base-branch release/x.x.x
 ```
 

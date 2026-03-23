@@ -8,32 +8,32 @@
  *
  * @example Run workflow for a single issue
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --issue 123
+ * deno task workflow --issue 123
  * ```
  *
  * @example Run workflow for issues with label "docs"
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --label docs
+ * deno task workflow --label docs
  * ```
  *
  * @example Prioritize only
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --label docs --prioritize
+ * deno task workflow --label docs --prioritize
  * ```
  *
  * @example Dry run (no label changes)
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --label docs --dry-run
+ * deno task workflow --label docs --dry-run
  * ```
  *
  * @example Local mode (file-based, no GitHub API)
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --local --issue 1 --dry-run
+ * deno task workflow --local --issue 1 --dry-run
  * ```
  *
  * @example Stub dispatch (preconfigured agent outcomes)
  * ```bash
- * deno run --allow-all agents/scripts/run-workflow.ts --local --stub-dispatch '{"iterator":"success"}' --issue 1
+ * deno task workflow --local --stub-dispatch '{"iterator":"success"}' --issue 1
  * ```
  */
 
@@ -74,7 +74,8 @@ async function main(): Promise<void> {
 Workflow Runner
 
 Usage:
-  deno run --allow-all agents/scripts/run-workflow.ts [options]
+  deno run --allow-all @aidevtool/climpt/agents/orchestrator [options]
+  deno task workflow [options]
 
 Options:
   --issue <number>       Run workflow for a single issue (skips batch sync)
