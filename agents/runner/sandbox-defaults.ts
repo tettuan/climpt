@@ -75,7 +75,10 @@ export function getDefaultSandboxConfig(): SandboxConfig {
     filesystem: {
       allowedPaths: getDefaultFilesystemPaths(),
     },
-    excludedCommands: ["gh", "git"],
+    // excludedCommands intentionally empty.
+    // No command should bypass the sandbox. GitHub access is provided
+    // via the GitHubRead MCP tool (runs in host process, outside sandbox).
+    // See: agents/docs/design/04_step_flow_design.md
   };
 }
 
