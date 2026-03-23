@@ -44,6 +44,9 @@ export interface AgentResult {
 
   /** Total execution duration in milliseconds */
   durationMs?: number;
+
+  /** Latest rate limit info from SDK (seven_day type) */
+  rateLimitInfo?: RateLimitInfo;
 }
 
 /**
@@ -78,6 +81,25 @@ export interface IterationSummary {
   numTurns?: number;
   /** Total execution duration in milliseconds */
   durationMs?: number;
+  /** Rate limit info from SDK rate_limit_event (seven_day, latest wins) */
+  rateLimitInfo?: RateLimitInfo;
+}
+
+// ============================================================================
+// Rate Limit Types
+// ============================================================================
+
+/**
+ * Rate limit information captured from SDK rate_limit_event.
+ * Used to propagate utilization warnings from agent subprocess to orchestrator.
+ */
+export interface RateLimitInfo {
+  /** Current utilization ratio (0.0 - 1.0) */
+  utilization: number;
+  /** Unix timestamp (seconds) when the rate limit resets */
+  resetsAt: number;
+  /** Rate limit type (e.g. "seven_day") */
+  rateLimitType: string;
 }
 
 // ============================================================================

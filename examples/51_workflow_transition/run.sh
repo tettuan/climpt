@@ -15,11 +15,11 @@ setup_workdir() {
   local max_cycles="${2:-5}"
   local tmp
   tmp=$(mktemp -d)
-  mkdir -p "$tmp/.agent/issues/1/comments"
-  cp "$FIXTURES/issues/1/body.md" "$tmp/.agent/issues/1/body.md"
+  mkdir -p "$tmp/.agent/climpt/tmp/issues/1/comments"
+  cp "$FIXTURES/issues/1/body.md" "$tmp/.agent/climpt/tmp/issues/1/body.md"
 
   # Write meta with custom labels
-  cat > "$tmp/.agent/issues/1/meta.json" <<METAEOF
+  cat > "$tmp/.agent/climpt/tmp/issues/1/meta.json" <<METAEOF
 {
   "number": 1,
   "title": "Test issue",
@@ -76,7 +76,7 @@ main() {
 
   # Check file system: meta.json should have "done" label, no "ready"
   local labels
-  labels=$(read_labels "$tmp/.agent/issues/1/meta.json")
+  labels=$(read_labels "$tmp/.agent/climpt/tmp/issues/1/meta.json")
   if echo "$labels" | grep -q '"done"'; then
     if echo "$labels" | grep -qv '"ready"'; then
       success "Scenario 1: PASS"
@@ -96,7 +96,7 @@ main() {
   output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 \
     --stub-dispatch '{"iterator":"failed"}' 2>&1) || true
 
-  labels=$(read_labels "$tmp/.agent/issues/1/meta.json")
+  labels=$(read_labels "$tmp/.agent/climpt/tmp/issues/1/meta.json")
   if echo "$labels" | grep -q '"blocked"'; then
     success "Scenario 2: PASS"
   else
@@ -111,7 +111,7 @@ main() {
   output=$(cd "$tmp" && $WORKFLOW_CMD --local --issue 1 \
     --stub-dispatch '{"reviewer":"rejected"}' 2>&1) || true
 
-  labels=$(read_labels "$tmp/.agent/issues/1/meta.json")
+  labels=$(read_labels "$tmp/.agent/climpt/tmp/issues/1/meta.json")
   if echo "$labels" | grep -q '"implementation-gap"'; then
     success "Scenario 3: PASS"
   else

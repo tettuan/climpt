@@ -295,7 +295,7 @@ rules:
 #               of GitHub issue data.
 # Type        : object
 # Required    : no
-# Default     : { path: ".agent/issues" }
+# Default     : { path: ".agent/climpt/tmp/issues" }
 # Why         : Provides a filesystem boundary between
 #               agents and GitHub. Agents read from the store
 #               instead of calling gh directly.
@@ -306,11 +306,11 @@ rules:
 #   # Description : Directory path for the local issue store.
 #   # Type        : string
 #   # Required    : yes (when issueStore is present)
-#   # Default     : ".agent/issues"
+#   # Default     : ".agent/climpt/tmp/issues"
 #   # Why         : Relative to cwd. Contains per-issue
 #   #               directories with meta.json, body.md,
 #   #               comments/, and outbox/.
-#   path: ".agent/issues"
+#   path: ".agent/climpt/tmp/issues"
 
 # ============================================================
 # prioritizer

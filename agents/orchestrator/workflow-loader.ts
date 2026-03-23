@@ -7,10 +7,11 @@
  */
 
 import { join } from "@std/path";
-import type {
-  AgentDefinition,
-  WorkflowConfig,
-  WorkflowRules,
+import {
+  type AgentDefinition,
+  DEFAULT_ISSUE_STORE,
+  type WorkflowConfig,
+  type WorkflowRules,
 } from "./workflow-types.ts";
 import {
   wfLabelMappingEmpty,
@@ -87,7 +88,7 @@ export async function loadWorkflow(
       parsed.rules as Partial<WorkflowRules> | undefined,
     ),
     handoff: parsed.handoff as WorkflowConfig["handoff"],
-    issueStore: rawIssueStore ?? { path: ".agent/issues" },
+    issueStore: rawIssueStore ?? DEFAULT_ISSUE_STORE,
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
   };
 

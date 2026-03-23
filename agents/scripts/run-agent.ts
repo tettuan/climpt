@@ -656,6 +656,16 @@ async function main(): Promise<void> {
     // deno-lint-ignore no-console
     console.log(`${"=".repeat(60)}\n`);
 
+    // Output JSON result line for orchestrator dispatcher
+    const dispatchResult: Record<string, unknown> = {
+      outcome: result.success ? "success" : "failed",
+    };
+    if (result.rateLimitInfo) {
+      dispatchResult.rateLimitInfo = result.rateLimitInfo;
+    }
+    // deno-lint-ignore no-console
+    console.log(JSON.stringify(dispatchResult));
+
     Deno.exit(result.success ? 0 : 1);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

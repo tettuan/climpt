@@ -318,6 +318,24 @@ flowchart LR
   4. `completionHandler.onBoundaryHook()` が `gh` コマンドを Runner プロセス
      内で実行（AI の bash ツール経由ではない）
 
+#### 決定論的サンドボックス制御
+
+Boundary Hook に加え、サンドボックスのネットワーク遮断が Agent の GitHub
+アクセスを決定論的に制御する。パターンマッチング（`BOUNDARY_BASH_PATTERNS` で
+`curl`, `wget` 等の亜種を捕捉する方式）ではなく、ネットワーク層での遮断により
+バイパス不可能な境界を実現する。
+
+**3 つのアクセスパス**:
+
+| パス                                       | 実行主体           | 実行場所                           | 用途                                           |
+| ------------------------------------------ | ------------------ | ---------------------------------- | ---------------------------------------------- |
+| `mcp__github__github_read` MCP ツール      | Agent（読み取り）  | ホストプロセス（サンドボックス外） | Issue/PR/ファイルの参照                        |
+| Boundary Hook                              | Runner（書き込み） | ホストプロセス（サンドボックス外） | Issue close、ラベル変更等（closure step のみ） |
+| Agent の直接アクセス (`Bash("gh ...")` 等) | —                  | サンドボックス内                   | **ブロック（決定論的失敗）**                   |
+
+原則: **Agent は WHAT を決定し（structured output）、System が HOW を実行する
+（Boundary Hook / MCP ツール）**。
+
 ### 7.2 Step kind とツール許可
 
 ```mermaid

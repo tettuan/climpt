@@ -13,10 +13,10 @@ FIXTURES="${EXAMPLES_DIR}/fixtures/workflow"
 setup_workdir() {
   local tmp
   tmp=$(mktemp -d)
-  mkdir -p "$tmp/.agent/issues/1/comments"
+  mkdir -p "$tmp/.agent/climpt/tmp/issues/1/comments"
   cp "$FIXTURES/workflow.json" "$tmp/.agent/workflow.json"
-  cp "$FIXTURES/issues/1/meta.json" "$tmp/.agent/issues/1/meta.json"
-  cp "$FIXTURES/issues/1/body.md" "$tmp/.agent/issues/1/body.md"
+  cp "$FIXTURES/issues/1/meta.json" "$tmp/.agent/climpt/tmp/issues/1/meta.json"
+  cp "$FIXTURES/issues/1/body.md" "$tmp/.agent/climpt/tmp/issues/1/body.md"
   echo "$tmp"
 }
 

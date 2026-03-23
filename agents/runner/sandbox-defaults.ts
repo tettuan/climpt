@@ -22,11 +22,10 @@ export const DEFAULT_TRUSTED_DOMAINS = [
   "*.anthropic.com",
   "*.*.anthropic.com",
 
-  // GitHub
-  "api.github.com",
-  "github.com",
-  "*.githubusercontent.com",
-  "uploads.github.com",
+  // GitHub domains intentionally excluded from sandbox.
+  // Agent GitHub access is provided via GitHubRead MCP tool (host process).
+  // System paths (Boundary Hook, worktree, orchestrator) use Deno.Command
+  // outside the sandbox and are not affected.
 
   // Deno ecosystem
   "jsr.io",
@@ -75,6 +74,10 @@ export function getDefaultSandboxConfig(): SandboxConfig {
     filesystem: {
       allowedPaths: getDefaultFilesystemPaths(),
     },
+    // excludedCommands intentionally empty.
+    // No command should bypass the sandbox. GitHub access is provided
+    // via the GitHubRead MCP tool (runs in host process, outside sandbox).
+    // See: agents/docs/design/04_step_flow_design.md
   };
 }
 
@@ -93,9 +96,24 @@ export function toSdkSandboxConfig(
     ignoreViolations: config.filesystem?.allowedPaths
       ? { write: config.filesystem.allowedPaths }
       : undefined,
-    // Commands that always bypass sandbox (e.g. gh/git need macOS Keychain for TLS)
+    // Commands that always bypass sandbox (intentionally empty —
+    // no command should bypass the sandbox)
     excludedCommands: config.excludedCommands,
+    allowUnsandboxedCommands: config.allowUnsandboxedCommands,
   };
+}
+
+/**
+ * Merge excluded commands from defaults and agent config.
+ * Combines both arrays with deduplication.
+ */
+function mergeExcludedCommands(
+  defaults?: string[],
+  agent?: string[],
+): string[] | undefined {
+  if (!defaults && !agent) return undefined;
+  const merged = new Set([...(defaults ?? []), ...(agent ?? [])]);
+  return [...merged];
 }
 
 /**
@@ -139,6 +157,10 @@ export function mergeSandboxConfig(
     enabled: agentConfig.enabled ?? defaults.enabled,
     network: mergedNetwork,
     filesystem: mergedFilesystem,
-    excludedCommands: agentConfig.excludedCommands,
+    excludedCommands: mergeExcludedCommands(
+      defaults.excludedCommands,
+      agentConfig.excludedCommands,
+    ),
+    allowUnsandboxedCommands: agentConfig.allowUnsandboxedCommands,
   };
 }

@@ -132,6 +132,12 @@ export interface SandboxConfig {
    * Example: ["gh", "git"] to bypass macOS Keychain/TLS restrictions.
    */
   excludedCommands?: string[];
+  /**
+   * Allow the model to request running commands outside the sandbox.
+   * When true, the model can set `dangerouslyDisableSandbox` in tool input,
+   * which falls back to the permissions system (canUseTool).
+   */
+  allowUnsandboxedCommands?: boolean;
 }
 
 export interface SandboxNetworkConfig {

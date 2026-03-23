@@ -31,5 +31,5 @@
     }
   },
   "rules": { "maxCycles": 5, "cycleDelayMs": 0 },
-  "issueStore": { "path": ".agent/issues" }
+  "issueStore": { "path": ".agent/climpt/tmp/issues" }
 }

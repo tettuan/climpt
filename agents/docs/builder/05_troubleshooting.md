@@ -10,6 +10,8 @@ Agent 開発時によく遭遇する問題と解決方法。
   - [構造化出力が効かない](#構造化出力が効かない)
 - [Boundary Hook / Issue 操作](#boundary-hook--issue-操作)
   - [Issue が意図せず close される](#issue-が意図せず-close-される)
+- [サンドボックス / GitHub アクセス](#サンドボックス--github-アクセス)
+  - [`gh` コマンドが TLS 証明書エラーまたはネットワークエラーで失敗する](#gh-コマンドが-tls-証明書エラーまたはネットワークエラーで失敗する)
 - [エージェントの行動制御](#エージェントの行動制御)
 - [ログの読み方](#ログの読み方)
 
@@ -268,6 +270,50 @@ grep '"stepId":"initial.assess"' tmp/logs/*.jsonl | jq .
 # 構造化出力の状態を確認
 grep -E "(outputSchemaRef|Loaded.*schema|Failed.*schema)" tmp/logs/*.jsonl
 ```
+
+---
+
+## サンドボックス / GitHub アクセス
+
+### `gh` コマンドが TLS 証明書エラーまたはネットワークエラーで失敗する
+
+**症状**
+
+```
+error connecting to api.github.com: tls: failed to verify certificate
+```
+
+または
+
+```
+Could not resolve host: api.github.com
+```
+
+Agent の Bash ツール内で `gh` や `curl https://api.github.com/...` を実行した
+場合に発生する。
+
+**原因**
+
+GitHub ドメインはサンドボックスの `trustedDomains` から **意図的に除外** されて
+いる。これは設計上の決定であり、Agent が直接 GitHub にアクセスすることを
+決定論的に防止するためのものである。
+
+**解決方法**
+
+| 操作                                         | 方法                                                          |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| GitHub 読み取り（Issue、PR、ファイル等）     | `mcp__github__github_read` MCP ツールを使用する               |
+| GitHub 書き込り（Issue close、ラベル変更等） | Boundary Hook 経由（closure step で `closing` intent を返す） |
+
+**補足**
+
+- システムプロセス（Boundary Hook、worktree ファイナライズ、オーケストレータ）は
+  サンドボックス外で `Deno.Command("gh")` を実行するため、この制限の **影響を
+  受けない**
+- `excludedCommands` を使って `gh`
+  をサンドボックスから除外することは推奨しない。 MCP ツールと Boundary Hook
+  による制御が正規のアクセスパスである
+- 参照: `agents/runner/sandbox-defaults.ts`, `agents/runner/github-read-tool.ts`
 
 ---
 

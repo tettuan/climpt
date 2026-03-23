@@ -60,13 +60,29 @@ export interface ErrorMessage {
 }
 
 /**
+ * Rate limit event message from SDK stream
+ */
+export interface RateLimitEventMessage {
+  readonly type: "rate_limit_event";
+  readonly "rate_limit_info": {
+    readonly utilization: number;
+    readonly resetsAt: number;
+    readonly rateLimitType: string;
+    readonly status?: string;
+    readonly isUsingOverage?: boolean;
+    readonly surpassedThreshold?: number;
+  };
+}
+
+/**
  * Union type of all known SDK message types
  */
 export type SdkMessage =
   | AssistantMessage
   | ToolUseMessage
   | ResultMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | RateLimitEventMessage;
 
 // ============================================================================
 // Type Guard Functions
@@ -131,6 +147,34 @@ export function isErrorMessage(msg: unknown): msg is ErrorMessage {
 }
 
 /**
+ * Type guard for RateLimitEventMessage
+ *
+ * Validates that the message has type "rate_limit_event" and contains
+ * rate_limit_info with required numeric fields.
+ */
+export function isRateLimitEventMessage(
+  msg: unknown,
+): msg is RateLimitEventMessage {
+  if (!isObject(msg)) {
+    return false;
+  }
+  if (msg.type !== "rate_limit_event") {
+    return false;
+  }
+  if (!isObject(msg.rate_limit_info)) {
+    return false;
+  }
+  const info = msg.rate_limit_info;
+  return (
+    typeof info.utilization === "number" &&
+    Number.isFinite(info.utilization) &&
+    typeof info.resetsAt === "number" &&
+    Number.isFinite(info.resetsAt) &&
+    typeof info.rateLimitType === "string"
+  );
+}
+
+/**
  * Type guard for any known SdkMessage type
  *
  * Useful for filtering unknown messages from known ones.
@@ -140,6 +184,7 @@ export function isSdkMessage(msg: unknown): msg is SdkMessage {
     isAssistantMessage(msg) ||
     isToolUseMessage(msg) ||
     isResultMessage(msg) ||
-    isErrorMessage(msg)
+    isErrorMessage(msg) ||
+    isRateLimitEventMessage(msg)
   );
 }

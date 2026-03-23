@@ -13,12 +13,12 @@ FIXTURES="${EXAMPLES_DIR}/fixtures/workflow"
 setup_workdir() {
   local tmp
   tmp=$(mktemp -d)
-  mkdir -p "$tmp/.agent/issues/"{1,2,3}"/comments"
+  mkdir -p "$tmp/.agent/climpt/tmp/issues/"{1,2,3}"/comments"
   cp "$FIXTURES/workflow.json" "$tmp/.agent/workflow.json"
 
   for n in 1 2 3; do
-    cp "$FIXTURES/issues/$n/meta.json" "$tmp/.agent/issues/$n/meta.json"
-    cp "$FIXTURES/issues/$n/body.md" "$tmp/.agent/issues/$n/body.md"
+    cp "$FIXTURES/issues/$n/meta.json" "$tmp/.agent/climpt/tmp/issues/$n/meta.json"
+    cp "$FIXTURES/issues/$n/body.md" "$tmp/.agent/climpt/tmp/issues/$n/body.md"
   done
 
   echo "$tmp"
@@ -77,9 +77,9 @@ main() {
 
   # Verify file system: issues 1,2 should have "done", issue 3 unchanged
   local labels1 labels2 labels3
-  labels1=$(jq -c '.labels' "$tmp/.agent/issues/1/meta.json")
-  labels2=$(jq -c '.labels' "$tmp/.agent/issues/2/meta.json")
-  labels3=$(jq -c '.labels' "$tmp/.agent/issues/3/meta.json")
+  labels1=$(jq -c '.labels' "$tmp/.agent/climpt/tmp/issues/1/meta.json")
+  labels2=$(jq -c '.labels' "$tmp/.agent/climpt/tmp/issues/2/meta.json")
+  labels3=$(jq -c '.labels' "$tmp/.agent/climpt/tmp/issues/3/meta.json")
 
   if echo "$labels1" | grep -q '"done"' && echo "$labels2" | grep -q '"done"'; then
     : # correct
