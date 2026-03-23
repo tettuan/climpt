@@ -114,6 +114,28 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 | `FormatValidator` | (SDK 委譲) Structured Output の schema 検証 | SDK の outputFormat 機能に委譲済み |
 | `RetryHandler`    | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映   |
 
+## GitHubRead MCP ツール
+
+Runner は Agent の GitHub 読み取りアクセスを MCP ツール経由で提供する。
+
+| 項目         | 詳細                                                                    |
+| ------------ | ----------------------------------------------------------------------- |
+| ツール名     | `mcp__github__github_read` (`GITHUB_READ_TOOL_NAME`)                    |
+| 作成方法     | SDK の `createSdkMcpServer()` で MCP サーバーを生成し、`query()` に渡す |
+| allowedTools | Runner が全ステップの `allowedTools` に自動追加                         |
+| 実行場所     | ホストプロセス（サンドボックス外）                                      |
+| 内部実装     | MCP ツールハンドラが `Deno.Command("gh")` を実行                        |
+
+**設計意図**: サンドボックスの `DEFAULT_TRUSTED_DOMAINS`
+（`agents/runner/sandbox-defaults.ts`）から GitHub ドメインを除外し、Agent が
+Bash ツール経由で `gh` コマンドを直接実行することをネットワーク層で遮断する。
+代わりに、MCP ツールがホストプロセスで `gh` コマンドを実行することで、
+TLS/Keychain アクセスの問題を回避しつつ、読み取り専用のアクセスを提供する。
+
+GitHub 書き込みは Boundary Hook（closure step）が担う。
+
+参照: `agents/runner/github-read-tool.ts`, `agents/runner/sandbox-defaults.ts`
+
 ## リトライ設計
 
 - **形式リトライ**: SDK の outputFormat 機能に委譲。SDK が schema 検証を行い、

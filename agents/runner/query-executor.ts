@@ -34,9 +34,16 @@ import {
 import {
   isAssistantMessage,
   isErrorMessage,
+  isRateLimitEventMessage,
   isResultMessage,
   isToolUseMessage,
 } from "./message-types.ts";
+import {
+  createGitHubReadHandler,
+  GITHUB_READ_SERVER_NAME,
+  GITHUB_READ_TOOL_NAME,
+  GitHubReadInputSchema,
+} from "./github-read-tool.ts";
 import type { VerboseLogger } from "./verbose-logger.ts";
 import { AGENT_LIMITS, TRUNCATION } from "../shared/constants.ts";
 import type { SchemaManager } from "./schema-manager.ts";
@@ -90,10 +97,17 @@ export class QueryExecutor {
 
     try {
       // Dynamic import of Claude Code SDK
-      const { query } = await import("@anthropic-ai/claude-agent-sdk");
+      const { query, tool, createSdkMcpServer } = await import(
+        "@anthropic-ai/claude-agent-sdk"
+      );
 
       // Apply stepKind-based tool gating if we have step info
-      let allowedTools = this.deps.definition.runner.boundaries.allowedTools;
+      // Append GitHubRead MCP tool so all agents get read-only GitHub access
+      // without requiring agent.json changes.
+      let allowedTools = [
+        ...this.deps.definition.runner.boundaries.allowedTools,
+        GITHUB_READ_TOOL_NAME,
+      ];
       let currentStepKind: StepKind | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
 
@@ -253,8 +267,44 @@ export class QueryExecutor {
         });
       }
 
+      // Create GitHubRead MCP server (runs in host process, outside sandbox)
+      const githubReadServer = createSdkMcpServer({
+        name: GITHUB_READ_SERVER_NAME,
+        version: "1.0.0",
+        tools: [
+          tool(
+            "github_read",
+            "Read-only GitHub access. Use this instead of gh CLI commands. " +
+              "Supports: issue_view, issue_list, pr_view, pr_list, pr_diff, pr_checks.",
+            GitHubReadInputSchema,
+            createGitHubReadHandler(ctx.cwd),
+          ),
+        ],
+      });
+
+      // MCP tools require streaming input mode
+      queryOptions.mcpServers = {
+        [GITHUB_READ_SERVER_NAME]: githubReadServer,
+      };
+
+      // Convert plain text prompt to async iterable (SDKUserMessage stream).
+      // Generator declared as const to satisfy no-inner-declarations lint rule.
+      const streamingPrompt = (async function* (): AsyncGenerator<{
+        type: "user";
+        message: { role: "user"; content: string };
+        parent_tool_use_id: null;
+        session_id: string;
+      }> {
+        yield {
+          type: "user" as const,
+          message: { role: "user" as const, content: effectivePrompt },
+          parent_tool_use_id: null,
+          session_id: sessionId ?? "",
+        };
+      })();
+
       const queryIterator = query({
-        prompt: effectivePrompt,
+        prompt: streamingPrompt,
         options: queryOptions,
       });
 
@@ -380,6 +430,18 @@ export class QueryExecutor {
       }
       if (message.duration_ms !== undefined) {
         summary.durationMs = message.duration_ms;
+      }
+    } else if (isRateLimitEventMessage(message)) {
+      if (message.rate_limit_info.rateLimitType === "seven_day") {
+        summary.rateLimitInfo = {
+          utilization: message.rate_limit_info.utilization,
+          resetsAt: message.rate_limit_info.resetsAt,
+          rateLimitType: message.rate_limit_info.rateLimitType,
+        };
+        ctx.logger.info(
+          `[RateLimit] seven_day utilization: ${message.rate_limit_info.utilization}`,
+          { rateLimitInfo: summary.rateLimitInfo },
+        );
       }
     } else if (isErrorMessage(message)) {
       summary.errors.push(message.error.message ?? "Unknown error");

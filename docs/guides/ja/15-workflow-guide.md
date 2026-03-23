@@ -72,17 +72,17 @@ deno task orchestrator --label ready --state open
 
 ### トップレベルフィールド
 
-| フィールド     | 必須 | デフォルト                  | 説明                                                          |
-| -------------- | ---- | --------------------------- | ------------------------------------------------------------- |
-| `version`      | yes  | —                           | スキーマバージョン（例: `"1.0.0"`）                           |
-| `phases`       | yes  | —                           | Phase 定義（後述）                                            |
-| `labelMapping` | yes  | —                           | GitHub ラベル → phase ID マッピング                           |
-| `agents`       | yes  | —                           | Agent 定義（後述）                                            |
-| `rules`        | yes  | —                           | 実行制約（後述）                                              |
-| `labelPrefix`  | no   | —                           | ラベル名前空間（例: `"docs"` → ラベルが `docs:ready` になる） |
-| `issueStore`   | no   | `{ path: ".agent/issues" }` | ローカル issue ストアのディレクトリ                           |
-| `handoff`      | no   | —                           | Agent 間ハンドオフのコメントテンプレート                      |
-| `prioritizer`  | no   | —                           | Prioritizer Agent 設定（`--prioritize` に必須）               |
+| フィールド     | 必須 | デフォルト                             | 説明                                                          |
+| -------------- | ---- | -------------------------------------- | ------------------------------------------------------------- |
+| `version`      | yes  | —                                      | スキーマバージョン（例: `"1.0.0"`）                           |
+| `phases`       | yes  | —                                      | Phase 定義（後述）                                            |
+| `labelMapping` | yes  | —                                      | GitHub ラベル → phase ID マッピング                           |
+| `agents`       | yes  | —                                      | Agent 定義（後述）                                            |
+| `rules`        | yes  | —                                      | 実行制約（後述）                                              |
+| `labelPrefix`  | no   | —                                      | ラベル名前空間（例: `"docs"` → ラベルが `docs:ready` になる） |
+| `issueStore`   | no   | `{ path: ".agent/climpt/tmp/issues" }` | ローカル issue ストアのディレクトリ                           |
+| `handoff`      | no   | —                                      | Agent 間ハンドオフのコメントテンプレート                      |
+| `prioritizer`  | no   | —                                      | Prioritizer Agent 設定（`--prioritize` に必須）               |
 
 ### phases
 

@@ -72,17 +72,17 @@ deno task orchestrator --label ready --state open
 
 ### Top-Level Fields
 
-| Field          | Required | Default                     | Description                                                   |
-| -------------- | -------- | --------------------------- | ------------------------------------------------------------- |
-| `version`      | yes      | —                           | Schema version (e.g., `"1.0.0"`)                              |
-| `phases`       | yes      | —                           | Phase definitions (see below)                                 |
-| `labelMapping` | yes      | —                           | GitHub label → phase ID mapping                               |
-| `agents`       | yes      | —                           | Agent definitions (see below)                                 |
-| `rules`        | yes      | —                           | Execution constraints (see below)                             |
-| `labelPrefix`  | no       | —                           | Label namespace (e.g., `"docs"` → labels become `docs:ready`) |
-| `issueStore`   | no       | `{ path: ".agent/issues" }` | Local issue storage directory                                 |
-| `handoff`      | no       | —                           | Inter-agent handoff comment templates                         |
-| `prioritizer`  | no       | —                           | Prioritizer agent configuration (required for `--prioritize`) |
+| Field          | Required | Default                                | Description                                                   |
+| -------------- | -------- | -------------------------------------- | ------------------------------------------------------------- |
+| `version`      | yes      | —                                      | Schema version (e.g., `"1.0.0"`)                              |
+| `phases`       | yes      | —                                      | Phase definitions (see below)                                 |
+| `labelMapping` | yes      | —                                      | GitHub label → phase ID mapping                               |
+| `agents`       | yes      | —                                      | Agent definitions (see below)                                 |
+| `rules`        | yes      | —                                      | Execution constraints (see below)                             |
+| `labelPrefix`  | no       | —                                      | Label namespace (e.g., `"docs"` → labels become `docs:ready`) |
+| `issueStore`   | no       | `{ path: ".agent/climpt/tmp/issues" }` | Local issue storage directory                                 |
+| `handoff`      | no       | —                                      | Inter-agent handoff comment templates                         |
+| `prioritizer`  | no       | —                                      | Prioritizer agent configuration (required for `--prioritize`) |
 
 ### phases
 

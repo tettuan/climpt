@@ -301,6 +301,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Commands excluded from sandbox restrictions (e.g. [\"gh\", \"git\"] for macOS Keychain/TLS access)"
+        },
+        "allowUnsandboxedCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow the model to request running commands outside the sandbox via dangerouslyDisableSandbox"
         }
       }
     },

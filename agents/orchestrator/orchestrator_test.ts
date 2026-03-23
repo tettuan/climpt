@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { ConfigError } from "../shared/errors/config-errors.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { DEFAULT_ISSUE_STORE, type WorkflowConfig } from "./workflow-types.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -493,7 +493,7 @@ class BatchStubGitHubClient implements GitHubClient {
 function createBatchTestConfig(): WorkflowConfig {
   return {
     version: "1.0.0",
-    issueStore: { path: ".agent/issues" },
+    issueStore: DEFAULT_ISSUE_STORE,
     prioritizer: {
       agent: "triage-agent",
       labels: ["P1", "P2", "P3"],
@@ -543,7 +543,7 @@ async function setupBatchStore(
   tmpDir: string,
   issues: { num: number; labels: string[] }[],
 ): Promise<IssueStore> {
-  const storePath = `${tmpDir}/.agent/issues`;
+  const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
   const store = new IssueStore(storePath);
   for (const issue of issues) {
     // deno-lint-ignore no-await-in-loop
@@ -567,7 +567,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     // Pre-seed store with issues that have labels
     await setupBatchStore(tmpDir, [
@@ -618,7 +618,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
     };
 
     // Write a priorities.json for the triage agent to "produce"
-    const storePath = `${tmpDir}/.agent/issues`;
+    const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
     const prioritiesPath = `${storePath}/priorities.json`;
     await Deno.writeTextFile(
       prioritiesPath,
@@ -652,7 +652,7 @@ Deno.test("runBatch processes issues in priority queue order", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     // Pre-seed: issue 10 has P2 + ready, issue 20 has P1 + ready
     // P1 should be processed before P2
@@ -718,7 +718,7 @@ Deno.test("runBatch skips non-actionable issues", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     // Issue 10 is actionable (ready), issue 20 is terminal (done)
     await setupBatchStore(tmpDir, [
@@ -782,7 +782,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready", "P1"] },
@@ -810,7 +810,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
     const github = new BatchStubGitHubClient(listItems, details, labelSeqs);
 
     // Write an outbox action before running
-    const outboxDir = `${tmpDir}/.agent/issues/10/outbox`;
+    const outboxDir = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}/10/outbox`;
     await Deno.mkdir(outboxDir, { recursive: true });
     await Deno.writeTextFile(
       `${outboxDir}/001-comment.json`,
@@ -1060,7 +1060,7 @@ Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError
   try {
     const config = createBatchTestConfig();
     delete config.prioritizer; // Remove prioritizer config
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready"] },
@@ -1102,7 +1102,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready"] },
@@ -1153,7 +1153,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
     };
 
     // Write priorities.json for prioritizer agent
-    const storePath = `${tmpDir}/.agent/issues`;
+    const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
     await Deno.writeTextFile(
       `${storePath}/priorities.json`,
       JSON.stringify([
@@ -1190,7 +1190,7 @@ Deno.test("runBatch all-terminal issues returns completed status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     // All issues are terminal (done label)
     await setupBatchStore(tmpDir, [
@@ -1249,7 +1249,7 @@ Deno.test("runBatch empty sync returns completed status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     // No issues in store — empty listItems
     const github = new BatchStubGitHubClient(
@@ -1275,7 +1275,7 @@ Deno.test("runBatch with processing error returns partial status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = { path: ".agent/issues" };
+    config.issueStore = DEFAULT_ISSUE_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready", "P1"] },
@@ -1323,4 +1323,119 @@ Deno.test("runBatch with processing error returns partial status", async () => {
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }
+});
+
+// === Rate limit throttle tests ===
+
+Deno.test("rate limit throttle: completes normally when resetsAt is in the past", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  // Cycle 1: ["ready"] -> iterator (success) -> transition to "review"
+  // Cycle 2: ["review"] -> reviewer (approved) -> transition to "complete"
+  // Cycle 3: ["done"] -> terminal -> break
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["done"],
+  ]);
+
+  // StubDispatcher with rateLimitInfo where utilization >= threshold
+  // and resetsAt is in the past so #waitForRateLimitReset exits immediately
+  const rateLimitInfo = {
+    utilization: 0.95,
+    resetsAt: Math.floor(Date.now() / 1000) - 60, // 60 seconds in the past
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success", reviewer: "approved" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 2);
+  // Dispatcher was called for both agents
+  assertEquals(dispatcher.callCount, 2);
+});
+
+Deno.test("rate limit throttle: skipped when utilization is below threshold", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.95;
+
+  // Single cycle to terminal
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // utilization (0.50) < threshold (0.95), so throttle should be skipped
+  const rateLimitInfo = {
+    utilization: 0.50,
+    resetsAt: Math.floor(Date.now() / 1000) + 3600, // far future - but should not wait
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  // Should complete without waiting (utilization below threshold)
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
+});
+
+Deno.test("rate limit throttle: no rateLimitInfo proceeds without throttle", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // No rateLimitInfo at all
+  const dispatcher = new StubDispatcher({ iterator: "success" });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
+});
+
+Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // resetsAt is 0 (invalid) — should skip wait gracefully
+  const rateLimitInfo = {
+    utilization: 0.95,
+    resetsAt: 0,
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
 });

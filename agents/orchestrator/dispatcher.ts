@@ -7,6 +7,7 @@
  */
 
 import type { WorkflowConfig } from "./workflow-types.ts";
+import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 
 /** Options passed to agent dispatch. */
 export interface DispatchOptions {
@@ -21,6 +22,7 @@ export interface DispatchOptions {
 export interface DispatchOutcome {
   outcome: string;
   durationMs: number;
+  rateLimitInfo?: RateLimitInfo;
 }
 
 /** Abstract interface for dispatching agents. */
@@ -36,9 +38,14 @@ export interface AgentDispatcher {
 export class StubDispatcher implements AgentDispatcher {
   #outcomes: Map<string, string>;
   #callCount = 0;
+  #rateLimitInfo?: RateLimitInfo;
 
-  constructor(outcomes?: Record<string, string>) {
+  constructor(
+    outcomes?: Record<string, string>,
+    rateLimitInfo?: RateLimitInfo,
+  ) {
     this.#outcomes = new Map(Object.entries(outcomes ?? {}));
+    this.#rateLimitInfo = rateLimitInfo;
   }
 
   get callCount(): number {
@@ -52,7 +59,11 @@ export class StubDispatcher implements AgentDispatcher {
   ): Promise<DispatchOutcome> {
     this.#callCount++;
     const outcome = this.#outcomes.get(agentId) ?? "success";
-    return Promise.resolve({ outcome, durationMs: 0 });
+    return Promise.resolve({
+      outcome,
+      durationMs: 0,
+      rateLimitInfo: this.#rateLimitInfo,
+    });
   }
 }
 
@@ -117,18 +128,25 @@ export class RunnerDispatcher implements AgentDispatcher {
     const durationMs = performance.now() - startMs;
 
     const stdout = new TextDecoder().decode(output.stdout);
-    const outcome = this.#parseOutcome(stdout, output.success);
-    return { outcome, durationMs };
+    const { outcome, rateLimitInfo } = this.#parseResult(
+      stdout,
+      output.success,
+    );
+    return { outcome, durationMs, rateLimitInfo };
   }
 
   /**
-   * Parse outcome from agent stdout.
+   * Parse result from agent stdout.
    *
    * Scans stdout lines from the end looking for a JSON line
    * containing an "outcome" key (e.g. `{"outcome": "approved"}`).
+   * Also captures rateLimitInfo if present in the same JSON line.
    * Falls back to "success"/"failed" based on exit code.
    */
-  #parseOutcome(stdout: string, success: boolean): string {
+  #parseResult(
+    stdout: string,
+    success: boolean,
+  ): { outcome: string; rateLimitInfo?: RateLimitInfo } {
     const lines = stdout.split("\n");
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
@@ -136,12 +154,32 @@ export class RunnerDispatcher implements AgentDispatcher {
       try {
         const parsed = JSON.parse(line) as Record<string, unknown>;
         if (typeof parsed.outcome === "string") {
-          return parsed.outcome;
+          let rateLimitInfo: RateLimitInfo | undefined;
+          if (
+            parsed.rateLimitInfo !== null &&
+            typeof parsed.rateLimitInfo === "object"
+          ) {
+            const rli = parsed.rateLimitInfo as Record<string, unknown>;
+            if (
+              typeof rli.utilization === "number" &&
+              Number.isFinite(rli.utilization as number) &&
+              typeof rli.resetsAt === "number" &&
+              Number.isFinite(rli.resetsAt as number) &&
+              typeof rli.rateLimitType === "string"
+            ) {
+              rateLimitInfo = {
+                utilization: rli.utilization,
+                resetsAt: rli.resetsAt,
+                rateLimitType: rli.rateLimitType,
+              };
+            }
+          }
+          return { outcome: parsed.outcome, rateLimitInfo };
         }
       } catch {
         // not valid JSON, continue scanning
       }
     }
-    return success ? "success" : "failed";
+    return { outcome: success ? "success" : "failed" };
   }
 }

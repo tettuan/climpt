@@ -668,6 +668,9 @@ export class AgentRunner {
       const lastCostSummary = [...summaries].reverse().find((s) =>
         s.totalCostUsd !== undefined
       );
+      const lastRateLimitInfo = [...summaries].reverse().find((s) =>
+        s.rateLimitInfo !== undefined
+      )?.rateLimitInfo;
 
       // Collect all errors across iterations for surfacing
       const allErrors = summaries.flatMap((s) => s.errors);
@@ -730,6 +733,7 @@ export class AgentRunner {
         ...(lastCostSummary?.durationMs !== undefined && {
           durationMs: lastCostSummary.durationMs,
         }),
+        ...(lastRateLimitInfo && { rateLimitInfo: lastRateLimitInfo }),
       };
 
       // Emit completed event
@@ -755,6 +759,9 @@ export class AgentRunner {
       const lastCostSummaryOnError = [...summaries].reverse().find((s) =>
         s.totalCostUsd !== undefined
       );
+      const lastRateLimitInfoOnError = [...summaries].reverse().find((s) =>
+        s.rateLimitInfo !== undefined
+      )?.rateLimitInfo;
       return {
         success: false,
         iterations: iteration,
@@ -769,6 +776,9 @@ export class AgentRunner {
         }),
         ...(lastCostSummaryOnError?.durationMs !== undefined && {
           durationMs: lastCostSummaryOnError.durationMs,
+        }),
+        ...(lastRateLimitInfoOnError && {
+          rateLimitInfo: lastRateLimitInfoOnError,
         }),
       };
     } finally {
