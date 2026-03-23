@@ -167,7 +167,9 @@ export function isRateLimitEventMessage(
   const info = msg.rate_limit_info;
   return (
     typeof info.utilization === "number" &&
+    Number.isFinite(info.utilization) &&
     typeof info.resetsAt === "number" &&
+    Number.isFinite(info.resetsAt) &&
     typeof info.rateLimitType === "string"
   );
 }

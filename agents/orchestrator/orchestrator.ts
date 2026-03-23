@@ -681,6 +681,15 @@ export class Orchestrator {
     const pollIntervalMs = this.#config.rules.rateLimitPollIntervalMs ??
       300_000;
 
+    // Guard: reject invalid timestamps to prevent infinite loop
+    if (!Number.isFinite(info.resetsAt) || info.resetsAt <= 0) {
+      await log.warn(
+        `Rate limit throttle: invalid resetsAt (${info.resetsAt}), skipping wait`,
+        { event: "rate_limit_invalid_reset", resetsAt: info.resetsAt },
+      );
+      return;
+    }
+
     await log.warn(
       `Rate limit throttle: ${info.rateLimitType} utilization ${info.utilization} >= ${threshold}, ` +
         `waiting until reset at ${

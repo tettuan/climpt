@@ -1411,3 +1411,31 @@ Deno.test("rate limit throttle: no rateLimitInfo proceeds without throttle", asy
   assertEquals(result.finalPhase, "complete");
   assertEquals(result.cycleCount, 1);
 });
+
+Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", async () => {
+  const config = createTestConfig();
+  config.rules.rateLimitThreshold = 0.90;
+
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["done"],
+  ]);
+
+  // resetsAt is 0 (invalid) — should skip wait gracefully
+  const rateLimitInfo = {
+    utilization: 0.95,
+    resetsAt: 0,
+    rateLimitType: "seven_day",
+  };
+  const dispatcher = new StubDispatcher(
+    { iterator: "success" },
+    rateLimitInfo,
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 1);
+});

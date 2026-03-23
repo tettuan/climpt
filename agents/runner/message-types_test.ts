@@ -124,3 +124,39 @@ Deno.test("isRateLimitEventMessage: non-object input returns false", () => {
   assertEquals(isRateLimitEventMessage(42), false);
   assertEquals(isRateLimitEventMessage(true), false);
 });
+
+Deno.test("isRateLimitEventMessage: NaN utilization returns false", () => {
+  const msg = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      utilization: NaN,
+      resetsAt: 1700000000,
+      rateLimitType: "seven_day",
+    },
+  };
+  assertEquals(isRateLimitEventMessage(msg), false);
+});
+
+Deno.test("isRateLimitEventMessage: Infinity resetsAt returns false", () => {
+  const msg = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      utilization: 0.85,
+      resetsAt: Infinity,
+      rateLimitType: "seven_day",
+    },
+  };
+  assertEquals(isRateLimitEventMessage(msg), false);
+});
+
+Deno.test("isRateLimitEventMessage: -Infinity utilization returns false", () => {
+  const msg = {
+    type: "rate_limit_event",
+    rate_limit_info: {
+      utilization: -Infinity,
+      resetsAt: 1700000000,
+      rateLimitType: "seven_day",
+    },
+  };
+  assertEquals(isRateLimitEventMessage(msg), false);
+});

@@ -162,7 +162,9 @@ export class RunnerDispatcher implements AgentDispatcher {
             const rli = parsed.rateLimitInfo as Record<string, unknown>;
             if (
               typeof rli.utilization === "number" &&
+              Number.isFinite(rli.utilization as number) &&
               typeof rli.resetsAt === "number" &&
+              Number.isFinite(rli.resetsAt as number) &&
               typeof rli.rateLimitType === "string"
             ) {
               rateLimitInfo = {

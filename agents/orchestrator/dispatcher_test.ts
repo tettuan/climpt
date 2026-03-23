@@ -163,6 +163,33 @@ Deno.test("parseResult contract: rateLimitInfo with non-number utilization retur
   assertEquals(parsed.rateLimitInfo, undefined);
 });
 
+Deno.test("parseResult contract: NaN utilization in rateLimitInfo returns undefined", () => {
+  // JSON.stringify converts NaN to null, so this simulates what happens
+  // when the JSON contains null instead of a number
+  const stdout =
+    '{"outcome":"success","rateLimitInfo":{"utilization":null,"resetsAt":1700000000,"rateLimitType":"seven_day"}}\n';
+  const parsed = parseResultFromStdout(stdout, true);
+
+  assertEquals(parsed.outcome, "success");
+  assertEquals(parsed.rateLimitInfo, undefined);
+});
+
+Deno.test("parseResult contract: rateLimitInfo is empty object returns undefined", () => {
+  const stdout = '{"outcome":"success","rateLimitInfo":{}}\n';
+  const parsed = parseResultFromStdout(stdout, true);
+
+  assertEquals(parsed.outcome, "success");
+  assertEquals(parsed.rateLimitInfo, undefined);
+});
+
+Deno.test("parseResult contract: rateLimitInfo is array returns undefined", () => {
+  const stdout = '{"outcome":"success","rateLimitInfo":[1,2,3]}\n';
+  const parsed = parseResultFromStdout(stdout, true);
+
+  assertEquals(parsed.outcome, "success");
+  assertEquals(parsed.rateLimitInfo, undefined);
+});
+
 // =============================================================================
 // Helper: replicates RunnerDispatcher#parseResult logic for testing
 // =============================================================================
@@ -190,7 +217,9 @@ function parseResultFromStdout(
           const rli = parsed.rateLimitInfo as Record<string, unknown>;
           if (
             typeof rli.utilization === "number" &&
+            Number.isFinite(rli.utilization as number) &&
             typeof rli.resetsAt === "number" &&
+            Number.isFinite(rli.resetsAt as number) &&
             typeof rli.rateLimitType === "string"
           ) {
             rateLimitInfo = {
