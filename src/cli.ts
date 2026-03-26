@@ -19,6 +19,7 @@ import {
   parseCliArgsForLogging,
 } from "./mcp/prompt-logger.ts";
 import { logger } from "./utils/logger.ts";
+import { showHelp } from "./help/mod.ts";
 
 let runBreakdown: (args: string[]) => Promise<void>;
 
@@ -33,84 +34,6 @@ let runBreakdown: (args: string[]) => Promise<void>;
 async function importBreakdown(): Promise<void> {
   const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
   runBreakdown = mod.runBreakdown;
-}
-
-/**
- * Display Climpt help message
- * @internal
- */
-function showHelp(): void {
-  // deno-lint-ignore no-console
-  console.log(
-    `Climpt v${CLIMPT_VERSION} - AI-Assisted Development Instruction Tool
-
-A CLI wrapper around the @tettuan/breakdown JSR package for managing prompts
-and AI interactions.
-
-Usage:
-  climpt [command] [options]
-  climpt-<profile> <directive> <layer> [options]
-
-Basic Commands:
-  init                    Initialize breakdown configuration
-  --help, -h              Show this help message
-  --version, -v           Show Climpt and Breakdown version information
-
-Command Syntax:
-  climpt-<profile> <directive> <layer> [options]
-
-  Components:
-    <profile>    Profile name (e.g., git, breakdown, build)
-    <directive>  Action to execute (e.g., create, analyze, trace)
-    <layer>      Target layer (e.g., refinement-issue, quality-metrics)
-    [options]    Various options
-
-Options:
-  Input/Output:
-    -f, --from=<file>           Specify input file
-    -o, --destination=<path>    Specify output destination
-    (STDIN)                     Receive data from standard input
-
-  Processing Mode:
-    -e, --edition=<layer>       Specify input layer type (default: "default")
-    -a, --adaptation=<type>     Specify prompt type/variation
-
-  Custom Variables:
-    --uv-<name>=<value>         Define user variables (e.g., --uv-max-line-num=100)
-
-  System:
-    --config=<prefix>           Use custom config prefix
-    --help, -h                  Show this help message
-    --version, -v               Show version information
-
-Examples:
-  # Initialize configuration
-  climpt init
-
-  # Create refinement issue from requirements
-  climpt-git create refinement-issue -f=requirements.md -o=./issues/
-
-  # Break down issue to tasks
-  climpt-breakdown to task -e=issue -f=issue.md -a=detailed --uv-storypoint=5
-
-  # Generate from standard input
-  echo "error log" | climpt-diagnose trace stack -e=test -o=./output
-
-Agent Runner:
-  deno task agent --agent <name> --issue <number>
-
-Workflow Orchestrator:
-  deno task orchestrator --issue <number> [--verbose] [--dry-run]
-  deno task orchestrator [--label <label>] [--prioritize] [--dry-run]
-
-MCP Server:
-  Climpt supports Model Context Protocol (MCP) for AI assistant integration.
-  For details: https://jsr.io/@aidevtool/climpt
-
-Documentation:
-  https://github.com/tettuan/climpt
-`,
-  );
 }
 
 /**
@@ -229,6 +152,12 @@ export async function main(_args: string[] = []): Promise<void> {
       console.log(`|-- Breakdown v${BREAKDOWN_VERSION}`);
       // deno-lint-ignore no-console
       console.log(`\\-- FrontmatterToSchema v${FRONTMATTER_TO_SCHEMA_VERSION}`);
+      return;
+    }
+
+    // Handle help command
+    if (_args[0] === "help") {
+      showHelp(_args[1]);
       return;
     }
 
