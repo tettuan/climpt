@@ -8,7 +8,7 @@
  * @see docs/internal/unified-help-concept.md
  */
 
-import type { HelpConstraint, HelpNode, HelpProtocol } from "./help-types.ts";
+import type { HelpConstraint, HelpNode, HelpProtocol } from "./types.ts";
 
 /**
  * Agent construction constraints (Blueprint integrity rules).

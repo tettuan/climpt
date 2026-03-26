@@ -4,7 +4,7 @@
  * @fileoverview MCP Server implementation for Climpt
  * @module mcp/index
  *
- * MCP server providing search, describe, execute, help, reload tools.
+ * MCP server providing search, describe, execute, reload tools.
  * Uses shared modules (types.ts, similarity.ts, registry.ts) with caching layer.
  */
 
@@ -26,7 +26,6 @@ import {
 } from "./registry.ts";
 import { getPromptLogger, type PromptLogger } from "./prompt-logger.ts";
 import { logger } from "../utils/logger.ts";
-import { handleHelp, type HelpInput } from "./help-handler.ts";
 
 /**
  * Type alias for the execution tracker returned by PromptLogger.startExecution()
@@ -332,34 +331,6 @@ server.setRequestHandler(
         },
       },
       {
-        name: "help",
-        description:
-          "Construction guide for building prompts, agents, and orchestrators. Use describe to explore capabilities, scaffold to create files, and validate to check integrity. Protocol: describe → scaffold → validate → run (strictly sequential).",
-        inputSchema: {
-          type: "object",
-          properties: {
-            action: {
-              type: "string",
-              enum: ["describe", "scaffold", "validate"],
-              description:
-                "Protocol verb. describe: show what to build. scaffold: create files. validate: check integrity.",
-            },
-            id: {
-              type: "string",
-              description:
-                "Node ID to query (e.g., 'agent', 'prompt', 'orchestrator'). Omit for root overview.",
-            },
-            params: {
-              type: "object",
-              description:
-                "Parameters for scaffold/validate (e.g., { name: 'my-agent' }).",
-              additionalProperties: { type: "string" },
-            },
-          },
-          required: ["action"],
-        },
-      },
-      {
         name: "reload",
         description:
           "Clear the registry cache and reload command definitions from registry.json files. Use this when you have updated registry.json and want to refresh the command definitions without restarting the MCP server. You can reload all agents or a specific agent.",
@@ -388,7 +359,6 @@ server.setRequestHandler(
  * - **search**: Performs semantic search across commands
  * - **describe**: Retrieves detailed command information
  * - **execute**: Runs the specified command and returns results
- * - **help**: Construction guide protocol (describe/scaffold/validate)
  *
  * @param request - The CallToolRequest containing tool name and arguments
  * @returns Promise that resolves to tool execution results with content array
@@ -582,26 +552,6 @@ server.setRequestHandler(
             isError: true,
           };
         }
-      } else if (name === "help") {
-        const { action, id, params } = args as unknown as HelpInput;
-
-        if (!action) {
-          throw new Error("action parameter is required");
-        }
-
-        const helpResponse = await handleHelp({ action, id, params });
-        const responseBody = helpResponse._protocol
-          ? { ...helpResponse.result, _protocol: helpResponse._protocol }
-          : helpResponse.result;
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(responseBody),
-            },
-          ],
-        };
       } else if (name === "reload") {
         const { agent } = args as { agent?: string };
 
