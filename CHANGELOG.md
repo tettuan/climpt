@@ -7,6 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.13] - 2026-03-26
+
+### Added
+- Graph-driven CLI help system replacing `--help` subprocess dispatch
+- Help protocol MCP tool (describe/scaffold/validate)
+- Unified help concept design document (v8)
+
+### Changed
+- Replace subprocess dispatch with in-process AgentRunner call
+
+### Fixed
+- Harden release-procedure skill with exit-code gates and post-conditions (prevent release leaks)
+
+## [1.13.12] - 2026-03-26
+
+_Code merged to main without version bump. Retroactively tagged._
+
+### Added
+- Graph-driven CLI help system (same as 1.13.13 — this release was not published to JSR)
+
+## [1.13.11] - 2026-03-25
+
+### Changed
+- Bump version to 1.13.11, fix query-executor test
+- Update issueStore default path to .agent/climpt/tmp/issues
+
+### Added
+- GitHubRead MCP tool and harden sandbox GitHub access control
+- Rate limit throttle to orchestrator and sandbox excludedCommands
+
+### Fixed
+- Remove excludedCommands from sandbox defaults
+- Harden rate limit data validation against NaN/Infinity
+
+### Refactored
+- Extract DEFAULT_ISSUE_STORE constant in orchestrator
+
+## [1.13.10] - 2026-03-24
+
+### Changed
+- Rename `deno task workflow` to `deno task orchestrator`
+- Replace raw file paths with JSR export paths in usage docs
+
+### Added
+- excludedCommands to sandbox config for TLS/Keychain bypass
+- File-based JSONL logging for orchestrator workflow
+- Task planning and remote CI waiting to release procedure skill
+
+## [1.13.9] - 2026-03-23
+
+### Fixed
+- Detect stale orchestrator locks by PID liveness instead of timeout only
+- Exclude examples/tmp/ from lint to prevent false failures
+
+### Added
+- Orchestrator as top-level entry point alongside agents
+
+## [1.13.8] - 2026-03-22
+
+_Version bump only._
+
 ## [1.13.7] - 2026-03-22
 
 ### Fixed
