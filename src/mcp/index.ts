@@ -355,7 +355,7 @@ server.setRequestHandler(
 /**
  * Handler for executing a tool.
  *
- * Processes MCP CallToolRequest for the three available tools:
+ * Processes MCP CallToolRequest for the available tools:
  * - **search**: Performs semantic search across commands
  * - **describe**: Retrieves detailed command information
  * - **execute**: Runs the specified command and returns results

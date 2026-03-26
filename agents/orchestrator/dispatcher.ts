@@ -3,11 +3,13 @@
  *
  * Provides an interface for dispatching agents, with a stub
  * implementation for testing and a real implementation that
- * invokes agents via `deno task agent`.
+ * invokes AgentRunner in-process.
  */
 
 import type { WorkflowConfig } from "./workflow-types.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
+import { AgentRunner } from "../runner/runner.ts";
+import { loadConfiguration } from "../config/mod.ts";
 
 /** Options passed to agent dispatch. */
 export interface DispatchOptions {
@@ -68,10 +70,10 @@ export class StubDispatcher implements AgentDispatcher {
 }
 
 /**
- * Real dispatcher that invokes agents via `deno task agent`.
+ * Real dispatcher that invokes AgentRunner in-process.
  *
- * Keeps the orchestrator decoupled from runner internals by
- * shelling out to the CLI entry point.
+ * Loads agent configuration and calls AgentRunner.run() directly,
+ * avoiding subprocess overhead and piped stdout parsing.
  */
 export class RunnerDispatcher implements AgentDispatcher {
   #config: WorkflowConfig;
@@ -92,94 +94,38 @@ export class RunnerDispatcher implements AgentDispatcher {
     const agent = this.#config.agents[agentId];
     const agentName = agent?.directory ?? agentId;
 
-    const args = [
-      "task",
-      "agent",
-      "--agent",
-      agentName,
-      "--issue",
-      String(issueNumber),
-    ];
+    const definition = await loadConfiguration(agentName, this.#cwd);
 
+    const runnerArgs: Record<string, unknown> = {
+      issue: issueNumber,
+    };
     if (options?.iterateMax !== undefined) {
-      args.push("--iterate-max", String(options.iterateMax));
+      runnerArgs.iterateMax = options.iterateMax;
     }
     if (options?.branch) {
-      args.push("--branch", options.branch);
-    }
-    if (options?.verbose) {
-      args.push("--verbose");
+      runnerArgs.branch = options.branch;
     }
     if (options?.issueStorePath) {
-      args.push("--issue-store-path", options.issueStorePath);
+      runnerArgs.issueStorePath = options.issueStorePath;
     }
     if (options?.outboxPath) {
-      args.push("--outbox-path", options.outboxPath);
+      runnerArgs.outboxPath = options.outboxPath;
     }
 
-    const cmd = new Deno.Command("deno", {
-      args,
+    const runner = new AgentRunner(definition);
+    const result = await runner.run({
       cwd: this.#cwd,
-      stdout: "piped",
-      stderr: "piped",
+      args: runnerArgs,
+      plugins: [],
+      verbose: options?.verbose,
     });
 
-    const output = await cmd.output();
     const durationMs = performance.now() - startMs;
 
-    const stdout = new TextDecoder().decode(output.stdout);
-    const { outcome, rateLimitInfo } = this.#parseResult(
-      stdout,
-      output.success,
-    );
-    return { outcome, durationMs, rateLimitInfo };
-  }
-
-  /**
-   * Parse result from agent stdout.
-   *
-   * Scans stdout lines from the end looking for a JSON line
-   * containing an "outcome" key (e.g. `{"outcome": "approved"}`).
-   * Also captures rateLimitInfo if present in the same JSON line.
-   * Falls back to "success"/"failed" based on exit code.
-   */
-  #parseResult(
-    stdout: string,
-    success: boolean,
-  ): { outcome: string; rateLimitInfo?: RateLimitInfo } {
-    const lines = stdout.split("\n");
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (line.length === 0 || line[0] !== "{") continue;
-      try {
-        const parsed = JSON.parse(line) as Record<string, unknown>;
-        if (typeof parsed.outcome === "string") {
-          let rateLimitInfo: RateLimitInfo | undefined;
-          if (
-            parsed.rateLimitInfo !== null &&
-            typeof parsed.rateLimitInfo === "object"
-          ) {
-            const rli = parsed.rateLimitInfo as Record<string, unknown>;
-            if (
-              typeof rli.utilization === "number" &&
-              Number.isFinite(rli.utilization as number) &&
-              typeof rli.resetsAt === "number" &&
-              Number.isFinite(rli.resetsAt as number) &&
-              typeof rli.rateLimitType === "string"
-            ) {
-              rateLimitInfo = {
-                utilization: rli.utilization,
-                resetsAt: rli.resetsAt,
-                rateLimitType: rli.rateLimitType,
-              };
-            }
-          }
-          return { outcome: parsed.outcome, rateLimitInfo };
-        }
-      } catch {
-        // not valid JSON, continue scanning
-      }
-    }
-    return { outcome: success ? "success" : "failed" };
+    return {
+      outcome: result.success ? "success" : "failed",
+      durationMs,
+      rateLimitInfo: result.rateLimitInfo,
+    };
   }
 }
