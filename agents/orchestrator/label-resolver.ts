@@ -75,6 +75,37 @@ export function stripPrefix(
 }
 
 /**
+ * Resolves a set of GitHub labels to the first terminal or blocking phase.
+ *
+ * - Unknown labels (not in config.labelMapping) are ignored.
+ * - Only terminal and blocking phases are considered.
+ * - Returns the first match found (label iteration order).
+ *
+ * @returns The resolved phase, or null if no terminal/blocking phase matches.
+ */
+export function resolveTerminalOrBlocking(
+  labels: string[],
+  config: WorkflowConfig,
+): { phaseId: string; phase: PhaseDefinition } | null {
+  const prefix = config.labelPrefix;
+  for (const label of labels) {
+    const bare = stripPrefix(label, prefix);
+    if (bare === null) continue;
+
+    const phaseId = config.labelMapping[bare];
+    if (phaseId === undefined) continue;
+
+    const phase = config.phases[phaseId];
+    if (phase === undefined) continue;
+
+    if (phase.type === "terminal" || phase.type === "blocking") {
+      return { phaseId, phase };
+    }
+  }
+  return null;
+}
+
+/**
  * Resolves a phase ID to the agent that should be dispatched.
  *
  * @returns The resolved agent, or null if the phase is not actionable

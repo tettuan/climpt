@@ -33,7 +33,12 @@ export type {
 export { loadWorkflow } from "./workflow-loader.ts";
 
 // Label resolver
-export { resolveAgent, resolvePhase, stripPrefix } from "./label-resolver.ts";
+export {
+  resolveAgent,
+  resolvePhase,
+  resolveTerminalOrBlocking,
+  stripPrefix,
+} from "./label-resolver.ts";
 
 // Phase transition
 export {

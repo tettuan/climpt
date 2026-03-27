@@ -19,7 +19,11 @@ import {
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
-import { resolveAgent, resolvePhase, stripPrefix } from "./label-resolver.ts";
+import {
+  resolveAgent,
+  resolvePhase,
+  resolveTerminalOrBlocking,
+} from "./label-resolver.ts";
 import {
   computeLabelChanges,
   computeTransition,
@@ -153,7 +157,10 @@ export class Orchestrator {
 
       // Step 4: Resolve phase
       // First check for terminal/blocking phases before resolving actionable
-      const terminalOrBlocking = this.#resolveTerminalOrBlocking(currentLabels);
+      const terminalOrBlocking = resolveTerminalOrBlocking(
+        currentLabels,
+        this.#config,
+      );
       if (terminalOrBlocking) {
         finalPhase = terminalOrBlocking.phaseId;
         status = terminalOrBlocking.phase.type === "terminal"
@@ -423,31 +430,6 @@ export class Orchestrator {
     );
 
     return result;
-  }
-
-  /**
-   * Check if any current label maps to a terminal or blocking phase.
-   * Returns the highest-priority terminal/blocking match, or null.
-   */
-  #resolveTerminalOrBlocking(
-    labels: string[],
-  ): { phaseId: string; phase: { type: string } } | null {
-    const prefix = this.#config.labelPrefix;
-    for (const label of labels) {
-      const bare = stripPrefix(label, prefix);
-      if (bare === null) continue;
-
-      const phaseId = this.#config.labelMapping[bare];
-      if (phaseId === undefined) continue;
-
-      const phase = this.#config.phases[phaseId];
-      if (phase === undefined) continue;
-
-      if (phase.type === "terminal" || phase.type === "blocking") {
-        return { phaseId, phase };
-      }
-    }
-    return null;
   }
 
   /**
