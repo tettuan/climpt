@@ -89,6 +89,9 @@ export { Queue } from "./queue.ts";
 // Handoff manager
 export { HandoffManager } from "./handoff-manager.ts";
 
+// Rate limiter
+export { RateLimiter } from "./rate-limiter.ts";
+
 // Orchestrator
 export { Orchestrator } from "./orchestrator.ts";
 
