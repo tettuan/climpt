@@ -91,3 +91,7 @@ export { HandoffManager } from "./handoff-manager.ts";
 
 // Orchestrator
 export { Orchestrator } from "./orchestrator.ts";
+
+// Batch runner
+export type { SingleIssueRunner } from "./batch-runner.ts";
+export { BatchRunner } from "./batch-runner.ts";
