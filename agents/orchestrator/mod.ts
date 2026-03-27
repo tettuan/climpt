@@ -86,5 +86,8 @@ export { Prioritizer } from "./prioritizer.ts";
 export type { QueueItem, QueuePriorityConfig } from "./queue.ts";
 export { Queue } from "./queue.ts";
 
+// Handoff manager
+export { HandoffManager } from "./handoff-manager.ts";
+
 // Orchestrator
 export { Orchestrator } from "./orchestrator.ts";

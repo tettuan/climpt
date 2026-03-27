@@ -24,11 +24,8 @@ import {
   resolvePhase,
   resolveTerminalOrBlocking,
 } from "./label-resolver.ts";
-import {
-  computeLabelChanges,
-  computeTransition,
-  renderTemplate,
-} from "./phase-transition.ts";
+import { computeLabelChanges, computeTransition } from "./phase-transition.ts";
+import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 import { IssueStore } from "./issue-store.ts";
 import { IssueSyncer } from "./issue-syncer.ts";
@@ -374,24 +371,21 @@ export class Orchestrator {
       }
 
       // Step 12: Handoff comment
-      if (!dryRun && this.#config.handoff?.commentTemplates) {
-        const templateKey = this.#findHandoffTemplate(
+      if (!dryRun && this.#config.handoff) {
+        const handoff = new HandoffManager(this.#config.handoff);
+        // deno-lint-ignore no-await-in-loop
+        await handoff.renderAndPost(
+          this.#github,
+          issueNumber,
           agentId,
           dispatchResult.outcome,
+          {
+            session_id: tracker.generateCorrelationId(agentId),
+            issue_count: "1",
+            summary:
+              `Agent "${agentId}" completed with outcome "${dispatchResult.outcome}"`,
+          },
         );
-        if (templateKey) {
-          const template = this.#config.handoff.commentTemplates[templateKey];
-          if (template) {
-            const comment = renderTemplate(template, {
-              session_id: tracker.generateCorrelationId(agentId),
-              issue_count: "1",
-              summary:
-                `Agent "${agentId}" completed with outcome "${dispatchResult.outcome}"`,
-            });
-            // deno-lint-ignore no-await-in-loop
-            await this.#github.addIssueComment(issueNumber, comment);
-          }
-        }
       }
 
       finalPhase = targetPhase;
@@ -430,32 +424,6 @@ export class Orchestrator {
     );
 
     return result;
-  }
-
-  /**
-   * Find matching handoff template key based on agent ID and outcome.
-   * Convention: "{agentId}To{NextAgent}" for success, "{agentId}{Outcome}" otherwise.
-   */
-  #findHandoffTemplate(agentId: string, outcome: string): string | null {
-    const templates = this.#config.handoff?.commentTemplates;
-    if (!templates) return null;
-
-    // Try exact match patterns
-    const candidates = [
-      `${agentId}${this.#capitalize(outcome)}`,
-      `${agentId}To${this.#capitalize(outcome)}`,
-    ];
-
-    for (const key of candidates) {
-      if (key in templates) return key;
-    }
-
-    return null;
-  }
-
-  #capitalize(s: string): string {
-    if (s.length === 0) return s;
-    return s[0].toUpperCase() + s.slice(1);
   }
 
   async runBatch(
