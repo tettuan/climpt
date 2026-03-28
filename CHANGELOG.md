@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.14] - 2026-03-28
+
+### Added
+- GitHub Project MCP tools (`gh project` integration)
+
+### Changed
+- Extract `RateLimiter`, `BatchRunner`, `HandoffManager` modules from orchestrator
+- Extract `resolveTerminalOrBlocking` to label-resolver
+
+### Fixed
+- Lint errors in orchestrator (`no-await-in-loop`, type issues)
+- Docs manifest generator `no-await-in-loop` lint compliance
+
 ## [1.13.13] - 2026-03-26
 
 ### Added
