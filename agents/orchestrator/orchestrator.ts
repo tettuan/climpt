@@ -6,13 +6,13 @@
  * Corresponds to ADK LoopAgent + SequentialAgent pattern.
  */
 
-import {
-  type BatchOptions,
-  type BatchResult,
-  type IssueCriteria,
-  type OrchestratorOptions,
-  type OrchestratorResult,
-  type WorkflowConfig,
+import type {
+  BatchOptions,
+  BatchResult,
+  IssueCriteria,
+  OrchestratorOptions,
+  OrchestratorResult,
+  WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
@@ -25,7 +25,7 @@ import {
 import { computeLabelChanges, computeTransition } from "./phase-transition.ts";
 import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
-import { IssueStore } from "./issue-store.ts";
+import type { IssueStore } from "./issue-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
@@ -421,7 +421,7 @@ export class Orchestrator {
     return result;
   }
 
-  async runBatch(
+  runBatch(
     criteria: IssueCriteria,
     options?: BatchOptions,
   ): Promise<BatchResult> {
