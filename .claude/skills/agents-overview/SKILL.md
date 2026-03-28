@@ -116,7 +116,7 @@ steps/
 | 変数                    | 説明                 |
 | ----------------------- | -------------------- |
 | `uv-agent_name`         | Agent 名             |
-| `uv-issue_number`       | GitHub Issue 番号    |
+| `uv-issue`              | GitHub Issue 番号    |
 | `uv-project_number`     | Project 番号         |
 | `uv-iteration`          | 現在の反復回数       |
 | `uv-max_iterations`     | 最大反復回数         |

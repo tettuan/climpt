@@ -75,7 +75,7 @@ async function setupTempAgent(
     c3: "issue",
     edition: "default",
     fallbackKey: "initial_issue",
-    uvVariables: ["issue_number"],
+    uvVariables: ["issue"],
     usesStdin: false,
   });
 
@@ -172,9 +172,9 @@ async function scenarioStepPrompt(
 
   // Build a FallbackPromptProvider for step prompts
   const fallback = createFallbackProvider({
-    initial_issue: `# GitHub Issue #{uv-issue_number}
+    initial_issue: `# GitHub Issue #{uv-issue}
 
-Work on completing the requirements in Issue #{uv-issue_number}.
+Work on completing the requirements in Issue #{uv-issue}.
 
 Review the issue, understand the requirements, and begin implementation.
 `,
@@ -187,7 +187,7 @@ Review the issue, understand the requirements, and begin implementation.
   await ensureDir(stepDir);
 
   console.log(
-    "  Writing steps/initial/issue/f_default.md with {uv-issue_number}...\n",
+    "  Writing steps/initial/issue/f_default.md with {uv-issue}...\n",
   );
 
   await Deno.writeTextFile(
@@ -195,13 +195,13 @@ Review the issue, understand the requirements, and begin implementation.
     `---
 description: Custom initial prompt for issue mode
 ---
-# Issue #{uv-issue_number} - Start
+# Issue #{uv-issue} - Start
 
-You are beginning work on Issue #{uv-issue_number}.
+You are beginning work on Issue #{uv-issue}.
 
 ## Custom Workflow
 1. Read the issue description carefully
-2. Create a branch: feature/issue-{uv-issue_number}
+2. Create a branch: feature/issue-{uv-issue}
 3. Write failing tests first
 4. Implement the solution
 5. Run CI before marking done
@@ -214,7 +214,7 @@ You are beginning work on Issue #{uv-issue_number}.
   });
 
   const result3 = await resolver3.resolve("initial.issue", {
-    uv: { issue_number: "42" },
+    uv: { issue: "42" },
   });
 
   printResult(result3);
@@ -231,7 +231,7 @@ You are beginning work on Issue #{uv-issue_number}.
   });
 
   const result4 = await resolver4.resolve("initial.issue", {
-    uv: { issue_number: "42" },
+    uv: { issue: "42" },
   });
 
   printResult(result4);
