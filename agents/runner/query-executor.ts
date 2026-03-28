@@ -275,7 +275,8 @@ export class QueryExecutor {
           tool(
             "github_read",
             "Read-only GitHub access. Use this instead of gh CLI commands. " +
-              "Supports: issue_view, issue_list, pr_view, pr_list, pr_diff, pr_checks.",
+              "Supports: issue_view, issue_list, pr_view, pr_list, pr_diff, pr_checks, " +
+              "project_view, project_list, project_item_list.",
             GitHubReadInputSchema,
             createGitHubReadHandler(ctx.cwd),
           ),

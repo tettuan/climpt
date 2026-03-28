@@ -6,7 +6,11 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { resolveAgent, resolvePhase } from "./label-resolver.ts";
+import {
+  resolveAgent,
+  resolvePhase,
+  resolveTerminalOrBlocking,
+} from "./label-resolver.ts";
 import type { WorkflowConfig } from "./workflow-types.ts";
 
 // =============================================================================
@@ -300,4 +304,80 @@ Deno.test("resolvePhase - with prefix: priority resolution still works", () => {
 
   assertEquals(result?.phaseId, "revision");
   assertEquals(result?.phase.priority, 1);
+});
+
+// =============================================================================
+// resolveTerminalOrBlocking
+// =============================================================================
+
+Deno.test("resolveTerminalOrBlocking - terminal label returns phase", () => {
+  const config = createTestConfig();
+  const result = resolveTerminalOrBlocking(["done"], config);
+
+  assertEquals(result?.phaseId, "complete");
+  assertEquals(result?.phase.type, "terminal");
+});
+
+Deno.test("resolveTerminalOrBlocking - blocking label returns phase", () => {
+  const config = createTestConfig();
+  const result = resolveTerminalOrBlocking(["blocked"], config);
+
+  assertEquals(result?.phaseId, "blocked");
+  assertEquals(result?.phase.type, "blocking");
+});
+
+Deno.test("resolveTerminalOrBlocking - actionable label returns null", () => {
+  const config = createTestConfig();
+  const result = resolveTerminalOrBlocking(["ready"], config);
+
+  assertEquals(result, null);
+});
+
+Deno.test("resolveTerminalOrBlocking - unknown label returns null", () => {
+  const config = createTestConfig();
+  const result = resolveTerminalOrBlocking(["unknown"], config);
+
+  assertEquals(result, null);
+});
+
+Deno.test("resolveTerminalOrBlocking - empty labels returns null", () => {
+  const config = createTestConfig();
+  const result = resolveTerminalOrBlocking([], config);
+
+  assertEquals(result, null);
+});
+
+Deno.test("resolveTerminalOrBlocking - mix: terminal found among actionable", () => {
+  const config = createTestConfig();
+  // "ready" → actionable, "done" → terminal
+  const result = resolveTerminalOrBlocking(["ready", "done"], config);
+
+  assertEquals(result?.phaseId, "complete");
+  assertEquals(result?.phase.type, "terminal");
+});
+
+Deno.test("resolveTerminalOrBlocking - first terminal/blocking wins", () => {
+  const config = createTestConfig();
+  // "blocked" → blocking, "done" → terminal; blocked comes first
+  const result = resolveTerminalOrBlocking(["blocked", "done"], config);
+
+  assertEquals(result?.phaseId, "blocked");
+  assertEquals(result?.phase.type, "blocking");
+});
+
+Deno.test("resolveTerminalOrBlocking - with prefix strips prefix", () => {
+  const config = createTestConfig();
+  config.labelPrefix = "wf";
+  const result = resolveTerminalOrBlocking(["wf:done"], config);
+
+  assertEquals(result?.phaseId, "complete");
+  assertEquals(result?.phase.type, "terminal");
+});
+
+Deno.test("resolveTerminalOrBlocking - with prefix ignores non-prefixed", () => {
+  const config = createTestConfig();
+  config.labelPrefix = "wf";
+  const result = resolveTerminalOrBlocking(["done"], config);
+
+  assertEquals(result, null);
 });
