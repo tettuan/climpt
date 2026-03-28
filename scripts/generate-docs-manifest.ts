@@ -88,6 +88,52 @@ function extractTitleFromJson(content: string): string | undefined {
   return undefined;
 }
 
+async function collectExtraSource(
+  source: typeof EXTRA_SOURCES[number],
+): Promise<Entry[]> {
+  const stat = await Deno.stat(source.path).catch(() => null);
+  if (!stat) return [];
+
+  if (stat.isDirectory) {
+    const files: string[] = [];
+    for await (
+      const file of walk(source.path, {
+        exts: [".md", ".json"],
+        skip: [/index\.md/],
+      })
+    ) {
+      if (file.isFile) files.push(file.path);
+    }
+    const contents = await Promise.all(
+      files.map((f) => Deno.readTextFile(f)),
+    );
+    return files.map((filePath, j) => {
+      const relPath = relative("docs", filePath);
+      return {
+        id: generateExtraId(source.idPrefix, filePath),
+        path: relPath,
+        category: source.category,
+        title: filePath.endsWith(".json")
+          ? extractTitleFromJson(contents[j])
+          : extractTitle(contents[j]),
+        bytes: new TextEncoder().encode(contents[j]).length,
+      };
+    });
+  }
+
+  const content = await Deno.readTextFile(source.path);
+  const relPath = relative("docs", source.path);
+  return [{
+    id: generateExtraId(source.idPrefix, source.path),
+    path: relPath,
+    category: source.category,
+    title: source.path.endsWith(".json")
+      ? extractTitleFromJson(content)
+      : extractTitle(content),
+    bytes: new TextEncoder().encode(content).length,
+  }];
+}
+
 async function main(): Promise<void> {
   const config = JSON.parse(await Deno.readTextFile("deno.json"));
   const entries: Entry[] = [];
@@ -126,44 +172,11 @@ async function main(): Promise<void> {
   }
 
   // 2. Scan extra sources (blueprint, schemas, etc.)
-  for (const source of EXTRA_SOURCES) {
-    const stat = await Deno.stat(source.path).catch(() => null);
-    if (!stat) continue;
-
-    if (stat.isDirectory) {
-      for await (
-        const file of walk(source.path, {
-          exts: [".md", ".json"],
-          skip: [/index\.md/],
-        })
-      ) {
-        if (!file.isFile) continue;
-        const content = await Deno.readTextFile(file.path);
-        // Path relative to docs/ for JSR fetch compatibility
-        const relPath = relative("docs", file.path);
-        entries.push({
-          id: generateExtraId(source.idPrefix, file.path),
-          path: relPath,
-          category: source.category,
-          title: file.path.endsWith(".json")
-            ? extractTitleFromJson(content)
-            : extractTitle(content),
-          bytes: new TextEncoder().encode(content).length,
-        });
-      }
-    } else {
-      const content = await Deno.readTextFile(source.path);
-      const relPath = relative("docs", source.path);
-      entries.push({
-        id: generateExtraId(source.idPrefix, source.path),
-        path: relPath,
-        category: source.category,
-        title: source.path.endsWith(".json")
-          ? extractTitleFromJson(content)
-          : extractTitle(content),
-        bytes: new TextEncoder().encode(content).length,
-      });
-    }
+  const extraEntries = await Promise.all(
+    EXTRA_SOURCES.map((source) => collectExtraSource(source)),
+  );
+  for (const batch of extraEntries) {
+    entries.push(...batch);
   }
 
   entries.sort((a, b) =>
