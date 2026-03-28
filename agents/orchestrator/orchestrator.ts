@@ -6,33 +6,29 @@
  * Corresponds to ADK LoopAgent + SequentialAgent pattern.
  */
 
-import { join } from "@std/path";
-import {
-  type BatchOptions,
-  type BatchResult,
-  DEFAULT_ISSUE_STORE,
-  type IssueCriteria,
-  type OrchestratorOptions,
-  type OrchestratorResult,
-  type WorkflowConfig,
+import type {
+  BatchOptions,
+  BatchResult,
+  IssueCriteria,
+  OrchestratorOptions,
+  OrchestratorResult,
+  WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
-import type { RateLimitInfo } from "../src_common/types/runtime.ts";
-import { resolveAgent, resolvePhase, stripPrefix } from "./label-resolver.ts";
+import { RateLimiter } from "./rate-limiter.ts";
 import {
-  computeLabelChanges,
-  computeTransition,
-  renderTemplate,
-} from "./phase-transition.ts";
+  resolveAgent,
+  resolvePhase,
+  resolveTerminalOrBlocking,
+} from "./label-resolver.ts";
+import { computeLabelChanges, computeTransition } from "./phase-transition.ts";
+import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
-import { IssueStore } from "./issue-store.ts";
-import { IssueSyncer } from "./issue-syncer.ts";
+import type { IssueStore } from "./issue-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
-import { Prioritizer } from "./prioritizer.ts";
-import { Queue } from "./queue.ts";
-import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
+import { BatchRunner } from "./batch-runner.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -153,7 +149,10 @@ export class Orchestrator {
 
       // Step 4: Resolve phase
       // First check for terminal/blocking phases before resolving actionable
-      const terminalOrBlocking = this.#resolveTerminalOrBlocking(currentLabels);
+      const terminalOrBlocking = resolveTerminalOrBlocking(
+        currentLabels,
+        this.#config,
+      );
       if (terminalOrBlocking) {
         finalPhase = terminalOrBlocking.phaseId;
         status = terminalOrBlocking.phase.type === "terminal"
@@ -274,15 +273,15 @@ export class Orchestrator {
 
       // Step 7c: Rate limit throttle check
       if (dispatchResult.rateLimitInfo) {
-        const threshold = this.#config.rules.rateLimitThreshold ?? 0.95;
-        if (dispatchResult.rateLimitInfo.utilization >= threshold) {
-          // deno-lint-ignore no-await-in-loop
-          await this.#waitForRateLimitReset(
-            dispatchResult.rateLimitInfo,
-            threshold,
-            log,
-          );
-        }
+        const rateLimiter = new RateLimiter(
+          this.#config.rules.rateLimitThreshold ?? 0.95,
+          this.#config.rules.rateLimitPollIntervalMs ?? 300_000,
+        );
+        // deno-lint-ignore no-await-in-loop
+        await rateLimiter.checkAndThrottle(
+          dispatchResult.rateLimitInfo,
+          log,
+        );
       }
 
       // Step 8: Compute transition
@@ -367,24 +366,21 @@ export class Orchestrator {
       }
 
       // Step 12: Handoff comment
-      if (!dryRun && this.#config.handoff?.commentTemplates) {
-        const templateKey = this.#findHandoffTemplate(
+      if (!dryRun && this.#config.handoff) {
+        const handoff = new HandoffManager(this.#config.handoff);
+        // deno-lint-ignore no-await-in-loop
+        await handoff.renderAndPost(
+          this.#github,
+          issueNumber,
           agentId,
           dispatchResult.outcome,
+          {
+            session_id: tracker.generateCorrelationId(agentId),
+            issue_count: "1",
+            summary:
+              `Agent "${agentId}" completed with outcome "${dispatchResult.outcome}"`,
+          },
         );
-        if (templateKey) {
-          const template = this.#config.handoff.commentTemplates[templateKey];
-          if (template) {
-            const comment = renderTemplate(template, {
-              session_id: tracker.generateCorrelationId(agentId),
-              issue_count: "1",
-              summary:
-                `Agent "${agentId}" completed with outcome "${dispatchResult.outcome}"`,
-            });
-            // deno-lint-ignore no-await-in-loop
-            await this.#github.addIssueComment(issueNumber, comment);
-          }
-        }
       }
 
       finalPhase = targetPhase;
@@ -425,308 +421,18 @@ export class Orchestrator {
     return result;
   }
 
-  /**
-   * Check if any current label maps to a terminal or blocking phase.
-   * Returns the highest-priority terminal/blocking match, or null.
-   */
-  #resolveTerminalOrBlocking(
-    labels: string[],
-  ): { phaseId: string; phase: { type: string } } | null {
-    const prefix = this.#config.labelPrefix;
-    for (const label of labels) {
-      const bare = stripPrefix(label, prefix);
-      if (bare === null) continue;
-
-      const phaseId = this.#config.labelMapping[bare];
-      if (phaseId === undefined) continue;
-
-      const phase = this.#config.phases[phaseId];
-      if (phase === undefined) continue;
-
-      if (phase.type === "terminal" || phase.type === "blocking") {
-        return { phaseId, phase };
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Find matching handoff template key based on agent ID and outcome.
-   * Convention: "{agentId}To{NextAgent}" for success, "{agentId}{Outcome}" otherwise.
-   */
-  #findHandoffTemplate(agentId: string, outcome: string): string | null {
-    const templates = this.#config.handoff?.commentTemplates;
-    if (!templates) return null;
-
-    // Try exact match patterns
-    const candidates = [
-      `${agentId}${this.#capitalize(outcome)}`,
-      `${agentId}To${this.#capitalize(outcome)}`,
-    ];
-
-    for (const key of candidates) {
-      if (key in templates) return key;
-    }
-
-    return null;
-  }
-
-  #capitalize(s: string): string {
-    if (s.length === 0) return s;
-    return s[0].toUpperCase() + s.slice(1);
-  }
-
-  async runBatch(
+  runBatch(
     criteria: IssueCriteria,
     options?: BatchOptions,
   ): Promise<BatchResult> {
-    const log = await OrchestratorLogger.create(this.#cwd, {
-      verbose: options?.verbose,
-    });
-
-    try {
-      const storeConfig = this.#config.issueStore ?? DEFAULT_ISSUE_STORE;
-      const storePath = join(this.#cwd, storeConfig.path);
-      const store = new IssueStore(storePath);
-
-      const wfId = this.workflowId;
-      await log.info(`Batch start workflow "${wfId}"`, {
-        event: "batch_start",
-        workflowId: wfId,
-        criteria,
-      });
-
-      // 0. Workflow-level lock
-      const lock = await store.acquireLock(wfId);
-      if (lock === null) {
-        await log.warn(
-          `Workflow "${wfId}" is already running, aborting batch`,
-          { event: "lock_failed", workflowId: wfId },
-        );
-        return {
-          processed: [],
-          skipped: [],
-          totalIssues: 0,
-          status: "failed",
-        };
-      }
-
-      await log.info("Lock acquired", {
-        event: "lock_acquired",
-        workflowId: wfId,
-      });
-
-      try {
-        return await this.#runBatchInner(store, criteria, options, log);
-      } finally {
-        await lock.release();
-      }
-    } finally {
-      await log.close();
-    }
-  }
-
-  async #runBatchInner(
-    store: IssueStore,
-    criteria: IssueCriteria,
-    options: BatchOptions | undefined,
-    log: OrchestratorLogger,
-  ): Promise<BatchResult> {
-    const syncer = new IssueSyncer(this.#github, store);
-
-    // 1. Sync issues from gh to local store
-    const issueNumbers = await syncer.sync(criteria);
-    await log.info(`Synced ${issueNumbers.length} issues`, {
-      event: "sync_complete",
-      issueCount: issueNumbers.length,
-      issueNumbers,
-    });
-
-    // 2. If --prioritize mode
-    if (options?.prioritizeOnly) {
-      if (!this.#config.prioritizer) {
-        throw wfBatchPrioritizeMissingConfig();
-      }
-      await log.info("Running prioritizer", { event: "prioritize_start" });
-      const prioritizer = new Prioritizer(
-        this.#config.prioritizer,
-        store,
-        this.#dispatcher,
-      );
-      const priorityResult = await prioritizer.run();
-      // Update meta.json for each assignment (skip in dryRun)
-      if (!options.dryRun) {
-        for (const { issue, priority } of priorityResult.assignments) {
-          // deno-lint-ignore no-await-in-loop
-          const meta = await store.readMeta(issue);
-          const priorityLabels = this.#config.prioritizer.labels;
-          const newLabels = meta.labels.filter((l) =>
-            !priorityLabels.includes(l)
-          );
-          newLabels.push(priority);
-          // deno-lint-ignore no-await-in-loop
-          await store.updateMeta(issue, { labels: newLabels });
-          // Sync to gh
-          const oldPriorityLabels = meta.labels.filter((l) =>
-            priorityLabels.includes(l)
-          );
-          // deno-lint-ignore no-await-in-loop
-          await syncer.pushLabels(issue, oldPriorityLabels, [priority]);
-        }
-      }
-      await log.info(
-        `Prioritization complete: ${priorityResult.assignments.length} assignments`,
-        {
-          event: "prioritize_end",
-          assignmentCount: priorityResult.assignments.length,
-        },
-      );
-      return {
-        processed: [],
-        skipped: [],
-        totalIssues: issueNumbers.length,
-        status: "completed",
-      };
-    }
-
-    // 3. Build queue
-    const priorityConfig = this.#config.prioritizer
-      ? {
-        labels: this.#config.prioritizer.labels,
-        defaultLabel: this.#config.prioritizer.defaultLabel,
-      }
-      : { labels: [], defaultLabel: undefined };
-    const queue = new Queue(this.#config, store, priorityConfig);
-    const queueItems = await queue.buildQueue(issueNumbers);
-
-    await log.info(`Queue built: ${queueItems.length} actionable issues`, {
-      event: "queue_built",
-      queueSize: queueItems.length,
-      issues: queueItems.map((q) => q.issueNumber),
-    });
-
-    // 4. Process each issue
-    const processed: OrchestratorResult[] = [];
-    const skipped: { issueNumber: number; reason: string }[] = [];
-    let errorCount = 0;
-
-    for (let i = 0; i < queueItems.length; i++) {
-      const item = queueItems[i];
-      // deno-lint-ignore no-await-in-loop
-      await log.info(
-        `Processing issue #${item.issueNumber} (${i + 1}/${queueItems.length})`,
-        {
-          event: "issue_start",
-          issueNumber: item.issueNumber,
-          index: i + 1,
-          total: queueItems.length,
-        },
-      );
-      try {
-        // deno-lint-ignore no-await-in-loop
-        const result = await this.run(
-          item.issueNumber,
-          options,
-          store,
-          log,
-        );
-        processed.push(result);
-      } catch (error) {
-        errorCount++;
-        const reason = error instanceof Error ? error.message : String(error);
-        skipped.push({ issueNumber: item.issueNumber, reason });
-        // deno-lint-ignore no-await-in-loop
-        await log.error(
-          `Issue #${item.issueNumber} failed: ${reason}`,
-          {
-            event: "issue_error",
-            issueNumber: item.issueNumber,
-            error: reason,
-          },
-        );
-      }
-    }
-
-    // Issues in store but not in queue were skipped (normal, not error)
-    for (const num of issueNumbers) {
-      if (!queueItems.some((q) => q.issueNumber === num)) {
-        skipped.push({ issueNumber: num, reason: "not actionable" });
-      }
-    }
-
-    const batchStatus = errorCount > 0 ? "partial" : "completed";
-    await log.info(
-      `Batch end: ${processed.length} processed, ${skipped.length} skipped, status=${batchStatus}`,
-      {
-        event: "batch_end",
-        processedCount: processed.length,
-        skippedCount: skipped.length,
-        totalIssues: issueNumbers.length,
-        status: batchStatus,
-      },
+    const runner = new BatchRunner(
+      this,
+      this.#config,
+      this.#github,
+      this.#dispatcher,
+      this.#cwd,
     );
-
-    return {
-      processed,
-      skipped,
-      totalIssues: issueNumbers.length,
-      status: batchStatus,
-    };
-  }
-
-  async #waitForRateLimitReset(
-    info: RateLimitInfo,
-    threshold: number,
-    log: OrchestratorLogger,
-  ): Promise<void> {
-    const pollIntervalMs = this.#config.rules.rateLimitPollIntervalMs ??
-      300_000;
-
-    // Guard: reject invalid timestamps to prevent infinite loop
-    if (!Number.isFinite(info.resetsAt) || info.resetsAt <= 0) {
-      await log.warn(
-        `Rate limit throttle: invalid resetsAt (${info.resetsAt}), skipping wait`,
-        { event: "rate_limit_invalid_reset", resetsAt: info.resetsAt },
-      );
-      return;
-    }
-
-    await log.warn(
-      `Rate limit throttle: ${info.rateLimitType} utilization ${info.utilization} >= ${threshold}, ` +
-        `waiting until reset at ${
-          new Date(info.resetsAt * 1000).toISOString()
-        }`,
-      {
-        event: "rate_limit_throttle_start",
-        utilization: info.utilization,
-        resetsAt: info.resetsAt,
-        rateLimitType: info.rateLimitType,
-        threshold,
-      },
-    );
-
-    while (true) {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const remainingSec = info.resetsAt - nowSec;
-      if (remainingSec <= 0) break;
-
-      const waitMs = Math.min(remainingSec * 1000, pollIntervalMs);
-      // deno-lint-ignore no-await-in-loop
-      await log.info(
-        `Rate limit throttle: ${remainingSec}s remaining until reset`,
-        {
-          event: "rate_limit_wait",
-          remainingSec,
-          resetsAt: info.resetsAt,
-        },
-      );
-      // deno-lint-ignore no-await-in-loop
-      await this.#delay(waitMs);
-    }
-
-    await log.info("Rate limit reset, resuming orchestrator", {
-      event: "rate_limit_resumed",
-    });
+    return runner.run(criteria, options);
   }
 
   #delay(ms: number): Promise<void> {

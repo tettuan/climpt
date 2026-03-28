@@ -44,10 +44,101 @@ function extractTitle(content: string): string | undefined {
   return content.match(/^#\s+(.+)$/m)?.[1];
 }
 
+// --- Extra sources outside docs/ ---
+
+/** Files or directories outside docs/ that should appear in the manifest. */
+const EXTRA_SOURCES: Array<{
+  /** File or directory path relative to project root. */
+  path: string;
+  /** Category to assign. */
+  category: string;
+  /** ID prefix (replaces auto-generated prefix). */
+  idPrefix: string;
+}> = [
+  {
+    path: "agents/docs/builder/reference/blueprint",
+    category: "reference",
+    idPrefix: "blueprint",
+  },
+  {
+    path: "agents/schemas/agent-blueprint.schema.json",
+    category: "reference",
+    idPrefix: "schema",
+  },
+];
+
+function generateExtraId(idPrefix: string, filePath: string): string {
+  const base = filePath
+    .replace(/.*\//, "") // filename only
+    .replace(/^\d+-/, "") // strip leading number prefix
+    .replace(/\.schema\.json$/, "") // strip .schema.json
+    .replace(/\.(?:md|json)$/, "") // strip .md or .json
+    .replace(/\./g, "-");
+  return `${idPrefix}-${base}`;
+}
+
+function extractTitleFromJson(content: string): string | undefined {
+  try {
+    const parsed = JSON.parse(content);
+    if (typeof parsed.title === "string") return parsed.title;
+    if (typeof parsed.$id === "string") return parsed.$id;
+  } catch {
+    // not JSON
+  }
+  return undefined;
+}
+
+async function collectExtraSource(
+  source: typeof EXTRA_SOURCES[number],
+): Promise<Entry[]> {
+  const stat = await Deno.stat(source.path).catch(() => null);
+  if (!stat) return [];
+
+  if (stat.isDirectory) {
+    const files: string[] = [];
+    for await (
+      const file of walk(source.path, {
+        exts: [".md", ".json"],
+        skip: [/index\.md/],
+      })
+    ) {
+      if (file.isFile) files.push(file.path);
+    }
+    const contents = await Promise.all(
+      files.map((f) => Deno.readTextFile(f)),
+    );
+    return files.map((filePath, j) => {
+      const relPath = relative("docs", filePath);
+      return {
+        id: generateExtraId(source.idPrefix, filePath),
+        path: relPath,
+        category: source.category,
+        title: filePath.endsWith(".json")
+          ? extractTitleFromJson(contents[j])
+          : extractTitle(contents[j]),
+        bytes: new TextEncoder().encode(contents[j]).length,
+      };
+    });
+  }
+
+  const content = await Deno.readTextFile(source.path);
+  const relPath = relative("docs", source.path);
+  return [{
+    id: generateExtraId(source.idPrefix, source.path),
+    path: relPath,
+    category: source.category,
+    title: source.path.endsWith(".json")
+      ? extractTitleFromJson(content)
+      : extractTitle(content),
+    bytes: new TextEncoder().encode(content).length,
+  }];
+}
+
 async function main(): Promise<void> {
   const config = JSON.parse(await Deno.readTextFile("deno.json"));
   const entries: Entry[] = [];
 
+  // 1. Scan docs/ directory
   for await (
     const file of walk("docs", {
       exts: [".md"],
@@ -78,6 +169,14 @@ async function main(): Promise<void> {
       title: extractTitle(content),
       bytes: new TextEncoder().encode(content).length,
     });
+  }
+
+  // 2. Scan extra sources (blueprint, schemas, etc.)
+  const extraEntries = await Promise.all(
+    EXTRA_SOURCES.map((source) => collectExtraSource(source)),
+  );
+  for (const batch of extraEntries) {
+    entries.push(...batch);
   }
 
   entries.sort((a, b) =>

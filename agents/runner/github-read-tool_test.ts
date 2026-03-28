@@ -292,6 +292,166 @@ Deno.test("github-read-tool", async (t) => {
     }
   });
 
+  // --- Project operations ---
+
+  await t.step("project_view builds correct gh args", async () => {
+    stubDenoCommand('{"title":"My Project","items":{"totalCount":3}}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({
+        operation: "project_view",
+        number: 5,
+      });
+
+      assertEquals(result.isError, undefined);
+      assertEquals(lastCommandArgs!.program, "gh");
+      assertEquals(lastCommandArgs!.args[0], "project");
+      assertEquals(lastCommandArgs!.args[1], "view");
+      assertEquals(lastCommandArgs!.args[2], "5");
+      assertEquals(lastCommandArgs!.args[3], "--owner");
+      assertEquals(lastCommandArgs!.args[4], "@me");
+      assertEquals(lastCommandArgs!.args[5], "--format");
+      assertEquals(lastCommandArgs!.args[6], "json");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_view with custom owner", async () => {
+    stubDenoCommand('{"title":"Org Project"}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({
+        operation: "project_view",
+        number: 10,
+        owner: "my-org",
+      });
+
+      assertEquals(result.isError, undefined);
+      const ownerIdx = lastCommandArgs!.args.indexOf("--owner");
+      assertEquals(lastCommandArgs!.args[ownerIdx + 1], "my-org");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_view without number returns error", async () => {
+    stubDenoCommand("");
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({ operation: "project_view" });
+
+      assertEquals(result.isError, true);
+      assertEquals(
+        result.content[0].text.includes("number is required"),
+        true,
+      );
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_list builds correct gh args", async () => {
+    stubDenoCommand('{"projects":[]}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({ operation: "project_list" });
+
+      assertEquals(result.isError, undefined);
+      assertEquals(lastCommandArgs!.program, "gh");
+      assertEquals(lastCommandArgs!.args[0], "project");
+      assertEquals(lastCommandArgs!.args[1], "list");
+      assertEquals(lastCommandArgs!.args[2], "--owner");
+      assertEquals(lastCommandArgs!.args[3], "@me");
+      assertEquals(lastCommandArgs!.args[4], "--format");
+      assertEquals(lastCommandArgs!.args[5], "json");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_list passes optional args", async () => {
+    stubDenoCommand('{"projects":[]}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      await handler({
+        operation: "project_list",
+        owner: "my-org",
+        limit: 5,
+      });
+
+      const args = lastCommandArgs!.args;
+      const ownerIdx = args.indexOf("--owner");
+      assertEquals(args[ownerIdx + 1], "my-org");
+      const limitIdx = args.indexOf("--limit");
+      assertEquals(limitIdx !== -1, true);
+      assertEquals(args[limitIdx + 1], "5");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_item_list builds correct gh args", async () => {
+    stubDenoCommand('{"items":[]}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({
+        operation: "project_item_list",
+        number: 5,
+      });
+
+      assertEquals(result.isError, undefined);
+      assertEquals(lastCommandArgs!.program, "gh");
+      assertEquals(lastCommandArgs!.args[0], "project");
+      assertEquals(lastCommandArgs!.args[1], "item-list");
+      assertEquals(lastCommandArgs!.args[2], "5");
+      assertEquals(lastCommandArgs!.args[3], "--owner");
+      assertEquals(lastCommandArgs!.args[4], "@me");
+      assertEquals(lastCommandArgs!.args[5], "--format");
+      assertEquals(lastCommandArgs!.args[6], "json");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_item_list passes optional args", async () => {
+    stubDenoCommand('{"items":[]}');
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      await handler({
+        operation: "project_item_list",
+        number: 5,
+        owner: "my-org",
+        limit: 50,
+      });
+
+      const args = lastCommandArgs!.args;
+      const ownerIdx = args.indexOf("--owner");
+      assertEquals(args[ownerIdx + 1], "my-org");
+      const limitIdx = args.indexOf("--limit");
+      assertEquals(limitIdx !== -1, true);
+      assertEquals(args[limitIdx + 1], "50");
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
+  await t.step("project_item_list without number returns error", async () => {
+    stubDenoCommand("");
+    try {
+      const handler = createGitHubReadHandler(TEST_CWD);
+      const result = await handler({ operation: "project_item_list" });
+
+      assertEquals(result.isError, true);
+      assertEquals(
+        result.content[0].text.includes("number is required"),
+        true,
+      );
+    } finally {
+      restoreDenoCommand();
+    }
+  });
+
   // cwd passed through
   await t.step("cwd is passed to Deno.Command", async () => {
     stubDenoCommand("[]");

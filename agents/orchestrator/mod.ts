@@ -33,7 +33,12 @@ export type {
 export { loadWorkflow } from "./workflow-loader.ts";
 
 // Label resolver
-export { resolveAgent, resolvePhase, stripPrefix } from "./label-resolver.ts";
+export {
+  resolveAgent,
+  resolvePhase,
+  resolveTerminalOrBlocking,
+  stripPrefix,
+} from "./label-resolver.ts";
 
 // Phase transition
 export {
@@ -81,5 +86,15 @@ export { Prioritizer } from "./prioritizer.ts";
 export type { QueueItem, QueuePriorityConfig } from "./queue.ts";
 export { Queue } from "./queue.ts";
 
+// Handoff manager
+export { HandoffManager } from "./handoff-manager.ts";
+
+// Rate limiter
+export { RateLimiter } from "./rate-limiter.ts";
+
 // Orchestrator
 export { Orchestrator } from "./orchestrator.ts";
+
+// Batch runner
+export type { SingleIssueRunner } from "./batch-runner.ts";
+export { BatchRunner } from "./batch-runner.ts";
