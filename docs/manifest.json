@@ -120,7 +120,7 @@
       "path": "guides/en/09-migration-guide.md",
       "category": "guides",
       "lang": "en",
-      "title": "9. Migration Guide: v1.11.x → v1.12.0 / v1.12.0 → v1.13.0",
+      "title": "9. Migration Guide: v1.11.x → v1.12.0",
       "bytes": 18038
     },
     {
@@ -132,28 +132,12 @@
       "bytes": 7040
     },
     {
-      "id": "guides-ja-10-getting-started-guide",
-      "path": "guides/ja/10-getting-started-guide.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "10. はじめに",
-      "bytes": 7961
-    },
-    {
       "id": "guides-en-11-runner-reference",
       "path": "guides/en/11-runner-reference.md",
       "category": "guides",
       "lang": "en",
       "title": "11. Runner Configuration Reference",
-      "bytes": 24971
-    },
-    {
-      "id": "guides-ja-11-runner-reference",
-      "path": "guides/ja/11-runner-reference.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "11. Runner 設定リファレンス",
-      "bytes": 23909
+      "bytes": 25239
     },
     {
       "id": "guides-en-12-troubleshooting",
@@ -164,14 +148,6 @@
       "bytes": 21894
     },
     {
-      "id": "guides-ja-12-troubleshooting",
-      "path": "guides/ja/12-troubleshooting.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "12. トラブルシューティングガイド",
-      "bytes": 20893
-    },
-    {
       "id": "guides-en-13-agent-creation-tutorial",
       "path": "guides/en/13-agent-creation-tutorial.md",
       "category": "guides",
@@ -180,28 +156,20 @@
       "bytes": 9740
     },
     {
-      "id": "guides-ja-13-agent-creation-tutorial",
-      "path": "guides/ja/13-agent-creation-tutorial.md",
-      "category": "guides",
-      "lang": "ja",
-      "title": "13. Agent 作成チュートリアル",
-      "bytes": 11399
-    },
-    {
       "id": "guides-en-14-steps-registry-guide",
       "path": "guides/en/14-steps-registry-guide.md",
       "category": "guides",
       "lang": "en",
       "title": "14. Steps Registry Guide",
-      "bytes": 23582
+      "bytes": 24590
     },
     {
-      "id": "guides-ja-14-steps-registry-guide",
-      "path": "guides/ja/14-steps-registry-guide.md",
+      "id": "guides-en-15-workflow-guide",
+      "path": "guides/en/15-workflow-guide.md",
       "category": "guides",
-      "lang": "ja",
-      "title": "14. Steps Registry ガイド",
-      "bytes": 17580
+      "lang": "en",
+      "title": "Workflow Guide",
+      "bytes": 11887
     },
     {
       "id": "mcp-setup",
@@ -223,6 +191,48 @@
       "category": "guides",
       "title": "Prompt Customization Guide",
       "bytes": 9487
+    },
+    {
+      "id": "blueprint-constraints",
+      "path": "../agents/docs/builder/reference/blueprint/03-constraints.md",
+      "category": "reference",
+      "title": "3. Constraints",
+      "bytes": 2501
+    },
+    {
+      "id": "blueprint-examples",
+      "path": "../agents/docs/builder/reference/blueprint/05-examples.md",
+      "category": "reference",
+      "title": "5. Examples",
+      "bytes": 11833
+    },
+    {
+      "id": "blueprint-integrity-rules",
+      "path": "../agents/docs/builder/reference/blueprint/02-integrity-rules.md",
+      "category": "reference",
+      "title": "2. Integrity Rules",
+      "bytes": 21228
+    },
+    {
+      "id": "blueprint-overview",
+      "path": "../agents/docs/builder/reference/blueprint/00-overview.md",
+      "category": "reference",
+      "title": "AgentBlueprint Language Specification",
+      "bytes": 2567
+    },
+    {
+      "id": "blueprint-structure",
+      "path": "../agents/docs/builder/reference/blueprint/01-structure.md",
+      "category": "reference",
+      "title": "1. Blueprint Structure",
+      "bytes": 7050
+    },
+    {
+      "id": "blueprint-terminology",
+      "path": "../agents/docs/builder/reference/blueprint/04-terminology.md",
+      "category": "reference",
+      "title": "4. Terminology",
+      "bytes": 7834
     },
     {
       "id": "reference-claude-agent-sdk-overview",
@@ -470,53 +480,11 @@
       "bytes": 604674
     },
     {
-      "id": "blueprint-overview",
-      "path": "../agents/docs/builder/reference/blueprint/00-overview.md",
-      "category": "reference",
-      "title": "AgentBlueprint Language Overview",
-      "bytes": 2567
-    },
-    {
-      "id": "blueprint-structure",
-      "path": "../agents/docs/builder/reference/blueprint/01-structure.md",
-      "category": "reference",
-      "title": "AgentBlueprint Structure",
-      "bytes": 6950
-    },
-    {
-      "id": "blueprint-integrity-rules",
-      "path": "../agents/docs/builder/reference/blueprint/02-integrity-rules.md",
-      "category": "reference",
-      "title": "AgentBlueprint Integrity Rules (52 rules)",
-      "bytes": 20880
-    },
-    {
-      "id": "blueprint-constraints",
-      "path": "../agents/docs/builder/reference/blueprint/03-constraints.md",
-      "category": "reference",
-      "title": "AgentBlueprint Constraints",
-      "bytes": 2501
-    },
-    {
-      "id": "blueprint-terminology",
-      "path": "../agents/docs/builder/reference/blueprint/04-terminology.md",
-      "category": "reference",
-      "title": "AgentBlueprint Terminology",
-      "bytes": 7834
-    },
-    {
-      "id": "blueprint-examples",
-      "path": "../agents/docs/builder/reference/blueprint/05-examples.md",
-      "category": "reference",
-      "title": "AgentBlueprint Examples",
-      "bytes": 11833
-    },
-    {
       "id": "schema-agent-blueprint",
       "path": "../agents/schemas/agent-blueprint.schema.json",
       "category": "reference",
-      "title": "AgentBlueprint JSON Schema",
-      "bytes": 45133
+      "title": "Climpt AgentBlueprint",
+      "bytes": 49345
     }
   ]
 }

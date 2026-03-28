@@ -44,10 +44,55 @@ function extractTitle(content: string): string | undefined {
   return content.match(/^#\s+(.+)$/m)?.[1];
 }
 
+// --- Extra sources outside docs/ ---
+
+/** Files or directories outside docs/ that should appear in the manifest. */
+const EXTRA_SOURCES: Array<{
+  /** File or directory path relative to project root. */
+  path: string;
+  /** Category to assign. */
+  category: string;
+  /** ID prefix (replaces auto-generated prefix). */
+  idPrefix: string;
+}> = [
+  {
+    path: "agents/docs/builder/reference/blueprint",
+    category: "reference",
+    idPrefix: "blueprint",
+  },
+  {
+    path: "agents/schemas/agent-blueprint.schema.json",
+    category: "reference",
+    idPrefix: "schema",
+  },
+];
+
+function generateExtraId(idPrefix: string, filePath: string): string {
+  const base = filePath
+    .replace(/.*\//, "") // filename only
+    .replace(/^\d+-/, "") // strip leading number prefix
+    .replace(/\.schema\.json$/, "") // strip .schema.json
+    .replace(/\.(?:md|json)$/, "") // strip .md or .json
+    .replace(/\./g, "-");
+  return `${idPrefix}-${base}`;
+}
+
+function extractTitleFromJson(content: string): string | undefined {
+  try {
+    const parsed = JSON.parse(content);
+    if (typeof parsed.title === "string") return parsed.title;
+    if (typeof parsed.$id === "string") return parsed.$id;
+  } catch {
+    // not JSON
+  }
+  return undefined;
+}
+
 async function main(): Promise<void> {
   const config = JSON.parse(await Deno.readTextFile("deno.json"));
   const entries: Entry[] = [];
 
+  // 1. Scan docs/ directory
   for await (
     const file of walk("docs", {
       exts: [".md"],
@@ -78,6 +123,47 @@ async function main(): Promise<void> {
       title: extractTitle(content),
       bytes: new TextEncoder().encode(content).length,
     });
+  }
+
+  // 2. Scan extra sources (blueprint, schemas, etc.)
+  for (const source of EXTRA_SOURCES) {
+    const stat = await Deno.stat(source.path).catch(() => null);
+    if (!stat) continue;
+
+    if (stat.isDirectory) {
+      for await (
+        const file of walk(source.path, {
+          exts: [".md", ".json"],
+          skip: [/index\.md/],
+        })
+      ) {
+        if (!file.isFile) continue;
+        const content = await Deno.readTextFile(file.path);
+        // Path relative to docs/ for JSR fetch compatibility
+        const relPath = relative("docs", file.path);
+        entries.push({
+          id: generateExtraId(source.idPrefix, file.path),
+          path: relPath,
+          category: source.category,
+          title: file.path.endsWith(".json")
+            ? extractTitleFromJson(content)
+            : extractTitle(content),
+          bytes: new TextEncoder().encode(content).length,
+        });
+      }
+    } else {
+      const content = await Deno.readTextFile(source.path);
+      const relPath = relative("docs", source.path);
+      entries.push({
+        id: generateExtraId(source.idPrefix, source.path),
+        path: relPath,
+        category: source.category,
+        title: source.path.endsWith(".json")
+          ? extractTitleFromJson(content)
+          : extractTitle(content),
+        bytes: new TextEncoder().encode(content).length,
+      });
+    }
   }
 
   entries.sort((a, b) =>

@@ -59,6 +59,25 @@ const PrChecksSchema = {
   number: z.number().describe("PR number"),
 };
 
+const ProjectViewSchema = {
+  operation: z.literal("project_view"),
+  number: z.number().describe("GitHub Project number"),
+  owner: z.string().optional().describe("Project owner (default: @me)"),
+};
+
+const ProjectListSchema = {
+  operation: z.literal("project_list"),
+  owner: z.string().optional().describe("Project owner (default: @me)"),
+  limit: z.number().optional().describe("Max results (default: 30)"),
+};
+
+const ProjectItemListSchema = {
+  operation: z.literal("project_item_list"),
+  number: z.number().describe("GitHub Project number"),
+  owner: z.string().optional().describe("Project owner (default: @me)"),
+  limit: z.number().optional().describe("Max results (default: 30)"),
+};
+
 // --- gh command executor ---
 
 async function runGh(args: string[], cwd: string): Promise<CallToolResult> {
@@ -162,6 +181,57 @@ function handlePrChecks(
   return runGh(["pr", "checks", String(args.number)], cwd);
 }
 
+function handleProjectView(
+  args: { number: number; owner?: string },
+  cwd: string,
+): Promise<CallToolResult> {
+  return runGh(
+    [
+      "project",
+      "view",
+      String(args.number),
+      "--owner",
+      args.owner ?? "@me",
+      "--format",
+      "json",
+    ],
+    cwd,
+  );
+}
+
+function handleProjectList(
+  args: { owner?: string; limit?: number },
+  cwd: string,
+): Promise<CallToolResult> {
+  const ghArgs = [
+    "project",
+    "list",
+    "--owner",
+    args.owner ?? "@me",
+    "--format",
+    "json",
+  ];
+  if (args.limit) ghArgs.push("--limit", String(args.limit));
+  return runGh(ghArgs, cwd);
+}
+
+function handleProjectItemList(
+  args: { number: number; owner?: string; limit?: number },
+  cwd: string,
+): Promise<CallToolResult> {
+  const ghArgs = [
+    "project",
+    "item-list",
+    String(args.number),
+    "--owner",
+    args.owner ?? "@me",
+    "--format",
+    "json",
+  ];
+  if (args.limit) ghArgs.push("--limit", String(args.limit));
+  return runGh(ghArgs, cwd);
+}
+
 // --- MCP tool definitions ---
 
 /** Input schema for the unified github_read tool */
@@ -173,15 +243,21 @@ export const GitHubReadInputSchema = {
     "pr_list",
     "pr_diff",
     "pr_checks",
+    "project_view",
+    "project_list",
+    "project_item_list",
   ]).describe("GitHub read operation to perform"),
   number: z.number().optional().describe(
-    "Issue or PR number (required for view/diff/checks)",
+    "Issue/PR/Project number (required for view/diff/checks/item-list)",
   ),
   state: z.string().optional().describe(
     "Filter by state (open/closed/all/merged)",
   ),
   label: z.string().optional().describe("Filter by label"),
   limit: z.number().optional().describe("Max results for list operations"),
+  owner: z.string().optional().describe(
+    "Project owner for project operations (default: @me)",
+  ),
 };
 
 /**
@@ -195,6 +271,7 @@ export function createGitHubReadHandler(cwd: string): (args: {
   state?: string;
   label?: string;
   limit?: number;
+  owner?: string;
 }) => Promise<CallToolResult> {
   return async (args: {
     operation: string;
@@ -202,6 +279,7 @@ export function createGitHubReadHandler(cwd: string): (args: {
     state?: string;
     label?: string;
     limit?: number;
+    owner?: string;
   }): Promise<CallToolResult> => {
     switch (args.operation) {
       case "issue_view": {
@@ -263,6 +341,41 @@ export function createGitHubReadHandler(cwd: string): (args: {
         }
         return await handlePrChecks({ number: args.number }, cwd);
       }
+      case "project_view": {
+        if (args.number === undefined) {
+          return {
+            content: [{
+              type: "text",
+              text: "Error: number is required for project_view",
+            }],
+            isError: true,
+          };
+        }
+        return await handleProjectView(
+          { number: args.number, owner: args.owner },
+          cwd,
+        );
+      }
+      case "project_list":
+        return await handleProjectList(
+          { owner: args.owner, limit: args.limit },
+          cwd,
+        );
+      case "project_item_list": {
+        if (args.number === undefined) {
+          return {
+            content: [{
+              type: "text",
+              text: "Error: number is required for project_item_list",
+            }],
+            isError: true,
+          };
+        }
+        return await handleProjectItemList(
+          { number: args.number, owner: args.owner, limit: args.limit },
+          cwd,
+        );
+      }
       default:
         return {
           content: [{
@@ -291,3 +404,6 @@ void PrViewSchema;
 void PrListSchema;
 void PrDiffSchema;
 void PrChecksSchema;
+void ProjectViewSchema;
+void ProjectListSchema;
+void ProjectItemListSchema;
