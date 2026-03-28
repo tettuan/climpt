@@ -149,7 +149,7 @@ iterator エージェントの例:
     "stepKind": "work",
     "c2": "initial", "c3": "issue", "edition": "default",
     "fallbackKey": "issue_initial_default",
-    "uvVariables": ["issue_number"],
+    "uvVariables": ["issue"],
     "usesStdin": false,
     "outputSchemaRef": { "file": "issue.schema.json", "schema": "initial.issue" },
     "structuredGate": { ... },

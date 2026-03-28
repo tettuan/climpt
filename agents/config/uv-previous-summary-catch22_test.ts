@@ -3,15 +3,21 @@
  *
  * UV Variable Catch-22: previous_summary in continuation steps
  *
- * The contradiction:
+ * Original contradiction (now resolved by T3 fix):
  * - If previous_summary IS declared in uvVariables:
  *     Template validation passes, reachability silently skips (not a CLI param),
  *     but runtime throws PR-RESOLVE-003 because no channel supplies the value.
  * - If previous_summary is NOT declared in uvVariables:
  *     Template validation fails ("template uses {uv-previous_summary} but not declared").
  *
- * Neither configuration produces a fully working continuation step for
- * iteration 2+, where {uv-previous_summary} must be substituted.
+ * Resolution (T3 fix):
+ * template-uv-validator.ts now has RUNTIME_SUPPLIED_UV_VARS — runtime-supplied
+ * variables (iteration, completed_iterations, completion_keyword, max_iterations,
+ * remaining, previous_summary, check_count, max_checks) are skipped during
+ * template validation. Both configurations now pass all static validators.
+ *
+ * Tests 07-a and 07-b verify pre-existing behavior that remains unchanged.
+ * Tests 07-c and 07-d verify the fix — updated to assert PASS instead of FAIL.
  *
  * @module
  */
@@ -162,13 +168,14 @@ Deno.test("Issue 07-b — previous_summary declared: reachability validation sil
 
 // =============================================================================
 // Test 3: Issue 07-c
-// previous_summary NOT declared -> template validation fails
+// previous_summary NOT declared -> template validation PASSES (fix applied)
 // =============================================================================
 
-Deno.test("Issue 07-c — previous_summary NOT declared: template validation fails", async () => {
-  // When previous_summary is removed from uvVariables but the template
-  // still uses {uv-previous_summary}, the template UV validator rejects it.
-  // This is the other side of the catch-22.
+Deno.test("Issue 07-c — previous_summary NOT declared: template validation passes (runtime-supplied)", async () => {
+  // After T3 fix: previous_summary is in RUNTIME_SUPPLIED_UV_VARS, so the
+  // template UV validator skips it even when it is not declared in uvVariables.
+  // This proves the fix: runtime-supplied variables no longer need to be
+  // declared in uvVariables for templates to pass validation.
   const dir = await Deno.makeTempDir();
   try {
     await createPromptFile(
@@ -192,24 +199,13 @@ Deno.test("Issue 07-c — previous_summary NOT declared: template validation fai
 
     assertEquals(
       result.valid,
-      false,
-      "Template validation should fail when UV var is undeclared",
+      true,
+      "Template validation should pass: previous_summary is runtime-supplied and does not need declaration",
     );
     assertEquals(
-      result.errors.length >= 1,
-      true,
-      "At least one error expected for undeclared UV usage",
-    );
-
-    const undeclaredError = result.errors.find((e) =>
-      e.includes("uv-previous_summary") && e.includes("not declared")
-    );
-    assertEquals(
-      undeclaredError !== undefined,
-      true,
-      `Expected undeclared UV error for previous_summary, got: ${
-        JSON.stringify(result.errors)
-      }`,
+      result.errors.length,
+      0,
+      "No errors expected: runtime-supplied variables are skipped by the validator",
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -218,24 +214,22 @@ Deno.test("Issue 07-c — previous_summary NOT declared: template validation fai
 
 // =============================================================================
 // Test 4: Issue 07-d
-// Catch-22 summary: no configuration satisfies both validators when
-// previous_summary has no CLI parameter source
+// Catch-22 RESOLVED: both configurations now pass both validators
 // =============================================================================
 
-Deno.test("Issue 07-d — catch-22 summary: no configuration satisfies both validators simultaneously", async () => {
-  // This test proves the definitive catch-22 by running both validators
-  // under both configurations and showing that neither produces a clean
-  // result across the full validation pipeline.
+Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both validators", async () => {
+  // After T3 fix: previous_summary is in RUNTIME_SUPPLIED_UV_VARS, so the
+  // template UV validator skips it regardless of whether it is declared in
+  // uvVariables. This eliminates the catch-22 — both configurations now
+  // produce clean results across the full static validation pipeline.
   //
   // Configuration A: previous_summary declared in uvVariables
-  //   - Template validator: PASS
-  //   - Reachability validator: PASS (silently skips — blind spot)
-  //   - Runtime: FAIL (PR-RESOLVE-003 if runner doesn't inject it)
+  //   - Template validator: PASS (declared, so no issue)
+  //   - Reachability validator: PASS (silently skips non-CLI params)
   //
   // Configuration B: previous_summary NOT declared in uvVariables
-  //   - Template validator: FAIL (undeclared UV usage)
+  //   - Template validator: PASS (runtime-supplied, so skipped by validator)
   //   - Reachability validator: PASS (nothing to check)
-  //   - Runtime: FAIL (unreplaced {uv-previous_summary} placeholder)
 
   const dir = await Deno.makeTempDir();
   try {
@@ -288,18 +282,13 @@ Deno.test("Issue 07-d — catch-22 summary: no configuration satisfies both vali
     assertEquals(
       reachResultA.valid,
       true,
-      "Config A: reachability passes (silent skip)",
+      "Config A: reachability passes (non-CLI vars silently skipped)",
     );
     assertEquals(
       reachResultA.errors.length,
       0,
       "Config A: no reachability errors",
     );
-
-    // Both validators pass — but the gap is that neither checks runtime supply.
-    // At runtime, prompt-resolver.ts checks variables.uv["previous_summary"]
-    // and throws PR-RESOLVE-003 if it's missing. The static validators
-    // cannot detect this runtime failure.
 
     // --- Configuration B: previous_summary NOT declared ---
     const registryB = registryWith("continuation.manual", {
@@ -317,39 +306,36 @@ Deno.test("Issue 07-d — catch-22 summary: no configuration satisfies both vali
     );
     const reachResultB = validateUvReachability(registryB, agent);
 
-    // Template fails: template uses {uv-previous_summary} but it's not declared
+    // Template passes: previous_summary is runtime-supplied, so the validator
+    // skips it even though it is not declared in uvVariables.
     assertEquals(
       templateResultB.valid,
-      false,
-      "Config B: template validation fails",
+      true,
+      "Config B: template validation passes (runtime-supplied vars are skipped)",
     );
     assertEquals(
-      templateResultB.errors.some((e) =>
-        e.includes("uv-previous_summary") && e.includes("not declared")
-      ),
-      true,
-      `Config B: expected undeclared UV error, got: ${
-        JSON.stringify(templateResultB.errors)
-      }`,
+      templateResultB.errors.length,
+      0,
+      "Config B: no template errors",
     );
 
-    // Reachability passes trivially: previous_summary is not even in uvVariables
+    // Reachability passes trivially: previous_summary is not in uvVariables
     assertEquals(
       reachResultB.valid,
       true,
       "Config B: reachability passes (nothing to check)",
     );
+    assertEquals(
+      reachResultB.errors.length,
+      0,
+      "Config B: no reachability errors",
+    );
 
-    // --- Catch-22 proof ---
-    // Config A: both validators pass, but runtime fails (PR-RESOLVE-003)
-    // Config B: template validator fails before runtime is even reached
-    //
-    // The contradiction: the static validation layer has a blind spot for
-    // UV variables that are neither CLI parameters nor template-undeclared.
-    // A variable like previous_summary (runner-guaranteed, not from CLI)
-    // passes all static checks when declared, but the validators cannot
-    // verify that the runtime will actually supply it. This is the catch-22
-    // documented in Issue 07.
+    // --- Catch-22 resolution proof ---
+    // Both configurations now pass both validators. The RUNTIME_SUPPLIED_UV_VARS
+    // set in template-uv-validator.ts ensures that variables injected by the
+    // runner or verdict handler at execution time are not flagged as undeclared.
+    // This eliminates the catch-22 documented in Issue 07.
     const configABothPass = templateResultA.valid && reachResultA.valid;
     const configBBothPass = templateResultB.valid && reachResultB.valid;
 
@@ -360,15 +346,9 @@ Deno.test("Issue 07-d — catch-22 summary: no configuration satisfies both vali
     );
     assertEquals(
       configBBothPass,
-      false,
-      "Config B fails at least one static validator",
+      true,
+      "Config B now also passes both static validators (catch-22 resolved)",
     );
-
-    // Config A passes static validation but has a runtime gap.
-    // Config B fails static validation outright.
-    // Neither configuration provides end-to-end correctness assurance.
-    // The validators lack a "runtime supply verification" layer for
-    // non-CLI UV variables, which is the root cause of Issue 07.
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

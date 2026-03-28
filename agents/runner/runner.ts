@@ -60,6 +60,7 @@ import { BoundaryHooks } from "./boundary-hooks.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
 import { prPromptNoC3lPrompt } from "../shared/errors/config-errors.ts";
+import { formatIterationSummary } from "../verdict/types.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -420,9 +421,13 @@ export class AgentRunner {
           ctx.logger.debug("Using retry prompt from validation");
         } else {
           // Flow Loop: C3L prompt resolution only (design: "プロンプト参照は C3L 形式のみ")
+          // Channel 3: Inject verdict handler UV variables for Flow Loop prompts
+          const uvVars = this.buildUvVariables(iteration);
+          ctx.verdictHandler.setUvVariables?.(uvVars);
+          this.enrichWithChannel3Variables(uvVars, iteration, summaries);
           // deno-lint-ignore no-await-in-loop
           const flowPrompt = await this.closureManager
-            .resolveFlowStepPrompt(stepId, this.buildUvVariables(iteration));
+            .resolveFlowStepPrompt(stepId, uvVars);
           if (flowPrompt) {
             prompt = flowPrompt.content;
             promptSource = flowPrompt.source;
@@ -807,6 +812,11 @@ export class AgentRunner {
     const result = await resolveSystemPrompt({
       agentDir: this.agentDir,
       systemPromptPath: this.definition.runner.flow.systemPromptPath,
+      // These variables are injected directly into the system prompt template,
+      // outside UV Channels 1-4 (CLI params, runtime, VerdictHandler, StepContext).
+      // They use the "uv-" prefix for template placeholder consistency
+      // (e.g. {uv-verdict_criteria}), but bypass the Channel pipeline because
+      // system prompt resolution occurs before step-level UV Channel processing.
       variables: {
         "uv-agent_name": this.definition.name,
         "uv-verdict_criteria":
@@ -869,10 +879,69 @@ export class AgentRunner {
         const handoffUv = this.flowOrchestrator.stepContext.toUV(
           stepDef.inputs,
         );
-        Object.assign(uv, handoffUv);
+        const logger = this.getContext().logger;
+        for (const [key, value] of Object.entries(handoffUv)) {
+          if (key in uv) {
+            logger.warn(
+              `[UV] Channel 4 handoff key "${key}" collides with existing UV key; preserving Channel 1 value`,
+              {
+                key,
+                channel1Value: uv[key],
+                channel4Value: value,
+              },
+            );
+          } else {
+            uv[key] = value;
+          }
+        }
       }
     }
     return uv;
+  }
+
+  /**
+   * Enrich UV variables with Channel 3 verdict handler variables.
+   *
+   * Channel 3 variables (max_iterations, remaining, previous_summary,
+   * check_count, max_checks) are normally injected by verdict handlers
+   * inside buildContinuationPrompt(). In the Flow Loop, prompts are
+   * resolved via C3L (resolveFlowStepPrompt) without calling
+   * buildContinuationPrompt, so we extract the same variables here
+   * from the verdict config and runtime state.
+   *
+   * @param uv - UV dict to enrich (mutated in place)
+   * @param iteration - Current iteration number
+   * @param summaries - All iteration summaries so far
+   */
+  private enrichWithChannel3Variables(
+    uv: Record<string, string>,
+    iteration: number,
+    summaries: IterationSummary[],
+  ): void {
+    const verdictConfig = this.definition.runner?.verdict
+      ?.config as Record<string, unknown> | undefined;
+
+    // count:iteration — max_iterations, remaining
+    if (verdictConfig?.maxIterations !== undefined) {
+      const max = Number(verdictConfig.maxIterations);
+      uv.max_iterations = String(max);
+      uv.remaining = String(Math.max(0, max - iteration));
+    }
+
+    // count:check — max_checks, check_count
+    if (verdictConfig?.maxChecks !== undefined) {
+      uv.max_checks = String(verdictConfig.maxChecks);
+      // check_count mirrors iteration in the Flow Loop context
+      uv.check_count = String(iteration);
+    }
+
+    // previous_summary — formatted summary of the last iteration
+    if (iteration > 1 && summaries.length > 0) {
+      const lastSummary = summaries[summaries.length - 1];
+      uv.previous_summary = formatIterationSummary(lastSummary);
+    } else {
+      uv.previous_summary = "";
+    }
   }
 
   /**
