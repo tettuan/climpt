@@ -8,8 +8,9 @@
 
 export {
   FilePromptAdapter,
+  isPromptFileNotFound,
+  prFileNotFound,
   type PromptAdapter,
-  PromptNotFoundError,
 } from "./adapter.ts";
 
 export {
@@ -42,7 +43,6 @@ export {
 // Fallback
 // ============================================================================
 
-/** @deprecated Use PromptNotFoundError from adapter.ts instead */
 export {
   DefaultFallbackProvider,
   type FallbackPromptProvider,

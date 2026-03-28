@@ -127,7 +127,7 @@ gh auth status
 
 ### 2.1 設定ファイルが見つからない
 
-**症状**: `ConfigurationLoadError`、メッセージ
+**症状**: `ConfigError`（コード: AC-LOAD-001 〜 AC-LOAD-003）、メッセージ
 `Configuration load failed at <path>`。
 
 **原因**:
@@ -170,8 +170,9 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 
 ### 2.3 バリデーション失敗
 
-**症状**: `PromptNotFoundError`（`Prompt not found: <path>`）、必須フィールドの
-欠落、または `permissionMode` や `runner.verdict.type` の enum 値が範囲外。
+**症状**: `ConfigError`（コード: PR-FILE-001）（`Prompt not found: <path>`）、
+必須フィールドの欠落、または `permissionMode` や `runner.verdict.type` の enum
+値が範囲外。
 
 **原因**: 設定にタイプミス、必須フィールドの欠落、または許可された値セット外の
 値が含まれている。
@@ -644,8 +645,8 @@ echo "CLAUDE_NEST_LEVEL=$CLAUDE_NEST_LEVEL"
 | `MalformedSchemaIdentifierError` | `MALFORMED_SCHEMA_IDENTIFIER` | No           | Flow        |
 | `AgentEnvironmentError`          | `AGENT_ENVIRONMENT_ERROR`     | No           | Environment |
 | `AgentRateLimitError`            | `AGENT_RATE_LIMIT`            | Yes          | Environment |
-| `ConfigurationLoadError`         | `CONFIGURATION_LOAD_ERROR`    | No           | Environment |
-| `PromptNotFoundError`            | `PROMPT_NOT_FOUND`            | No           | Environment |
+| `ConfigError (AC-LOAD-*)`        | `AC-LOAD-001..003`            | No           | Environment |
+| `ConfigError (PR-FILE-001)`      | `PR-FILE-001`                 | No           | Environment |
 
 ---
 

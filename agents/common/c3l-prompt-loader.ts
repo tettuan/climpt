@@ -133,15 +133,20 @@ export class C3LPromptLoader {
         };
       }
 
-      const errorMsg = result.error
-        ? (typeof result.error === "string"
+      // Propagate the breakdown error if present.
+      // When result.error is falsy (e.g., file not found), return {ok: false}
+      // WITHOUT an error so the caller can distinguish "file not found" from
+      // "C3L template error" and allow fallback only for the former.
+      if (result.error) {
+        const errorMsg = typeof result.error === "string"
           ? result.error
-          : JSON.stringify(result.error))
-        : "runBreakdown returned no data";
-      return {
-        ok: false,
-        error: errorMsg,
-      };
+          : JSON.stringify(result.error);
+        return {
+          ok: false,
+          error: errorMsg,
+        };
+      }
+      return { ok: false };
     } catch (error) {
       return {
         ok: false,

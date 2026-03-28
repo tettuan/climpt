@@ -5,6 +5,7 @@
 
 import { join } from "@std/path";
 import { DefaultFallbackProvider } from "./fallback.ts";
+import { prSystemPromptLoadFailed } from "../shared/errors/config-errors.ts";
 
 export interface SystemPromptOptions {
   agentDir: string;
@@ -59,11 +60,14 @@ export async function resolveSystemPrompt(
     const raw = await Deno.readTextFile(fullPath);
     const content = substituteVariables(raw, variables);
     return { content, source: "file", path: relPath };
-  } catch {
-    // File not found or unreadable - fall through
+  } catch (error) {
+    if (!(error instanceof Deno.errors.NotFound)) {
+      // Permission error, decode error, etc. — do not silently fall back
+      throw prSystemPromptLoadFailed(fullPath, String(error));
+    }
   }
 
-  // 2. Fallback
+  // 2. Fallback (file not found only)
   const fallback = new DefaultFallbackProvider();
   const content = fallback.getSystemPrompt(variables);
   return { content, source: "fallback" };

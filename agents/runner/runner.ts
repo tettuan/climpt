@@ -59,7 +59,7 @@ import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
-import { prPromptNoC3lPrompt } from "../shared/errors/config-errors.ts";
+import { prC3lNoPrompt } from "../shared/errors/config-errors.ts";
 import { formatIterationSummary } from "../verdict/types.ts";
 
 export interface RunnerOptions {
@@ -436,7 +436,7 @@ export class AgentRunner {
               { source: flowPrompt.source, promptPath: flowPrompt.promptPath },
             );
           } else {
-            throw prPromptNoC3lPrompt(stepId, iteration);
+            throw prC3lNoPrompt(stepId, iteration);
           }
           promptType = iteration === 1
             ? STEP_PHASE.INITIAL

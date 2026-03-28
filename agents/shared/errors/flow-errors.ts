@@ -217,6 +217,42 @@ export class SchemaPointerError extends ClimptError {
 }
 
 /**
+ * Circular $ref detected in schema resolution.
+ *
+ * This error indicates that following $ref pointers leads back to an
+ * already-visited definition, creating an infinite loop. The schema file
+ * must be corrected — silently returning an empty object would produce
+ * an invalid schema that passes StepGate without proper validation.
+ */
+export class SchemaCircularReferenceError extends ClimptError {
+  readonly code = "SCHEMA_CIRCULAR_REFERENCE";
+  readonly recoverable = false;
+  readonly refKey: string;
+  readonly visitedPath: string[];
+
+  constructor(
+    refKey: string,
+    visitedPath: string[],
+  ) {
+    super(
+      `Circular $ref detected: "${refKey}" was already visited. ` +
+        `Resolution path: ${visitedPath.join(" → ")} → ${refKey}. ` +
+        `Fix the schema file to remove the circular reference.`,
+    );
+    this.refKey = refKey;
+    this.visitedPath = visitedPath;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      refKey: this.refKey,
+      visitedPath: this.visitedPath,
+    };
+  }
+}
+
+/**
  * Error thrown when a schema identifier is malformed.
  * Examples: "##/definitions/foo" (double hash), "//" (empty path segment)
  */

@@ -24,6 +24,7 @@ import { inferStepKind } from "./step-registry.ts";
  */
 import {
   MalformedSchemaIdentifierError,
+  SchemaCircularReferenceError,
   SchemaPointerError,
 } from "../shared/errors/flow-errors.ts";
 export { MalformedSchemaIdentifierError, SchemaPointerError };
@@ -300,8 +301,7 @@ export class SchemaResolver {
     // Create unique key for cycle detection
     const refKey = `${currentFile}::${ref}`;
     if (visited.has(refKey)) {
-      // Circular reference - return empty object to break cycle
-      return {};
+      throw new SchemaCircularReferenceError(refKey, [...visited]);
     }
     visited.add(refKey);
 

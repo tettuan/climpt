@@ -15,7 +15,10 @@ import {
   type IterationSummary,
   type VerdictCriteria,
 } from "./types.ts";
-import { srEntryNotConfigured } from "../shared/errors/config-errors.ts";
+import {
+  prResolveUnknownStepId,
+  srEntryNotConfigured,
+} from "../shared/errors/config-errors.ts";
 
 const COMPLETE = true;
 const INCOMPLETE = false;
@@ -122,20 +125,16 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
     const stepDef = this.getStepDefinition(this.state.currentStepId);
 
     if (this.promptResolver && stepDef) {
-      try {
-        return (await this.promptResolver.resolve(
-          this.state.currentStepId,
-          {
-            uv: {
-              ...this.uvVariables,
-              step_id: this.state.currentStepId,
-              step_name: stepDef.name,
-            },
+      return (await this.promptResolver.resolve(
+        this.state.currentStepId,
+        {
+          uv: {
+            ...this.uvVariables,
+            step_id: this.state.currentStepId,
+            step_name: stepDef.name,
           },
-        )).content;
-      } catch {
-        // Fallback if prompt resolution fails
-      }
+        },
+      )).content;
     }
 
     // Fallback inline prompt
@@ -153,7 +152,7 @@ ${stepDef?.description ? `- Description: ${stepDef.description}` : ""}
 Execute the task for this step. When the step is complete, provide output
 in the format expected by the step definition.
 
-${this.buildStepInstructions(stepDef)}
+${this.buildStepInstructions(stepDef, this.state.currentStepId)}
     `.trim();
   }
 
@@ -172,23 +171,19 @@ ${this.buildStepInstructions(stepDef)}
         ? this.formatIterationSummary(previousSummary)
         : "";
 
-      try {
-        return (await this.promptResolver.resolve(
-          this.state.currentStepId,
-          {
-            uv: {
-              ...this.uvVariables,
-              step_id: this.state.currentStepId,
-              step_name: stepDef.name,
-              iteration: String(completedIterations),
-              step_iteration: String(this.state.stepIteration),
-              previous_summary: summaryText,
-            },
+      return (await this.promptResolver.resolve(
+        this.state.currentStepId,
+        {
+          uv: {
+            ...this.uvVariables,
+            step_id: this.state.currentStepId,
+            step_name: stepDef.name,
+            iteration: String(completedIterations),
+            step_iteration: String(this.state.stepIteration),
+            previous_summary: summaryText,
           },
-        )).content;
-      } catch {
-        // Fallback if prompt resolution fails
-      }
+        },
+      )).content;
     }
 
     // Fallback inline prompt
@@ -210,7 +205,7 @@ ${summarySection}
 
 Continue executing this step. Review the previous summary and make progress.
 
-${this.buildStepInstructions(stepDef)}
+${this.buildStepInstructions(stepDef, this.state.currentStepId)}
     `.trim();
   }
 
@@ -219,8 +214,11 @@ ${this.buildStepInstructions(stepDef)}
    */
   private buildStepInstructions(
     stepDef: PromptStepDefinition | undefined,
+    stepId?: string,
   ): string {
-    if (!stepDef) return "";
+    if (!stepDef) {
+      throw prResolveUnknownStepId(stepId ?? "unknown");
+    }
 
     const instructions: string[] = [];
 
