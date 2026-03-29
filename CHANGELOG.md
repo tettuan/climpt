@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.15] - 2026-03-28
+
+### Fixed
+- Resolve 7 UV initial prompt contradictions in runner and validator
+- Channel 3 Flow Loop UV injection (max_iterations, remaining, previous_summary)
+- Channel 4 handoff collision detection (log and keep Channel 1 value)
+- Template validator previous_summary catch-22 via runtime-supplied allowlist
+
+### Changed
+- Align scaffolder templates with `{uv-issue}` convention (`issue_number` → `issue`)
+- Scaffolder continuation template uses `{uv-previous_summary}` (Channel 3 UV)
+- Prompt-resolution example uses `{uv-issue}` matching actual agent convention
+
+### Added
+- Contradiction-verification skill and UV contradiction proof tests
+- Channel 3 Flow Loop end-to-end test (`uv-channel3-flow-loop_test.ts`)
+- Previous-summary catch-22 test (`uv-previous-summary-catch22_test.ts`)
+
 ## [1.13.14] - 2026-03-28
 
 ### Added

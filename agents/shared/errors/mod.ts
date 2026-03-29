@@ -45,16 +45,12 @@ export {
   GateInterpretationError,
   MalformedSchemaIdentifierError,
   RoutingError,
+  SchemaCircularReferenceError,
   SchemaPointerError,
 } from "./flow-errors.ts";
 
 // Environment errors
-export {
-  AgentEnvironmentError,
-  AgentRateLimitError,
-  ConfigurationLoadError,
-  PromptNotFoundError,
-} from "./env-errors.ts";
+export { AgentEnvironmentError, AgentRateLimitError } from "./env-errors.ts";
 export type {
   EnvironmentInfoType,
   SdkErrorCategoryType,
@@ -85,14 +81,19 @@ export {
   acVerdict009PollStateConditionRequiresIssue,
   acVerdict010UnsupportedConditionTypeInComposite,
   ConfigError,
+  isPromptFileNotFound,
+  prC3lBreakdownFailed,
   prC3lInvalidPathFormat,
+  prC3lNoPrompt,
+  prFallbackNotAllowed,
   prFallbackNoTemplate,
-  prPromptNoC3lPrompt,
+  prFallbackNotFound,
+  prFileNotFound,
   prResolveMissingInputText,
   prResolveMissingRequiredUv,
-  prResolveNoFallback,
   prResolveUnknownStepId,
   prResolveUvNotProvided,
+  prSystemPromptLoadFailed,
   srEntryMappingInvalid,
   srEntryMissingConfig,
   srEntryNotConfigured,

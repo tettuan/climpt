@@ -10,7 +10,6 @@
 // Configuration Layer
 export {
   applyDefaults,
-  ConfigurationLoadError,
   ConfigurationService,
   loadConfiguration,
   validate,

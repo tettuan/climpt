@@ -175,7 +175,6 @@ Path B injects UV variables automatically for `poll:state`:
 | Variable           | Value             | Notes                          |
 | ------------------ | ----------------- | ------------------------------ |
 | `issue`            | Issue number      | From `--issue` CLI argument    |
-| `issue_number`     | Issue number      | Same as `issue`                |
 | `repository`       | Repository path   | Empty string if not configured |
 | `iteration`        | Current iteration | Continuation only              |
 | `previous_summary` | Formatted summary | Continuation only              |

@@ -17,6 +17,7 @@ import {
   getCommitsAhead,
   getCurrentBranch,
   getRepoRoot,
+  GitCommandError,
   hasCommitsToMerge,
   isInsideWorktree as gitIsInsideWorktree,
   mergeBranch,
@@ -25,9 +26,6 @@ import {
 
 /** Flag to force delete branch even if not fully merged */
 const FORCE_DELETE = true;
-
-// Re-export for backwards compatibility
-export { getCurrentBranch, getRepoRoot } from "./git-utils.ts";
 
 /**
  * Generate a timestamped branch name
@@ -250,8 +248,11 @@ export async function mergeWorktreeBranch(
 
   if (!mergeResult.success) {
     // Attempt to abort merge if it failed
-    await runGit(["merge", "--abort"], parentCwd).catch(() => {
-      // Ignore error - might not be in merge state
+    await runGit(["merge", "--abort"], parentCwd).catch((e: unknown) => {
+      // Only ignore if not currently in a merge state; re-throw unexpected errors
+      const isNotMerging = e instanceof GitCommandError &&
+        /not\s+(currently\s+)?merging|no\s+merge\s+to\s+abort/i.test(e.stderr);
+      if (!isNotMerging) throw e;
     });
 
     return {
@@ -280,7 +281,10 @@ export async function mergeWorktreeBranch(
 export async function getMainWorktreePath(cwd?: string): Promise<string> {
   const worktrees = await listWorktrees(cwd);
   // The first worktree in the list is always the main one
-  return worktrees[0] ?? "";
+  if (worktrees.length === 0) {
+    throw new Error("No git worktree found in output");
+  }
+  return worktrees[0];
 }
 
 // ============================================================================

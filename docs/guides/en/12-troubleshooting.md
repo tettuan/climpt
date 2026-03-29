@@ -130,7 +130,7 @@ sessions.
 
 ### 2.1 Configuration file not found
 
-**Symptom**: `ConfigurationLoadError` with message
+**Symptom**: `ConfigError` (code: AC-LOAD-001 to AC-LOAD-003) with message
 `Configuration load failed at <path>`.
 
 **Cause**: The `agent.json`, `config.json`, or prompt templates are missing.
@@ -174,8 +174,8 @@ See [09-migration-guide.md](./09-migration-guide.md) for the full mapping.
 
 ### 2.3 Validation failure
 
-**Symptom**: `PromptNotFoundError` (`Prompt not found: <path>`), missing
-required fields, or invalid enum values for `permissionMode` or
+**Symptom**: `ConfigError` (code: PR-FILE-001) (`Prompt not found: <path>`),
+missing required fields, or invalid enum values for `permissionMode` or
 `runner.verdict.type`.
 
 **Cause**: Configuration contains typos, missing required fields, or values
@@ -646,8 +646,8 @@ All errors extend `ClimptError` (alias: `AgentError`). Each error provides
 | `MalformedSchemaIdentifierError` | `MALFORMED_SCHEMA_IDENTIFIER` | No          | Flow        |
 | `AgentEnvironmentError`          | `AGENT_ENVIRONMENT_ERROR`     | No          | Environment |
 | `AgentRateLimitError`            | `AGENT_RATE_LIMIT`            | Yes         | Environment |
-| `ConfigurationLoadError`         | `CONFIGURATION_LOAD_ERROR`    | No          | Environment |
-| `PromptNotFoundError`            | `PROMPT_NOT_FOUND`            | No          | Environment |
+| `ConfigError (AC-LOAD-*)`        | `AC-LOAD-001..003`            | No          | Environment |
+| `ConfigError (PR-FILE-001)`      | `PR-FILE-001`                 | No          | Environment |
 
 ---
 

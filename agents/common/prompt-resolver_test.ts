@@ -25,6 +25,12 @@ interface RegistryConfig {
   registries: Record<string, string>;
 }
 
+// Use a real temporary directory so c3lLoader.load() returns {ok: false} without
+// an OS error (as opposed to "/nonexistent" which triggers a chdir error).
+const testTmpDir: string = Deno.makeTempDirSync({
+  prefix: "prompt-resolver-test-",
+});
+
 let originalRegistryConfig: string | null = null;
 
 async function setupTestAgent(): Promise<void> {
@@ -99,6 +105,12 @@ globalThis.addEventListener("unload", () => {
   }
   try {
     Deno.removeSync(TEST_CONFIG_USER);
+  } catch {
+    // Ignore
+  }
+  // Clean up temp directory used in place of "/nonexistent"
+  try {
+    Deno.removeSync(testTmpDir, { recursive: true });
   } catch {
     // Ignore
   }
@@ -238,7 +250,7 @@ Deno.test("PromptResolver - resolves from fallback when breakdown fails", async 
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const result = await resolver.resolve("initial.test");
@@ -266,7 +278,7 @@ Deno.test("PromptResolver - substitutes UV variables in fallback", async () => {
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const result = await resolver.resolve("with.vars", {
@@ -296,7 +308,7 @@ Deno.test("PromptResolver - substitutes input_text in fallback", async () => {
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const result = await resolver.resolve("stdin.step", {
@@ -324,7 +336,7 @@ Deno.test("PromptResolver - throws on missing required UV variable", async () =>
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   await assertRejects(
@@ -352,7 +364,7 @@ Deno.test("PromptResolver - allows missing variables when configured", async () 
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
     allowMissingVariables: true,
   });
 
@@ -390,7 +402,7 @@ Deno.test("PromptResolver - throws when no fallback available", async () => {
   const fallbackProvider = createFallbackProvider({});
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   await assertRejects(
@@ -421,7 +433,7 @@ Actual content`,
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const result = await resolver.resolve("with.frontmatter");
@@ -450,7 +462,7 @@ Content`,
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
     stripFrontmatter: false,
   });
 
@@ -477,7 +489,7 @@ Deno.test("PromptResolver - canResolve returns true for resolvable step", async 
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const canResolve = await resolver.canResolve("resolvable");
@@ -600,7 +612,7 @@ Deno.test("PromptResolver - adaptation override resolves adapted fallback", asyn
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   // Without override - resolves to base fallback
@@ -628,7 +640,7 @@ Deno.test("PromptResolver - resolve without override preserves existing behavior
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   // Calling resolve without overrides should work exactly as before
@@ -658,7 +670,7 @@ Deno.test("PromptResolver - custom variables substitution", async () => {
   });
 
   const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: "/nonexistent",
+    workingDir: testTmpDir,
   });
 
   const result = await resolver.resolve("custom.vars", {

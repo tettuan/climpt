@@ -36,6 +36,11 @@ export class OutboxProcessor {
   /** Read and execute all outbox actions for an issue, then clear outbox. */
   async process(issueNumber: number): Promise<OutboxResult[]> {
     const outboxDir = this.#store.getOutboxPath(issueNumber);
+
+    // Ensure the issue's outbox directory exists so that a subsequent
+    // NotFound is truly unexpected (race condition) rather than ambiguous.
+    await Deno.mkdir(outboxDir, { recursive: true });
+
     const files: string[] = [];
 
     try {
@@ -46,6 +51,13 @@ export class OutboxProcessor {
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
+        // Directory was just created above but disappeared — race condition
+        // or external deletion. Return empty rather than crash, but log
+        // so the situation is traceable.
+        // deno-lint-ignore no-console
+        console.debug(
+          `[OutboxProcessor] NotFound after mkdir for "${outboxDir}"`,
+        );
         return [];
       }
       throw error;

@@ -85,6 +85,30 @@ deno task ci --hierarchy agents/ --mode batch
 | `--stop-on-first-error` | flag | false |
 | `--filter` | pattern | none |
 
+## Release Branch Version Check
+
+On `release/*` branches, verify version consistency **before** running `deno task ci`. Skip this check on other branches.
+
+```bash
+# 1. Branch name version must match deno.json version
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+BRANCH_VERSION=${BRANCH#release/}
+DENO_VERSION=$(grep '"version"' deno.json | head -1 | sed 's/.*: *"\([^"]*\)".*/\1/')
+if [ "$BRANCH_VERSION" != "$DENO_VERSION" ]; then
+  echo "ERROR: Branch version mismatch: branch=$BRANCH_VERSION, deno.json=$DENO_VERSION"
+  exit 1
+fi
+
+# 2. deno.json version must match version.ts
+TS_VERSION=$(grep 'export const CLIMPT_VERSION' src/version.ts | sed 's/.*= *"\([^"]*\)".*/\1/')
+if [ "$DENO_VERSION" != "$TS_VERSION" ]; then
+  echo "ERROR: Version mismatch: deno.json=$DENO_VERSION, version.ts=$TS_VERSION"
+  exit 1
+fi
+```
+
+This mirrors the GitHub Actions `Check version consistency` step in `.github/workflows/test.yml`.
+
 ## Pre-Push Workflow
 
 ```bash

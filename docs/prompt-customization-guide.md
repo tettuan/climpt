@@ -84,7 +84,7 @@ User Variables are agent-specific values passed at runtime:
 
 | Variable                    | Agent             | Description                   |
 | --------------------------- | ----------------- | ----------------------------- |
-| `{uv-issue_number}`         | Iterator          | GitHub issue number           |
+| `{uv-issue}`                | Iterator          | GitHub issue number           |
 | `{uv-project_number}`       | Iterator          | GitHub project number         |
 | `{uv-project_title}`        | Iterator          | Project title                 |
 | `{uv-label_info}`           | Iterator          | Label information             |
@@ -125,7 +125,7 @@ Check the agent's `steps_registry.json` to find the step you want to customize:
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
-      "uvVariables": ["issue_number"],
+      "uvVariables": ["issue"],
       "usesStdin": false
     }
   }
@@ -156,7 +156,7 @@ stepId: initial.issue
 name: Issue Initial Prompt
 description: Initial prompt when working on a single GitHub issue
 uvVariables:
-  - issue_number
+  - issue
 customVariables:
   - project_context_section
   - issue_content
@@ -170,7 +170,7 @@ Your prompt content here...
 Include UV variables in your prompt:
 
 ```markdown
-## Current Task: Issue #{uv-issue_number}
+## Current Task: Issue #{uv-issue}
 
 {issue_content}
 
@@ -187,7 +187,7 @@ stepId: initial.issue
 name: Custom Issue Prompt
 ---
 
-# Working on Issue #{uv-issue_number}
+# Working on Issue #{uv-issue}
 
 {issue_content}
 
@@ -235,8 +235,8 @@ Use issue-action blocks to report findings.
 
 | Step ID                       | Description                | UV Variables                                                                        |
 | ----------------------------- | -------------------------- | ----------------------------------------------------------------------------------- |
-| `initial.issue`               | Issue mode initial prompt  | `issue_number`                                                                      |
-| `continuation.issue`          | Issue mode continuation    | `issue_number`, `completed_iterations`                                              |
+| `initial.issue`               | Issue mode initial prompt  | `issue`                                                                             |
+| `continuation.issue`          | Issue mode continuation    | `issue`, `completed_iterations`                                                     |
 | `initial.project.preparation` | Project preparation phase  | `project_number`, `project_title`, `label_info`, `total_issues`                     |
 | `initial.project.review`      | Project review phase       | `project_number`, `project_title`, `label_info`, `issues_completed`, `label_filter` |
 | `initial.project.complete`    | Project completion message | `project_number`, `label_info`, `issues_completed`                                  |
@@ -278,7 +278,7 @@ deno task cli iterator-steps initial issue --format prompt
 
 ### Variables Not Substituted
 
-- Confirm variable names match exactly (e.g., `{uv-issue_number}` not
+- Confirm variable names match exactly (e.g., `{uv-issue}` not
   `{uv-issue-number}`)
 - Check that required UV variables are passed by the agent
 - Verify the step definition lists all required variables

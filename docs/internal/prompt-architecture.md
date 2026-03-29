@@ -171,7 +171,7 @@ const loader = new C3LPromptLoader({
 
 const result = await loader.load(
   { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
-  { uv: { issue_number: "123" } },
+  { uv: { issue: "123" } },
 );
 ```
 
@@ -310,7 +310,7 @@ console.log(`Source: ${result.source}`);
 UV variables use the format `{uv-name}`:
 
 ```markdown
-Working on issue #{uv-issue_number} in project {uv-project_title}.
+Working on issue #{uv-issue} in project {uv-project_title}.
 ```
 
 Runtime substitution:
@@ -318,7 +318,7 @@ Runtime substitution:
 ```typescript
 await resolver.resolve("stepId", {
   uv: {
-    issue_number: "42",
+    issue: "42",
     project_title: "My Project",
   },
 });
@@ -417,7 +417,7 @@ await resolver.resolve("unknown.step");
 ### Missing Required Variable
 
 ```typescript
-// Throws: Error("Missing required UV variable \"issue_number\" for step \"initial.issue\"")
+// Throws: Error("Missing required UV variable \"issue\" for step \"initial.issue\"")
 await resolver.resolve("initial.issue", { uv: {} });
 ```
 
@@ -486,7 +486,7 @@ Deno.test("Iterator prompt resolution", async () => {
   const resolver = new PromptResolver(registry, fallbackProvider);
 
   const result = await resolver.resolve("initial.issue", {
-    uv: { issue_number: "123" },
+    uv: { issue: "123" },
     custom: { issue_content: "Test content" },
   });
 

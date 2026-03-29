@@ -21,6 +21,30 @@ import { DefaultFallbackProvider } from "../prompts/fallback.ts";
 import { join } from "@std/path";
 
 // ---------------------------------------------------------------------------
+// Runtime-supplied UV variables (not declared in uvVariables)
+// ---------------------------------------------------------------------------
+
+/**
+ * UV variables that are injected at runtime by the runner or verdict handler,
+ * not from CLI parameters. These must be excluded from the "undeclared usage"
+ * check because they are never declared in `uvVariables` — they are resolved
+ * at execution time via Channel 2 (runner runtime) or Channel 3
+ * (VerdictHandler).
+ */
+const RUNTIME_SUPPLIED_UV_VARS = new Set([
+  // Channel 2: Runner runtime
+  "iteration",
+  "completed_iterations",
+  "completion_keyword",
+  // Channel 3: VerdictHandler
+  "max_iterations",
+  "remaining",
+  "previous_summary",
+  "check_count",
+  "max_checks",
+]);
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -212,8 +236,10 @@ export async function validateTemplateUvConsistency(
     }
 
     // Undeclared usages (ERROR)
+    // Skip runtime-supplied variables — they are injected by the runner
+    // or verdict handler at execution time, not from uvVariables declarations.
     for (const v of used) {
-      if (!declared.has(v)) {
+      if (!declared.has(v) && !RUNTIME_SUPPLIED_UV_VARS.has(v)) {
         errors.push(
           `steps["${stepId}"]: template uses {uv-${v}} but "${v}" is not declared in uvVariables`,
         );

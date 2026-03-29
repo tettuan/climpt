@@ -12,12 +12,6 @@
 
 import { ConfigService } from "../shared/config-service.ts";
 
-/**
- * Error thrown when configuration loading fails - canonical source: shared/errors/env-errors.ts
- */
-import { ConfigurationLoadError } from "../shared/errors/env-errors.ts";
-export { ConfigurationLoadError };
-
 /** Shared ConfigService instance */
 const configService = new ConfigService();
 

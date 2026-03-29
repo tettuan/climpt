@@ -2,19 +2,9 @@
  * Common Agent Types
  *
  * Shared type definitions for all agent implementations.
- *
- * NOTE: Core types (PermissionMode, LoggingConfig) are defined in src_common/types.ts
- * and re-exported here for backward compatibility.
  */
 
-// Import for internal use
-import type { PermissionMode as PermissionModeType } from "../src_common/types.ts";
-
-// Re-export core types from src_common for backward compatibility
-export type { LoggingConfig, PermissionMode } from "../src_common/types.ts";
-
-// Type alias for internal use within this file
-type PermissionMode = PermissionModeType;
+import type { PermissionMode } from "../src_common/types.ts";
 
 /**
  * Agent name type
@@ -127,8 +117,6 @@ export interface BaseAgentConfig {
   /** Permission mode for this agent */
   permissionMode: PermissionMode;
 }
-
-// LoggingConfig is re-exported from src_common/types.ts at the top of this file
 
 /**
  * Base iteration summary
