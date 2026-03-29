@@ -6,7 +6,6 @@
 import { join } from "@std/path";
 import { DefaultFallbackProvider } from "./fallback.ts";
 import { prSystemPromptLoadFailed } from "../shared/errors/config-errors.ts";
-import { substituteVariables } from "./variable-substitutor.ts";
 
 export interface SystemPromptOptions {
   agentDir: string;
@@ -18,6 +17,27 @@ export interface SystemPromptResult {
   content: string;
   source: "file" | "fallback";
   path?: string;
+}
+
+/**
+ * Substitute {uv-xxx} placeholders in content.
+ *
+ * Lookup order per placeholder `{uv-<name>}`:
+ *   1. variables["uv-<name>"]
+ *   2. variables["<name>"]
+ *   3. Keep original placeholder (graceful miss)
+ */
+function substituteVariables(
+  content: string,
+  variables: Record<string, string>,
+): string {
+  return content.replace(
+    /\{uv-([a-zA-Z0-9_-]+)\}/g,
+    (match, varName) => {
+      const value = variables[`uv-${varName}`] ?? variables[varName];
+      return value ?? match;
+    },
+  );
 }
 
 /**

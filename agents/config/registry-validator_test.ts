@@ -112,9 +112,39 @@ Deno.test("registry-validator - registry with only steps passes", () => {
   assertEquals(result.valid, true);
 });
 
-// entryStepMapping: validated at load time by
-// common/step-registry/validator.ts:validateEntryStepMapping() (typed, throws).
-// Tests for that validation live in common/step-registry/step-registry_test.ts.
+// =============================================================================
+// entryStepMapping - broken references
+// =============================================================================
+
+Deno.test("registry-validator - entryStepMapping references unknown step", () => {
+  const data = validRegistry();
+  (data.entryStepMapping as Record<string, string>).issue = "initial.missing";
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 1);
+  assertEquals(
+    result.errors[0].includes("initial.missing"),
+    true,
+  );
+  assertEquals(
+    result.errors[0].includes("entryStepMapping"),
+    true,
+  );
+});
+
+Deno.test("registry-validator - multiple broken entryStepMapping entries", () => {
+  const data = validRegistry();
+  const esm = data.entryStepMapping as Record<string, string>;
+  esm.issue = "initial.gone";
+  esm.externalState = "initial.also-gone";
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.errors.length, 2);
+});
 
 // =============================================================================
 // transitions - broken target references
@@ -319,6 +349,9 @@ Deno.test("registry-validator - validator without failurePattern is valid", () =
 Deno.test("registry-validator - multiple different error types accumulate", () => {
   const data = validRegistry();
 
+  // Break entryStepMapping
+  (data.entryStepMapping as Record<string, string>).issue = "initial.gone";
+
   // Break transition
   const steps = data.steps as Record<string, Record<string, unknown>>;
   steps["initial.default"].transitions = {
@@ -341,9 +374,8 @@ Deno.test("registry-validator - multiple different error types accumulate", () =
   const result = validateCrossReferences(data);
 
   assertEquals(result.valid, false);
-  // At least 3 different errors (transition, validationCondition, failurePattern)
-  // Note: entryStepMapping is validated at load time, not here
-  assertEquals(result.errors.length >= 3, true);
+  // At least 4 different errors (one per category)
+  assertEquals(result.errors.length >= 4, true);
 });
 
 // =============================================================================

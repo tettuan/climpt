@@ -15,13 +15,6 @@ import {
   SyncJsonlWriter,
   SyncTextWriter,
 } from "../shared/logging/log-writer.ts";
-import type {
-  LogEntry,
-  Logger as LoggerInterface,
-} from "../shared/logging/logger-interface.ts";
-
-export type { LogEntry } from "../shared/logging/logger-interface.ts";
-export type { Logger as LoggerInterface } from "../shared/logging/logger-interface.ts";
 
 export interface LoggerOptions {
   agentName: string;
@@ -29,7 +22,14 @@ export interface LoggerOptions {
   format: "jsonl" | "text";
 }
 
-export class Logger implements LoggerInterface {
+export interface LogEntry {
+  timestamp: string;
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+export class Logger {
   private agentName: string;
   private directory: string;
   private format: "jsonl" | "text";

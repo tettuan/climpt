@@ -18,7 +18,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { AgentRunner } from "../runner/runner.ts";
-import { listAgents } from "../config/loader.ts";
+import { listAgents } from "../runner/loader.ts";
 import { loadConfiguration } from "../config/mod.ts";
 import { initAgent } from "../init.ts";
 import {

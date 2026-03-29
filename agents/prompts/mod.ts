@@ -3,6 +3,23 @@
  */
 
 // ============================================================================
+// Adapters
+// ============================================================================
+
+export {
+  FilePromptAdapter,
+  isPromptFileNotFound,
+  prFileNotFound,
+  type PromptAdapter,
+} from "./adapter.ts";
+
+export {
+  ClimptAdapter,
+  type ClimptReference,
+  toClimptPath,
+} from "./climpt-adapter.ts";
+
+// ============================================================================
 // Variable substitution
 // ============================================================================
 
@@ -28,5 +45,8 @@ export {
 
 export {
   DefaultFallbackProvider,
-  type FallbackTemplateProvider,
+  type FallbackPromptProvider,
 } from "./fallback.ts";
+
+/** Alias for backward compatibility */
+export { DefaultFallbackProvider as FallbackResolver } from "./fallback.ts";

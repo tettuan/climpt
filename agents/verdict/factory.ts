@@ -7,11 +7,17 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import {
-  createPromptResolverForAgent,
-  type PromptResolver,
+  createFallbackProvider,
+  PromptResolver,
 } from "../common/prompt-resolver.ts";
+import {
+  createEmptyRegistry,
+  loadStepRegistry,
+} from "../common/step-registry.ts";
+import { getDefaultFallbackTemplates } from "../prompts/fallback.ts";
+import { join } from "@std/path";
 import type { VerdictHandler, VerdictStepIds } from "./types.ts";
-import { DEFAULT_INITIAL_STEP_MAP, resolveStepIds } from "./step-ids.ts";
+import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { type IssueContractConfig, IssueVerdictHandler } from "./issue.ts";
 import { GitHubStateChecker } from "./external-state-checker.ts";
 import {
@@ -46,6 +52,30 @@ type HandlerFactory = (
   agentDir: string,
   stepIds: VerdictStepIds,
 ) => VerdictHandler | Promise<VerdictHandler>;
+
+/**
+ * Resolve step IDs from registry's entryStepMapping.
+ *
+ * Derives continuation step ID by replacing "initial." prefix
+ * with "continuation." in the entry step ID.
+ */
+function resolveStepIds(
+  registry: ExtendedStepsRegistry,
+  verdictType: string,
+  defaultInitial: string,
+): VerdictStepIds {
+  const entryStep = registry.entryStepMapping?.[verdictType];
+  if (entryStep) {
+    const continuation = entryStep.startsWith("initial.")
+      ? "continuation." + entryStep.slice("initial.".length)
+      : "continuation." + entryStep.split(".").slice(1).join(".");
+    return { initial: entryStep, continuation };
+  }
+  const defaultContinuation = defaultInitial.startsWith("initial.")
+    ? "continuation." + defaultInitial.slice("initial.".length)
+    : defaultInitial;
+  return { initial: defaultInitial, continuation: defaultContinuation };
+}
 
 /**
  * Registry of completion handler factories by type
@@ -246,13 +276,21 @@ export async function createRegistryVerdictHandler(
 ): Promise<VerdictHandler> {
   const { type: verdictType } = definition.runner.verdict;
 
-  // Create prompt resolver (shared helper handles registry load + fallback)
-  const { resolver: promptResolver, registry } =
-    await createPromptResolverForAgent(
-      definition.name,
-      agentDir,
-      definition.runner.flow.prompts.registry,
-    );
+  // Create prompt resolver for handlers
+  let registry;
+  try {
+    registry = await loadStepRegistry(definition.name, agentDir, {
+      registryPath: join(agentDir, definition.runner.flow.prompts.registry),
+      validateIntentEnums: false,
+    });
+  } catch {
+    registry = createEmptyRegistry(definition.name);
+  }
+  const fallback = createFallbackProvider(getDefaultFallbackTemplates());
+  const promptResolver = new PromptResolver(registry, fallback, {
+    workingDir: Deno.cwd(),
+    configSuffix: registry.c1,
+  });
 
   // Get factory from registry
   const factory = HANDLER_REGISTRY.get(verdictType);
@@ -260,11 +298,18 @@ export async function createRegistryVerdictHandler(
     throw acVerdict005UnknownCompletionType(verdictType);
   }
 
-  // Resolve step IDs from entryStepMapping
+  // Resolve step IDs from entryStepMapping (default varies by verdict type)
+  const defaultInitialMap: Record<string, string> = {
+    "poll:state": "initial.polling",
+    "count:iteration": "initial.iteration",
+    "detect:keyword": "initial.keyword",
+    "count:check": "initial.check",
+    "detect:structured": "initial.structured",
+  };
   const stepIds = resolveStepIds(
     registry,
     verdictType,
-    DEFAULT_INITIAL_STEP_MAP[verdictType] ?? "initial.default",
+    defaultInitialMap[verdictType] ?? "initial.default",
   );
 
   // Log prefix substitution when initial.* was derived to continuation.*

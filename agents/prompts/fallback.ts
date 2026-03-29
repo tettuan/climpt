@@ -3,12 +3,12 @@
  */
 import { prFallbackNoTemplate } from "../shared/errors/config-errors.ts";
 
-export interface FallbackTemplateProvider {
+export interface FallbackPromptProvider {
   get(stepId: string, variables: Record<string, string>): string;
   getSystemPrompt(variables: Record<string, string>): string;
 }
 
-export class DefaultFallbackProvider implements FallbackTemplateProvider {
+export class DefaultFallbackProvider implements FallbackPromptProvider {
   private templates: Record<string, string> = {
     // System prompt
     system: `# {uv-agent_name} Agent

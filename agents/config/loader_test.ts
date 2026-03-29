@@ -8,13 +8,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { join } from "@std/path";
-import {
-  agentExists,
-  getAgentDir,
-  listAgents,
-  loadRaw,
-  loadStepsRegistry,
-} from "./loader.ts";
+import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { ConfigError } from "../shared/errors/config-errors.ts";
 
 const logger = new BreakdownLogger("config-loader");
@@ -126,22 +120,4 @@ Deno.test("config/loader - loadStepsRegistry returns null for missing file", asy
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
-});
-
-// =============================================================================
-// agentExists Tests
-// =============================================================================
-
-Deno.test("config/loader - agentExists returns false for non-existent agent", async () => {
-  const result = await agentExists("non-existent-agent-67890", "/tmp");
-  assertEquals(result, false);
-});
-
-// =============================================================================
-// listAgents Tests
-// =============================================================================
-
-Deno.test("config/loader - listAgents returns empty array when no agents dir", async () => {
-  const result = await listAgents("/tmp/non-existent-path-xyz");
-  assertEquals(result, []);
 });
