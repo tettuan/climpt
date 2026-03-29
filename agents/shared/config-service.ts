@@ -2,9 +2,8 @@
  * ConfigService - Centralized Configuration Loading
  *
  * Consolidates config loading patterns scattered across:
- * - agents/config/loader.ts (loadRaw, loadStepsRegistry)
+ * - agents/config/loader.ts (loadRaw, loadStepsRegistry, listAgents, agentExists)
  * - agents/config/mod.ts (loadConfiguration, ConfigurationService)
- * - agents/runner/loader.ts (loadAgentDefinition - deprecated)
  * - agents/src_common/config.ts (loadRuntimeConfig, resolveAgentPaths)
  * - agents/runner/sandbox-defaults.ts (mergeSandboxConfig)
  *

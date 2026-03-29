@@ -1,12 +1,14 @@
 /**
  * Registry Validator - Cross-Reference Validation for steps_registry.json
  *
- * Validates internal consistency of a steps registry:
- * - entryStepMapping values reference existing steps
+ * Validates cross-references within a steps registry:
  * - transition targets reference existing steps
  * - validationConditions reference existing validators
  * - validators reference existing failurePatterns
  * - conditional transition targets reference existing steps
+ *
+ * Note: entryStepMapping validation is handled at load time by
+ * common/step-registry/validator.ts:validateEntryStepMapping() (typed, throws)
  *
  * @module
  */
@@ -57,19 +59,10 @@ export function validateCrossReferences(
   const failurePatternKeys = new Set(Object.keys(failurePatterns));
   const validationSteps = asRecord(registry.validationSteps) ?? {};
 
-  // 1. entryStepMapping values must exist in steps
-  const entryStepMapping = asRecord(registry.entryStepMapping);
-  if (entryStepMapping) {
-    for (const [mode, target] of Object.entries(entryStepMapping)) {
-      if (typeof target === "string" && !stepKeys.has(target)) {
-        errors.push(
-          `entryStepMapping["${mode}"] references unknown step "${target}"`,
-        );
-      }
-    }
-  }
+  // entryStepMapping: validated at load time by
+  // common/step-registry/validator.ts:validateEntryStepMapping() (typed, throws)
 
-  // 2. transitions.*.target must exist in steps (null is OK = terminal)
+  // 1. transitions.*.target must exist in steps (null is OK = terminal)
   for (const [stepId, stepDef] of Object.entries(steps)) {
     const step = asRecord(stepDef);
     if (!step) continue;
@@ -125,7 +118,7 @@ export function validateCrossReferences(
     }
   }
 
-  // 3. validationConditions[].validator must exist in validators
+  // 2. validationConditions[].validator must exist in validators
   for (const [vsId, vsDef] of Object.entries(validationSteps)) {
     const vs = asRecord(vsDef);
     if (!vs) continue;
@@ -149,7 +142,7 @@ export function validateCrossReferences(
     }
   }
 
-  // 4. validators.*.failurePattern must exist in failurePatterns
+  // 3. validators.*.failurePattern must exist in failurePatterns
   for (const [vId, vDef] of Object.entries(validators)) {
     const v = asRecord(vDef);
     if (!v) continue;

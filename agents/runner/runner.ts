@@ -36,7 +36,7 @@ import {
   isAgentError,
   normalizeToAgentError,
 } from "./errors.ts";
-import { getAgentDir } from "./loader.ts";
+import { getAgentDir } from "../config/loader.ts";
 import type { AgentDependencies } from "./builder.ts";
 import { createDefaultDependencies } from "./builder.ts";
 import {

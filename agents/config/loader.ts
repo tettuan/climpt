@@ -10,7 +10,9 @@
  * @post return value is an unvalidated AgentDefinition
  */
 
+import { join } from "@std/path";
 import { ConfigService } from "../shared/config-service.ts";
+import { PATHS } from "../shared/paths.ts";
 
 /** Shared ConfigService instance */
 const configService = new ConfigService();
@@ -47,4 +49,55 @@ export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
  */
 export function getAgentDir(agentName: string, baseDir: string): string {
   return configService.getAgentDir(agentName, baseDir);
+}
+
+/**
+ * Check if an agent exists (has agent.json).
+ *
+ * @param agentName - Name of the agent
+ * @param cwd - Working directory
+ * @returns true if agent.json exists
+ */
+export async function agentExists(
+  agentName: string,
+  cwd: string = Deno.cwd(),
+): Promise<boolean> {
+  const agentDir = getAgentDir(agentName, cwd);
+  const definitionPath = join(agentDir, PATHS.AGENT_JSON);
+
+  try {
+    await Deno.stat(definitionPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * List all available agents (directories with agent.json).
+ *
+ * @param cwd - Working directory
+ * @returns Sorted list of agent names
+ */
+export async function listAgents(cwd: string = Deno.cwd()): Promise<string[]> {
+  const agentsDir = join(cwd, PATHS.AGENT_DIR_PREFIX);
+  const agents: string[] = [];
+
+  try {
+    for await (const entry of Deno.readDir(agentsDir)) {
+      if (entry.isDirectory) {
+        const definitionPath = join(agentsDir, entry.name, PATHS.AGENT_JSON);
+        try {
+          await Deno.stat(definitionPath);
+          agents.push(entry.name);
+        } catch {
+          // Not a valid agent directory
+        }
+      }
+    }
+  } catch {
+    // .agent directory doesn't exist
+  }
+
+  return agents.sort();
 }

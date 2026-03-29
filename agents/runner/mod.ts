@@ -33,12 +33,7 @@ export type {
 } from "../verdict/mod.ts";
 
 // Prompt Layer
-export {
-  ClimptAdapter,
-  FilePromptAdapter,
-  substituteVariables,
-} from "../prompts/mod.ts";
-export type { PromptAdapter } from "../prompts/mod.ts";
+export { substituteVariables } from "../prompts/mod.ts";
 export { PromptResolver } from "../common/prompt-resolver.ts";
 
 // Contracts
