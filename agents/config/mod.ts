@@ -32,7 +32,6 @@ import { validateUvReachability } from "./uv-reachability-validator.ts";
 import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
 
 // Re-export for convenience
-export { ConfigurationLoadError } from "./loader.ts";
 export { validate, validateComplete } from "./validator.ts";
 export { applyDefaults, deepFreeze, freeze } from "./defaults.ts";
 export { getAgentDir } from "./loader.ts";

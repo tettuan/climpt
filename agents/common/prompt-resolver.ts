@@ -1,10 +1,12 @@
 /**
  * Prompt Resolver - External Prompt Resolution System
  *
- * Resolves prompts via breakdown (C3L) with fallback support.
+ * Resolves prompts via breakdown (C3L) with conditional fallback.
  * Key features:
  * - Uses C3LPromptLoader to call runBreakdown
- * - Falls back to embedded prompts when breakdown fails or returns empty
+ * - Falls back to embedded prompts only when file not found AND allowFallback=true
+ * - Throws PR-C3L-002 on non-file-not-found C3L errors (UV, frontmatter, YAML)
+ * - Throws PR-FALLBACK-003 when fallback reached but not allowed
  * - Variable substitution for {uv-xxx} and {input_text}
  * - Frontmatter removal for clean prompt content
  */
@@ -14,9 +16,11 @@ import { PATHS } from "../shared/paths.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import {
+  prC3lBreakdownFailed,
+  prFallbackNotAllowed,
+  prFallbackNotFound,
   prResolveMissingInputText,
   prResolveMissingRequiredUv,
-  prResolveNoFallback,
   prResolveUnknownStepId,
   prResolveUvNotProvided,
 } from "../shared/errors/config-errors.ts";
@@ -149,19 +153,21 @@ export class PromptResolver {
    *
    * Resolution order:
    * 1. Try breakdown via C3LPromptLoader
-   * 2. Fall back to embedded prompt via fallbackProvider
+   * 2. Fall back to embedded prompt via fallbackProvider (if allowed)
    *
    * @param stepId - Step identifier to resolve
    * @param variables - Variables for substitution
+   * @param overrides - Optional overrides (adaptation, allowFallback)
    * @returns Resolution result with content and metadata
    */
   async resolve(
     stepId: string,
     variables?: PromptVariables,
-    overrides?: { adaptation?: string },
+    overrides?: { adaptation?: string; allowFallback?: boolean },
   ): Promise<PromptResolutionResult> {
     // Default variables if not provided
     variables = variables ?? {};
+    const allowFallback = overrides?.allowFallback ?? true;
     const step = this.registry.steps[stepId];
     if (!step) {
       throw prResolveUnknownStepId(stepId);
@@ -178,7 +184,11 @@ export class PromptResolver {
       return breakdownResult;
     }
 
-    // Breakdown failed -- warn before falling back
+    // Breakdown returned null (file not found) — fallback or throw
+    if (!allowFallback) {
+      throw prFallbackNotAllowed(effectiveStep.stepId);
+    }
+
     const c3lPath = this.buildC3LPath(effectiveStep);
     const c3lPathStr = this.formatC3LPath(c3lPath);
     // deno-lint-ignore no-console
@@ -208,7 +218,8 @@ export class PromptResolver {
    *
    * @param step - Step definition
    * @param variables - Variables for substitution
-   * @returns Resolution result or null if breakdown fails or returns empty
+   * @returns Resolution result or null if prompt file not found
+   * @throws ConfigError (PR-C3L-002) if breakdown fails with non-file-not-found error
    */
   private async tryBreakdown(
     step: PromptStepDefinition,
@@ -221,8 +232,16 @@ export class PromptResolver {
       inputText: variables.inputText,
     });
 
-    // Check if breakdown succeeded and returned content
+    // Breakdown failed — distinguish file-not-found from other errors
     if (!result.ok || !result.content) {
+      if (result.error && !this.isParameterParsingError(result.error)) {
+        // Non-file-not-found error: UV undefined, frontmatter broken, YAML parse failure, etc.
+        // These require user correction — do not silently fall back.
+        throw prC3lBreakdownFailed(step.stepId, result.error);
+      }
+      // No error detail OR ParameterParsingError (breakdown doesn't recognize
+      // the directive type / parameters) = prompt cannot be resolved via C3L.
+      // Return null to allow fallback decision by caller.
       return null;
     }
 
@@ -239,6 +258,19 @@ export class PromptResolver {
   }
 
   /**
+   * Check if a C3L loader error is a ParameterParsingError.
+   *
+   * ParameterParsingError means breakdown doesn't recognize the directive
+   * type or other CLI parameters. This is NOT a user-correctable C3L
+   * template issue — it means the step simply can't be resolved via
+   * breakdown (e.g., the c2 value is not a valid breakdown directive type).
+   * Treat this the same as "file not found" to allow fallback.
+   */
+  private isParameterParsingError(error: string): boolean {
+    return error.includes("ParameterParsingError");
+  }
+
+  /**
    * Use fallback prompt
    *
    * @param step - Step definition
@@ -251,7 +283,7 @@ export class PromptResolver {
   ): PromptResolutionResult {
     const rawContent = this.fallbackProvider.getPrompt(step.fallbackKey);
     if (!rawContent) {
-      throw prResolveNoFallback(step.fallbackKey, step.stepId);
+      throw prFallbackNotFound(step.fallbackKey, step.stepId);
     }
 
     // deno-lint-ignore no-console

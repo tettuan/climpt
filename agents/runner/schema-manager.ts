@@ -218,12 +218,9 @@ export class SchemaManager {
           );
         }
 
-        // Set flag to skip StepGate for this iteration (StructuredOutputUnavailable)
+        // First failure: flag it and return undefined so StepGate is skipped.
+        // The next consecutive failure will throw above.
         this._schemaResolutionFailed = true;
-        logger.warn(
-          `[SchemaResolution] Marking iteration as StructuredOutputUnavailable. ` +
-            `StepGate will be skipped. Fix schema reference before next iteration.`,
-        );
         return undefined;
       }
       throw error;

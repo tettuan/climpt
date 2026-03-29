@@ -13,9 +13,6 @@ import type {
 import type { ResponseFormat } from "../common/validation-types.ts";
 import { validateDataAgainstSchema } from "../config/schema-validator.ts";
 
-// Re-export ResponseFormat for backwards compatibility
-export type { ResponseFormat } from "../common/validation-types.ts";
-
 /**
  * Result of format validation.
  *

@@ -147,7 +147,7 @@ Each step is a keyed entry in the `steps` object. The key must match `stepId`.
     "stepKind": "work",
     "c2": "initial", "c3": "issue", "edition": "default",
     "fallbackKey": "issue_initial_default",
-    "uvVariables": ["issue_number"],
+    "uvVariables": ["issue"],
     "usesStdin": false,
     "outputSchemaRef": { "file": "issue.schema.json", "schema": "initial.issue" },
     "structuredGate": { ... },
@@ -302,8 +302,8 @@ Example:
 ```
 
 **Common mistake:** Declaring `uvVariables: ["issue_number"]` when the CLI
-parameter is named `issue`. UV variable names must match the parameter names in
-`agent.json`.
+parameter is named `issue`. UV variable names must match the CLI parameter names
+(e.g., `uvVariables: ["issue"]`).
 
 ### 14.4.2 Structured Gate
 

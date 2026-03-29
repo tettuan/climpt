@@ -176,7 +176,6 @@ Iteration > 1:
 | 変数               | 値                       | 備考                   |
 | ------------------ | ------------------------ | ---------------------- |
 | `issue`            | Issue 番号               | `--issue` CLI 引数から |
-| `issue_number`     | Issue 番号               | `issue` と同値         |
 | `repository`       | リポジトリパス           | 未設定時は空文字列     |
 | `iteration`        | 現在のイテレーション     | Continuation のみ      |
 | `previous_summary` | フォーマット済みサマリー | Continuation のみ      |

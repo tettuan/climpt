@@ -8,14 +8,12 @@ import { assertEquals, assertMatch, assertStringIncludes } from "@std/assert";
 import {
   cleanupWorktree,
   generateBranchName,
-  getCurrentBranch,
-  getRepoRoot,
   listWorktrees,
   mergeWorktreeBranch,
   setupWorktree,
   worktreeExists,
 } from "./worktree.ts";
-import { branchExists } from "./git-utils.ts";
+import { branchExists, getCurrentBranch, getRepoRoot } from "./git-utils.ts";
 import type { WorktreeCLIOptions, WorktreeSetupConfig } from "./types.ts";
 
 // ============================================================================

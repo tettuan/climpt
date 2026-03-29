@@ -13,7 +13,7 @@ export interface PromptAdapter {
    * Load prompt content from a path.
    * @param path - Path to the prompt file
    * @returns Prompt content as string
-   * @throws PromptNotFoundError if file doesn't exist
+   * @throws ConfigError (PR-FILE-001) if file doesn't exist
    */
   load(path: string): Promise<string>;
 
@@ -25,11 +25,11 @@ export interface PromptAdapter {
   exists(path: string): Promise<boolean>;
 }
 
-/**
- * Error thrown when a prompt is not found - canonical source: shared/errors/env-errors.ts
- */
-import { PromptNotFoundError } from "../shared/errors/env-errors.ts";
-export { PromptNotFoundError };
+import {
+  isPromptFileNotFound,
+  prFileNotFound,
+} from "../shared/errors/config-errors.ts";
+export { isPromptFileNotFound, prFileNotFound };
 
 /**
  * File-based prompt adapter.
@@ -41,7 +41,7 @@ export class FilePromptAdapter implements PromptAdapter {
       return await Deno.readTextFile(path);
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        throw new PromptNotFoundError(path);
+        throw prFileNotFound(path);
       }
       throw error;
     }

@@ -9,7 +9,7 @@
  */
 
 import type { PromptAdapter } from "./adapter.ts";
-import { PromptNotFoundError } from "./adapter.ts";
+import { isPromptFileNotFound, prFileNotFound } from "./adapter.ts";
 import { prC3lInvalidPathFormat } from "../shared/errors/config-errors.ts";
 
 /**
@@ -61,14 +61,14 @@ export class ClimptAdapter implements PromptAdapter {
       if (!output.success) {
         const stderr = new TextDecoder().decode(output.stderr);
         if (stderr.includes("not found") || stderr.includes("does not exist")) {
-          throw new PromptNotFoundError(path);
+          throw prFileNotFound(path);
         }
         throw new Error(`Climpt command failed: ${stderr}`);
       }
 
       return new TextDecoder().decode(output.stdout);
     } catch (error) {
-      if (error instanceof PromptNotFoundError) throw error;
+      if (isPromptFileNotFound(error)) throw error;
       if (error instanceof Deno.errors.NotFound) {
         throw new Error("climpt CLI not found. Please install climpt.");
       }

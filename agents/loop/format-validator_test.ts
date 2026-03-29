@@ -5,7 +5,8 @@
  */
 
 import { assertEquals, assertExists } from "@std/assert";
-import { FormatValidator, type ResponseFormat } from "./format-validator.ts";
+import { FormatValidator } from "./format-validator.ts";
+import type { ResponseFormat } from "../common/validation-types.ts";
 import type { IterationSummary } from "../src_common/types.ts";
 
 // Helper to create a minimal iteration summary

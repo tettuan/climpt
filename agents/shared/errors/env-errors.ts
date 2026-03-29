@@ -4,8 +4,6 @@
  * These errors indicate problems with the execution context:
  * - Environment constraints (double sandbox, permissions)
  * - API rate limiting
- * - Configuration loading failures
- * - Prompt not found
  */
 
 import { ClimptError } from "./base.ts";
@@ -102,54 +100,6 @@ export class AgentRateLimitError extends ClimptError {
       ...super.toJSON(),
       retryAfterMs: this.retryAfterMs,
       attempts: this.attempts,
-    };
-  }
-}
-
-/**
- * Error thrown when configuration loading fails.
- */
-export class ConfigurationLoadError extends ClimptError {
-  readonly code = "CONFIGURATION_LOAD_ERROR";
-  readonly recoverable = false;
-  readonly path: string;
-  readonly originalCause?: Error;
-
-  constructor(
-    path: string,
-    message: string,
-    cause?: Error,
-  ) {
-    super(`Configuration load failed at ${path}: ${message}`, { cause });
-    this.path = path;
-    this.originalCause = cause;
-  }
-
-  override toJSON(): Record<string, unknown> {
-    return {
-      ...super.toJSON(),
-      path: this.path,
-    };
-  }
-}
-
-/**
- * Error thrown when a prompt is not found.
- */
-export class PromptNotFoundError extends ClimptError {
-  readonly code = "PROMPT_NOT_FOUND";
-  readonly recoverable = false;
-  readonly path: string;
-
-  constructor(path: string) {
-    super(`Prompt not found: ${path}`);
-    this.path = path;
-  }
-
-  override toJSON(): Record<string, unknown> {
-    return {
-      ...super.toJSON(),
-      path: this.path,
     };
   }
 }

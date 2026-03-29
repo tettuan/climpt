@@ -605,22 +605,27 @@ export function wfBatchPrioritizeMissingConfig(): ConfigError {
 // PR: Prompt Errors (prompts/)
 // ============================================================
 
-// --- PR-PROMPT: Prompt configuration ---
+// --- PR-FILE: Prompt file access ---
 
-export function prPromptNoC3lPrompt(
-  stepId: string,
-  iteration: number,
-): ConfigError {
+export function prFileNotFound(path: string): ConfigError {
   return new ConfigError(
-    "PR-PROMPT-001",
-    `No C3L prompt found for step "${stepId}" at iteration ${iteration}.`,
-    `Flow steps must have C3L prompts when steps_registry is configured (design: "プロンプト参照は C3L 形式のみ"). See design/08_step_flow_design.md.`,
-    `Add a C3L prompt file for step "${stepId}" under the configured prompts directory.`,
+    "PR-FILE-001",
+    `Prompt file not found: "${path}".`,
+    `Prompt files must exist at the expected path. File-not-found at the adapter layer indicates a missing C3L template, system prompt, or fallback file. See design/08_step_flow_design.md.`,
+    `Create the prompt file at "${path}", or verify the path configuration in steps_registry.json and agent.json.`,
     "prompts/",
   );
 }
 
-// --- PR-RESOLVE: Prompt resolution ---
+/**
+ * Type guard for PR-FILE-001 errors.
+ * Use this instead of instanceof checks on the former PromptNotFoundError class.
+ */
+export function isPromptFileNotFound(error: unknown): error is ConfigError {
+  return error instanceof ConfigError && error.code === "PR-FILE-001";
+}
+
+// --- PR-RESOLVE: Prompt resolution (step lookup, variable substitution) ---
 
 export function prResolveUnknownStepId(stepId: string): ConfigError {
   return new ConfigError(
@@ -629,19 +634,6 @@ export function prResolveUnknownStepId(stepId: string): ConfigError {
     `Step IDs must match entries defined in steps_registry.json. See design/08_step_flow_design.md.`,
     `Add step "${stepId}" to steps in steps_registry.json, or correct the step ID reference.`,
     "steps_registry.json",
-  );
-}
-
-export function prResolveNoFallback(
-  fallbackKey: string,
-  stepId: string,
-): ConfigError {
-  return new ConfigError(
-    "PR-RESOLVE-002",
-    `No fallback prompt found for key: "${fallbackKey}" (step: ${stepId}).`,
-    `Each step must have a fallbackKey that maps to an entry in the fallback templates. See design/08_step_flow_design.md.`,
-    `Add a fallback template for key "${fallbackKey}" in the fallback provider, or update step "${stepId}" to use an existing fallbackKey.`,
-    "prompts/",
   );
 }
 
@@ -681,7 +673,7 @@ export function prResolveUvNotProvided(
   );
 }
 
-// --- PR-C3L: C3L path format ---
+// --- PR-C3L: C3L path, breakdown, and prompt file errors ---
 
 export function prC3lInvalidPathFormat(path: string): ConfigError {
   return new ConfigError(
@@ -693,7 +685,35 @@ export function prC3lInvalidPathFormat(path: string): ConfigError {
   );
 }
 
-// --- PR-FALLBACK: Fallback template ---
+// --- PR-C3L-002: C3L breakdown returned a non-file-not-found error ---
+
+export function prC3lBreakdownFailed(
+  stepId: string,
+  detail: string,
+): ConfigError {
+  return new ConfigError(
+    "PR-C3L-002",
+    `C3L breakdown failed for step "${stepId}": ${detail}`,
+    `When C3L load returns ok:false with an error other than file-not-found (e.g., UV undefined, frontmatter broken, YAML parse failure), the error must propagate — not silently fall back. Silent fallback hides user-correctable C3L issues. See CLAUDE.md (fallback最小限).`,
+    `Fix the C3L template for step "${stepId}": check UV variables, frontmatter syntax, and YAML format. The detail above describes the specific failure.`,
+    "prompts/",
+  );
+}
+
+export function prC3lNoPrompt(
+  stepId: string,
+  iteration: number,
+): ConfigError {
+  return new ConfigError(
+    "PR-C3L-003",
+    `No C3L prompt found for step "${stepId}" at iteration ${iteration}.`,
+    `Flow steps must have C3L prompts when steps_registry is configured (design: "プロンプト参照は C3L 形式のみ"). See design/08_step_flow_design.md.`,
+    `Add a C3L prompt file for step "${stepId}" under the configured prompts directory.`,
+    "prompts/",
+  );
+}
+
+// --- PR-FALLBACK: Fallback availability and control ---
 
 export function prFallbackNoTemplate(stepId: string): ConfigError {
   return new ConfigError(
@@ -701,6 +721,44 @@ export function prFallbackNoTemplate(stepId: string): ConfigError {
     `No fallback template for step: ${stepId}.`,
     `Each step ID must have a corresponding fallback template defined in the DefaultFallbackProvider. See design/08_step_flow_design.md.`,
     `Add a fallback template for step "${stepId}" in agents/prompts/fallback.ts, or use an existing step ID.`,
+    "prompts/",
+  );
+}
+
+export function prFallbackNotFound(
+  fallbackKey: string,
+  stepId: string,
+): ConfigError {
+  return new ConfigError(
+    "PR-FALLBACK-002",
+    `No fallback prompt found for key: "${fallbackKey}" (step: ${stepId}).`,
+    `Each step must have a fallbackKey that maps to an entry in the fallback templates. See design/08_step_flow_design.md.`,
+    `Add a fallback template for key "${fallbackKey}" in the fallback provider, or update step "${stepId}" to use an existing fallbackKey.`,
+    "prompts/",
+  );
+}
+
+export function prFallbackNotAllowed(stepId: string): ConfigError {
+  return new ConfigError(
+    "PR-FALLBACK-003",
+    `Fallback not allowed for step "${stepId}" but C3L resolution failed.`,
+    `Flow Loop enforces C3L-only prompt resolution (CHANGELOG: "no fallback prompt paths"). When allowFallback is false, reaching the fallback path is a configuration error. See design/08_step_flow_design.md.`,
+    `Add a valid C3L prompt file for step "${stepId}" under the configured prompts directory. Flow Loop steps must resolve via C3L — embedded fallback prompts are not permitted.`,
+    "prompts/",
+  );
+}
+
+// --- PR-SYSTEM: System prompt resolution ---
+
+export function prSystemPromptLoadFailed(
+  path: string,
+  detail: string,
+): ConfigError {
+  return new ConfigError(
+    "PR-SYSTEM-001",
+    `Failed to load system prompt at "${path}": ${detail}`,
+    `System prompts must be readable UTF-8 files so the runner can inject agent metadata deterministically. Fallback prompts are only for bootstrap scenarios. See docs/guides/en/11-runner-reference.md Section 11.3.5.`,
+    `Fix the file (permissions, encoding, or syntax) at "${path}" so it can be read successfully, or restore the expected prompts/system.md file.`,
     "prompts/",
   );
 }

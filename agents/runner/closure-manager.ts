@@ -331,6 +331,7 @@ export class ClosureManager {
    * Handles both work and verification steps (all Flow Loop steps).
    * Returns null when resolver is unavailable, step is not found,
    * or the step is a closure step (handled by Completion Loop).
+   * C3L resolution errors propagate directly — Flow Loop does not fall back.
    */
   async resolveFlowStepPrompt(
     stepId: string,
@@ -351,15 +352,12 @@ export class ClosureManager {
       return null;
     }
 
-    try {
-      return await this.stepPromptResolver.resolve(stepId, { uv: variables });
-    } catch (error) {
-      this.logger?.warn("[FlowLoop] C3L prompt resolution failed", {
-        stepId,
-        error: String(error),
-      });
-      return null;
-    }
+    // Flow Loop: C3L-only — no fallback allowed, errors propagate
+    return await this.stepPromptResolver.resolve(
+      stepId,
+      { uv: variables },
+      { allowFallback: false },
+    );
   }
 
   /**

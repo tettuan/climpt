@@ -54,9 +54,24 @@ export interface IssueData {
 
 export class IssueStore {
   #storePath: string;
+  #dirEnsured = false;
 
   constructor(storePath: string) {
     this.#storePath = storePath;
+  }
+
+  /**
+   * Ensure the store directory exists.
+   *
+   * Call this before any read operations so that a subsequent
+   * Deno.errors.NotFound is truly unexpected rather than an
+   * ambiguous "first run vs IO error" signal.
+   * Idempotent — only hits the filesystem once per instance.
+   */
+  async ensureDir(): Promise<void> {
+    if (this.#dirEnsured) return;
+    await Deno.mkdir(this.#storePath, { recursive: true });
+    this.#dirEnsured = true;
   }
 
   /** Write full issue data to store (meta.json + body.md + comments/). */
@@ -114,6 +129,7 @@ export class IssueStore {
 
   /** List all issue numbers in store. */
   async listIssues(): Promise<number[]> {
+    await this.ensureDir();
     const numbers: number[] = [];
 
     try {
@@ -126,6 +142,13 @@ export class IssueStore {
       }
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
+        // Directory was ensured above but disappeared — race condition
+        // or external deletion. Return empty rather than crash, but log
+        // so the situation is traceable.
+        // deno-lint-ignore no-console
+        console.debug(
+          `[IssueStore] NotFound after ensureDir for "${this.#storePath}"`,
+        );
         return [];
       }
       throw error;

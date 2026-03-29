@@ -47,7 +47,7 @@ export class ClosureAdapter {
     }
 
     // Get step definition and check if it's a closure step
-    const stepDef = (stepsRegistry as unknown as StepRegistry).steps?.[stepId];
+    const stepDef = (stepsRegistry as StepRegistry).steps[stepId];
     if (!stepDef) {
       return null;
     }
