@@ -475,3 +475,84 @@ Deno.test("acquireLock: corrupt lock file is treated as stale", async () => {
     await Deno.remove(tmp, { recursive: true });
   }
 });
+
+Deno.test("acquireLock: lock older than 30 minutes is treated as stale even with alive PID", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lockPath = `${tmp}/.lock.default`;
+
+    // Simulate a lock from the current process (alive) but 31 minutes old
+    const oldTime = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+    await Deno.mkdir(tmp, { recursive: true });
+    await Deno.writeTextFile(
+      lockPath,
+      JSON.stringify({ pid: Deno.pid, acquiredAt: oldTime }),
+    );
+
+    // Should detect as stale via timeout and reclaim
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+    await lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: lock within 30 minutes from alive PID is NOT stale", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lockPath = `${tmp}/.lock.default`;
+
+    // Simulate a recent lock from the current process (alive, within timeout)
+    await Deno.mkdir(tmp, { recursive: true });
+    await Deno.writeTextFile(
+      lockPath,
+      JSON.stringify({ pid: Deno.pid, acquiredAt: new Date().toISOString() }),
+    );
+
+    // Should NOT reclaim — PID alive and within timeout
+    const lock = await store.acquireLock("default");
+    assertEquals(lock, null);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: isProcessAlive uses ps -p (cross-user safe)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lockPath = `${tmp}/.lock.default`;
+
+    // PID 1 (launchd/init) is always alive but owned by root.
+    // With the old kill -0 approach, this would return false (EPERM).
+    // With ps -p, it correctly returns true → lock should NOT be reclaimed.
+    await Deno.mkdir(tmp, { recursive: true });
+    await Deno.writeTextFile(
+      lockPath,
+      JSON.stringify({ pid: 1, acquiredAt: new Date().toISOString() }),
+    );
+
+    const lock = await store.acquireLock("default");
+    assertEquals(lock, null);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: release is idempotent (double release does not throw)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+
+    await lock!.release();
+    // Second release — file already gone, should not throw
+    await lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});

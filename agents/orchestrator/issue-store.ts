@@ -15,15 +15,23 @@
 
 import type { IssueWorkflowState } from "./workflow-types.ts";
 
-/** Check if a process is still running. Uses `kill -0` (no signal sent). */
-function isProcessAlive(pid: number): boolean {
+/**
+ * Check if a process is still running.
+ *
+ * Uses `ps -p` instead of `kill -0` because kill(2) returns EPERM when
+ * the caller's UID differs from the target's, making it indistinguishable
+ * from "process not found" on macOS. `ps -p` reads the process table
+ * regardless of UID.
+ */
+async function isProcessAlive(pid: number): Promise<boolean> {
   try {
-    const cmd = new Deno.Command("kill", {
-      args: ["-0", String(pid)],
+    const cmd = new Deno.Command("ps", {
+      args: ["-p", String(pid)],
       stdout: "null",
       stderr: "null",
     });
-    return cmd.outputSync().code === 0;
+    const output = await cmd.output();
+    return output.code === 0;
   } catch {
     return false;
   }
@@ -266,8 +274,8 @@ export class IssueStore {
       release: async () => {
         try {
           await Deno.remove(lockPath);
-        } catch {
-          // Lock file already removed -- not fatal
+        } catch (error) {
+          if (!(error instanceof Deno.errors.NotFound)) throw error;
         }
       },
     };
@@ -289,7 +297,7 @@ export class IssueStore {
     let stale = false;
     try {
       const info = JSON.parse(text) as { pid: number; acquiredAt: string };
-      if (!isProcessAlive(info.pid)) {
+      if (!(await isProcessAlive(info.pid))) {
         stale = true;
       } else {
         // PID alive — fall back to time-based check for PID recycling
