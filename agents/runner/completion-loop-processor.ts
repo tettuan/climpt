@@ -226,7 +226,7 @@ export class CompletionLoopProcessor {
 
     // Step 1: Prompt resolution
     let prompt: string;
-    let promptSource: "user" | "fallback";
+    let promptSource: "user";
     let promptType:
       | "retry"
       | typeof STEP_PHASE.INITIAL

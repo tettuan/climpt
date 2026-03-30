@@ -7,16 +7,13 @@
  * Scenarios:
  * 1. system.md with {uv-*} variables -> source="file", content from file
  * 2. system.md missing               -> source="fallback", generic template
- * 3. Step prompt file exists          -> source="file", content from file
- * 4. Step prompt file missing         -> source="fallback", embedded template
+ * 3. Step prompt file exists          -> source="user", content from file
+ * 4. Step prompt file missing         -> throws PR-C3L-004 error
  */
 
 import { join } from "@std/path";
 import { ensureDir } from "@std/fs";
-import {
-  createFallbackProvider,
-  PromptResolver,
-} from "../../../agents/common/prompt-resolver.ts";
+import { PromptResolver } from "../../../agents/common/prompt-resolver.ts";
 import {
   addStepDefinition,
   createEmptyRegistry,
@@ -170,16 +167,6 @@ async function scenarioStepPrompt(
 ): Promise<void> {
   const promptsDir = join(agentDir, "prompts");
 
-  // Build a FallbackPromptProvider for step prompts
-  const fallback = createFallbackProvider({
-    initial_issue: `# GitHub Issue #{uv-issue}
-
-Work on completing the requirements in Issue #{uv-issue}.
-
-Review the issue, understand the requirements, and begin implementation.
-`,
-  });
-
   // --- Scenario 3: Step prompt file EXISTS ---
   header("Scenario 3: Step prompt file EXISTS");
 
@@ -208,7 +195,7 @@ You are beginning work on Issue #{uv-issue}.
 `,
   );
 
-  const resolver3 = new PromptResolver(registry, fallback, {
+  const resolver3 = new PromptResolver(registry, {
     workingDir: TMPDIR,
     allowMissingVariables: true,
   });
@@ -219,32 +206,35 @@ You are beginning work on Issue #{uv-issue}.
 
   printResult(result3);
 
-  // --- Scenario 4: Step prompt file MISSING ---
-  header("Scenario 4: Step prompt file MISSING (fallback)");
-  console.log("  Removing step prompt file to trigger fallback...\n");
+  // --- Scenario 4: Step prompt file MISSING (throws) ---
+  header("Scenario 4: Step prompt file MISSING (throws PR-C3L-004)");
+  console.log("  Removing step prompt file to trigger error...\n");
 
   await Deno.remove(join(stepDir, "f_default.md"));
 
-  const resolver4 = new PromptResolver(registry, fallback, {
+  const resolver4 = new PromptResolver(registry, {
     workingDir: TMPDIR,
     allowMissingVariables: true,
   });
 
-  const result4 = await resolver4.resolve("initial.issue", {
-    uv: { issue: "42" },
-  });
-
-  printResult(result4);
+  try {
+    await resolver4.resolve("initial.issue", {
+      uv: { issue: "42" },
+    });
+    console.log("  ERROR: Expected PR-C3L-004 but resolve succeeded");
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`  Correctly threw: ${msg}`);
+  }
 
   // --- Comparison ---
   header("Comparison: Step prompt present vs absent");
   console.log(
-    `  With file    -> source="${result3.source}", has custom workflow`,
+    `  With file    -> source="${result3.source}", content from C3L prompt`,
   );
   console.log(
-    `  Without file -> source="${result4.source}", fallback template`,
+    `  Without file -> throws PR-C3L-004 (no fallback)`,
   );
-  console.log(`  Content differs: ${result3.content !== result4.content}`);
 }
 
 // ---------------------------------------------------------------------------

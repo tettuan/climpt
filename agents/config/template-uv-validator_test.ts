@@ -396,13 +396,13 @@ Deno.test("template-uv-validator - adaptation path resolves correctly", async ()
 });
 
 // =============================================================================
-// 9. Both C3L file and fallback contribute UV vars
+// 9. Only C3L file UVs are checked (fallback templates removed)
 // =============================================================================
 
-Deno.test("template-uv-validator - both C3L file and fallback UVs are checked", async () => {
+Deno.test("template-uv-validator - only C3L file UVs are checked", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    // C3L prompt uses {uv-custom_var}
+    // C3L prompt uses {uv-custom_var} only
     await createPromptFile(
       dir,
       "steps",
@@ -412,8 +412,7 @@ Deno.test("template-uv-validator - both C3L file and fallback UVs are checked", 
       "Custom: {uv-custom_var}",
     );
 
-    // "initial_issue" fallback uses {uv-issue}
-    // Together they require both "custom_var" and "issue"
+    // uvVariables declares custom_var (used in C3L) and issue (not used anywhere)
     const registry = registryWith("initial.issue", {
       c2: "initial",
       c3: "issue",
@@ -426,7 +425,8 @@ Deno.test("template-uv-validator - both C3L file and fallback UVs are checked", 
 
     assertEquals(result.valid, true);
     assertEquals(result.errors.length, 0);
-    assertEquals(result.warnings.length, 0);
+    // "issue" is declared but not used in C3L file → 1 warning
+    assertEquals(result.warnings.length, 1);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

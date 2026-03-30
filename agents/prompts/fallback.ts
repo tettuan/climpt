@@ -1,7 +1,6 @@
 /**
  * Fallback prompt provider for when Climpt is unavailable
  */
-import { prFallbackNoTemplate } from "../shared/errors/config-errors.ts";
 
 export interface FallbackPromptProvider {
   get(stepId: string, variables: Record<string, string>): string;
@@ -269,7 +268,7 @@ When complete, output the structured signal of type: {uv-signal_type}
   get(stepId: string, variables: Record<string, string>): string {
     const template = this.templates[stepId];
     if (!template) {
-      throw prFallbackNoTemplate(stepId);
+      throw new Error(`No fallback template for step: ${stepId}`);
     }
 
     return this.substitute(template, variables);
@@ -314,8 +313,7 @@ When complete, output the structured signal of type: {uv-signal_type}
 /**
  * Get the default fallback templates map.
  *
- * Returns a Record<string, string> suitable for passing to
- * createFallbackProvider() in prompt-resolver.ts.
+ * Returns a Record<string, string> of all default fallback templates.
  */
 export function getDefaultFallbackTemplates(): Record<string, string> {
   return new DefaultFallbackProvider().getTemplates();

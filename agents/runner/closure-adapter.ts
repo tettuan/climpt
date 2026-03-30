@@ -37,7 +37,7 @@ export class ClosureAdapter {
     stepId: string,
     ctx: RuntimeContext,
     uvVariables?: Record<string, string>,
-  ): Promise<{ content: string; source: "user" | "fallback" } | null> {
+  ): Promise<{ content: string; source: "user" } | null> {
     const stepPromptResolver = this.deps.getStepPromptResolver();
     const stepsRegistry = this.deps.getStepsRegistry();
 

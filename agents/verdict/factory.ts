@@ -6,15 +6,11 @@
  */
 
 import type { AgentDefinition } from "../src_common/types.ts";
-import {
-  createFallbackProvider,
-  PromptResolver,
-} from "../common/prompt-resolver.ts";
+import { PromptResolver } from "../common/prompt-resolver.ts";
 import {
   createEmptyRegistry,
   loadStepRegistry,
 } from "../common/step-registry.ts";
-import { getDefaultFallbackTemplates } from "../prompts/fallback.ts";
 import { join } from "@std/path";
 import type { VerdictHandler, VerdictStepIds } from "./types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
@@ -286,8 +282,7 @@ export async function createRegistryVerdictHandler(
   } catch {
     registry = createEmptyRegistry(definition.name);
   }
-  const fallback = createFallbackProvider(getDefaultFallbackTemplates());
-  const promptResolver = new PromptResolver(registry, fallback, {
+  const promptResolver = new PromptResolver(registry, {
     workingDir: Deno.cwd(),
     configSuffix: registry.c1,
   });

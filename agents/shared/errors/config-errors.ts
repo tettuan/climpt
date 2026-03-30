@@ -713,37 +713,17 @@ export function prC3lNoPrompt(
   );
 }
 
-// --- PR-FALLBACK: Fallback availability and control ---
+// --- PR-C3L-004: C3L prompt file not found ---
 
-export function prFallbackNoTemplate(stepId: string): ConfigError {
-  return new ConfigError(
-    "PR-FALLBACK-001",
-    `No fallback template for step: ${stepId}.`,
-    `Each step ID must have a corresponding fallback template defined in the DefaultFallbackProvider. See design/08_step_flow_design.md.`,
-    `Add a fallback template for step "${stepId}" in agents/prompts/fallback.ts, or use an existing step ID.`,
-    "prompts/",
-  );
-}
-
-export function prFallbackNotFound(
-  fallbackKey: string,
+export function prC3lPromptNotFound(
   stepId: string,
+  triedPath: string,
 ): ConfigError {
   return new ConfigError(
-    "PR-FALLBACK-002",
-    `No fallback prompt found for key: "${fallbackKey}" (step: ${stepId}).`,
-    `Each step must have a fallbackKey that maps to an entry in the fallback templates. See design/08_step_flow_design.md.`,
-    `Add a fallback template for key "${fallbackKey}" in the fallback provider, or update step "${stepId}" to use an existing fallbackKey.`,
-    "prompts/",
-  );
-}
-
-export function prFallbackNotAllowed(stepId: string): ConfigError {
-  return new ConfigError(
-    "PR-FALLBACK-003",
-    `Fallback not allowed for step "${stepId}" but C3L resolution failed.`,
-    `Flow Loop enforces C3L-only prompt resolution (CHANGELOG: "no fallback prompt paths"). When allowFallback is false, reaching the fallback path is a configuration error. See design/08_step_flow_design.md.`,
-    `Add a valid C3L prompt file for step "${stepId}" under the configured prompts directory. Flow Loop steps must resolve via C3L — embedded fallback prompts are not permitted.`,
+    "PR-C3L-004",
+    `C3L prompt file not found for step "${stepId}" (tried: ${triedPath}).`,
+    `All steps must have a C3L prompt file. Embedded fallback prompts are not supported. See design/08_step_flow_design.md.`,
+    `Add a C3L prompt file for step "${stepId}" under the configured prompts directory at the expected path: ${triedPath}.`,
     "prompts/",
   );
 }
