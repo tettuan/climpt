@@ -59,6 +59,33 @@ async function setupTempAgent(
   const agentDir = join(TMPDIR, `.agent/${agentName}`);
   await ensureDir(join(agentDir, "prompts"));
 
+  // Create breakdown config files required by C3LPromptLoader / runBreakdown
+  const configDir = join(TMPDIR, ".agent/climpt/config");
+  await ensureDir(configDir);
+
+  // -app.yml: tells breakdown where to find prompts
+  await Deno.writeTextFile(
+    join(configDir, `${agentName}-steps-app.yml`),
+    `working_dir: ".agent/${agentName}"
+app_prompt:
+  base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"
+`,
+  );
+
+  // -user.yml: validates c2/c3 parameter patterns
+  await Deno.writeTextFile(
+    join(configDir, `${agentName}-steps-user.yml`),
+    `params:
+  two:
+    directiveType:
+      pattern: "^(initial|continuation)$"
+    layerType:
+      pattern: "^(issue)$"
+`,
+  );
+
   // Build StepRegistry in-memory
   const registry = createEmptyRegistry(agentName, "steps", "1.0.0");
   registry.userPromptsBase = `.agent/${agentName}/prompts`;
@@ -258,9 +285,13 @@ async function main(): Promise<void> {
     console.log(`
   Prompt resolution follows a two-tier strategy:
 
-    1. Try user file  -> .agent/{name}/prompts/system.md
-                         .agent/{name}/prompts/steps/{c2}/{c3}/f_{edition}.md
-    2. Fall back      -> Embedded template (DefaultFallbackProvider)
+    System prompts:
+      1. Try user file  -> .agent/{name}/prompts/system.md
+      2. Fall back      -> Embedded generic system template
+
+    Step prompts (C3L-only):
+      1. Try C3L file   -> .agent/{name}/prompts/{c1}/{c2}/{c3}/f_{edition}.md
+      2. No fallback    -> Throws PR-C3L-004 error
 
   When {uv-*} variables appear in your prompt files, they are
   substituted with runtime values (agent name, issue number, etc.).
