@@ -2,6 +2,62 @@
   "version": "1.13.16",
   "entries": [
     {
+      "id": "builder-01_quickstart",
+      "path": "../agents/docs/builder/01_quickstart.md",
+      "category": "builder-guides",
+      "title": "Agent Creation Quickstart",
+      "bytes": 28836
+    },
+    {
+      "id": "builder-02_agent_definition",
+      "path": "../agents/docs/builder/02_agent_definition.md",
+      "category": "builder-guides",
+      "title": "Agent 定義",
+      "bytes": 17932
+    },
+    {
+      "id": "builder-03_builder_guide",
+      "path": "../agents/docs/builder/03_builder_guide.md",
+      "category": "builder-guides",
+      "title": "Agent 構築ガイド（設定→実行→プロンプト連鎖）",
+      "bytes": 11431
+    },
+    {
+      "id": "builder-04_config_system",
+      "path": "../agents/docs/builder/04_config_system.md",
+      "category": "builder-guides",
+      "title": "設定システム",
+      "bytes": 3479
+    },
+    {
+      "id": "builder-05_troubleshooting",
+      "path": "../agents/docs/builder/05_troubleshooting.md",
+      "category": "builder-guides",
+      "title": "Agent 開発トラブルシューティング",
+      "bytes": 13630
+    },
+    {
+      "id": "builder-06_workflow_setup",
+      "path": "../agents/docs/builder/06_workflow_setup.md",
+      "category": "builder-guides",
+      "title": "Workflow Setup",
+      "bytes": 8305
+    },
+    {
+      "id": "builder-07_github_integration",
+      "path": "../agents/docs/builder/07_github_integration.md",
+      "category": "builder-guides",
+      "title": "GitHub Integration Guide",
+      "bytes": 16237
+    },
+    {
+      "id": "builder-README",
+      "path": "../agents/docs/builder/README.md",
+      "category": "builder-guides",
+      "title": "Agent Builder Guide",
+      "bytes": 4738
+    },
+    {
       "id": "c3l_specification_v0.1",
       "path": "c3l_specification_v0.1.md",
       "category": "guides",

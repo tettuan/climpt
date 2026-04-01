@@ -54,7 +54,15 @@ const EXTRA_SOURCES: Array<{
   category: string;
   /** ID prefix (replaces auto-generated prefix). */
   idPrefix: string;
+  /** Directories to skip (walked entries handle them separately). */
+  skip?: RegExp[];
 }> = [
+  {
+    path: "agents/docs/builder",
+    category: "builder-guides",
+    idPrefix: "builder",
+    skip: [/reference\//],
+  },
   {
     path: "agents/docs/builder/reference/blueprint",
     category: "reference",
@@ -96,10 +104,11 @@ async function collectExtraSource(
 
   if (stat.isDirectory) {
     const files: string[] = [];
+    const skipPatterns = [/index\.md/, ...(source.skip ?? [])];
     for await (
       const file of walk(source.path, {
         exts: [".md", ".json"],
-        skip: [/index\.md/],
+        skip: skipPatterns,
       })
     ) {
       if (file.isFile) files.push(file.path);
