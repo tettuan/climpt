@@ -312,7 +312,7 @@ Worktree 分離と実行後のファイナライズを制御します。
 | runner.verdict.config.maxIterations | `10`                    | `AGENT_LIMITS.DEFAULT_MAX_ITERATIONS` |
 | runner.boundaries.permissionMode    | `"plan"`                | `defaults.ts` にハードコード          |
 | runner.boundaries.allowedTools      | `["*"]`                 | `defaults.ts` にハードコード          |
-| runner.integrations.github.enabled  | `false`                 | `defaults.ts` にハードコード          |
+| runner.integrations.github.enabled  | `true`                  | `defaults.ts` にハードコード          |
 | runner.execution.worktree.enabled   | `false`                 | `defaults.ts` にハードコード          |
 | runner.logging.directory            | `"logs"`                | `PATHS.LOGS_DIR`                      |
 | runner.logging.format               | `"jsonl"`               | `defaults.ts` にハードコード          |

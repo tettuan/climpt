@@ -153,6 +153,8 @@ function createTestDefinition(
       boundaries: {
         allowedTools: ["Read"],
         permissionMode: "default",
+      },
+      integrations: {
         github: {
           enabled: true,
           labels: {},

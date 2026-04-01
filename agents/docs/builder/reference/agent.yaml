@@ -645,11 +645,14 @@ runner:
       # enabled
       # Description : Enable GitHub integration.
       # Type        : boolean
-      # Required    : yes
-      # Default     : none (must be specified)
+      # Required    : no
+      # Default     : true (applyDefaults)
       # Why         : When true, the runner uses gh CLI to
       #               read issue state, apply labels, and
       #               optionally close issues on completion.
+      #               Set to false to disable all GitHub
+      #               integration (MCP tool, boundary hooks,
+      #               closure prompt adaptation).
       enabled: true
 
       # labels (optional)
@@ -772,8 +775,8 @@ runner:
       # enabled
       # Description : Enable git worktree mode.
       # Type        : boolean
-      # Required    : yes
-      # Default     : none (must be specified)
+      # Required    : no
+      # Default     : false (applyDefaults)
       # Why         : When true, the runner creates a worktree
       #               before execution and merges/cleans up
       #               after. Requires --branch or auto-naming.

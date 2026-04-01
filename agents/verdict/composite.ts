@@ -118,13 +118,11 @@ export class CompositeVerdictHandler extends BaseVerdictHandler {
             { issueNumber, repo },
             stateChecker,
           );
+          const rawGithub = this._definition.runner.integrations?.github;
           handler = new ExternalStateVerdictAdapter(issueHandler, {
             issueNumber,
             repo,
-            github: this._definition.runner.integrations?.github as {
-              labels?: { completion?: { add?: string[]; remove?: string[] } };
-              defaultClosureAction?: string;
-            },
+            github: rawGithub?.enabled !== false ? rawGithub : undefined,
           }, this.stepIds);
           break;
         }

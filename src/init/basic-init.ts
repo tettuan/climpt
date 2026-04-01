@@ -19,11 +19,10 @@ export async function initBasic(
   const result = createInitResult();
   const fullWorkingDir = resolve(projectRoot, workingDir);
 
-  // Create working directories (config/, prompts/, schema/ only)
+  // Create working directories (config/, prompts/ only)
   const directories = [
     "config",
     "prompts",
-    "schema",
   ];
 
   const createPromises = directories.map(async (dir) => {

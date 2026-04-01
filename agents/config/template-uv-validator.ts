@@ -17,7 +17,6 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { DefaultFallbackProvider } from "../prompts/fallback.ts";
 import { join } from "@std/path";
 
 // ---------------------------------------------------------------------------
@@ -135,14 +134,11 @@ export async function validateTemplateUvConsistency(
   const stepsRaw = asRecord(registry.steps) ?? {};
   const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
 
-  const fallbackProvider = new DefaultFallbackProvider();
-
   // Phase 1: Collect step metadata and prompt file paths
   interface StepInfo {
     stepId: string;
     declared: Set<string>;
     promptPath: string;
-    fallbackKey: string | null;
   }
 
   const stepsToValidate: StepInfo[] = [];
@@ -155,7 +151,6 @@ export async function validateTemplateUvConsistency(
     const c3 = step.c3;
     const edition = step.edition;
     const adaptation = step.adaptation;
-    const fallbackKey = step.fallbackKey;
     const uvVariables = step.uvVariables;
 
     if (
@@ -188,9 +183,6 @@ export async function validateTemplateUvConsistency(
       stepId,
       declared,
       promptPath,
-      fallbackKey: typeof fallbackKey === "string" && fallbackKey !== ""
-        ? fallbackKey
-        : null,
     });
   }
 
@@ -201,37 +193,20 @@ export async function validateTemplateUvConsistency(
 
   // Phase 3: Compare template usage against declarations
   for (let i = 0; i < stepsToValidate.length; i++) {
-    const { stepId, declared, fallbackKey } = stepsToValidate[i];
+    const { stepId, declared } = stepsToValidate[i];
     const promptContent = promptContents[i];
 
     const used = new Set<string>();
 
-    // Source 1: C3L prompt file
+    // Extract UV variables from C3L prompt file
     if (promptContent !== null) {
       for (const v of extractUvVariables(promptContent)) {
         used.add(v);
       }
     }
 
-    // Source 2: Fallback template (only when a C3L prompt file exists)
-    // When promptContent is null, the step has no C3L file and the fallback
-    // is a system-provided safety net -- its UV requirements should not be
-    // imposed on the agent config.
-    if (
-      promptContent !== null && fallbackKey !== null &&
-      fallbackProvider.hasTemplate(fallbackKey)
-    ) {
-      const fallbackTemplates = fallbackProvider.getTemplates();
-      const fallbackContent = fallbackTemplates[fallbackKey];
-      if (fallbackContent) {
-        for (const v of extractUvVariables(fallbackContent)) {
-          used.add(v);
-        }
-      }
-    }
-
-    // Skip if neither source yielded content
-    if (promptContent === null && used.size === 0) {
+    // Skip if no prompt content
+    if (promptContent === null) {
       continue;
     }
 

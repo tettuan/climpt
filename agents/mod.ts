@@ -47,6 +47,7 @@ export type {
   FinalizeConfig,
   FlowStepDefinition,
   GitHubConfig,
+  GitHubLabelsConfig,
   IterationBudgetVerdictConfig,
   IterationConfig,
   IterationSummary,

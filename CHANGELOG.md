@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.16] - 2026-04-01
+
+### Fixed
+- Resolve 15 GAPs between GitHub Integration docs and implementation
+- Resolve 6 implementation/docs issues from code review
+- Align enabled-flag defaults in docs with applyDefaults() source of truth
+- Auto-cleanup orchestrator lock on process termination
+- Orchestrator lock uses ps -p for cross-user PID check
+- Resolve lint error (require-await) in issue-store release()
+- Update initBasic test expectation after schema/ directory removal
+
+### Changed
+- Remove allowFallback — enforce C3L-only prompt resolution
+- Add agents/docs/builder/ to docs manifest as builder-guides category
+
+### Added
+- GitHub Integration Guide to builder docs
+- Clarify issue comment routes and gh command mapping in GitHub Integration Guide
+- Add C3L config setup to example 25 after allowFallback removal
+- Version consistency check to local CI
+
 ## [1.13.15] - 2026-03-28
 
 ### Fixed

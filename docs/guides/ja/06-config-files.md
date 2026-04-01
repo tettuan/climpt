@@ -21,7 +21,7 @@ your-project/
 │   │   ├── git/{c2}/{c3}/f_default.md
 │   │   ├── meta/{c2}/{c3}/f_default.md
 │   │   └── code/{c2}/{c3}/f_default.md
-│   ├── schema/                    # JSON Schema（オプション）
+│   ├── frontmatter-to-schema/     # 生成された JSON Schema（generate-registry で作成）
 │   └── registry.json              # コマンドレジストリ
 ├── .deno/bin/                     # CLI 実行ファイル（MCP のみなら不要）
 │   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test

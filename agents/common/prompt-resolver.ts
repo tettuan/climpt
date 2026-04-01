@@ -1,12 +1,11 @@
 /**
  * Prompt Resolver - External Prompt Resolution System
  *
- * Resolves prompts via breakdown (C3L) with conditional fallback.
+ * Resolves prompts via breakdown (C3L) only. No fallback to embedded prompts.
  * Key features:
  * - Uses C3LPromptLoader to call runBreakdown
- * - Falls back to embedded prompts only when file not found AND allowFallback=true
  * - Throws PR-C3L-002 on non-file-not-found C3L errors (UV, frontmatter, YAML)
- * - Throws PR-FALLBACK-003 when fallback reached but not allowed
+ * - Throws PR-C3L-004 when C3L prompt file cannot be found
  * - Variable substitution for {uv-xxx} and {input_text}
  * - Frontmatter removal for clean prompt content
  */
@@ -17,8 +16,7 @@ import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import {
   prC3lBreakdownFailed,
-  prFallbackNotAllowed,
-  prFallbackNotFound,
+  prC3lPromptNotFound,
   prResolveMissingInputText,
   prResolveMissingRequiredUv,
   prResolveUnknownStepId,
@@ -33,7 +31,7 @@ export interface PromptResolutionResult {
   content: string;
 
   /** Source of the prompt */
-  source: "user" | "fallback";
+  source: "user";
 
   /** Actual file path if resolved from user file */
   promptPath?: string;
@@ -60,29 +58,6 @@ export interface PromptVariables {
 }
 
 /**
- * Fallback prompt provider interface
- *
- * Implement this to provide embedded/default prompts
- */
-export interface FallbackPromptProvider {
-  /**
-   * Get fallback prompt by key
-   *
-   * @param key - Fallback key from step definition
-   * @returns Prompt content or undefined if not found
-   */
-  getPrompt(key: string): string | undefined;
-
-  /**
-   * Check if fallback exists
-   *
-   * @param key - Fallback key to check
-   * @returns true if fallback exists
-   */
-  hasPrompt(key: string): boolean;
-}
-
-/**
  * Options for PromptResolver
  */
 export interface PromptResolverOptions {
@@ -103,11 +78,11 @@ export interface PromptResolverOptions {
 }
 
 /**
- * PromptResolver - Resolves prompts via breakdown (C3L) with fallback
+ * PromptResolver - Resolves prompts via breakdown (C3L) only
  *
  * Usage:
  * ```typescript
- * const resolver = new PromptResolver(registry, fallbackProvider, { configSuffix: "steps" });
+ * const resolver = new PromptResolver(registry, { configSuffix: "steps" });
  * const result = await resolver.resolve("initial.issue", {
  *   uv: { issue: "123", repository: "owner/repo" }
  * });
@@ -125,12 +100,10 @@ export class PromptResolver {
    * Create a new PromptResolver
    *
    * @param registry - Step registry containing step definitions
-   * @param fallbackProvider - Provider for fallback prompts
    * @param options - Resolver options
    */
   constructor(
     private readonly registry: StepRegistry,
-    private readonly fallbackProvider: FallbackPromptProvider,
     options: PromptResolverOptions = {},
   ) {
     this.workingDir = options.workingDir ?? Deno.cwd();
@@ -151,23 +124,20 @@ export class PromptResolver {
   /**
    * Resolve a prompt by step ID
    *
-   * Resolution order:
-   * 1. Try breakdown via C3LPromptLoader
-   * 2. Fall back to embedded prompt via fallbackProvider (if allowed)
+   * Resolution: Try breakdown via C3LPromptLoader. Throws if not found.
    *
    * @param stepId - Step identifier to resolve
    * @param variables - Variables for substitution
-   * @param overrides - Optional overrides (adaptation, allowFallback)
+   * @param overrides - Optional overrides (adaptation)
    * @returns Resolution result with content and metadata
    */
   async resolve(
     stepId: string,
     variables?: PromptVariables,
-    overrides?: { adaptation?: string; allowFallback?: boolean },
+    overrides?: { adaptation?: string },
   ): Promise<PromptResolutionResult> {
     // Default variables if not provided
     variables = variables ?? {};
-    const allowFallback = overrides?.allowFallback ?? true;
     const step = this.registry.steps[stepId];
     if (!step) {
       throw prResolveUnknownStepId(stepId);
@@ -178,26 +148,16 @@ export class PromptResolver {
       ? { ...step, adaptation: overrides.adaptation }
       : step;
 
-    // Try breakdown first
+    // Try breakdown
     const breakdownResult = await this.tryBreakdown(effectiveStep, variables);
     if (breakdownResult) {
       return breakdownResult;
     }
 
-    // Breakdown returned null (file not found) — fallback or throw
-    if (!allowFallback) {
-      throw prFallbackNotAllowed(effectiveStep.stepId);
-    }
-
+    // Breakdown returned null (file not found) — throw
     const c3lPath = this.buildC3LPath(effectiveStep);
     const c3lPathStr = this.formatC3LPath(c3lPath);
-    // deno-lint-ignore no-console
-    console.warn(
-      `[Prompt] Fallback: User file not found for "${effectiveStep.stepId}" (tried: ${c3lPathStr}), using fallback prompt (key: "${effectiveStep.fallbackKey}")`,
-    );
-
-    // Fall back to embedded prompt
-    return this.useFallback(effectiveStep, variables);
+    throw prC3lPromptNotFound(effectiveStep.stepId, c3lPathStr);
   }
 
   /**
@@ -240,8 +200,8 @@ export class PromptResolver {
         throw prC3lBreakdownFailed(step.stepId, result.error);
       }
       // No error detail OR ParameterParsingError (breakdown doesn't recognize
-      // the directive type / parameters) = prompt cannot be resolved via C3L.
-      // Return null to allow fallback decision by caller.
+      // the directive type / parameters) = prompt file not found.
+      // Return null so caller throws PR-C3L-004.
       return null;
     }
 
@@ -264,41 +224,10 @@ export class PromptResolver {
    * type or other CLI parameters. This is NOT a user-correctable C3L
    * template issue — it means the step simply can't be resolved via
    * breakdown (e.g., the c2 value is not a valid breakdown directive type).
-   * Treat this the same as "file not found" to allow fallback.
+   * Treat this the same as "file not found".
    */
   private isParameterParsingError(error: string): boolean {
     return error.includes("ParameterParsingError");
-  }
-
-  /**
-   * Use fallback prompt
-   *
-   * @param step - Step definition
-   * @param variables - Variables for substitution
-   * @returns Resolution result
-   */
-  private useFallback(
-    step: PromptStepDefinition,
-    variables: PromptVariables,
-  ): PromptResolutionResult {
-    const rawContent = this.fallbackProvider.getPrompt(step.fallbackKey);
-    if (!rawContent) {
-      throw prFallbackNotFound(step.fallbackKey, step.stepId);
-    }
-
-    // deno-lint-ignore no-console
-    console.warn(
-      `[Prompt] Fallback content for "${step.stepId}": ${rawContent.length} chars (key: "${step.fallbackKey}")`,
-    );
-
-    const content = this.processContent(rawContent, step, variables);
-
-    return {
-      content,
-      source: "fallback",
-      stepId: step.stepId,
-      substitutedVariables: this.getSubstitutedVariables(variables),
-    };
   }
 
   /**
@@ -434,7 +363,7 @@ export class PromptResolver {
   }
 
   /**
-   * Check if a step can be resolved (has user file or fallback)
+   * Check if a step can be resolved (has user file)
    *
    * @param stepId - Step ID to check
    * @returns true if step can be resolved
@@ -452,8 +381,7 @@ export class PromptResolver {
       await Deno.stat(userPath);
       return true;
     } catch {
-      // Check fallback
-      return this.fallbackProvider.hasPrompt(step.fallbackKey);
+      return false;
     }
   }
 
@@ -560,23 +488,4 @@ export function parseFrontmatter(
   }
 
   return result;
-}
-
-/**
- * Create a simple in-memory fallback provider
- *
- * @param prompts - Map of fallback key to prompt content
- * @returns FallbackPromptProvider instance
- */
-export function createFallbackProvider(
-  prompts: Record<string, string>,
-): FallbackPromptProvider {
-  return {
-    getPrompt(key: string): string | undefined {
-      return prompts[key];
-    },
-    hasPrompt(key: string): boolean {
-      return key in prompts;
-    },
-  };
 }

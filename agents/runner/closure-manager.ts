@@ -34,11 +34,9 @@ import { WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
 import {
-  createFallbackProvider,
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
 } from "../common/prompt-resolver.ts";
-import { getDefaultFallbackTemplates } from "../prompts/fallback.ts";
 import type { SchemaManager } from "./schema-manager.ts";
 
 export interface ClosureManagerDeps {
@@ -144,7 +142,6 @@ export class ClosureManager {
       if (hasWorkSteps) {
         this.stepPromptResolver = new StepPromptResolver(
           stepsRegistry as unknown as StepRegistry,
-          createFallbackProvider(getDefaultFallbackTemplates()),
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
         logger.debug("StepPromptResolver initialized (work steps detected)");
@@ -352,11 +349,10 @@ export class ClosureManager {
       return null;
     }
 
-    // Flow Loop: C3L-only — no fallback allowed, errors propagate
+    // Flow Loop: C3L-only, errors propagate
     return await this.stepPromptResolver.resolve(
       stepId,
       { uv: variables },
-      { allowFallback: false },
     );
   }
 

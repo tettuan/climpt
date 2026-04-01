@@ -324,15 +324,15 @@ export function parseCliArgsForLogging(
   let c3: string;
 
   if (configPrefix) {
-    // With configPrefix (e.g., "git"): c1 = "climpt-git", positional = [c2, c3]
+    // With configPrefix (e.g., "git"): c1 = configPrefix, positional = [c2, c3]
     if (positionalArgs.length < 2) return null;
-    c1 = `climpt-${configPrefix}`;
+    c1 = configPrefix;
     c2 = positionalArgs[0];
     c3 = positionalArgs[1];
   } else {
     // Without configPrefix: positional = [domain, c2, c3]
     if (positionalArgs.length < 3) return null;
-    c1 = `climpt-${positionalArgs[0]}`;
+    c1 = positionalArgs[0];
     c2 = positionalArgs[1];
     c3 = positionalArgs[2];
   }
