@@ -339,7 +339,7 @@ All defaults applied by `applyDefaults()` in `agents/config/defaults.ts`:
 | runner.verdict.config.maxIterations | `10`                    | `AGENT_LIMITS.DEFAULT_MAX_ITERATIONS` |
 | runner.boundaries.permissionMode    | `"plan"`                | hardcoded in `defaults.ts`            |
 | runner.boundaries.allowedTools      | `["*"]`                 | hardcoded in `defaults.ts`            |
-| runner.integrations.github.enabled  | `false`                 | hardcoded in `defaults.ts`            |
+| runner.integrations.github.enabled  | `true`                  | hardcoded in `defaults.ts`            |
 | runner.execution.worktree.enabled   | `false`                 | hardcoded in `defaults.ts`            |
 | runner.logging.directory            | `"logs"`                | `PATHS.LOGS_DIR`                      |
 | runner.logging.format               | `"jsonl"`               | hardcoded in `defaults.ts`            |
