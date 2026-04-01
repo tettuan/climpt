@@ -152,15 +152,29 @@ closure step の structured output に `closure_action` フィールド (`"close
 
 #### Orchestrator の GitHubClient 操作一覧
 
-| メソッド            | 説明                   |
-| ------------------- | ---------------------- |
-| `getIssueLabels`    | Issue のラベル取得     |
-| `updateIssueLabels` | Issue のラベル更新     |
-| `addIssueComment`   | Issue へのコメント追加 |
-| `createIssue`       | 新規 Issue 作成        |
-| `closeIssue`        | Issue のクローズ       |
-| `listIssues`        | Issue 一覧取得         |
-| `getIssueDetail`    | Issue 詳細取得         |
+| メソッド            | 説明                   | 内部コマンド                                   |
+| ------------------- | ---------------------- | ---------------------------------------------- |
+| `getIssueLabels`    | Issue のラベル取得     | `gh issue view <N> --json labels`              |
+| `updateIssueLabels` | Issue のラベル更新     | `gh issue edit <N> --add-label/--remove-label` |
+| `addIssueComment`   | Issue へのコメント追加 | `gh issue comment <N> --body <comment>`        |
+| `createIssue`       | 新規 Issue 作成        | `gh issue create`                              |
+| `closeIssue`        | Issue のクローズ       | `gh issue close <N>`                           |
+| `listIssues`        | Issue 一覧取得         | `gh issue list --json ...`                     |
+| `getIssueDetail`    | Issue 詳細取得         | `gh issue view <N> --json ...`                 |
+
+#### コメント投稿の経路
+
+Issue コメントは以下の2経路で投稿される。いずれも Orchestrator 層の内部であり、
+ホストプロセス（サンドボックス外）で `gh issue comment` を実行する。
+
+| 経路            | 主導者       | 用途                                                  | 実装                               |
+| --------------- | ------------ | ----------------------------------------------------- | ---------------------------------- |
+| Handoff Manager | Orchestrator | 定型の handoff 通知（`commentTemplates` で定義）      | `orchestrator/handoff-manager.ts`  |
+| OutboxProcessor | Agent        | Agent が任意に投稿するコメント（outbox に JSON 出力） | `orchestrator/outbox-processor.ts` |
+
+実行順序: Agent dispatch 完了後に OutboxProcessor（Step 7b,
+`orchestrator.ts:269`） → Handoff Manager（Step 12,
+`orchestrator.ts:370`）の順で実行される。
 
 #### Handoff Manager によるコメント投稿
 
@@ -226,6 +240,10 @@ sandbox 設定により、Agent プロセスからの外部ネットワークア
 | 11 | `gh api`                                                                                  |
 | 12 | `curl`/`wget`/`python`/`python2`/`python3`/`node`/`ruby`/`perl`/`deno` + `api.github.com` |
 | 13 | JSON `state:closed` ペイロード                                                            |
+
+> **注記**: `gh issue comment` は意図的にブロック対象外である。コメント投稿は
+> Handoff Manager および OutboxProcessor がホストプロセスで実行するため、 Agent
+> からの直接実行は sandbox のネットワークブロックのみで防止される。
 
 > **注記**: Closure step を含む全 step kind で `blockBoundaryBash: true`
 > が設定されている。Closure step
@@ -307,6 +325,7 @@ gh pr create --head <worktree-branch> --base <base-branch> --fill
 | Boundary Hook          | `agents/runner/boundary-hooks.ts`          |
 | External State Adapter | `agents/verdict/external-state-adapter.ts` |
 | Handoff Manager        | `agents/orchestrator/handoff-manager.ts`   |
+| Outbox Processor       | `agents/orchestrator/outbox-processor.ts`  |
 | GitHub Client          | `agents/orchestrator/github-client.ts`     |
 | Query Executor         | `agents/runner/query-executor.ts`          |
 | Worktree               | `agents/common/worktree.ts`                |
