@@ -268,7 +268,7 @@ export class IssueStore {
    */
   async acquireLock(
     workflowId: string,
-  ): Promise<{ release: () => Promise<void> } | null> {
+  ): Promise<{ release: () => void } | null> {
     await Deno.mkdir(this.#storePath, { recursive: true });
     const lockPath = `${this.#storePath}/.lock.${workflowId}`;
 
@@ -333,7 +333,7 @@ export class IssueStore {
     globalThis.addEventListener("unload", onUnload);
 
     return {
-      release: async () => {
+      release: () => {
         removeLock();
         detachAll();
       },
