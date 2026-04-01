@@ -556,3 +556,62 @@ Deno.test("acquireLock: release is idempotent (double release does not throw)", 
     await Deno.remove(tmp, { recursive: true });
   }
 });
+
+// === Signal / unload cleanup ===
+
+Deno.test("acquireLock: lock file is cleaned up on unload event", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+
+    const lockPath = `${tmp}/.lock.default`;
+    const stat = await Deno.stat(lockPath);
+    assertEquals(stat.isFile, true);
+
+    // Simulate process unload — dispatchEvent fires registered listeners
+    globalThis.dispatchEvent(new Event("unload"));
+
+    // Lock file should be removed by unload handler
+    await assertRejects(
+      () => Deno.stat(lockPath),
+      Deno.errors.NotFound,
+    );
+
+    // Release after unload is still safe (idempotent)
+    await lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: release detaches signal/unload handlers (no leak)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lock = await store.acquireLock("default");
+    assertEquals(lock !== null, true);
+
+    await lock!.release();
+
+    // Write a new lock file manually
+    const lockPath = `${tmp}/.lock.default`;
+    await Deno.writeTextFile(
+      lockPath,
+      JSON.stringify({
+        pid: Deno.pid,
+        acquiredAt: new Date().toISOString(),
+      }),
+    );
+
+    // Simulate unload — should NOT remove the manually-written lock
+    // because release() already detached the handler
+    globalThis.dispatchEvent(new Event("unload"));
+
+    const stat = await Deno.stat(lockPath);
+    assertEquals(stat.isFile, true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});

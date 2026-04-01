@@ -18,20 +18,43 @@ import type { IssueWorkflowState } from "./workflow-types.ts";
 /**
  * Check if a process is still running.
  *
- * Uses `ps -p` instead of `kill -0` because kill(2) returns EPERM when
- * the caller's UID differs from the target's, making it indistinguishable
- * from "process not found" on macOS. `ps -p` reads the process table
- * regardless of UID.
+ * Primary: `ps -p` reads the process table regardless of UID, so it
+ * works even when the lock owner runs as a different user.
+ *
+ * Fallback: when `ps` is unavailable (e.g. sandbox restrictions),
+ * `kill -0` via shell builtin is used. `kill -0` returns EPERM for
+ * cross-user PIDs, which we treat as "alive" (conservative).
  */
 async function isProcessAlive(pid: number): Promise<boolean> {
+  // Try ps -p first (cross-user safe)
   try {
-    const cmd = new Deno.Command("ps", {
+    const ps = new Deno.Command("ps", {
       args: ["-p", String(pid)],
       stdout: "null",
       stderr: "null",
     });
-    const output = await cmd.output();
+    const output = await ps.output();
     return output.code === 0;
+  } catch {
+    // ps unavailable — fall through to kill -0
+  }
+
+  // Fallback: shell builtin kill -0
+  // Exit 0 → alive, Exit 1 with EPERM → alive (cross-user), else → dead
+  try {
+    const sh = new Deno.Command("sh", {
+      args: ["-c", `kill -0 ${pid} 2>&1; echo "EXIT:$?"`],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const output = await sh.output();
+    const text = new TextDecoder().decode(output.stdout);
+    if (text.includes("EXIT:0")) return true;
+    // EPERM means process exists but different user — treat as alive
+    if (text.includes("Operation not permitted") || text.includes("EPERM")) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -270,13 +293,49 @@ export class IssueStore {
     await file.write(new TextEncoder().encode(info));
     file.close();
 
+    // --- Automatic cleanup on process termination ---
+    let released = false;
+
+    const removeLock = () => {
+      if (released) return;
+      released = true;
+      try {
+        Deno.removeSync(lockPath);
+      } catch {
+        // File may already be gone
+      }
+    };
+
+    const onSigint = () => {
+      removeLock();
+      detachAll();
+      Deno.exit(130); // 128 + SIGINT(2)
+    };
+    const onSigterm = () => {
+      removeLock();
+      detachAll();
+      Deno.exit(143); // 128 + SIGTERM(15)
+    };
+    const onUnload = () => removeLock();
+
+    const detachAll = () => {
+      try {
+        Deno.removeSignalListener("SIGINT", onSigint);
+      } catch { /* already removed */ }
+      try {
+        Deno.removeSignalListener("SIGTERM", onSigterm);
+      } catch { /* already removed */ }
+      globalThis.removeEventListener("unload", onUnload);
+    };
+
+    Deno.addSignalListener("SIGINT", onSigint);
+    Deno.addSignalListener("SIGTERM", onSigterm);
+    globalThis.addEventListener("unload", onUnload);
+
     return {
       release: async () => {
-        try {
-          await Deno.remove(lockPath);
-        } catch (error) {
-          if (!(error instanceof Deno.errors.NotFound)) throw error;
-        }
+        removeLock();
+        detachAll();
       },
     };
   }
