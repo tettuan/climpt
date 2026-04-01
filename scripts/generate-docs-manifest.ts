@@ -142,13 +142,10 @@ async function main(): Promise<void> {
   for await (
     const file of walk("docs", {
       exts: [".md"],
-      // Manifest targets AI consumers -- English docs suffice.
-      // Japanese guides (guides/ja/) are for human reference only.
       // internal/ docs are development-only and not distributed.
       skip: [
         /manifest\.json/,
         /index\.md/,
-        /guides\/ja\//,
         /internal\//,
       ],
     })

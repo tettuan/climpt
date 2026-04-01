@@ -19,7 +19,7 @@ your-project/
 │       │   └── {domain}-app.yml       # Per-domain configuration
 │       ├── prompts/                   # Prompt templates
 │       │   └── {c1}/{c2}/{c3}/f_{edition}.md
-│       ├── schema/                    # Schema definitions (optional)
+│       ├── frontmatter-to-schema/     # Generated JSON Schema (by generate-registry)
 │       └── registry.json              # Command registry
 ├── .deno/bin/                         # CLI executables
 │   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test
@@ -31,12 +31,12 @@ your-project/
 
 ### Directory Roles
 
-| Directory                | Role                    | Required                |
-| ------------------------ | ----------------------- | ----------------------- |
-| `.agent/climpt/config/`  | Config file storage     | Yes                     |
-| `.agent/climpt/prompts/` | Prompt templates        | Yes                     |
-| `.agent/climpt/schema/`  | JSON Schema definitions | No                      |
-| `.deno/bin/`             | CLI executables         | Not needed for MCP only |
+| Directory                              | Role                  | Required                |
+| -------------------------------------- | --------------------- | ----------------------- |
+| `.agent/climpt/config/`                | Config file storage   | Yes                     |
+| `.agent/climpt/prompts/`               | Prompt templates      | Yes                     |
+| `.agent/climpt/frontmatter-to-schema/` | Generated JSON Schema | No (auto-generated)     |
+| `.deno/bin/`                           | CLI executables       | Not needed for MCP only |
 
 ### Prompt Directory Structure
 

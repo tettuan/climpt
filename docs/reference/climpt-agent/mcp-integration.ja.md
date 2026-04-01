@@ -302,7 +302,7 @@ interface Command {
 ```json
 {
   "error": "Command not found",
-  "c1": "climpt-git",
+  "c1": "git",
   "c2": "invalid-command",
   "c3": "target"
 }
@@ -323,7 +323,7 @@ interface Command {
 ```json
 {
   "error": "Execution failed",
-  "command": "climpt-git group-commit unstaged-changes",
+  "command": "git group-commit unstaged-changes",
   "stderr": "<error output>"
 }
 ```
