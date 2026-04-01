@@ -161,52 +161,117 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
 
   /**
    * Handle boundary hook for closure steps.
-   * Performs GitHub operations: update labels and optionally close issue.
+   * Performs GitHub operations based on resolved closure action.
+   *
+   * Closure action priority:
+   *   1. AI structured output `closure_action` field (dynamic override)
+   *   2. `defaultClosureAction` from agent.json config (static)
+   *   3. `"close"` (default)
+   *
+   * Actions:
+   *   - `"close"`: close the issue only (no label changes)
+   *   - `"label-only"`: update labels only (do not close)
+   *   - `"label-and-close"`: update labels, then close the issue
    */
-  async onBoundaryHook(_payload: {
+  async onBoundaryHook(payload: {
     stepId: string;
     stepKind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
     const { issueNumber, repo, github } = this.config;
 
-    // Update labels if configured
-    if (github?.labels?.completion) {
-      const { add, remove } = github.labels.completion;
-      const labelArgs: string[] = [];
-      if (add?.length) labelArgs.push("--add-label", add.join(","));
-      if (remove?.length) labelArgs.push("--remove-label", remove.join(","));
+    const closureAction = this.resolveClosureAction(
+      payload.structuredOutput,
+      github?.defaultClosureAction,
+    );
 
-      if (labelArgs.length > 0) {
-        const args = ["issue", "edit", String(issueNumber), ...labelArgs];
-        if (repo) args.push("--repo", repo);
-        try {
-          const cmd = new Deno.Command("gh", {
-            args,
-            stdout: "piped",
-            stderr: "piped",
-          });
-          await cmd.output();
-        } catch {
-          // Non-fatal: label update failure should not stop the agent
-        }
+    // Update labels for "label-only" and "label-and-close"
+    if (closureAction !== "close") {
+      await this.updateLabels(issueNumber, repo, github?.labels?.completion);
+    }
+
+    // Close issue for "close" and "label-and-close"
+    if (closureAction !== "label-only") {
+      await this.closeIssue(issueNumber, repo);
+    }
+  }
+
+  /**
+   * Resolve the effective closure action from structured output and config.
+   */
+  private resolveClosureAction(
+    structuredOutput: Record<string, unknown> | undefined,
+    configAction: string | undefined,
+  ): "close" | "label-only" | "label-and-close" {
+    const validActions = new Set(["close", "label-only", "label-and-close"]);
+
+    // Priority 1: AI structured output override
+    if (structuredOutput) {
+      const soAction = (structuredOutput as Record<string, unknown>)
+        .closure_action;
+      if (typeof soAction === "string" && validActions.has(soAction)) {
+        return soAction as "close" | "label-only" | "label-and-close";
       }
     }
 
-    // Close issue unless defaultClosureAction is "label-only"
-    if (github?.defaultClosureAction !== "label-only") {
-      const args = ["issue", "close", String(issueNumber)];
-      if (repo) args.push("--repo", repo);
-      try {
-        const cmd = new Deno.Command("gh", {
-          args,
-          stdout: "piped",
-          stderr: "piped",
-        });
-        await cmd.output();
-      } catch {
-        // Non-fatal: issue close failure should not stop the agent
-      }
+    // Priority 2: config defaultClosureAction
+    if (configAction && validActions.has(configAction)) {
+      return configAction as "close" | "label-only" | "label-and-close";
+    }
+
+    // Priority 3: default
+    return "close";
+  }
+
+  /**
+   * Update issue labels based on completion config.
+   * Non-fatal: failures are silently caught to avoid stopping the agent.
+   */
+  private async updateLabels(
+    issueNumber: number,
+    repo: string | undefined,
+    completion: { add?: string[]; remove?: string[] } | undefined,
+  ): Promise<void> {
+    if (!completion) return;
+
+    const { add, remove } = completion;
+    const labelArgs: string[] = [];
+    if (add?.length) labelArgs.push("--add-label", add.join(","));
+    if (remove?.length) labelArgs.push("--remove-label", remove.join(","));
+
+    if (labelArgs.length === 0) return;
+
+    const args = ["issue", "edit", String(issueNumber), ...labelArgs];
+    if (repo) args.push("--repo", repo);
+    try {
+      await new Deno.Command("gh", {
+        args,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+    } catch {
+      // Non-fatal: label update failure should not stop the agent
+    }
+  }
+
+  /**
+   * Close a GitHub issue.
+   * Non-fatal: failures are silently caught to avoid stopping the agent.
+   */
+  private async closeIssue(
+    issueNumber: number,
+    repo: string | undefined,
+  ): Promise<void> {
+    const args = ["issue", "close", String(issueNumber)];
+    if (repo) args.push("--repo", repo);
+    try {
+      await new Deno.Command("gh", {
+        args,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+    } catch {
+      // Non-fatal: issue close failure should not stop the agent
     }
   }
 }

@@ -406,7 +406,7 @@ export class AgentRunner {
 
         // Build prompt
         let prompt: string;
-        let promptSource: "user" | "fallback";
+        let promptSource: "user";
         let promptType:
           | "retry"
           | typeof STEP_PHASE.INITIAL

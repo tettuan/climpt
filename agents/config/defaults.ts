@@ -40,7 +40,7 @@ const DEFAULTS = {
     },
     integrations: {
       github: {
-        enabled: false,
+        enabled: true,
       },
     },
     execution: {

@@ -21,12 +21,15 @@ Agent を作成する際は、以下の順序で進める。
 
 ### 構築ガイド（この順で読む）
 
-| # | ドキュメント                                       | 内容              | いつ読むか                            |
-| - | -------------------------------------------------- | ----------------- | ------------------------------------- |
-| 1 | [01_quickstart.md](./01_quickstart.md)             | ファイル作成手順  | **最初に読む** - 手を動かしながら学ぶ |
-| 2 | [02_agent_definition.md](./02_agent_definition.md) | agent.json の詳細 | agent.json を書くとき                 |
-| 3 | [03_builder_guide.md](./03_builder_guide.md)       | 設計思想と連鎖    | 設計を理解したいとき                  |
-| 4 | [04_config_system.md](./04_config_system.md)       | 設定の優先順位    | 実行時設定を変えたいとき              |
+| # | ドキュメント                                           | 内容                   | いつ読むか                            |
+| - | ------------------------------------------------------ | ---------------------- | ------------------------------------- |
+| 1 | [01_quickstart.md](./01_quickstart.md)                 | ファイル作成手順       | **最初に読む** - 手を動かしながら学ぶ |
+| 2 | [02_agent_definition.md](./02_agent_definition.md)     | agent.json の詳細      | agent.json を書くとき                 |
+| 3 | [03_builder_guide.md](./03_builder_guide.md)           | 設計思想と連鎖         | 設計を理解したいとき                  |
+| 4 | [04_config_system.md](./04_config_system.md)           | 設定の優先順位         | 実行時設定を変えたいとき              |
+| 5 | [05_troubleshooting.md](./05_troubleshooting.md)       | トラブルシューティング | 問題が発生したとき                    |
+| 6 | [06_workflow_setup.md](./06_workflow_setup.md)         | ワークフロー設定       | 複数 Agent を連携させるとき           |
+| 7 | [07_github_integration.md](./07_github_integration.md) | GitHub 連携ガイド      | GitHub 操作の全体像を知りたいとき     |
 
 ### リファレンス
 

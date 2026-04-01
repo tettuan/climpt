@@ -69,13 +69,11 @@ export {
 
 // Prompt resolver for external prompt resolution
 export type {
-  FallbackPromptProvider,
   PromptResolutionResult,
   PromptResolverOptions,
   PromptVariables,
 } from "./prompt-resolver.ts";
 export {
-  createFallbackProvider,
   parseFrontmatter,
   PromptResolver,
   removeFrontmatter,

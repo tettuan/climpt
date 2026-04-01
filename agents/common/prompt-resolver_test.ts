@@ -4,7 +4,6 @@
 
 import { assertEquals, assertRejects } from "@std/assert";
 import {
-  createFallbackProvider,
   parseFrontmatter,
   PromptResolver,
   removeFrontmatter,
@@ -218,21 +217,8 @@ Content`;
   assertEquals(result?.double, "world");
 });
 
-// Test createFallbackProvider
-Deno.test("createFallbackProvider - provides prompts", () => {
-  const provider = createFallbackProvider({
-    "test.key": "Test prompt content",
-    "another.key": "Another prompt",
-  });
-
-  assertEquals(provider.getPrompt("test.key"), "Test prompt content");
-  assertEquals(provider.hasPrompt("test.key"), true);
-  assertEquals(provider.hasPrompt("missing"), false);
-  assertEquals(provider.getPrompt("missing"), undefined);
-});
-
 // Test PromptResolver
-Deno.test("PromptResolver - resolves from fallback when breakdown fails", async () => {
+Deno.test("PromptResolver - throws when C3L prompt file not found", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "initial.test",
@@ -245,80 +231,18 @@ Deno.test("PromptResolver - resolves from fallback when breakdown fails", async 
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({
-    "fallback_test": "Fallback content here",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
   });
 
-  const result = await resolver.resolve("initial.test");
-
-  assertEquals(result.source, "fallback");
-  assertEquals(result.content, "Fallback content here");
-  assertEquals(result.stepId, "initial.test");
+  await assertRejects(
+    () => resolver.resolve("initial.test"),
+    Error,
+    "C3L prompt file not found",
+  );
 });
 
-Deno.test("PromptResolver - substitutes UV variables in fallback", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "with.vars",
-    name: "With Vars",
-    c2: "initial",
-    c3: "vars",
-    edition: "default",
-    fallbackKey: "vars_fallback",
-    uvVariables: ["name", "count"],
-    usesStdin: false,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "vars_fallback": "Hello {uv-name}, you have {uv-count} items.",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-  });
-
-  const result = await resolver.resolve("with.vars", {
-    uv: { name: "Alice", count: "5" },
-  });
-
-  assertEquals(result.content, "Hello Alice, you have 5 items.");
-  assertEquals(result.substitutedVariables?.["uv-name"], "Alice");
-  assertEquals(result.substitutedVariables?.["uv-count"], "5");
-});
-
-Deno.test("PromptResolver - substitutes input_text in fallback", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "stdin.step",
-    name: "STDIN Step",
-    c2: "initial",
-    c3: "stdin",
-    edition: "default",
-    fallbackKey: "stdin_fallback",
-    uvVariables: [],
-    usesStdin: true,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "stdin_fallback": "Input was: {input_text}",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-  });
-
-  const result = await resolver.resolve("stdin.step", {
-    inputText: "User typed this",
-  });
-
-  assertEquals(result.content, "Input was: User typed this");
-});
-
-Deno.test("PromptResolver - throws on missing required UV variable", async () => {
+Deno.test("PromptResolver - throws C3L not found when file missing (even with required UV vars)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "required.vars",
@@ -331,53 +255,22 @@ Deno.test("PromptResolver - throws on missing required UV variable", async () =>
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({
-    "required_fallback": "Content with {uv-required_var}",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
   });
 
+  // Without a C3L file, PR-C3L-004 is thrown before variable validation
   await assertRejects(
     () => resolver.resolve("required.vars"),
     Error,
-    "Missing required UV variable",
+    "C3L prompt file not found",
   );
-});
-
-Deno.test("PromptResolver - allows missing variables when configured", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "optional.vars",
-    name: "Optional Vars",
-    c2: "initial",
-    c3: "optional",
-    edition: "default",
-    fallbackKey: "optional_fallback",
-    uvVariables: ["optional_var"],
-    usesStdin: true,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "optional_fallback": "Value: {uv-optional_var}, Input: {input_text}",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-    allowMissingVariables: true,
-  });
-
-  const result = await resolver.resolve("optional.vars");
-
-  assertEquals(result.content, "Value: , Input:");
 });
 
 Deno.test("PromptResolver - throws on unknown step ID", async () => {
   const registry = createEmptyRegistry("test-agent");
-  const fallbackProvider = createFallbackProvider({});
 
-  const resolver = new PromptResolver(registry, fallbackProvider);
+  const resolver = new PromptResolver(registry);
 
   await assertRejects(
     () => resolver.resolve("unknown.step"),
@@ -386,92 +279,10 @@ Deno.test("PromptResolver - throws on unknown step ID", async () => {
   );
 });
 
-Deno.test("PromptResolver - throws when no fallback available", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "no.fallback",
-    name: "No Fallback",
-    c2: "initial",
-    c3: "nofallback",
-    edition: "default",
-    fallbackKey: "missing_key",
-    uvVariables: [],
-    usesStdin: false,
-  });
+// Note: frontmatter stripping tests are covered by removeFrontmatter unit tests above.
+// With fallback removed, these would require C3L prompt files on disk.
 
-  const fallbackProvider = createFallbackProvider({});
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-  });
-
-  await assertRejects(
-    () => resolver.resolve("no.fallback"),
-    Error,
-    "No fallback prompt found",
-  );
-});
-
-Deno.test("PromptResolver - strips frontmatter by default", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "with.frontmatter",
-    name: "With Frontmatter",
-    c2: "initial",
-    c3: "frontmatter",
-    edition: "default",
-    fallbackKey: "frontmatter_fallback",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "frontmatter_fallback": `---
-title: Test
----
-Actual content`,
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-  });
-
-  const result = await resolver.resolve("with.frontmatter");
-
-  assertEquals(result.content, "Actual content");
-});
-
-Deno.test("PromptResolver - preserves frontmatter when disabled", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "keep.frontmatter",
-    name: "Keep Frontmatter",
-    c2: "initial",
-    c3: "keep",
-    edition: "default",
-    fallbackKey: "keep_fallback",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "keep_fallback": `---
-title: Test
----
-Content`,
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-    stripFrontmatter: false,
-  });
-
-  const result = await resolver.resolve("keep.frontmatter");
-
-  assertEquals(result.content.startsWith("---"), true);
-});
-
-Deno.test("PromptResolver - canResolve returns true for resolvable step", async () => {
+Deno.test("PromptResolver - canResolve returns false for step without file", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "resolvable",
@@ -484,24 +295,19 @@ Deno.test("PromptResolver - canResolve returns true for resolvable step", async 
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({
-    "resolvable_key": "Content",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
   });
 
   const canResolve = await resolver.canResolve("resolvable");
 
-  assertEquals(canResolve, true);
+  assertEquals(canResolve, false);
 });
 
 Deno.test("PromptResolver - canResolve returns false for unknown step", async () => {
   const registry = createEmptyRegistry("test-agent");
-  const fallbackProvider = createFallbackProvider({});
 
-  const resolver = new PromptResolver(registry, fallbackProvider);
+  const resolver = new PromptResolver(registry);
 
   const canResolve = await resolver.canResolve("unknown");
 
@@ -521,9 +327,7 @@ Deno.test("PromptResolver - getUserFilePath returns correct path", () => {
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({});
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: "/work",
   });
 
@@ -550,9 +354,7 @@ Deno.test("PromptResolver - getUserFilePath with adaptation", () => {
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({});
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: "/work",
   });
 
@@ -579,9 +381,7 @@ Deno.test("PromptResolver - adaptation override changes resolved path", () => {
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({});
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: "/work",
   });
 
@@ -593,7 +393,7 @@ Deno.test("PromptResolver - adaptation override changes resolved path", () => {
   );
 });
 
-Deno.test("PromptResolver - adaptation override resolves adapted fallback", async () => {
+Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "closure.issue",
@@ -606,23 +406,18 @@ Deno.test("PromptResolver - adaptation override resolves adapted fallback", asyn
     usesStdin: false,
   });
 
-  // Register fallback for both the base and adapted key
-  const fallbackProvider = createFallbackProvider({
-    "closure_issue": "Default close action",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
   });
 
-  // Without override - resolves to base fallback
-  const baseResult = await resolver.resolve("closure.issue");
-  assertEquals(baseResult.source, "fallback");
-  assertEquals(baseResult.content, "Default close action");
-  assertEquals(baseResult.stepId, "closure.issue");
+  await assertRejects(
+    () => resolver.resolve("closure.issue"),
+    Error,
+    "C3L prompt file not found",
+  );
 });
 
-Deno.test("PromptResolver - resolve without override preserves existing behavior", async () => {
+Deno.test("PromptResolver - resolve throws when C3L file missing for step with variables", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "initial.test",
@@ -635,50 +430,13 @@ Deno.test("PromptResolver - resolve without override preserves existing behavior
     usesStdin: false,
   });
 
-  const fallbackProvider = createFallbackProvider({
-    "test_fallback": "Hello {uv-name}",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
+  const resolver = new PromptResolver(registry, {
     workingDir: testTmpDir,
   });
 
-  // Calling resolve without overrides should work exactly as before
-  const result = await resolver.resolve("initial.test", {
-    uv: { name: "World" },
-  });
-
-  assertEquals(result.content, "Hello World");
-  assertEquals(result.source, "fallback");
-});
-
-Deno.test("PromptResolver - custom variables substitution", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "custom.vars",
-    name: "Custom Vars",
-    c2: "initial",
-    c3: "custom",
-    edition: "default",
-    fallbackKey: "custom_fallback",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const fallbackProvider = createFallbackProvider({
-    "custom_fallback": "Project: {project_name}, Count: {item_count}",
-  });
-
-  const resolver = new PromptResolver(registry, fallbackProvider, {
-    workingDir: testTmpDir,
-  });
-
-  const result = await resolver.resolve("custom.vars", {
-    custom: {
-      project_name: "MyProject",
-      item_count: "42",
-    },
-  });
-
-  assertEquals(result.content, "Project: MyProject, Count: 42");
+  await assertRejects(
+    () => resolver.resolve("initial.test", { uv: { name: "World" } }),
+    Error,
+    "C3L prompt file not found",
+  );
 });

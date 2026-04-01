@@ -151,7 +151,7 @@ function createFakeDependencies(
             resolve: () =>
               Promise.resolve({
                 content: "fallback prompt",
-                source: "fallback" as const,
+                source: "user" as const,
                 promptPath: "fallback",
               }),
           } as unknown as import("../common/prompt-resolver.ts").PromptResolver,
@@ -265,7 +265,7 @@ Deno.test("AgentRunner.run - pendingRetryPrompt is included in next iteration pr
     resolve: () =>
       Promise.resolve({
         content: "stub flow prompt",
-        source: "fallback" as const,
+        source: "user" as const,
         promptPath: "stub",
       }),
   };
@@ -376,7 +376,7 @@ Deno.test("AgentRunner.run - schemaResolutionFailed skips step gate routing", as
     resolve: () =>
       Promise.resolve({
         content: "stub flow prompt",
-        source: "fallback" as const,
+        source: "user" as const,
         promptPath: "stub",
       }),
   };
@@ -466,7 +466,7 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
     resolve: () =>
       Promise.resolve({
         content: "stub flow prompt",
-        source: "fallback" as const,
+        source: "user" as const,
         promptPath: "stub",
       }),
   };
@@ -579,7 +579,7 @@ Deno.test("AgentRunner.run - setCurrentSummary receives IterationSummary from Qu
     resolve: () =>
       Promise.resolve({
         content: "stub flow prompt",
-        source: "fallback" as const,
+        source: "user" as const,
         promptPath: "stub",
       }),
   };

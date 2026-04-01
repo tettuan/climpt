@@ -37,7 +37,7 @@ Deno.test("init: default working directory is .agent/climpt", () => {
   assertEquals(DEFAULT_OPTIONS.workingDir, ".agent/climpt");
 });
 
-Deno.test("initBasic: creates exactly 3 directories", async () => {
+Deno.test("initBasic: creates exactly 2 directories", async () => {
   const tempDir = await createTempDir();
   const workingDir = ".agent/climpt";
   logger.debug("initBasic setup", { tempDir, workingDir });
@@ -49,8 +49,8 @@ Deno.test("initBasic: creates exactly 3 directories", async () => {
       skipped: result.skipped,
     });
 
-    // Must create exactly: config/, prompts/, schema/
-    const expectedDirs = ["config", "prompts", "schema"];
+    // Must create exactly: config/, prompts/
+    const expectedDirs = ["config", "prompts"];
     const createdDirNames = result.created.map((p) => {
       const parts = p.split("/");
       return parts[parts.length - 1];

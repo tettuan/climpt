@@ -222,7 +222,7 @@ function printSummary(result: InitResult, options: InitOptions): void {
   );
   // deno-lint-ignore no-console
   console.log(
-    "  3. After adding prompts, run 'climpt generate-registry' to update registry",
+    "  3. After adding prompts, run 'deno task generate-registry' to update registry",
   );
 
   // deno-lint-ignore no-console

@@ -189,9 +189,21 @@ export interface ParameterValidation {
 // Configuration Types
 // ============================================================================
 
+export interface GitHubLabelsConfig {
+  requirements?: string;
+  inProgress?: string;
+  blocked?: string;
+  completion?: {
+    add?: string[];
+    remove?: string[];
+  };
+  /** Agent-specific labels (e.g., "review", "gap", "attention") */
+  [key: string]: string | { add?: string[]; remove?: string[] } | undefined;
+}
+
 export interface GitHubConfig {
   enabled: boolean;
-  labels?: Record<string, string>;
+  labels?: GitHubLabelsConfig;
   /** Default closure action for issue/externalState completion */
   defaultClosureAction?: "close" | "label-only" | "label-and-close";
 }
