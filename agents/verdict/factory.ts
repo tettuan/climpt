@@ -98,9 +98,12 @@ registerHandler(
 
     const repo = args.repository as string | undefined;
     const stateChecker = new GitHubStateChecker(repo);
-    const githubConfig = definition.runner.integrations?.github as
-      | { defaultClosureAction?: string; labels?: Record<string, unknown> }
-      | undefined;
+    const rawGithubConfig = definition.runner.integrations?.github;
+
+    // When enabled is explicitly false, suppress all GitHub operations
+    const githubEnabled = rawGithubConfig?.enabled !== false;
+    const githubConfig = githubEnabled ? rawGithubConfig : undefined;
+
     const issueConfig: IssueContractConfig = {
       issueNumber,
       repo,

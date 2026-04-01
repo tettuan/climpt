@@ -57,9 +57,11 @@ export class ClosureAdapter {
       return null;
     }
 
-    // Determine closure action from config
-    const closureAction = this.deps.definition.runner.integrations?.github
-      ?.defaultClosureAction;
+    // Determine closure action from config (only when GitHub is enabled)
+    const githubConfig = this.deps.definition.runner.integrations?.github;
+    const closureAction = githubConfig?.enabled !== false
+      ? githubConfig?.defaultClosureAction
+      : undefined;
 
     // Only use adaptation override for non-default actions
     const overrides = closureAction && closureAction !== "close"

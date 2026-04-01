@@ -102,11 +102,12 @@ export class QueryExecutor {
       );
 
       // Apply stepKind-based tool gating if we have step info
-      // Append GitHubRead MCP tool so all agents get read-only GitHub access
-      // without requiring agent.json changes.
+      // Append GitHubRead MCP tool when GitHub integration is enabled.
+      const githubEnabled =
+        this.deps.definition.runner.integrations?.github?.enabled !== false;
       let allowedTools = [
         ...this.deps.definition.runner.boundaries.allowedTools,
-        GITHUB_READ_TOOL_NAME,
+        ...(githubEnabled ? [GITHUB_READ_TOOL_NAME] : []),
       ];
       let currentStepKind: StepKind | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
@@ -268,25 +269,27 @@ export class QueryExecutor {
       }
 
       // Create GitHubRead MCP server (runs in host process, outside sandbox)
-      const githubReadServer = createSdkMcpServer({
-        name: GITHUB_READ_SERVER_NAME,
-        version: "1.0.0",
-        tools: [
-          tool(
-            "github_read",
-            "Read-only GitHub access. Use this instead of gh CLI commands. " +
-              "Supports: issue_view, issue_list, pr_view, pr_list, pr_diff, pr_checks, " +
-              "project_view, project_list, project_item_list.",
-            GitHubReadInputSchema,
-            createGitHubReadHandler(ctx.cwd),
-          ),
-        ],
-      });
+      if (githubEnabled) {
+        const githubReadServer = createSdkMcpServer({
+          name: GITHUB_READ_SERVER_NAME,
+          version: "1.0.0",
+          tools: [
+            tool(
+              "github_read",
+              "Read-only GitHub access. Use this instead of gh CLI commands. " +
+                "Supports: issue_view, issue_list, pr_view, pr_list, pr_diff, pr_checks, " +
+                "project_view, project_list, project_item_list.",
+              GitHubReadInputSchema,
+              createGitHubReadHandler(ctx.cwd),
+            ),
+          ],
+        });
 
-      // MCP tools require streaming input mode
-      queryOptions.mcpServers = {
-        [GITHUB_READ_SERVER_NAME]: githubReadServer,
-      };
+        // MCP tools require streaming input mode
+        queryOptions.mcpServers = {
+          [GITHUB_READ_SERVER_NAME]: githubReadServer,
+        };
+      }
 
       // Convert plain text prompt to async iterable (SDKUserMessage stream).
       // Generator declared as const to satisfy no-inner-declarations lint rule.

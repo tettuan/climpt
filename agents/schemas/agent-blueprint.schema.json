@@ -607,10 +607,8 @@
               }
             }
           },
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Label mappings"
+          "additionalProperties": true,
+          "description": "Label mappings. Known keys: requirements, inProgress, blocked, completion. Additional string-valued keys allowed for agent-specific labels."
         },
         "defaultClosureAction": {
           "type": "string",
