@@ -130,6 +130,35 @@ deno task orchestrator --label docs --state open
   1
 - Batch: `status === "failed" \|\| status === "partial"` → 1、それ以外 → 0
 
+## Lock
+
+カーネルレベルの `flock(fd, LOCK_EX)`
+を使用し、同一ワークフローの並行実行を防止する。 Deno の `FsFile.lock(true)`
+に短いタイムアウト（`Promise.race`）を組み合わせ、
+ノンブロッキング的な振る舞いをエミュレートする。
+
+### Two-Layer Lock
+
+| レイヤー  | ロックファイル                                 | 取得タイミング                           |
+| --------- | ---------------------------------------------- | ---------------------------------------- |
+| **Batch** | `{storePath}/.lock.{workflowId}`               | `BatchRunner` がバッチ実行開始時         |
+| **Issue** | `{storePath}/.lock.{workflowId}.{issueNumber}` | `Orchestrator.run()` が issue 処理開始時 |
+
+### API
+
+| 関数                                        | 説明                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `acquireLock(workflowId)`                   | バッチレベルの排他ロックを取得                                                          |
+| `acquireIssueLock(workflowId, issueNumber)` | Issue レベルの排他ロック（内部で `acquireLock("${workflowId}.${issueNumber}")` に委譲） |
+
+両関数とも `{ release: () => void } | null` を返す。`null`
+は既にロックされていることを示す。
+
+### 自動クリーンアップ
+
+カーネルが fd のクローズまたはプロセス終了時（SIGKILL を含む）に flock
+を自動解放する。 PID チェック、stale 検出、シグナルハンドラは不要。
+
 ## Label Prefix
 
 複数ワークフローの共存。`labelPrefix: "docs"` を設定すると、GitHub ラベルは

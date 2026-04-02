@@ -1053,6 +1053,83 @@ Deno.test("run without store works exactly as before (backward compatibility)", 
   assertEquals(github.callIndex, 2);
 });
 
+// === Issue lock tests ===
+
+Deno.test("run with store acquires issue lock", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+    assertEquals(result.status, "completed");
+
+    // Lock should be released after run — re-acquiring must succeed
+    const lock = await store.acquireIssueLock("default", 1);
+    assertEquals(lock !== null, true);
+    lock!.release();
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run with locked issue returns blocked", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    // Pre-acquire the issue lock
+    const holdLock = await store.acquireIssueLock("default", 1);
+    assertEquals(holdLock !== null, true);
+
+    const result = await orchestrator.run(1, {}, store);
+    assertEquals(result.status, "blocked");
+    assertEquals(result.cycleCount, 0);
+
+    holdLock!.release();
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
 // === Batch status and prioritize guard tests ===
 
 Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError", async () => {

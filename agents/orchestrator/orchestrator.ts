@@ -66,6 +66,28 @@ export class Orchestrator {
       await OrchestratorLogger.create(this.#cwd, {
         verbose: options?.verbose,
       });
+
+    // Acquire per-issue lock when store is available to prevent
+    // concurrent invocations on the same issue.
+    const issueLock = store
+      ? await store.acquireIssueLock(this.workflowId, issueNumber)
+      : undefined;
+
+    if (store && issueLock === null) {
+      await log.info(
+        `Issue #${issueNumber} is already being processed, skipping`,
+        { event: "issue_locked", issueNumber, workflowId: this.workflowId },
+      );
+      if (ownsLogger) await log.close();
+      return {
+        issueNumber,
+        finalPhase: "unknown",
+        cycleCount: 0,
+        history: [],
+        status: "blocked",
+      };
+    }
+
     try {
       return await this.#runInner(
         issueNumber,
@@ -75,6 +97,7 @@ export class Orchestrator {
         log,
       );
     } finally {
+      issueLock?.release();
       if (ownsLogger) await log.close();
     }
   }
