@@ -243,7 +243,8 @@ export class IssueStore {
         write: true,
       });
       // We just created the file — flock is instant (no contention)
-      file.lockSync(true);
+      const exclusive = true;
+      file.lockSync(exclusive);
       return this.#makeLockHandle(file, lockPath);
     } catch (error) {
       if (!(error instanceof Deno.errors.AlreadyExists)) {
@@ -261,8 +262,9 @@ export class IssueStore {
     }
 
     const LOCK_TIMEOUT_MS = 50;
-    let timerId: number;
-    const lockPromise = file.lock(true).then(() => "acquired" as const);
+    const exclusive = true;
+    let timerId: number | undefined;
+    const lockPromise = file.lock(exclusive).then(() => "acquired" as const);
     const timeout = Symbol("timeout");
     const result = await Promise.race([
       lockPromise,
@@ -271,7 +273,7 @@ export class IssueStore {
       }),
     ]);
 
-    clearTimeout(timerId!);
+    clearTimeout(timerId);
 
     if (result === timeout) {
       // Active lock held by another process
