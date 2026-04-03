@@ -723,6 +723,12 @@ export class AgentRunner {
         }
       }
 
+      // Extract verdict from verdict handler if available (e.g., ExternalStateVerdictAdapter)
+      const verdictValue = "getLastVerdict" in ctx.verdictHandler &&
+          typeof ctx.verdictHandler.getLastVerdict === "function"
+        ? (ctx.verdictHandler.getLastVerdict as () => string | undefined)()
+        : undefined;
+
       const result: AgentResult = {
         success,
         iterations: iteration,
@@ -739,6 +745,7 @@ export class AgentRunner {
           durationMs: lastCostSummary.durationMs,
         }),
         ...(lastRateLimitInfo && { rateLimitInfo: lastRateLimitInfo }),
+        ...(verdictValue && { verdict: verdictValue }),
       };
 
       // Emit completed event

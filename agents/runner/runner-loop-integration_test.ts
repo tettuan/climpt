@@ -637,3 +637,136 @@ Deno.test("AgentRunner.run - setCurrentSummary receives IterationSummary from Qu
   assertEquals(result.success, true);
   assertEquals(result.iterations, 1);
 });
+
+// =============================================================================
+// Test 5: getLastVerdict -> AgentResult.verdict propagation
+// =============================================================================
+
+/**
+ * Create a VerdictHandler that includes getLastVerdict() returning a fixed
+ * verdict string. This simulates adapter-specific behavior (e.g.,
+ * ExternalStateVerdictAdapter) where the handler exposes getLastVerdict
+ * via duck-typing rather than the VerdictHandler interface.
+ */
+function createVerdictProvidingHandler(verdict: string): VerdictHandler {
+  return {
+    type: "count:iteration",
+    buildInitialPrompt: () => Promise.resolve("Test initial prompt"),
+    buildContinuationPrompt: () => Promise.resolve("Test continuation prompt"),
+    buildVerdictCriteria: () => ({
+      short: "Test criteria",
+      detailed: "Detailed test criteria",
+    }),
+    isFinished: () => Promise.resolve(true), // finish after 1 iteration
+    getVerdictDescription: () => Promise.resolve("Verdict provided"),
+    setCurrentSummary: () => {},
+    getLastVerdict: () => verdict,
+  } as VerdictHandler & { getLastVerdict: () => string };
+}
+
+Deno.test("AgentRunner.run - getLastVerdict propagates to AgentResult.verdict", async () => {
+  logger.debug("getLastVerdict propagation test start");
+
+  const mockLog = createMockLogger();
+  const handler = createVerdictProvidingHandler("approved");
+  const deps = createFakeDependencies(mockLog, handler);
+  const definition = createTestDefinition({ maxIterations: 5 });
+  const runner = new AgentRunner(definition, deps);
+
+  // Install minimal registry so flow orchestrator can resolve steps
+  stubInitializeValidation(runner);
+
+  // Stub stepPromptResolver (C3L-only enforcement)
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-verdict",
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-verdict-propagation",
+  });
+
+  logger.debug("getLastVerdict propagation test result", {
+    iterations: result.iterations,
+    verdict: result.verdict,
+  });
+
+  // Assert: verdict from getLastVerdict() propagated to AgentResult.verdict
+  assertEquals(
+    result.verdict,
+    "approved",
+    "AgentResult.verdict should be 'approved' from getLastVerdict()",
+  );
+  assertEquals(result.success, true);
+  assertEquals(result.iterations, 1);
+});
+
+// =============================================================================
+// Test 6: result.verdict is undefined when handler has no getLastVerdict
+// =============================================================================
+
+Deno.test("AgentRunner.run - result.verdict is undefined when handler has no getLastVerdict", async () => {
+  logger.debug("no getLastVerdict test start");
+
+  const mockLog = createMockLogger();
+  // Standard mock handler does NOT have getLastVerdict
+  const handler = createMockVerdictHandler({
+    finishedSequence: [true],
+    verdictDescription: "No verdict handler",
+  });
+  const deps = createFakeDependencies(mockLog, handler);
+  const definition = createTestDefinition({ maxIterations: 5 });
+  const runner = new AgentRunner(definition, deps);
+
+  // Install minimal registry so flow orchestrator can resolve steps
+  stubInitializeValidation(runner);
+
+  // Stub stepPromptResolver (C3L-only enforcement)
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-no-verdict",
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-no-verdict",
+  });
+
+  logger.debug("no getLastVerdict test result", {
+    iterations: result.iterations,
+    verdict: result.verdict,
+  });
+
+  // Assert: verdict is undefined when handler lacks getLastVerdict
+  assertEquals(
+    result.verdict,
+    undefined,
+    "AgentResult.verdict should be undefined when handler has no getLastVerdict",
+  );
+  assertEquals(result.success, true);
+});

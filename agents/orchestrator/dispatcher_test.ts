@@ -6,7 +6,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { StubDispatcher } from "./dispatcher.ts";
+import { mapResultToOutcome, StubDispatcher } from "./dispatcher.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 
 // =============================================================================
@@ -56,4 +56,59 @@ Deno.test("StubDispatcher: unknown agent returns default 'success' outcome", asy
   const result = await dispatcher.dispatch("unknown-agent", 1);
 
   assertEquals(result.outcome, "success");
+});
+
+// === Verdict-based outcome tests ===
+
+Deno.test("StubDispatcher: configured verdict string becomes outcome directly", async () => {
+  const dispatcher = new StubDispatcher({ validator: "approved" });
+
+  const result = await dispatcher.dispatch("validator", 1);
+
+  assertEquals(result.outcome, "approved");
+});
+
+Deno.test("StubDispatcher: 'success' outcome preserved when no verdict", async () => {
+  const dispatcher = new StubDispatcher({ transformer: "success" });
+
+  const result = await dispatcher.dispatch("transformer", 1);
+
+  assertEquals(result.outcome, "success");
+});
+
+Deno.test("StubDispatcher: 'failed' outcome preserved when agent fails", async () => {
+  const dispatcher = new StubDispatcher({ transformer: "failed" });
+
+  const result = await dispatcher.dispatch("transformer", 1);
+
+  assertEquals(result.outcome, "failed");
+});
+
+// =============================================================================
+// mapResultToOutcome: verdict-to-outcome mapping
+// =============================================================================
+
+Deno.test("mapResultToOutcome: verdict takes priority over success flag", () => {
+  const outcome = mapResultToOutcome({ success: true, verdict: "approved" });
+  assertEquals(outcome, "approved");
+});
+
+Deno.test("mapResultToOutcome: verdict takes priority over failed flag", () => {
+  const outcome = mapResultToOutcome({ success: false, verdict: "rejected" });
+  assertEquals(outcome, "rejected");
+});
+
+Deno.test("mapResultToOutcome: falls back to 'success' when no verdict", () => {
+  const outcome = mapResultToOutcome({ success: true });
+  assertEquals(outcome, "success");
+});
+
+Deno.test("mapResultToOutcome: falls back to 'failed' when no verdict", () => {
+  const outcome = mapResultToOutcome({ success: false });
+  assertEquals(outcome, "failed");
+});
+
+Deno.test("mapResultToOutcome: undefined verdict treated as absent", () => {
+  const outcome = mapResultToOutcome({ success: true, verdict: undefined });
+  assertEquals(outcome, "success");
 });

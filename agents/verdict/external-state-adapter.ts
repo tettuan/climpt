@@ -57,6 +57,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   private uvVariables: Record<string, string> = {};
   private currentSummary?: IterationSummary;
   private readonly stepIds: VerdictStepIds;
+  #lastVerdict?: string;
 
   constructor(
     private readonly handler: IssueVerdictHandler,
@@ -68,6 +69,14 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       initial: "initial.polling",
       continuation: "continuation.polling",
     };
+  }
+
+  /**
+   * Get the last verdict value extracted from AI structured output.
+   * Returns undefined if no verdict has been received yet.
+   */
+  getLastVerdict(): string | undefined {
+    return this.#lastVerdict;
   }
 
   /**
@@ -178,6 +187,14 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
     stepKind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
+    // Extract verdict from AI structured output if present
+    if (payload.structuredOutput) {
+      const rawVerdict = payload.structuredOutput.verdict;
+      if (typeof rawVerdict === "string" && rawVerdict.length > 0) {
+        this.#lastVerdict = rawVerdict;
+      }
+    }
+
     const { issueNumber, repo, github } = this.config;
 
     const closureAction = this.resolveClosureAction(
@@ -185,9 +202,19 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       github?.defaultClosureAction,
     );
 
+    // Extract labels from AI structured output (design: 04_step_flow_design.md:311)
+    const soLabels = this.#extractStructuredOutputLabels(
+      payload.structuredOutput,
+    );
+
     // Update labels for "label-only" and "label-and-close"
     if (closureAction !== "close") {
-      await this.updateLabels(issueNumber, repo, github?.labels?.completion);
+      await this.updateLabels(
+        issueNumber,
+        repo,
+        github?.labels?.completion,
+        soLabels,
+      );
     }
 
     // Close issue for "close" and "label-and-close"
@@ -224,17 +251,52 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   }
 
   /**
-   * Update issue labels based on completion config.
+   * Extract and validate labels from AI structured output.
+   * Expected shape: `{ issue: { labels: { add?: string[], remove?: string[] } } }`
+   */
+  #extractStructuredOutputLabels(
+    structuredOutput: Record<string, unknown> | undefined,
+  ): { add?: string[]; remove?: string[] } | undefined {
+    if (!structuredOutput) return undefined;
+
+    const issue = structuredOutput.issue;
+    if (!issue || typeof issue !== "object") return undefined;
+
+    const labels = (issue as Record<string, unknown>).labels;
+    if (!labels || typeof labels !== "object") return undefined;
+
+    const raw = labels as Record<string, unknown>;
+    const result: { add?: string[]; remove?: string[] } = {};
+
+    if (Array.isArray(raw.add) && raw.add.every((v) => typeof v === "string")) {
+      result.add = raw.add as string[];
+    }
+    if (
+      Array.isArray(raw.remove) &&
+      raw.remove.every((v) => typeof v === "string")
+    ) {
+      result.remove = raw.remove as string[];
+    }
+
+    if (!result.add && !result.remove) return undefined;
+    return result;
+  }
+
+  /**
+   * Update issue labels by merging config and structured output sources.
+   * Structured output labels are merged with config labels (deduplicated).
    * Non-fatal: failures are silently caught to avoid stopping the agent.
    */
   private async updateLabels(
     issueNumber: number,
     repo: string | undefined,
     completion: { add?: string[]; remove?: string[] } | undefined,
+    structuredOutputLabels?: { add?: string[]; remove?: string[] },
   ): Promise<void> {
-    if (!completion) return;
+    const merged = this.#mergeLabels(completion, structuredOutputLabels);
+    if (!merged) return;
 
-    const { add, remove } = completion;
+    const { add, remove } = merged;
     const labelArgs: string[] = [];
     if (add?.length) labelArgs.push("--add-label", add.join(","));
     if (remove?.length) labelArgs.push("--remove-label", remove.join(","));
@@ -252,6 +314,32 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
     } catch {
       // Non-fatal: label update failure should not stop the agent
     }
+  }
+
+  /**
+   * Merge label sources: config (static) and structured output (AI-decided).
+   * Both sources contribute; duplicates are removed.
+   */
+  #mergeLabels(
+    config: { add?: string[]; remove?: string[] } | undefined,
+    soLabels: { add?: string[]; remove?: string[] } | undefined,
+  ): { add?: string[]; remove?: string[] } | undefined {
+    if (!config && !soLabels) return undefined;
+
+    const addSet = new Set<string>([
+      ...(config?.add ?? []),
+      ...(soLabels?.add ?? []),
+    ]);
+    const removeSet = new Set<string>([
+      ...(config?.remove ?? []),
+      ...(soLabels?.remove ?? []),
+    ]);
+
+    const add = addSet.size > 0 ? [...addSet] : undefined;
+    const remove = removeSet.size > 0 ? [...removeSet] : undefined;
+
+    if (!add && !remove) return undefined;
+    return { add, remove };
   }
 
   /**

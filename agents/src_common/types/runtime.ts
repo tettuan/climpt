@@ -47,6 +47,9 @@ export interface AgentResult {
 
   /** Latest rate limit info from SDK (seven_day type) */
   rateLimitInfo?: RateLimitInfo;
+
+  /** Semantic verdict from AI structured output (e.g., "approved", "rejected") */
+  verdict?: string;
 }
 
 /**
