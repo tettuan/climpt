@@ -57,3 +57,29 @@ Deno.test("StubDispatcher: unknown agent returns default 'success' outcome", asy
 
   assertEquals(result.outcome, "success");
 });
+
+// === Verdict-based outcome tests ===
+
+Deno.test("StubDispatcher: configured verdict string becomes outcome directly", async () => {
+  const dispatcher = new StubDispatcher({ validator: "approved" });
+
+  const result = await dispatcher.dispatch("validator", 1);
+
+  assertEquals(result.outcome, "approved");
+});
+
+Deno.test("StubDispatcher: 'success' outcome preserved when no verdict", async () => {
+  const dispatcher = new StubDispatcher({ transformer: "success" });
+
+  const result = await dispatcher.dispatch("transformer", 1);
+
+  assertEquals(result.outcome, "success");
+});
+
+Deno.test("StubDispatcher: 'failed' outcome preserved when agent fails", async () => {
+  const dispatcher = new StubDispatcher({ transformer: "failed" });
+
+  const result = await dispatcher.dispatch("transformer", 1);
+
+  assertEquals(result.outcome, "failed");
+});

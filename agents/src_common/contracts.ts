@@ -158,6 +158,8 @@ export interface VerdictResult {
   complete: boolean;
   /** Reason for completion (required when complete=true) */
   reason?: string;
+  /** Semantic verdict value from AI structured output (e.g., "approved", "rejected") */
+  verdict?: string;
 }
 
 /**

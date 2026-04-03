@@ -123,7 +123,7 @@ export class RunnerDispatcher implements AgentDispatcher {
     const durationMs = performance.now() - startMs;
 
     return {
-      outcome: result.success ? "success" : "failed",
+      outcome: result.verdict ?? (result.success ? "success" : "failed"),
       durationMs,
       rateLimitInfo: result.rateLimitInfo,
     };

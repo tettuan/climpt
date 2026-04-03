@@ -291,7 +291,50 @@ export class Orchestrator {
       if (store) {
         const outboxProcessor = new OutboxProcessor(this.#github, store);
         // deno-lint-ignore no-await-in-loop
-        await outboxProcessor.process(issueNumber);
+        const outboxResults = await outboxProcessor.process(issueNumber);
+
+        if (outboxResults.length > 0) {
+          const succeeded = outboxResults.filter((r) => r.success);
+          const failed = outboxResults.filter((r) => !r.success);
+
+          // deno-lint-ignore no-await-in-loop
+          await log.info(
+            `Outbox: ${outboxResults.length} actions (${succeeded.length} ok, ${failed.length} failed)`,
+            {
+              event: "outbox_processed",
+              issueNumber,
+              total: outboxResults.length,
+              succeeded: succeeded.length,
+              failed: failed.length,
+            },
+          );
+
+          for (const fail of failed) {
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `Outbox action failed: ${fail.action} (seq ${fail.sequence}): ${fail.error}`,
+              {
+                event: "outbox_action_failed",
+                issueNumber,
+                action: fail.action,
+                sequence: fail.sequence,
+                error: fail.error,
+              },
+            );
+          }
+
+          if (failed.length > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `Outbox not cleared: ${failed.length} failed actions remain for retry`,
+              {
+                event: "outbox_not_cleared",
+                issueNumber,
+                failedCount: failed.length,
+              },
+            );
+          }
+        }
       }
 
       // Step 7c: Rate limit throttle check
