@@ -11,6 +11,13 @@ import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 import { AgentRunner } from "../runner/runner.ts";
 import { loadConfiguration } from "../config/mod.ts";
 
+/** Map AgentResult to DispatchOutcome.outcome string. Prefers verdict over binary. */
+export function mapResultToOutcome(
+  result: { success: boolean; verdict?: string },
+): string {
+  return result.verdict ?? (result.success ? "success" : "failed");
+}
+
 /** Options passed to agent dispatch. */
 export interface DispatchOptions {
   iterateMax?: number;
@@ -123,7 +130,7 @@ export class RunnerDispatcher implements AgentDispatcher {
     const durationMs = performance.now() - startMs;
 
     return {
-      outcome: result.verdict ?? (result.success ? "success" : "failed"),
+      outcome: mapResultToOutcome(result),
       durationMs,
       rateLimitInfo: result.rateLimitInfo,
     };

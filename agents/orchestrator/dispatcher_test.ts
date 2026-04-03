@@ -6,7 +6,7 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { StubDispatcher } from "./dispatcher.ts";
+import { mapResultToOutcome, StubDispatcher } from "./dispatcher.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 
 // =============================================================================
@@ -82,4 +82,33 @@ Deno.test("StubDispatcher: 'failed' outcome preserved when agent fails", async (
   const result = await dispatcher.dispatch("transformer", 1);
 
   assertEquals(result.outcome, "failed");
+});
+
+// =============================================================================
+// mapResultToOutcome: verdict-to-outcome mapping
+// =============================================================================
+
+Deno.test("mapResultToOutcome: verdict takes priority over success flag", () => {
+  const outcome = mapResultToOutcome({ success: true, verdict: "approved" });
+  assertEquals(outcome, "approved");
+});
+
+Deno.test("mapResultToOutcome: verdict takes priority over failed flag", () => {
+  const outcome = mapResultToOutcome({ success: false, verdict: "rejected" });
+  assertEquals(outcome, "rejected");
+});
+
+Deno.test("mapResultToOutcome: falls back to 'success' when no verdict", () => {
+  const outcome = mapResultToOutcome({ success: true });
+  assertEquals(outcome, "success");
+});
+
+Deno.test("mapResultToOutcome: falls back to 'failed' when no verdict", () => {
+  const outcome = mapResultToOutcome({ success: false });
+  assertEquals(outcome, "failed");
+});
+
+Deno.test("mapResultToOutcome: undefined verdict treated as absent", () => {
+  const outcome = mapResultToOutcome({ success: true, verdict: undefined });
+  assertEquals(outcome, "success");
 });
