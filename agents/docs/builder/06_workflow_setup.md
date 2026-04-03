@@ -109,7 +109,78 @@ Phase は `type` で分類する。
 }
 ```
 
-判定結果に応じて異なる phase に遷移。
+判定結果（verdict）に応じて異なる phase に遷移する。`outputPhases` のキーが
+verdict 値に対応し、値が遷移先 phase を示す。
+
+#### Verdict 伝搬フロー
+
+Validator Agent の verdict は以下の経路で Orchestrator に伝搬する:
+
+```
+AI structured output       { "intent": "closing", "verdict": "approved" }
+  │
+  ▼
+BoundaryHook               verdict 値を抽出 → VerdictResult.verdict
+  │
+  ▼
+Runner                     AgentResult.verdict = "approved"
+  │
+  ▼
+Dispatcher                 DispatchOutcome.outcome = verdict ?? (success ? "success" : "failed")
+  │
+  ▼
+Orchestrator               computeTransition(agent, outcome)
+  │                          outputPhases["approved"] → "complete"
+  ▼
+Phase 遷移                 review → complete
+```
+
+- AI は closure step の structured output で `verdict` フィールドを返す
+- `outputPhases` に一致するキーがあれば、その値の phase に遷移する
+- 一致しない、または verdict が未指定の場合は `fallbackPhase` に遷移する
+
+#### Reviewer ワークフロー例
+
+```json
+{
+  "phases": {
+    "implementation": {
+      "type": "actionable",
+      "priority": 3,
+      "agent": "iterator"
+    },
+    "review": { "type": "actionable", "priority": 2, "agent": "reviewer" },
+    "revision": { "type": "actionable", "priority": 1, "agent": "iterator" },
+    "complete": { "type": "terminal" },
+    "blocked": { "type": "blocking" }
+  },
+  "agents": {
+    "iterator": {
+      "role": "transformer",
+      "directory": "iterator",
+      "outputPhase": "review",
+      "fallbackPhase": "blocked"
+    },
+    "reviewer": {
+      "role": "validator",
+      "directory": "reviewer",
+      "outputPhases": {
+        "approved": "complete",
+        "rejected": "revision"
+      },
+      "fallbackPhase": "blocked"
+    }
+  }
+}
+```
+
+この例では:
+
+- `iterator` が実装を完了すると `review` phase に遷移
+- `reviewer` が `approved` を返すと `complete`（terminal）に遷移
+- `reviewer` が `rejected` を返すと `revision` phase に遷移し `iterator`
+  が再実行
+- verdict が不明な場合は `blocked` に遷移し人間の介入を待つ
 
 ## Label Mapping
 

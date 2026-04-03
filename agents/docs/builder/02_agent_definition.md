@@ -95,6 +95,37 @@ Stage 3（Verdict）の VerdictHandler に渡される。詳細は
 }
 ```
 
+### Verdict 伝搬（Validator Agent）
+
+Validator Agent（`workflow.json` で `role: "validator"` を持つ Agent）では、 AI
+の structured output に含まれる `verdict` フィールドが Orchestrator の phase
+遷移を決定する。
+
+**AI の structured output 例（closure step）:**
+
+```json
+{ "intent": "closing", "verdict": "approved" }
+```
+
+**伝搬の流れ:**
+
+1. Closure Step で AI が `verdict` フィールドを返す
+2. BoundaryHook が structured output から verdict 値を抽出し
+   `VerdictResult.verdict` に格納
+3. Runner が `AgentResult.verdict` としてディスパッチャーに返す
+4. ディスパッチャーが `DispatchOutcome.outcome` に verdict 値をマッピング
+5. Orchestrator の `computeTransition()` が outcome を `outputPhases`
+   のキーとして遷移先を解決
+
+verdict が `outputPhases` に存在しない、または未指定の場合は `fallbackPhase`
+に遷移する。
+
+BoundaryHook は `verdict` に加えて、structured output の `issue.labels.add` /
+`issue.labels.remove` からラベル変更指示も読み取る。これにより
+`github.labels.completion` 設定を AI 出力で動的に上書きできる。
+
+詳細: [design/12_orchestrator.md](../design/12_orchestrator.md)
+
 ## runner.boundaries
 
 ツール許可、権限、サンドボックス（セキュリティポリシー）。

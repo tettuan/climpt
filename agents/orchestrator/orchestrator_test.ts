@@ -1053,6 +1053,83 @@ Deno.test("run without store works exactly as before (backward compatibility)", 
   assertEquals(github.callIndex, 2);
 });
 
+// === Issue lock tests ===
+
+Deno.test("run with store acquires issue lock", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+    assertEquals(result.status, "completed");
+
+    // Lock should be released after run — re-acquiring must succeed
+    const lock = await store.acquireIssueLock("default", 1);
+    assertEquals(lock !== null, true);
+    lock!.release();
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run with locked issue returns blocked", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    // Pre-acquire the issue lock
+    const holdLock = await store.acquireIssueLock("default", 1);
+    assertEquals(holdLock !== null, true);
+
+    const result = await orchestrator.run(1, {}, store);
+    assertEquals(result.status, "blocked");
+    assertEquals(result.cycleCount, 0);
+
+    holdLock!.release();
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
 // === Batch status and prioritize guard tests ===
 
 Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError", async () => {
@@ -1412,6 +1489,75 @@ Deno.test("rate limit throttle: no rateLimitInfo proceeds without throttle", asy
   assertEquals(result.cycleCount, 1);
 });
 
+Deno.test("outbox failure logs structured events", async () => {
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // Write an invalid outbox action
+    const outboxDir = `${tmpDir}/store/1/outbox`;
+    await Deno.mkdir(outboxDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${outboxDir}/001-bad.json`,
+      "not valid json",
+    );
+
+    const github = new StubGitHubClient([["done"]]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Run should still complete (outbox failure is not fatal)
+    assertEquals(result.status, "completed");
+
+    // Read log file to verify outbox events were emitted
+    const logDir = `${tmpDir}/tmp/logs/orchestrator`;
+    let logContent = "";
+    for await (const entry of Deno.readDir(logDir)) {
+      if (entry.name.endsWith(".jsonl")) {
+        logContent = await Deno.readTextFile(`${logDir}/${entry.name}`);
+        break;
+      }
+    }
+
+    const lines = logContent.trim().split("\n").map((l) => JSON.parse(l));
+    const outboxProcessed = lines.find((l) =>
+      l.metadata?.event === "outbox_processed"
+    );
+    const outboxFailed = lines.find((l) =>
+      l.metadata?.event === "outbox_action_failed"
+    );
+    const outboxNotCleared = lines.find((l) =>
+      l.metadata?.event === "outbox_not_cleared"
+    );
+
+    assertEquals(outboxProcessed !== undefined, true);
+    assertEquals(outboxProcessed.metadata.failed, 1);
+    assertEquals(outboxFailed !== undefined, true);
+    assertEquals(outboxFailed.metadata.action, "unknown");
+    assertEquals(outboxNotCleared !== undefined, true);
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
 Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", async () => {
   const config = createTestConfig();
   config.rules.rateLimitThreshold = 0.90;
@@ -1438,4 +1584,59 @@ Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", 
   assertEquals(result.status, "completed");
   assertEquals(result.finalPhase, "complete");
   assertEquals(result.cycleCount, 1);
+});
+
+// === Verdict propagation tests ===
+
+Deno.test("verdict propagation: approved routes via validator outputPhases to complete", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "complete");
+  assertEquals(result.cycleCount, 2);
+  assertEquals(result.history[1].from, "review");
+  assertEquals(result.history[1].to, "complete");
+  assertEquals(result.history[1].outcome, "approved");
+});
+
+Deno.test("verdict propagation: rejected routes via validator outputPhases to revision", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["implementation-gap"],
+    ["implementation-gap"],
+  ]);
+  config.rules.maxCycles = 3;
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "rejected",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.history[1].from, "review");
+  assertEquals(result.history[1].to, "revision");
+  assertEquals(result.history[1].outcome, "rejected");
+});
+
+Deno.test("verdict propagation: unknown verdict falls back to fallbackPhase", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([["review"], ["blocked"]]);
+  const dispatcher = new StubDispatcher({ reviewer: "unknown-verdict" });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "blocked");
+  assertEquals(result.finalPhase, "blocked");
+  assertEquals(result.history[0].from, "review");
+  assertEquals(result.history[0].to, "blocked");
+  assertEquals(result.history[0].outcome, "unknown-verdict");
 });

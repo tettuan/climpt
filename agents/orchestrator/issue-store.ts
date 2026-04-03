@@ -15,51 +15,6 @@
 
 import type { IssueWorkflowState } from "./workflow-types.ts";
 
-/**
- * Check if a process is still running.
- *
- * Primary: `ps -p` reads the process table regardless of UID, so it
- * works even when the lock owner runs as a different user.
- *
- * Fallback: when `ps` is unavailable (e.g. sandbox restrictions),
- * `kill -0` via shell builtin is used. `kill -0` returns EPERM for
- * cross-user PIDs, which we treat as "alive" (conservative).
- */
-async function isProcessAlive(pid: number): Promise<boolean> {
-  // Try ps -p first (cross-user safe)
-  try {
-    const ps = new Deno.Command("ps", {
-      args: ["-p", String(pid)],
-      stdout: "null",
-      stderr: "null",
-    });
-    const output = await ps.output();
-    return output.code === 0;
-  } catch {
-    // ps unavailable — fall through to kill -0
-  }
-
-  // Fallback: shell builtin kill -0
-  // Exit 0 → alive, Exit 1 with EPERM → alive (cross-user), else → dead
-  try {
-    const sh = new Deno.Command("sh", {
-      args: ["-c", `kill -0 ${pid} 2>&1; echo "EXIT:$?"`],
-      stdout: "piped",
-      stderr: "null",
-    });
-    const output = await sh.output();
-    const text = new TextDecoder().decode(output.stdout);
-    if (text.includes("EXIT:0")) return true;
-    // EPERM means process exists but different user — treat as alive
-    if (text.includes("Operation not permitted") || text.includes("EPERM")) {
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 /** Issue metadata stored in meta.json */
 export interface IssueMeta {
   number: number;
@@ -257,14 +212,23 @@ export class IssueStore {
   /**
    * Try to acquire an advisory workflow-level lock.
    *
-   * Uses `Deno.open({ createNew: true })` for atomic lock creation.
+   * Two-step hybrid:
+   *  1. `createNew: true` — atomic file creation for instant try semantics.
+   *     If the file already exists, fall through to step 2.
+   *  2. Open the existing file and `flock(LOCK_EX)` with a short timeout.
+   *     If the flock succeeds, the previous holder died (kernel released
+   *     the flock but left the file). If it times out, an active process
+   *     still holds the lock.
+   *
+   * On normal release: unlock → close → remove file.
+   * On SIGKILL: kernel closes the fd (releasing flock), file stays on
+   * disk, and the next caller recovers it via step 2.
+   *
    * Lock file is at `{storePath}/.lock.{workflowId}` -- scoped per workflow,
    * not per issue. This prevents concurrent batch runs from breaking
    * priority ordering.
    *
    * Returns a release function on success, or `null` if already locked.
-   * Stale locks are detected by checking if the owning PID is still alive.
-   * Falls back to a 30-minute timeout to guard against PID recycling.
    */
   async acquireLock(
     workflowId: string,
@@ -272,111 +236,89 @@ export class IssueStore {
     await Deno.mkdir(this.#storePath, { recursive: true });
     const lockPath = `${this.#storePath}/.lock.${workflowId}`;
 
-    // Check for stale lock
-    await this.#cleanStaleLock(lockPath);
-
-    let file: Deno.FsFile;
+    // Step 1: try atomic creation (instant success/fail)
     try {
-      file = await Deno.open(lockPath, { createNew: true, write: true });
+      const file = await Deno.open(lockPath, {
+        createNew: true,
+        write: true,
+      });
+      // We just created the file — flock is instant (no contention)
+      const exclusive = true;
+      file.lockSync(exclusive);
+      return this.#makeLockHandle(file, lockPath);
     } catch (error) {
-      if (error instanceof Deno.errors.AlreadyExists) {
+      if (!(error instanceof Deno.errors.AlreadyExists)) {
         return null;
       }
-      throw error;
+      // File exists — fall through to recovery
     }
 
-    // Write PID and timestamp for stale detection
-    const info = JSON.stringify({
-      pid: Deno.pid,
-      acquiredAt: new Date().toISOString(),
-    });
-    await file.write(new TextEncoder().encode(info));
-    file.close();
+    // Step 2: file exists — try to flock it (succeeds if previous holder died)
+    let file: Deno.FsFile;
+    try {
+      file = await Deno.open(lockPath, { write: true });
+    } catch {
+      return null;
+    }
 
-    // --- Automatic cleanup on process termination ---
+    const LOCK_TIMEOUT_MS = 50;
+    const exclusive = true;
+    let timerId: number | undefined;
+    const lockPromise = file.lock(exclusive).then(() => "acquired" as const);
+    const timeout = Symbol("timeout");
+    const result = await Promise.race([
+      lockPromise,
+      new Promise<typeof timeout>((resolve) => {
+        timerId = setTimeout(() => resolve(timeout), LOCK_TIMEOUT_MS);
+      }),
+    ]);
+
+    clearTimeout(timerId);
+
+    if (result === timeout) {
+      // Active lock held by another process
+      lockPromise.catch(() => {});
+      file.close();
+      return null;
+    }
+
+    return this.#makeLockHandle(file, lockPath);
+  }
+
+  #makeLockHandle(
+    file: Deno.FsFile,
+    lockPath: string,
+  ): { release: () => void } {
     let released = false;
-
-    const removeLock = () => {
-      if (released) return;
-      released = true;
-      try {
-        Deno.removeSync(lockPath);
-      } catch {
-        // File may already be gone
-      }
-    };
-
-    const onSigint = () => {
-      removeLock();
-      detachAll();
-      Deno.exit(130); // 128 + SIGINT(2)
-    };
-    const onSigterm = () => {
-      removeLock();
-      detachAll();
-      Deno.exit(143); // 128 + SIGTERM(15)
-    };
-    const onUnload = () => removeLock();
-
-    const detachAll = () => {
-      try {
-        Deno.removeSignalListener("SIGINT", onSigint);
-      } catch { /* already removed */ }
-      try {
-        Deno.removeSignalListener("SIGTERM", onSigterm);
-      } catch { /* already removed */ }
-      globalThis.removeEventListener("unload", onUnload);
-    };
-
-    Deno.addSignalListener("SIGINT", onSigint);
-    Deno.addSignalListener("SIGTERM", onSigterm);
-    globalThis.addEventListener("unload", onUnload);
-
     return {
       release: () => {
-        removeLock();
-        detachAll();
+        if (released) return;
+        released = true;
+        try {
+          file.unlockSync();
+        } catch { /* already unlocked */ }
+        try {
+          file.close();
+        } catch { /* already closed */ }
+        try {
+          Deno.removeSync(lockPath);
+        } catch { /* already removed */ }
       },
     };
   }
 
   /**
-   * Remove a lock file if the owning process is no longer alive,
-   * or if the lock is older than 30 minutes (PID recycling guard).
+   * Try to acquire a per-issue lock.
+   *
+   * Delegates to `acquireLock` with a composite key so that
+   * individual issues can be processed concurrently while still
+   * preventing duplicate processing of the same issue.
    */
-  async #cleanStaleLock(lockPath: string): Promise<void> {
-    let text: string;
-    try {
-      text = await Deno.readTextFile(lockPath);
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) return;
-      throw error;
-    }
-
-    let stale = false;
-    try {
-      const info = JSON.parse(text) as { pid: number; acquiredAt: string };
-      if (!(await isProcessAlive(info.pid))) {
-        stale = true;
-      } else {
-        // PID alive — fall back to time-based check for PID recycling
-        const ageMs = Date.now() - new Date(info.acquiredAt).getTime();
-        if (ageMs > 30 * 60 * 1000) {
-          stale = true;
-        }
-      }
-    } catch {
-      // Corrupt lock file — treat as stale
-      stale = true;
-    }
-
-    if (stale) {
-      try {
-        await Deno.remove(lockPath);
-      } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error;
-      }
-    }
+  async acquireIssueLock(
+    workflowId: string,
+    issueNumber: number,
+  ): Promise<{ release: () => void } | null> {
+    return await this.acquireLock(`${workflowId}.${issueNumber}`);
   }
 
   /** Get issue directory path. */

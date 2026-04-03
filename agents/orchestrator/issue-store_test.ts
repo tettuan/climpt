@@ -436,107 +436,87 @@ Deno.test("acquireLock: different workflowIds do not conflict", async () => {
   }
 });
 
-Deno.test("acquireLock: stale lock from dead PID is cleaned up", async () => {
+// === acquireIssueLock ===
+
+Deno.test("acquireIssueLock: acquire and release", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const store = new IssueStore(tmp);
+    const lock = await store.acquireIssueLock("default", 42);
+    assertEquals(lock !== null, true);
+    lock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireIssueLock: same issue conflicts", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const first = await store.acquireIssueLock("default", 42);
+    assertEquals(first !== null, true);
+
+    const second = await store.acquireIssueLock("default", 42);
+    assertEquals(second, null);
+
+    first!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireIssueLock: different issues do not conflict", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const lock42 = await store.acquireIssueLock("default", 42);
+    const lock99 = await store.acquireIssueLock("default", 99);
+
+    assertEquals(lock42 !== null, true);
+    assertEquals(lock99 !== null, true);
+
+    lock42!.release();
+    lock99!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireIssueLock: workflow lock and issue lock do not conflict", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const batchLock = await store.acquireLock("default");
+    const issueLock = await store.acquireIssueLock("default", 42);
+
+    assertEquals(batchLock !== null, true);
+    assertEquals(issueLock !== null, true);
+
+    batchLock!.release();
+    issueLock!.release();
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("acquireLock: leftover lock file from dead process can be acquired", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+
+    // Simulate a leftover lock file: create it, open+lock it, then close
+    // (closing the fd releases the flock but leaves the file on disk)
     const lockPath = `${tmp}/.lock.default`;
+    const file = await Deno.open(lockPath, { create: true, write: true });
+    await file.lock(true);
+    file.unlockSync();
+    file.close();
 
-    // Simulate a leftover lock from a dead process (PID 999999 is very unlikely alive)
-    await Deno.mkdir(tmp, { recursive: true });
-    await Deno.writeTextFile(
-      lockPath,
-      JSON.stringify({ pid: 999999, acquiredAt: new Date().toISOString() }),
-    );
-
-    // acquireLock should detect dead PID and reclaim
+    // A new acquireLock should succeed despite the leftover file
     const lock = await store.acquireLock("default");
     assertEquals(lock !== null, true);
-    await lock!.release();
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-Deno.test("acquireLock: corrupt lock file is treated as stale", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lockPath = `${tmp}/.lock.default`;
-
-    // Write garbage to lock file
-    await Deno.mkdir(tmp, { recursive: true });
-    await Deno.writeTextFile(lockPath, "not json");
-
-    const lock = await store.acquireLock("default");
-    assertEquals(lock !== null, true);
-    await lock!.release();
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-Deno.test("acquireLock: lock older than 30 minutes is treated as stale even with alive PID", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lockPath = `${tmp}/.lock.default`;
-
-    // Simulate a lock from the current process (alive) but 31 minutes old
-    const oldTime = new Date(Date.now() - 31 * 60 * 1000).toISOString();
-    await Deno.mkdir(tmp, { recursive: true });
-    await Deno.writeTextFile(
-      lockPath,
-      JSON.stringify({ pid: Deno.pid, acquiredAt: oldTime }),
-    );
-
-    // Should detect as stale via timeout and reclaim
-    const lock = await store.acquireLock("default");
-    assertEquals(lock !== null, true);
-    await lock!.release();
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-Deno.test("acquireLock: lock within 30 minutes from alive PID is NOT stale", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lockPath = `${tmp}/.lock.default`;
-
-    // Simulate a recent lock from the current process (alive, within timeout)
-    await Deno.mkdir(tmp, { recursive: true });
-    await Deno.writeTextFile(
-      lockPath,
-      JSON.stringify({ pid: Deno.pid, acquiredAt: new Date().toISOString() }),
-    );
-
-    // Should NOT reclaim — PID alive and within timeout
-    const lock = await store.acquireLock("default");
-    assertEquals(lock, null);
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-Deno.test("acquireLock: isProcessAlive uses ps -p (cross-user safe)", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lockPath = `${tmp}/.lock.default`;
-
-    // PID 1 (launchd/init) is always alive but owned by root.
-    // With the old kill -0 approach, this would return false (EPERM).
-    // With ps -p, it correctly returns true → lock should NOT be reclaimed.
-    await Deno.mkdir(tmp, { recursive: true });
-    await Deno.writeTextFile(
-      lockPath,
-      JSON.stringify({ pid: 1, acquiredAt: new Date().toISOString() }),
-    );
-
-    const lock = await store.acquireLock("default");
-    assertEquals(lock, null);
+    lock!.release();
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
@@ -552,65 +532,6 @@ Deno.test("acquireLock: release is idempotent (double release does not throw)", 
     await lock!.release();
     // Second release — file already gone, should not throw
     await lock!.release();
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-// === Signal / unload cleanup ===
-
-Deno.test("acquireLock: lock file is cleaned up on unload event", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lock = await store.acquireLock("default");
-    assertEquals(lock !== null, true);
-
-    const lockPath = `${tmp}/.lock.default`;
-    const stat = await Deno.stat(lockPath);
-    assertEquals(stat.isFile, true);
-
-    // Simulate process unload — dispatchEvent fires registered listeners
-    globalThis.dispatchEvent(new Event("unload"));
-
-    // Lock file should be removed by unload handler
-    await assertRejects(
-      () => Deno.stat(lockPath),
-      Deno.errors.NotFound,
-    );
-
-    // Release after unload is still safe (idempotent)
-    await lock!.release();
-  } finally {
-    await Deno.remove(tmp, { recursive: true });
-  }
-});
-
-Deno.test("acquireLock: release detaches signal/unload handlers (no leak)", async () => {
-  const tmp = await Deno.makeTempDir();
-  try {
-    const store = new IssueStore(tmp);
-    const lock = await store.acquireLock("default");
-    assertEquals(lock !== null, true);
-
-    await lock!.release();
-
-    // Write a new lock file manually
-    const lockPath = `${tmp}/.lock.default`;
-    await Deno.writeTextFile(
-      lockPath,
-      JSON.stringify({
-        pid: Deno.pid,
-        acquiredAt: new Date().toISOString(),
-      }),
-    );
-
-    // Simulate unload — should NOT remove the manually-written lock
-    // because release() already detached the handler
-    globalThis.dispatchEvent(new Event("unload"));
-
-    const stat = await Deno.stat(lockPath);
-    assertEquals(stat.isFile, true);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
