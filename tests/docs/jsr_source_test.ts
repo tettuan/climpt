@@ -93,7 +93,9 @@ Deno.test({
         "Entry should have category",
       );
       assert(
-        ["guides", "reference", "internal"].includes(entry.category),
+        ["guides", "reference", "internal", "builder-guides"].includes(
+          entry.category,
+        ),
         "Category should be valid",
       );
     }
