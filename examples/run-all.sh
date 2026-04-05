@@ -13,6 +13,20 @@ if [[ ! -f "$ENABLE_FLAG" ]]; then
   exit 0
 fi
 
+# Guard: skip if another instance is already running
+LOCK_FILE="${REPO_ROOT}/tmp/.examples-run.lock"
+if [[ -f "$LOCK_FILE" ]]; then
+  pid=$(cat "$LOCK_FILE" 2>/dev/null)
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "Skipped: another run-all.sh is running (PID ${pid})."
+    exit 0
+  fi
+  # Stale lock — previous run crashed
+  rm -f "$LOCK_FILE"
+fi
+echo $$ > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
 datetime="$(date '+%Y-%m-%dT%H-%M-%S')"
 echo "Starting examples run: ${datetime}"
 
