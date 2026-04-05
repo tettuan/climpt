@@ -102,6 +102,7 @@ Not every document needs all 5 levels. But every level that appears must connect
 4. **Name patterns at Level 4** — If you can't name it, it's not reusable enough
 5. **Verify connections** — Each level must reference its neighbor (up: "because", down: "therefore")
 6. **Check completeness** — Can a reader derive any Level 5 example from Levels 2+3+4 alone?
+7. **Cross-document verification** — Run V1-V4 checks against related documents (see below)
 
 ## Anti-Patterns
 
@@ -112,6 +113,64 @@ Not every document needs all 5 levels. But every level that appears must connect
 | Orphan level | A level that doesn't reference its neighbors | Add "because" (up) and "therefore" (down) connectors |
 | Implicit structure | Parts discoverable only by reading source code | Move to Level 2 and enumerate explicitly |
 | Example without pattern | Concrete config with no reusable template | Extract the pattern, name it, then show the example as an instance |
+
+## Cross-Document Verification
+
+ドキュメント作成・更新後に、関連ドキュメントとの整合性を検証する。
+
+### V1: 同一概念の重複検出
+
+同じ概念が複数ファイルに記述されている場合、**権威ある1箇所** (source of truth)
+を定め、他はリンクで参照する。
+
+検証手順:
+1. 作成したドキュメントの Level 2 (Structure/Contract) のフィールド名・用語を抽出
+2. 同ディレクトリの他ドキュメントを grep し、同一フィールド/用語の記述を検出
+3. 重複を発見したら: source of truth を決定 → 他方をリンクに置換
+
+判定基準:
+
+| 重複パターン | source of truth | 他方の対応 |
+|-------------|----------------|-----------|
+| 同一フィールドの動作説明 | そのフィールドが属する contract ドキュメント | 1行リンク + 要約のみ |
+| config リファレンス (型、デフォルト値) | agent definition ドキュメント | リンクで参照 |
+| 設計原則の引用 | design ドキュメント | 引用として明示 |
+
+### V2: Level 間の矛盾検出
+
+同一ドキュメント内で、上位 Level の記述と下位 Level の記述が矛盾していないか検証する。
+
+検証手順:
+1. Level 2 の保証 (if X then Y) を列挙
+2. Level 5 の各例が Level 2 の保証に違反していないか照合
+3. Level 3 のルールが Level 4 のパターンに反映されているか確認
+
+矛盾の典型例:
+
+| 矛盾 | 症状 | 修正方向 |
+|------|------|---------|
+| Level 2 の保証を Level 5 の例が破っている | 例が「動かない設定」を示す | 例を修正 (Level 2 が権威) |
+| Level 3 のルールが Level 4 のパターンに欠落 | パターンが不完全で、読者がルール違反する設定を書く | パターンにルールを反映 |
+| Level 1 の原則と Level 3 のルールが矛盾 | ルールが原則から導出不可能 | ルールの根拠を再検証し、原則かルールを修正 |
+
+### V3: ドキュメント間のリンク整合性
+
+リンク先が存在し、参照関係が双方向であることを検証する。
+
+検証手順:
+1. 作成したドキュメントから外部リンク (`[text](./other.md)`) を抽出
+2. リンク先ファイルが存在するか確認
+3. リンク先の「関連ドキュメント」セクションに逆リンクがあるか確認
+4. 逆リンクがなければ追加
+
+### V4: 用語の一貫性
+
+同じ概念に複数の名前を使っていないか検証する。
+
+検証手順:
+1. 作成したドキュメントの key terms (Level 2 のフィールド名、Level 4 のパターン名) を抽出
+2. 関連ドキュメントで同じ概念に別の名前が使われていないか grep
+3. 不一致があれば統一する (新しいドキュメントを既存の用語に合わせる)
 
 ## Theoretical Basis
 

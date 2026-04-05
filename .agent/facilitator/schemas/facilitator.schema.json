@@ -373,6 +373,10 @@
           "details": { "type": "object", "additionalProperties": true }
         }
       },
+      "verdict": {
+        "type": "string",
+        "description": "Orchestratorに伝搬する判定結果。outputPhases[verdict]でphase routingに使用"
+      },
       "project": { "$ref": "#/$defs/projectContext" },
       "actions_taken": {
         "type": "array",
@@ -395,6 +399,10 @@
           "reason": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
         }
+      },
+      "verdict": {
+        "type": "string",
+        "description": "Orchestratorに伝搬する判定結果。outputPhases[verdict]でphase routingに使用"
       },
       "validation": {
         "type": "object",

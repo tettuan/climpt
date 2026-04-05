@@ -141,6 +141,10 @@
           "details": { "type": "object", "additionalProperties": true }
         }
       },
+      "verdict": {
+        "type": "string",
+        "description": "Orchestratorに伝搬する判定結果。outputPhases[verdict]でphase routingに使用"
+      },
       "iteration": { "$ref": "#/$defs/iterationContext" },
       "completion": {
         "type": "object",

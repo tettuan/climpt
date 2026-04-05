@@ -184,6 +184,9 @@ Phase 遷移                 review → complete
 
 ## Label Mapping
 
+`labelMapping` で定義するラベルは、two-tier label model における「Orchestrator
+ラベル」に相当する（`08_closure_output_contract.md` R3 参照）。
+
 GitHub issue label をキー、phase ID を値とする。
 
 ```json
@@ -381,3 +384,11 @@ deno task orchestrator --label docs --dry-run --verbose
 | `Actionable phase "X" missing priority`                  | `actionable` type の phase に `priority` が未定義 | `priority` フィールドを追加             |
 | `Cycle limit exceeded`                                   | `maxCycles` 回の遷移が発生                        | ワークフロー定義を見直すか maxCycles 増 |
 | `WF-BATCH-001: --prioritize requires prioritizer config` | `prioritizer` セクションが未定義                  | workflow.json に `prioritizer` を追加   |
+
+## 関連ドキュメント
+
+- [02_agent_definition.md](./02_agent_definition.md) -- Agent 定義ファイルの構造
+- [07_github_integration.md](./07_github_integration.md) -- GitHub
+  連携の3層アクセスモデル
+- [08_closure_output_contract.md](./08_closure_output_contract.md) -- Closure
+  Output Contract
