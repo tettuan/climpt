@@ -74,6 +74,7 @@
       "Skill(claude-api)",
       "Skill(commit)",
       "Skill(docs-consistency)",
+      "Skill(docs-writing)",
       "Skill(examples-smoke-test)",
       "Skill(fix-checklist)",
       "Skill(functional-testing)",

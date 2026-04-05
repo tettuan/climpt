@@ -6,7 +6,11 @@
  */
 
 import { assertEquals } from "@std/assert";
-import { mapResultToOutcome, StubDispatcher } from "./dispatcher.ts";
+import {
+  extractHandoffData,
+  mapResultToOutcome,
+  StubDispatcher,
+} from "./dispatcher.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 
 // =============================================================================
@@ -111,4 +115,217 @@ Deno.test("mapResultToOutcome: falls back to 'failed' when no verdict", () => {
 Deno.test("mapResultToOutcome: undefined verdict treated as absent", () => {
   const outcome = mapResultToOutcome({ success: true, verdict: undefined });
   assertEquals(outcome, "success");
+});
+
+// =============================================================================
+// StubDispatcher: handoffData
+// =============================================================================
+
+Deno.test("StubDispatcher: returns configured handoffData", async () => {
+  const handoffData = { summary: "All checks passed" };
+  const dispatcher = new StubDispatcher(
+    { myAgent: "approved" },
+    undefined,
+    handoffData,
+  );
+
+  const result = await dispatcher.dispatch("myAgent", 1);
+
+  assertEquals(result.outcome, "approved");
+  assertEquals(result.handoffData, { summary: "All checks passed" });
+});
+
+Deno.test("StubDispatcher: returns undefined handoffData when not configured", async () => {
+  const dispatcher = new StubDispatcher({ myAgent: "success" });
+
+  const result = await dispatcher.dispatch("myAgent", 1);
+
+  assertEquals(result.handoffData, undefined);
+});
+
+Deno.test("StubDispatcher: handoffData coexists with rateLimitInfo", async () => {
+  const rateLimitInfo: RateLimitInfo = {
+    utilization: 0.5,
+    resetsAt: 1700000000,
+    rateLimitType: "seven_day",
+  };
+  const handoffData = { final_summary: "plan details" };
+  const dispatcher = new StubDispatcher(
+    { reviewer: "approved" },
+    rateLimitInfo,
+    handoffData,
+  );
+
+  const result = await dispatcher.dispatch("reviewer", 1);
+
+  assertEquals(result.outcome, "approved");
+  assertEquals(result.rateLimitInfo, rateLimitInfo);
+  assertEquals(result.handoffData, { final_summary: "plan details" });
+});
+
+// =============================================================================
+// extractHandoffData: contract tests
+// Source of truth: stepsRegistry.handoffFields defines extraction targets
+// =============================================================================
+
+// Invariant: returns undefined when no closure step has handoffFields
+Deno.test("extractHandoffData: no closure step with handoffFields → undefined", () => {
+  const registry = [
+    { stepKind: "work" as const, structuredGate: { handoffFields: ["x"] } },
+    { stepKind: "closure" as const, structuredGate: { handoffFields: [] } },
+  ];
+  const result = { summaries: [{ structuredOutput: { x: "value" } }] };
+
+  assertEquals(
+    extractHandoffData(result, registry),
+    undefined,
+    "extractHandoffData must return undefined when no closure step has non-empty handoffFields. " +
+      "Fix: add fields to closure step's structuredGate.handoffFields in steps_registry.json",
+  );
+});
+
+// Invariant: returns undefined when structuredOutput is absent
+Deno.test("extractHandoffData: no structuredOutput in last summary → undefined", () => {
+  const registry = [
+    {
+      stepKind: "closure" as const,
+      structuredGate: { handoffFields: ["final_summary"] },
+    },
+  ];
+  const result = { summaries: [{/* no structuredOutput */}] };
+
+  assertEquals(
+    extractHandoffData(result, registry),
+    undefined,
+    "extractHandoffData must return undefined when last summary has no structuredOutput. " +
+      "Fix: ensure agent closure step produces structured output",
+  );
+});
+
+// Contract: every field in handoffFields that exists in structuredOutput appears in result
+Deno.test("extractHandoffData: handoffFields select matching fields from structuredOutput", () => {
+  const handoffFields = ["final_summary", "review_score"];
+  const structuredOutput: Record<string, unknown> = {
+    final_summary: "Implementation plan for feature X",
+    review_score: "pass",
+    internal_state: "should not appear",
+    next_action: { action: "closing" },
+  };
+  const registry = [
+    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+  ];
+  const result = { summaries: [{ structuredOutput }] };
+
+  const data = extractHandoffData(result, registry)!;
+
+  // Relationship: every handoffField present in structuredOutput must appear in result
+  for (const field of handoffFields) {
+    assertEquals(
+      field in structuredOutput && (field.split(".").pop()!) in data,
+      true,
+      `handoffField "${field}" exists in structuredOutput but missing from extractHandoffData result. ` +
+        `Fix: check extractHandoffData in dispatcher.ts`,
+    );
+  }
+  // Relationship: fields NOT in handoffFields must NOT appear
+  assertEquals(
+    "internal_state" in data,
+    false,
+    "Fields not listed in handoffFields must not leak into handoffData. " +
+      "Fix: extractHandoffData in dispatcher.ts is extracting unlisted fields",
+  );
+});
+
+// Contract: non-string values are JSON.stringified
+Deno.test("extractHandoffData: non-string values are JSON-serialized", () => {
+  const structuredOutput: Record<string, unknown> = {
+    count: 42,
+    details: { a: 1, b: 2 },
+    label: "text-value",
+  };
+  const handoffFields = ["count", "details", "label"];
+  const registry = [
+    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+  ];
+  const result = { summaries: [{ structuredOutput }] };
+
+  const data = extractHandoffData(result, registry)!;
+
+  // Invariant: all values in handoffData must be strings
+  for (const [key, value] of Object.entries(data)) {
+    assertEquals(
+      typeof value,
+      "string",
+      `handoffData["${key}"] is ${typeof value}, expected string. ` +
+        `Fix: extractHandoffData in dispatcher.ts must stringify non-string values`,
+    );
+  }
+  // Relationship: string values pass through unchanged
+  assertEquals(
+    data.label,
+    structuredOutput.label,
+    "String values must pass through unchanged",
+  );
+  // Relationship: non-string values become JSON
+  assertEquals(
+    data.count,
+    JSON.stringify(structuredOutput.count),
+    "Non-string values must be JSON.stringified",
+  );
+  assertEquals(
+    data.details,
+    JSON.stringify(structuredOutput.details),
+    "Object values must be JSON.stringified",
+  );
+});
+
+// Contract: dot-notation paths use last segment as key
+Deno.test("extractHandoffData: dot-notation path uses last segment as variable key", () => {
+  const structuredOutput: Record<string, unknown> = {
+    analysis: { understanding: "deep analysis content" },
+  };
+  const handoffFields = ["analysis.understanding"];
+  const registry = [
+    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+  ];
+  const result = { summaries: [{ structuredOutput }] };
+
+  const data = extractHandoffData(result, registry)!;
+
+  // Relationship: key is last segment of path
+  const expectedKey = handoffFields[0].split(".").pop()!;
+  assertEquals(
+    expectedKey in data,
+    true,
+    `Dot-notation path "${
+      handoffFields[0]
+    }" should produce key "${expectedKey}" ` +
+      `but found keys: [${Object.keys(data).join(", ")}]. ` +
+      `Fix: check extractHandoffData key derivation in dispatcher.ts`,
+  );
+  assertEquals(data[expectedKey], "deep analysis content");
+});
+
+// Invariant: missing fields in structuredOutput are silently skipped
+Deno.test("extractHandoffData: missing field in structuredOutput → skipped, no error", () => {
+  const structuredOutput: Record<string, unknown> = { present: "value" };
+  const handoffFields = ["present", "absent"];
+  const registry = [
+    { stepKind: "closure" as const, structuredGate: { handoffFields } },
+  ];
+  const result = { summaries: [{ structuredOutput }] };
+
+  const data = extractHandoffData(result, registry)!;
+
+  assertEquals(
+    "present" in data,
+    true,
+    "Present field must be extracted",
+  );
+  assertEquals(
+    "absent" in data,
+    false,
+    "Absent field must be silently skipped, not cause an error. " +
+      "Fix: extractHandoffData should skip undefined values without throwing",
+  );
 });

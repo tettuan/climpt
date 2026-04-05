@@ -137,6 +137,69 @@ Required when using `--prioritize`. Configures the priority assignment agent.
 | `labels`       | yes      | Allowed priority labels in order (e.g., `["P1", "P2", "P3"]`) |
 | `defaultLabel` | no       | Fallback label when priority is missing or invalid            |
 
+### handoff
+
+Configures comment templates posted to GitHub issues during agent handoff
+transitions.
+
+```json
+"handoff": {
+  "commentTemplates": {
+    "<templateKey>": "<template string with {variables}>"
+  }
+}
+```
+
+**Template key naming convention:**
+
+The orchestrator resolves a template key for each handoff using the agent ID and
+the transition outcome:
+
+1. Look up `{agentId}{Outcome}` (e.g., `reviewerApproved`).
+2. Fall back to `{agentId}To{Outcome}` (e.g., `reviewerToApproved`).
+3. Outcome is capitalized (`"approved"` becomes `"Approved"`).
+4. If no matching template is found, no comment is posted (silent no-op).
+
+**Template variables:**
+
+Template variables are defined by the agent builder, not the framework.
+Configure in two places:
+
+1. Define fields in the closure step's output schema (e.g.,
+   `"final_summary": { "type": "string" }`).
+2. List fields to export in the closure step's `handoffFields` (e.g.,
+   `["final_summary"]`).
+
+Variables listed in `handoffFields` become available as `{field_name}` in
+templates. Unmatched variables are preserved as literal text in the output.
+
+**Example** using the iterator/reviewer agents from the quick start:
+
+```json
+// steps_registry.json — closure step
+"handoffFields": ["final_summary"]
+```
+
+```json
+// workflow.json
+"handoff": {
+  "commentTemplates": {
+    "iteratorSuccess": "[Handoff] Implementation complete.\n\n{final_summary}",
+    "reviewerApproved": "[Review Complete] All requirements verified.\n\n{final_summary}",
+    "reviewerRejected": "[Review] Gaps found.\n\n{final_summary}"
+  }
+}
+```
+
+**Template key mapping** for the standard iterator/reviewer workflow:
+
+| Agent    | Outcome  | Template Key       |
+| -------- | -------- | ------------------ |
+| iterator | success  | `iteratorSuccess`  |
+| iterator | failed   | `iteratorFailed`   |
+| reviewer | approved | `reviewerApproved` |
+| reviewer | rejected | `reviewerRejected` |
+
 ## Running Workflows
 
 ```bash

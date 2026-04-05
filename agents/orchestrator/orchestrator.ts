@@ -440,12 +440,7 @@ export class Orchestrator {
           issueNumber,
           agentId,
           dispatchResult.outcome,
-          {
-            session_id: tracker.generateCorrelationId(agentId),
-            issue_count: "1",
-            summary:
-              `Agent "${agentId}" completed with outcome "${dispatchResult.outcome}"`,
-          },
+          { ...dispatchResult.handoffData },
         );
       }
 

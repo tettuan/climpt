@@ -1,5 +1,5 @@
 {
-  "version": "1.13.18",
+  "version": "1.13.19",
   "entries": [
     {
       "id": "builder-01_quickstart",
@@ -13,7 +13,7 @@
       "path": "../agents/docs/builder/02_agent_definition.md",
       "category": "builder-guides",
       "title": "Agent 定義",
-      "bytes": 17932
+      "bytes": 19068
     },
     {
       "id": "builder-03_builder_guide",
@@ -41,14 +41,21 @@
       "path": "../agents/docs/builder/06_workflow_setup.md",
       "category": "builder-guides",
       "title": "Workflow Setup",
-      "bytes": 8305
+      "bytes": 13421
     },
     {
       "id": "builder-07_github_integration",
       "path": "../agents/docs/builder/07_github_integration.md",
       "category": "builder-guides",
       "title": "GitHub Integration Guide",
-      "bytes": 16237
+      "bytes": 16004
+    },
+    {
+      "id": "builder-08_closure_output_contract",
+      "path": "../agents/docs/builder/08_closure_output_contract.md",
+      "category": "builder-guides",
+      "title": "Closure Output Contract",
+      "bytes": 10878
     },
     {
       "id": "builder-README",

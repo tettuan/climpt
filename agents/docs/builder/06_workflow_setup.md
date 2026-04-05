@@ -184,6 +184,9 @@ Phase 遷移                 review → complete
 
 ## Label Mapping
 
+`labelMapping` で定義するラベルは、two-tier label model における「Orchestrator
+ラベル」に相当する（`08_closure_output_contract.md` R3 参照）。
+
 GitHub issue label をキー、phase ID を値とする。
 
 ```json
@@ -203,6 +206,75 @@ GitHub issue label をキー、phase ID を値とする。
 | -------------- | ------ | ---------- | -------------------------- |
 | `maxCycles`    | number | 5          | 同一 issue の最大遷移回数  |
 | `cycleDelayMs` | number | 5000       | サイクル間の待機（ミリ秒） |
+
+## Handoff
+
+Handoff は Agent 間の遷移時に GitHub Issue へ定型コメントを投稿する設定。
+
+### commentTemplates
+
+テンプレートキーの命名規則:
+
+1. `{agentId}{Outcome}` を先に検索（例: `iteratorSuccess`）
+2. 見つからなければ `{agentId}To{Outcome}` にフォールバック（例:
+   `iteratorToSuccess`）
+
+Outcome は先頭大文字化される（`approved` →
+`Approved`）。テンプレートが見つからない場合はコメント投稿をスキップする（エラーにならない）。
+
+### テンプレート変数
+
+テンプレート変数はフレームワーク固定ではない。全て設定者が定義する。
+
+設定箇所は 2 箇所:
+
+1. **closure step の schema にフィールドを定義する** 例:
+   `"final_summary": { "type": "string" }`
+2. **closure step の `handoffFields` に orchestrator
+   に伝搬するフィールドを列挙する** 例: `"handoffFields": ["final_summary"]`
+
+これにより、テンプレート内で `{final_summary}` として利用可能になる。
+
+未定義の変数はそのまま `{variable}` として出力される。
+
+### テンプレートキーの対応表
+
+agents セクションの role/outputPhase/outputPhases と commentTemplates
+キーの対応:
+
+| Agent    | Role        | Outcome                   | テンプレートキー候補                     |
+| -------- | ----------- | ------------------------- | ---------------------------------------- |
+| iterator | transformer | success (→ outputPhase)   | `iteratorSuccess`, `iteratorToSuccess`   |
+| iterator | transformer | failed (→ fallbackPhase)  | `iteratorFailed`, `iteratorToFailed`     |
+| reviewer | validator   | approved (→ outputPhases) | `reviewerApproved`, `reviewerToApproved` |
+| reviewer | validator   | rejected (→ outputPhases) | `reviewerRejected`, `reviewerToRejected` |
+
+### 設定例
+
+```json
+// steps_registry.json — closure step
+{
+  "stepId": "closure.issue",
+  "structuredGate": {
+    "allowedIntents": ["closing", "repeat"],
+    "intentField": "next_action.action",
+    "handoffFields": ["final_summary"]
+  }
+}
+```
+
+```json
+// workflow.json
+{
+  "handoff": {
+    "commentTemplates": {
+      "iteratorSuccess": "[Handoff] Implementation complete.\n\n{final_summary}",
+      "reviewerApproved": "[Review Complete] All requirements verified.\n\n{final_summary}",
+      "reviewerRejected": "[Review] Gaps found.\n\n{final_summary}"
+    }
+  }
+}
+```
 
 ## Label Prefix
 
@@ -312,3 +384,11 @@ deno task orchestrator --label docs --dry-run --verbose
 | `Actionable phase "X" missing priority`                  | `actionable` type の phase に `priority` が未定義 | `priority` フィールドを追加             |
 | `Cycle limit exceeded`                                   | `maxCycles` 回の遷移が発生                        | ワークフロー定義を見直すか maxCycles 増 |
 | `WF-BATCH-001: --prioritize requires prioritizer config` | `prioritizer` セクションが未定義                  | workflow.json に `prioritizer` を追加   |
+
+## 関連ドキュメント
+
+- [02_agent_definition.md](./02_agent_definition.md) -- Agent 定義ファイルの構造
+- [07_github_integration.md](./07_github_integration.md) -- GitHub
+  連携の3層アクセスモデル
+- [08_closure_output_contract.md](./08_closure_output_contract.md) -- Closure
+  Output Contract

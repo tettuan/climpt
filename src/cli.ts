@@ -14,6 +14,7 @@ import {
   FRONTMATTER_TO_SCHEMA_VERSION,
 } from "./version.ts";
 import { runInit } from "./init/mod.ts";
+import { runUpgrade } from "./upgrade/mod.ts";
 import {
   getPromptLogger,
   parseCliArgsForLogging,
@@ -56,6 +57,7 @@ async function importBreakdown(): Promise<void> {
  *
  * ## Available Commands
  * - `init` - Initialize breakdown configuration
+ * - `upgrade` - Update docs and validate installation
  * - `to <type> <layer>` - Convert input Markdown to next layer format
  * - `summary <type>` - Generate new Markdown or specified layer Markdown
  * - `defect <type>` - Generate fixes from error logs or defect information
@@ -164,6 +166,15 @@ export async function main(_args: string[] = []): Promise<void> {
     // Handle init command - Climpt native implementation
     if (_args[0] === "init") {
       const result = await runInit(_args.slice(1));
+      if (!result.success) {
+        Deno.exit(1);
+      }
+      return;
+    }
+
+    // Handle upgrade command
+    if (_args[0] === "upgrade") {
+      const result = await runUpgrade(_args.slice(1));
       if (!result.success) {
         Deno.exit(1);
       }

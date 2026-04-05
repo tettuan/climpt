@@ -153,7 +153,7 @@ Deno.test("SchemaResolver - handles allOf merge correctly", async () => {
   assertEquals(required.includes("stepId"), true);
   assertEquals(required.includes("status"), true);
   assertEquals(required.includes("summary"), true);
-  assertEquals(required.includes("action"), true);
+  assertEquals(required.includes("closure_action"), true);
   assertEquals(required.includes("validation"), true);
 
   // Properties from stepResponse should be present

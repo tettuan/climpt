@@ -419,7 +419,10 @@ Deno.test("StructuredOutput - closure.issue schema has validation fields", async
 
   // Verify validation-specific fields
   assertExists(schema.properties.validation, "Should have validation property");
-  assertExists(schema.properties.action, "Should have action property");
+  assertExists(
+    schema.properties.closure_action,
+    "Should have closure_action property",
+  );
 
   // Verify validation object structure
   const validationSchema = schema.properties.validation;
