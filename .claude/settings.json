@@ -89,7 +89,7 @@
       "Skill(update-changelog)",
       "Skill(update-config)",
       "Skill(update-docs)",
-      "Skill(workflow)",
+      "Skill(work-process)",
       "Skill(climpt-agent:delegate-climpt-agent)",
       "Skill(plugin-dev:create-plugin)",
       "Skill(plugin-dev:command-development)",

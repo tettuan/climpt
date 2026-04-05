@@ -7,8 +7,9 @@
  * - Multiple entry points, empty registries, real config integration
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { validateFlowReachability } from "./flow-validator.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
 
 // =============================================================================
 // Fixtures
@@ -191,21 +192,26 @@ Deno.test("flow-validator - unknown transition key produces warning", () => {
 // =============================================================================
 
 Deno.test("flow-validator - all valid intents produce no intent warnings", () => {
+  // Derive the full intent set from the authoritative source
+  const ALL_INTENTS = [
+    ...new Set(Object.values(STEP_KIND_ALLOWED_INTENTS).flat()),
+  ];
+
+  // Build transitions for every known intent
+  const transitions: Record<string, { target: string | null }> = {};
+  for (const intent of ALL_INTENTS) {
+    transitions[intent] = intent === "closing" || intent === "abort"
+      ? { target: null }
+      : { target: intent === "repeat" ? "step.a" : "step.b" };
+  }
+
   const registry: Record<string, unknown> = {
     entryStepMapping: { issue: "step.a" },
     steps: {
       "step.a": {
         stepId: "step.a",
         c2: "initial",
-        transitions: {
-          next: { target: "step.b" },
-          repeat: { target: "step.a" },
-          jump: { target: "step.b" },
-          handoff: { target: "step.b" },
-          closing: { target: null },
-          escalate: { target: "step.b" },
-          abort: { target: null },
-        },
+        transitions,
       },
       "step.b": {
         stepId: "step.b",
@@ -223,6 +229,10 @@ Deno.test("flow-validator - all valid intents produce no intent warnings", () =>
   // No warnings about unknown intent keys
   const intentWarnings = result.warnings.filter((w) =>
     w.includes("unknown intent")
+  );
+  assert(
+    ALL_INTENTS.length > 0,
+    "ALL_INTENTS must be non-empty for filter to be non-vacuous",
   );
   assertEquals(intentWarnings.length, 0);
 });

@@ -12,6 +12,7 @@ import {
   getLatestVersion,
   getManifest,
 } from "../../src/docs/source.ts";
+import { VALID_CATEGORIES } from "../../src/docs/types.ts";
 import { createTestLogger } from "../test-utils.ts";
 
 const logger = createTestLogger("docs-jsr");
@@ -93,10 +94,10 @@ Deno.test({
         "Entry should have category",
       );
       assert(
-        ["guides", "reference", "internal", "builder-guides"].includes(
-          entry.category,
-        ),
-        "Category should be valid",
+        (VALID_CATEGORIES as readonly string[]).includes(entry.category),
+        `Category should be one of [${
+          VALID_CATEGORIES.join(", ")
+        }], got: ${entry.category}`,
       );
     }
   },

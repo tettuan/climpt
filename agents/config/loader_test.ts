@@ -5,13 +5,17 @@
  * Uses real temp directories with JSON files for integration tests.
  */
 
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertExists, assertRejects } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { join } from "@std/path";
 import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { ConfigError } from "../shared/errors/config-errors.ts";
 
 const logger = new BreakdownLogger("config-loader");
+
+// Synthetic base directories for getAgentDir (pure path construction, no filesystem access)
+const SAMPLE_BASE_DIR = "/home/user/project";
+const SAMPLE_BASE_DIR_SHORT = "/workspace";
 
 // =============================================================================
 // getAgentDir Tests
@@ -20,18 +24,18 @@ const logger = new BreakdownLogger("config-loader");
 Deno.test("config/loader - getAgentDir constructs correct path", () => {
   logger.debug("getAgentDir input", {
     agentName: "iterator",
-    baseDir: "/home/user/project",
+    baseDir: SAMPLE_BASE_DIR,
   });
-  const result = getAgentDir("iterator", "/home/user/project");
+  const result = getAgentDir("iterator", SAMPLE_BASE_DIR);
   logger.debug("getAgentDir result", { result });
 
-  assertEquals(result, "/home/user/project/.agent/iterator");
+  assertEquals(result, `${SAMPLE_BASE_DIR}/.agent/iterator`);
 });
 
 Deno.test("config/loader - getAgentDir handles nested agent names", () => {
-  const result = getAgentDir("my-agent", "/workspace");
+  const result = getAgentDir("my-agent", SAMPLE_BASE_DIR_SHORT);
 
-  assertEquals(result, "/workspace/.agent/my-agent");
+  assertEquals(result, `${SAMPLE_BASE_DIR_SHORT}/.agent/my-agent`);
 });
 
 // =============================================================================
@@ -102,7 +106,7 @@ Deno.test("config/loader - loadStepsRegistry loads valid registry", async () => 
     const result = await loadStepsRegistry(tempDir);
     logger.debug("loadStepsRegistry result", { hasResult: result !== null });
 
-    assertEquals(result !== null, true);
+    assertExists(result);
     assertEquals((result as Record<string, unknown>).agentId, "test");
   } finally {
     await Deno.remove(tempDir, { recursive: true });
