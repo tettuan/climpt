@@ -362,29 +362,33 @@ rules:
 # Type        : object
 # Required    : no
 # Why         : Defines comment templates posted to GitHub
-#               issues during phase transitions, and
-#               templates for auto-created gap issues.
+#               issues during phase transitions.
 # ============================================================
-# handoff:
-#
-#   # commentTemplates
-#   # Description : Named comment templates with placeholder
-#   #               support.
-#   # Type        : object (keys: template name, values: string)
-#   # Required    : no
-#   # Default     : none
-#   # Why         : Posted to the GitHub issue during handoff.
-#   #               Placeholders: {session_id}, {issue_count},
-#   #               {summary}.
-#   commentTemplates:
-#     iteratorToReviewer: >-
-#       [Agent Handoff] Ready for review
-#       - Session: {session_id}
-#       - Issues: {issue_count}
-#     reviewerApproved: >-
-#       [Agent Review Complete] All requirements verified
-#       {summary}
-#     reviewerRejected: >-
-#       [Agent Review] Gaps found
-#       {summary}
-#
+handoff:
+
+  # ----------------------------------------------------------
+  # commentTemplates
+  # ----------------------------------------------------------
+  # Description : Named comment templates with placeholder
+  #               support.
+  # Type        : object (keys: template name, values: string)
+  # Required    : no
+  # Default     : none
+  # Why         : Posted to the GitHub issue during handoff.
+  #               Placeholders are defined by closure step
+  #               handoffFields (e.g., {final_summary}).
+  # Key naming  : {agentId}{Outcome} (primary) or
+  #               {agentId}To{Outcome} (fallback). Outcome is
+  #               capitalized. E.g., "reviewerApproved",
+  #               "iteratorToReviewer".
+  # ----------------------------------------------------------
+  commentTemplates:
+    iteratorToReviewer: >-
+      [Agent Handoff] Ready for review
+      {final_summary}
+    reviewerApproved: >-
+      [Agent Review Complete] All requirements verified
+      {final_summary}
+    reviewerRejected: >-
+      [Agent Review] Gaps found
+      {final_summary}

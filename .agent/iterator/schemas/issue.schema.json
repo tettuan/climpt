@@ -150,7 +150,7 @@
       "status",
       "summary",
       "issue",
-      "action",
+      "closure_action",
       "validation"
     ],
     "additionalProperties": false,
@@ -202,11 +202,15 @@
           }
         }
       },
-      "action": {
+      "closure_action": {
         "type": "string",
         "enum": ["close", "label-only", "label-and-close"],
         "default": "close",
         "description": "完了アクション: close (Issueクローズ), label-only (ラベル変更のみ), label-and-close (ラベル変更後クローズ)"
+      },
+      "verdict": {
+        "type": "string",
+        "description": "Orchestratorに伝搬する判定結果。outputPhases[verdict]でphase routingに使用"
       },
       "body": {
         "type": "string",

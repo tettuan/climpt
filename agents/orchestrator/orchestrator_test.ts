@@ -377,6 +377,84 @@ Deno.test("handoff comments posted on reviewer outcomes", async () => {
   assertEquals(approvedComments.length, 1);
 });
 
+Deno.test("handoff comments render handoffData variables into template", async () => {
+  const config = createTestConfig();
+  // Source of truth: the template from config
+  const template = config.handoff!.commentTemplates!["reviewerApproved"];
+
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["done"],
+  ]);
+
+  // handoffData provides a value for the {summary} placeholder in the template
+  const handoffValue = "Agent output from closure step";
+  const dispatcher = new StubDispatcher(
+    { iterator: "success", reviewer: "approved" },
+    undefined,
+    { summary: handoffValue },
+  );
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  await orchestrator.run(1);
+
+  const approvedComments = github.comments.filter((c) =>
+    c.comment.includes("[Agent Review Complete]")
+  );
+  assertEquals(
+    approvedComments.length,
+    1,
+    "Expected exactly 1 reviewerApproved comment. " +
+      `Fix: check handoff.commentTemplates["reviewerApproved"] in createTestConfig()`,
+  );
+
+  // Relationship: handoffData value replaces the placeholder in the template
+  assertEquals(
+    approvedComments[0].comment.includes(handoffValue),
+    true,
+    `handoffData value "${handoffValue}" should appear in rendered comment. ` +
+      `Template: "${template}". ` +
+      `Fix: check orchestrator.ts Step 12 vars construction or handoff-manager.ts renderAndPost`,
+  );
+  // Relationship: placeholder must not remain
+  assertEquals(
+    approvedComments[0].comment.includes("{summary}"),
+    false,
+    `Placeholder {summary} should be replaced when handoffData provides a value. ` +
+      `Fix: check renderTemplate in phase-transition.ts`,
+  );
+});
+
+Deno.test("handoff comments preserve placeholders when handoffData is absent", async () => {
+  const config = createTestConfig();
+  const github = new StubGitHubClient([
+    ["ready"],
+    ["review"],
+    ["done"],
+  ]);
+  // No handoffData -> placeholders remain as-is (renderTemplate spec)
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  await orchestrator.run(1);
+
+  const approvedComments = github.comments.filter((c) =>
+    c.comment.includes("[Agent Review Complete]")
+  );
+  assertEquals(approvedComments.length, 1);
+  // Invariant: unresolved placeholders are preserved as literal text (renderTemplate contract)
+  assertEquals(
+    approvedComments[0].comment.includes("{summary}"),
+    true,
+    "When handoffData is absent, {summary} placeholder must remain as literal text. " +
+      "Fix: check renderTemplate in phase-transition.ts preserves unmatched variables",
+  );
+});
+
 Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition correctly", async () => {
   const config = createTestConfig();
   config.labelPrefix = "wf";

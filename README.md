@@ -12,6 +12,9 @@ dedicated climpt-agent (via the Claude Agent SDK).
 # Initialize configuration
 deno run -A jsr:@aidevtool/climpt init
 
+# Upgrade to latest version and update docs
+deno run -Ar jsr:@aidevtool/climpt upgrade
+
 # Run your first command
 echo "Fix login bug" | deno run -A jsr:@aidevtool/climpt git decide-branch working-branch
 ```
