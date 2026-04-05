@@ -91,16 +91,16 @@ Patterns extracted from guimpt (GUI Climpt) and applied to CLI orchestration:
 The `agents/common/coordination-config.json` and related files were absorbed
 into workflow.json:
 
-| coordination-config Field    | workflow.json Destination                       | Rationale                            |
-| ---------------------------- | ----------------------------------------------- | ------------------------------------ |
-| `labels.*`                   | `labelMapping`                                  | Unified label → phase ID mapping     |
-| `handoff.*`                  | `handoff.commentTemplates` + `handoff.gapIssue` | Separated from agent transition defs |
-| `retry.*`                    | Removed                                         | Retry is runner's responsibility     |
-| `orchestration.maxCycles`    | `rules.maxCycles`                               | Same concept                         |
-| `orchestration.cycleDelayMs` | `rules.cycleDelayMs`                            | Same concept                         |
-| `orchestration.autoTrigger`  | CLI option                                      | Runtime option, not config file      |
-| `logging.*`                  | Removed                                         | Logging is runner's responsibility   |
-| `traceability.*`             | Removed                                         | Unnecessary complexity               |
+| coordination-config Field    | workflow.json Destination  | Rationale                            |
+| ---------------------------- | -------------------------- | ------------------------------------ |
+| `labels.*`                   | `labelMapping`             | Unified label → phase ID mapping     |
+| `handoff.*`                  | `handoff.commentTemplates` | Separated from agent transition defs |
+| `retry.*`                    | Removed                    | Retry is runner's responsibility     |
+| `orchestration.maxCycles`    | `rules.maxCycles`          | Same concept                         |
+| `orchestration.cycleDelayMs` | `rules.cycleDelayMs`       | Same concept                         |
+| `orchestration.autoTrigger`  | CLI option                 | Runtime option, not config file      |
+| `logging.*`                  | Removed                    | Logging is runner's responsibility   |
+| `traceability.*`             | Removed                    | Unnecessary complexity               |
 
 ### Deleted Files
 
