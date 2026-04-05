@@ -1,7 +1,9 @@
 # Breakdown Configuration for iterator-steps
+# directiveType must include all STEP_PHASE values used in steps_registry.json
+# (see agents/shared/step-phases.ts for runner-required phases)
 params:
   two:
     directiveType:
-      pattern: "^(initial|closure)$"
+      pattern: "^(initial|continuation|verification|closure|section|retry)$"
     layerType:
-      pattern: "^(task)$"
+      pattern: "^(issue|project|iteration|polling)$"

@@ -77,7 +77,7 @@ export class RetryHandler {
 
     // C3L path resolution
     const c3lPath = {
-      c1: "steps",
+      c1: this.registry.c1,
       c2: stepConfig.c2, // e.g. "retry"
       c3: stepConfig.c3, // e.g. "issue"
       edition: pattern.edition, // e.g. "failed"
@@ -151,7 +151,7 @@ export class RetryHandler {
   ): Promise<string> {
     // Fallback: try f_failed.md
     const c3lPath = {
-      c1: "steps",
+      c1: this.registry.c1,
       c2: stepConfig.c2,
       c3: stepConfig.c3,
       edition: "failed",

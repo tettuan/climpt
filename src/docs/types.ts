@@ -1,8 +1,23 @@
+/**
+ * Valid category values for document entries.
+ * Source of truth — keep in sync with scripts/generate-docs-manifest.ts
+ * (inferCategory + EXTRA_SOURCES).
+ */
+export const VALID_CATEGORIES = [
+  "guides",
+  "reference",
+  "internal",
+  "builder-guides",
+] as const;
+
+/** Category type derived from VALID_CATEGORIES */
+export type Category = (typeof VALID_CATEGORIES)[number];
+
 /** Document entry */
 export interface Entry {
   id: string;
   path: string;
-  category: "guides" | "reference" | "internal";
+  category: Category;
   lang?: "ja" | "en";
   title?: string;
   bytes?: number;

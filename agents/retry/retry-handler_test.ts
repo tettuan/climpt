@@ -36,8 +36,11 @@ const testStepConfig: ValidationStepConfig = {
   onFailure: { action: "retry", maxAttempts: 3 },
 };
 
+// Use a temp dir so C3LPromptLoader cannot find real templates.
+// This ensures tests always hit the generic fallback path, making them hermetic.
+const testWorkingDir = Deno.makeTempDirSync({ prefix: "retry-handler-test-" });
 const testContext: RetryHandlerContext = {
-  workingDir: Deno.cwd(),
+  workingDir: testWorkingDir,
   logger: mockLogger,
   agentId: "iterator",
 };
@@ -290,6 +293,82 @@ Deno.test("buildFallbackPrompt - loads pattern-specific prompt when available", 
   // Params are still injected into the generic prompt
   assertStringIncludes(prompt, "## Verdict conditions not met");
   assertStringIncludes(prompt, "modified.ts");
+});
+
+// ============================================================================
+// Test: Shadow contract regression — c1 must be parameterized
+// ============================================================================
+
+Deno.test("buildRetryPrompt - respects non-default c1 value in path resolution", async () => {
+  // Contract Test: registry.c1 is the source of truth for c1 in C3L paths.
+  // If c1 is hardcoded to "steps", this test fails because the path
+  // resolves under "steps/" instead of "steps-v2/".
+  const customC1 = "steps-v2";
+  const customRegistry: ExtendedStepsRegistry = {
+    ...baseRegistryProps,
+    c1: customC1,
+    failurePatterns: {
+      "git-dirty": {
+        description: "Git working directory is not clean",
+        edition: "failed",
+        adaptation: "git-dirty",
+        params: ["changedFiles"],
+      },
+    },
+    validators: {},
+  };
+
+  // Capture warn logs to inspect the expected path
+  const warnLogs: unknown[] = [];
+  const capturingLogger: Logger = {
+    ...mockLogger,
+    warn: (...args: unknown[]) => {
+      warnLogs.push(args);
+    },
+    debug: () => {},
+  } as unknown as Logger;
+
+  const ctx: RetryHandlerContext = {
+    workingDir: Deno.cwd(),
+    logger: capturingLogger,
+    agentId: "iterator",
+  };
+
+  const handler = new RetryHandler(customRegistry, ctx);
+
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "git-dirty",
+    error: "Git directory is dirty",
+    params: { changedFiles: ["modified.ts"] },
+  };
+
+  // Prompt loading will fail (no actual file), falling through to warn log
+  // that includes the expected path — verify it uses customC1, not "steps"
+  await handler.buildRetryPrompt(testStepConfig, validationResult);
+
+  // The warn log should contain the c3lPath with c1 = "steps-v2"
+  const pathLog = warnLogs.find((log) => {
+    const str = JSON.stringify(log);
+    return str.includes("c3lPath") || str.includes("expectedPath");
+  });
+
+  assertEquals(
+    pathLog !== undefined,
+    true,
+    `Fix: RetryHandler.buildRetryPrompt must use registry.c1 ("${customC1}") ` +
+      `in c3lPath, not a hardcoded value. ` +
+      `Check agents/retry/retry-handler.ts buildRetryPrompt and buildFallbackPrompt methods.`,
+  );
+
+  const logStr = JSON.stringify(pathLog);
+  assertStringIncludes(
+    logStr,
+    customC1,
+    `Fix: c3lPath.c1 must be "${customC1}" (from registry.c1), not "steps". ` +
+      `RetryHandler at agents/retry/retry-handler.ts is using a hardcoded c1 value ` +
+      `that bypasses the parameterized registry.c1.`,
+  );
 });
 
 // ============================================================================
