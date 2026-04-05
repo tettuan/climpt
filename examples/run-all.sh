@@ -6,6 +6,13 @@ export PATH="${HOME}/.local/bin:${PATH}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Guard: skip if enable flag is absent (launchd periodic runs require opt-in)
+ENABLE_FLAG="${REPO_ROOT}/tmp/.examples-run-enabled"
+if [[ ! -f "$ENABLE_FLAG" ]]; then
+  echo "Skipped: ${ENABLE_FLAG} not found"
+  exit 0
+fi
+
 datetime="$(date '+%Y-%m-%dT%H-%M-%S')"
 echo "Starting examples run: ${datetime}"
 
