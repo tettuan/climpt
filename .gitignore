@@ -99,6 +99,7 @@ debug*.ts
 !.claude/skills/
 !.claude/settings.json
 !.claude/hooks/
+!.claude/rules/
 .mcp.json
 
 # MCP runtime config
