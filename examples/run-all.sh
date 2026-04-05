@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Guard: skip if enable flag is absent (launchd periodic runs require opt-in)
 ENABLE_FLAG="${REPO_ROOT}/tmp/.examples-run-enabled"
 if [[ ! -f "$ENABLE_FLAG" ]]; then
-  echo "Skipped: ${ENABLE_FLAG} not found"
+  echo "Skipped: enable flag not found. Run 'touch ${ENABLE_FLAG}' to enable."
   exit 0
 fi
 
