@@ -226,6 +226,12 @@ async function runDryLoop(
   let iteration = 0;
 
   // --- Flow loop (mirrors runner.ts while-true loop) ---
+  // Non-vacuity guard: empty mockResponses would make the loop pass vacuously
+  if (mockResponses.length === 0) {
+    throw new Error(
+      "mockResponses must not be empty — test would pass vacuously",
+    );
+  }
   for (const mockSummary of mockResponses) {
     iteration++;
 

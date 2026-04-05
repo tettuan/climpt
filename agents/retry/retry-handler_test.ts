@@ -36,8 +36,11 @@ const testStepConfig: ValidationStepConfig = {
   onFailure: { action: "retry", maxAttempts: 3 },
 };
 
+// Use a temp dir so C3LPromptLoader cannot find real templates.
+// This ensures tests always hit the generic fallback path, making them hermetic.
+const testWorkingDir = Deno.makeTempDirSync({ prefix: "retry-handler-test-" });
 const testContext: RetryHandlerContext = {
-  workingDir: Deno.cwd(),
+  workingDir: testWorkingDir,
   logger: mockLogger,
   agentId: "iterator",
 };
