@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.18] - 2026-04-05
+
+### Fixed
+- Resolve shadow contract in RetryHandler and expand config test coverage
+- Restore runner-required phases in breakdown config patterns (#443)
+- Add trigger phrases to work-process skill description
+
+### Changed
+- Rename workflow skill to work-process with mode-driven entry
+
+### Added
+- test-design skill for structurally sound test construction
+- Improve structural quality across test suite
+
 ## [1.13.16] - 2026-04-01
 
 ### Fixed
