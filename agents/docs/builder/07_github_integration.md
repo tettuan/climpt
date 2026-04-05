@@ -192,22 +192,31 @@ Orchestrator の Handoff 時に `workflow.json` の `commentTemplates`
 
 利用可能な変数:
 
-| 変数            | 説明                                     |
-| --------------- | ---------------------------------------- |
-| `{session_id}`  | 現在のセッション ID                      |
-| `{issue_count}` | 現在の実装では常に `1` (単一 Issue 処理) |
-| `{summary}`     | 実行結果の要約                           |
+フレームワーク固定の変数は存在しない。テンプレート変数は各 agent の closure step
+の `structuredGate.handoffFields` で指定されたフィールドから供給される。
+
+| 要素   | 定義場所                                                             |
+| ------ | -------------------------------------------------------------------- |
+| 変数名 | `steps_registry.json` の closure step `structuredGate.handoffFields` |
+| 変数値 | closure step の構造化出力（LLM が生成）                              |
+
+未定義の変数はテンプレート中にそのまま残る（例: `{undefined_var}` →
+`{undefined_var}`）。
 
 設定例:
 
 ```json
 {
   "commentTemplates": {
-    "reviewerApproved": "Review approved. Session: {session_id}. Summary: {summary}",
-    "iteratorToReviewer": "Iteration complete ({issue_count} issues). Handing off to reviewer."
+    "reviewerApproved": "## Review Approved\n\n{final_summary}",
+    "iteratorToReviewer": "## Iteration Complete\n\n{final_summary}"
   }
 }
 ```
+
+> `final_summary` は closure step の schema に定義されたフィールド名の例。
+> 実際の変数名は各 agent の `steps_registry.json` で `handoffFields` に
+> 列挙したフィールド名に依存する。
 
 ### 直接実行: 禁止
 
@@ -295,8 +304,8 @@ sandbox 設定により、Agent プロセスからの外部ネットワークア
 {
   "handoff": {
     "commentTemplates": {
-      "reviewerApproved": "Review approved. Session: {session_id}.",
-      "iteratorToReviewer": "Iteration complete. Issues: {issue_count}."
+      "reviewerApproved": "## Review Approved\n\n{final_summary}",
+      "iteratorToReviewer": "## Iteration Complete\n\n{final_summary}"
     }
   }
 }

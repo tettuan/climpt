@@ -124,7 +124,7 @@
       "properties": {
         "commentTemplates": {
           "type": "object",
-          "description": "Named comment templates with placeholder support",
+          "description": "Named comment templates posted to GitHub issues during agent handoff. Keys follow naming convention: {agentId}{Outcome} (primary) or {agentId}To{Outcome} (fallback). Outcome is capitalized (e.g., approved → Approved). Template variables are defined by the closure step's handoffFields in steps_registry.json, not by the framework. Unmatched placeholders are preserved as-is.",
           "additionalProperties": {
             "type": "string"
           }

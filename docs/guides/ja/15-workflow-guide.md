@@ -137,6 +137,68 @@ Agent の動作を定義:
 | `labels`       | yes  | 許可する優先度ラベルの順序リスト（例: `["P1", "P2", "P3"]`） |
 | `defaultLabel` | no   | 優先度が未設定・無効な場合のフォールバックラベル             |
 
+### handoff
+
+Agent 間の遷移時に GitHub Issue へ定型コメントを投稿する設定。
+
+**構造:**
+
+```json
+"handoff": {
+  "commentTemplates": {
+    "<テンプレートキー>": "<{変数} を含むテンプレート文字列>"
+  }
+}
+```
+
+**テンプレートキーの命名規則:**
+
+- `{agentId}{Outcome}` を先に検索（例: `reviewerApproved`）
+- 見つからなければ `{agentId}To{Outcome}` にフォールバック（例:
+  `reviewerToApproved`）
+- Outcome は先頭大文字化される（`"approved"` → `"Approved"`）
+- 一致するテンプレートがない場合、コメント投稿はスキップされる（エラーにならない）
+
+**テンプレート変数:**
+
+テンプレート変数はフレームワーク固定ではなく、設定者が定義する。以下の 2 箇所で
+設定する:
+
+1. closure step の output schema にフィールドを定義する（例:
+   `"final_summary": { "type": "string" }`）。
+2. closure step の `handoffFields` に伝搬対象のフィールドを列挙する（例:
+   `["final_summary"]`）。
+
+`handoffFields` に列挙したフィールドがテンプレートで `{フィールド名}` として
+利用可能になる。未定義の変数はそのまま出力される。
+
+**設定例:**
+
+```json
+// steps_registry.json — closure step
+"handoffFields": ["final_summary"]
+```
+
+```json
+// workflow.json
+"handoff": {
+  "commentTemplates": {
+    "iteratorSuccess": "[Handoff] Implementation complete.\n\n{final_summary}",
+    "reviewerApproved": "[Review Complete] All requirements verified.\n\n{final_summary}",
+    "reviewerRejected": "[Review] Gaps found.\n\n{final_summary}"
+  }
+}
+```
+
+**テンプレートキーの対応表:**
+
+| Agent    | Outcome  | テンプレートキー   |
+| -------- | -------- | ------------------ |
+| iterator | success  | `iteratorSuccess`  |
+| iterator | failed   | `iteratorFailed`   |
+| reviewer | approved | `reviewerApproved` |
+| reviewer | rejected | `reviewerRejected` |
+
 ## ワークフローの実行
 
 ```bash

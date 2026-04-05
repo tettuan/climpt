@@ -31,5 +31,12 @@
     }
   },
   "rules": { "maxCycles": 5, "cycleDelayMs": 0 },
+  "handoff": {
+    "commentTemplates": {
+      "iteratorSuccess": "[Handoff] Implementation complete.\n{final_summary}",
+      "reviewerApproved": "[Review Complete] All requirements verified.\n{final_summary}",
+      "reviewerRejected": "[Review] Gaps found.\n{final_summary}"
+    }
+  },
   "issueStore": { "path": ".agent/climpt/tmp/issues" }
 }

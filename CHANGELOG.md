@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: handoff.commentTemplates template variables are now sourced from closure step's handoffFields instead of hardcoded values. `{session_id}`, `{issue_count}`, `{summary}` are removed. Use closure step schema fields via handoffFields instead (#446)
+
+### Added
+- DispatchOutcome.handoffData: closure step structured output fields flow to handoff comment templates
+- handoff.commentTemplates documentation in builder guide, workflow guide (en/ja), schema, reference, and example fixture
+
 ## [1.13.18] - 2026-04-05
 
 ### Fixed
