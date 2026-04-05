@@ -18,7 +18,7 @@ LOCK_FILE="${REPO_ROOT}/tmp/.examples-run.lock"
 if [[ -f "$LOCK_FILE" ]]; then
   pid=$(cat "$LOCK_FILE" 2>/dev/null)
   if kill -0 "$pid" 2>/dev/null; then
-    echo "Skipped: another run-all.sh is running (PID ${pid})."
+    echo "Skipped: another run-all.sh is running (PID ${pid}). Wait for it to finish or 'kill ${pid}' to stop it."
     exit 0
   fi
   # Stale lock — previous run crashed
