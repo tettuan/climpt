@@ -1,6 +1,6 @@
 ---
 name: work-process
-description: Orchestrate complex multi-step tasks using conductor pattern with mode-driven entry. Use when a task requires 3+ steps, multi-file changes, investigation, review evaluation, or verification.
+description: Orchestrate multi-step tasks with conductor pattern. Use when planning before implementation, investigating root causes, executing a provided plan, evaluating review feedback, or verifying design-implementation consistency. Trigger phrases - 「計画して」「整理して」「分析して」「チーム組成」「Implement the following plan」「レビューを踏まえ」「整合性チェック」「考えてから実装」「原因を調べて」「FBを解釈」
 allowed-tools: [Read, Write, Edit, Agent, Bash]
 argument-hint: [task-description]
 ---
