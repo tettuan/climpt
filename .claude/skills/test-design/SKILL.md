@@ -92,6 +92,21 @@ for (const [id, step] of Object.entries(registry.steps)) {
 
 When to use: A structural relationship must hold across all members of a collection.
 
+## Validator as Test Boundary
+
+When a validator exists, the test's responsibility shifts (検証責任の転換):
+
+```
+Without validator:  Test → Config ↔ Code  (test directly checks consistency)
+With validator:     Test → Validator → Config  (test verifies validator behavior)
+```
+
+Four aspects to verify: **Acceptance** (valid input passes) / **Rejection** (invalid input caught) / **Diagnosis** (error message actionable) / **Completeness** (all design constraints covered).
+
+Existing patterns apply: Contract → validator rejects what code cannot handle. Invariant → every design constraint has a validation rule. Conformance → accepted values match runtime support.
+
+See `references/patterns.md` for implementation examples and the Validator Bypass anti-pattern.
+
 ## Diagnosability
 
 ### Theory
@@ -133,11 +148,13 @@ For full message templates and examples, see `references/patterns.md`.
 | Opaque failure | `assert(false)` with no context | Include file paths and IF/THEN guidance |
 | Partial consumer enumeration | Contract の消費者が複数あるのにテストが一部しか検査しない | 全ての消費箇所を列挙してからテストを書く |
 | Shadow contract | パラメータ化された経路をバイパスするハードコード値 | ハードコード値をパラメータに置換し、非デフォルト値で回帰テスト |
+| Validator bypass | validator が存在するのにテストが設定を直接検証する | validator の動作をテストする; 検証責任は validator にある |
 
 See `references/patterns.md` for detailed explanations of these anti-patterns.
 
 ## Workflow
 
+0. **Check for existing validator** — if a validator covers this constraint, test the validator's behavior, not the constraint directly
 1. **Identify the invariant** — what relationship must always hold?
 2. **Locate the source of truth** — which module/file authoritatively defines the expectation?
 3. **Enumerate all consumers** — the invariant を消費する全てのコードパスを洗い出す (steps, validationSteps, retry paths, etc.)
@@ -156,6 +173,7 @@ See `references/patterns.md` for detailed explanations of these anti-patterns.
 | `fix-checklist` | Root cause before fix | Ensuring the right invariant is identified |
 | `contradiction-verification` | Proving a problem exists | Confirming the test's premise is valid |
 | `refactoring` | Safe structural changes | Defining before/after contracts |
+| `functional-testing` | What aspects of a validator to test (F. Validator Testing) | Defining the four testing aspects (acceptance/rejection/diagnosis/completeness) |
 
 ## Reference
 

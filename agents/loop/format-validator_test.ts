@@ -4,7 +4,7 @@
  * Tests format validation for agent responses.
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { FormatValidator } from "./format-validator.ts";
 import type { ResponseFormat } from "../common/validation-types.ts";
 import type { IterationSummary } from "../src_common/types.ts";
@@ -56,7 +56,7 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("No JSON block"), true);
+      assertStringIncludes(result.error ?? "", "No JSON block");
     });
 
     await st.step("should validate schema required properties", () => {
@@ -81,8 +81,8 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("value"), true);
-      assertEquals(result.error?.includes("Required"), true);
+      assertStringIncludes(result.error ?? "", "value");
+      assertStringIncludes(result.error ?? "", "Required");
     });
 
     await st.step(
@@ -139,9 +139,9 @@ Deno.test("FormatValidator", async (t) => {
         const result = validator.validate(summary, format);
 
         assertEquals(result.valid, false);
-        assertEquals(result.error?.includes("Schema validation failed"), true);
+        assertStringIncludes(result.error ?? "", "Schema validation failed");
         // Error should mention the field path for debuggability
-        assertEquals(result.error?.includes("name"), true);
+        assertStringIncludes(result.error ?? "", "name");
       },
     );
 
@@ -167,7 +167,7 @@ Deno.test("FormatValidator", async (t) => {
         const result = validator.validate(summary, format);
 
         assertEquals(result.valid, false);
-        assertEquals(result.error?.includes("Schema validation failed"), true);
+        assertStringIncludes(result.error ?? "", "Schema validation failed");
         assertEquals(
           result.error?.includes("enum") || result.error?.includes("not in"),
           true,
@@ -238,8 +238,8 @@ Deno.test("FormatValidator", async (t) => {
         const result = validator.validate(summary, format);
 
         assertEquals(result.valid, false);
-        assertEquals(result.error?.includes("message"), true);
-        assertEquals(result.error?.includes("Required"), true);
+        assertStringIncludes(result.error ?? "", "message");
+        assertStringIncludes(result.error ?? "", "Required");
       },
     );
 
@@ -292,9 +292,9 @@ Deno.test("FormatValidator", async (t) => {
         const result = validator.validate(summary, format);
 
         assertEquals(result.valid, false);
-        assertEquals(result.error?.includes("Schema validation failed"), true);
+        assertStringIncludes(result.error ?? "", "Schema validation failed");
         // Should report the specific array index
-        assertEquals(result.error?.includes("[2]"), true);
+        assertStringIncludes(result.error ?? "", "[2]");
       },
     );
 
@@ -323,8 +323,8 @@ Deno.test("FormatValidator", async (t) => {
 
         assertEquals(result.valid, false);
         // Should contain errors for both type mismatch and missing required
-        assertEquals(result.error?.includes("name"), true);
-        assertEquals(result.error?.includes("age"), true);
+        assertStringIncludes(result.error ?? "", "name");
+        assertStringIncludes(result.error ?? "", "age");
       },
     );
   });
@@ -359,7 +359,7 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("not found"), true);
+      assertStringIncludes(result.error ?? "", "not found");
     });
 
     await st.step("should fail when pattern is not specified", () => {
@@ -373,7 +373,7 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("pattern"), true);
+      assertStringIncludes(result.error ?? "", "pattern");
     });
 
     await st.step("should fail on invalid regex pattern", () => {
@@ -389,7 +389,7 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("Invalid regex"), true);
+      assertStringIncludes(result.error ?? "", "Invalid regex");
     });
   });
 
@@ -404,7 +404,7 @@ Deno.test("FormatValidator", async (t) => {
       const result = validator.validate(summary, format);
 
       assertEquals(result.valid, false);
-      assertEquals(result.error?.includes("Unknown format type"), true);
+      assertStringIncludes(result.error ?? "", "Unknown format type");
     });
   });
 });

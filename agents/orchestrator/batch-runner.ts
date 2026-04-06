@@ -23,6 +23,7 @@ import { Prioritizer } from "./prioritizer.ts";
 import { Queue } from "./queue.ts";
 import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
+import { countdownDelay } from "./countdown.ts";
 
 /** Interface for single-issue workflow execution, used by BatchRunner. */
 export interface SingleIssueRunner {
@@ -211,6 +212,15 @@ export class BatchRunner {
           log,
         );
         processed.push(result);
+
+        // Countdown between issues (skip after last item)
+        if (i < queueItems.length - 1) {
+          const delayMs = this.#config.rules.cycleDelayMs;
+          if (delayMs > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await countdownDelay(delayMs, "Next issue");
+          }
+        }
       } catch (error) {
         errorCount++;
         const reason = error instanceof Error ? error.message : String(error);

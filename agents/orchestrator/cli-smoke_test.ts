@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 
 const RUN_WORKFLOW = "agents/scripts/run-workflow.ts";
 
@@ -13,9 +13,9 @@ Deno.test("cli: --help shows usage and --workflow option", async () => {
 
   assertEquals(output.success, true);
   // Verify key options are documented
-  assertEquals(stdout.includes("--workflow"), true);
-  assertEquals(stdout.includes("--label"), true);
-  assertEquals(stdout.includes("--prioritize"), true);
+  assertStringIncludes(stdout, "--workflow");
+  assertStringIncludes(stdout, "--label");
+  assertStringIncludes(stdout, "--prioritize");
 });
 
 Deno.test("cli: no args runs without error (batch mode, no --issue required)", async () => {

@@ -2,7 +2,12 @@
  * Tests for JSON Schema $ref Resolver
  */
 
-import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertInstanceOf,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import {
   MalformedSchemaIdentifierError,
   resolveSchema,
@@ -392,6 +397,6 @@ Deno.test("MalformedSchemaIdentifierError - has correct properties", () => {
   assertInstanceOf(error, Error);
   assertEquals(error.name, "MalformedSchemaIdentifierError");
   assertEquals(error.identifier, "##/definitions/test");
-  assertEquals(error.message.includes("double hash"), true);
-  assertEquals(error.message.includes("JSON Pointer format"), true);
+  assertStringIncludes(error.message, "double hash");
+  assertStringIncludes(error.message, "JSON Pointer format");
 });

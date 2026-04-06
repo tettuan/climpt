@@ -10,7 +10,7 @@
  * - Group 3: Closure action routing
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   type ExternalStateAdapterConfig,
   ExternalStateVerdictAdapter,
@@ -282,8 +282,8 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
         assertEquals(addIdx !== -1, true, "--add-label flag must be present");
         const addValue = cmd.args[addIdx + 1];
         // Merged from config ["done"] + SO ["reviewed"], deduplicated via Set
-        assertEquals(addValue.includes("done"), true);
-        assertEquals(addValue.includes("reviewed"), true);
+        assertStringIncludes(addValue, "done");
+        assertStringIncludes(addValue, "reviewed");
 
         const removeIdx = cmd.args.indexOf("--remove-label");
         assertEquals(
@@ -293,8 +293,8 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
         );
         const removeValue = cmd.args[removeIdx + 1];
         // Merged from config ["in-progress"] + SO ["needs-review"]
-        assertEquals(removeValue.includes("in-progress"), true);
-        assertEquals(removeValue.includes("needs-review"), true);
+        assertStringIncludes(removeValue, "in-progress");
+        assertStringIncludes(removeValue, "needs-review");
 
         // Verify repo flag
         const repoIdx = cmd.args.indexOf("--repo");

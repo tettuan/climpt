@@ -2,7 +2,7 @@
  * Tests for git-clean validator
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals, assertExists, assertStringIncludes } from "@std/assert";
 import { gitCleanValidator } from "./git-clean.ts";
 import type { ValidatorContext } from "../types.ts";
 import type { Logger } from "../../src_common/logger.ts";
@@ -97,7 +97,7 @@ Deno.test("gitCleanValidator", async (t) => {
       const result = await gitCleanValidator.validate(ctx);
       assertEquals(result.valid, false);
       assertExists(result.error);
-      assertEquals(result.error?.includes("Uncommitted changes"), true);
+      assertStringIncludes(result.error ?? "", "Uncommitted changes");
       assertExists(result.details);
       assertEquals((result.details?.length ?? 0) > 0, true);
     } finally {

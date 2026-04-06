@@ -5,7 +5,7 @@
  * policy constants, and executeWithRetry behavior.
  */
 
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   AGGRESSIVE_RETRY_POLICY,
@@ -61,7 +61,7 @@ Deno.test("shouldRetry - denies retry when max retries reached", () => {
   const decision = shouldRetry(error, 3, policy);
 
   assertEquals(decision.retry, false);
-  assertEquals(decision.reason.includes("Max retries"), true);
+  assertStringIncludes(decision.reason, "Max retries");
 });
 
 Deno.test("shouldRetry - denies retry for non-recoverable error", () => {
@@ -70,7 +70,7 @@ Deno.test("shouldRetry - denies retry for non-recoverable error", () => {
   const decision = shouldRetry(error, 0, DEFAULT_RETRY_POLICY);
 
   assertEquals(decision.retry, false);
-  assertEquals(decision.reason.includes("not recoverable"), true);
+  assertStringIncludes(decision.reason, "not recoverable");
 });
 
 Deno.test("shouldRetry - denies retry for non-retryable category", () => {
@@ -82,7 +82,7 @@ Deno.test("shouldRetry - denies retry for non-retryable category", () => {
   const decision = shouldRetry(error, 0, DEFAULT_RETRY_POLICY);
 
   assertEquals(decision.retry, false);
-  assertEquals(decision.reason.includes("not retryable"), true);
+  assertStringIncludes(decision.reason, "not retryable");
 });
 
 Deno.test("shouldRetry - exponential backoff increases delay", () => {

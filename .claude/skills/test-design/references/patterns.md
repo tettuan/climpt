@@ -161,6 +161,49 @@ Layer 1 catches the non-negotiable requirements first. If Layer 1 fails, Layer 2
 
 ---
 
+## Validator Test
+
+Four aspects — each with a minimal fixture mutated per test:
+
+```typescript
+// Acceptance: valid input passes
+const result = await validate(createMinimalAgent());
+assertEquals(result.valid, true,
+  `Valid agent rejected: ${result.errors.join(", ")}`);
+
+// Rejection: invalid input caught
+delete agent.runner.verdict.type;
+assertEquals((await validate(agent)).valid, false);
+
+// Diagnosis: error message is actionable (What + How-to-fix)
+assertStringIncludes(result.errors[0], "verdict.type");
+
+// Completeness: every design-required field has a validation rule
+for (const field of DESIGN_REQUIRED) {
+  deleteNestedField(createMinimalAgent(), field);
+  assert(!validate(agent).valid,
+    `No validation for "${field}". Fix: Add rule in validator.ts.`);
+}
+```
+
+---
+
+## Anti-Pattern: Validator Bypass
+
+Test checks config directly when a validator exists, creating two verification paths that diverge.
+
+```typescript
+// BAD: test reimplements validator's rule (stale if validator changes)
+assertMatch(config.name, /^[a-z][a-z0-9-]*$/);
+
+// GOOD: test delegates to validator
+assertEquals(validate(config).valid, true);
+```
+
+Detection: `grep -rn "assertMatch.*config\." tests/ --include="*_test.ts" | grep -v "validate"`
+
+---
+
 ## Deriving Expected Values
 
 ### Decision table

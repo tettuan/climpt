@@ -281,12 +281,13 @@ rules:
   # Description : Delay in milliseconds between cycles.
   # Type        : number (minimum: 0)
   # Required    : no
-  # Default     : 5000
-  # Why         : Rate limiting. Prevents rapid-fire API
-  #               calls to GitHub between transitions. Set
+  # Default     : 10000
+  # Why         : Rate limiting and safe-stop window. Shows a
+  #               countdown on stderr so the operator can
+  #               safely Ctrl+C between agent cycles. Set
   #               to 0 for tests.
   # ----------------------------------------------------------
-  cycleDelayMs: 5000
+  cycleDelayMs: 10000
 
 # ============================================================
 # issueStore
