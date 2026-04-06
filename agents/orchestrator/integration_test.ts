@@ -205,7 +205,7 @@ Deno.test("integration: default workflow path applies default rules", async () =
     const config = await loadWorkflow(tempDir);
 
     assertEquals(config.rules.maxCycles, 5);
-    assertEquals(config.rules.cycleDelayMs, 5000);
+    assertEquals(config.rules.cycleDelayMs, 10000);
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }

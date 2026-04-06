@@ -277,7 +277,7 @@ export const ROOT_NODE: HelpNode = {
           phases: "State machine: actionable / terminal / blocking",
           labelMapping: "GitHub label → phase name",
           agents: "transformer (outputPhase) / validator (outputPhases)",
-          rules: "maxCycles (default 5), cycleDelayMs (default 5000)",
+          rules: "maxCycles (default 5), cycleDelayMs (default 10000)",
         },
       },
       edges: [

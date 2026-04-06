@@ -98,7 +98,7 @@ Deno.test("workflow-loader: default rules applied when rules omitted", async () 
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
     assertEquals(config.rules.maxCycles, 5);
-    assertEquals(config.rules.cycleDelayMs, 5000);
+    assertEquals(config.rules.cycleDelayMs, 10000);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -112,7 +112,7 @@ Deno.test("workflow-loader: partial rules merged with defaults", async () => {
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
     assertEquals(config.rules.maxCycles, 10);
-    assertEquals(config.rules.cycleDelayMs, 5000);
+    assertEquals(config.rules.cycleDelayMs, 10000);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
