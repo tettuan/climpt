@@ -163,133 +163,44 @@ Layer 1 catches the non-negotiable requirements first. If Layer 1 fails, Layer 2
 
 ## Validator Test
 
-### Theory
-
-When a validator module exists as a dedicated component, the test's responsibility shifts from verifying config-code consistency to verifying the validator's behavior. This follows the Single Responsibility Principle applied to testing: the validator owns correctness checking; the test owns validator verification.
-
-検証責任の転換 (Responsibility Transfer): validator が存在する場合、テストの責任は「設定が正しいか」から「validator が正しく検証するか」に移る。validator が正しく動作することをテストが保証すれば、設定の正しさは validator が保証する。
-
-### Implementation — Acceptance Test
+Four aspects — each with a minimal fixture mutated per test:
 
 ```typescript
-Deno.test("validator accepts well-formed agent definition", async () => {
-  const agent = createMinimalAgent(); // fixture: all required fields present
-  const result = await validate(agent);
-  assertEquals(result.valid, true,
-    `Valid agent rejected. Errors: ${result.errors.join(", ")}. ` +
-    `Fix: Update validator if the definition is correct, or fix the fixture.`
-  );
-});
-```
+// Acceptance: valid input passes
+const result = await validate(createMinimalAgent());
+assertEquals(result.valid, true,
+  `Valid agent rejected: ${result.errors.join(", ")}`);
 
-### Implementation — Rejection Test
+// Rejection: invalid input caught
+delete agent.runner.verdict.type;
+assertEquals((await validate(agent)).valid, false);
 
-```typescript
-Deno.test("validator rejects missing runner.verdict.type", async () => {
-  const agent = createMinimalAgent();
-  delete agent.runner.verdict.type;
-  const result = await validate(agent);
-  assertEquals(result.valid, false,
-    `Validator accepted agent without runner.verdict.type. ` +
-    `Fix: Add validation rule for runner.verdict.type in validator.ts.`
-  );
-  assertStringIncludes(result.errors[0], "verdict.type");
-});
-```
+// Diagnosis: error message is actionable (What + How-to-fix)
+assertStringIncludes(result.errors[0], "verdict.type");
 
-### Implementation — Diagnosis Test
-
-```typescript
-Deno.test("validation error includes actionable fix guidance", async () => {
-  const agent = createMinimalAgent({ name: "INVALID_CAPS" });
-  const result = await validate(agent);
-  const error = result.errors[0];
-  // What: identifies the field
-  assertStringIncludes(error, "name");
-  // How to fix: tells the developer what to do
-  assertMatch(error, /lowercase|alphanumeric|pattern/i);
-});
-```
-
-### Implementation — Completeness Test
-
-```typescript
-Deno.test("validator checks all design-required constraints", () => {
-  // Source of truth: design doc lists required fields
-  const DESIGN_REQUIRED = ["name", "displayName", "runner", "runner.verdict.type"];
-
-  // Guard: non-vacuity
-  assert(DESIGN_REQUIRED.length > 0, "No design requirements to verify");
-
-  for (const field of DESIGN_REQUIRED) {
-    const agent = createMinimalAgent();
-    deleteNestedField(agent, field);
-    const result = validate(agent);
-    assert(
-      !result.valid,
-      `Validator does not check "${field}" (required by design doc). ` +
-      `Fix: Add validation rule for "${field}" in validator.ts.`
-    );
-  }
-});
-```
-
-### Why test the validator, not the config
-
-```typescript
-// BAD: test replicates validator logic
-Deno.test("config has required fields", () => {
-  const config = JSON.parse(readConfig());
-  assertExists(config.name);         // duplicates validator's job
-  assertMatch(config.name, /^[a-z]/); // if validator changes rule, test is stale
-});
-
-// GOOD: test verifies validator catches the issue
-Deno.test("validator rejects missing name", () => {
-  const config = createMinimalConfig();
-  delete config.name;
-  const result = validate(config);
-  assertEquals(result.valid, false);  // validator owns the rule
-});
+// Completeness: every design-required field has a validation rule
+for (const field of DESIGN_REQUIRED) {
+  deleteNestedField(createMinimalAgent(), field);
+  assert(!validate(agent).valid,
+    `No validation for "${field}". Fix: Add rule in validator.ts.`);
+}
 ```
 
 ---
 
 ## Anti-Pattern: Validator Bypass
 
-### Problem
-
-A validator exists for a configuration, but tests check the configuration directly instead of testing the validator. This creates two independent verification paths that can diverge.
-
-### Real-world example
+Test checks config directly when a validator exists, creating two verification paths that diverge.
 
 ```typescript
-// validator.ts: checks name format with /^[a-z][a-z0-9-]*$/
-// test: checks name format with /^[a-z]+$/  ← different regex!
-```
-
-When the validator's rule changes, the test still passes with its own stale copy of the rule.
-
-### Detection
-
-```
-grep -rn "assertMatch.*config\." tests/ --include="*_test.ts" | grep -v "validate"
-```
-
-Any assertion that checks config structure directly (not through a validator call) is a potential bypass.
-
-### Fix
-
-Replace direct config assertions with validator invocations. Test the validator's acceptance/rejection behavior instead of reimplementing its rules in test code.
-
-```typescript
-// Before (bypass): test reimplements the rule
+// BAD: test reimplements validator's rule (stale if validator changes)
 assertMatch(config.name, /^[a-z][a-z0-9-]*$/);
 
-// After: test delegates to validator
-const result = validate(config);
-assertEquals(result.valid, true);
+// GOOD: test delegates to validator
+assertEquals(validate(config).valid, true);
 ```
+
+Detection: `grep -rn "assertMatch.*config\." tests/ --include="*_test.ts" | grep -v "validate"`
 
 ---
 

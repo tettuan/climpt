@@ -69,34 +69,7 @@ Deno.test("repeat routes back to work step, not closure", async () => {
 
 ### F. Validator Testing
 
-When a validator exists for a configuration or input, test the validator — not the config directly. The validator owns the correctness contract; the test verifies the validator honors it.
-
-Four aspects to cover:
-
-| Aspect | Verifies | Fails when |
-|--------|----------|------------|
-| Acceptance | Valid input passes | Validator falsely rejects correct config |
-| Rejection | Invalid input is caught | Validator silently accepts bad config |
-| Diagnosis | Error messages are actionable | Developer cannot locate fix from message alone |
-| Completeness | All design constraints are checked | A required validation rule is missing |
-
-```typescript
-/** @design_ref agents/docs/design/agent_config.md */
-Deno.test("validator rejects invalid permission mode", async () => {
-  const agent = createMinimalAgent({ runner: { permissionMode: "invalid" } });
-  const result = await validate(agent);
-  assertEquals(result.valid, false);
-  assertStringIncludes(result.errors[0], "permissionMode");
-});
-
-Deno.test("validation error includes fix guidance", async () => {
-  const agent = createMinimalAgent({ name: "CAPS" });
-  const result = await validate(agent);
-  assertMatch(result.errors[0], /lowercase|pattern/i);
-});
-```
-
-See `test-design` skill for design principles (source of truth, diagnosability) applied to validator tests.
+When a validator exists, test the validator's behavior (acceptance/rejection/diagnosis/completeness) — not the config directly. See `test-design` skill (Validator as Test Boundary) for design patterns and examples.
 
 ## Boundary Testing
 

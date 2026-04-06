@@ -94,47 +94,18 @@ When to use: A structural relationship must hold across all members of a collect
 
 ## Validator as Test Boundary
 
-### Responsibility Shift
-
-When a dedicated validator module exists for a configuration, the test's responsibility shifts:
+When a validator exists, the test's responsibility shifts (検証責任の転換):
 
 ```
 Without validator:  Test → Config ↔ Code  (test directly checks consistency)
 With validator:     Test → Validator → Config  (test verifies validator behavior)
 ```
 
-The validator becomes the source of truth for what constitutes valid/invalid configuration. The test verifies the validator honors that contract — it does not replicate the validator's checks.
+Four aspects to verify: **Acceptance** (valid input passes) / **Rejection** (invalid input caught) / **Diagnosis** (error message actionable) / **Completeness** (all design constraints covered).
 
-検証責任の転換 (Responsibility Transfer): validator が存在する場合、テストの責任は「設定が正しいか」から「validator が正しく検証するか」に移る。これは Single Responsibility Principle のテストへの適用である。
+Existing patterns apply: Contract → validator rejects what code cannot handle. Invariant → every design constraint has a validation rule. Conformance → accepted values match runtime support.
 
-### Four Aspects of Validator Testing
-
-| Aspect | What it verifies | Example |
-|--------|-----------------|---------|
-| Acceptance (受理) | Valid config passes without errors | Well-formed agent definition accepted |
-| Rejection (拒否) | Each invalid input is rejected with correct error | Missing `runner.verdict.type` caught |
-| Diagnosis (診断) | Error messages contain What/Where/How-to-fix | Error includes field name + fix guidance (see Diagnosability) |
-| Completeness (網羅性) | Validator covers all constraints it is responsible for | Every design-required field has a validation rule |
-
-### Applying Existing Patterns
-
-The three test patterns apply within validator testing:
-
-- **Contract Test** → validator must reject what code cannot handle (validator is provider, code requirements are consumer)
-- **Invariant Test** → every constraint in the design doc has a corresponding validation rule
-- **Conformance Test** → validator's accepted values match what runtime actually supports
-
-```typescript
-// Rejection: validator rejects unreachable closure step
-Deno.test("validator rejects unreachable closure step", async () => {
-  const registry = createMinimalRegistry({ /* closure step not reachable */ });
-  const result = await validateFlowReachability(registry);
-  assertEquals(result.valid, false);
-  assertStringIncludes(result.errors[0], "closure");
-});
-```
-
-See `references/patterns.md` for full implementation examples of all four aspects.
+See `references/patterns.md` for implementation examples and the Validator Bypass anti-pattern.
 
 ## Diagnosability
 
