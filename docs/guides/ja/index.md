@@ -7,7 +7,7 @@ title: ホーム
 
 [English](../en/) | [日本語](../ja/)
 
-CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含まれています。
+CLIプロンプト管理ツール。
 
 ## ガイド
 

@@ -3,6 +3,9 @@
 
 # 4. Iterate Agent の設定と実行
 
+> **注意**: Iterator Agent は Climpt パッケージには含まれていません。
+> このドキュメントは、プロジェクト固有のエージェント構築例として参照してください。
+
 GitHub Issue や Project を自動的に処理する Iterate Agent を設定し、実行します。
 
 ## 4.1 Iterate Agent とは

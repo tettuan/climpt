@@ -6,12 +6,11 @@ Before setting up an Agent, understand **what** you are configuring and **why**.
 
 ## Glossary
 
-| Term               | Definition                                                                                                                                                                                                                                                           |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent**          | A unit of autonomous task execution defined by configuration (`agent.json`) and prompts. Examples: Iterator Agent, Reviewer Agent.                                                                                                                                   |
-| **Agent Runner**   | The shared execution engine that runs all agents, implementing the dual-loop architecture (Flow Loop + Completion Loop) configured via the `runner.*` namespace in `agent.json`. Users do not interact with it directly — it is an internal architectural component. |
-| **Iterator Agent** | A specific, built-in agent instance that solves GitHub Issues through iterative development cycles, defined in `.agent/iterator/`. It is not the Runner — it is one of many agents that the Runner executes.                                                         |
-| **Climpt Agent**   | A Claude Code plugin that delegates development tasks to Climpt commands. This is separate from the autonomous agent framework (`agents/`) and should not be confused with building or running agents.                                                               |
+| Term             | Definition                                                                                                                                                                                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent**        | A unit of autonomous task execution defined by configuration (`agent.json`) and prompts.                                                                                                                                                                             |
+| **Agent Runner** | The shared execution engine that runs all agents, implementing the dual-loop architecture (Flow Loop + Completion Loop) configured via the `runner.*` namespace in `agent.json`. Users do not interact with it directly — it is an internal architectural component. |
+| **Climpt Agent** | A Claude Code plugin that delegates development tasks to Climpt commands. This is separate from the autonomous agent framework (`agents/`) and should not be confused with building or running agents.                                                               |
 
 ## What is an Agent?
 
@@ -47,9 +46,9 @@ graph LR
   end
 ```
 
-The Iterator does the work. The Reviewer checks the work. The **loop between
-independent roles** is what creates quality — just as a writer cannot
-effectively proofread their own text.
+One agent does the work. Another checks the work. The **loop between independent
+roles** is what creates quality — just as a writer cannot effectively proofread
+their own text.
 
 ### Minimum Viable Workflow
 
@@ -58,8 +57,8 @@ At least **two Agents** with complementary roles:
 ```json
 {
   "registries": {
-    "iterator": ".agent/iterator/registry.json",
-    "reviewer": ".agent/reviewer/registry.json"
+    "worker": ".agent/worker/registry.json",
+    "checker": ".agent/checker/registry.json"
   }
 }
 ```

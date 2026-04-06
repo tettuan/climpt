@@ -52,6 +52,7 @@
   ],
   "publish": {
     "exclude": [
+      ".agent/",
       ".claude/",
       "plugins/",
       "tests/",

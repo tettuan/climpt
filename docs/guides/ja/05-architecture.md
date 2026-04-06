@@ -77,8 +77,8 @@ Climpt は内部で `@tettuan/breakdown` パッケージを使用しています
 Climpt は段階的に進化し、現在は5つの層から構成されています。
 
 - **Agent 層（自律実行）**
-  - **最上位層**: Iterator/Reviewer Agent — Claude Agent SDK で GitHub
-    Issue/Project と連携（SDK Session #1）
+  - **最上位層**: Agent — Claude Agent SDK で GitHub Issue/Project と連携（SDK
+    Session #1）
   - **中間層**: delegate-climpt-agent Skill — Claude Code
     Plugin。コマンド検索、オプション解決
   - **実行層**: climpt-agent.ts (Sub-Agent) — Claude Agent SDK で自律実行（SDK
@@ -111,12 +111,10 @@ Agent
 
 ### 呼び出しの入口
 
-| 用途           | エントリポイント                        |
-| -------------- | --------------------------------------- |
-| CLI 実行       | `jsr:@aidevtool/climpt/cli`             |
-| MCP サーバー   | `jsr:@aidevtool/climpt/mcp`             |
-| Iterator Agent | `jsr:@aidevtool/climpt/agents/iterator` |
-| Reviewer Agent | `jsr:@aidevtool/climpt/agents/reviewer` |
+| 用途         | エントリポイント            |
+| ------------ | --------------------------- |
+| CLI 実行     | `jsr:@aidevtool/climpt/cli` |
+| MCP サーバー | `jsr:@aidevtool/climpt/mcp` |
 
 ---
 

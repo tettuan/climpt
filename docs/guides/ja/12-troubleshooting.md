@@ -385,11 +385,11 @@ Claude Code 起動時に必要な `--dangerously-skip-permissions` CLI
 
 1. 初期化を再実行してプロンプトテンプレートを再生成:
    ```bash
-   deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+   deno run -A jsr:@aidevtool/climpt/agents/{agent-name} --init
    ```
 2. プロンプトファイルの存在を確認:
    ```bash
-   ls .agent/iterator/prompts/dev/
+   ls .agent/{agent-name}/prompts/
    ```
 3. `runner.flow.prompts.fallbackDir` が有効なディレクトリを指していることを
    確認。
