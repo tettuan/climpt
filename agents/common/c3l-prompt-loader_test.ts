@@ -2,7 +2,12 @@
  * Tests for C3LPromptLoader
  */
 
-import { assert, assertEquals, assertExists } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertExists,
+  assertStringIncludes,
+} from "@std/assert";
 import { C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import type { C3LPath } from "./c3l-prompt-loader.ts";
 
@@ -77,7 +82,7 @@ Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
   // Content should have UV variables substituted
   assertEquals(result.content.includes("{uv-agent_name}"), false);
   // Content should contain actual values
-  assertEquals(result.content.includes("climpt"), true);
+  assertStringIncludes(result.content, "climpt");
 
   // Prompt path should match the C3L path components
   const c3lPath: C3LPath = { c1: "dev", c2: "start", c3: "issue" };

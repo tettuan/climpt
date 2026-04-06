@@ -141,7 +141,7 @@ Deno.test("IssueVerdictHandler - check with cached closed state returns complete
     reason: result.reason,
   });
   assertEquals(result.complete, true);
-  assertEquals(result.reason?.includes("123"), true);
+  assertStringIncludes(result.reason ?? "", "123");
 });
 
 Deno.test("IssueVerdictHandler - refreshState respects interval", async () => {
@@ -191,7 +191,7 @@ Deno.test("IssueVerdictHandler - buildPrompt initial phase", () => {
   );
 
   const prompt = handler.buildPrompt("initial", 1);
-  assertEquals(prompt.includes("456"), true);
+  assertStringIncludes(prompt, "456");
 });
 
 Deno.test("IssueVerdictHandler - buildPrompt continuation phase", () => {
@@ -202,8 +202,8 @@ Deno.test("IssueVerdictHandler - buildPrompt continuation phase", () => {
   );
 
   const prompt = handler.buildPrompt("continuation", 5);
-  assertEquals(prompt.includes("456"), true);
-  assertEquals(prompt.includes("5"), true);
+  assertStringIncludes(prompt, "456");
+  assertStringIncludes(prompt, "5");
 });
 
 Deno.test("IssueVerdictHandler - getVerdictCriteria", () => {
@@ -214,8 +214,8 @@ Deno.test("IssueVerdictHandler - getVerdictCriteria", () => {
   );
 
   const criteria = handler.getVerdictCriteria();
-  assertEquals(criteria.summary.includes("789"), true);
-  assertEquals(criteria.detailed.includes("test/repo"), true);
+  assertStringIncludes(criteria.summary, "789");
+  assertStringIncludes(criteria.detailed, "test/repo");
 });
 
 Deno.test("IssueVerdictHandler - getVerdictCriteria with label-only", () => {
@@ -380,7 +380,7 @@ Deno.test("CompositeVerdictHandler - FIRST logic - tracks completed index", asyn
   assertEquals(complete, true);
 
   const desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("condition 2"), true);
+  assertStringIncludes(desc, "condition 2");
 });
 
 Deno.test("CompositeVerdictHandler - buildVerdictCriteria combines handlers", () => {
@@ -406,7 +406,7 @@ Deno.test("CompositeVerdictHandler - buildVerdictCriteria combines handlers", ()
   );
 
   const criteria = handler.buildVerdictCriteria();
-  assertEquals(criteria.short.includes("AND"), true);
+  assertStringIncludes(criteria.short, "AND");
 });
 
 Deno.test("CompositeVerdictHandler - buildInitialPrompt uses first handler", async () => {
@@ -431,7 +431,7 @@ Deno.test("CompositeVerdictHandler - buildInitialPrompt uses first handler", asy
   );
 
   const prompt = await handler.buildInitialPrompt();
-  assertEquals(prompt.includes("iteration"), true);
+  assertStringIncludes(prompt, "iteration");
 });
 
 Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () => {
@@ -448,7 +448,7 @@ Deno.test("CompositeVerdictHandler - throws on unsupported condition type", () =
     );
     throw new Error("Should have thrown");
   } catch (error) {
-    assertEquals((error as Error).message.includes("Unsupported"), true);
+    assertStringIncludes((error as Error).message, "Unsupported");
   }
 });
 
@@ -543,7 +543,7 @@ Deno.test("IterationBudgetVerdictHandler - buildVerdictCriteria", () => {
   const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short, "25 iterations");
-  assertEquals(criteria.detailed.includes("25"), true);
+  assertStringIncludes(criteria.detailed, "25");
 });
 
 Deno.test("IterationBudgetVerdictHandler - getVerdictDescription", async () => {
@@ -551,25 +551,25 @@ Deno.test("IterationBudgetVerdictHandler - getVerdictDescription", async () => {
   handler.setCurrentIteration(7);
 
   const desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("7"), true);
-  assertEquals(desc.includes("20"), true);
+  assertStringIncludes(desc, "7");
+  assertStringIncludes(desc, "20");
 });
 
 Deno.test("IterationBudgetVerdictHandler - buildInitialPrompt", async () => {
   const handler = new IterationBudgetVerdictHandler(50);
   const prompt = await handler.buildInitialPrompt();
 
-  assertEquals(prompt.includes("50"), true);
-  assertEquals(prompt.includes("iteration"), true);
+  assertStringIncludes(prompt, "50");
+  assertStringIncludes(prompt, "iteration");
 });
 
 Deno.test("IterationBudgetVerdictHandler - buildContinuationPrompt updates iteration", async () => {
   const handler = new IterationBudgetVerdictHandler(30);
   const prompt = await handler.buildContinuationPrompt(15);
 
-  assertEquals(prompt.includes("15"), true);
-  assertEquals(prompt.includes("30"), true);
-  assertEquals(prompt.includes("15"), true); // remaining
+  assertStringIncludes(prompt, "15");
+  assertStringIncludes(prompt, "30");
+  assertStringIncludes(prompt, "15"); // remaining
 });
 
 // =============================================================================
@@ -622,8 +622,8 @@ Deno.test("KeywordSignalVerdictHandler - buildVerdictCriteria", () => {
   const handler = new KeywordSignalVerdictHandler("MY_KEYWORD");
   const criteria = handler.buildVerdictCriteria();
 
-  assertEquals(criteria.short.includes("MY_KEYWORD"), true);
-  assertEquals(criteria.detailed.includes("MY_KEYWORD"), true);
+  assertStringIncludes(criteria.short, "MY_KEYWORD");
+  assertStringIncludes(criteria.detailed, "MY_KEYWORD");
 });
 
 Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when complete", async () => {
@@ -637,14 +637,14 @@ Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when complete", a
   );
 
   const desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("detected"), true);
+  assertStringIncludes(desc, "detected");
 });
 
 Deno.test("KeywordSignalVerdictHandler - getVerdictDescription when waiting", async () => {
   const handler = new KeywordSignalVerdictHandler("DONE");
 
   const desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("Waiting"), true);
+  assertStringIncludes(desc, "Waiting");
 });
 
 // =============================================================================
@@ -695,7 +695,7 @@ Deno.test("CheckBudgetVerdictHandler - buildVerdictCriteria", () => {
   const criteria = handler.buildVerdictCriteria();
 
   assertEquals(criteria.short, "15 checks");
-  assertEquals(criteria.detailed.includes("15"), true);
+  assertStringIncludes(criteria.detailed, "15");
 });
 
 Deno.test("CheckBudgetVerdictHandler - buildContinuationPrompt does NOT increment count", async () => {
@@ -717,8 +717,8 @@ Deno.test("CheckBudgetVerdictHandler - getVerdictDescription", async () => {
   handler.incrementCheckCount();
 
   const desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("2"), true);
-  assertEquals(desc.includes("5"), true);
+  assertStringIncludes(desc, "2");
+  assertStringIncludes(desc, "5");
 });
 
 // =============================================================================
@@ -876,7 +876,7 @@ Deno.test("StructuredSignalVerdictHandler - buildVerdictCriteria without fields"
   const handler = new StructuredSignalVerdictHandler("done-signal");
   const criteria = handler.buildVerdictCriteria();
 
-  assertEquals(criteria.short.includes("done-signal"), true);
+  assertStringIncludes(criteria.short, "done-signal");
 });
 
 Deno.test("StructuredSignalVerdictHandler - buildVerdictCriteria with fields", () => {
@@ -885,14 +885,14 @@ Deno.test("StructuredSignalVerdictHandler - buildVerdictCriteria with fields", (
   });
   const criteria = handler.buildVerdictCriteria();
 
-  assertEquals(criteria.detailed.includes("status"), true);
+  assertStringIncludes(criteria.detailed, "status");
 });
 
 Deno.test("StructuredSignalVerdictHandler - getVerdictDescription", async () => {
   const handler = new StructuredSignalVerdictHandler("test-signal");
 
   let desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("Waiting"), true);
+  assertStringIncludes(desc, "Waiting");
 
   await handler.buildContinuationPrompt(
     1,
@@ -902,7 +902,7 @@ Deno.test("StructuredSignalVerdictHandler - getVerdictDescription", async () => 
   );
 
   desc = await handler.getVerdictDescription();
-  assertEquals(desc.includes("detected"), true);
+  assertStringIncludes(desc, "detected");
 });
 
 // =============================================================================
@@ -1201,8 +1201,8 @@ Deno.test("StepMachineVerdictHandler - buildVerdictCriteria", () => {
 
   const criteria = handler.buildVerdictCriteria();
 
-  assertEquals(criteria.short.includes("Step machine"), true);
-  assertEquals(criteria.detailed.includes("initial.test"), true);
+  assertStringIncludes(criteria.short, "Step machine");
+  assertStringIncludes(criteria.detailed, "initial.test");
 });
 
 Deno.test("StepMachineVerdictHandler - buildInitialPrompt", async () => {
@@ -1211,7 +1211,7 @@ Deno.test("StepMachineVerdictHandler - buildInitialPrompt", async () => {
 
   const prompt = await handler.buildInitialPrompt();
 
-  assertEquals(prompt.includes("initial.test"), true);
+  assertStringIncludes(prompt, "initial.test");
 });
 
 Deno.test("StepMachineVerdictHandler - buildContinuationPrompt updates state", async () => {
@@ -1231,8 +1231,8 @@ Deno.test("StepMachineVerdictHandler - getVerdictDescription not complete", asyn
 
   const desc = await handler.getVerdictDescription();
 
-  assertEquals(desc.includes("initial.test"), true);
-  assertEquals(desc.includes("Step"), true);
+  assertStringIncludes(desc, "initial.test");
+  assertStringIncludes(desc, "Step");
 });
 
 Deno.test("StepMachineVerdictHandler - getVerdictDescription when complete via structured output", async () => {
@@ -1461,8 +1461,8 @@ Deno.test("ExternalStateVerdictAdapter - buildVerdictCriteria maps fields", () =
   const criteria = adapter.buildVerdictCriteria();
   assertExists(criteria.short);
   assertExists(criteria.detailed);
-  assertEquals(criteria.short.includes("77"), true);
-  assertEquals(criteria.detailed.includes("77"), true);
+  assertStringIncludes(criteria.short, "77");
+  assertStringIncludes(criteria.detailed, "77");
 });
 
 Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when complete", async () => {
@@ -1481,8 +1481,8 @@ Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when complete", a
   await adapter.isFinished();
 
   const desc = await adapter.getVerdictDescription();
-  assertEquals(desc.includes("99"), true);
-  assertEquals(desc.includes("closed"), true);
+  assertStringIncludes(desc, "99");
+  assertStringIncludes(desc, "closed");
 });
 
 Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when not complete", async () => {
@@ -1498,7 +1498,7 @@ Deno.test("ExternalStateVerdictAdapter - getVerdictDescription when not complete
   });
 
   const desc = await adapter.getVerdictDescription();
-  assertEquals(desc.includes("Waiting"), true);
+  assertStringIncludes(desc, "Waiting");
 });
 
 Deno.test("ExternalStateVerdictAdapter - buildInitialPrompt fallback", async () => {
@@ -1513,7 +1513,7 @@ Deno.test("ExternalStateVerdictAdapter - buildInitialPrompt fallback", async () 
   });
 
   const prompt = await adapter.buildInitialPrompt();
-  assertEquals(prompt.includes("55"), true);
+  assertStringIncludes(prompt, "55");
 });
 
 Deno.test("ExternalStateVerdictAdapter - buildContinuationPrompt fallback", async () => {
@@ -1528,7 +1528,7 @@ Deno.test("ExternalStateVerdictAdapter - buildContinuationPrompt fallback", asyn
   });
 
   const prompt = await adapter.buildContinuationPrompt(3);
-  assertEquals(prompt.includes("55"), true);
+  assertStringIncludes(prompt, "55");
 });
 
 Deno.test("ExternalStateVerdictAdapter - type is poll:state", () => {

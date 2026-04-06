@@ -2,7 +2,12 @@
  * Step Registry Tests
  */
 
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import {
   addStepDefinition,
   createEmptyRegistry,
@@ -336,9 +341,9 @@ Deno.test("validateStepRegistry - error message mentions kebab-case and LayerTyp
     throw new Error("Should have thrown");
   } catch (e) {
     if (e instanceof Error) {
-      assertEquals(e.message.includes("kebab-case"), true);
-      assertEquals(e.message.includes("LayerType"), true);
-      assertEquals(e.message.includes("externalState"), true);
+      assertStringIncludes(e.message, "kebab-case");
+      assertStringIncludes(e.message, "LayerType");
+      assertStringIncludes(e.message, "externalState");
     } else {
       throw e;
     }
@@ -451,8 +456,8 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
     throw new Error("Should have thrown");
   } catch (e) {
     if (e instanceof Error) {
-      assertEquals(e.message.includes('"externalState"'), true);
-      assertEquals(e.message.includes('"checkBudget"'), true);
+      assertStringIncludes(e.message, '"externalState"');
+      assertStringIncludes(e.message, '"checkBudget"');
     } else {
       throw e;
     }
@@ -745,8 +750,8 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
   } catch (e) {
     if (e instanceof Error) {
       // Should mention both steps
-      assertEquals(e.message.includes("step.one"), true);
-      assertEquals(e.message.includes("step.two"), true);
+      assertStringIncludes(e.message, "step.one");
+      assertStringIncludes(e.message, "step.two");
     } else {
       throw e;
     }

@@ -4,7 +4,7 @@
  * Tests stepKind-based tool permission enforcement.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   allowsBoundaryActions,
   BOUNDARY_BASH_PATTERNS,
@@ -46,7 +46,7 @@ Deno.test("tool-policy: closure step allows boundary tools but blocks bash", () 
 Deno.test("tool-policy: isToolAllowed denies boundary tool in work step", () => {
   const result = isToolAllowed("githubIssueClose", "work");
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary tool"), true);
+  assertStringIncludes(result.reason ?? "", "boundary tool");
 });
 
 Deno.test("tool-policy: isToolAllowed allows base tool in work step", () => {
@@ -83,7 +83,7 @@ Deno.test("tool-policy: filterAllowedTools keeps all tools for closure step", ()
 Deno.test("tool-policy: isBashCommandAllowed blocks gh issue close in work step", () => {
   const result = isBashCommandAllowed("gh issue close 123", "work");
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks gh pr merge in verification step", () => {
@@ -92,7 +92,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks gh pr merge in verification 
     "verification",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks gh issue close even in closure step", () => {
@@ -100,7 +100,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks gh issue close even in closu
   // The boundary hook handles GitHub operations based on defaultClosureAction
   const result = isBashCommandAllowed("gh issue close 123", "closure");
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed allows non-boundary commands in work step", () => {
@@ -152,7 +152,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks curl targeting GitHub API", 
     "work",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks wget targeting GitHub API", () => {
@@ -161,7 +161,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks wget targeting GitHub API", 
     "work",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks python3 targeting GitHub API", () => {
@@ -170,7 +170,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks python3 targeting GitHub API
     "work",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks node targeting GitHub API", () => {
@@ -179,7 +179,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks node targeting GitHub API", 
     "work",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks state:closed payload via pipe", () => {
@@ -188,7 +188,7 @@ Deno.test("tool-policy: isBashCommandAllowed blocks state:closed payload via pip
     "work",
   );
   assertEquals(result.allowed, false);
-  assertEquals(result.reason?.includes("boundary action"), true);
+  assertStringIncludes(result.reason ?? "", "boundary action");
 });
 
 Deno.test("tool-policy: isBashCommandAllowed allows legitimate curl to non-GitHub URLs", () => {

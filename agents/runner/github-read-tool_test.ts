@@ -5,7 +5,7 @@
  * the correct gh subcommands and handles errors properly.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createGitHubReadHandler } from "./github-read-tool.ts";
 
 // --- Deno.Command stub infrastructure ---
@@ -233,7 +233,7 @@ Deno.test("github-read-tool", async (t) => {
       const result = await handler({ operation: "issue_list" });
 
       assertEquals(result.isError, true);
-      assertEquals(result.content[0].text.includes("not found"), true);
+      assertStringIncludes(result.content[0].text, "not found");
     } finally {
       restoreDenoCommand();
     }
