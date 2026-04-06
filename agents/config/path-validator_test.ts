@@ -193,9 +193,18 @@ Deno.test("path-validator - existing outputSchemaRef.file returns valid", async 
   try {
     await createStandardLayout(dir);
     await Deno.mkdir(join(dir, "schemas"), { recursive: true });
+    // Schema file must contain the referenced definition
+    const schemaContent = {
+      definitions: {
+        "initial.issue": {
+          type: "object",
+          properties: { stepId: { type: "string" } },
+        },
+      },
+    };
     await Deno.writeTextFile(
       join(dir, "schemas", "issue.schema.json"),
-      "{}",
+      JSON.stringify(schemaContent),
     );
 
     const def = validDefinition();
@@ -213,7 +222,11 @@ Deno.test("path-validator - existing outputSchemaRef.file returns valid", async 
 
     const result = await validatePaths(def, dir, registry);
 
-    assertEquals(result.valid, true);
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
     assertEquals(result.errors.length, 0);
   } finally {
     await Deno.remove(dir, { recursive: true });
@@ -320,6 +333,211 @@ Deno.test("path-validator - step without outputSchemaRef is skipped", async () =
     const result = await validatePaths(def, dir, registry);
 
     assertEquals(result.valid, true);
+    assertEquals(result.errors.length, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 9. Schema name resolution: pointer resolves -> no error
+// =============================================================================
+
+Deno.test("path-validator - schema pointer resolves to existing definition returns valid", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    await Deno.mkdir(join(dir, "schemas"), { recursive: true });
+
+    // Schema file with a "definitions" block containing the referenced step
+    const schemaContent = {
+      definitions: {
+        "initial.issue": {
+          type: "object",
+          properties: {
+            stepId: { type: "string", const: "initial.issue" },
+          },
+          required: ["stepId"],
+        },
+      },
+    };
+    await Deno.writeTextFile(
+      join(dir, "schemas", "step_outputs.schema.json"),
+      JSON.stringify(schemaContent),
+    );
+
+    const def = validDefinition();
+    const registry = {
+      steps: {
+        "initial.issue": {
+          stepId: "initial.issue",
+          outputSchemaRef: {
+            file: "step_outputs.schema.json",
+            schema: "#/definitions/initial.issue",
+          },
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+    assertEquals(result.errors.length, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 10. Schema name resolution: pointer does not resolve -> error
+// =============================================================================
+
+Deno.test("path-validator - schema pointer to non-existent definition reports error", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    await Deno.mkdir(join(dir, "schemas"), { recursive: true });
+
+    // Schema file WITHOUT the referenced definition
+    const schemaContent = {
+      definitions: {
+        "initial.project": {
+          type: "object",
+          properties: {},
+        },
+      },
+    };
+    await Deno.writeTextFile(
+      join(dir, "schemas", "step_outputs.schema.json"),
+      JSON.stringify(schemaContent),
+    );
+
+    const def = validDefinition();
+    const registry = {
+      steps: {
+        "initial.issue": {
+          stepId: "initial.issue",
+          outputSchemaRef: {
+            file: "step_outputs.schema.json",
+            schema: "#/definitions/initial.issue",
+          },
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(result.valid, false);
+    const hasSchemaError = result.errors.some((e) =>
+      e.includes("[SCHEMA]") &&
+      e.includes("initial.issue") &&
+      e.includes("not found")
+    );
+    assertEquals(
+      hasSchemaError,
+      true,
+      `Expected schema name resolution error, got: ${result.errors.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 11. Schema name resolution: root pointer "#/" always valid
+// =============================================================================
+
+Deno.test("path-validator - root schema pointer '#/' passes validation", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    await Deno.mkdir(join(dir, "schemas"), { recursive: true });
+
+    // Any valid JSON schema file — root pointer refers to the whole document
+    const schemaContent = {
+      type: "object",
+      properties: {
+        stepId: { type: "string" },
+      },
+    };
+    await Deno.writeTextFile(
+      join(dir, "schemas", "root.schema.json"),
+      JSON.stringify(schemaContent),
+    );
+
+    const def = validDefinition();
+    const registry = {
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          outputSchemaRef: {
+            file: "root.schema.json",
+            schema: "#/",
+          },
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+    assertEquals(result.errors.length, 0);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 12. Schema name resolution: bare name resolves in definitions
+// =============================================================================
+
+Deno.test("path-validator - bare schema name resolves in definitions", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    await Deno.mkdir(join(dir, "schemas"), { recursive: true });
+
+    const schemaContent = {
+      definitions: {
+        "initial.default": {
+          type: "object",
+          properties: {},
+        },
+      },
+    };
+    await Deno.writeTextFile(
+      join(dir, "schemas", "step_outputs.schema.json"),
+      JSON.stringify(schemaContent),
+    );
+
+    const def = validDefinition();
+    const registry = {
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          outputSchemaRef: {
+            file: "step_outputs.schema.json",
+            schema: "initial.default",
+          },
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
     assertEquals(result.errors.length, 0);
   } finally {
     await Deno.remove(dir, { recursive: true });

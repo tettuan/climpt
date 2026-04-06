@@ -2,12 +2,15 @@
  * UV Variable Reachability Validator
  *
  * Validates that each step's declared uvVariables have a known supply source
- * via CLI parameters (Channel 1 --from agent.json parameters).
+ * across all four UV Channels:
  *
- * Variables not found in CLI parameters are silently skipped --they are
- * assumed to be runtime-supplied and are not the validator's concern.
+ * - Channel 1: CLI parameters (from agent.json parameters)
+ * - Channel 2: Runner runtime variables (iteration, completed_iterations, etc.)
+ * - Channel 3: VerdictHandler variables (max_iterations, remaining, etc.)
+ * - Channel 4: Step handoff via inputs (InputSpec, stepId_key namespace)
  *
- * Optional CLI parameters without defaults are flagged as warnings.
+ * A UV variable with no identified supply source from any channel gets a
+ * warning. Optional CLI parameters without defaults are also flagged.
  *
  * Additionally validates prefix substitution consistency:
  * - For each initial.X step, checks that a corresponding continuation.X exists
@@ -20,6 +23,8 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
+import { RUNTIME_SUPPLIED_UV_VARS } from "../shared/constants.ts";
+import type { InputSpec } from "../src_common/contracts.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -124,12 +129,40 @@ function validatePrefixSubstitutionConsistency(
 // ---------------------------------------------------------------------------
 
 /**
+ * Derive the set of UV variable names that a step's inputs would produce
+ * via Channel 4 (StepContext.toUV).
+ *
+ * The naming convention is: `stepId_key` where dots in stepId are replaced
+ * with underscores.  Example: `initial.issue` + key `number` → `initial_issue_number`.
+ *
+ * This is a best-effort static analysis — full runtime resolution is in P3-1.
+ */
+function deriveChannel4UvNames(inputs: InputSpec): Set<string> {
+  const names = new Set<string>();
+  for (const [_varName, spec] of Object.entries(inputs)) {
+    if (!spec.from || typeof spec.from !== "string") continue;
+    const dotPos = spec.from.lastIndexOf(".");
+    if (dotPos <= 0) continue;
+    const stepId = spec.from.substring(0, dotPos);
+    const key = spec.from.substring(dotPos + 1);
+    const uvKey = stepId.replace(/\./g, "_") + "_" + key;
+    names.add(uvKey);
+  }
+  return names;
+}
+
+/**
  * Validate UV variable reachability for all steps in a steps registry.
  *
  * Checks per step:
- * 1. If a uvVariable matches a CLI parameter, validate its optionality/default
- * 2. Variables not in CLI parameters are silently skipped (runtime-supplied)
- * 3. initial.* / continuation.* prefix substitution consistency
+ * 1. Channel 1 — If a uvVariable matches a CLI parameter, validate its
+ *    optionality / default
+ * 2. Channel 2/3 — If the variable is in RUNTIME_SUPPLIED_UV_VARS, it is
+ *    supplied at runtime → no warning
+ * 3. Channel 4 — If the step has `inputs` and the variable matches a
+ *    derived input UV name, it is supplied via handoff → no warning
+ * 4. If none of the above channels supply the variable, emit a warning
+ * 5. initial.* / continuation.* prefix substitution consistency
  *
  * @param registry - Parsed steps_registry.json content
  * @param agentDef - Parsed agent.json content
@@ -153,24 +186,45 @@ export function validateUvReachability(
     const uvVariables = step.uvVariables;
     if (!Array.isArray(uvVariables) || uvVariables.length === 0) continue;
 
+    // Pre-compute Channel 4 UV names for this step (if inputs exist)
+    const inputsRaw = asRecord(step.inputs);
+    const channel4Names: Set<string> = inputsRaw
+      ? deriveChannel4UvNames(inputsRaw as InputSpec)
+      : new Set();
+
     for (const varEntry of uvVariables) {
       const varName = typeof varEntry === "string" ? varEntry : null;
       if (varName === null) continue;
 
-      // Only check Channel 1 (CLI parameters).
-      // Variables not in params are assumed runtime-supplied --skip silently.
-      if (!parameterKeys.has(varName)) continue;
-
-      const paramDef = asRecord(parametersRaw[varName]);
-      if (paramDef) {
-        const isRequired = paramDef.required === true;
-        const hasDefault = "default" in paramDef;
-        if (!isRequired && !hasDefault) {
-          warnings.push(
-            `Step "${stepId}": UV variable "${varName}" maps to optional CLI parameter with no default value.`,
-          );
+      // Channel 1: CLI parameters
+      if (parameterKeys.has(varName)) {
+        const paramDef = asRecord(parametersRaw[varName]);
+        if (paramDef) {
+          const isRequired = paramDef.required === true;
+          const hasDefault = "default" in paramDef;
+          if (!isRequired && !hasDefault) {
+            warnings.push(
+              `Step "${stepId}": UV variable "${varName}" maps to optional CLI parameter with no default value.`,
+            );
+          }
         }
+        continue;
       }
+
+      // Channel 2/3: Runtime-supplied variables
+      if (RUNTIME_SUPPLIED_UV_VARS.has(varName)) {
+        continue;
+      }
+
+      // Channel 4: Step handoff via inputs
+      if (channel4Names.has(varName)) {
+        continue;
+      }
+
+      // No identified supply source from any channel
+      warnings.push(
+        `Step "${stepId}": uvVariable "${varName}" has no identified supply source (not a CLI parameter, not a runtime variable, not an input handoff).`,
+      );
     }
   }
 

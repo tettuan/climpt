@@ -161,6 +161,34 @@ export class AgentRetryableQueryError extends ClimptError {
 }
 
 /**
+ * Validation aborted (unrecoverable failure or maxAttempts exceeded)
+ */
+export class AgentValidationAbortError extends ClimptError {
+  readonly code = "AGENT_VALIDATION_ABORT";
+  readonly recoverable = false;
+
+  /**
+   * Step ID where validation was aborted
+   */
+  readonly stepId?: string;
+
+  constructor(
+    message: string,
+    options?: { cause?: Error; iteration?: number; stepId?: string },
+  ) {
+    super(message, options);
+    this.stepId = options?.stepId;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+    };
+  }
+}
+
+/**
  * Normalize any error to a ClimptError (AgentQueryError as default)
  */
 export function normalizeToAgentError(

@@ -24,6 +24,8 @@ export interface FailurePattern {
   adaptation: string;
   /** Parameter names to inject into retry prompts */
   params: string[];
+  /** Optional keywords or regex for fuzzy matching against error output */
+  semanticMatch?: string[];
 }
 
 // ============================================================================
@@ -68,7 +70,29 @@ export type ExtractorType =
 /**
  * Validator type
  */
-export type ValidatorType = "command" | "file" | "custom";
+export type ValidatorType = "command" | "file" | "custom" | "semantic";
+
+/**
+ * Semantic check type
+ *
+ * Identifies which semantic heuristic to apply.
+ * Extensible: new check types can be added without modifying dispatchers.
+ */
+export type SemanticCheckType =
+  | "commit-message"
+  | "coverage-check"
+  | "file-relevance";
+
+/**
+ * Configuration for semantic validators
+ *
+ * Specifies which semantic check to perform.
+ * Passed as part of ValidatorDefinition for type: "semantic".
+ */
+export interface SemanticValidatorConfig {
+  /** Which semantic check to perform */
+  checkType: SemanticCheckType;
+}
 
 /**
  * Declarative validator definition (JSON format)
@@ -82,12 +106,16 @@ export interface ValidatorDefinition {
   command?: string;
   /** For file type: path to check */
   path?: string;
+  /** For semantic type: semantic check configuration */
+  semanticConfig?: SemanticValidatorConfig;
   /** Success condition */
   successWhen: SuccessCondition;
   /** Pattern name on failure (key in failurePatterns) */
   failurePattern: string;
   /** Parameter extraction rules */
   extractParams: Record<string, ExtractorType | string>;
+  /** Default recoverability when classifier cannot determine (default: true) */
+  recoverableByDefault?: boolean;
 }
 
 // ============================================================================
@@ -197,17 +225,45 @@ export interface ValidationStepConfig {
  *
  * Extended validation result including pattern and parameters for retry.
  */
+/**
+ * Semantic context for extracted parameters
+ *
+ * Provides structured, human-readable context derived from raw extraction
+ * results. Enables retry prompts to include actionable information such as
+ * severity, root cause, and suggested remediation.
+ */
+export interface SemanticParams {
+  /** Raw extracted data (backward compatible) */
+  raw: Record<string, unknown>;
+  /** Human-readable summary of the failure */
+  summary: string;
+  /** Severity classification */
+  severity: "info" | "warning" | "error" | "critical";
+  /** Files most relevant to the failure */
+  relatedFiles: string[];
+  /** Inferred root cause (optional) */
+  rootCause?: string;
+  /** Suggested remediation action (optional) */
+  suggestedAction?: string;
+}
+
 export interface ValidatorResult {
   /** Validation success/failure */
   valid: boolean;
   /** Pattern name on failure */
   pattern?: string;
+  /** Additional failure patterns from subsequent validators (ranked by severity) */
+  additionalPatterns?: string[];
   /** Extracted parameters (for retry prompt injection) */
   params?: Record<string, unknown>;
+  /** Semantic context for the extracted parameters (optional) */
+  semanticParams?: SemanticParams;
   /** Error message */
   error?: string;
   /** Detailed information */
   details?: string[];
+  /** Whether the failure is recoverable (retryable) */
+  recoverable?: boolean;
 }
 
 // ============================================================================

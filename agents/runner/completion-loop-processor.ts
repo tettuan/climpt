@@ -15,7 +15,7 @@ import type {
   ResolvedAgentDefinition,
   RuntimeContext,
 } from "../src_common/types.ts";
-import { AgentStepRoutingError } from "./errors.ts";
+import { AgentStepRoutingError, AgentValidationAbortError } from "./errors.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
 import { inferStepKind } from "../common/step-registry/utils.ts";
@@ -96,15 +96,38 @@ export class CompletionLoopProcessor {
     });
 
     if (!validation.valid) {
-      ctx.logger.info(
-        "Validation conditions not met, will retry in next iteration",
-      );
-      ctx.logger.info("[CompletionLoop] Exit", { stepId, done: false });
-      return {
-        done: false,
-        reason: "Validation conditions not met",
-        retryPrompt: validation.retryPrompt ?? undefined,
-      };
+      const action = validation.action ?? "retry";
+
+      // Dispatch based on onFailure action
+      if (action === "abort") {
+        ctx.logger.error(
+          "[CompletionLoop] Validation abort: unrecoverable or maxAttempts exceeded",
+        );
+        throw new AgentValidationAbortError(
+          `Validation aborted for step "${closureStepId}": ${
+            validation.retryPrompt ?? "validation failed"
+          }`,
+          { stepId: closureStepId },
+        );
+      }
+
+      if (action === "skip") {
+        ctx.logger.warn(
+          "[CompletionLoop] Validation skip: treating as passed per onFailure config",
+        );
+        // Fall through to Stage 2.5 / Stage 3 as if validation passed
+      } else {
+        // action === "retry" (default)
+        ctx.logger.info(
+          "Validation conditions not met, will retry in next iteration",
+        );
+        ctx.logger.info("[CompletionLoop] Exit", { stepId, done: false });
+        return {
+          done: false,
+          reason: "Validation conditions not met",
+          retryPrompt: validation.retryPrompt ?? undefined,
+        };
+      }
     }
 
     // Stage 2.5: Structured signal from closure step output

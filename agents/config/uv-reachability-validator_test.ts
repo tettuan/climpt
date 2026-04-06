@@ -74,7 +74,7 @@ Deno.test("validateUvReachability - UV variable not in params -> silently skippe
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - UV variable not in params -> no error (assumed runtime)", () => {
+Deno.test("validateUvReachability - UV variable not in any channel -> warning about no supply source", () => {
   // Use a non-initial prefix to avoid prefix substitution warnings
   const registry = registryWith("step.issue", {
     uvVariables: ["unknown_var"],
@@ -85,7 +85,12 @@ Deno.test("validateUvReachability - UV variable not in params -> no error (assum
 
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
+  assertEquals(result.warnings.length, 1);
+  assertEquals(
+    result.warnings[0].includes("no identified supply source"),
+    true,
+    `Expected warning about no supply source, got: ${result.warnings[0]}`,
+  );
 });
 
 Deno.test("validateUvReachability - optional CLI param without default -> warning", () => {
@@ -192,7 +197,7 @@ Deno.test("validateUvReachability - missing steps key -> valid", () => {
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validateUvReachability - mix of param and non-param variables -> no errors", () => {
+Deno.test("validateUvReachability - mix of param, runtime, and unknown variables -> warnings for unknown only", () => {
   // Use a non-initial prefix to isolate the check
   const registry = registryWith("step.issue", {
     uvVariables: ["issue", "iteration", "unknown_var", "another_missing"],
@@ -203,14 +208,25 @@ Deno.test("validateUvReachability - mix of param and non-param variables -> no e
 
   const result = validateUvReachability(registry, agent);
 
-  // "issue" is a required param -> OK, no warning
-  // "iteration", "unknown_var", "another_missing" are not in params -> silently skipped
+  // "issue" is a required param -> OK (Channel 1)
+  // "iteration" is a runtime variable -> OK (Channel 2)
+  // "unknown_var", "another_missing" have no supply source -> warnings
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
+  assertEquals(result.warnings.length, 2);
+  assertEquals(
+    result.warnings[0].includes("unknown_var"),
+    true,
+    `Expected warning about unknown_var, got: ${result.warnings[0]}`,
+  );
+  assertEquals(
+    result.warnings[1].includes("another_missing"),
+    true,
+    `Expected warning about another_missing, got: ${result.warnings[1]}`,
+  );
 });
 
-Deno.test("validateUvReachability - multiple steps with non-param variables -> no errors", () => {
+Deno.test("validateUvReachability - multiple steps: runtime var OK, orphan var -> warning", () => {
   const registry: Record<string, unknown> = {
     steps: {
       "step.issue": {
@@ -227,11 +243,24 @@ Deno.test("validateUvReachability - multiple steps with non-param variables -> n
 
   const result = validateUvReachability(registry, agent);
 
-  // "issue" is required param -> OK
-  // "iteration", "orphan_var" not in params -> silently skipped
+  // "issue" is required param -> OK (Channel 1)
+  // "iteration" is a runtime variable -> OK (Channel 2)
+  // "orphan_var" has no supply source -> warning
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
-  assertEquals(result.warnings.length, 0);
+  assertEquals(result.warnings.length, 1);
+  assertEquals(
+    result.warnings[0].includes("orphan_var"),
+    true,
+    `Expected warning about orphan_var, got: ${result.warnings[0]}`,
+  );
+  assertEquals(
+    result.warnings[0].includes("no identified supply source"),
+    true,
+    `Expected 'no identified supply source' in warning, got: ${
+      result.warnings[0]
+    }`,
+  );
 });
 
 // =============================================================================
@@ -418,7 +447,6 @@ Deno.test("prefix substitution - multiple initial.* steps with mixed match/misma
 
 Deno.test("uv-reachability validator is warnings-only by design", () => {
   // This validator never produces errors -- all issues are warnings.
-  // See file header: "Variables not found in CLI parameters are silently skipped"
   // If this test fails, a code change introduced errors where only warnings were intended.
   // Intentionally test with a scenario that triggers multiple warnings but confirm errors stay empty.
   const registry = registryWithMultiple({
@@ -448,5 +476,164 @@ Deno.test("uv-reachability validator is warnings-only by design", () => {
   assert(
     result.warnings.length > 0,
     "Test fixture should trigger at least one warning to avoid vacuous pass",
+  );
+});
+
+// =============================================================================
+// Multi-Channel awareness tests (Channels 2/3/4)
+// =============================================================================
+
+Deno.test("Channel 2/3 - runtime-supplied variable matches -> no warning", () => {
+  // All Channel 2 and Channel 3 runtime variables should pass without warning
+  const allRuntimeVars = [
+    // Channel 2: Runner runtime
+    "iteration",
+    "completed_iterations",
+    "completion_keyword",
+    // Channel 3: VerdictHandler
+    "max_iterations",
+    "remaining",
+    "previous_summary",
+    "check_count",
+    "max_checks",
+  ];
+
+  const registry = registryWith("step.check", {
+    uvVariables: allRuntimeVars,
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(
+    result.warnings.length,
+    0,
+    `Runtime-supplied variables should not produce warnings, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+});
+
+Deno.test("Channel 4 - UV variable supplied via inputs -> no warning", () => {
+  // Step with inputs that derive a UV variable via stepId_key namespace
+  const registry = registryWith("step.plan", {
+    uvVariables: ["initial_issue_number"],
+    inputs: {
+      issue_number: { from: "initial.issue_number", required: true },
+    },
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(
+    result.warnings.length,
+    0,
+    `Channel 4 input-derived UV variable should not produce warnings, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+});
+
+Deno.test("Channel 4 - UV variable from composite stepId inputs -> no warning", () => {
+  // Composite stepId: dots replaced with underscores in UV key
+  const registry = registryWith("step.execute", {
+    uvVariables: ["initial_assess_summary"],
+    inputs: {
+      summary: { from: "initial.assess.summary", required: true },
+    },
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(
+    result.warnings.length,
+    0,
+    `Channel 4 composite stepId UV variable should not produce warnings, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+});
+
+Deno.test("no channel supplies variable -> warning with descriptive message", () => {
+  const registry = registryWith("step.process", {
+    uvVariables: ["totally_unknown"],
+  });
+  const agent = agentWith({});
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  assertEquals(result.warnings.length, 1);
+
+  const warning = result.warnings[0];
+  assertEquals(
+    warning.includes('Step "step.process"'),
+    true,
+    `Warning should reference step ID, got: ${warning}`,
+  );
+  assertEquals(
+    warning.includes('"totally_unknown"'),
+    true,
+    `Warning should reference variable name, got: ${warning}`,
+  );
+  assertEquals(
+    warning.includes("not a CLI parameter"),
+    true,
+    `Warning should mention CLI parameter, got: ${warning}`,
+  );
+  assertEquals(
+    warning.includes("not a runtime variable"),
+    true,
+    `Warning should mention runtime variable, got: ${warning}`,
+  );
+  assertEquals(
+    warning.includes("not an input handoff"),
+    true,
+    `Warning should mention input handoff, got: ${warning}`,
+  );
+});
+
+Deno.test("all four channels combined - each channel covers its variables", () => {
+  const registry = registryWith("step.combined", {
+    uvVariables: [
+      "issue", // Channel 1: CLI param
+      "iteration", // Channel 2: runtime
+      "max_iterations", // Channel 3: verdict handler
+      "prev_result", // Channel 4: input handoff
+      "mystery_var", // No channel -> warning
+    ],
+    inputs: {
+      result: { from: "prev.result", required: true },
+    },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  // Only "mystery_var" should produce a warning
+  assertEquals(
+    result.warnings.length,
+    1,
+    `Expected exactly 1 warning for mystery_var, got ${result.warnings.length}: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
+  assertEquals(
+    result.warnings[0].includes("mystery_var"),
+    true,
+    `Warning should reference mystery_var, got: ${result.warnings[0]}`,
   );
 });

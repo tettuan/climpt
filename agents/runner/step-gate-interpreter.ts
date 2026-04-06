@@ -147,7 +147,7 @@ export class StepGateInterpreter {
     }
 
     // Extract handoff data
-    const handoff = this.extractHandoff(structuredOutput, gate);
+    const handoff = this.extractHandoff(structuredOutput, gate, stepDef.stepId);
 
     // Extract reason from structured output if present
     const reason = this.extractReason(structuredOutput);
@@ -297,10 +297,14 @@ export class StepGateInterpreter {
 
   /**
    * Extract handoff data from structured output.
+   *
+   * Logs a warning for each handoffField that is not found in the structured
+   * output, since silent drops can cause downstream required-input failures.
    */
   private extractHandoff(
     output: Record<string, unknown>,
     gate: StructuredGate,
+    stepId: string,
   ): Record<string, unknown> {
     const handoff: Record<string, unknown> = {};
 
@@ -314,6 +318,12 @@ export class StepGateInterpreter {
         // Use last part of path as key
         const key = fieldPath.split(".").pop() ?? fieldPath;
         handoff[key] = value;
+      } else {
+        // P3-6: Log warning instead of silently dropping missing fields
+        // deno-lint-ignore no-console
+        console.warn(
+          `[StepFlow] Handoff field '${fieldPath}' not found in structured output for step '${stepId}'`,
+        );
       }
     }
 
