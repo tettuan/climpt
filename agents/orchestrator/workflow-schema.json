@@ -112,7 +112,7 @@
         },
         "cycleDelayMs": {
           "type": "number",
-          "description": "Delay in milliseconds between cycles",
+          "description": "Delay in milliseconds between cycles (shows countdown with safe-stop message)",
           "minimum": 0
         }
       }

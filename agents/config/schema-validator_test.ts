@@ -7,12 +7,13 @@
  * array/null type unions.
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   validateAgentSchema,
   validateRegistrySchema,
 } from "./schema-validator.ts";
+import { ALL_VERDICT_TYPES } from "../src_common/types/verdict.ts";
 
 const logger = new BreakdownLogger("schema-validator");
 
@@ -273,16 +274,11 @@ Deno.test("schema-validator/agent - invalid verdict type rejects", async () => {
 });
 
 Deno.test("schema-validator/agent - valid verdict types pass", async () => {
-  const verdictTypes = [
-    "poll:state",
-    "count:iteration",
-    "count:check",
-    "detect:keyword",
-    "detect:structured",
-    "detect:graph",
-    "meta:composite",
-    "meta:custom",
-  ];
+  const verdictTypes = ALL_VERDICT_TYPES;
+  assert(
+    verdictTypes.length > 0,
+    "No verdict types found — source of truth may have changed",
+  );
 
   for (const vt of verdictTypes) {
     const data = minimalValidAgent();

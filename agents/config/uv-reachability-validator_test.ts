@@ -11,7 +11,7 @@
  * - Prefix substitution consistency (initial.* vs continuation.*)
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
 
 // =============================================================================
@@ -409,5 +409,44 @@ Deno.test("prefix substitution - multiple initial.* steps with mixed match/misma
     missingWarning!.includes("is missing"),
     true,
     `Expected "is missing" in warning, got: ${missingWarning}`,
+  );
+});
+
+// =============================================================================
+// Design invariant
+// =============================================================================
+
+Deno.test("uv-reachability validator is warnings-only by design", () => {
+  // This validator never produces errors -- all issues are warnings.
+  // See file header: "Variables not found in CLI parameters are silently skipped"
+  // If this test fails, a code change introduced errors where only warnings were intended.
+  // Intentionally test with a scenario that triggers multiple warnings but confirm errors stay empty.
+  const registry = registryWithMultiple({
+    "initial.assess": { uvVariables: ["issue", "optional_param"] },
+    "continuation.assess": { uvVariables: ["issue"] }, // mismatch -> prefix substitution warning
+    "initial.plan": { uvVariables: ["issue"] },
+    // continuation.plan missing -> missing continuation warning
+    "step.check": { uvVariables: ["optional_param"] },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+    optional_param: { required: false }, // optional without default -> supply-source warning
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(
+    result.valid,
+    true,
+    "UV reachability validator should always return valid:true (warnings-only by design)",
+  );
+  assertEquals(
+    result.errors.length,
+    0,
+    "UV reachability validator should never produce errors -- only warnings",
+  );
+  assert(
+    result.warnings.length > 0,
+    "Test fixture should trigger at least one warning to avoid vacuous pass",
   );
 });

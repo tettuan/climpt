@@ -29,6 +29,7 @@ import type { IssueStore } from "./issue-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
+import { countdownDelay } from "./countdown.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -459,10 +460,10 @@ export class Orchestrator {
         }
       }
 
-      // Step 13: Delay between cycles (skip in dryRun)
+      // Step 13: Countdown between cycles (skip in dryRun)
       if (!dryRun && this.#config.rules.cycleDelayMs > 0) {
         // deno-lint-ignore no-await-in-loop
-        await this.#delay(this.#config.rules.cycleDelayMs);
+        await countdownDelay(this.#config.rules.cycleDelayMs, "Next cycle");
       }
     }
 
@@ -494,9 +495,5 @@ export class Orchestrator {
       this.#cwd,
     );
     return runner.run(criteria, options);
-  }
-
-  #delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

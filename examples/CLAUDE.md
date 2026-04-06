@@ -6,6 +6,21 @@
 番号付きスクリプトが順序依存で並び、各ステップが前ステップの生成物に依存する。
 一覧と構造は `examples/README.md` の Directory Structure テーブルを参照。
 
+## 定期実行の有効化/無効化
+
+`run-all.sh` は launchd (`com.climpt.run-all`) により 5 分間隔で定期実行される。
+フラグファイルが存在するときのみ実行され、不在時はスキップする。
+
+```bash
+# 有効化
+touch tmp/.examples-run-enabled
+
+# 無効化
+rm tmp/.examples-run-enabled
+```
+
+手動実行時もこのガードが効く。ターミナルから走らせる前に有効化すること。
+
 ## cwd ルール
 
 **すべての run.sh は `examples/` ディレクトリを cwd として実行する。**

@@ -67,6 +67,10 @@ Deno.test("repeat routes back to work step, not closure", async () => {
 });
 ```
 
+### F. Validator Testing
+
+When a validator exists, test the validator's behavior (acceptance/rejection/diagnosis/completeness) — not the config directly. See `test-design` skill (Validator as Test Boundary) for design patterns and examples.
+
 ## Boundary Testing
 
 | Boundary | Test focus |
@@ -75,6 +79,7 @@ Deno.test("repeat routes back to work step, not closure", async () => {
 | Config | Schema validation, defaults |
 | FileSystem | Required files exist |
 | Value Pass | Variables substituted correctly |
+| Validator | Acceptance, rejection, error quality |
 
 ## Test Structure
 
@@ -99,6 +104,7 @@ Deno.test("tool isolation matches design", ...);   // 4. Alignment
 - [ ] Alignments reported (what works correctly)
 - [ ] No absolute paths in test code
 - [ ] After refactoring: Before/After contracts verified per `refactoring` skill Phase 2
+- [ ] Validators tested (acceptance, rejection, diagnosis, completeness) — not bypassed
 
 ## Reference
 

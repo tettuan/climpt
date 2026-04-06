@@ -38,7 +38,7 @@ const DEFAULT_WORKFLOW_PATH = ".agent/workflow.json";
 
 const DEFAULT_RULES: WorkflowRules = {
   maxCycles: 5,
-  cycleDelayMs: 5000,
+  cycleDelayMs: 10000,
 };
 
 /**

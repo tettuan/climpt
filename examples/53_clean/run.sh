@@ -35,6 +35,10 @@ main() {
   # Remove sentinel file
   rm -f "/tmp/claude/plan-mode-test.txt"
 
+  # Disable periodic run-all.sh (launchd guard flag)
+  rm -f "${REPO_ROOT}/tmp/.examples-run-enabled"
+  success "Disabled periodic run-all.sh"
+
   # Clean temp files from common_functions
   cleanup_temp_files "."
 

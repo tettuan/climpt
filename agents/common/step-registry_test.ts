@@ -2,7 +2,12 @@
  * Step Registry Tests
  */
 
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import {
   addStepDefinition,
   createEmptyRegistry,
@@ -13,10 +18,12 @@ import {
   type PromptStepDefinition,
   saveStepRegistry,
   serializeRegistry,
+  STEP_KIND_ALLOWED_INTENTS,
   type StepRegistry,
   type StructuredGate,
   validateIntentSchemaEnums,
   validateIntentSchemaRef,
+  validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
 
@@ -334,9 +341,9 @@ Deno.test("validateStepRegistry - error message mentions kebab-case and LayerTyp
     throw new Error("Should have thrown");
   } catch (e) {
     if (e instanceof Error) {
-      assertEquals(e.message.includes("kebab-case"), true);
-      assertEquals(e.message.includes("LayerType"), true);
-      assertEquals(e.message.includes("externalState"), true);
+      assertStringIncludes(e.message, "kebab-case");
+      assertStringIncludes(e.message, "LayerType");
+      assertStringIncludes(e.message, "externalState");
     } else {
       throw e;
     }
@@ -449,8 +456,8 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
     throw new Error("Should have thrown");
   } catch (e) {
     if (e instanceof Error) {
-      assertEquals(e.message.includes('"externalState"'), true);
-      assertEquals(e.message.includes('"checkBudget"'), true);
+      assertStringIncludes(e.message, '"externalState"');
+      assertStringIncludes(e.message, '"checkBudget"');
     } else {
       throw e;
     }
@@ -743,8 +750,8 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
   } catch (e) {
     if (e instanceof Error) {
       // Should mention both steps
-      assertEquals(e.message.includes("step.one"), true);
-      assertEquals(e.message.includes("step.two"), true);
+      assertStringIncludes(e.message, "step.one");
+      assertStringIncludes(e.message, "step.two");
     } else {
       throw e;
     }
@@ -1119,4 +1126,123 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
+});
+
+// =============================================================================
+// validateStepKindIntents — closure step intent constraint
+// =============================================================================
+
+Deno.test("validateStepKindIntents - closure step with valid intents passes", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+      },
+    } as PromptStepDefinition,
+  };
+
+  // Should not throw — ["closing", "repeat"] is valid for closure
+  validateStepKindIntents(registry);
+});
+
+Deno.test("validateStepKindIntents - closure step with invalid intent throws", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "next"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+      },
+    } as PromptStepDefinition,
+  };
+
+  assertThrows(
+    () => validateStepKindIntents(registry),
+    Error,
+    "intent 'next' not allowed for stepKind 'closure'",
+  );
+});
+
+Deno.test("validateStepKindIntents - closure step rejects all non-closure intents", () => {
+  const closureAllowed = new Set(STEP_KIND_ALLOWED_INTENTS.closure);
+  const allIntents = [
+    ...STEP_KIND_ALLOWED_INTENTS.work,
+    ...STEP_KIND_ALLOWED_INTENTS.verification,
+    ...STEP_KIND_ALLOWED_INTENTS.closure,
+  ];
+  const nonClosureIntents = [...new Set(allIntents)].filter(
+    (i) => !closureAllowed.has(i),
+  );
+
+  // Non-vacuity: there must be intents that closure does not allow
+  assertEquals(
+    nonClosureIntents.length > 0,
+    true,
+    "Expected at least one intent not allowed for closure steps. " +
+      `All intents: [${[...new Set(allIntents)].join(", ")}], ` +
+      `closure allowed: [${[...closureAllowed].join(", ")}]`,
+  );
+
+  for (const intent of nonClosureIntents) {
+    const registry: StepRegistry = createEmptyRegistry("test-agent");
+    registry.steps = {
+      "closure.test": {
+        stepId: "closure.test",
+        name: "Test Closure",
+        type: "prompt",
+        c2: "closure",
+        c3: "test",
+        structuredGate: {
+          allowedIntents: ["closing", intent],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      } as PromptStepDefinition,
+    };
+
+    assertThrows(
+      () => validateStepKindIntents(registry),
+      Error,
+      `intent '${intent}' not allowed for stepKind 'closure'`,
+    );
+  }
+});
+
+Deno.test("validateStepKindIntents - closure step with invalid fallbackIntent throws", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+        fallbackIntent: "next",
+      },
+    } as PromptStepDefinition,
+  };
+
+  assertThrows(
+    () => validateStepKindIntents(registry),
+    Error,
+    "fallbackIntent 'next' not allowed for stepKind 'closure'",
+  );
 });

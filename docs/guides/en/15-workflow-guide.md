@@ -56,7 +56,7 @@ dispatches agents, and updates labels based on outcomes.
       "fallbackPhase": "blocked"
     }
   },
-  "rules": { "maxCycles": 5, "cycleDelayMs": 5000 }
+  "rules": { "maxCycles": 5, "cycleDelayMs": 10000 }
 }
 ```
 
@@ -122,10 +122,10 @@ Defines agent behavior:
 
 ### rules
 
-| Field          | Default | Description                            |
-| -------------- | ------- | -------------------------------------- |
-| `maxCycles`    | 5       | Max transitions per issue (loop guard) |
-| `cycleDelayMs` | 5000    | Delay between cycles (ms)              |
+| Field          | Default | Description                                                       |
+| -------------- | ------- | ----------------------------------------------------------------- |
+| `maxCycles`    | 5       | Max transitions per issue (loop guard)                            |
+| `cycleDelayMs` | 10000   | Delay between cycles (ms); shows countdown with safe-stop message |
 
 ### prioritizer
 

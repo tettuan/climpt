@@ -51,6 +51,10 @@ Deno.test("template variables are substituted", () => {
 });
 ```
 
+## Validator Boundary Examples
+
+See `test-design` skill `references/patterns.md` (Validator Test / Validator Bypass) for implementation examples.
+
 ## Test Ordering
 
 Progress from coarse to fine. If existence fails, contract/enforcement tests are meaningless.

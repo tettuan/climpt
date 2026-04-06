@@ -5,7 +5,12 @@
  * Tests validate that builders correctly wire dependencies.
  */
 
-import { assertEquals, assertInstanceOf, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertInstanceOf,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   type AgentDependencies,
@@ -215,7 +220,7 @@ Deno.test("DefaultStepValidatorFactory - throws before initialization", () => {
     throw new Error("Expected error to be thrown");
   } catch (e) {
     assertInstanceOf(e, Error);
-    assertEquals((e as Error).message.includes("not initialized"), true);
+    assertStringIncludes((e as Error).message, "not initialized");
   }
 });
 
@@ -239,7 +244,7 @@ Deno.test("DefaultRetryHandlerFactory - throws before initialization", () => {
     throw new Error("Expected error to be thrown");
   } catch (e) {
     assertInstanceOf(e, Error);
-    assertEquals((e as Error).message.includes("not initialized"), true);
+    assertStringIncludes((e as Error).message, "not initialized");
   }
 });
 

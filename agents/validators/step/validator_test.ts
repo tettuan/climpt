@@ -2,8 +2,8 @@
  * StepValidator Tests
  */
 
-import { assertEquals } from "@std/assert";
-import type { ValidatorRegistry } from "./types.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
+import type { ValidatorDefinition, ValidatorRegistry } from "./types.ts";
 import { StepValidator } from "./validator.ts";
 import { checkSuccessCondition } from "./command-runner.ts";
 
@@ -89,6 +89,175 @@ Deno.test("StepValidator - skips unknown validators", async () => {
 
   const result = await validator.validate([
     { validator: "unknown-validator" },
+  ]);
+
+  assertEquals(result.valid, true);
+});
+
+// ---------------------------------------------------------------------------
+// Registered validator tests
+// ---------------------------------------------------------------------------
+
+/**
+ * Helper: build a command-type ValidatorDefinition from a shell command.
+ */
+function commandValidator(
+  command: string,
+  successWhen: ValidatorDefinition["successWhen"],
+  failurePattern: string,
+  extractParams: Record<string, string> = {},
+): ValidatorDefinition {
+  return {
+    type: "command",
+    command,
+    successWhen,
+    failurePattern,
+    extractParams,
+  };
+}
+
+Deno.test("StepValidator - accepts when registered command validator succeeds", async () => {
+  const registry: ValidatorRegistry = {
+    validators: {
+      "always-pass": commandValidator(
+        "echo ''",
+        "empty",
+        "should-not-appear",
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    { validator: "always-pass" },
+  ]);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.pattern, undefined);
+  assertEquals(result.error, undefined);
+});
+
+Deno.test("StepValidator - rejects when registered command validator fails", async () => {
+  const registry: ValidatorRegistry = {
+    validators: {
+      "always-fail": commandValidator(
+        "echo 'dirty-files'",
+        "empty",
+        "git-dirty",
+        { stdout: "stdout" },
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    { validator: "always-fail" },
+  ]);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.pattern, "git-dirty");
+});
+
+Deno.test("StepValidator - diagnosis: error message and params from failing validator", async () => {
+  const registry: ValidatorRegistry = {
+    validators: {
+      "diag-validator": commandValidator(
+        "echo 'M src/app.ts' >&2; exit 1",
+        "exitCode:0",
+        "compile-error",
+        { errorOutput: "stderr" },
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    { validator: "diag-validator" },
+  ]);
+
+  assertEquals(result.valid, false);
+  assertEquals(result.pattern, "compile-error");
+
+  // Error should contain stderr content
+  assertStringIncludes(result.error!, "M src/app.ts");
+
+  // Extracted params should include errorOutput from stderr
+  assertStringIncludes(
+    result.params!.errorOutput as string,
+    "M src/app.ts",
+  );
+});
+
+Deno.test("StepValidator - multiple validators: first failure short-circuits", async () => {
+  const registry: ValidatorRegistry = {
+    validators: {
+      "pass-validator": commandValidator(
+        "echo ''",
+        "empty",
+        "unused-pattern",
+      ),
+      "fail-validator": commandValidator(
+        "echo 'uncommitted changes'",
+        "empty",
+        "dirty-workdir",
+        { stdout: "stdout" },
+      ),
+      "never-reached": commandValidator(
+        "echo 'should not run'",
+        "empty",
+        "never-pattern",
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    { validator: "pass-validator" },
+    { validator: "fail-validator" },
+    { validator: "never-reached" },
+  ]);
+
+  assertEquals(result.valid, false);
+  // Pattern must come from the second validator, not the third
+  assertEquals(result.pattern, "dirty-workdir");
+  assertStringIncludes(
+    result.params!.stdout as string,
+    "uncommitted changes",
+  );
+});
+
+Deno.test("StepValidator - multiple validators: all pass yields valid result", async () => {
+  const registry: ValidatorRegistry = {
+    validators: {
+      "pass-a": commandValidator("echo ''", "empty", "unused-a"),
+      "pass-b": commandValidator("true", "exitCode:0", "unused-b"),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    { validator: "pass-a" },
+    { validator: "pass-b" },
   ]);
 
   assertEquals(result.valid, true);
