@@ -2,9 +2,9 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-CLI Prompt Management Tool. Agents: Iterator, Reviewer also included. Besides
-CLI, it is available through MCP and plugins. The plugin skills run on a
-dedicated climpt-agent (via the Claude Agent SDK).
+CLI Prompt Management Tool. Besides CLI, it is available through MCP and
+plugins. The plugin skills run on a dedicated climpt-agent (via the Claude
+Agent SDK).
 
 ## Quick Start
 
@@ -180,21 +180,6 @@ deno task agent --agent {name} --iterate-max 10
 | `detect:graph`      | Follows step state machine (`registryPath`, `entryStep`)           |
 | `meta:composite`    | Combined conditions with operator (and/or/first)                   |
 | `meta:custom`       | Uses custom handler (`handlerPath`)                                |
-
-### Built-in Agents
-
-Agents are run via the runner (`./agents/runner`) with `--agent`:
-
-```bash
-# Iterator - Autonomous development
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent iterator --issue 123
-
-# Reviewer - Code review
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent reviewer --project 1
-
-# Facilitator - Project monitoring
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent facilitator --project 1
-```
 
 ### Agent Documentation
 

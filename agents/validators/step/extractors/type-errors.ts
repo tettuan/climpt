@@ -4,6 +4,8 @@
  * Extracts type error information from deno check output.
  */
 
+import type { SemanticParams } from "../types.ts";
+
 /**
  * Type error information
  */
@@ -27,7 +29,7 @@ export function parseTypeErrors(stderr: string): TypeError[] {
   // Deno error format: error: TS1234 [ERROR]: message
   //   at file.ts:line:column
   const errorPattern =
-    /error:\s+TS\d+\s+\[ERROR\]:\s+(.+?)(?:\n\s+at\s+(.+?):(\d+):(\d+))?/g;
+    /error:\s+TS\d+\s+\[ERROR\]:\s+(.+)(?:\n\s+at\s+(.+?):(\d+):(\d+))?/g;
   let match;
 
   while ((match = errorPattern.exec(stderr)) !== null) {
@@ -65,6 +67,60 @@ export function parseTypeErrors(stderr: string): TypeError[] {
   }
 
   return errors;
+}
+
+/**
+ * Builds semantic context from type error output
+ *
+ * Counts errors, groups by file, identifies the most common error pattern,
+ * and produces a human-readable summary for retry prompts.
+ */
+export function buildTypeErrorsSemantic(
+  stderr: string,
+  raw: Record<string, unknown>,
+): SemanticParams {
+  const errors = parseTypeErrors(stderr);
+  const files = new Set<string>();
+  const messageCounts = new Map<string, number>();
+
+  for (const err of errors) {
+    if (err.file && err.file !== "unknown") {
+      files.add(err.file);
+    }
+    // Track message frequency to find most common pattern
+    const count = messageCounts.get(err.message) ?? 0;
+    messageCounts.set(err.message, count + 1);
+  }
+
+  const fileCount = files.size;
+  const errorCount = errors.length;
+
+  const summary = errorCount > 0
+    ? `${errorCount} type error${
+      errorCount !== 1 ? "s" : ""
+    } in ${fileCount} file${fileCount !== 1 ? "s" : ""}`
+    : "No type errors detected";
+
+  // Most common error pattern as root cause
+  let rootCause: string | undefined;
+  if (messageCounts.size > 0) {
+    let maxCount = 0;
+    for (const [msg, count] of messageCounts) {
+      if (count > maxCount) {
+        maxCount = count;
+        rootCause = msg;
+      }
+    }
+  }
+
+  return {
+    raw,
+    summary,
+    severity: "error",
+    relatedFiles: Array.from(files),
+    rootCause,
+    suggestedAction: "Fix type mismatches in the listed files",
+  };
 }
 
 /**

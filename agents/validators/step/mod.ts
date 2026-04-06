@@ -12,6 +12,7 @@ export type {
   FailureAction,
   FailurePattern,
   OnFailureConfig,
+  SemanticParams,
   StepValidatorContext,
   SuccessCondition,
   ValidationCondition,
@@ -31,7 +32,11 @@ export {
 } from "./types.ts";
 
 // Validator
-export { createStepValidator, StepValidator } from "./validator.ts";
+export {
+  classifyRecoverable,
+  createStepValidator,
+  StepValidator,
+} from "./validator.ts";
 
 // Command runner
 export { checkSuccessCondition, CommandRunner } from "./command-runner.ts";
@@ -41,6 +46,7 @@ export { defaultParamExtractor, ParamExtractor } from "./param-extractors.ts";
 
 // Individual extractors
 export {
+  buildGitStatusSemantic,
   parseChangedFiles,
   parseStagedFiles,
   parseUnstagedFiles,
@@ -48,12 +54,17 @@ export {
 } from "./extractors/git-status.ts";
 
 export {
+  buildTestOutputSemantic,
   getTestErrorOutput,
   parseTestOutput,
 } from "./extractors/test-output.ts";
 export type { FailedTest } from "./extractors/test-output.ts";
 
-export { extractFiles, parseTypeErrors } from "./extractors/type-errors.ts";
+export {
+  buildTypeErrorsSemantic,
+  extractFiles,
+  parseTypeErrors,
+} from "./extractors/type-errors.ts";
 export type { TypeError } from "./extractors/type-errors.ts";
 
 export { extractLintFiles, parseLintErrors } from "./extractors/lint-errors.ts";

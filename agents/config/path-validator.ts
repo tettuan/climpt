@@ -1,17 +1,27 @@
 /**
- * Path Validator - Filesystem Existence Checks for Referenced Paths
+ * Path Validator - Filesystem & Schema Name Validation
  *
  * Validates that file/directory paths referenced in AgentDefinition and
- * steps_registry.json actually exist on the filesystem.
+ * steps_registry.json actually exist on the filesystem. Additionally,
+ * for outputSchemaRef entries, validates that the schema pointer (e.g.,
+ * "#/definitions/step_name") resolves to an actual definition in the
+ * referenced schema file.
  *
- * Responsibility: Verify path existence only (no content inspection)
- * Side effects: None (reads filesystem metadata via Deno.stat)
+ * Responsibilities:
+ * - File/directory existence checks (Deno.stat)
+ * - Schema name resolution checks (SchemaResolver.checkPointerExists)
+ *
+ * Side effects: Reads filesystem metadata and schema file contents.
  *
  * @module
  */
 
 import type { AgentDefinition, ValidationResult } from "../src_common/types.ts";
 import { join } from "@std/path";
+import {
+  SchemaPointerError,
+  SchemaResolver,
+} from "../common/schema-resolver.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -147,6 +157,60 @@ export async function validatePaths(
           errors.push(
             `[PATH] Path not found: steps["${c.stepId}"].outputSchemaRef.file \u2192 "schemas/${c.schemaFile}" does not exist`,
           );
+        }
+      }
+
+      // 4b. Schema name resolution: verify that the schema pointer
+      //     resolves to an actual definition inside the schema file.
+      //     Only check steps whose file exists (failed file checks
+      //     already reported above).
+      const schemasDir = join(agentDir, "schemas");
+      const nameChecks: {
+        stepId: string;
+        schemaFile: string;
+        schemaName: string;
+      }[] = [];
+      for (let i = 0; i < schemaChecks.length; i++) {
+        if (!results[i]) continue; // file doesn't exist — already reported
+        const c = schemaChecks[i];
+        const step = asRecord((steps as Record<string, unknown>)[c.stepId]);
+        if (!step) continue;
+        const ref = asRecord(step.outputSchemaRef);
+        if (!ref) continue;
+        const schemaName = ref.schema;
+        if (typeof schemaName !== "string" || schemaName === "") continue;
+        nameChecks.push({
+          stepId: c.stepId,
+          schemaFile: c.schemaFile,
+          schemaName,
+        });
+      }
+
+      if (nameChecks.length > 0) {
+        const resolver = new SchemaResolver(schemasDir);
+        const nameResults = await Promise.allSettled(
+          nameChecks.map((c) =>
+            resolver.checkPointerExists(c.schemaFile, c.schemaName)
+          ),
+        );
+        for (let i = 0; i < nameChecks.length; i++) {
+          const result = nameResults[i];
+          if (result.status === "rejected") {
+            const c = nameChecks[i];
+            if (result.reason instanceof SchemaPointerError) {
+              errors.push(
+                `[SCHEMA] Step "${c.stepId}": outputSchemaRef.schema "${c.schemaName}" not found in "schemas/${c.schemaFile}"`,
+              );
+            } else {
+              // Unexpected error (e.g., JSON parse failure) — report as-is
+              const msg = result.reason instanceof Error
+                ? result.reason.message
+                : String(result.reason);
+              errors.push(
+                `[SCHEMA] Step "${c.stepId}": failed to validate schema name "${c.schemaName}" in "schemas/${c.schemaFile}": ${msg}`,
+              );
+            }
+          }
         }
       }
     }

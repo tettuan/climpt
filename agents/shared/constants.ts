@@ -1,9 +1,10 @@
 /**
  * Shared Constants
  *
- * Centralized numeric constants extracted from the codebase.
- * All magic numbers for iteration limits, retry policies, and log truncation
- * should be defined here and imported where needed.
+ * Centralized constants extracted from the codebase.
+ * All magic numbers for iteration limits, retry policies, log truncation,
+ * and runtime-supplied UV variable sets should be defined here and imported
+ * where needed.
  */
 
 /**
@@ -57,3 +58,42 @@ export const TRUNCATION = {
   /** Last assistant response truncation in iteration context (completion/types.ts) */
   ASSISTANT_RESPONSE: 1000,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Runtime-supplied UV variables (Channels 2 & 3)
+// ---------------------------------------------------------------------------
+
+/**
+ * UV variables injected at runtime by the runner or verdict handler.
+ *
+ * These are NOT declared in `uvVariables` in steps_registry.json and are NOT
+ * supplied via CLI parameters. They are resolved at execution time:
+ *
+ * - Channel 2 (Runner runtime): `buildUvVariables()` in runner.ts
+ *   - iteration: Current iteration number
+ *   - completed_iterations: Number of completed iterations (iteration - 1)
+ *   - completion_keyword: Verdict keyword from agent config
+ *
+ * - Channel 3 (VerdictHandler): `enrichWithChannel3Variables()` in runner.ts
+ *   - max_iterations: Maximum iterations from verdict config
+ *   - remaining: Remaining iterations (max - current)
+ *   - previous_summary: Formatted summary of the last iteration
+ *   - check_count: Current check count (mirrors iteration)
+ *   - max_checks: Maximum check count from verdict config
+ *
+ * Used by:
+ * - template-uv-validator.ts: Excludes from "undeclared usage" errors
+ * - uv-reachability-validator.ts: Recognises as runtime-supplied (no warning)
+ */
+export const RUNTIME_SUPPLIED_UV_VARS = new Set([
+  // Channel 2: Runner runtime (buildUvVariables)
+  "iteration",
+  "completed_iterations",
+  "completion_keyword",
+  // Channel 3: VerdictHandler (enrichWithChannel3Variables)
+  "max_iterations",
+  "remaining",
+  "previous_summary",
+  "check_count",
+  "max_checks",
+]) as ReadonlySet<string>;

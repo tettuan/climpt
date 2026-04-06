@@ -11,6 +11,7 @@ import type {
   ValidatorContext,
 } from "./types.ts";
 import { gitCleanValidator } from "./plugins/git-clean.ts";
+import { commitMessageRegistryValidator } from "./plugins/commit-message-registry-adapter.ts";
 
 /**
  * Registry of available validators
@@ -24,6 +25,12 @@ function initializeBuiltinValidators(): void {
   // Only register if not already registered (idempotent)
   if (!validators.has(gitCleanValidator.id)) {
     validators.set(gitCleanValidator.id, gitCleanValidator);
+  }
+  if (!validators.has(commitMessageRegistryValidator.id)) {
+    validators.set(
+      commitMessageRegistryValidator.id,
+      commitMessageRegistryValidator,
+    );
   }
 }
 

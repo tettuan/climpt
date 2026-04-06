@@ -1,7 +1,6 @@
 # Prompt Customization Guide
 
-This guide explains how to customize prompts for Climpt agents (Iterator,
-Reviewer, etc.).
+This guide explains how to customize prompts for Climpt agents.
 
 ## Overview
 
@@ -9,47 +8,26 @@ Climpt agents use an external prompt system that allows you to:
 
 1. **Customize prompts** by placing files in `.agent/{agent}/prompts/`
 2. **Use variable substitution** with `{uv-xxx}` and `{input_text}` placeholders
-3. **Fall back to built-in prompts** when custom prompts don't exist
+3. **Fall back to default prompts** when custom prompts don't exist
 
 ## Directory Structure
 
 Each agent has its own prompt directory under `.agent/`:
 
 ```
-.agent/
-├── iterator/
-│   ├── prompts/
-│   │   └── steps/           # Step prompts (c1)
-│   │       ├── initial/     # Initial phase (c2)
-│   │       │   ├── issue/   # Issue mode (c3)
-│   │       │   │   └── f_default.md
-│   │       │   └── project/ # Project mode (c3)
-│   │       │       ├── f_preparation.md
-│   │       │       ├── f_preparation_empty.md
-│   │       │       ├── f_review.md
-│   │       │       └── f_complete.md
-│   │       ├── continuation/
-│   │       │   ├── issue/
-│   │       │   └── project/
-│   │       └── section/
-│   │           └── project/
-│   │               └── f_context.md
-│   └── steps_registry.json
-├── reviewer/
-│   ├── prompts/
-│   │   └── steps/
-│   │       ├── initial/
-│   │       │   └── default/
-│   │       │       └── f_default.md
-│   │       └── continuation/
-│   │           └── default/
-│   │               └── f_default.md
-│   └── steps_registry.json
-└── facilitator/
-    └── prompts/
-        └── steps/
-            ├── initial/
-            └── continuation/
+.agent/{agent-name}/
+├── prompts/
+│   └── steps/               # Step prompts (c1)
+│       ├── initial/         # Initial phase (c2)
+│       │   └── {mode}/      # Mode (c3)
+│       │       └── f_default.md
+│       ├── continuation/
+│       │   └── {mode}/
+│       │       └── f_default.md
+│       └── section/
+│           └── {mode}/
+│               └── f_context.md
+└── steps_registry.json
 ```
 
 ## C3L Path Structure

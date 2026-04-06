@@ -37,7 +37,7 @@ Climpt と Iterate Agent を使って、GitHub Issue や Project
 Climpt は5つの層から構成されており、Iterate Agent
 を頂点とした自律実行を実現しています。
 
-- **最上位層**: Iterator/Reviewer Agent — GitHub Issue/Project と連携し反復制御
+- **最上位層**: Agent — GitHub Issue/Project と連携し反復制御
 - **中間層**: delegate-climpt-agent Skill — コマンド検索、オプション解決
 - **実行層**: Sub-Agent (climpt-agent.ts) — プロンプトを取得し自律的に作業
   - _(ここでコンテクスト分離)_

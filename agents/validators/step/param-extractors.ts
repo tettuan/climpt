@@ -4,18 +4,24 @@
  * Extracts parameters from command execution results.
  */
 
-import type { CommandResult, ExtractorType } from "./types.ts";
+import type { CommandResult, ExtractorType, SemanticParams } from "./types.ts";
 import {
+  buildGitStatusSemantic,
   parseChangedFiles,
   parseStagedFiles,
   parseUnstagedFiles,
   parseUntrackedFiles,
 } from "./extractors/git-status.ts";
 import {
+  buildTestOutputSemantic,
   getTestErrorOutput,
   parseTestOutput,
 } from "./extractors/test-output.ts";
-import { extractFiles, parseTypeErrors } from "./extractors/type-errors.ts";
+import {
+  buildTypeErrorsSemantic,
+  extractFiles,
+  parseTypeErrors,
+} from "./extractors/type-errors.ts";
 import { extractLintFiles, parseLintErrors } from "./extractors/lint-errors.ts";
 import { generateDiff, parseFormatOutput } from "./extractors/format-check.ts";
 
@@ -97,6 +103,51 @@ export class ParamExtractor {
     }
 
     return params;
+  }
+
+  /**
+   * Builds semantic context based on which extractors were used
+   *
+   * Inspects the extractor names in the config to determine which semantic
+   * builder to invoke. Returns undefined if no semantic builder matches.
+   */
+  extractSemantic(
+    extractConfig: Record<string, ExtractorType | string>,
+    result: CommandResult,
+    rawParams: Record<string, unknown>,
+  ): SemanticParams | undefined {
+    const extractorNames = new Set(Object.values(extractConfig));
+
+    // Git status extractors
+    if (
+      extractorNames.has("parseChangedFiles") ||
+      extractorNames.has("parseUntrackedFiles") ||
+      extractorNames.has("parseStagedFiles") ||
+      extractorNames.has("parseUnstagedFiles")
+    ) {
+      return buildGitStatusSemantic(result.stdout, rawParams);
+    }
+
+    // Test output extractors
+    if (
+      extractorNames.has("parseTestOutput") ||
+      extractorNames.has("failedTests") ||
+      extractorNames.has("errorOutput")
+    ) {
+      return buildTestOutputSemantic(result.stdout, result.stderr, rawParams);
+    }
+
+    // Type error extractors
+    if (
+      extractorNames.has("parseTypeErrors") ||
+      extractorNames.has("errors") ||
+      extractorNames.has("extractFiles") ||
+      extractorNames.has("files")
+    ) {
+      return buildTypeErrorsSemantic(result.stderr, rawParams);
+    }
+
+    return undefined;
   }
 
   /**

@@ -6,6 +6,7 @@
  */
 
 import type { Logger } from "../../src_common/logger.ts";
+import type { SemanticParams as SemanticParamsType } from "../../common/validation-types.ts";
 
 // Re-export common types
 export type {
@@ -15,6 +16,9 @@ export type {
   FailureAction,
   FailurePattern,
   OnFailureConfig,
+  SemanticCheckType,
+  SemanticParams,
+  SemanticValidatorConfig,
   SuccessCondition,
   ValidationCondition,
   ValidationStepConfig,
@@ -65,8 +69,12 @@ export interface ValidatorRunResult {
   valid: boolean;
   /** Extracted parameters */
   params?: Record<string, unknown>;
+  /** Semantic context for the extracted parameters (optional) */
+  semanticParams?: SemanticParamsType;
   /** Error message */
   error?: string;
+  /** Whether the failure is recoverable (retryable) */
+  recoverable?: boolean;
 }
 
 /**

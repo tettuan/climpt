@@ -2,7 +2,7 @@
 
 [English](README.md) | [日本語](README.ja.md)
 
-CLIプロンプト管理ツール。Iterator、Reviewerエージェントも含まれています。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude
+CLIプロンプト管理ツール。CLI以外にも、MCPやプラグインを通じて利用可能です。プラグインのスキルは専用のclimpt-agent（Claude
 Agent SDK経由）で実行されます。
 
 ## クイックスタート
@@ -177,21 +177,6 @@ deno task agent --agent {name} --iterate-max 10
 | `detect:graph`      | ステップステートマシンに従う（`registryPath`, `entryStep`）   |
 | `meta:composite`    | 複合条件（and/or/first演算子）                                |
 | `meta:custom`       | カスタムハンドラー（`handlerPath`）を使用                     |
-
-### 組み込みエージェント
-
-エージェントは Runner（`./agents/runner`）経由で `--agent` を指定して実行する：
-
-```bash
-# Iterator - 自律開発
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent iterator --issue 123
-
-# Reviewer - コードレビュー
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent reviewer --project 1
-
-# Facilitator - プロジェクト監視
-deno run -A jsr:@aidevtool/climpt/agents/runner --agent facilitator --project 1
-```
 
 ### エージェントドキュメント
 
