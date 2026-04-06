@@ -13,10 +13,12 @@ import {
   type PromptStepDefinition,
   saveStepRegistry,
   serializeRegistry,
+  STEP_KIND_ALLOWED_INTENTS,
   type StepRegistry,
   type StructuredGate,
   validateIntentSchemaEnums,
   validateIntentSchemaRef,
+  validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
 
@@ -1119,4 +1121,123 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
+});
+
+// =============================================================================
+// validateStepKindIntents — closure step intent constraint
+// =============================================================================
+
+Deno.test("validateStepKindIntents - closure step with valid intents passes", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+      },
+    } as PromptStepDefinition,
+  };
+
+  // Should not throw — ["closing", "repeat"] is valid for closure
+  validateStepKindIntents(registry);
+});
+
+Deno.test("validateStepKindIntents - closure step with invalid intent throws", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "next"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+      },
+    } as PromptStepDefinition,
+  };
+
+  assertThrows(
+    () => validateStepKindIntents(registry),
+    Error,
+    "intent 'next' not allowed for stepKind 'closure'",
+  );
+});
+
+Deno.test("validateStepKindIntents - closure step rejects all non-closure intents", () => {
+  const closureAllowed = new Set(STEP_KIND_ALLOWED_INTENTS.closure);
+  const allIntents = [
+    ...STEP_KIND_ALLOWED_INTENTS.work,
+    ...STEP_KIND_ALLOWED_INTENTS.verification,
+    ...STEP_KIND_ALLOWED_INTENTS.closure,
+  ];
+  const nonClosureIntents = [...new Set(allIntents)].filter(
+    (i) => !closureAllowed.has(i),
+  );
+
+  // Non-vacuity: there must be intents that closure does not allow
+  assertEquals(
+    nonClosureIntents.length > 0,
+    true,
+    "Expected at least one intent not allowed for closure steps. " +
+      `All intents: [${[...new Set(allIntents)].join(", ")}], ` +
+      `closure allowed: [${[...closureAllowed].join(", ")}]`,
+  );
+
+  for (const intent of nonClosureIntents) {
+    const registry: StepRegistry = createEmptyRegistry("test-agent");
+    registry.steps = {
+      "closure.test": {
+        stepId: "closure.test",
+        name: "Test Closure",
+        type: "prompt",
+        c2: "closure",
+        c3: "test",
+        structuredGate: {
+          allowedIntents: ["closing", intent],
+          intentField: "next_action.action",
+          intentSchemaRef: "#/properties/next_action/properties/action",
+        },
+      } as PromptStepDefinition,
+    };
+
+    assertThrows(
+      () => validateStepKindIntents(registry),
+      Error,
+      `intent '${intent}' not allowed for stepKind 'closure'`,
+    );
+  }
+});
+
+Deno.test("validateStepKindIntents - closure step with invalid fallbackIntent throws", () => {
+  const registry: StepRegistry = createEmptyRegistry("test-agent");
+  registry.steps = {
+    "closure.test": {
+      stepId: "closure.test",
+      name: "Test Closure",
+      type: "prompt",
+      c2: "closure",
+      c3: "test",
+      structuredGate: {
+        allowedIntents: ["closing", "repeat"],
+        intentField: "next_action.action",
+        intentSchemaRef: "#/properties/next_action/properties/action",
+        fallbackIntent: "next",
+      },
+    } as PromptStepDefinition,
+  };
+
+  assertThrows(
+    () => validateStepKindIntents(registry),
+    Error,
+    "fallbackIntent 'next' not allowed for stepKind 'closure'",
+  );
 });
