@@ -26,7 +26,7 @@
     },
     "c3": {
       "type": "string",
-      "pattern": "^[a-z]+(-[a-z]+)?$",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$",
       "description": "Target: What is acted upon (e.g., unstaged-changes, pull-request)"
     },
     "title": {

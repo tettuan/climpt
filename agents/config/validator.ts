@@ -254,6 +254,9 @@ export function validate(definition: unknown): ValidationResult {
 
   // Validate parameters if present
   if (def.parameters && typeof def.parameters === "object") {
+    // P3-2: Collect CLI flags for uniqueness check
+    const cliFlagMap = new Map<string, string[]>();
+
     for (const [name, param] of Object.entries(def.parameters)) {
       const paramObj = param as Record<string, unknown>;
       if (!paramObj.cli) {
@@ -270,18 +273,74 @@ export function validate(definition: unknown): ValidationResult {
             `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
+
+      // Track CLI flag for uniqueness (P3-2)
+      if (typeof paramObj.cli === "string") {
+        const existing = cliFlagMap.get(paramObj.cli);
+        if (existing) {
+          existing.push(name);
+        } else {
+          cliFlagMap.set(paramObj.cli, [name]);
+        }
+      }
+
       if (!paramObj.type) {
         errors.push(
           `[CONFIGURATION] Parameter '${name}' missing type. ` +
             `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
+
+      // P3-3: Check type vs default value type consistency
+      if (
+        typeof paramObj.type === "string" &&
+        paramObj.default !== undefined
+      ) {
+        const declaredType = paramObj.type;
+        const defaultVal = paramObj.default;
+        let mismatch = false;
+
+        switch (declaredType) {
+          case "string":
+            mismatch = typeof defaultVal !== "string";
+            break;
+          case "number":
+            mismatch = typeof defaultVal !== "number";
+            break;
+          case "boolean":
+            mismatch = typeof defaultVal !== "boolean";
+            break;
+          case "array":
+            mismatch = !Array.isArray(defaultVal);
+            break;
+        }
+
+        if (mismatch) {
+          errors.push(
+            `[CONFIGURATION] Parameter '${name}': default value type '${typeof defaultVal}' does not match declared type '${declaredType}'. ` +
+              `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+          );
+        }
+      }
+
       if (!paramObj.description) {
         warnings.push(`Parameter '${name}' missing description`);
       }
       if (paramObj.required && paramObj.default !== undefined) {
         warnings.push(
           `Parameter '${name}' is required but has default value`,
+        );
+      }
+    }
+
+    // P3-2: Report duplicate CLI flags
+    for (const [flag, names] of cliFlagMap) {
+      if (names.length > 1) {
+        errors.push(
+          `[CONFIGURATION] CLI flag '${flag}' is used by multiple parameters: ${
+            names.join(", ")
+          }. ` +
+            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
     }

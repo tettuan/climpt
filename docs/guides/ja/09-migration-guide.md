@@ -515,10 +515,10 @@ deno task agent --agent my-agent --validate
 | `verification` | 前の work ステップの出力を検証します。                   |
 | `closure`      | 実行を完了します（マージ、PR、Issue の更新）。           |
 
-### Facilitator Agent
+### ステップオーケストレーション
 
-v1.13.0 では、マルチステップパイプラインを調整する **facilitator**
-エージェントが 導入されました。facilitator は `stepKind`
+v1.13.0 では、マルチステップパイプラインを調整するオーケストレーション機能が
+導入されました。Runner は `stepKind`
 アノテーションを読み取って実行順序を決定し、 `failurePatterns`
 によるリトライロジックを含むステップ間の遷移を処理します。
 

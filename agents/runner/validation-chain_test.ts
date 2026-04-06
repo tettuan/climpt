@@ -4,9 +4,10 @@
  * Covers validate(), getClosureStepId(), and getStepIdForIteration().
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { ValidationChain } from "./validation-chain.ts";
+import { AgentValidationAbortError } from "../shared/errors/runner-errors.ts";
 import type {
   ExtendedStepsRegistry,
   ValidationCondition,
@@ -420,5 +421,229 @@ Deno.test("ValidationChain - fallback retryPrompt prefix is 'Validation conditio
     result.retryPrompt!,
     "Validation conditions not met",
     "retryPrompt should start with the standard fallback prefix",
+  );
+});
+
+// =============================================================================
+// P4-1: onFailure action dispatch
+// =============================================================================
+
+Deno.test("ValidationChain - onFailure retry returns retryPrompt (existing behavior)", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "test-failure",
+    error: "2 tests failed",
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = { action: "retry" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  const result = await chain.validate("closure.issue", summary);
+
+  assertEquals(result.valid, false, "should report validation failure");
+  assertEquals(result.action, "retry", "action should be retry");
+  assertEquals(
+    typeof result.retryPrompt,
+    "string",
+    "retryPrompt should be a string",
+  );
+});
+
+Deno.test("ValidationChain - onFailure abort returns action abort", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "critical-error",
+    error: "unrecoverable state",
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = { action: "abort" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  const result = await chain.validate("closure.issue", summary);
+
+  assertEquals(result.valid, false, "should report validation failure");
+  assertEquals(result.action, "abort", "action should be abort");
+});
+
+Deno.test("ValidationChain - onFailure skip returns action skip", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "optional-check",
+    error: "non-critical warning",
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = { action: "skip" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  const result = await chain.validate("closure.issue", summary);
+
+  assertEquals(result.valid, false, "should report validation failure");
+  assertEquals(result.action, "skip", "action should be skip");
+});
+
+Deno.test("ValidationChain - maxAttempts exceeded overrides retry to abort", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "persistent-failure",
+    error: "keeps failing",
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = {
+    action: "retry",
+    maxAttempts: 2,
+  };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  // First attempt: action should be retry
+  const result1 = await chain.validate("closure.issue", summary);
+  assertEquals(result1.action, "retry", "first attempt should retry");
+
+  // Second attempt: maxAttempts (2) reached, should abort
+  const result2 = await chain.validate("closure.issue", summary);
+  assertEquals(
+    result2.action,
+    "abort",
+    "should abort after maxAttempts exceeded",
+  );
+});
+
+Deno.test("ValidationChain - default maxAttempts is 3 when not configured", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "recurring-failure",
+    error: "still failing",
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  // onFailure.action is "retry" but maxAttempts is not set (defaults to 3)
+  registry.validationSteps!["closure.issue"].onFailure = { action: "retry" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  // Attempts 1 and 2: should retry
+  const r1 = await chain.validate("closure.issue", summary);
+  assertEquals(r1.action, "retry", "attempt 1 should retry");
+  const r2 = await chain.validate("closure.issue", summary);
+  assertEquals(r2.action, "retry", "attempt 2 should retry");
+
+  // Attempt 3: default maxAttempts (3) reached, should abort
+  const r3 = await chain.validate("closure.issue", summary);
+  assertEquals(
+    r3.action,
+    "abort",
+    "attempt 3 should abort (default maxAttempts=3)",
+  );
+});
+
+// =============================================================================
+// P4-5: Recoverable/unrecoverable classification
+// =============================================================================
+
+Deno.test("ValidationChain - unrecoverable failure overrides retry to abort", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "command-not-found",
+    error: "sh: validator-cmd: command not found",
+    recoverable: false,
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  // Config says retry, but unrecoverable should override
+  registry.validationSteps!["closure.issue"].onFailure = { action: "retry" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  const result = await chain.validate("closure.issue", summary);
+
+  assertEquals(result.valid, false, "should report validation failure");
+  assertEquals(
+    result.action,
+    "abort",
+    "unrecoverable failure should override action to abort",
+  );
+});
+
+Deno.test("ValidationChain - recoverable failure preserves configured retry action", async () => {
+  const failResult: ValidatorResult = {
+    valid: false,
+    pattern: "test-failure",
+    error: "3 tests failed",
+    recoverable: true,
+  };
+  const validator = createMockStepValidator(failResult);
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = { action: "retry" };
+  const chain = createChainWithValidator(validator, null, registry);
+  const summary = createSummary();
+
+  const result = await chain.validate("closure.issue", summary);
+
+  assertEquals(result.valid, false, "should report validation failure");
+  assertEquals(
+    result.action,
+    "retry",
+    "recoverable failure should preserve retry action",
+  );
+});
+
+Deno.test("ValidationChain - retry counter resets on successful validation", async () => {
+  let callCount = 0;
+  // First two calls fail, third succeeds, fourth fails again
+  const dynamicValidator = {
+    validate: (_conditions: ValidationCondition[]) => {
+      callCount++;
+      if (callCount <= 2) {
+        return Promise.resolve({
+          valid: false,
+          pattern: "intermittent",
+          error: "flaky check",
+        } as ValidatorResult);
+      }
+      if (callCount === 3) {
+        return Promise.resolve({ valid: true } as ValidatorResult);
+      }
+      // After reset, fail again
+      return Promise.resolve({
+        valid: false,
+        pattern: "intermittent",
+        error: "flaky check again",
+      } as ValidatorResult);
+    },
+  } as unknown as StepValidator;
+
+  const registry = createFixtureRegistry();
+  registry.validationSteps!["closure.issue"].onFailure = {
+    action: "retry",
+    maxAttempts: 3,
+  };
+  const chain = createChainWithValidator(dynamicValidator, null, registry);
+  const summary = createSummary();
+
+  // Fail 1: retry (count=1)
+  const r1 = await chain.validate("closure.issue", summary);
+  assertEquals(r1.action, "retry");
+
+  // Fail 2: retry (count=2)
+  const r2 = await chain.validate("closure.issue", summary);
+  assertEquals(r2.action, "retry");
+
+  // Success: counter resets
+  const r3 = await chain.validate("closure.issue", summary);
+  assertEquals(r3.valid, true);
+
+  // Fail again: counter starts from 1 (not 3), should retry
+  const r4 = await chain.validate("closure.issue", summary);
+  assertEquals(
+    r4.action,
+    "retry",
+    "retry counter should have reset after success",
   );
 });

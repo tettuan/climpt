@@ -4,6 +4,8 @@
  * Extracts failed test information from deno test output.
  */
 
+import type { SemanticParams } from "../types.ts";
+
 /**
  * Failed test information
  */
@@ -93,6 +95,60 @@ function extractErrorForTest(output: string, testIdentifier: string): string {
   }
 
   return errorLines.join("\n") || "Unknown error";
+}
+
+/**
+ * Builds semantic context from test output
+ *
+ * Counts failures, extracts test file paths, and identifies the first
+ * failure message as the root cause for retry prompts.
+ */
+export function buildTestOutputSemantic(
+  stdout: string,
+  stderr: string,
+  raw: Record<string, unknown>,
+): SemanticParams {
+  const failedTests = parseTestOutput(stdout, stderr);
+  const output = stdout + "\n" + stderr;
+
+  // Count total tests from Deno summary line: "N passed | M failed"
+  const summaryMatch = output.match(
+    /(\d+)\s+passed.*?(\d+)\s+failed/,
+  );
+  const totalPassed = summaryMatch ? parseInt(summaryMatch[1], 10) : 0;
+  const totalFailed = failedTests.length > 0
+    ? failedTests.length
+    : (summaryMatch ? parseInt(summaryMatch[2], 10) : 0);
+  const totalTests = totalPassed + totalFailed;
+
+  const summary = totalTests > 0
+    ? `${totalFailed} test${
+      totalFailed !== 1 ? "s" : ""
+    } failed out of ${totalTests}`
+    : `${failedTests.length} test${failedTests.length !== 1 ? "s" : ""} failed`;
+
+  // Extract unique file paths from failed tests
+  const relatedFiles: string[] = [];
+  const seen = new Set<string>();
+  for (const test of failedTests) {
+    const file = test.file ?? test.name;
+    if (file && !seen.has(file)) {
+      seen.add(file);
+      relatedFiles.push(file);
+    }
+  }
+
+  // First failure's error as root cause
+  const rootCause = failedTests.length > 0 ? failedTests[0].error : undefined;
+
+  return {
+    raw,
+    summary,
+    severity: "error",
+    relatedFiles,
+    rootCause,
+    suggestedAction: "Fix the failing test assertions",
+  };
 }
 
 /**

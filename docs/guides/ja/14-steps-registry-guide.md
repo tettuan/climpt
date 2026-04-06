@@ -474,20 +474,20 @@ C3L パスの詳細は [08-prompt-structure.md](./08-prompt-structure.md) を参
 
 前提条件:
 
-- `userPromptsBase`: `.agent/iterator/prompts`
+- `userPromptsBase`: `.agent/{agent-name}/prompts`
 - `pathTemplate`: `{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md`
 - ステップ: `c1="steps"`, `c2="initial"`, `c3="issue"`, `edition="default"`
 
 adaptation 無しの場合:
 
 ```
-.agent/iterator/prompts/steps/initial/issue/f_default.md
+.agent/{agent-name}/prompts/steps/initial/{mode}/f_default.md
 ```
 
 失敗パターン `git-dirty`（`edition="failed"`, `adaptation="git-dirty"`）の場合:
 
 ```
-.agent/iterator/prompts/steps/initial/issue/f_failed_git-dirty.md
+.agent/{agent-name}/prompts/steps/initial/{mode}/f_failed_git-dirty.md
 ```
 
 ## 14.8 ステップフロー設計
@@ -564,7 +564,7 @@ graph TD
 
 ## 14.9 完全サンプル
 
-完全な動作例は `.agent/iterator/steps_registry.json` を参照してください。
+完全な動作例は `.agent/{agent-name}/steps_registry.json` を参照してください。
 
 そのレジストリで示されている主要な設計ルール:
 

@@ -30,6 +30,13 @@ import { validateFlowReachability } from "./flow-validator.ts";
 import { validatePrompts } from "./prompt-validator.ts";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
 import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
+import { validateHandoffInputs } from "./handoff-validator.ts";
+import {
+  validateIntentSchemaRef,
+  validateStepKindIntents,
+  validateStepRegistry,
+} from "../common/step-registry/validator.ts";
+import type { StepRegistry } from "../common/step-registry/types.ts";
 
 // Re-export for convenience
 export { validate, validateComplete } from "./validator.ts";
@@ -126,6 +133,8 @@ export interface FullValidationResult {
   promptResult: ValidationResult | null;
   uvReachabilityResult: ValidationResult | null;
   templateUvResult: ValidationResult | null;
+  stepRegistryValidation: ValidationResult | null;
+  handoffInputsResult: ValidationResult | null;
 }
 
 /**
@@ -194,6 +203,37 @@ export async function validateFull(
     }
   }
 
+  // 5c. Typed step-registry validation (stepKind/intent, intentSchemaRef, structure)
+  let stepRegistryValidation: ValidationResult | null = null;
+  if (registry) {
+    const typedRegistry = registry as unknown as StepRegistry;
+    const errors: string[] = [];
+
+    try {
+      validateStepKindIntents(typedRegistry);
+    } catch (error: unknown) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      validateIntentSchemaRef(typedRegistry);
+    } catch (error: unknown) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      validateStepRegistry(typedRegistry);
+    } catch (error: unknown) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+
+    stepRegistryValidation = {
+      valid: errors.length === 0,
+      errors,
+      warnings: [],
+    };
+  }
+
   // 5b. Path validation (runs after registry loading so schema file paths can be checked)
   const pathResult = await validatePaths(definition, agentDir, registry);
 
@@ -213,6 +253,9 @@ export async function validateFull(
     ? await validateTemplateUvConsistency(registry, agentDir, baseDir)
     : null;
 
+  // 6f. Handoff-to-inputs compatibility validation (only when registry exists)
+  const handoffInputsResult = registry ? validateHandoffInputs(registry) : null;
+
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
     agentConfigResult.valid &&
@@ -222,7 +265,9 @@ export async function validateFull(
     (flowResult?.valid ?? true) &&
     (promptResult?.valid ?? true) &&
     (uvReachabilityResult?.valid ?? true) &&
-    (templateUvResult?.valid ?? true);
+    (templateUvResult?.valid ?? true) &&
+    (stepRegistryValidation?.valid ?? true) &&
+    (handoffInputsResult?.valid ?? true);
 
   return {
     valid,
@@ -235,5 +280,7 @@ export async function validateFull(
     promptResult,
     uvReachabilityResult,
     templateUvResult,
+    stepRegistryValidation,
+    handoffInputsResult,
   };
 }

@@ -11,7 +11,12 @@ import type {
   ValidationStepConfig,
   ValidatorResult,
 } from "./types.ts";
-import { RetryHandler, type RetryHandlerContext } from "./retry-handler.ts";
+import {
+  buildMatchCorpus,
+  RetryHandler,
+  type RetryHandlerContext,
+  scoreKeywords,
+} from "./retry-handler.ts";
 
 // Mock logger (simplified for testing)
 const mockLogger: Logger = {
@@ -384,4 +389,375 @@ Deno.test("createRetryHandler - creates handler instance", async () => {
   // Verify it's a RetryHandler instance by checking getPattern works
   const pattern = handler.getPattern("git-dirty");
   assertEquals(pattern?.description, "Git working directory is not clean");
+});
+
+// ============================================================================
+// Test: buildMatchCorpus
+// ============================================================================
+
+Deno.test("buildMatchCorpus - returns undefined for empty result", () => {
+  const result: ValidatorResult = { valid: false };
+  assertEquals(buildMatchCorpus(result), undefined);
+});
+
+Deno.test("buildMatchCorpus - includes error text lowercased", () => {
+  const result: ValidatorResult = {
+    valid: false,
+    error: "FATAL: Git directory is DIRTY",
+  };
+  const corpus = buildMatchCorpus(result);
+  assertStringIncludes(corpus!, "fatal: git directory is dirty");
+});
+
+Deno.test("buildMatchCorpus - includes string params and array params", () => {
+  const result: ValidatorResult = {
+    valid: false,
+    params: {
+      errorOutput: "TypeErrors found",
+      changedFiles: ["src/a.ts", "src/b.ts"],
+      numericValue: 42, // non-string, should be skipped
+    },
+  };
+  const corpus = buildMatchCorpus(result);
+  assertStringIncludes(corpus!, "typeerrors found");
+  assertStringIncludes(corpus!, "src/a.ts");
+  assertStringIncludes(corpus!, "src/b.ts");
+});
+
+Deno.test("buildMatchCorpus - includes semantic summary and rootCause", () => {
+  const result: ValidatorResult = {
+    valid: false,
+    error: "test failed",
+    semanticParams: {
+      raw: {},
+      summary: "3 unit tests failed in module X",
+      severity: "error",
+      relatedFiles: [],
+      rootCause: "Missing import statement",
+    },
+  };
+  const corpus = buildMatchCorpus(result);
+  assertStringIncludes(corpus!, "3 unit tests failed in module x");
+  assertStringIncludes(corpus!, "missing import statement");
+});
+
+// ============================================================================
+// Test: scoreKeywords
+// ============================================================================
+
+Deno.test("scoreKeywords - plain keywords are case-insensitive", () => {
+  const score = scoreKeywords(["dirty", "git"], "git directory is dirty");
+  assertEquals(score, 2);
+});
+
+Deno.test("scoreKeywords - returns 0 for no matches", () => {
+  const score = scoreKeywords(["lint", "format"], "git directory is dirty");
+  assertEquals(score, 0);
+});
+
+Deno.test("scoreKeywords - regex keywords match correctly", () => {
+  const score = scoreKeywords(
+    ["/\\d+ tests? failed/", "assertion"],
+    "5 tests failed: assertion error in module.ts",
+  );
+  assertEquals(score, 2);
+});
+
+Deno.test("scoreKeywords - invalid regex is skipped silently", () => {
+  const score = scoreKeywords(
+    ["/[invalid/", "dirty"],
+    "git directory is dirty",
+  );
+  // /[invalid/ is invalid regex and should be skipped, "dirty" matches
+  assertEquals(score, 1);
+});
+
+Deno.test("scoreKeywords - partial keyword matches count", () => {
+  // "error" is a substring of "typeerrors"
+  const score = scoreKeywords(["error"], "typeerrors found in build");
+  assertEquals(score, 1);
+});
+
+// ============================================================================
+// Test: findBestPattern — semantic fuzzy matching
+// ============================================================================
+
+// Registry with semanticMatch keywords for fuzzy matching tests
+const semanticRegistry: ExtendedStepsRegistry = {
+  ...baseRegistryProps,
+  failurePatterns: {
+    "git-dirty": {
+      description: "Git working directory is not clean",
+      edition: "failed",
+      adaptation: "git-dirty",
+      params: ["changedFiles", "untrackedFiles"],
+      semanticMatch: ["dirty", "uncommitted", "modified", "untracked"],
+    },
+    "test-failure": {
+      description: "Tests failed",
+      edition: "failed",
+      adaptation: "test-failure",
+      params: ["failedTests", "errorOutput"],
+      semanticMatch: ["test", "failed", "assertion", "/\\d+ tests? failed/"],
+    },
+    "lint-error": {
+      description: "Lint errors found",
+      edition: "failed",
+      adaptation: "lint-error",
+      params: ["lintErrors"],
+      semanticMatch: ["lint", "eslint", "deno-lint"],
+    },
+    "no-keywords": {
+      description: "Pattern without semanticMatch",
+      edition: "failed",
+      adaptation: "no-keywords",
+      params: [],
+      // No semanticMatch — should never be selected by fuzzy matching
+    },
+  },
+  validators: {},
+};
+
+Deno.test("findBestPattern - selects pattern with highest keyword score", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Error text matches "test", "failed", "assertion", and regex /\d+ tests? failed/
+  // — 4 keywords for test-failure. "dirty" is NOT in the error text.
+  const result: ValidatorResult = {
+    valid: false,
+    error: "3 tests failed with assertion errors",
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match?.name, "test-failure");
+  assertEquals(match?.score, 4); // "test", "failed", "assertion", regex
+});
+
+Deno.test("findBestPattern - selects git-dirty when error contains git keywords", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  const result: ValidatorResult = {
+    valid: false,
+    error:
+      "Working directory has uncommitted modified files and untracked items",
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match?.name, "git-dirty");
+  assertEquals(match?.score, 3); // "uncommitted", "modified", "untracked"
+});
+
+Deno.test("findBestPattern - returns undefined when no keywords match", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  const result: ValidatorResult = {
+    valid: false,
+    error: "network timeout connecting to API server",
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match, undefined);
+});
+
+Deno.test("findBestPattern - returns undefined when no patterns have semanticMatch", () => {
+  const noSemanticRegistry: ExtendedStepsRegistry = {
+    ...baseRegistryProps,
+    failurePatterns: {
+      "no-keywords": {
+        description: "Pattern without semanticMatch",
+        edition: "failed",
+        adaptation: "no-keywords",
+        params: [],
+      },
+    },
+    validators: {},
+  };
+
+  const handler = new RetryHandler(noSemanticRegistry, testContext);
+
+  const result: ValidatorResult = {
+    valid: false,
+    error: "some error happened",
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match, undefined);
+});
+
+Deno.test("findBestPattern - returns undefined when corpus is empty", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  const result: ValidatorResult = { valid: false };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match, undefined);
+});
+
+Deno.test("findBestPattern - regex keyword in semanticMatch is matched", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Match the regex /\d+ tests? failed/ in test-failure pattern
+  const result: ValidatorResult = {
+    valid: false,
+    error: "1 test failed in module runner",
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match?.name, "test-failure");
+  // "test" + "failed" + regex /\d+ tests? failed/ = 3
+  assertEquals(match?.score, 3);
+});
+
+Deno.test("findBestPattern - matches against params, not just error", () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Error is generic, but params contain lint-related text
+  const result: ValidatorResult = {
+    valid: false,
+    error: "validation failed",
+    params: {
+      output: "deno-lint reported 5 violations",
+    },
+  };
+
+  const match = handler.findBestPattern(result);
+
+  assertEquals(match?.name, "lint-error");
+  // "lint" + "deno-lint" = 2
+  assertEquals(match?.score, 2);
+});
+
+// ============================================================================
+// Test: buildRetryPrompt — semantic fallback integration
+// ============================================================================
+
+Deno.test("buildRetryPrompt - uses semantic match when exact pattern not found", async () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Pattern name does not exist in registry, but error text matches test-failure keywords
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "unknown-pattern-xyz",
+    error: "3 tests failed with assertion errors",
+  };
+
+  const prompt = await handler.buildRetryPrompt(
+    testStepConfig,
+    validationResult,
+  );
+
+  // Even though exact pattern "unknown-pattern-xyz" is not registered,
+  // semantic matching should find "test-failure" and try its template.
+  // In test env there's no template file, so it falls through to generic prompt.
+  // The generic prompt should still include error details.
+  assertStringIncludes(prompt, "## Verdict conditions not met");
+  assertStringIncludes(prompt, "3 tests failed with assertion errors");
+});
+
+Deno.test("buildRetryPrompt - falls back to generic when no semantic match either", async () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Pattern name does not exist AND error text matches no keywords
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "unknown-pattern-xyz",
+    error: "network timeout connecting to API server",
+  };
+
+  const prompt = await handler.buildRetryPrompt(
+    testStepConfig,
+    validationResult,
+  );
+
+  // No semantic match possible, should fall back to generic prompt
+  assertStringIncludes(prompt, "## Verdict conditions not met");
+  assertStringIncludes(prompt, "network timeout connecting to API server");
+});
+
+Deno.test("buildRetryPrompt - exact match still takes priority over semantic", async () => {
+  const handler = new RetryHandler(semanticRegistry, testContext);
+
+  // Pattern name exists exactly in registry — should use it, not fuzzy match
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "git-dirty",
+    error: "working directory is not clean, tests also failed",
+  };
+
+  const prompt = await handler.buildRetryPrompt(
+    testStepConfig,
+    validationResult,
+  );
+
+  // Even though error text might score higher for test-failure,
+  // exact match for git-dirty should be used.
+  // Template not available in test env, falls through to generic.
+  assertStringIncludes(prompt, "## Verdict conditions not met");
+  assertStringIncludes(prompt, "git-dirty");
+});
+
+// ============================================================================
+// Test: additionalPatterns field on ValidatorResult
+// ============================================================================
+
+Deno.test("ValidatorResult - additionalPatterns field is preserved through buildRetryPrompt", async () => {
+  const handler = new RetryHandler(testRegistry, testContext);
+
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "git-dirty",
+    additionalPatterns: ["test-failure", "lint-error"],
+    error: "Multiple validation failures",
+    params: { changedFiles: ["a.ts"] },
+  };
+
+  // Ensure the field does not cause runtime errors
+  const prompt = await handler.buildRetryPrompt(
+    testStepConfig,
+    validationResult,
+  );
+
+  // Prompt should still be generated successfully
+  assertStringIncludes(prompt, "## Verdict conditions not met");
+});
+
+// ============================================================================
+// Test: Semantic params merged into retry prompt
+// ============================================================================
+
+Deno.test("buildRetryPrompt - includes semantic params in generic fallback", async () => {
+  const emptyRegistry: ExtendedStepsRegistry = {
+    ...baseRegistryProps,
+  };
+  const handler = new RetryHandler(emptyRegistry, testContext);
+
+  const validationResult: ValidatorResult = {
+    valid: false,
+    pattern: "unknown",
+    error: "compilation failed",
+    semanticParams: {
+      raw: {},
+      summary: "TypeScript compilation failed with 3 errors",
+      severity: "error",
+      relatedFiles: ["src/main.ts", "src/utils.ts"],
+      rootCause: "Missing type imports",
+      suggestedAction: "Add import statements for missing types",
+    },
+  };
+
+  const prompt = await handler.buildRetryPrompt(
+    testStepConfig,
+    validationResult,
+  );
+
+  assertStringIncludes(prompt, "TypeScript compilation failed with 3 errors");
+  assertStringIncludes(prompt, "Missing type imports");
+  assertStringIncludes(prompt, "Add import statements for missing types");
+  assertStringIncludes(prompt, "src/main.ts");
 });

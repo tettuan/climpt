@@ -32,12 +32,12 @@ graph LR
 ```mermaid
 graph LR
   subgraph "✅ Workflow"
-    I[Iterator] -- 成果物 --> R[Reviewer]
-    R -- フィードバック --> I
+    W[Worker] -- 成果物 --> C[Checker]
+    C -- フィードバック --> W
   end
 ```
 
-Iterator が作業を行い、Reviewer が検証する。**独立した役割間のループ**が品質を
+一方が作業を行い、もう一方が検証する。**独立した役割間のループ**が品質を
 生み出します — 自分で書いた文章を自分で校正しても効果が薄いのと同じです。
 
 ### 最小構成の Workflow
@@ -47,8 +47,8 @@ Iterator が作業を行い、Reviewer が検証する。**独立した役割間
 ```json
 {
   "registries": {
-    "iterator": ".agent/iterator/registry.json",
-    "reviewer": ".agent/reviewer/registry.json"
+    "worker": ".agent/worker/registry.json",
+    "checker": ".agent/checker/registry.json"
   }
 }
 ```
@@ -200,7 +200,7 @@ Agent 名をレジストリファイルにマッピングします。
 {
   "registries": {
     "climpt": ".agent/climpt/registry.json",
-    "iterator": ".agent/iterator/registry.json"
+    "{agent-name}": ".agent/{agent-name}/registry.json"
   }
 }
 ```

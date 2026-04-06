@@ -467,6 +467,34 @@ export class SchemaResolver {
   }
 
   /**
+   * Check whether a schema pointer/name exists in a schema file
+   * without performing full $ref resolution.
+   *
+   * This is a lightweight validation for config-time checks:
+   * it loads the file, normalizes the identifier, and verifies
+   * the pointer resolves to an object — but does NOT clone,
+   * resolve nested $refs, or add additionalProperties.
+   *
+   * @param schemaFile - Schema file name (e.g., "step_outputs.schema.json")
+   * @param schemaName - Schema identifier (JSON Pointer or bare name)
+   * @returns true if the pointer resolves to a valid schema object
+   * @throws MalformedSchemaIdentifierError if the identifier format is invalid
+   * @throws SchemaPointerError if the pointer does not exist in the file
+   */
+  async checkPointerExists(
+    schemaFile: string,
+    schemaName: string,
+  ): Promise<void> {
+    const filePath = join(this.baseDir, schemaFile);
+    const schemas = await this.loadFile(filePath);
+
+    const normalizedName = this.normalizeSchemaIdentifier(schemaName);
+
+    // This throws SchemaPointerError if not found
+    this.resolveSchemaByIdentifier(schemas, normalizedName, schemaFile);
+  }
+
+  /**
    * Clear the file cache
    */
   clearCache(): void {

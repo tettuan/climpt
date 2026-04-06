@@ -11,11 +11,15 @@ import type { Logger } from "../src_common/logger.ts";
 import type { IterationSummary } from "../src_common/types.ts";
 import type {
   ExtendedStepsRegistry,
+  FailureAction,
   ValidationStepConfig,
 } from "../common/validation-types.ts";
 import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
 import type { FormatValidationResult } from "../loop/format-validator.ts";
+
+/** Default maxAttempts when not configured */
+const DEFAULT_MAX_ATTEMPTS = 3;
 
 /**
  * Result of validation
@@ -27,6 +31,8 @@ export interface ValidationResult {
   retryPrompt?: string;
   /** Format validation result (if applicable) */
   formatValidation?: FormatValidationResult;
+  /** Failure action to take (only set when valid is false) */
+  action?: FailureAction;
 }
 
 /**
@@ -63,6 +69,8 @@ export class ValidationChain {
   private readonly stepValidator: StepValidator | null;
   private readonly retryHandler: RetryHandler | null;
   private readonly agentId: string;
+  /** Tracks retry attempt count per step ID */
+  private readonly retryAttempts: Map<string, number> = new Map();
 
   constructor(options: ValidationChainOptions) {
     this.workingDir = options.workingDir;
@@ -163,6 +171,10 @@ export class ValidationChain {
 
   /**
    * Validate using validation conditions.
+   *
+   * Reads `stepConfig.onFailure.action` and `maxAttempts` to determine
+   * the failure action. Unrecoverable failures override to "abort".
+   * Exceeding maxAttempts overrides to "abort".
    */
   private async validateWithConditions(
     stepConfig: ValidationStepConfig,
@@ -177,27 +189,56 @@ export class ValidationChain {
 
     if (result.valid) {
       this.logger.info("All validation conditions passed");
+      // Reset retry counter on success
+      this.retryAttempts.delete(stepConfig.stepId);
       return { valid: true };
     }
 
     this.logger.warn(`Validation failed: pattern=${result.pattern}`);
 
+    // Determine action from onFailure config (default: "retry")
+    let action: FailureAction = stepConfig.onFailure?.action ?? "retry";
+
+    // Override to "abort" when failure is unrecoverable
+    if (result.recoverable === false) {
+      this.logger.warn(
+        `[Validation] Unrecoverable failure detected, aborting: ${
+          result.error ?? result.pattern
+        }`,
+      );
+      action = "abort";
+    }
+
+    // Track retry attempts and enforce maxAttempts
+    if (action === "retry") {
+      const currentAttempts = (this.retryAttempts.get(stepConfig.stepId) ?? 0) +
+        1;
+      this.retryAttempts.set(stepConfig.stepId, currentAttempts);
+
+      const maxAttempts = stepConfig.onFailure?.maxAttempts ??
+        DEFAULT_MAX_ATTEMPTS;
+      if (currentAttempts >= maxAttempts) {
+        this.logger.warn(
+          `[Validation] maxAttempts (${maxAttempts}) exceeded for step "${stepConfig.stepId}", aborting`,
+        );
+        action = "abort";
+      }
+    }
+
     // Build retry prompt if RetryHandler is available
+    let retryPrompt: string | undefined;
     if (this.retryHandler && result.pattern) {
-      const retryPrompt = await this.retryHandler.buildRetryPrompt(
+      retryPrompt = await this.retryHandler.buildRetryPrompt(
         stepConfig,
         result,
       );
-      return { valid: false, retryPrompt };
+    } else {
+      retryPrompt = `Validation conditions not met: ${
+        result.error ?? result.pattern
+      }`;
     }
 
-    // Fallback: return generic failure message
-    return {
-      valid: false,
-      retryPrompt: `Validation conditions not met: ${
-        result.error ?? result.pattern
-      }`,
-    };
+    return { valid: false, retryPrompt, action };
   }
 
   /**

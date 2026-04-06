@@ -23,6 +23,7 @@ export {
   AgentQueryError,
   AgentRetryableQueryError,
   AgentTimeoutError,
+  AgentValidationAbortError,
   AgentVerdictError,
   normalizeToAgentError,
 } from "../shared/errors/runner-errors.ts";

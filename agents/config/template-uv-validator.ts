@@ -18,30 +18,7 @@
 
 import type { ValidationResult } from "../src_common/types.ts";
 import { join } from "@std/path";
-
-// ---------------------------------------------------------------------------
-// Runtime-supplied UV variables (not declared in uvVariables)
-// ---------------------------------------------------------------------------
-
-/**
- * UV variables that are injected at runtime by the runner or verdict handler,
- * not from CLI parameters. These must be excluded from the "undeclared usage"
- * check because they are never declared in `uvVariables` — they are resolved
- * at execution time via Channel 2 (runner runtime) or Channel 3
- * (VerdictHandler).
- */
-const RUNTIME_SUPPLIED_UV_VARS = new Set([
-  // Channel 2: Runner runtime
-  "iteration",
-  "completed_iterations",
-  "completion_keyword",
-  // Channel 3: VerdictHandler
-  "max_iterations",
-  "remaining",
-  "previous_summary",
-  "check_count",
-  "max_checks",
-]);
+import { RUNTIME_SUPPLIED_UV_VARS } from "../shared/constants.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers

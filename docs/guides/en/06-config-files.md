@@ -24,9 +24,7 @@ your-project/
 ├── .deno/bin/                         # CLI executables
 │   ├── climpt, climpt-git, climpt-meta, climpt-code, climpt-test
 └── .agent/                            # Agents (optional)
-    ├── iterator/agent.json
-    ├── reviewer/agent.json
-    └── facilitator/agent.json
+    └── {agent-name}/agent.json
 ```
 
 ### Directory Roles

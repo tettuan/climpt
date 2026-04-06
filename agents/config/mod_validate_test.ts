@@ -48,9 +48,12 @@ function minimalValidAgentJson(): Record<string, unknown> {
 // =============================================================================
 // Helper: minimal valid steps_registry.json
 //
-// Contains one work step (initial.default) that transitions to a closure step
-// (closure.default) via "handoff" intent, plus an entryStepMapping so the
-// flow validator can reach the closure step from the entry point.
+// Contains one work step (initial.default) that transitions to a continuation
+// step (continuation.default) via "next", and the continuation step transitions
+// to a closure step (closure.default) via "handoff".  This satisfies P2-3
+// boundary rules: work "next" targets work/verification only; work "handoff"
+// targets closure only.  An entryStepMapping is included so the flow validator
+// can trace from the entry point through to closure.
 // =============================================================================
 
 function minimalValidRegistry(): Record<string, unknown> {
@@ -73,8 +76,23 @@ function minimalValidRegistry(): Record<string, unknown> {
         uvVariables: [],
         usesStdin: false,
         transitions: {
-          next: { target: "closure.default" },
+          next: { target: "continuation.default" },
           repeat: { target: "initial.default" },
+        },
+      },
+      "continuation.default": {
+        stepId: "continuation.default",
+        name: "Continuation Step",
+        stepKind: "work",
+        c2: "continuation",
+        c3: "default",
+        edition: "default",
+        fallbackKey: "continuation_default",
+        uvVariables: [],
+        usesStdin: false,
+        transitions: {
+          next: { target: "continuation.default" },
+          repeat: { target: "continuation.default" },
           handoff: { target: "closure.default" },
         },
       },
@@ -237,6 +255,16 @@ Deno.test("validateFull - happy path returns all sub-results as valid", async ()
         JSON.stringify(result.templateUvResult!.errors)
       }`,
     );
+
+    // Typed step-registry validation (registry is present)
+    assertEquals(result.stepRegistryValidation !== null, true);
+    assertEquals(
+      result.stepRegistryValidation!.valid,
+      true,
+      `stepRegistryValidation should be valid, got errors: ${
+        JSON.stringify(result.stepRegistryValidation!.errors)
+      }`,
+    );
   } finally {
     await Deno.remove(tempDir, { recursive: true });
   }
@@ -385,6 +413,192 @@ Deno.test("validateFull - missing agent.json throws ConfigError", async () => {
       err.message,
       "AC-SERVICE-001",
       `Expected error code AC-SERVICE-001 for missing file, got: ${err.message}`,
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test: stepRegistryValidation catches stepKind/intent mismatch
+//
+// A work step must not include "closing" in allowedIntents.
+// The typed validator (validateStepKindIntents) should detect this.
+// =============================================================================
+
+Deno.test("validateFull - catches stepKind/intent mismatch via typed validators", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    const agentDir = join(tempDir, ".agent", "test-agent");
+    await Deno.mkdir(agentDir, { recursive: true });
+
+    // Write valid agent.json
+    await Deno.writeTextFile(
+      join(agentDir, "agent.json"),
+      JSON.stringify(minimalValidAgentJson()),
+    );
+
+    // Write system prompt
+    const promptsDir = join(agentDir, "prompts");
+    await Deno.mkdir(promptsDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(promptsDir, "system.md"),
+      "# System prompt",
+    );
+
+    // Write a registry where a work step has "closing" in allowedIntents.
+    // "closing" is only valid for closure steps, not work steps.
+    const badRegistry = {
+      agentId: "test-agent",
+      version: "1.0.0",
+      c1: "steps",
+      entryStepMapping: {
+        "count:iteration": "initial.default",
+      },
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          name: "Initial Step",
+          stepKind: "work",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+          fallbackKey: "initial_default",
+          uvVariables: [],
+          usesStdin: false,
+          structuredGate: {
+            allowedIntents: ["next", "closing"],
+            intentSchemaRef: "#/properties/next_action/properties/action",
+            intentField: "next_action.action",
+          },
+          transitions: {
+            next: { target: "closure.default" },
+            closing: { target: null },
+          },
+        },
+        "closure.default": {
+          stepId: "closure.default",
+          name: "Closure Step",
+          stepKind: "closure",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+          fallbackKey: "closure_default",
+          uvVariables: [],
+          usesStdin: false,
+          transitions: {
+            closing: { target: null },
+            repeat: { target: "closure.default" },
+          },
+        },
+      },
+    };
+
+    await Deno.writeTextFile(
+      join(agentDir, "steps_registry.json"),
+      JSON.stringify(badRegistry),
+    );
+
+    const result = await validateFull("test-agent", tempDir);
+
+    // Overall result must be invalid
+    assertEquals(
+      result.valid,
+      false,
+      "Overall result should be invalid when a work step has 'closing' intent",
+    );
+
+    // stepRegistryValidation must be populated and invalid
+    assertEquals(
+      result.stepRegistryValidation !== null,
+      true,
+      "stepRegistryValidation should be present when registry exists",
+    );
+    assertEquals(
+      result.stepRegistryValidation!.valid,
+      false,
+      "stepRegistryValidation should be invalid for stepKind/intent mismatch",
+    );
+
+    // Error message should mention the mismatch
+    const allErrors = result.stepRegistryValidation!.errors.join("\n");
+    assertStringIncludes(
+      allErrors,
+      "closing",
+      `Expected error to mention 'closing' intent, got: ${allErrors}`,
+    );
+    assertStringIncludes(
+      allErrors,
+      "work",
+      `Expected error to mention 'work' stepKind, got: ${allErrors}`,
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test: stepRegistryValidation passes for valid registry
+//
+// The happy-path fixture has no structuredGate on steps, so the typed
+// validators should all pass and produce stepRegistryValidation.valid = true.
+// =============================================================================
+
+Deno.test("validateFull - stepRegistryValidation passes for valid registry", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    await scaffoldValidAgentDir(tempDir);
+
+    const result = await validateFull("test-agent", tempDir);
+
+    // stepRegistryValidation must be populated and valid
+    assertEquals(
+      result.stepRegistryValidation !== null,
+      true,
+      "stepRegistryValidation should be present when registry exists",
+    );
+    assertEquals(
+      result.stepRegistryValidation!.valid,
+      true,
+      `stepRegistryValidation should be valid for a correct registry, got errors: ${
+        JSON.stringify(result.stepRegistryValidation!.errors)
+      }`,
+    );
+    assertEquals(
+      result.stepRegistryValidation!.errors.length,
+      0,
+      "stepRegistryValidation should have no errors for a valid registry",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test: stepRegistryValidation is null when registry is absent
+// =============================================================================
+
+Deno.test("validateFull - stepRegistryValidation is null when no registry", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    const agentDir = join(tempDir, ".agent", "test-agent");
+    await Deno.mkdir(agentDir, { recursive: true });
+
+    // Write valid agent.json only - no steps_registry.json
+    await Deno.writeTextFile(
+      join(agentDir, "agent.json"),
+      JSON.stringify(minimalValidAgentJson()),
+    );
+
+    const result = await validateFull("test-agent", tempDir);
+
+    assertEquals(
+      result.stepRegistryValidation,
+      null,
+      "stepRegistryValidation should be null when registry file is absent",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

@@ -1,12 +1,12 @@
 {
-  "version": "1.13.20",
+  "version": "1.13.21",
   "entries": [
     {
       "id": "builder-01_quickstart",
       "path": "../agents/docs/builder/01_quickstart.md",
       "category": "builder-guides",
       "title": "Agent Creation Quickstart",
-      "bytes": 28836
+      "bytes": 28479
     },
     {
       "id": "builder-02_agent_definition",
@@ -104,7 +104,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Agent Configuration Concepts",
-      "bytes": 9892
+      "bytes": 9580
     },
     {
       "id": "guides-en-00-overview",
@@ -160,7 +160,7 @@
       "category": "guides",
       "lang": "en",
       "title": "6. Config Files",
-      "bytes": 7232
+      "bytes": 7165
     },
     {
       "id": "guides-en-07-dependencies",
@@ -240,7 +240,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "Agent 設定の基本概念",
-      "bytes": 8757
+      "bytes": 8756
     },
     {
       "id": "guides-ja-00-overview",
@@ -248,7 +248,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "Iterate Agent 導入ガイド",
-      "bytes": 4127
+      "bytes": 4109
     },
     {
       "id": "guides-ja-01-prerequisites",
@@ -280,7 +280,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "4. Iterate Agent の設定と実行",
-      "bytes": 13770
+      "bytes": 13983
     },
     {
       "id": "guides-ja-05-architecture",
@@ -288,7 +288,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "5. Climpt 全体像",
-      "bytes": 7140
+      "bytes": 6944
     },
     {
       "id": "guides-ja-06-config-files",
@@ -320,7 +320,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "9. マイグレーションガイド: v1.11.x → v1.12.0",
-      "bytes": 21088
+      "bytes": 21109
     },
     {
       "id": "guides-ja-10-getting-started-guide",
@@ -336,7 +336,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "11. Runner 設定リファレンス",
-      "bytes": 26113
+      "bytes": 26024
     },
     {
       "id": "guides-ja-12-troubleshooting",
@@ -344,7 +344,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "12. トラブルシューティングガイド",
-      "bytes": 25369
+      "bytes": 25373
     },
     {
       "id": "guides-ja-13-agent-creation-tutorial",
@@ -360,7 +360,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "14. Steps Registry ガイド",
-      "bytes": 25710
+      "bytes": 25728
     },
     {
       "id": "guides-ja-15-workflow-guide",
@@ -389,7 +389,7 @@
       "path": "prompt-customization-guide.md",
       "category": "guides",
       "title": "Prompt Customization Guide",
-      "bytes": 9452
+      "bytes": 8587
     },
     {
       "id": "blueprint-constraints",
