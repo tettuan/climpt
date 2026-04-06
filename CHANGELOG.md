@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.21] - 2026-04-07
+
+### Added
+- Semantic workflow validation across 4 phases covering 22 validation gaps
+
+### Fixed
+- Allow digits in c3 schema pattern for registry generation
+
+### Changed
+- Remove built-in agent references from README and docs (EN/JA)
+- Exclude `.agent/` directory from JSR publish
+
 ## [1.13.20] - 2026-04-06
 
 ### Added
