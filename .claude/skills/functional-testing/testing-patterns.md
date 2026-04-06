@@ -51,6 +51,65 @@ Deno.test("template variables are substituted", () => {
 });
 ```
 
+## Validator Boundary Examples
+
+### Acceptance — valid input passes
+
+```typescript
+Deno.test("validator accepts minimal valid agent", async () => {
+  const agent = createMinimalAgent();
+  const result = await validate(agent);
+  assertEquals(result.valid, true,
+    `Valid agent rejected: ${result.errors.join(", ")}`);
+});
+```
+
+### Rejection — invalid input caught with typed error
+
+```typescript
+Deno.test("validator rejects unreachable closure step", async () => {
+  const registry = createMinimalRegistry({ /* no path to closure */ });
+  const result = await validateFlowReachability(registry);
+  assertEquals(result.valid, false);
+  assertStringIncludes(result.errors[0], "closure");
+});
+```
+
+### Diagnosis — error messages are actionable
+
+```typescript
+Deno.test("ConfigError includes code, designRule, and fix", async () => {
+  const registry = createMinimalRegistry({ steps: {} });
+  try {
+    await validateStepRegistry(registry);
+    unreachable();
+  } catch (e) {
+    assertInstanceOf(e, ConfigError);
+    assertExists(e.code);        // machine-readable (e.g., "SR-INTENT-001")
+    assertExists(e.designRule);  // why this constraint exists
+    assertExists(e.fix);         // what to change
+  }
+});
+```
+
+### Completeness — all constraints covered
+
+```typescript
+Deno.test("every required field has a validation rule", () => {
+  const REQUIRED = ["name", "displayName", "runner"];
+  assert(REQUIRED.length > 0, "No fields to check — test is vacuous");
+
+  for (const field of REQUIRED) {
+    const agent = createMinimalAgent();
+    delete agent[field];
+    const result = validate(agent);
+    assert(!result.valid,
+      `No validation for required field "${field}". ` +
+      `Fix: Add rule in validator.ts.`);
+  }
+});
+```
+
 ## Test Ordering
 
 Progress from coarse to fine. If existence fails, contract/enforcement tests are meaningless.

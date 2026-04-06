@@ -92,6 +92,50 @@ for (const [id, step] of Object.entries(registry.steps)) {
 
 When to use: A structural relationship must hold across all members of a collection.
 
+## Validator as Test Boundary
+
+### Responsibility Shift
+
+When a dedicated validator module exists for a configuration, the test's responsibility shifts:
+
+```
+Without validator:  Test → Config ↔ Code  (test directly checks consistency)
+With validator:     Test → Validator → Config  (test verifies validator behavior)
+```
+
+The validator becomes the source of truth for what constitutes valid/invalid configuration. The test verifies the validator honors that contract — it does not replicate the validator's checks.
+
+検証責任の転換 (Responsibility Transfer): validator が存在する場合、テストの責任は「設定が正しいか」から「validator が正しく検証するか」に移る。これは Single Responsibility Principle のテストへの適用である。
+
+### Four Aspects of Validator Testing
+
+| Aspect | What it verifies | Example |
+|--------|-----------------|---------|
+| Acceptance (受理) | Valid config passes without errors | Well-formed agent definition accepted |
+| Rejection (拒否) | Each invalid input is rejected with correct error | Missing `runner.verdict.type` caught |
+| Diagnosis (診断) | Error messages contain What/Where/How-to-fix | Error includes field name + fix guidance (see Diagnosability) |
+| Completeness (網羅性) | Validator covers all constraints it is responsible for | Every design-required field has a validation rule |
+
+### Applying Existing Patterns
+
+The three test patterns apply within validator testing:
+
+- **Contract Test** → validator must reject what code cannot handle (validator is provider, code requirements are consumer)
+- **Invariant Test** → every constraint in the design doc has a corresponding validation rule
+- **Conformance Test** → validator's accepted values match what runtime actually supports
+
+```typescript
+// Rejection: validator rejects unreachable closure step
+Deno.test("validator rejects unreachable closure step", async () => {
+  const registry = createMinimalRegistry({ /* closure step not reachable */ });
+  const result = await validateFlowReachability(registry);
+  assertEquals(result.valid, false);
+  assertStringIncludes(result.errors[0], "closure");
+});
+```
+
+See `references/patterns.md` for full implementation examples of all four aspects.
+
 ## Diagnosability
 
 ### Theory
@@ -133,11 +177,13 @@ For full message templates and examples, see `references/patterns.md`.
 | Opaque failure | `assert(false)` with no context | Include file paths and IF/THEN guidance |
 | Partial consumer enumeration | Contract の消費者が複数あるのにテストが一部しか検査しない | 全ての消費箇所を列挙してからテストを書く |
 | Shadow contract | パラメータ化された経路をバイパスするハードコード値 | ハードコード値をパラメータに置換し、非デフォルト値で回帰テスト |
+| Validator bypass | validator が存在するのにテストが設定を直接検証する | validator の動作をテストする; 検証責任は validator にある |
 
 See `references/patterns.md` for detailed explanations of these anti-patterns.
 
 ## Workflow
 
+0. **Check for existing validator** — if a validator covers this constraint, test the validator's behavior, not the constraint directly
 1. **Identify the invariant** — what relationship must always hold?
 2. **Locate the source of truth** — which module/file authoritatively defines the expectation?
 3. **Enumerate all consumers** — the invariant を消費する全てのコードパスを洗い出す (steps, validationSteps, retry paths, etc.)
@@ -156,6 +202,7 @@ See `references/patterns.md` for detailed explanations of these anti-patterns.
 | `fix-checklist` | Root cause before fix | Ensuring the right invariant is identified |
 | `contradiction-verification` | Proving a problem exists | Confirming the test's premise is valid |
 | `refactoring` | Safe structural changes | Defining before/after contracts |
+| `functional-testing` | What aspects of a validator to test (F. Validator Testing) | Defining the four testing aspects (acceptance/rejection/diagnosis/completeness) |
 
 ## Reference
 
