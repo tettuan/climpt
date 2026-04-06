@@ -26,6 +26,7 @@ export async function countdownDelay(
     const msg =
       `\r--- You can safely stop here (Ctrl+C). ${label} in ${remaining}s ---`;
     Deno.stderr.writeSync(encoder.encode(msg));
+    // deno-lint-ignore no-await-in-loop
     await new Promise<void>((resolve) => setTimeout(resolve, 1000));
   }
 
