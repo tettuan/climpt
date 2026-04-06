@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.20] - 2026-04-06
+
+### Added
+- Countdown timer with safe-stop message between orchestrator cycles
+- Validator testing guidance to test-design and functional-testing skills
+- `validateStepKindIntents` tests for closure intent constraint
+
+### Fixed
+- Correct closure step intent from "continue" to "repeat" in builder contract
+- Improve lock skip message with actionable guidance
+- Add PID lock to run-all.sh to prevent concurrent execution
+- Add enable flag guard to run-all.sh to prevent concurrent launchd races
+
+### Changed
+- Improve validator tests across 4 aspects and fix assertStringIncludes anti-pattern
+- Compress validator testing guidance in skills to reduce token usage
+
 ## [1.13.19] - 2026-04-06
 
 ### Changed
