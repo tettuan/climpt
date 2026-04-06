@@ -684,7 +684,7 @@ export function validateFlowReachability(
     const lowlinks = new Map<string, number>();
     const sccs: string[][] = [];
 
-    function strongconnect(v: string): void {
+    const strongconnect = (v: string): void => {
       indices.set(v, index);
       lowlinks.set(v, index);
       index++;
@@ -698,24 +698,29 @@ export function validateFlowReachability(
 
         if (!indices.has(w)) {
           strongconnect(w);
-          lowlinks.set(v, Math.min(lowlinks.get(v)!, lowlinks.get(w)!));
+          const vLow = lowlinks.get(v) ?? 0;
+          const wLow = lowlinks.get(w) ?? 0;
+          lowlinks.set(v, Math.min(vLow, wLow));
         } else if (onStack.has(w)) {
-          lowlinks.set(v, Math.min(lowlinks.get(v)!, indices.get(w)!));
+          const vLow = lowlinks.get(v) ?? 0;
+          const wIdx = indices.get(w) ?? 0;
+          lowlinks.set(v, Math.min(vLow, wIdx));
         }
       }
 
       // Root of an SCC
       if (lowlinks.get(v) === indices.get(v)) {
         const scc: string[] = [];
-        let w: string;
+        let w: string | undefined;
         do {
-          w = stack.pop()!;
+          w = stack.pop();
+          if (w === undefined) break;
           onStack.delete(w);
           scc.push(w);
         } while (w !== v);
         sccs.push(scc);
       }
-    }
+    };
 
     for (const stepId of allStepIds) {
       if (!indices.has(stepId)) {
@@ -784,7 +789,8 @@ export function validateFlowReachability(
         const bfsVisited = new Set<string>();
         const bfsQueue = [...frontier];
         while (bfsQueue.length > 0) {
-          const current = bfsQueue.shift()!;
+          const current = bfsQueue.shift();
+          if (current === undefined) break;
           if (bfsVisited.has(current)) continue;
           bfsVisited.add(current);
 
