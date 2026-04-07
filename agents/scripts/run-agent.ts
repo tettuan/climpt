@@ -352,6 +352,58 @@ async function main(): Promise<void> {
       }
     }
 
+    // Step Registry validation
+    if (result.stepRegistryValidation) {
+      if (result.stepRegistryValidation.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Step Registry \u2014 All step definitions valid",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Step Registry \u2014 Step definition errors:");
+        for (const err of result.stepRegistryValidation.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.stepRegistryValidation.errors.length;
+      }
+      if (result.stepRegistryValidation.warnings.length > 0) {
+        for (const warn of result.stepRegistryValidation.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Step Registry \u2014 ${warn}`);
+        }
+        totalWarnings += result.stepRegistryValidation.warnings.length;
+      }
+    }
+
+    // Handoff-to-inputs compatibility
+    if (result.handoffInputsResult) {
+      if (result.handoffInputsResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Handoff Inputs \u2014 All handoff-to-inputs compatible",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2717 Handoff Inputs \u2014 Compatibility errors:",
+        );
+        for (const err of result.handoffInputsResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.handoffInputsResult.errors.length;
+      }
+      if (result.handoffInputsResult.warnings.length > 0) {
+        for (const warn of result.handoffInputsResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Handoff Inputs \u2014 ${warn}`);
+        }
+        totalWarnings += result.handoffInputsResult.warnings.length;
+      }
+    }
+
     // deno-lint-ignore no-console
     console.log("");
     const warningsSuffix = totalWarnings > 0
