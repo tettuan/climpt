@@ -1,15 +1,24 @@
 name: Test
 
 on:
-  push:
-    branches: [main, develop, 'release/**']
   pull_request:
-    branches: [main, develop]
+    branches: [develop]
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'docs/**'
+      - '*.md'
+      - '.claude/**'
+      - '.agent/**'
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
