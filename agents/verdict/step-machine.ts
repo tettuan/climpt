@@ -52,6 +52,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
   private state: StepState;
   private verdictReason?: string;
   private lastSummary?: IterationSummary;
+  #lastVerdict?: string;
 
   constructor(
     private readonly registry: ExtendedStepsRegistry,
@@ -88,6 +89,14 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
    */
   setUvVariables(uv: Record<string, string>): void {
     this.uvVariables = uv;
+  }
+
+  /**
+   * Get the last verdict value extracted from closure step's structured output.
+   * Used by runner to populate AgentResult.verdict for orchestrator routing.
+   */
+  getLastVerdict(): string | undefined {
+    return this.#lastVerdict;
   }
 
   /**
@@ -249,6 +258,23 @@ ${this.buildStepInstructions(stepDef, this.state.currentStepId)}
         `The task is complete when the step machine reaches a terminal state. ` +
         `Current step: ${this.state.currentStepId}`,
     };
+  }
+
+  /**
+   * Handle boundary hook for closure steps.
+   * Extracts verdict from structured output for orchestrator routing.
+   */
+  async onBoundaryHook(payload: {
+    stepId: string;
+    stepKind: "closure";
+    structuredOutput?: Record<string, unknown>;
+  }): Promise<void> {
+    if (payload.structuredOutput) {
+      const rawVerdict = payload.structuredOutput.verdict;
+      if (typeof rawVerdict === "string" && rawVerdict.length > 0) {
+        this.#lastVerdict = rawVerdict;
+      }
+    }
   }
 
   isFinished(): Promise<boolean> {
