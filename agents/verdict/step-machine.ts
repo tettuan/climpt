@@ -264,7 +264,7 @@ ${this.buildStepInstructions(stepDef, this.state.currentStepId)}
    * Handle boundary hook for closure steps.
    * Extracts verdict from structured output for orchestrator routing.
    */
-  async onBoundaryHook(payload: {
+  onBoundaryHook(payload: {
     stepId: string;
     stepKind: "closure";
     structuredOutput?: Record<string, unknown>;
@@ -275,6 +275,7 @@ ${this.buildStepInstructions(stepDef, this.state.currentStepId)}
         this.#lastVerdict = rawVerdict;
       }
     }
+    return Promise.resolve();
   }
 
   isFinished(): Promise<boolean> {
