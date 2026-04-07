@@ -134,6 +134,7 @@ export class Orchestrator {
 
     let finalPhase = "unknown";
     let status: OrchestratorResult["status"] = "blocked";
+    let issueClosed = false;
 
     // Each cycle depends on the previous: labels are read, agent dispatched,
     // labels updated, then re-read. Awaits must be sequential.
@@ -452,6 +453,44 @@ export class Orchestrator {
       if (targetPhaseDef) {
         if (targetPhaseDef.type === "terminal") {
           status = "completed";
+
+          // closeOnComplete: close the GitHub issue when agent outcome leads to terminal
+          if (!dryRun && agent.closeOnComplete) {
+            const shouldClose = agent.closeCondition === undefined ||
+              agent.closeCondition === dispatchResult.outcome;
+            if (shouldClose) {
+              try {
+                // deno-lint-ignore no-await-in-loop
+                await this.#github.closeIssue(issueNumber);
+                issueClosed = true;
+                // deno-lint-ignore no-await-in-loop
+                await log.info(
+                  `Closed issue #${issueNumber} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
+                  {
+                    event: "issue_closed",
+                    issueNumber,
+                    agent: agentId,
+                    outcome: dispatchResult.outcome,
+                  },
+                );
+              } catch (error) {
+                const msg = error instanceof Error
+                  ? error.message
+                  : String(error);
+                // deno-lint-ignore no-await-in-loop
+                await log.warn(
+                  `Failed to close issue #${issueNumber}: ${msg}`,
+                  {
+                    event: "issue_close_failed",
+                    issueNumber,
+                    error: msg,
+                  },
+                );
+                // Non-fatal: label transition succeeded, close is best-effort
+              }
+            }
+          }
+
           break;
         }
         if (targetPhaseDef.type === "blocking") {
@@ -473,6 +512,7 @@ export class Orchestrator {
       cycleCount: tracker.getCount(issueNumber),
       history: tracker.getHistory(issueNumber),
       status,
+      ...(issueClosed ? { issueClosed } : {}),
     };
 
     await log.info(
