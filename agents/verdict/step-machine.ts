@@ -95,7 +95,7 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
    * Get the last verdict value extracted from closure step's structured output.
    * Used by runner to populate AgentResult.verdict for orchestrator routing.
    */
-  getLastVerdict(): string | undefined {
+  override getLastVerdict(): string | undefined {
     return this.#lastVerdict;
   }
 

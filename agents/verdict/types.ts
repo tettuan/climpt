@@ -160,6 +160,13 @@ export interface VerdictHandler {
   getVerdictDescription(): Promise<string>;
 
   /**
+   * Get the last verdict value extracted from structured output.
+   * Used by runner to populate AgentResult.verdict for orchestrator routing.
+   * Default: returns undefined (no verdict).
+   */
+  getLastVerdict(): string | undefined;
+
+  /**
    * Called when a closure step emits `closing` intent.
    *
    * This is the single surface for external side effects:
@@ -192,6 +199,14 @@ export abstract class BaseVerdictHandler implements VerdictHandler {
   abstract buildVerdictCriteria(): VerdictCriteria;
   abstract isFinished(): Promise<boolean>;
   abstract getVerdictDescription(): Promise<string>;
+
+  /**
+   * Default: no verdict. Override in handlers that extract verdict from
+   * structured output (e.g., detect:graph, poll:state).
+   */
+  getLastVerdict(): string | undefined {
+    return undefined;
+  }
 
   /**
    * Format iteration summary for continuation prompts
