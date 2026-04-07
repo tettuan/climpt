@@ -97,3 +97,20 @@ export const RUNTIME_SUPPLIED_UV_VARS = new Set([
   "check_count",
   "max_checks",
 ]) as ReadonlySet<string>;
+
+/**
+ * Subset of RUNTIME_SUPPLIED_UV_VARS that are only available on continuation
+ * iterations (iteration > 1). Declaring these in initial.* steps will cause
+ * PR-RESOLVE-003 at runtime because:
+ *
+ * - completed_iterations: Not set at all on iteration 1
+ *   (buildUvVariables guards with `if (iteration > 1)`)
+ * - previous_summary: Set to "" on iteration 1, but prompt-resolver treats
+ *   falsy values as missing (`!variables.uv?.[key]`)
+ *
+ * Used by uv-reachability-validator.ts to emit errors for initial.* steps.
+ */
+export const CONTINUATION_ONLY_UV_VARS = new Set([
+  "completed_iterations",
+  "previous_summary",
+]) as ReadonlySet<string>;

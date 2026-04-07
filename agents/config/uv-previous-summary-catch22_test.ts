@@ -22,10 +22,14 @@
  * @module
  */
 
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { join } from "@std/path";
 import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
+import {
+  CONTINUATION_ONLY_UV_VARS,
+  RUNTIME_SUPPLIED_UV_VARS,
+} from "../shared/constants.ts";
 
 // =============================================================================
 // Helpers
@@ -351,5 +355,109 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test 5: Issue #453 — Rejection
+// Every CONTINUATION_ONLY_UV_VARS member must be rejected in initial.* steps
+// =============================================================================
+
+Deno.test("Issue #453 — non-vacuity: CONTINUATION_ONLY_UV_VARS is non-empty", () => {
+  // Guard: if the set is empty, all invariant tests below pass vacuously.
+  assert(
+    CONTINUATION_ONLY_UV_VARS.size > 0,
+    "CONTINUATION_ONLY_UV_VARS (agents/shared/constants.ts) must not be empty. " +
+      "If all members were removed, the phase-aware check in uv-reachability-validator.ts is dead code.",
+  );
+});
+
+Deno.test("Issue #453 — non-vacuity: CONTINUATION_ONLY_UV_VARS ⊂ RUNTIME_SUPPLIED_UV_VARS", () => {
+  // Every continuation-only var must be a member of the runtime-supplied set,
+  // otherwise the validator's Channel 2/3 branch never reaches the phase check.
+  for (const varName of CONTINUATION_ONLY_UV_VARS) {
+    assert(
+      RUNTIME_SUPPLIED_UV_VARS.has(varName),
+      `CONTINUATION_ONLY_UV_VARS member "${varName}" is not in RUNTIME_SUPPLIED_UV_VARS. ` +
+        `Fix: add "${varName}" to RUNTIME_SUPPLIED_UV_VARS in agents/shared/constants.ts, ` +
+        `or remove it from CONTINUATION_ONLY_UV_VARS.`,
+    );
+  }
+});
+
+Deno.test("Issue #453 — rejection: every CONTINUATION_ONLY_UV_VARS member rejected in initial.* step", () => {
+  // Invariant: for each continuation-only variable, declaring it in an
+  // initial.* step must produce exactly one error with actionable diagnosis.
+  // Source of truth: CONTINUATION_ONLY_UV_VARS from agents/shared/constants.ts
+  for (const varName of CONTINUATION_ONLY_UV_VARS) {
+    const registry = registryWith(`initial.test`, {
+      uvVariables: [varName],
+    });
+    const result = validateUvReachability(registry, agentWith({}));
+
+    assertEquals(
+      result.valid,
+      false,
+      `CONTINUATION_ONLY_UV_VARS member "${varName}" should be rejected in initial.* step. ` +
+        `Fix: add phase-aware check for "${varName}" in uv-reachability-validator.ts.`,
+    );
+    assertEquals(
+      result.errors.length,
+      1,
+      `Expected exactly 1 error for "${varName}" in initial.test, got ${result.errors.length}.`,
+    );
+    // Diagnosis: error message must contain What (var name + step), Where (steps_registry.json), How-to-fix
+    assertStringIncludes(result.errors[0], varName);
+    assertStringIncludes(result.errors[0], "continuation-only");
+    assertStringIncludes(result.errors[0], "PR-RESOLVE-003");
+    assertStringIncludes(result.errors[0], "steps_registry.json");
+  }
+});
+
+// =============================================================================
+// Test 6: Issue #453 — Acceptance
+// Continuation-only vars in continuation.* steps must pass;
+// always-available runtime vars in initial.* steps must pass
+// =============================================================================
+
+Deno.test("Issue #453 — acceptance: CONTINUATION_ONLY_UV_VARS accepted in continuation.* step", () => {
+  for (const varName of CONTINUATION_ONLY_UV_VARS) {
+    const registry = registryWith(`continuation.test`, {
+      uvVariables: [varName],
+    });
+    const result = validateUvReachability(registry, agentWith({}));
+
+    assertEquals(
+      result.valid,
+      true,
+      `"${varName}" should be accepted in continuation.* step.`,
+    );
+    assertEquals(result.errors.length, 0);
+  }
+});
+
+Deno.test("Issue #453 — acceptance: always-available runtime vars pass in initial.* step", () => {
+  // Runtime vars NOT in CONTINUATION_ONLY_UV_VARS should pass in initial.* steps.
+  const alwaysAvailable = [...RUNTIME_SUPPLIED_UV_VARS].filter(
+    (v) => !CONTINUATION_ONLY_UV_VARS.has(v),
+  );
+  assert(
+    alwaysAvailable.length > 0,
+    "No always-available runtime vars found — CONTINUATION_ONLY_UV_VARS equals RUNTIME_SUPPLIED_UV_VARS?",
+  );
+
+  for (const varName of alwaysAvailable) {
+    const registry = registryWith(`initial.test`, {
+      uvVariables: [varName],
+    });
+    const result = validateUvReachability(registry, agentWith({}));
+
+    assertEquals(
+      result.valid,
+      true,
+      `Runtime var "${varName}" is not continuation-only and should pass in initial.* step. ` +
+        `If this fails, "${varName}" was incorrectly added to CONTINUATION_ONLY_UV_VARS in agents/shared/constants.ts.`,
+    );
+    assertEquals(result.errors.length, 0);
   }
 });
