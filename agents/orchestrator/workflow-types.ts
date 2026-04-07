@@ -39,6 +39,16 @@ export interface BaseAgentDefinition {
 
   /** Phase to transition to on error */
   fallbackPhase?: string;
+
+  /** Close the GitHub issue when this agent's outcome leads to a terminal phase */
+  closeOnComplete?: boolean;
+
+  /**
+   * Only close the issue when the outcome matches this value.
+   * Requires closeOnComplete: true. Useful for validators that route
+   * to different terminal phases (e.g., close only on "approved").
+   */
+  closeCondition?: string;
 }
 
 /** Agent that produces a single output phase on success */
@@ -162,6 +172,8 @@ export interface OrchestratorResult {
   cycleCount: number;
   history: PhaseTransitionRecord[];
   status: "completed" | "blocked" | "cycle_exceeded" | "dry-run";
+  /** True when closeOnComplete triggered and gh issue close succeeded */
+  issueClosed?: boolean;
 }
 
 /** Options for batch orchestrator execution. */

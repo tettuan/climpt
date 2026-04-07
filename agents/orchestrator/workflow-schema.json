@@ -66,6 +66,14 @@
             "type": "string",
             "description": "Phase to transition to on error"
           },
+          "closeOnComplete": {
+            "type": "boolean",
+            "description": "Close the GitHub issue when this agent's outcome leads to a terminal phase"
+          },
+          "closeCondition": {
+            "type": "string",
+            "description": "Only close the issue when the outcome matches this value (requires closeOnComplete: true)"
+          },
           "outputPhase": {
             "type": "string",
             "description": "Phase to transition to on successful completion (transformer only)"

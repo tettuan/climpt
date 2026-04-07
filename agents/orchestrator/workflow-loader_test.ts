@@ -326,6 +326,114 @@ Deno.test("workflow-loader: labelPrefix field is parsed", async () => {
   }
 });
 
+// =============================================================================
+// Cross-reference: closeCondition validation
+// =============================================================================
+
+Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF-005", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg.agents as Record<string, unknown>)["reviewer"] = {
+      role: "validator",
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeCondition: "approved", // no closeOnComplete
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(
+      () => loadWorkflow(dir),
+      Error,
+    );
+    assertStringIncludes(
+      err.message,
+      "reviewer",
+      "Error should name the agent. Fix: config-errors.ts wfRefCloseConditionWithoutCloseOnComplete",
+    );
+    assertStringIncludes(
+      err.message,
+      "closeOnComplete",
+      "Error should mention closeOnComplete. Fix: config-errors.ts WF-REF-005",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-REF-006", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg.agents as Record<string, unknown>)["reviewer"] = {
+      role: "validator",
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeOnComplete: true,
+      closeCondition: "typo_approved", // not in outputPhases
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(
+      () => loadWorkflow(dir),
+      Error,
+    );
+    assertStringIncludes(
+      err.message,
+      "reviewer",
+      "Error should name the agent. Fix: config-errors.ts wfRefInvalidCloseCondition",
+    );
+    assertStringIncludes(
+      err.message,
+      "typo_approved",
+      "Error should include the invalid closeCondition value. Fix: config-errors.ts WF-REF-006",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: valid closeOnComplete and closeCondition loads successfully", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg.agents as Record<string, unknown>)["reviewer"] = {
+      role: "validator",
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeOnComplete: true,
+      closeCondition: "approved",
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.agents["reviewer"].closeOnComplete, true);
+    assertEquals(config.agents["reviewer"].closeCondition, "approved");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: closeOnComplete without closeCondition loads successfully", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg.agents as Record<string, unknown>)["reviewer"] = {
+      role: "validator",
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeOnComplete: true,
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.agents["reviewer"].closeOnComplete, true);
+    assertEquals(config.agents["reviewer"].closeCondition, undefined);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// labelPrefix
+// =============================================================================
+
 Deno.test("workflow-loader: labelPrefix is undefined when omitted", async () => {
   const dir = await Deno.makeTempDir();
   try {

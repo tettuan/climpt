@@ -23,7 +23,10 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { RUNTIME_SUPPLIED_UV_VARS } from "../shared/constants.ts";
+import {
+  CONTINUATION_ONLY_UV_VARS,
+  RUNTIME_SUPPLIED_UV_VARS,
+} from "../shared/constants.ts";
 import type { InputSpec } from "../src_common/contracts.ts";
 
 // ---------------------------------------------------------------------------
@@ -213,6 +216,19 @@ export function validateUvReachability(
 
       // Channel 2/3: Runtime-supplied variables
       if (RUNTIME_SUPPLIED_UV_VARS.has(varName)) {
+        // Phase-aware check: continuation-only variables in initial.* steps
+        // will cause PR-RESOLVE-003 at runtime (not set or falsy on iteration 1)
+        if (
+          stepId.startsWith(INITIAL_PREFIX) &&
+          CONTINUATION_ONLY_UV_VARS.has(varName)
+        ) {
+          errors.push(
+            `Step "${stepId}": UV variable "${varName}" is continuation-only (available from iteration 2+) ` +
+              `but declared in an initial.* step. This will cause PR-RESOLVE-003 at runtime. ` +
+              `Fix: remove "${varName}" from uvVariables in steps_registry.json for step "${stepId}", ` +
+              `or move it to the corresponding continuation.* step.`,
+          );
+        }
         continue;
       }
 

@@ -75,6 +75,8 @@ class StubGitHubClient implements GitHubClient {
     removed: string[];
     added: string[];
   }[] = [];
+  #closedIssues: number[] = [];
+  #closeIssueShouldThrow = false;
 
   constructor(labelSequence: string[][]) {
     this.#labelSequence = labelSequence;
@@ -129,8 +131,20 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(999);
   }
 
-  closeIssue(_issueNumber: number): Promise<void> {
+  closeIssue(issueNumber: number): Promise<void> {
+    if (this.#closeIssueShouldThrow) {
+      return Promise.reject(new Error("gh issue close failed"));
+    }
+    this.#closedIssues.push(issueNumber);
     return Promise.resolve();
+  }
+
+  get closedIssues(): number[] {
+    return this.#closedIssues;
+  }
+
+  setCloseIssueShouldThrow(v: boolean): void {
+    this.#closeIssueShouldThrow = v;
   }
 
   listIssues(_criteria: IssueCriteria): Promise<IssueListItem[]> {
@@ -484,6 +498,246 @@ Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition c
   assertEquals(github.labelUpdates[0].added, ["wf:review"]);
   assertEquals(github.labelUpdates[1].removed, ["wf:review"]);
   assertEquals(github.labelUpdates[1].added, ["wf:done"]);
+});
+
+// === closeOnComplete Tests ===
+
+/**
+ * Test Design: Contract tests for closeOnComplete feature.
+ *
+ * Source of truth: orchestrator.ts terminal phase handling logic.
+ * The orchestrator calls closeIssue when:
+ *   1. target phase is terminal
+ *   2. !dryRun
+ *   3. agent.closeOnComplete === true
+ *   4. agent.closeCondition is undefined OR matches outcome
+ *
+ * Diagnosability: each assertion message identifies the violated contract
+ * and which file to fix (orchestrator.ts or workflow config).
+ */
+
+/** Config with closeOnComplete enabled on reviewer (validator) */
+function createCloseOnCompleteConfig(): WorkflowConfig {
+  return {
+    version: "1.0.0",
+    phases: {
+      implementation: { type: "actionable", priority: 1, agent: "iterator" },
+      review: { type: "actionable", priority: 2, agent: "reviewer" },
+      complete: { type: "terminal" },
+      blocked: { type: "blocking" },
+    },
+    labelMapping: {
+      ready: "implementation",
+      review: "review",
+      done: "complete",
+      blocked: "blocked",
+    },
+    agents: {
+      iterator: {
+        role: "transformer",
+        outputPhase: "review",
+        fallbackPhase: "blocked",
+      },
+      reviewer: {
+        role: "validator",
+        outputPhases: { approved: "complete", rejected: "implementation" },
+        fallbackPhase: "blocked",
+        closeOnComplete: true,
+        closeCondition: "approved",
+      },
+    },
+    rules: { maxCycles: 5, cycleDelayMs: 0 },
+  };
+}
+
+Deno.test("closeOnComplete: closes issue when outcome matches closeCondition and target is terminal", async () => {
+  const config = createCloseOnCompleteConfig();
+  // Cycle 1: iterator success -> review
+  // Cycle 2: reviewer approved -> complete (terminal) -> closeIssue
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.status,
+    "completed",
+    "Status should be completed. Fix: orchestrator.ts terminal phase handling",
+  );
+  assertEquals(
+    result.issueClosed,
+    true,
+    "issueClosed should be true when closeOnComplete fires. Fix: orchestrator.ts closeOnComplete logic",
+  );
+  assertEquals(
+    github.closedIssues.length,
+    1,
+    "closeIssue should be called exactly once. Fix: orchestrator.ts closeOnComplete logic",
+  );
+  assertEquals(
+    github.closedIssues[0],
+    1,
+    "closeIssue should receive the correct issue number",
+  );
+});
+
+Deno.test("closeOnComplete: does NOT close when outcome does not match closeCondition", async () => {
+  const config = createCloseOnCompleteConfig();
+  // reviewer rejects -> goes to implementation (not terminal) -> no close
+  const github = new StubGitHubClient([["review"], ["ready"], ["ready"]]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "rejected",
+  });
+  config.rules.maxCycles = 2;
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    github.closedIssues.length,
+    0,
+    "closeIssue should not be called when outcome doesn't lead to terminal. " +
+      "Fix: orchestrator.ts closeCondition check",
+  );
+  assertEquals(
+    result.issueClosed,
+    undefined,
+    "issueClosed should be undefined when close was not triggered",
+  );
+});
+
+Deno.test("closeOnComplete: closes without closeCondition (any terminal outcome)", async () => {
+  const config = createCloseOnCompleteConfig();
+  // Remove closeCondition -> any terminal transition triggers close
+  delete (config.agents["reviewer"] as unknown as Record<string, unknown>)
+    .closeCondition;
+
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.issueClosed, true);
+  assertEquals(github.closedIssues.length, 1);
+});
+
+Deno.test("closeOnComplete: does NOT close when closeOnComplete is absent", async () => {
+  const config = createTestConfig(); // no closeOnComplete
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(
+    github.closedIssues.length,
+    0,
+    "closeIssue should not be called when closeOnComplete is not set. " +
+      "Fix: orchestrator.ts should only close when agent.closeOnComplete is true",
+  );
+  assertEquals(result.issueClosed, undefined);
+});
+
+Deno.test("closeOnComplete: early terminal detection does NOT trigger close", async () => {
+  const config = createCloseOnCompleteConfig();
+  // Issue starts with terminal labels -> no agent dispatched -> no close
+  const github = new StubGitHubClient([["done"]]);
+  const dispatcher = new StubDispatcher();
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(
+    github.closedIssues.length,
+    0,
+    "Early terminal detection should not trigger close (no agent dispatched). " +
+      "Fix: orchestrator.ts should only close after agent dispatch, not at early terminal check",
+  );
+  assertEquals(result.issueClosed, undefined);
+});
+
+Deno.test("closeOnComplete: closeIssue failure is non-fatal", async () => {
+  const config = createCloseOnCompleteConfig();
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  github.setCloseIssueShouldThrow(true);
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.status,
+    "completed",
+    "Workflow should complete even if closeIssue fails. " +
+      "Fix: orchestrator.ts closeOnComplete error must be non-fatal",
+  );
+  assertEquals(
+    result.issueClosed,
+    undefined,
+    "issueClosed should not be true when closeIssue threw",
+  );
+  assertEquals(github.closedIssues.length, 0);
+});
+
+Deno.test("closeOnComplete: closeCondition filters even when target is terminal", async () => {
+  // Validator where both outcomes route to terminal, but closeCondition is "approved"
+  const config: WorkflowConfig = {
+    version: "1.0.0",
+    phases: {
+      review: { type: "actionable", priority: 1, agent: "reviewer" },
+      closed: { type: "terminal" },
+      archived: { type: "terminal" },
+    },
+    labelMapping: {
+      review: "review",
+      done: "closed",
+      archive: "archived",
+    },
+    agents: {
+      reviewer: {
+        role: "validator",
+        outputPhases: { approved: "closed", auto_closed: "archived" },
+        fallbackPhase: "review",
+        closeOnComplete: true,
+        closeCondition: "approved",
+      },
+    },
+    rules: { maxCycles: 5, cycleDelayMs: 0 },
+  };
+
+  // outcome is "auto_closed" -> routes to terminal "archived" but closeCondition is "approved"
+  const github = new StubGitHubClient([["review"], ["archive"]]);
+  const dispatcher = new StubDispatcher({ reviewer: "auto_closed" });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.finalPhase, "archived");
+  assertEquals(
+    github.closedIssues.length,
+    0,
+    "closeIssue should NOT be called when outcome is 'auto_closed' but closeCondition is 'approved'. " +
+      "Fix: orchestrator.ts must check closeCondition against outcome, not just terminal phase",
+  );
+  assertEquals(result.issueClosed, undefined);
 });
 
 // === Batch Tests ===

@@ -75,7 +75,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
    * Get the last verdict value extracted from AI structured output.
    * Returns undefined if no verdict has been received yet.
    */
-  getLastVerdict(): string | undefined {
+  override getLastVerdict(): string | undefined {
     return this.#lastVerdict;
   }
 
