@@ -126,6 +126,7 @@ function createMockVerdictHandler(
       return Promise.resolve(val);
     },
     getVerdictDescription: () => Promise.resolve(desc),
+    getLastVerdict: () => undefined,
     setCurrentSummary: () => {},
   };
 }
@@ -552,6 +553,7 @@ function createCapturingVerdictHandler(): VerdictHandler & {
     }),
     isFinished: () => Promise.resolve(true), // finish after 1 iteration
     getVerdictDescription: () => Promise.resolve("Test verdict"),
+    getLastVerdict: () => undefined,
     setCurrentSummary: (summary: IterationSummary) => {
       captured.push(summary);
     },
@@ -661,7 +663,7 @@ function createVerdictProvidingHandler(verdict: string): VerdictHandler {
     getVerdictDescription: () => Promise.resolve("Verdict provided"),
     setCurrentSummary: () => {},
     getLastVerdict: () => verdict,
-  } as VerdictHandler & { getLastVerdict: () => string };
+  };
 }
 
 Deno.test("AgentRunner.run - getLastVerdict propagates to AgentResult.verdict", async () => {

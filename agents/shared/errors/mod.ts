@@ -127,6 +127,8 @@ export {
   wfPhaseAgentRequired,
   wfPhaseInvalidType,
   wfPhasePriorityRequired,
+  wfRefCloseConditionWithoutCloseOnComplete,
+  wfRefInvalidCloseCondition,
   wfRefUnknownAgent,
   wfRefUnknownFallbackPhase,
   wfRefUnknownOutputPhase,

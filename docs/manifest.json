@@ -1,5 +1,5 @@
 {
-  "version": "1.13.21",
+  "version": "1.13.22",
   "entries": [
     {
       "id": "builder-01_quickstart",
@@ -27,7 +27,7 @@
       "path": "../agents/docs/builder/04_config_system.md",
       "category": "builder-guides",
       "title": "設定システム",
-      "bytes": 3479
+      "bytes": 5764
     },
     {
       "id": "builder-05_troubleshooting",
@@ -41,7 +41,7 @@
       "path": "../agents/docs/builder/06_workflow_setup.md",
       "category": "builder-guides",
       "title": "Workflow Setup",
-      "bytes": 13421
+      "bytes": 13511
     },
     {
       "id": "builder-07_github_integration",
@@ -55,7 +55,7 @@
       "path": "../agents/docs/builder/08_closure_output_contract.md",
       "category": "builder-guides",
       "title": "Closure Output Contract",
-      "bytes": 10878
+      "bytes": 10943
     },
     {
       "id": "builder-README",
@@ -232,7 +232,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Workflow Guide",
-      "bytes": 11887
+      "bytes": 13906
     },
     {
       "id": "guides-ja-00-1-concepts",
@@ -368,7 +368,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "ワークフローガイド",
-      "bytes": 13007
+      "bytes": 15196
     },
     {
       "id": "mcp-setup",

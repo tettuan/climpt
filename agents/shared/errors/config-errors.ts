@@ -589,6 +589,38 @@ export function wfRefUnknownOutputPhasesEntry(
   );
 }
 
+// --- WF-REF: closeOnComplete / closeCondition cross-reference errors ---
+
+export function wfRefCloseConditionWithoutCloseOnComplete(
+  agentId: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-REF-005",
+    `Agent "${agentId}" has "closeCondition" but "closeOnComplete" is not enabled.`,
+    `"closeCondition" filters which outcome triggers issue close, so it requires "closeOnComplete: true" to take effect.`,
+    `Add "closeOnComplete": true to agent "${agentId}", or remove "closeCondition".`,
+    "workflow.json",
+  );
+}
+
+export function wfRefInvalidCloseCondition(
+  agentId: string,
+  closeCondition: string,
+  validKeys: string[],
+): ConfigError {
+  return new ConfigError(
+    "WF-REF-006",
+    `Agent "${agentId}" closeCondition "${closeCondition}" is not a key in outputPhases.`,
+    `closeCondition must match one of the outcome keys in outputPhases so it can actually trigger. Valid keys: [${
+      validKeys.join(", ")
+    }].`,
+    `Change closeCondition to one of [${
+      validKeys.join(", ")
+    }], or add "${closeCondition}" to outputPhases.`,
+    "workflow.json",
+  );
+}
+
 // --- WF-BATCH: Batch operation errors ---
 
 export function wfBatchPrioritizeMissingConfig(): ConfigError {

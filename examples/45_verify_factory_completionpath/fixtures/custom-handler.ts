@@ -42,6 +42,10 @@ class TestCustomVerdictHandler implements VerdictHandler {
   getVerdictDescription(): Promise<string> {
     return Promise.resolve("Custom handler - not finished");
   }
+
+  getLastVerdict(): string | undefined {
+    return undefined;
+  }
 }
 
 /**

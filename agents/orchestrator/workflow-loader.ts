@@ -22,6 +22,8 @@ import {
   wfPhaseAgentRequired,
   wfPhaseInvalidType,
   wfPhasePriorityRequired,
+  wfRefCloseConditionWithoutCloseOnComplete,
+  wfRefInvalidCloseCondition,
   wfRefUnknownAgent,
   wfRefUnknownFallbackPhase,
   wfRefUnknownOutputPhase,
@@ -203,6 +205,23 @@ function validateAgentPhaseReferences(
       if (!phaseIds.has(targetPhase)) {
         throw wfRefUnknownOutputPhasesEntry(agentId, key, targetPhase);
       }
+    }
+  }
+
+  // closeCondition cross-validation
+  if (agent.closeCondition !== undefined) {
+    if (!agent.closeOnComplete) {
+      throw wfRefCloseConditionWithoutCloseOnComplete(agentId);
+    }
+    if (
+      agent.role === "validator" &&
+      !(agent.closeCondition in agent.outputPhases)
+    ) {
+      throw wfRefInvalidCloseCondition(
+        agentId,
+        agent.closeCondition,
+        Object.keys(agent.outputPhases),
+      );
     }
   }
 }

@@ -723,11 +723,8 @@ export class AgentRunner {
         }
       }
 
-      // Extract verdict from verdict handler if available (e.g., ExternalStateVerdictAdapter)
-      const verdictValue = "getLastVerdict" in ctx.verdictHandler &&
-          typeof ctx.verdictHandler.getLastVerdict === "function"
-        ? (ctx.verdictHandler.getLastVerdict as () => string | undefined)()
-        : undefined;
+      // Extract verdict from verdict handler for orchestrator routing
+      const verdictValue = ctx.verdictHandler.getLastVerdict();
 
       const result: AgentResult = {
         success,

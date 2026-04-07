@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.22] - 2026-04-08
+
+### Added
+- `closeOnComplete` option for orchestrator terminal phases (#455)
+
+### Fixed
+- Route `detect:graph` verdict to orchestrator outputPhases (#454)
+- Detect continuation-only UV variables in `initial.*` steps (#453)
+- Add `getLastVerdict` to mock VerdictHandlers and fix lint
+
+### Changed
+- Promote `getLastVerdict` to VerdictHandler interface
+
 ## [1.13.21] - 2026-04-07
 
 ### Added
