@@ -112,13 +112,24 @@ function validatePrefixSubstitutionConsistency(
     // Both null or both empty - no mismatch
     if (initialUv === null && continuationUv === null) continue;
 
+    // Exclude CONTINUATION_ONLY_UV_VARS from the comparison.
+    // These variables are by definition only available from iteration 2+
+    // and are correctly absent from initial steps (#459).
+    // The same set is used at L240-252 to error on initial.* declarations,
+    // so the exclusion here is consistent with the validator's own rules.
+    const filteredContinuationUv = (continuationUv ?? []).filter(
+      (v) => !CONTINUATION_ONLY_UV_VARS.has(v),
+    );
+
     const initialStr = JSON.stringify(initialUv ?? []);
-    const continuationStr = JSON.stringify(continuationUv ?? []);
+    const continuationStr = JSON.stringify(filteredContinuationUv);
 
     if (initialStr !== continuationStr) {
       warnings.push(
         `steps["${stepId}"] declares uvVariables ${initialStr} but ` +
-          `steps["${continuationId}"] declares ${continuationStr}. ` +
+          `steps["${continuationId}"] declares ${
+            JSON.stringify(continuationUv ?? [])
+          }. ` +
           `Prefix substitution (initial.* -> continuation.*) may cause UV variable mismatch at runtime.`,
       );
     }

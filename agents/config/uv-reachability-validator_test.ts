@@ -637,3 +637,66 @@ Deno.test("all four channels combined - each channel covers its variables", () =
     `Warning should reference mystery_var, got: ${result.warnings[0]}`,
   );
 });
+
+// =============================================================================
+// Issue #459: continuation-only variables excluded from prefix substitution
+// =============================================================================
+
+Deno.test("prefix substitution - continuation-only UV vars do not trigger mismatch warning (#459)", () => {
+  // Reproduction: initial has [issue, iteration], continuation adds previous_summary.
+  // previous_summary is in CONTINUATION_ONLY_UV_VARS, so the difference is expected.
+  const registry = registryWithMultiple({
+    "initial.manual": {
+      uvVariables: ["issue", "iteration"],
+    },
+    "continuation.manual": {
+      uvVariables: ["issue", "iteration", "previous_summary"],
+    },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  assertEquals(result.valid, true);
+  assertEquals(result.errors.length, 0);
+  const prefixWarnings = result.warnings.filter((w) =>
+    w.includes("Prefix substitution")
+  );
+  assertEquals(
+    prefixWarnings.length,
+    0,
+    `continuation-only UV vars should not trigger prefix substitution warning, got: ${
+      JSON.stringify(prefixWarnings)
+    }`,
+  );
+});
+
+Deno.test("prefix substitution - non-continuation-only difference still triggers warning", () => {
+  // extra_var is NOT in CONTINUATION_ONLY_UV_VARS, so the mismatch should still warn.
+  const registry = registryWithMultiple({
+    "initial.manual": {
+      uvVariables: ["issue"],
+    },
+    "continuation.manual": {
+      uvVariables: ["issue", "extra_var"],
+    },
+  });
+  const agent = agentWith({
+    issue: { required: true },
+  });
+
+  const result = validateUvReachability(registry, agent);
+
+  const prefixWarnings = result.warnings.filter((w) =>
+    w.includes("Prefix substitution")
+  );
+  assertEquals(
+    prefixWarnings.length,
+    1,
+    `Non-continuation-only difference should trigger warning, got: ${
+      JSON.stringify(prefixWarnings)
+    }`,
+  );
+});
