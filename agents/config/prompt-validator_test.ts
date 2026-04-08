@@ -10,9 +10,22 @@
  * - Fallback template existence checks
  */
 
-import { assertEquals } from "@std/assert";
-import { validatePrompts } from "./prompt-validator.ts";
+import { assert, assertEquals } from "@std/assert";
+import {
+  MSG_ALSO_NOT_FOUND,
+  MSG_C2_MISSING,
+  MSG_C3_MISSING,
+  MSG_FALLBACK_EXISTS,
+  MSG_FALLBACK_EXISTS_SUFFIX,
+  MSG_NO_FALLBACK_KEY,
+  MSG_NOT_FOUND,
+  MSG_PROMPT_PREFIX,
+  validatePrompts,
+} from "./prompt-validator.ts";
 import { join } from "@std/path";
+
+/** Source file under test, referenced in assertion messages for traceability. */
+const VALIDATOR_SRC = "prompt-validator.ts";
 
 // =============================================================================
 // Helpers
@@ -57,14 +70,20 @@ Deno.test("validatePrompts - step missing c2 produces an error", async () => {
     c3: "issue",
     // c2 is missing
   });
+  assert(
+    Object.keys(registry.steps as Record<string, unknown>).length > 0,
+    "Fixture must have steps to avoid vacuous pass",
+  );
 
   const result = await validatePrompts(registry);
 
   assertEquals(result.valid, false);
   assertEquals(
-    result.errors.some((e) => e.includes("c2") && e.includes("missing")),
+    result.errors.some((e) => e.includes(MSG_C2_MISSING)),
     true,
-    `Expected an error about missing c2, got: ${JSON.stringify(result.errors)}`,
+    `Expected error containing "${MSG_C2_MISSING}" (fix: ${VALIDATOR_SRC} c2 check logic). Got: ${
+      JSON.stringify(result.errors)
+    }`,
   );
 });
 
@@ -73,14 +92,20 @@ Deno.test("validatePrompts - step missing c3 produces an error", async () => {
     c2: "initial",
     // c3 is missing
   });
+  assert(
+    Object.keys(registry.steps as Record<string, unknown>).length > 0,
+    "Fixture must have steps to avoid vacuous pass",
+  );
 
   const result = await validatePrompts(registry);
 
   assertEquals(result.valid, false);
   assertEquals(
-    result.errors.some((e) => e.includes("c3") && e.includes("missing")),
+    result.errors.some((e) => e.includes(MSG_C3_MISSING)),
     true,
-    `Expected an error about missing c3, got: ${JSON.stringify(result.errors)}`,
+    `Expected error containing "${MSG_C3_MISSING}" (fix: ${VALIDATOR_SRC} c3 check logic). Got: ${
+      JSON.stringify(result.errors)
+    }`,
   );
 });
 
@@ -88,14 +113,26 @@ Deno.test("validatePrompts - step missing both c2 and c3 produces two errors", a
   const registry = registryWith("initial.issue", {
     fallbackKey: "initial_issue",
   });
+  const stepCount = Object.keys(registry.steps as Record<string, unknown>)
+    .length;
+  assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
   const result = await validatePrompts(registry);
 
   assertEquals(result.valid, false);
-  const c2Errors = result.errors.filter((e) => e.includes("c2"));
-  const c3Errors = result.errors.filter((e) => e.includes("c3"));
-  assertEquals(c2Errors.length, 1, "Expected exactly one c2 error");
-  assertEquals(c3Errors.length, 1, "Expected exactly one c3 error");
+  const c2Errors = result.errors.filter((e) => e.includes(MSG_C2_MISSING));
+  const c3Errors = result.errors.filter((e) => e.includes(MSG_C3_MISSING));
+  // Each step missing both fields produces exactly 1 c2 + 1 c3 error
+  assertEquals(
+    c2Errors.length,
+    stepCount,
+    `Expected ${stepCount} c2 error(s) (fix: ${VALIDATOR_SRC} c2 check). Got ${c2Errors.length}`,
+  );
+  assertEquals(
+    c3Errors.length,
+    stepCount,
+    `Expected ${stepCount} c3 error(s) (fix: ${VALIDATOR_SRC} c3 check). Got ${c3Errors.length}`,
+  );
 });
 
 Deno.test("validatePrompts - mismatched c2 vs stepId prefix produces a warning", async () => {
@@ -103,17 +140,23 @@ Deno.test("validatePrompts - mismatched c2 vs stepId prefix produces a warning",
     c2: "continuation", // mismatch: stepId prefix is "initial"
     c3: "issue",
   });
+  assert(
+    Object.keys(registry.steps as Record<string, unknown>).length > 0,
+    "Fixture must have steps to avoid vacuous pass",
+  );
 
   const result = await validatePrompts(registry);
 
-  // No errors — c2/c3 are present
+  // No errors -- c2/c3 are present
   assertEquals(result.valid, true);
   assertEquals(
     result.warnings.some((w) =>
       w.includes("c2") && w.includes("continuation") && w.includes("initial")
     ),
     true,
-    `Expected a c2 mismatch warning, got: ${JSON.stringify(result.warnings)}`,
+    `Expected a c2 mismatch warning (fix: ${VALIDATOR_SRC} stepId-consistency check). Got: ${
+      JSON.stringify(result.warnings)
+    }`,
   );
 });
 
@@ -122,6 +165,10 @@ Deno.test("validatePrompts - mismatched c3 vs stepId second part produces a warn
     c2: "initial",
     c3: "project", // mismatch: stepId second part is "issue"
   });
+  assert(
+    Object.keys(registry.steps as Record<string, unknown>).length > 0,
+    "Fixture must have steps to avoid vacuous pass",
+  );
 
   const result = await validatePrompts(registry);
 
@@ -131,7 +178,9 @@ Deno.test("validatePrompts - mismatched c3 vs stepId second part produces a warn
       w.includes("c3") && w.includes("project") && w.includes("issue")
     ),
     true,
-    `Expected a c3 mismatch warning, got: ${JSON.stringify(result.warnings)}`,
+    `Expected a c3 mismatch warning (fix: ${VALIDATOR_SRC} stepId-consistency check). Got: ${
+      JSON.stringify(result.warnings)
+    }`,
   );
 });
 
@@ -163,15 +212,29 @@ Deno.test("validatePrompts - fallbackKey field is ignored when no agentDir", asy
     c3: "issue",
     fallbackKey: "nonexistent_key_that_would_have_failed_before",
   });
+  assert(
+    Object.keys(registry.steps as Record<string, unknown>).length > 0,
+    "Fixture must have steps to avoid vacuous pass",
+  );
 
   const result = await validatePrompts(registry);
 
-  assertEquals(result.valid, true, "Step with fallbackKey should be valid");
-  assertEquals(result.errors.length, 0, "No errors expected");
+  assertEquals(
+    result.valid,
+    true,
+    `Step with fallbackKey should be valid (fix: ${VALIDATOR_SRC} agentDir guard)`,
+  );
+  assertEquals(
+    result.errors.length,
+    0,
+    `No errors expected (fix: ${VALIDATOR_SRC} agentDir guard). Got: ${
+      JSON.stringify(result.errors)
+    }`,
+  );
   assertEquals(
     result.warnings.length,
     0,
-    `fallbackKey should produce no warnings without agentDir, got: ${
+    `fallbackKey should produce no warnings without agentDir (fix: ${VALIDATOR_SRC} file-check skip). Got: ${
       JSON.stringify(result.warnings)
     }`,
   );
@@ -192,14 +255,20 @@ Deno.test("validatePrompts - existing main C3L file produces no file warning", a
       c3: "issue",
       edition: "default",
     });
+    assert(
+      Object.keys(registry.steps as Record<string, unknown>).length > 0,
+      "Fixture must have steps to avoid vacuous pass",
+    );
 
     const result = await validatePrompts(registry, agentDir);
 
     assertEquals(result.valid, true);
     assertEquals(
-      result.warnings.filter((w) => w.includes("[PROMPT]")).length,
+      result.warnings.filter((w) => w.includes(MSG_PROMPT_PREFIX)).length,
       0,
-      `Expected no [PROMPT] warnings, got: ${JSON.stringify(result.warnings)}`,
+      `Expected no ${MSG_PROMPT_PREFIX} warnings (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
+        JSON.stringify(result.warnings)
+      }`,
     );
   } finally {
     await cleanup();
@@ -219,30 +288,41 @@ Deno.test("validatePrompts - missing main file but existing fallback produces wa
       edition: "default",
       fallbackKey: "initial_issue",
     });
+    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
+      .length;
+    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
     const result = await validatePrompts(registry, agentDir);
 
-    assertEquals(result.valid, true, "File warnings should not cause invalid");
+    assertEquals(
+      result.valid,
+      true,
+      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
+    );
     const promptWarnings = result.warnings.filter((w) =>
-      w.includes("[PROMPT]")
+      w.includes(MSG_PROMPT_PREFIX)
     );
     assertEquals(
       promptWarnings.length,
-      1,
-      `Expected exactly 1 [PROMPT] warning, got: ${
+      stepCount,
+      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
         JSON.stringify(promptWarnings)
       }`,
     );
     assertEquals(
-      promptWarnings[0].includes("not found"),
+      promptWarnings[0].includes(MSG_NOT_FOUND),
       true,
-      "Warning should mention main file not found",
+      `Expected ${MSG_PROMPT_PREFIX} warning about missing file (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
+        promptWarnings[0]
+      }`,
     );
     assertEquals(
-      promptWarnings[0].includes("fallback template") &&
-        promptWarnings[0].includes("exists"),
+      promptWarnings[0].includes(MSG_FALLBACK_EXISTS) &&
+        promptWarnings[0].includes(MSG_FALLBACK_EXISTS_SUFFIX),
       true,
-      `Warning should mention fallback exists, got: ${promptWarnings[0]}`,
+      `Warning should mention fallback exists (fix: ${VALIDATOR_SRC} fallback-exists branch). Got: ${
+        promptWarnings[0]
+      }`,
     );
   } finally {
     await cleanup();
@@ -260,25 +340,34 @@ Deno.test("validatePrompts - missing main file and missing fallback produces war
       edition: "default",
       fallbackKey: "initial_issue",
     });
+    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
+      .length;
+    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
     const result = await validatePrompts(registry, agentDir);
 
-    assertEquals(result.valid, true, "File warnings should not cause invalid");
+    assertEquals(
+      result.valid,
+      true,
+      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
+    );
     const promptWarnings = result.warnings.filter((w) =>
-      w.includes("[PROMPT]")
+      w.includes(MSG_PROMPT_PREFIX)
     );
     assertEquals(
       promptWarnings.length,
-      1,
-      `Expected exactly 1 [PROMPT] warning, got: ${
+      stepCount,
+      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
         JSON.stringify(promptWarnings)
       }`,
     );
     assertEquals(
-      promptWarnings[0].includes("not found") &&
-        promptWarnings[0].includes("also not found"),
+      promptWarnings[0].includes(MSG_NOT_FOUND) &&
+        promptWarnings[0].includes(MSG_ALSO_NOT_FOUND),
       true,
-      `Warning should mention both files missing, got: ${promptWarnings[0]}`,
+      `Warning should mention both files missing (fix: ${VALIDATOR_SRC} fallback-missing branch). Got: ${
+        promptWarnings[0]
+      }`,
     );
   } finally {
     await cleanup();
@@ -296,25 +385,34 @@ Deno.test("validatePrompts - missing main file with empty fallbackKey produces w
       edition: "default",
       fallbackKey: "",
     });
+    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
+      .length;
+    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
     const result = await validatePrompts(registry, agentDir);
 
-    assertEquals(result.valid, true, "File warnings should not cause invalid");
+    assertEquals(
+      result.valid,
+      true,
+      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
+    );
     const promptWarnings = result.warnings.filter((w) =>
-      w.includes("[PROMPT]")
+      w.includes(MSG_PROMPT_PREFIX)
     );
     assertEquals(
       promptWarnings.length,
-      1,
-      `Expected exactly 1 [PROMPT] warning, got: ${
+      stepCount,
+      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
         JSON.stringify(promptWarnings)
       }`,
     );
     assertEquals(
-      promptWarnings[0].includes("not found") &&
-        promptWarnings[0].includes("no fallbackKey"),
+      promptWarnings[0].includes(MSG_NOT_FOUND) &&
+        promptWarnings[0].includes(MSG_NO_FALLBACK_KEY),
       true,
-      `Warning should mention no fallbackKey, got: ${promptWarnings[0]}`,
+      `Warning should mention ${MSG_NO_FALLBACK_KEY} (fix: ${VALIDATOR_SRC} no-fallback branch). Got: ${
+        promptWarnings[0]
+      }`,
     );
   } finally {
     await cleanup();
@@ -327,20 +425,24 @@ Deno.test("validatePrompts - edition defaults to 'default' when not specified", 
   ]);
 
   try {
-    // Step without explicit edition — should default to "default"
+    // Step without explicit edition -- should default to "default"
     const registry = registryWith("initial.issue", {
       c2: "initial",
       c3: "issue",
       // no edition field
     });
+    assert(
+      Object.keys(registry.steps as Record<string, unknown>).length > 0,
+      "Fixture must have steps to avoid vacuous pass",
+    );
 
     const result = await validatePrompts(registry, agentDir);
 
     assertEquals(result.valid, true);
     assertEquals(
-      result.warnings.filter((w) => w.includes("[PROMPT]")).length,
+      result.warnings.filter((w) => w.includes(MSG_PROMPT_PREFIX)).length,
       0,
-      `Expected no [PROMPT] warnings when default edition file exists, got: ${
+      `Expected no ${MSG_PROMPT_PREFIX} warnings when default edition file exists (fix: ${VALIDATOR_SRC} edition-default logic). Got: ${
         JSON.stringify(result.warnings)
       }`,
     );
@@ -360,24 +462,33 @@ Deno.test("validatePrompts - missing main file without fallbackKey field produce
       edition: "default",
       // no fallbackKey field
     });
+    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
+      .length;
+    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
     const result = await validatePrompts(registry, agentDir);
 
-    assertEquals(result.valid, true, "File warnings should not cause invalid");
+    assertEquals(
+      result.valid,
+      true,
+      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
+    );
     const promptWarnings = result.warnings.filter((w) =>
-      w.includes("[PROMPT]")
+      w.includes(MSG_PROMPT_PREFIX)
     );
     assertEquals(
       promptWarnings.length,
-      1,
-      `Expected exactly 1 [PROMPT] warning, got: ${
+      stepCount,
+      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
         JSON.stringify(promptWarnings)
       }`,
     );
     assertEquals(
-      promptWarnings[0].includes("no fallbackKey"),
+      promptWarnings[0].includes(MSG_NO_FALLBACK_KEY),
       true,
-      `Warning should mention no fallbackKey, got: ${promptWarnings[0]}`,
+      `Warning should mention ${MSG_NO_FALLBACK_KEY} (fix: ${VALIDATOR_SRC} no-fallback branch). Got: ${
+        promptWarnings[0]
+      }`,
     );
   } finally {
     await cleanup();

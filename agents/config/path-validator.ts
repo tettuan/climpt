@@ -25,6 +25,33 @@ import {
 import { buildPromptFilePath } from "./c3l-path-builder.ts";
 
 // ---------------------------------------------------------------------------
+// Error / warning message identifiers (exported for test assertions)
+// ---------------------------------------------------------------------------
+
+/** Prefix for filesystem path errors. */
+export const MSG_PATH = "[PATH]";
+/** Prefix for legacy field warnings. */
+export const MSG_LEGACY = "[LEGACY]";
+/** Prefix for schema resolution errors. */
+export const MSG_SCHEMA = "[SCHEMA]";
+/** Keyword: path does not exist. */
+export const MSG_DOES_NOT_EXIST = "does not exist";
+/** Keyword: systemPromptPath field name. */
+export const MSG_SYSTEM_PROMPT_PATH = "systemPromptPath";
+/** Keyword: prompts.registry field name. */
+export const MSG_PROMPTS_REGISTRY = "prompts.registry";
+/** Keyword: fallbackDir field name. */
+export const MSG_FALLBACK_DIR = "fallbackDir";
+/** Keyword: C3L prompt file. */
+export const MSG_C3L_PROMPT_FILE = "C3L prompt file";
+/** Keyword: outputSchemaRef field name. */
+export const MSG_OUTPUT_SCHEMA_REF = "outputSchemaRef";
+/** Keyword: not found (schema resolution). */
+export const MSG_NOT_FOUND = "not found";
+/** Keyword: failed to validate schema name. */
+export const MSG_SCHEMA_VALIDATE_FAILED = "failed to validate schema name";
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 

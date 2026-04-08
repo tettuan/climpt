@@ -17,6 +17,27 @@ import type { ValidationResult } from "../src_common/types.ts";
 import { buildPromptFilePath } from "./c3l-path-builder.ts";
 
 // ---------------------------------------------------------------------------
+// Exported error/warning message identifiers
+// ---------------------------------------------------------------------------
+
+/** Prefix for all file-existence warnings. */
+export const MSG_PROMPT_PREFIX = "[PROMPT]";
+/** Fragment: main C3L file was not found. */
+export const MSG_NOT_FOUND = "not found";
+/** Fragment: fallback template for a key exists on disk. */
+export const MSG_FALLBACK_EXISTS = "fallback template";
+/** Fragment appended when fallback template also exists. */
+export const MSG_FALLBACK_EXISTS_SUFFIX = "exists";
+/** Fragment: fallback template was also not found. */
+export const MSG_ALSO_NOT_FOUND = "also not found";
+/** Fragment: step has no fallbackKey specified. */
+export const MSG_NO_FALLBACK_KEY = "no fallbackKey";
+/** Fragment: c2 field is missing or empty. */
+export const MSG_C2_MISSING = "c2 is missing or empty";
+/** Fragment: c3 field is missing or empty. */
+export const MSG_C3_MISSING = "c3 is missing or empty";
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -93,13 +114,13 @@ export async function validatePrompts(
 
     if (typeof c2 !== "string" || c2 === "") {
       errors.push(
-        `steps["${stepId}"].c2 is missing or empty`,
+        `steps["${stepId}"].${MSG_C2_MISSING}`,
       );
     }
 
     if (typeof c3 !== "string" || c3 === "") {
       errors.push(
-        `steps["${stepId}"].c3 is missing or empty`,
+        `steps["${stepId}"].${MSG_C3_MISSING}`,
       );
     }
 
@@ -199,8 +220,8 @@ export async function validatePrompts(
         if (fc.fallbackKey !== "" && fc.fallbackPath) {
           if (fallbackExists) {
             warnings.push(
-              `[PROMPT] steps["${fc.stepId}"]: main C3L file "${relativePath}" not found, ` +
-                `but fallback template for "${fc.fallbackKey}" exists`,
+              `${MSG_PROMPT_PREFIX} steps["${fc.stepId}"]: main C3L file "${relativePath}" ${MSG_NOT_FOUND}, ` +
+                `but ${MSG_FALLBACK_EXISTS} for "${fc.fallbackKey}" ${MSG_FALLBACK_EXISTS_SUFFIX}`,
             );
           } else {
             const fbRelativePath = fc.fallbackPath.replace(
@@ -208,14 +229,14 @@ export async function validatePrompts(
               "",
             );
             warnings.push(
-              `[PROMPT] steps["${fc.stepId}"]: main C3L file "${relativePath}" not found ` +
-                `and fallback template "${fbRelativePath}" also not found`,
+              `${MSG_PROMPT_PREFIX} steps["${fc.stepId}"]: main C3L file "${relativePath}" ${MSG_NOT_FOUND} ` +
+                `and ${MSG_FALLBACK_EXISTS} "${fbRelativePath}" ${MSG_ALSO_NOT_FOUND}`,
             );
           }
         } else {
           warnings.push(
-            `[PROMPT] steps["${fc.stepId}"]: C3L file "${relativePath}" not found ` +
-              `and no fallbackKey specified`,
+            `${MSG_PROMPT_PREFIX} steps["${fc.stepId}"]: C3L file "${relativePath}" ${MSG_NOT_FOUND} ` +
+              `and ${MSG_NO_FALLBACK_KEY} specified`,
           );
         }
       }
