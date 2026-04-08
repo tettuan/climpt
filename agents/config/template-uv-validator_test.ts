@@ -420,9 +420,30 @@ Deno.test("template-uv-validator - empty steps produces no errors", async () => 
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
 
-    assertEquals(result.valid, true);
-    assertEquals(result.errors.length, 0);
-    assertEquals(result.warnings.length, 0);
+    assertEquals(
+      Object.keys(registry.steps as Record<string, unknown>).length,
+      0,
+      "Test fixture must have zero steps for this edge-case test",
+    );
+    assertEquals(
+      result.valid,
+      true,
+      `Expected valid result (fix: ${VALIDATOR_FILE} empty steps handling)`,
+    );
+    assertEquals(
+      result.errors.length,
+      0,
+      `Expected no errors (fix: ${VALIDATOR_FILE} empty steps handling). Got: ${
+        JSON.stringify(result.errors)
+      }`,
+    );
+    assertEquals(
+      result.warnings.length,
+      0,
+      `Expected no warnings (fix: ${VALIDATOR_FILE} empty steps handling). Got: ${
+        JSON.stringify(result.warnings)
+      }`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -435,9 +456,25 @@ Deno.test("template-uv-validator - missing steps key produces no errors", async 
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
 
-    assertEquals(result.valid, true);
-    assertEquals(result.errors.length, 0);
-    assertEquals(result.warnings.length, 0);
+    assertEquals(
+      result.valid,
+      true,
+      `Expected valid result (fix: ${VALIDATOR_FILE} missing steps key handling)`,
+    );
+    assertEquals(
+      result.errors.length,
+      0,
+      `Expected no errors (fix: ${VALIDATOR_FILE} missing steps key handling). Got: ${
+        JSON.stringify(result.errors)
+      }`,
+    );
+    assertEquals(
+      result.warnings.length,
+      0,
+      `Expected no warnings (fix: ${VALIDATOR_FILE} missing steps key handling). Got: ${
+        JSON.stringify(result.warnings)
+      }`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
