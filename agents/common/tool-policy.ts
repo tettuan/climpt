@@ -309,3 +309,45 @@ export function getToolPolicy(stepKind: StepKind): ToolSet {
 export function allowsBoundaryActions(stepKind: StepKind): boolean {
   return stepKind === "closure";
 }
+
+/**
+ * Tools that modify state and must be denied in plan mode (read-only exploration).
+ *
+ * Plan mode permits only read-only tools (Read, Glob, Grep, WebFetch, WebSearch, Task).
+ * AskUserQuestion is handled separately by the canUseTool callback (auto-response).
+ *
+ * @see agents/docs/design/08_step_flow_design.md Section 2.1
+ */
+export const PLAN_MODE_WRITE_TOOLS: ReadonlySet<string> = new Set([
+  "Write",
+  "Edit",
+  "Bash",
+  "NotebookEdit",
+  "TodoWrite",
+]);
+
+/**
+ * Check if a tool should be denied based on the effective permissionMode.
+ *
+ * The SDK's canUseTool callback returning `{ behavior: "allow" }` overrides
+ * the SDK's own permissionMode enforcement. Therefore, plan mode restrictions
+ * must be enforced explicitly in the callback.
+ *
+ * @param toolName - Tool name to check
+ * @param permissionMode - Effective permissionMode for the current step
+ * @returns Permission result with reason if denied
+ */
+export function isToolDeniedByPermissionMode(
+  toolName: string,
+  permissionMode: PermissionMode,
+): ToolPermissionResult {
+  if (permissionMode === "plan" && PLAN_MODE_WRITE_TOOLS.has(toolName)) {
+    return {
+      allowed: false,
+      reason:
+        `Tool "${toolName}" denied in plan mode (read-only exploration). ` +
+        `Plan mode permits only read-only tools.`,
+    };
+  }
+  return { allowed: true };
+}

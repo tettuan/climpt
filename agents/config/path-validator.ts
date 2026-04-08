@@ -44,6 +44,22 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+/**
+ * Check whether a path exists and is a directory.
+ * Returns true only if the path exists and is a directory.
+ */
+async function dirExists(path: string): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    return stat.isDirectory;
+  } catch (e: unknown) {
+    if (e instanceof Deno.errors.NotFound) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 /** Safely cast to Record if value is a plain object. */
 function asRecord(
   value: unknown,
@@ -93,6 +109,21 @@ export async function validatePaths(
     if (!await fileExists(resolved)) {
       errors.push(
         `[PATH] Path not found: runner.flow.prompts.registry \u2192 "${registryPath}" does not exist`,
+      );
+    }
+  }
+
+  // 3. runner.flow.prompts.fallbackDir -- legacy field, warn if present
+  const fallbackDir = definition.runner?.flow?.prompts?.fallbackDir;
+  if (typeof fallbackDir === "string" && fallbackDir !== "") {
+    const resolved = join(agentDir, fallbackDir);
+    if (!await dirExists(resolved)) {
+      errors.push(
+        `[PATH] Path not found: runner.flow.prompts.fallbackDir \u2192 "${fallbackDir}" does not exist`,
+      );
+    } else {
+      warnings.push(
+        `[LEGACY] runner.flow.prompts.fallbackDir is a legacy field; consider migrating to C3L prompt resolution`,
       );
     }
   }

@@ -105,11 +105,17 @@ export class ConfigService {
    * Registry is optional; returns null if not found.
    *
    * @param agentDir - Path to the agent directory
+   * @param customRegistryPath - Optional full path to the registry file.
+   *   When provided, used instead of the default `agentDir/steps_registry.json`.
    * @returns Raw registry JSON or null if not found
    * @throws ConfigError (AC-SERVICE-004) if file exists but cannot be read/parsed
    */
-  async loadStepsRegistry(agentDir: string): Promise<unknown> {
-    const registryPath = join(agentDir, PATHS.STEPS_REGISTRY);
+  async loadStepsRegistry(
+    agentDir: string,
+    customRegistryPath?: string,
+  ): Promise<unknown> {
+    const registryPath = customRegistryPath ??
+      join(agentDir, PATHS.STEPS_REGISTRY);
 
     try {
       const content = await Deno.readTextFile(registryPath);

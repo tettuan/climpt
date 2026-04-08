@@ -154,24 +154,24 @@ You are the **{uv-agent_name}** implementation agent.
 
   printResult(result1);
 
-  // --- Scenario 2: system.md MISSING ---
-  header("Scenario 2: system.md MISSING (fallback)");
-  console.log("  Removing system.md to trigger fallback...\n");
+  // --- Scenario 2: system.md MISSING (throws PR-SYSTEM-002) ---
+  header("Scenario 2: system.md MISSING (throws PR-SYSTEM-002)");
+  console.log("  Removing system.md to trigger error...\n");
 
   await Deno.remove(systemPath);
 
-  const raw2 = await resolveSystemPrompt({
-    agentDir,
-    systemPromptPath: "prompts/system.md",
-    variables: systemVars,
-  });
-  const result2 = {
-    content: raw2.content,
-    source: raw2.source,
-    promptPath: raw2.path,
-  };
-
-  printResult(result2);
+  let scenario2Error: string | null = null;
+  try {
+    await resolveSystemPrompt({
+      agentDir,
+      systemPromptPath: "prompts/system.md",
+      variables: systemVars,
+    });
+    console.log("  FAIL: Expected PR-SYSTEM-002 but resolve succeeded");
+  } catch (e: unknown) {
+    scenario2Error = e instanceof Error ? e.message : String(e);
+    console.log(`  Correctly threw: ${scenario2Error}`);
+  }
 
   // --- Comparison ---
   header("Comparison: system.md present vs absent");
@@ -179,9 +179,11 @@ You are the **{uv-agent_name}** implementation agent.
     `  With file    -> source="${result1.source}", has custom instructions`,
   );
   console.log(
-    `  Without file -> source="${result2.source}", generic fallback template`,
+    `  Without file -> throws PR-SYSTEM-002 (C3L-only, no fallback)`,
   );
-  console.log(`  Content differs: ${result1.content !== result2.content}`);
+  if (scenario2Error && !scenario2Error.includes("PR-SYSTEM-002")) {
+    console.log(`  FAIL: expected PR-SYSTEM-002 but got: ${scenario2Error}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -285,9 +287,9 @@ async function main(): Promise<void> {
     console.log(`
   Prompt resolution follows a two-tier strategy:
 
-    System prompts:
+    System prompts (C3L-only):
       1. Try user file  -> .agent/{name}/prompts/system.md
-      2. Fall back      -> Embedded generic system template
+      2. No fallback    -> Throws PR-SYSTEM-002 error
 
     Step prompts (C3L-only):
       1. Try C3L file   -> .agent/{name}/prompts/{c1}/{c2}/{c3}/f_{edition}.md

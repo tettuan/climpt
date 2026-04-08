@@ -13,6 +13,22 @@ import { getOutputPath, writeCombined, writeFile } from "./writer.ts";
 
 export type { Entry, Options, Result };
 
+const FETCH_CONCURRENCY = 10;
+
+/** Run async fn over items with bounded concurrency, returning settled results. */
+async function settledConcurrent<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    results.push(...await Promise.allSettled(chunk.map(fn)));
+  }
+  return results;
+}
+
 /** Install docs to local filesystem */
 export async function install(options: Options): Promise<Result> {
   const version = options.version ?? (await getLatestVersion());
@@ -27,11 +43,13 @@ export async function install(options: Options): Promise<Result> {
   const result: Result = { version, installed: [], failed: [] };
 
   if (mode === "single") {
-    const results = await Promise.allSettled(
-      entries.map(async (entry) => ({
+    const results = await settledConcurrent(
+      entries,
+      FETCH_CONCURRENCY,
+      async (entry) => ({
         entry,
         content: await getContent(version, entry.path),
-      })),
+      }),
     );
 
     const collected: Array<{ entry: Entry; content: string }> = [];
@@ -48,13 +66,15 @@ export async function install(options: Options): Promise<Result> {
     await writeCombined(path, collected);
     result.installed.push(path);
   } else {
-    const results = await Promise.allSettled(
-      entries.map(async (entry) => {
+    const results = await settledConcurrent(
+      entries,
+      FETCH_CONCURRENCY,
+      async (entry) => {
         const content = await getContent(version, entry.path);
         const path = getOutputPath(entry, options.output, mode);
         await writeFile(path, content);
         return { entry, path };
-      }),
+      },
     );
 
     for (let i = 0; i < results.length; i++) {

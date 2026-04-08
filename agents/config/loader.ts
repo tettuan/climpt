@@ -31,11 +31,16 @@ export async function loadRaw(agentDir: string): Promise<unknown> {
  * Load steps registry from a directory.
  *
  * @param agentDir - Path to the agent directory
+ * @param customRegistryPath - Optional full path to the registry file.
+ *   When provided, used instead of the default `agentDir/steps_registry.json`.
  * @returns Raw registry JSON or null if not found (registry is optional)
  * @throws ConfigError (AC-SERVICE-004) if file exists but cannot be read/parsed
  */
-export async function loadStepsRegistry(agentDir: string): Promise<unknown> {
-  return await configService.loadStepsRegistry(agentDir);
+export async function loadStepsRegistry(
+  agentDir: string,
+  customRegistryPath?: string,
+): Promise<unknown> {
+  return await configService.loadStepsRegistry(agentDir, customRegistryPath);
 }
 
 /**

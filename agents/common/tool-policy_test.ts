@@ -13,6 +13,8 @@ import {
   getToolPolicy,
   isBashCommandAllowed,
   isToolAllowed,
+  isToolDeniedByPermissionMode,
+  PLAN_MODE_WRITE_TOOLS,
   resolvePermissionMode,
   STEP_KIND_TOOL_POLICY,
 } from "./tool-policy.ts";
@@ -398,6 +400,91 @@ Deno.test("tool-policy: resolvePermissionMode every stepKind has a defaultPermis
       policy.defaultPermissionMode !== undefined,
       `stepKind "${kind}" is missing defaultPermissionMode in STEP_KIND_TOOL_POLICY. ` +
         `Fix: add defaultPermissionMode to STEP_KIND_TOOL_POLICY["${kind}"] in tool-policy.ts`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// isToolDeniedByPermissionMode
+// ---------------------------------------------------------------------------
+
+Deno.test("tool-policy: plan mode denies write tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "plan");
+    assertEquals(
+      result.allowed,
+      false,
+      `Tool "${tool}" must be denied in plan mode (read-only exploration). ` +
+        `Fix: add "${tool}" to PLAN_MODE_WRITE_TOOLS in tool-policy.ts`,
+    );
+    assertStringIncludes(
+      result.reason ?? "",
+      "plan mode",
+      `Denial reason for "${tool}" must mention plan mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: plan mode allows read-only tools", () => {
+  const readOnlyTools = [
+    "Read",
+    "Glob",
+    "Grep",
+    "WebFetch",
+    "WebSearch",
+    "Task",
+  ];
+  for (const tool of readOnlyTools) {
+    const result = isToolDeniedByPermissionMode(tool, "plan");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in plan mode (read-only). ` +
+        `Fix: remove "${tool}" from PLAN_MODE_WRITE_TOOLS if it was added by mistake`,
+    );
+  }
+});
+
+Deno.test("tool-policy: acceptEdits mode allows all tools", () => {
+  const allTools = [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "NotebookEdit",
+    "TodoWrite",
+  ];
+  for (const tool of allTools) {
+    const result = isToolDeniedByPermissionMode(tool, "acceptEdits");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in acceptEdits mode. ` +
+        `isToolDeniedByPermissionMode must only restrict plan mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: bypassPermissions mode allows all tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "bypassPermissions");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in bypassPermissions mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: default mode allows all tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "default");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in default mode`,
     );
   }
 });

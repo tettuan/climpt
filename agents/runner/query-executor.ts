@@ -31,6 +31,7 @@ import {
   filterAllowedTools,
   getToolPolicy,
   isBashCommandAllowed,
+  isToolDeniedByPermissionMode,
   resolvePermissionMode,
 } from "../common/tool-policy.ts";
 import {
@@ -180,6 +181,18 @@ export class QueryExecutor {
               updatedInput: { questions: input.questions, answers },
             };
           }
+          // Enforce permissionMode restrictions.
+          // canUseTool returning "allow" overrides the SDK's own permissionMode
+          // check, so plan mode must be enforced here explicitly.
+          const effectiveMode = queryOptions.permissionMode as string;
+          const modeCheck = isToolDeniedByPermissionMode(
+            toolName,
+            effectiveMode as PermissionMode,
+          );
+          if (!modeCheck.allowed) {
+            return { behavior: "deny", message: modeCheck.reason ?? "" };
+          }
+
           // Allow other tools
           return { behavior: "allow", updatedInput: input };
         },

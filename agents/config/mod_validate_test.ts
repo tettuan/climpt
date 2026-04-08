@@ -691,3 +691,140 @@ Deno.test("validateFull - missing C3L prompt file reports path error", async () 
     await Deno.remove(tempDir, { recursive: true });
   }
 });
+
+// =============================================================================
+// Test: Custom registry path - validateFull reads from the path specified in
+// runner.flow.prompts.registry instead of the default steps_registry.json
+// =============================================================================
+
+Deno.test("validateFull - uses custom registry path from agent definition", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    const agentDir = join(tempDir, ".agent", "test-agent");
+    await Deno.mkdir(agentDir, { recursive: true });
+
+    // Create agent.json with a custom registry path
+    const agentJson = minimalValidAgentJson();
+    (agentJson.runner as Record<string, unknown>).flow = {
+      ...((agentJson.runner as Record<string, unknown>).flow as Record<
+        string,
+        unknown
+      >),
+      prompts: {
+        registry: "config/custom_registry.json",
+      },
+    };
+    await Deno.writeTextFile(
+      join(agentDir, "agent.json"),
+      JSON.stringify(agentJson),
+    );
+
+    // Write the registry at the CUSTOM path only (NOT at steps_registry.json)
+    const customRegistryDir = join(agentDir, "config");
+    await Deno.mkdir(customRegistryDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(customRegistryDir, "custom_registry.json"),
+      JSON.stringify(minimalValidRegistry()),
+    );
+
+    // Write system prompt
+    const promptsDir = join(agentDir, "prompts");
+    await Deno.mkdir(promptsDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(promptsDir, "system.md"),
+      "# System prompt\nYou are a test agent.",
+    );
+
+    // Write C3L prompt files for each step
+    const registry = minimalValidRegistry();
+    const steps = registry.steps as Record<
+      string,
+      { c2: string; c3: string; edition: string }
+    >;
+    for (const step of Object.values(steps)) {
+      const c3lDir = join(promptsDir, "steps", step.c2, step.c3);
+      await Deno.mkdir(c3lDir, { recursive: true });
+      await Deno.writeTextFile(
+        join(c3lDir, `f_${step.edition}.md`),
+        `# ${step.c2}.${step.c3} prompt`,
+      );
+    }
+
+    const result = await validateFull("test-agent", tempDir);
+
+    // Registry must have been loaded from the custom path
+    assertEquals(
+      result.registrySchemaResult !== null,
+      true,
+      "registrySchemaResult should be present when custom registry path is used",
+    );
+    assertEquals(
+      result.registrySchemaResult!.valid,
+      true,
+      `registrySchemaResult should be valid, got errors: ${
+        JSON.stringify(result.registrySchemaResult!.errors)
+      }`,
+    );
+
+    // Cross-reference validation should also have run
+    assertEquals(
+      result.crossRefResult !== null,
+      true,
+      "crossRefResult should be present when registry is loaded from custom path",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test: Custom registry path - when the file does NOT exist at the custom
+// path, the registry should be null (not found), not falling back to the
+// default steps_registry.json
+// =============================================================================
+
+Deno.test("validateFull - custom registry path not found does not fall back to default", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    const agentDir = join(tempDir, ".agent", "test-agent");
+    await Deno.mkdir(agentDir, { recursive: true });
+
+    // Create agent.json pointing to a non-existent custom registry
+    const agentJson = minimalValidAgentJson();
+    (agentJson.runner as Record<string, unknown>).flow = {
+      ...((agentJson.runner as Record<string, unknown>).flow as Record<
+        string,
+        unknown
+      >),
+      prompts: {
+        registry: "config/nonexistent_registry.json",
+      },
+    };
+    await Deno.writeTextFile(
+      join(agentDir, "agent.json"),
+      JSON.stringify(agentJson),
+    );
+
+    // Write a valid registry at the DEFAULT path (steps_registry.json).
+    // If the code incorrectly falls back, it would find this file.
+    await Deno.writeTextFile(
+      join(agentDir, "steps_registry.json"),
+      JSON.stringify(minimalValidRegistry()),
+    );
+
+    const result = await validateFull("test-agent", tempDir);
+
+    // The custom path does not exist, so registry should NOT have been loaded.
+    // If it fell back to steps_registry.json, registrySchemaResult would be non-null.
+    assertEquals(
+      result.registrySchemaResult,
+      null,
+      "registrySchemaResult should be null when custom registry path does not exist, " +
+        "even if steps_registry.json exists at the default location",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});

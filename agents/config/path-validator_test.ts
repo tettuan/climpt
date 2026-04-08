@@ -124,6 +124,98 @@ Deno.test("path-validator - missing prompts.registry reports error", async () =>
 });
 
 // =============================================================================
+// 4a. fallbackDir specified but directory doesn't exist -> error
+// =============================================================================
+
+Deno.test("path-validator - missing fallbackDir reports error", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const def = validDefinition();
+    def.runner.flow.prompts.fallbackDir = "prompts/legacy";
+
+    const result = await validatePaths(def, dir);
+
+    assertEquals(result.valid, false);
+    const hasError = result.errors.some((e) =>
+      e.includes("fallbackDir") && e.includes("does not exist")
+    );
+    assertEquals(
+      hasError,
+      true,
+      `Expected fallbackDir path error, got: ${result.errors.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 4b. fallbackDir specified and directory exists -> warning about legacy
+// =============================================================================
+
+Deno.test("path-validator - existing fallbackDir produces legacy warning", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const fallbackPath = join(dir, "prompts", "legacy");
+    await Deno.mkdir(fallbackPath, { recursive: true });
+    const def = validDefinition();
+    def.runner.flow.prompts.fallbackDir = "prompts/legacy";
+
+    const result = await validatePaths(def, dir);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+    const hasWarning = result.warnings.some((w) =>
+      w.includes("[LEGACY]") && w.includes("fallbackDir")
+    );
+    assertEquals(
+      hasWarning,
+      true,
+      `Expected legacy warning, got warnings: ${result.warnings.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 4c. fallbackDir not specified -> no error, no warning
+// =============================================================================
+
+Deno.test("path-validator - no fallbackDir produces no error or warning", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const def = validDefinition();
+    // Ensure fallbackDir is not set
+    delete def.runner.flow.prompts.fallbackDir;
+
+    const result = await validatePaths(def, dir);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+    const hasFallbackWarning = result.warnings.some((w) =>
+      w.includes("fallbackDir")
+    );
+    assertEquals(
+      hasFallbackWarning,
+      false,
+      `Unexpected fallbackDir warning: ${result.warnings.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
 // 5a. C3L prompt file missing -> error
 // =============================================================================
 
