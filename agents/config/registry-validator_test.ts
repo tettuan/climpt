@@ -7,9 +7,11 @@
  * and live agent configs.
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { validateCrossReferences } from "./registry-validator.ts";
+import { validateStepRegistry } from "../common/step-registry/validator.ts";
+import type { StepRegistry } from "../common/step-registry/types.ts";
 
 const logger = new BreakdownLogger("registry-validator");
 
@@ -471,4 +473,100 @@ Deno.test("registry-validator/integration - facilitator steps_registry cross-ref
     true,
     `Cross-ref errors: ${JSON.stringify(result.errors)}`,
   );
+});
+
+// =============================================================================
+// validateStepRegistry - step-level permissionMode validation
+// =============================================================================
+
+/**
+ * Build a minimal valid StepRegistry with one step.
+ * Callers can override step properties via the `stepOverrides` parameter.
+ */
+function validTypedRegistry(
+  stepOverrides?: Partial<StepRegistry["steps"][string]>,
+): StepRegistry {
+  return {
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    steps: {
+      "initial.test": {
+        stepId: "initial.test",
+        name: "Test Step",
+        c2: "initial",
+        c3: "test",
+        edition: "default",
+        fallbackKey: "test",
+        uvVariables: ["var1"],
+        usesStdin: false,
+        ...stepOverrides,
+      },
+    },
+  };
+}
+
+Deno.test("validateStepRegistry/permissionMode - valid permissionMode passes", () => {
+  const registry = validTypedRegistry({ permissionMode: "plan" });
+
+  // Should not throw
+  validateStepRegistry(registry);
+});
+
+Deno.test("validateStepRegistry/permissionMode - invalid permissionMode is rejected", () => {
+  const registry = validTypedRegistry({
+    permissionMode:
+      "invalid-mode" as StepRegistry["steps"][string]["permissionMode"],
+  });
+
+  assertThrows(
+    () => validateStepRegistry(registry),
+    Error,
+    "permissionMode",
+  );
+});
+
+Deno.test("validateStepRegistry/permissionMode - undefined permissionMode passes (optional)", () => {
+  const registry = validTypedRegistry();
+  // Ensure permissionMode is not set
+  delete registry.steps["initial.test"].permissionMode;
+
+  // Should not throw
+  validateStepRegistry(registry);
+});
+
+Deno.test("validateStepRegistry/permissionMode - error message contains step ID, field name, and valid values", () => {
+  const registry = validTypedRegistry({
+    permissionMode:
+      "invalid-mode" as StepRegistry["steps"][string]["permissionMode"],
+  });
+
+  try {
+    validateStepRegistry(registry);
+    throw new Error("Should have thrown");
+  } catch (e) {
+    const msg = (e as Error).message;
+    // Step ID is present so the developer can locate the problem
+    assertEquals(
+      msg.includes("initial.test"),
+      true,
+      `Expected step ID in error, got: ${msg}`,
+    );
+    // Field name is present for actionability
+    assertEquals(
+      msg.includes("permissionMode"),
+      true,
+      `Expected "permissionMode" in error, got: ${msg}`,
+    );
+    // All valid values are listed so the developer knows the fix
+    for (
+      const mode of ["default", "plan", "acceptEdits", "bypassPermissions"]
+    ) {
+      assertEquals(
+        msg.includes(mode),
+        true,
+        `Expected valid mode "${mode}" in error, got: ${msg}`,
+      );
+    }
+  }
 });

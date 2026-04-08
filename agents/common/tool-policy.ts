@@ -9,6 +9,7 @@
  * @see tmp/refactor/2026-01-28/stepkind-permissions/plan.md
  */
 
+import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import type { StepKind } from "./step-registry.ts";
 
 /**
@@ -114,6 +115,8 @@ export interface ToolSet {
   denied: readonly string[];
   /** Whether boundary bash patterns are blocked */
   blockBoundaryBash: boolean;
+  /** Default permissionMode for this step kind (if step doesn't declare its own) */
+  defaultPermissionMode?: PermissionMode;
 }
 
 /**
@@ -128,11 +131,13 @@ export const STEP_KIND_TOOL_POLICY: Record<StepKind, ToolSet> = {
     allowed: BASE_TOOLS,
     denied: BOUNDARY_TOOLS,
     blockBoundaryBash: true,
+    defaultPermissionMode: "acceptEdits",
   },
   verification: {
     allowed: BASE_TOOLS,
     denied: BOUNDARY_TOOLS,
     blockBoundaryBash: true,
+    defaultPermissionMode: "plan",
   },
   closure: {
     allowed: [...BASE_TOOLS, ...BOUNDARY_TOOLS],
@@ -141,6 +146,7 @@ export const STEP_KIND_TOOL_POLICY: Record<StepKind, ToolSet> = {
     // The boundary hook handles GitHub operations based on defaultClosureAction.
     // This ensures AI doesn't bypass label-only mode by running gh commands directly.
     blockBoundaryBash: true,
+    defaultPermissionMode: "acceptEdits",
   },
 } as const;
 
@@ -252,6 +258,36 @@ export function filterAllowedTools(
     }
     return true;
   });
+}
+
+/**
+ * Resolve the effective permissionMode for a step.
+ *
+ * Resolution order:
+ * 1. Step-level permissionMode (explicit in steps_registry.json)
+ * 2. StepKind default permissionMode (from STEP_KIND_TOOL_POLICY)
+ * 3. Agent-level permissionMode (from boundaries config)
+ *
+ * @param stepPermissionMode - Step's explicit permissionMode (from step definition)
+ * @param stepKind - Current step kind (may be undefined for simple agents)
+ * @param agentPermissionMode - Agent-level permissionMode (from boundaries)
+ * @returns Resolved permissionMode
+ */
+export function resolvePermissionMode(
+  stepPermissionMode: PermissionMode | undefined,
+  stepKind: StepKind | undefined,
+  agentPermissionMode: PermissionMode,
+): PermissionMode {
+  if (stepPermissionMode) {
+    return stepPermissionMode;
+  }
+  if (stepKind) {
+    const policy = STEP_KIND_TOOL_POLICY[stepKind];
+    if (policy.defaultPermissionMode) {
+      return policy.defaultPermissionMode;
+    }
+  }
+  return agentPermissionMode;
 }
 
 /**

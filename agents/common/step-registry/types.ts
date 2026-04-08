@@ -5,6 +5,7 @@
  */
 
 import type { InputSpec } from "../../src_common/contracts.ts";
+import type { PermissionMode } from "../../src_common/types/agent-definition.ts";
 
 /**
  * Step type for categorization
@@ -126,6 +127,12 @@ export interface PromptStepDefinition {
    * Intent to step transition mapping.
    */
   transitions?: Transitions;
+
+  /**
+   * Override SDK permissionMode for this step.
+   * When set, takes priority over the agent-level boundaries.permissionMode.
+   */
+  permissionMode?: PermissionMode;
 
   /**
    * Optional description of what this step does

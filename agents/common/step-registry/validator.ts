@@ -404,6 +404,23 @@ export function validateStepRegistry(registry: StepRegistry): void {
         `Step "${stepId}": structuredGate defined but transitions missing`,
       );
     }
+
+    // Validate step-level permissionMode if present
+    if (step.permissionMode !== undefined) {
+      const validModes = [
+        "default",
+        "plan",
+        "acceptEdits",
+        "bypassPermissions",
+      ];
+      if (!validModes.includes(step.permissionMode)) {
+        errors.push(
+          `Step "${stepId}": permissionMode must be one of: ${
+            validModes.join(", ")
+          } (got "${step.permissionMode}")`,
+        );
+      }
+    }
   }
 
   if (errors.length > 0) {
