@@ -25,8 +25,7 @@
   "x-integrity-rules": {
     "description": "Rules that JSON Schema cannot fully express. These must be enforced by a runtime validator.",
     "R-A1": "agent.name must equal registry.agentId (cross-section identity)",
-    "R-A2": "agent.parameters keys must be a superset of (union of all step uvVariables) minus registry.runtimeUvVariables keys",
-    "R-A2b": "Every key in registry.runtimeUvVariables must appear in at least one step's uvVariables (stale declaration prevention)",
+    "R-A2": "agent.parameters keys must be a superset of (union of all step uvVariables) minus runtime-supplied variables (RUNTIME_SUPPLIED_UV_VARS in constants.ts)",
     "R-A3": "When entryStepMapping is used: agent.runner.verdict.type must be a key in registry.entryStepMapping",
     "R-A4": "Every value in registry.entryStepMapping must be a key in registry.steps",
     "R-A5": "args.* references inside step transition conditions must correspond to keys in agent.parameters",
@@ -764,9 +763,6 @@
           "type": "string",
           "description": "Path template without adaptation: '{c1}/{c2}/{c3}/f_{edition}.md'"
         },
-        "runtimeUvVariables": {
-          "$ref": "#/$defs/RuntimeUvVariables"
-        },
         "entryStep": {
           "type": "string",
           "description": "Default entry step ID. R-A6: must be a key in steps (runtime validation)."
@@ -817,26 +813,6 @@
           "description": "R-F11: entryStepMapping mode"
         }
       ]
-    },
-
-    "RuntimeUvVariables": {
-      "description": "Runtime-supplied UV variables. Each key is a variable name injected by the runner, not from agent.parameters. R-A2: these keys are excluded from the parameter coverage check. R-A2b: every key here must appear in at least one step's uvVariables (runtime validation).",
-      "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["source"],
-        "properties": {
-          "source": {
-            "type": "string",
-            "description": "Source of the variable (e.g., 'runner')"
-          },
-          "description": {
-            "type": "string",
-            "description": "Human-readable description of the variable"
-          }
-        },
-        "additionalProperties": false
-      }
     },
 
     "StepDefinition": {
@@ -921,6 +897,11 @@
             { "const": "haiku", "title": "Fastest, lightweight tasks" }
           ],
           "description": "Model override for this step. R-F13."
+        },
+        "permissionMode": {
+          "type": "string",
+          "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
+          "description": "Permission mode override for this step. Falls back to stepKind default, then agent-level boundaries.permissionMode."
         },
         "priority": {
           "type": "integer",

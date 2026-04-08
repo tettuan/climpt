@@ -15,21 +15,20 @@ AgentBlueprint の存在意義は、以下のルールを **1つの JSON Schema 
 
 agent セクションと registry セクションの相互参照。
 
-| ID    | ルール                                                                                           | 検証内容                                                                                                           | Schema 表現       |
-| ----- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| R-A1  | `agent.name` = `registry.agentId`                                                                | 名前の一致                                                                                                         | const / cross-ref |
-| R-A2  | `agent.parameters` keys ⊇ (全 step の `uvVariables` 和集合) - `registry.runtimeUvVariables` keys | UV 変数に対応するパラメータが存在。runtime 供給変数は `registry.runtimeUvVariables` に明示宣言し、チェックから除外 | if/then + $ref    |
-| R-A2b | `registry.runtimeUvVariables` の全 key が少なくとも1つの step の `uvVariables` に出現            | 宣言された runtime 変数が実際に使われている (stale 防止)                                                           | cross-ref         |
-| R-A3  | `entryStepMapping` 使用時: `agent.runner.verdict.type` ∈ `registry.entryStepMapping` keys        | verdict type にエントリが存在。`entryStep` (singular) 使用時は本ルール不適用 (R-A6 で検証)                         | cross-ref         |
-| R-A4  | `registry.entryStepMapping[*]` ∈ `registry.steps` keys                                           | entryStepMapping の全 value が step として存在                                                                     | cross-ref         |
-| R-A5  | step の `condition` 内の `args.*` 参照が `agent.parameters` keys に存在                          | 条件式で参照するパラメータが宣言済み                                                                               | cross-ref         |
-| R-A6  | `registry.entryStep` (singular) 使用時: その値 ∈ `registry.steps` keys                           | entryStep の遷移先 step が存在                                                                                     | cross-ref         |
+| ID   | ルール                                                                                    | 検証内容                                                                                       | Schema 表現       |
+| ---- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------- |
+| R-A1 | `agent.name` = `registry.agentId`                                                         | 名前の一致                                                                                     | const / cross-ref |
+| R-A2 | `agent.parameters` keys ⊇ (全 step の `uvVariables` 和集合) - `RUNTIME_SUPPLIED_UV_VARS`  | UV 変数に対応するパラメータが存在。runtime 供給変数 (`constants.ts` で定義) はチェックから除外 | if/then + $ref    |
+| R-A3 | `entryStepMapping` 使用時: `agent.runner.verdict.type` ∈ `registry.entryStepMapping` keys | verdict type にエントリが存在。`entryStep` (singular) 使用時は本ルール不適用 (R-A6 で検証)     | cross-ref         |
+| R-A4 | `registry.entryStepMapping[*]` ∈ `registry.steps` keys                                    | entryStepMapping の全 value が step として存在                                                 | cross-ref         |
+| R-A5 | step の `condition` 内の `args.*` 参照が `agent.parameters` keys に存在                   | 条件式で参照するパラメータが宣言済み                                                           | cross-ref         |
+| R-A6 | `registry.entryStep` (singular) 使用時: その値 ∈ `registry.steps` keys                    | entryStep の遷移先 step が存在                                                                 | cross-ref         |
 
 > **Implementation note**: UV reachability validator は Channel 1 (CLI
-> parameters) のみを強制する。runtime 供給変数 (Channel 2, 3) で
-> `runtimeUvVariables` に宣言されたものは R-A2
-> のパラメータカバレッジチェックから除外されるが、validator はそれらの runtime
-> 可用性を検証しない。
+> parameters) のみを強制する。runtime 供給変数 (Channel 2, 3) は
+> `RUNTIME_SUPPLIED_UV_VARS` (`agents/shared/constants.ts`) に定義されており、
+> R-A2 のパラメータカバレッジチェックから除外される。validator はそれらの
+> runtime 可用性を検証しない。
 
 ### Category B: step 内部整合
 

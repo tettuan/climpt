@@ -121,16 +121,6 @@ steps_registry.json の内容をそのまま書く。
   "schemasBase": ".agent/iterator/schemas",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
-  "runtimeUvVariables": {
-    "iteration": {
-      "source": "runner",
-      "description": "Current iteration number (1-based), injected by runner loop"
-    },
-    "completed_iterations": {
-      "source": "runner",
-      "description": "Number of completed iterations (iteration - 1)"
-    }
-  },
   "entryStepMapping": {
   "poll:state": "initial.polling",
   "count:iteration": "initial.iteration"
@@ -206,9 +196,9 @@ steps_registry.json の内容をそのまま書く。
 
 **steps_registry.schema.json と同じ構造。追加・省略なし。**
 
-> Note: `runtimeUvVariables` serves as documentation for blueprint integrity
-> rules (R-A2, R-A2b). The UV reachability validator does not enforce these ---
-> it only validates that CLI parameter-sourced variables are properly declared.
+> Note: Runtime-supplied UV variables (Channel 2, 3) are defined in
+> `RUNTIME_SUPPLIED_UV_VARS` (`agents/shared/constants.ts`). The UV reachability
+> validator excludes these from the R-A2 parameter coverage check.
 
 ## Section 3: `schemas`
 

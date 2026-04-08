@@ -30,7 +30,7 @@ const AGENT_CONSTRAINTS: HelpConstraint[] = [
     },
     operator: "subset_of",
     _note:
-      "Every declared parameter must be consumed by at least one step. uvVariables may include runtime-injected values not in parameters.",
+      "Every declared parameter must be consumed by at least one step. RUNTIME_SUPPLIED_UV_VARS (constants.ts) are excluded from this check.",
   },
   {
     rule: "R-A3",
