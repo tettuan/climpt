@@ -27,7 +27,6 @@ function minimalValidAgentJson(): Record<string, unknown> {
         systemPromptPath: "prompts/system.md",
         prompts: {
           registry: "steps_registry.json",
-          fallbackDir: "prompts/",
         },
       },
       verdict: {
@@ -145,6 +144,26 @@ async function scaffoldValidAgentDir(baseDir: string): Promise<string> {
     join(promptsDir, "system.md"),
     "# System prompt\nYou are a test agent.",
   );
+
+  // C3L prompt files for each step in the registry
+  const registry = minimalValidRegistry();
+  const steps = registry.steps as Record<
+    string,
+    { c2: string; c3: string; edition: string }
+  >;
+  for (const step of Object.values(steps)) {
+    const c3lDir = join(
+      promptsDir,
+      "steps",
+      step.c2,
+      step.c3,
+    );
+    await Deno.mkdir(c3lDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(c3lDir, `f_${step.edition}.md`),
+      `# ${step.c2}.${step.c3} prompt`,
+    );
+  }
 
   return agentDir;
 }
@@ -599,6 +618,74 @@ Deno.test("validateFull - stepRegistryValidation is null when no registry", asyn
       result.stepRegistryValidation,
       null,
       "stepRegistryValidation should be null when registry file is absent",
+    );
+  } finally {
+    await Deno.remove(tempDir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Test: Missing C3L prompt file causes path validation error
+//
+// When a step in steps_registry.json references c2/c3/edition but the
+// corresponding C3L prompt file does not exist, pathResult must report an error.
+// =============================================================================
+
+Deno.test("validateFull - missing C3L prompt file reports path error", async () => {
+  const tempDir = await Deno.makeTempDir();
+
+  try {
+    // Scaffold a valid agent dir (creates all C3L files)
+    const agentDir = await scaffoldValidAgentDir(tempDir);
+
+    // Delete ONE C3L file to simulate a missing prompt
+    const missingPath = join(
+      agentDir,
+      "prompts",
+      "steps",
+      "continuation",
+      "default",
+      "f_default.md",
+    );
+    await Deno.remove(missingPath);
+
+    const result = await validateFull("test-agent", tempDir);
+
+    // Overall must be invalid
+    assertEquals(
+      result.valid,
+      false,
+      "Overall result should be invalid when a C3L prompt file is missing",
+    );
+
+    // pathResult must report the missing C3L file
+    assertEquals(
+      result.pathResult !== null,
+      true,
+      "pathResult should be present",
+    );
+    assertEquals(
+      result.pathResult!.valid,
+      false,
+      `pathResult should be invalid, got errors: ${
+        JSON.stringify(result.pathResult!.errors)
+      }`,
+    );
+
+    const c3lError = result.pathResult!.errors.find((e) =>
+      e.includes("C3L prompt file not found")
+    );
+    assertEquals(
+      c3lError !== undefined,
+      true,
+      `Expected a C3L error, got errors: ${
+        JSON.stringify(result.pathResult!.errors)
+      }`,
+    );
+    assertStringIncludes(
+      c3lError!,
+      'steps["continuation.default"]',
+      "Error should identify the step with missing C3L file",
     );
   } finally {
     await Deno.remove(tempDir, { recursive: true });

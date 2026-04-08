@@ -172,7 +172,7 @@ Deno.test("template-uv-validator - unused UV declaration produces warning", asyn
 // 4. Prompt file doesn't exist -> skip (no error from this validator)
 // =============================================================================
 
-Deno.test("template-uv-validator - missing prompt file is skipped", async () => {
+Deno.test("template-uv-validator - missing prompt file produces warning", async () => {
   const dir = await Deno.makeTempDir();
   try {
     // Do NOT create any prompt file
@@ -188,7 +188,14 @@ Deno.test("template-uv-validator - missing prompt file is skipped", async () => 
 
     assertEquals(result.valid, true);
     assertEquals(result.errors.length, 0);
-    assertEquals(result.warnings.length, 0);
+    assertEquals(result.warnings.length, 1);
+    assertEquals(
+      result.warnings.some((w) =>
+        w.includes("initial.issue") && w.includes("C3L prompt file not found")
+      ),
+      true,
+      `Expected skip warning, got: ${JSON.stringify(result.warnings)}`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -198,7 +205,7 @@ Deno.test("template-uv-validator - missing prompt file is skipped", async () => 
 // 5. Fallback template contains {uv-issue} -> check against declarations
 // =============================================================================
 
-Deno.test("template-uv-validator - fallback-only step skips UV check (no C3L file)", async () => {
+Deno.test("template-uv-validator - fallback-only step warns about missing C3L file", async () => {
   const dir = await Deno.makeTempDir();
   try {
     // No C3L prompt file — only fallback template
@@ -214,18 +221,24 @@ Deno.test("template-uv-validator - fallback-only step skips UV check (no C3L fil
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
 
-    // Fallback-only: no C3L file means fallback UV variables are not checked
+    // Fallback-only: no C3L file produces a warning about skipped UV check
     assertEquals(result.valid, true);
     assertEquals(result.errors.length, 0);
+    assertEquals(result.warnings.length, 1);
+    assertEquals(
+      result.warnings.some((w) => w.includes("C3L prompt file not found")),
+      true,
+      `Expected skip warning, got: ${JSON.stringify(result.warnings)}`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("template-uv-validator - fallback template UV properly declared is valid", async () => {
+Deno.test("template-uv-validator - fallback template UV declared but no C3L file warns", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    // "initial_issue" fallback uses {uv-issue}
+    // "initial_issue" fallback uses {uv-issue}, but no C3L file exists
     const registry = registryWith("initial.issue", {
       c2: "initial",
       c3: "issue",
@@ -238,6 +251,13 @@ Deno.test("template-uv-validator - fallback template UV properly declared is val
 
     assertEquals(result.valid, true);
     assertEquals(result.errors.length, 0);
+    // Warning about missing C3L file (UV check skipped)
+    assertEquals(result.warnings.length, 1);
+    assertEquals(
+      result.warnings.some((w) => w.includes("C3L prompt file not found")),
+      true,
+      `Expected skip warning, got: ${JSON.stringify(result.warnings)}`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

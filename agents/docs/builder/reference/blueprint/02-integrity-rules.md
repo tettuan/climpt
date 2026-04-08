@@ -3,6 +3,9 @@
 AgentBlueprint の存在意義は、以下のルールを **1つの JSON Schema で形式的に検証**
 することにある。
 
+**v2.2**: fallback システム削除 (C3L が唯一のプロンプト解決パス) を反映。R-E2
+削除、R-F9 から `fallbackKey` 除去。51 ルール。
+
 **v2.1**: 24エージェントによる検証結果 (06-evaluation.md) を反映。38 → 52
 ルール。
 
@@ -81,7 +84,6 @@ step 定義と出力 schema の対応。
 | ID   | ルール                                                                               | 検証内容                                                                                                    | Schema 表現       |
 | ---- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------------- |
 | R-E1 | stepId prefix ∈ {initial, continuation, closure, section, verification} が c2 と一致 | 命名と C3L パスの対応。verification step は c2=verification を持つべき (ただし既存互換で c2=initial も許容) | pattern + if/then |
-| R-E2 | `fallbackKey` = `{c2}_{c3}` (dot → underscore)                                       | fallback 命名規則                                                                                           | pattern           |
 | R-E3 | `c3` は `^[a-z]+(-[a-z]+)*$`                                                         | kebab-case                                                                                                  | pattern           |
 
 ### Category F: フィールド型・存在・enum
@@ -98,7 +100,7 @@ step 定義と出力 schema の対応。
 | R-F6  | `agent.parameters[*].cli` は `^--[a-z][a-z0-9-]*$`                                                      | CLI flag 形式                  | pattern                     |
 | R-F7  | `step.uvVariables` は array                                                                             | 型制約                         | type: array                 |
 | R-F8  | `step.usesStdin` は boolean                                                                             | 型制約                         | type: boolean               |
-| R-F9  | `step.name`, `step.c2`, `step.c3`, `step.edition`, `step.fallbackKey` は非空文字列                      | 必須フィールド                 | minLength: 1                |
+| R-F9  | `step.name`, `step.c2`, `step.c3`, `step.edition` は非空文字列                                          | 必須フィールド                 | minLength: 1                |
 | R-F10 | `outputSchemaRef` は `file` (string) + `schema` (string)                                                | 構造制約                       | properties                  |
 | R-F11 | `entryStep` XOR `entryStepMapping` (少なくとも一方必須)                                                 | エントリポイント存在           | oneOf                       |
 | R-F12 | verdict config は type に応じた必須フィールドを持つ (下表参照)                                          | strategy-dependent validation  | if/then discriminated union |
@@ -158,8 +160,8 @@ R-B5 は3つの構造全てを検証する。
 
 | 分類                                               | ルール数 | 備考                                                                               |
 | -------------------------------------------------- | -------- | ---------------------------------------------------------------------------------- |
-| **完全に表現可能** (pattern, enum, required, type) | 30       | F群全部、E3、B1, B7-B12, C5-C6 等                                                  |
-| **部分的に表現可能** (if/then, cross-ref)          | 17       | A2-A6, B2-B5, B14-B15, C1-C4, D1-D3, E1-E2 等                                      |
+| **完全に表現可能** (pattern, enum, required, type) | 29       | F群全部、E3、B1, B7-B12, C5-C6 等                                                  |
+| **部分的に表現可能** (if/then, cross-ref)          | 16       | A2-A6, B2-B5, B14-B15, C1-C4, D1-D3, E1 等                                         |
 | **runtime 検証が必要**                             | 5        | B13 (reachability), D4 (handoffFields path), A5 (condition expression), R-F12 一部 |
 
 Blueprint の構造的利点: **agent.json と registry と schemas
@@ -227,6 +229,23 @@ string, number, boolean, array
 
 ## 変更履歴
 
+### v2.1 → v2.2 (fallback システム削除)
+
+**背景**: fallback システムが完全に削除され、C3L
+が唯一のプロンプト解決パスとなった。 `path-validator.ts` は全 step の C3L
+プロンプトファイル存在を検証し (欠落時 ERROR)、 `template-uv-validator.ts` は
+C3L ファイル欠落時に警告を出す。
+
+**削除 (1件)**:
+
+- R-E2: `fallbackKey` = `{c2}_{c3}` 命名規則 — fallback システム廃止により不要
+
+**修正 (1件)**:
+
+- R-F9: 必須非空文字列フィールドから `step.fallbackKey` を除去
+
+**合計**: 52 → 51 ルール
+
 ### v2.0 → v2.1 (24エージェント検証後)
 
 **修正 (5件)**:
@@ -248,4 +267,4 @@ string, number, boolean, array
   type), R-F16 (parameter.validation keys), R-F17 (required boolean), R-F18
   (logFormat enum), R-F19 (closureAction enum), R-F20 (priority 正整数)
 
-**合計**: 38 → 52 ルール
+**合計**: 38 → 52 ルール (v2.2 で R-E2 削除により 51 ルール)

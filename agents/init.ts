@@ -80,7 +80,6 @@ export async function initAgent(
         systemPromptPath: `${PATHS.PROMPTS_DIR}/system.md`,
         prompts: {
           registry: PATHS.STEPS_REGISTRY,
-          fallbackDir: `${PATHS.PROMPTS_DIR}/`,
         },
       },
       verdict: {

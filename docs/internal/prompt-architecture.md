@@ -9,7 +9,6 @@ The prompt externalization system allows agents to:
 1. Define prompts externally in `.agent/{agent}/prompts/`
 2. Resolve prompts using C3L path conventions
 3. Substitute variables at runtime
-4. Fall back to embedded prompts when user files don't exist
 
 ## Core Components
 
@@ -27,7 +26,7 @@ interface StepDefinition {
   c3: string; // C3L component (e.g., "issue")
   edition: string; // Edition (e.g., "default", "preparation")
   adaptation?: string; // Optional variant (e.g., "empty", "done")
-  fallbackKey: string; // Key for embedded fallback prompt
+  fallbackKey: string; // Legacy key (retained in registry schema)
   uvVariables: string[]; // Required UV variable names
   usesStdin: boolean; // Whether step uses STDIN input
   description?: string; // Optional description
@@ -64,15 +63,15 @@ interface StepRegistry {
 
 ### 2. PromptResolver (`agents/common/prompt-resolver.ts`)
 
-Resolves prompts via breakdown (C3L) with fallback support.
+Resolves prompts via breakdown (C3L) only. No fallback to embedded prompts.
 
 #### PromptResolutionResult Interface
 
 ```typescript
 interface PromptResolutionResult {
   content: string; // Resolved prompt content
-  source: "user" | "fallback"; // Source of the prompt
-  promptPath?: string; // Actual file path (if user file)
+  source: "user"; // Always "user" (C3L file)
+  promptPath?: string; // Actual file path
   stepId: string; // Step ID that was resolved
   substitutedVariables?: Record<string, string>; // Variables substituted
 }
@@ -88,22 +87,12 @@ interface PromptVariables {
 }
 ```
 
-#### FallbackPromptProvider Interface
-
-```typescript
-interface FallbackPromptProvider {
-  getPrompt(key: string): string | undefined;
-  hasPrompt(key: string): boolean;
-}
-```
-
 #### PromptResolver Class
 
 ```typescript
 class PromptResolver {
   constructor(
     registry: StepRegistry,
-    fallbackProvider: FallbackPromptProvider,
     options?: PromptResolverOptions,
   );
 
@@ -125,16 +114,14 @@ resolve(stepId, variables)
     │
     ├──▶ Get StepDefinition from registry
     │
-    ├──▶ Try breakdown via C3LPromptLoader
+    ├──▶ Resolve via C3LPromptLoader
     │       │
     │       ├── Build C3L path from step definition
     │       ├── Call runBreakdown with UV variables
-    │       └── Return if successful and has content
-    │
-    ├──▶ Fall back to embedded prompt
-    │       │
-    │       ├── Get prompt by fallbackKey
-    │       └── Throw if not found
+    │       ├── Return if successful and has content
+    │       ├── Throw PR-C3L-002 on non-file-not-found errors
+    │       │     (UV undefined, frontmatter broken, YAML parse failure)
+    │       └── Throw PR-C3L-004 if prompt file not found
     │
     └──▶ Process content
             │
@@ -261,25 +248,7 @@ Create prompts following the C3L path structure:
 .agent/{agent-name}/prompts/steps/initial/task/f_default.md
 ```
 
-### Step 5: Implement Fallback Provider
-
-In your agent code, implement `FallbackPromptProvider`:
-
-```typescript
-import { createFallbackProvider } from "../common/prompt-resolver.ts";
-
-const fallbackPrompts = {
-  "task_initial_default": `
-# Task Processing
-
-Process the assigned task following these steps...
-`,
-};
-
-const fallbackProvider = createFallbackProvider(fallbackPrompts);
-```
-
-### Step 6: Use PromptResolver
+### Step 5: Use PromptResolver
 
 ```typescript
 import { loadStepRegistry } from "../common/step-registry.ts";
@@ -289,7 +258,7 @@ import { PromptResolver } from "../common/prompt-resolver.ts";
 const registry = await loadStepRegistry("my-agent", ".agent");
 
 // Create resolver
-const resolver = new PromptResolver(registry, fallbackProvider, {
+const resolver = new PromptResolver(registry, {
   configSuffix: "steps",
   workingDir: Deno.cwd(),
 });
@@ -299,8 +268,8 @@ const result = await resolver.resolve("initial.task", {
   uv: { task_id: "123" },
 });
 
-console.log(result.content);
-console.log(`Source: ${result.source}`);
+console.log(result.content); // Prompt content with variables substituted
+console.log(result.source); // Always "user"
 ```
 
 ## Variable Substitution
@@ -389,7 +358,7 @@ Content after frontmatter...
 Disable with:
 
 ```typescript
-const resolver = new PromptResolver(registry, fallback, {
+const resolver = new PromptResolver(registry, {
   stripFrontmatter: false,
 });
 ```
@@ -424,7 +393,7 @@ await resolver.resolve("initial.issue", { uv: {} });
 ### Allow Missing Variables
 
 ```typescript
-const resolver = new PromptResolver(registry, fallback, {
+const resolver = new PromptResolver(registry, {
   allowMissingVariables: true,
 });
 
@@ -432,11 +401,21 @@ const resolver = new PromptResolver(registry, fallback, {
 await resolver.resolve("initial.issue", { uv: {} });
 ```
 
-### No Fallback
+### C3L Prompt File Not Found (PR-C3L-004)
 
 ```typescript
-// Throws: Error("No fallback prompt found for key: \"missing_key\"")
-await resolver.resolve("step.with.missing.fallback");
+// Throws PR-C3L-004 when the C3L prompt file does not exist on disk.
+// This is the only outcome when a prompt cannot be resolved - there is no fallback.
+await resolver.resolve("step.with.missing.file");
+```
+
+### C3L Breakdown Failed (PR-C3L-002)
+
+```typescript
+// Throws PR-C3L-002 on non-file-not-found C3L errors:
+// UV undefined, frontmatter broken, YAML parse failure, etc.
+// These require user correction.
+await resolver.resolve("step.with.broken.template");
 ```
 
 ## Testing
@@ -455,24 +434,22 @@ Deno.test("getStepDefinition - returns step by ID", () => {
 });
 ```
 
-Test prompt resolution:
+Test prompt resolution (C3L only):
 
 ```typescript
-Deno.test("PromptResolver - resolves from fallback", async () => {
+Deno.test("PromptResolver - throws PR-C3L-004 when file missing", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, { ... });
 
-  const fallback = createFallbackProvider({
-    "fallback_key": "Fallback content",
-  });
-
-  const resolver = new PromptResolver(registry, fallback, {
+  const resolver = new PromptResolver(registry, {
     workingDir: "/nonexistent",
   });
 
-  const result = await resolver.resolve("step.id");
-  assertEquals(result.source, "fallback");
-  assertEquals(result.content, "Fallback content");
+  await assertRejects(
+    () => resolver.resolve("step.id"),
+    Error,
+    "PR-C3L-004",
+  );
 });
 ```
 
@@ -483,7 +460,7 @@ Test with real breakdown integration:
 ```typescript
 Deno.test("Iterator prompt resolution", async () => {
   const registry = await loadStepRegistry("iterator", ".agent");
-  const resolver = new PromptResolver(registry, fallbackProvider);
+  const resolver = new PromptResolver(registry);
 
   const result = await resolver.resolve("initial.issue", {
     uv: { issue: "123" },

@@ -8,7 +8,8 @@ Climpt agents use an external prompt system that allows you to:
 
 1. **Customize prompts** by placing files in `.agent/{agent}/prompts/`
 2. **Use variable substitution** with `{uv-xxx}` and `{input_text}` placeholders
-3. **Fall back to default prompts** when custom prompts don't exist
+3. **Resolve prompts exclusively via C3L** — if a prompt file is missing, the
+   system raises a `PR-C3L-004` error (there is no fallback)
 
 ## Directory Structure
 
@@ -229,13 +230,12 @@ Use issue-action blocks to report findings.
 | `initial.default`      | Initial review prompt | `project`, `requirements_label`, `review_label` |
 | `continuation.default` | Continuation review   | `iteration`                                     |
 
-## Fallback Behavior
+## Prompt Resolution (C3L Only)
 
-When a custom prompt file doesn't exist:
-
-1. The system checks for user prompt at `.agent/{agent}/prompts/{path}`
-2. If not found, uses the embedded fallback prompt
-3. Variables are still substituted in fallback prompts
+C3L is the sole prompt resolution path. When a prompt file is not found at
+`.agent/{agent}/prompts/{c1}/{c2}/{c3}/f_{edition}.md`, the system throws a
+`PR-C3L-004` error. There is no embedded fallback — every step must have a
+corresponding prompt file.
 
 ## Testing Custom Prompts
 

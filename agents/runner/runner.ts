@@ -206,7 +206,6 @@ export class AgentRunner {
         agentName: this.definition.name,
         agentDir,
         registryPath: this.definition.runner.flow.prompts.registry,
-        fallbackDir: this.definition.runner.flow.prompts.fallbackDir,
       },
     );
 

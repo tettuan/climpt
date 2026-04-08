@@ -35,8 +35,7 @@ agent.json で Agent
     "flow": {
       "systemPromptPath": "prompts/system.md",
       "prompts": {
-        "registry": "steps_registry.json",
-        "fallbackDir": "prompts/"
+        "registry": "steps_registry.json"
       }
     }
   }
@@ -254,7 +253,7 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 | `label-only`      | `Complete phase for Issue #N`  | `"Do NOT close the issue"` |
 | `label-and-close` | `Issue #N labeled and closed`  | `"close it when done"`     |
 
-`label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
+`label-only` の場合、プロンプト（`buildInitialPrompt()` /
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
 `"action":"complete"` を使用し、エージェントに phase 完了のみを指示する。
 
@@ -435,6 +434,7 @@ load(path) → parse → validate → 起動 or エラー
 - 必須フィールドの存在
 - runner.verdict.config と runner.verdict.type の整合性
 - 参照ファイルの存在
+- C3L プロンプトファイルの存在
 - validationConditions の validator 参照の妥当性
 ```
 

@@ -249,8 +249,7 @@ Minimal `agent.json`:
     "flow": {
       "systemPromptPath": "prompts/system.md",
       "prompts": {
-        "registry": "steps_registry.json",
-        "fallbackDir": "prompts/"
+        "registry": "steps_registry.json"
       }
     },
     "verdict": {

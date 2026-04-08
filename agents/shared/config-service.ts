@@ -149,10 +149,6 @@ export class ConfigService {
           prompts: {
             ...definition.runner.flow.prompts,
             registry: join(agentDir, definition.runner.flow.prompts.registry),
-            fallbackDir: join(
-              agentDir,
-              definition.runner.flow.prompts.fallbackDir,
-            ),
           },
         },
         ...(definition.runner.logging

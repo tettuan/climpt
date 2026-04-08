@@ -2,7 +2,6 @@
  * Prompt Resolution Validator
  *
  * Validates that each step in steps_registry.json has a resolvable prompt:
- * - fallbackKey exists in DefaultFallbackProvider templates
  * - C3L path components (c2, c3) are non-empty strings
  * - C3L path components are consistent with stepId
  *
@@ -13,7 +12,6 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { DefaultFallbackProvider } from "../prompts/fallback.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -37,9 +35,8 @@ function asRecord(
  * Validate prompt resolution for all steps in a steps registry.
  *
  * Checks per step:
- * 1. fallbackKey exists in DefaultFallbackProvider templates
- * 2. c2 and c3 are non-empty strings
- * 3. c2 and c3 are consistent with stepId parts
+ * 1. c2 and c3 are non-empty strings
+ * 2. c2 and c3 are consistent with stepId parts
  *
  * @param registry - Parsed steps_registry.json content
  * @returns Validation result with errors and warnings
@@ -50,26 +47,13 @@ export function validatePrompts(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const provider = new DefaultFallbackProvider();
-  const templates = provider.getTemplates();
-
   const stepsRaw = asRecord(registry.steps) ?? {};
 
   for (const [stepId, stepDef] of Object.entries(stepsRaw)) {
     const step = asRecord(stepDef);
     if (!step) continue;
 
-    // 1. fallbackKey existence
-    const fallbackKey = step.fallbackKey;
-    if (typeof fallbackKey === "string" && fallbackKey !== "") {
-      if (!(fallbackKey in templates)) {
-        warnings.push(
-          `steps["${stepId}"].fallbackKey "${fallbackKey}" not found in DefaultFallbackProvider templates`,
-        );
-      }
-    }
-
-    // 2. C3L path components must be non-empty strings
+    // 1. C3L path components must be non-empty strings
     const c2 = step.c2;
     const c3 = step.c3;
 
@@ -85,7 +69,7 @@ export function validatePrompts(
       );
     }
 
-    // 3. C3L path components consistency with stepId
+    // 2. C3L path components consistency with stepId
     // stepId format: "c2.c3" (e.g., "initial.issue") or "c2.c3.suffix"
     // (e.g., "initial.project.preparation")
     if (

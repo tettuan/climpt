@@ -17,8 +17,8 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { join } from "@std/path";
 import { RUNTIME_SUPPLIED_UV_VARS } from "../shared/constants.ts";
+import { buildPromptFilePath } from "./c3l-path-builder.ts";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -43,26 +43,6 @@ function extractUvVariables(content: string): Set<string> {
     result.add(match[1]);
   }
   return result;
-}
-
-/**
- * Build the C3L prompt file path for a step.
- *
- * Format: {agentDir}/prompts/{c1}/{c2}/{c3}/f_{edition}.md
- * or with adaptation: {agentDir}/prompts/{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
- */
-function buildPromptFilePath(
-  agentDir: string,
-  c1: string,
-  c2: string,
-  c3: string,
-  edition: string,
-  adaptation?: string,
-): string {
-  const filename = adaptation
-    ? `f_${edition}_${adaptation}.md`
-    : `f_${edition}.md`;
-  return join(agentDir, "prompts", c1, c2, c3, filename);
 }
 
 /**
@@ -182,8 +162,11 @@ export async function validateTemplateUvConsistency(
       }
     }
 
-    // Skip if no prompt content
+    // Skip if no prompt content — warn so the user knows UV check was skipped
     if (promptContent === null) {
+      warnings.push(
+        `steps["${stepId}"]: C3L prompt file not found, UV consistency check skipped`,
+      );
       continue;
     }
 

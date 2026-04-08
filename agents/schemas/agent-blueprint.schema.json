@@ -48,7 +48,6 @@
     "R-D3": "The schema's next_action.action.enum must equal the step's allowedIntents",
     "R-D4": "structuredGate.handoffFields paths must resolve within the referenced output schema",
     "R-E1": "stepId prefix must match c2 (initial -> initial.*, continuation -> continuation.*, closure -> closure.*, section -> section.*, verification -> verification.*)",
-    "R-E2": "fallbackKey must equal {c2}_{c3} with dots replaced by underscores",
     "R-F15": "meta:composite verdict config.conditions[*].type must be a valid VerdictType excluding meta:composite (no recursion)"
   },
 
@@ -189,15 +188,11 @@
         },
         "prompts": {
           "type": "object",
-          "required": ["registry", "fallbackDir"],
+          "required": ["registry"],
           "properties": {
             "registry": {
               "type": "string",
               "description": "Path to steps registry JSON"
-            },
-            "fallbackDir": {
-              "type": "string",
-              "description": "Fallback directory for prompts"
             }
           }
         },
@@ -845,9 +840,9 @@
     },
 
     "StepDefinition": {
-      "description": "A single step in the flow. Enforces: R-F9 (name, c2, c3, edition, fallbackKey are required non-empty strings), R-F7 (uvVariables is array of strings), R-F8 (usesStdin is boolean), R-F13 (model enum), R-F20 (priority positive integer), R-B7 (intentSchemaRef ^#/ pattern), R-B8 (intentField required in structuredGate), R-B3 (allowedIntents from valid enum), R-F14 (targetMode enum), R-F10 (outputSchemaRef structure), R-B6 (flow steps require structuredGate + transitions + outputSchemaRef), R-B10 (flow steps require stepKind), R-B11 (section steps must not have flow control fields), R-B14 (jump requires targetField), R-B15 (handoff requires handoffFields), R-E3 (c3 kebab-case pattern).",
+      "description": "A single step in the flow. Enforces: R-F9 (name, c2, c3, edition are required non-empty strings), R-F7 (uvVariables is array of strings), R-F8 (usesStdin is boolean), R-F13 (model enum), R-F20 (priority positive integer), R-B7 (intentSchemaRef ^#/ pattern), R-B8 (intentField required in structuredGate), R-B3 (allowedIntents from valid enum), R-F14 (targetMode enum), R-F10 (outputSchemaRef structure), R-B6 (flow steps require structuredGate + transitions + outputSchemaRef), R-B10 (flow steps require stepKind), R-B11 (section steps must not have flow control fields), R-B14 (jump requires targetField), R-B15 (handoff requires handoffFields), R-E3 (c3 kebab-case pattern).",
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3", "edition", "fallbackKey"],
+      "required": ["stepId", "name", "c2", "c3", "edition"],
       "properties": {
         "stepId": {
           "type": "string",

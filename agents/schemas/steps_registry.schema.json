@@ -82,7 +82,7 @@
   "definitions": {
     "StepDefinition": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3", "fallbackKey"],
+      "required": ["stepId", "name", "c2", "c3"],
       "properties": {
         "stepId": {
           "type": "string",

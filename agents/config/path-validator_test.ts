@@ -32,7 +32,6 @@ function validDefinition(): AgentDefinition {
         systemPromptPath: "system.md",
         prompts: {
           registry: "steps_registry.json",
-          fallbackDir: "prompts",
         },
       },
       verdict: {
@@ -50,12 +49,10 @@ function validDefinition(): AgentDefinition {
 /**
  * Create standard directory layout inside a temp dir:
  * - system.md (file)
- * - prompts/ (directory)
  * - steps_registry.json (file)
  */
 async function createStandardLayout(dir: string): Promise<void> {
   await Deno.writeTextFile(join(dir, "system.md"), "# System");
-  await Deno.mkdir(join(dir, "prompts"), { recursive: true });
   await Deno.writeTextFile(
     join(dir, "steps_registry.json"),
     "{}",
@@ -105,29 +102,7 @@ Deno.test("path-validator - missing systemPromptPath reports error", async () =>
 });
 
 // =============================================================================
-// 3. fallbackDir missing -> error
-// =============================================================================
-
-Deno.test("path-validator - missing fallbackDir reports error", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // Create layout WITHOUT prompts/
-    await Deno.writeTextFile(join(dir, "system.md"), "# System");
-    await Deno.writeTextFile(join(dir, "steps_registry.json"), "{}");
-    const def = validDefinition();
-
-    const result = await validatePaths(def, dir);
-
-    assertEquals(result.valid, false);
-    const hasError = result.errors.some((e) => e.includes("fallbackDir"));
-    assertEquals(hasError, true);
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
-// =============================================================================
-// 4. prompts.registry missing -> error
+// 3. prompts.registry missing -> error
 // =============================================================================
 
 Deno.test("path-validator - missing prompts.registry reports error", async () => {
@@ -143,6 +118,156 @@ Deno.test("path-validator - missing prompts.registry reports error", async () =>
     assertEquals(result.valid, false);
     const hasError = result.errors.some((e) => e.includes("prompts.registry"));
     assertEquals(hasError, true);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 5a. C3L prompt file missing -> error
+// =============================================================================
+
+Deno.test("path-validator - missing C3L prompt file reports error", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const def = validDefinition();
+    const registry = {
+      c1: "steps",
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(result.valid, false);
+    const hasError = result.errors.some((e) =>
+      e.includes("[PATH]") &&
+      e.includes("C3L prompt file") &&
+      e.includes("initial.default")
+    );
+    assertEquals(
+      hasError,
+      true,
+      `Expected C3L prompt file error, got: ${result.errors.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 5b. C3L prompt file exists -> valid
+// =============================================================================
+
+Deno.test("path-validator - existing C3L prompt file returns valid", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    // Create the C3L prompt file
+    const c3lDir = join(dir, "prompts", "steps", "initial", "default");
+    await Deno.mkdir(c3lDir, { recursive: true });
+    await Deno.writeTextFile(join(c3lDir, "f_default.md"), "# Prompt");
+
+    const def = validDefinition();
+    const registry = {
+      c1: "steps",
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 5c. C3L prompt file with adaptation
+// =============================================================================
+
+Deno.test("path-validator - C3L prompt with adaptation checks correct path", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    // Create the adaptation prompt file
+    const c3lDir = join(dir, "prompts", "steps", "initial", "issue");
+    await Deno.mkdir(c3lDir, { recursive: true });
+    await Deno.writeTextFile(
+      join(c3lDir, "f_default_label_only.md"),
+      "# Prompt",
+    );
+
+    const def = validDefinition();
+    const registry = {
+      c1: "steps",
+      steps: {
+        "initial.issue.label_only": {
+          stepId: "initial.issue.label_only",
+          c2: "initial",
+          c3: "issue",
+          edition: "default",
+          adaptation: "label_only",
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 5d. Step without c2/c3/edition is skipped
+// =============================================================================
+
+Deno.test("path-validator - step without c2/c3/edition skips C3L check", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const def = validDefinition();
+    const registry = {
+      c1: "steps",
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          // No c2/c3/edition — should be skipped
+        },
+      },
+    };
+
+    const result = await validatePaths(def, dir, registry);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Unexpected errors: ${result.errors.join("; ")}`,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

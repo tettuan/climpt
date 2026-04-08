@@ -38,15 +38,3 @@ export {
   type SystemPromptOptions,
   type SystemPromptResult,
 } from "./system-prompt.ts";
-
-// ============================================================================
-// Fallback
-// ============================================================================
-
-export {
-  DefaultFallbackProvider,
-  type FallbackPromptProvider,
-} from "./fallback.ts";
-
-/** Alias for backward compatibility */
-export { DefaultFallbackProvider as FallbackResolver } from "./fallback.ts";

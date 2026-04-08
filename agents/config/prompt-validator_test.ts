@@ -4,8 +4,8 @@
  * Covers validatePrompts() with inline fixture registries:
  * - Missing c2/c3 produces errors
  * - Mismatched stepId vs c2/c3 produces warnings
- * - Unknown fallbackKey produces a warning mentioning the key
  * - Valid steps produce no errors or warnings
+ * - fallbackKey field is ignored (no validation)
  */
 
 import { assertEquals } from "@std/assert";
@@ -113,41 +113,6 @@ Deno.test("validatePrompts - mismatched c3 vs stepId second part produces a warn
   );
 });
 
-Deno.test("validatePrompts - unknown fallbackKey produces a warning mentioning the key", () => {
-  const unknownKey = "nonexistent_template_key_xyz";
-  const registry = registryWith("initial.issue", {
-    c2: "initial",
-    c3: "issue",
-    fallbackKey: unknownKey,
-  });
-
-  const result = validatePrompts(registry);
-
-  // c2/c3 are valid so no errors
-  assertEquals(result.valid, true);
-  assertEquals(
-    result.warnings.some((w) => w.includes(unknownKey)),
-    true,
-    `Expected a warning mentioning "${unknownKey}", got: ${
-      JSON.stringify(result.warnings)
-    }`,
-  );
-});
-
-Deno.test("validatePrompts - valid step with known fallbackKey produces no errors or warnings", () => {
-  const registry = registryWith("initial.issue", {
-    c2: "initial",
-    c3: "issue",
-    fallbackKey: "initial_issue",
-  });
-
-  const result = validatePrompts(registry);
-
-  assertEquals(result.valid, true);
-  assertEquals(result.errors.length, 0, "Expected no errors");
-  assertEquals(result.warnings.length, 0, "Expected no warnings");
-});
-
 Deno.test("validatePrompts - empty steps object produces no errors", () => {
   const registry: Record<string, unknown> = { steps: {} };
 
@@ -166,4 +131,26 @@ Deno.test("validatePrompts - missing steps key produces no errors", () => {
   assertEquals(result.valid, true);
   assertEquals(result.errors.length, 0);
   assertEquals(result.warnings.length, 0);
+});
+
+Deno.test("validatePrompts - fallbackKey field is ignored (no validation)", () => {
+  // After fallback removal (C3L-only migration), fallbackKey is vestigial.
+  // prompt-validator must NOT produce warnings or errors about it.
+  const registry = registryWith("initial.issue", {
+    c2: "initial",
+    c3: "issue",
+    fallbackKey: "nonexistent_key_that_would_have_failed_before",
+  });
+
+  const result = validatePrompts(registry);
+
+  assertEquals(result.valid, true, "Step with fallbackKey should be valid");
+  assertEquals(result.errors.length, 0, "No errors expected");
+  assertEquals(
+    result.warnings.length,
+    0,
+    `fallbackKey should produce no warnings, got: ${
+      JSON.stringify(result.warnings)
+    }`,
+  );
 });
