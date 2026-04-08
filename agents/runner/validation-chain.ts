@@ -162,7 +162,7 @@ export class ValidationChain {
     }
 
     this.logger.info(`Pre-flight state validation for step: ${stepId}`);
-    return this.validateWithConditions(stepConfig);
+    return await this.validateWithConditions(stepConfig);
   }
 
   /**
