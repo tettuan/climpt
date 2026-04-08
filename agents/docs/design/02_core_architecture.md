@@ -138,32 +138,38 @@ completionSignal とは、Closure Step が structured output で返す
 completionSignal を受け取った Flow は、即座に Agent を完了させるのではなく、
 Completion Loop に制御を渡す。Agent 完了の判定権は Completion Loop にのみある。
 
-### Completion Loop の三段構成
+### Completion Loop の四段構成
 
-AI の自己申告（Closure Prompt）だけでは完了を信頼できず、外部検証（Validation）
-を挟まないと false positive が生じる。一方で検証結果をそのまま Flow に返すと
-判定ロジックが Flow に漏れる。三段に分けることで、各段の責務を単一にし、 Flow
+外部状態（git clean, type-check, tests 等）の検証を LLM 呼び出しの前に行うこと
+で、状態が不正なまま LLM を呼ぶ無駄を省く。LLM の構造化出力は outputSchema で
+別途検証する。四段に分けることで、各段の責務を単一にし、 Flow
 には最終判定（Verdict）だけを渡す構造を保つ。
 
-Completion Loop は以下の三段で構成される。while ではなく、単発の手続きである。
+Completion Loop は以下の四段で構成される。while ではなく、単発の手続きである。
 
 ```
-Stage 1: Closure Prompt
+Phase 1: Pre-flight State Validation
+  stateCheck = runValidationConditions(stepId)
+  → validationConditions（外部コマンド）で外部状態を機械的に検証する
+  → 失敗時は LLM を呼ばずに retry
+
+Phase 2: Closure Prompt
   closurePrompt = resolve(c3l.closure, response, handoff)
   closureResult = queryLLM(closurePrompt)
   → Closure Step の AI に最終確認を促し、証跡を構造化する
 
-Stage 2: Validation
-  validation = runValidationConditions(closureResult)
-  → validationConditions（外部コマンド）で成果物を機械的に検証する
+Phase 3: Format Validation
+  formatCheck = validateOutputSchema(closureResult)
+  → outputSchema に対して構造化出力を検証する
+  → 失敗時は format retry prompt を生成
 
-Stage 3: Verdict
-  if validation.allPassed: return { done: true }
-  else: return { done: false, retryPrompt: buildRetry(validation) }
+Phase 4: Verdict
+  if formatCheck.passed: return { done: true }
+  else: return { done: false, retryPrompt: buildRetry(formatCheck) }
   → 検証結果に基づき、Agent 完了 or retryPrompt を Flow へ返す
 ```
 
-Flow ループは Stage 3 の戻り値だけを受け取る。 done = true なら Agent
+Flow ループは Phase 4 の戻り値だけを受け取る。 done = true なら Agent
 を終了し、done = false なら retryPrompt を 次の iteration
 のプロンプトとして注入する。
 

@@ -75,11 +75,11 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 - **Why**: 完了チェックの複雑さを Flow に持ち込まず、失敗時に retryPrompt を返す
   仕組みへ収束させるため。
 - **最小限の How**:
-  - Completion Loop は三段構成（Closure Prompt → Validation →
-    Verdict）で動作する （design/02_core_architecture.md「Completion Loop
-    の三段構成」参照）。 Flow ループは Verdict の戻り値だけを受け取り、Agent
-    の完了または継続を決定する。 Completion Loop の内部処理を Flow
-    が代行することはない。
+  - Completion Loop は四段構成（Pre-flight State Validation → Closure Prompt →
+    Format Validation → Verdict）で動作する
+    （design/02_core_architecture.md「Completion Loop の四段構成」参照）。 Flow
+    ループは Verdict の戻り値だけを受け取り、Agent の完了または継続を決定する。
+    Completion Loop の内部処理を Flow が代行することはない。
   - `steps/complete/*` の C3L プロンプトで完了指示を生成。ユーザーは docs/
     に従ってプロンプトを管理できる。
   - Structured Output Schema (`outputSchemaRef`) は SDK の outputFormat
@@ -106,13 +106,13 @@ Runner は2つの while を書かない。Flow ループは「継続」だけを
 
 ## 主なコンポーネント
 
-| コンポーネント    | What                                        | Why                                |
-| ----------------- | ------------------------------------------- | ---------------------------------- |
-| `PromptResolver`  | C3L 参照をローカルパスに射影し、本文を返す  | プロンプトの所在を Agent から隠す  |
-| `ValidationChain` | validationSteps を解決し、検証を実行する    | Completion ループの一貫性を保つ    |
-| `StepValidator`   | `validationConditions` を評価               | 外部状態（git, test 等）の差分検出 |
-| `FormatValidator` | (SDK 委譲) Structured Output の schema 検証 | SDK の outputFormat 機能に委譲済み |
-| `RetryHandler`    | failure pattern から C3L プロンプトを生成   | 失敗理由をそのまま次の指示へ反映   |
+| コンポーネント    | What                                                   | Why                                  |
+| ----------------- | ------------------------------------------------------ | ------------------------------------ |
+| `PromptResolver`  | C3L 参照をローカルパスに射影し、本文を返す             | プロンプトの所在を Agent から隠す    |
+| `ValidationChain` | validationSteps を解決し、Phase 1 の状態検証を実行する | LLM 呼び出し前に外部状態を gate する |
+| `StepValidator`   | `validationConditions` を評価 (Phase 1)                | 外部状態（git, test 等）の差分検出   |
+| `FormatValidator` | Phase 3 で構造化出力を outputSchema に対して検証       | LLM 出力のフォーマット準拠を保証     |
+| `RetryHandler`    | failure pattern から C3L プロンプトを生成              | 失敗理由をそのまま次の指示へ反映     |
 
 ## GitHubRead MCP ツール
 

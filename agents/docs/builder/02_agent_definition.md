@@ -73,10 +73,10 @@ agent.json で Agent
 
 ### validationConditions
 
-Completion Loop の Stage 2（Validation）で実行される検証条件を
-steps_registry.json で定義する。ValidationChain が各 validator を実行し、 結果は
-Stage 3（Verdict）の VerdictHandler に渡される。詳細は
-`design/05_structured_outputs.md` を参照。
+Completion Loop の Phase 1（Pre-flight State Validation）で実行される検証条件を
+steps_registry.json で定義する。ValidationChain が LLM 呼び出し前に各 validator
+を実行し、失敗時は LLM を呼ばずに retry する。結果は Phase 4（Verdict）の
+VerdictHandler に渡される。詳細は `design/05_structured_outputs.md` を参照。
 
 ```json
 {

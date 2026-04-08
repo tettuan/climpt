@@ -45,11 +45,14 @@ completionSignal(response) =
      SDK の `formatted: { type: "json_schema", schema }` が起動し、intent
      セットも schema 側で確定させる。
 
-3. **Validation Conditions**
+3. **Validation Conditions (Phase 1: Pre-flight State Gate)**
    - `steps_registry.json` の `validationSteps.<id>.validationConditions[]`
      で宣言。
+   - LLM 呼び出し前に実行される。失敗時は LLM を呼ばずに retry する。
    - 各 validator (git clean, type check, tests, lint 等) は `Why: エビデンス`
      に対応づけられており、未達時は `pattern` と `params` を返す。
+   - outputSchema の検証は Phase 3（Format Validation）で LLM 呼び出し後に
+     FormatValidator が実行する。Phase 1 とは独立した検証である。
 
 4. **Decision & Retry**
    - `done = true` の場合、Completion Loop は `success` を Flow へ返す。

@@ -354,10 +354,15 @@ validators:
 # validationSteps
 # ============================================================
 # Description : Step definitions for closure validation.
-#               These are triggered when a closure step
-#               begins, BEFORE the closure prompt is sent.
-#               All validationConditions must pass for the
-#               closure to proceed.
+#               Two-phase validation model:
+#               Phase 1 (Pre-flight State Gate):
+#                 validationConditions are triggered BEFORE
+#                 the closure prompt is sent. All conditions
+#                 must pass for the LLM call to proceed.
+#               Phase 3 (Post-LLM Format Gate):
+#                 outputSchemaRef validation runs AFTER the
+#                 LLM closure call, checking structured output
+#                 against the declared schema.
 # Type        : object (string -> ValidationStep)
 # Required    : no (optional)
 #

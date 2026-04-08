@@ -66,10 +66,15 @@ export class CompletionLoopProcessor {
   /**
    * Completion Loop - single-shot closure procedure.
    *
-   * Encapsulates the three stages of completion:
-   * Stage 1: Closure prompt (handled externally via closureAdapter)
-   * Stage 2: Validation (external conditions check)
-   * Stage 3: Verdict (handler decision + boundary hooks)
+   * Encapsulates the four phases of completion:
+   * Phase 1: Pre-flight State Validation (external conditions check via StepValidator)
+   *          — runs in runClosureIteration BEFORE the LLM closure call.
+   *          If fail → retry without calling LLM.
+   * Phase 2: Closure Prompt (handled externally via closureAdapter)
+   * Phase 3: Format Validation (structured output check via FormatValidator)
+   *          — runs AFTER the LLM closure call against outputSchema.
+   *          If fail → format retry prompt.
+   * Phase 4: Verdict (handler decision + boundary hooks)
    *
    * Called when a completion signal is detected (closing intent,
    * AI verdict declaration, or legacy handler check).
