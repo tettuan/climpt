@@ -245,6 +245,37 @@ Deno.test("StepValidator - multiple validators: first failure short-circuits", a
   );
 });
 
+Deno.test("StepValidator - interpolates conditionParams into command string", async () => {
+  // Source of truth: validator.ts runCommandValidator() replaces ${key} with conditionParams values
+  const registry: ValidatorRegistry = {
+    validators: {
+      "parameterized-cmd": commandValidator(
+        "echo ${message}",
+        "contains:hello-from-params",
+        "param-interpolation-failed",
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    {
+      validator: "parameterized-cmd",
+      params: { message: "hello-from-params" },
+    },
+  ]);
+
+  assertEquals(
+    result.valid,
+    true,
+    "What: echo with interpolated param must produce output containing the param value | Where: StepValidator.validate() with conditionParams | How-to-fix: check runCommandValidator param interpolation in validator.ts",
+  );
+});
+
 Deno.test("StepValidator - multiple validators: all pass yields valid result", async () => {
   const registry: ValidatorRegistry = {
     validators: {

@@ -163,7 +163,7 @@ export class StepValidator {
   ): Promise<ValidatorRunResult> {
     switch (def.type) {
       case "command":
-        return await this.runCommandValidator(def);
+        return await this.runCommandValidator(def, conditionParams);
       case "file":
         return this.runFileValidator(def, conditionParams);
       case "custom":
@@ -182,14 +182,22 @@ export class StepValidator {
    */
   private async runCommandValidator(
     def: ValidatorDefinition,
+    conditionParams?: Record<string, unknown>,
   ): Promise<ValidatorRunResult> {
     if (!def.command) {
       throw new Error("Command validator requires 'command' field");
     }
 
-    this.ctx.logger.debug(`Running command validator: ${def.command}`);
+    let command = def.command;
+    if (conditionParams) {
+      for (const [key, value] of Object.entries(conditionParams)) {
+        command = command.replaceAll(`\${${key}}`, String(value));
+      }
+    }
 
-    const result = await this.commandRunner.run(def.command);
+    this.ctx.logger.debug(`Running command validator: ${command}`);
+
+    const result = await this.commandRunner.run(command);
     const success = checkSuccessCondition(def.successWhen, result);
 
     if (success) {
@@ -272,12 +280,12 @@ export class StepValidator {
    */
   private async runCustomValidator(
     def: ValidatorDefinition,
-    _conditionParams?: Record<string, unknown>,
+    conditionParams?: Record<string, unknown>,
   ): Promise<ValidatorRunResult> {
     // Custom validators are for future extension
     // Currently falls back to command execution
     if (def.command) {
-      return await this.runCommandValidator(def);
+      return await this.runCommandValidator(def, conditionParams);
     }
 
     this.ctx.logger.warn(
