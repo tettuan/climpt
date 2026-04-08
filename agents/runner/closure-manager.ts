@@ -288,6 +288,68 @@ export class ClosureManager {
   }
 
   /**
+   * Pre-flight state validation - runs BEFORE LLM call.
+   *
+   * Validates only state-based conditions (command/file/semantic validators),
+   * NOT format validation (which runs post-LLM in Phase 2).
+   */
+  async validateStateConditions(
+    stepId: string,
+    logger: import("../src_common/logger.ts").Logger,
+  ): Promise<ValidationResult> {
+    if (!this.stepsRegistry) {
+      return { valid: true };
+    }
+
+    const stepConfig = this.stepsRegistry.validationSteps?.[stepId];
+    if (!stepConfig) {
+      return { valid: true };
+    }
+
+    // Skip if no validation conditions to check
+    if (!stepConfig.validationConditions?.length) {
+      return { valid: true };
+    }
+
+    // Use ValidationChain if available
+    if (this.validationChain) {
+      return await this.validationChain.validateState(stepId);
+    }
+
+    // Fallback to direct step validator
+    if (!this.stepValidator) {
+      return { valid: true };
+    }
+
+    logger.info(`Pre-flight state validation for step: ${stepId}`);
+    const result = await this.stepValidator.validate(
+      stepConfig.validationConditions,
+    );
+
+    if (result.valid) {
+      logger.info("Pre-flight state validation passed");
+      return { valid: true };
+    }
+
+    logger.warn(`Pre-flight validation failed: pattern=${result.pattern}`);
+
+    if (this.retryHandler && result.pattern) {
+      const retryPrompt = await this.retryHandler.buildRetryPrompt(
+        stepConfig,
+        result,
+      );
+      return { valid: false, retryPrompt };
+    }
+
+    return {
+      valid: false,
+      retryPrompt: `State validation conditions not met: ${
+        result.error ?? result.pattern
+      }`,
+    };
+  }
+
+  /**
    * Check if AI declared verdict via structured output.
    *
    * Only "closing" intent from Closure Step triggers completion.

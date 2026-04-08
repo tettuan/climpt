@@ -331,6 +331,33 @@ export class CompletionLoopProcessor {
       await this.deps.verboseLogger.logSystemPrompt(systemPrompt);
     }
 
+    // Step 4.5: Pre-flight state validation (Phase 1)
+    // Validate state conditions BEFORE the LLM call.
+    // Format validation (Phase 2) runs post-LLM in runClosureLoop.
+    const closureStepId = this.deps.closureManager.getClosureStepId();
+    const preFlightResult = await this.deps.closureManager
+      .validateStateConditions(
+        closureStepId,
+        ctx.logger,
+      );
+    if (!preFlightResult.valid) {
+      ctx.logger.info("[CompletionLoop] Pre-flight state validation failed", {
+        stepId: closureStepId,
+      });
+      return {
+        done: false,
+        reason: preFlightResult.retryPrompt ?? "State validation failed",
+        retryPrompt: preFlightResult.retryPrompt,
+        summary: summaries[summaries.length - 1] ?? {
+          iteration,
+          assistantResponses: [],
+          toolsUsed: [],
+          errors: [],
+        },
+        isRateLimitRetry: false,
+      };
+    }
+
     // Step 5: LLM query
     const summary = await this.deps.queryExecutor.executeQuery({
       prompt,

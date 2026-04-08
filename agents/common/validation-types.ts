@@ -354,7 +354,8 @@ export function hasValidationChainSupport(
   return (
     typeof registry === "object" &&
     registry !== null &&
-    ("failurePatterns" in registry || "validators" in registry)
+    ("failurePatterns" in registry || "validators" in registry ||
+      "validationSteps" in registry)
   );
 }
 

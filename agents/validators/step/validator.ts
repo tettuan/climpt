@@ -130,8 +130,9 @@ export class StepValidator {
     for (const condition of conditions) {
       const def = this.registry.validators[condition.validator];
       if (!def) {
-        this.ctx.logger.warn(`Validator not found: ${condition.validator}`);
-        continue;
+        throw new Error(
+          `Validator not found: "${condition.validator}". Check that this validator is defined in the registry's "validators" section.`,
+        );
       }
 
       // Sequential execution required - need to return early on first failure
