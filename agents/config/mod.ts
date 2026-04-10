@@ -31,7 +31,9 @@ import { validateFlowReachability } from "./flow-validator.ts";
 import { validatePrompts } from "./prompt-validator.ts";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
 import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
+import { validateFrontmatterRegistry } from "./frontmatter-registry-validator.ts";
 import { validateHandoffInputs } from "./handoff-validator.ts";
+import { validateConfigRegistryConsistency } from "./config-registry-validator.ts";
 import {
   validateIntentSchemaRef,
   validateStepKindIntents,
@@ -134,8 +136,10 @@ export interface FullValidationResult {
   promptResult: ValidationResult | null;
   uvReachabilityResult: ValidationResult | null;
   templateUvResult: ValidationResult | null;
+  frontmatterRegistryResult: ValidationResult | null;
   stepRegistryValidation: ValidationResult | null;
   handoffInputsResult: ValidationResult | null;
+  configRegistryResult: ValidationResult | null;
 }
 
 /**
@@ -263,8 +267,19 @@ export async function validateFull(
     ? await validateTemplateUvConsistency(registry, agentDir, baseDir)
     : null;
 
-  // 6f. Handoff-to-inputs compatibility validation (only when registry exists)
+  // 6f. Frontmatter-registry UV consistency validation (only when registry exists)
+  const frontmatterRegistryResult = registry
+    ? await validateFrontmatterRegistry(registry, agentDir, baseDir)
+    : null;
+
+  // 6g. Handoff-to-inputs compatibility validation (only when registry exists)
   const handoffInputsResult = registry ? validateHandoffInputs(registry) : null;
+
+  // 6h. Config-registry consistency (only when registry exists)
+  const configDir = join(baseDir, ".agent", "climpt", "config");
+  const configRegistryResult = registry
+    ? await validateConfigRegistryConsistency(registry, configDir)
+    : null;
 
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
@@ -276,8 +291,10 @@ export async function validateFull(
     (promptResult?.valid ?? true) &&
     (uvReachabilityResult?.valid ?? true) &&
     (templateUvResult?.valid ?? true) &&
+    (frontmatterRegistryResult?.valid ?? true) &&
     (stepRegistryValidation?.valid ?? true) &&
-    (handoffInputsResult?.valid ?? true);
+    (handoffInputsResult?.valid ?? true) &&
+    (configRegistryResult?.valid ?? true);
 
   return {
     valid,
@@ -290,8 +307,10 @@ export async function validateFull(
     promptResult,
     uvReachabilityResult,
     templateUvResult,
+    frontmatterRegistryResult,
     stepRegistryValidation,
     handoffInputsResult,
+    configRegistryResult,
   };
 }
 

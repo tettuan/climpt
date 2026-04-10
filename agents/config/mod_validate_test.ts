@@ -71,7 +71,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "initial",
         c3: "default",
         edition: "default",
-        fallbackKey: "initial_issue",
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -86,7 +85,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "continuation",
         c3: "default",
         edition: "default",
-        fallbackKey: "continuation_default",
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -102,7 +100,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "closure",
         c3: "default",
         edition: "default",
-        fallbackKey: "review_closure_default",
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -143,6 +140,20 @@ async function scaffoldValidAgentDir(baseDir: string): Promise<string> {
   await Deno.writeTextFile(
     join(promptsDir, "system.md"),
     "# System prompt\nYou are a test agent.",
+  );
+
+  // Breakdown config files for config-registry validator
+  // The registry uses agentId="test-agent", c1="steps", so the config
+  // files are test-agent-steps-app.yml and test-agent-steps-user.yml.
+  const configDir = join(baseDir, ".agent", "climpt", "config");
+  await Deno.mkdir(configDir, { recursive: true });
+  await Deno.writeTextFile(
+    join(configDir, "test-agent-steps-app.yml"),
+    'working_dir: ".agent/test-agent"\n',
+  );
+  await Deno.writeTextFile(
+    join(configDir, "test-agent-steps-user.yml"),
+    'params:\n  two:\n    directiveType:\n      pattern: "^(initial|continuation|closure)$"\n    layerType:\n      pattern: "^(default)$"\n',
   );
 
   // C3L prompt files for each step in the registry
@@ -483,7 +494,6 @@ Deno.test("validateFull - catches stepKind/intent mismatch via typed validators"
           c2: "initial",
           c3: "default",
           edition: "default",
-          fallbackKey: "initial_default",
           uvVariables: [],
           usesStdin: false,
           structuredGate: {
@@ -503,7 +513,6 @@ Deno.test("validateFull - catches stepKind/intent mismatch via typed validators"
           c2: "closure",
           c3: "default",
           edition: "default",
-          fallbackKey: "closure_default",
           uvVariables: [],
           usesStdin: false,
           transitions: {
