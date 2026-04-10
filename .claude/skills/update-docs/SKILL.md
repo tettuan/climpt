@@ -122,7 +122,7 @@ deno run -A mod.ts --help 2>&1 | grep -i "<feature>"
 
 ### Style
 
-- **One sentence**: Each feature, option, or behavior is exactly one sentence. Pack information densely — no filler words, no hedging, no redundancy.
+- **One sentence**: Each feature, option, or behavior is exactly one sentence. Pack information densely — drop filler words, hedging, and redundancy, but preserve intent and technical precision (e.g. "structured output gates" keeps "structured").
 - **Example-first**: Show usage before explaining
 - **Searchable**: Include keywords users would search for
 

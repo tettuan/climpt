@@ -31,7 +31,7 @@ Compare intent + implementation memos against current docs. Build a diff table:
 After building the diff table, verify every existing doc sentence follows these rules:
 
 - **One sentence per item**: Each feature, option, or behavior is described in exactly one sentence.
-- **Dense**: No filler words, no hedging, no redundancy — pack information into the shortest form that remains unambiguous.
+- **Dense**: Drop filler words, hedging, and redundancy — but preserve intent and technical precision. Qualifiers that carry meaning (e.g. "structured" in "structured output gates") must stay.
 
 Flag violations in the diff table with Gap = "Shorten".
 
