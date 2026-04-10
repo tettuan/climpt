@@ -20,6 +20,8 @@ export const PATHS = {
   REGISTRY_JSON: "registry.json",
   /** Prompts subdirectory */
   PROMPTS_DIR: "prompts",
+  /** Schemas subdirectory */
+  SCHEMAS_DIR: "schemas",
   /** Logs subdirectory */
   LOGS_DIR: "logs",
 } as const;

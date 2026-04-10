@@ -26,6 +26,9 @@ import {
   validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+const logger = new BreakdownLogger("step-registry");
 
 Deno.test("createEmptyRegistry - creates valid empty registry", () => {
   const registry = createEmptyRegistry("test-agent");

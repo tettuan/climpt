@@ -108,7 +108,9 @@ export class ClosureManager {
 
       const schemasDir = join(
         cwd,
-        `.agent/${this.deps.definition.name}/schemas`,
+        PATHS.AGENT_DIR_PREFIX,
+        this.deps.definition.name,
+        PATHS.SCHEMAS_DIR,
       );
 
       // Now validate intent schema enums with the correct schemasDir

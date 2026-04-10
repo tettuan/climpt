@@ -9,6 +9,9 @@ import {
   removeFrontmatter,
 } from "./prompt-resolver.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+const logger = new BreakdownLogger("prompt-resolver");
 
 // =============================================================================
 // Test Agent Setup/Teardown

@@ -9,11 +9,12 @@
  * 3. outputFormat option is set on Claude SDK query
  */
 
-import { assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { join } from "@std/path";
+import { PATHS } from "../shared/paths.ts";
 
 const logger = new BreakdownLogger("schema");
 
@@ -130,7 +131,8 @@ Deno.test("StructuredOutput - steps_registry.json has outputSchemaRef for initia
  * Test that issue.schema.json contains valid initial.issue schema
  */
 Deno.test("StructuredOutput - issue.schema.json contains valid initial.issue schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/issue.schema.json";
+  const schemaPath =
+    `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}/issue.schema.json`;
 
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
@@ -226,7 +228,7 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasDir = ".agent/iterator/schemas";
+  const schemasDir = `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}`;
 
   // Collect all unique schema files
   const schemaFiles = new Set<string>();
@@ -245,6 +247,12 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
     }
   }
 
+  assert(
+    schemaFiles.size > 0,
+    `Non-vacuity: expected at least one outputSchemaRef in ${registryPath}. ` +
+      `If steps no longer use outputSchemaRef, remove this test.`,
+  );
+
   // Verify each file exists
   for (const file of schemaFiles) {
     const schemaPath = join(schemasDir, file);
@@ -253,7 +261,11 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
       const stat = await Deno.stat(schemaPath);
       assertEquals(stat.isFile, true, `${schemaPath} should be a file`);
     } catch (_error) {
-      throw new Error(`Schema file not found: ${schemaPath}`);
+      throw new Error(
+        `Schema file not found: ${schemaPath}\n` +
+          `Referenced by outputSchemaRef in ${registryPath}.\n` +
+          `Fix: create the schema file, or update outputSchemaRef in steps_registry.json.`,
+      );
     }
   }
 });
@@ -267,7 +279,7 @@ Deno.test("StructuredOutput - all referenced schemas exist in files", async () =
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasDir = ".agent/iterator/schemas";
+  const schemasDir = `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}`;
 
   // Collect all schema references
   const refs: Array<{ file: string; schema: string }> = [];
@@ -285,6 +297,12 @@ Deno.test("StructuredOutput - all referenced schemas exist in files", async () =
       }
     }
   }
+
+  assert(
+    refs.length > 0,
+    `Non-vacuity: expected at least one outputSchemaRef in ${registryPath}. ` +
+      `If steps no longer use outputSchemaRef, remove this test.`,
+  );
 
   // Verify each schema exists
   for (const ref of refs) {
@@ -371,7 +389,8 @@ Deno.test("StructuredOutput - log message format is correct", () => {
  * Verify initial.issue schema has proper structure for JSON response
  */
 Deno.test("StructuredOutput - initial.issue schema is valid JSON Schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/issue.schema.json";
+  const schemaPath =
+    `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}/issue.schema.json`;
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
 
@@ -391,7 +410,8 @@ Deno.test("StructuredOutput - initial.issue schema is valid JSON Schema", async 
  * Verify closure.issue schema structure for validation response
  */
 Deno.test("StructuredOutput - closure.issue schema has validation fields", async () => {
-  const schemaPath = ".agent/iterator/schemas/issue.schema.json";
+  const schemaPath =
+    `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}/issue.schema.json`;
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
 
@@ -477,7 +497,8 @@ Deno.test("StructuredOutput - continuation.polling has outputSchemaRef", async (
  * Test that polling.schema.json contains valid initial.polling schema
  */
 Deno.test("StructuredOutput - polling.schema.json contains valid initial.polling schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/polling.schema.json";
+  const schemaPath =
+    `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}/polling.schema.json`;
 
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
@@ -524,7 +545,8 @@ Deno.test("StructuredOutput - polling.schema.json contains valid initial.polling
  * Test that polling.schema.json contains valid continuation.polling schema
  */
 Deno.test("StructuredOutput - polling.schema.json contains valid continuation.polling schema", async () => {
-  const schemaPath = ".agent/iterator/schemas/polling.schema.json";
+  const schemaPath =
+    `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}/polling.schema.json`;
 
   const content = await Deno.readTextFile(schemaPath);
   const schemas = JSON.parse(content);
@@ -600,7 +622,7 @@ Deno.test("StructuredOutput - polling schema loading path simulation", async () 
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
 
   // 3. Build schema path
-  const schemasDir = ".agent/iterator/schemas";
+  const schemasDir = `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}`;
   const schemaPath = join(schemasDir, stepDef.outputSchemaRef.file);
 
   // 4. Load and parse schema file
@@ -641,7 +663,7 @@ Deno.test("StructuredOutput - polling.schema.json exists in referenced files", a
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasDir = ".agent/iterator/schemas";
+  const schemasDir = `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}`;
 
   // Check polling.schema.json specifically
   const schemaPath = join(schemasDir, "polling.schema.json");
@@ -676,7 +698,7 @@ Deno.test("StructuredOutput - schema loading path simulation", async () => {
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
 
   // 3. Build schema path
-  const schemasDir = ".agent/iterator/schemas";
+  const schemasDir = `${PATHS.AGENT_DIR_PREFIX}/iterator/${PATHS.SCHEMAS_DIR}`;
   const schemaPath = join(schemasDir, stepDef.outputSchemaRef.file);
 
   // 4. Load and parse schema file

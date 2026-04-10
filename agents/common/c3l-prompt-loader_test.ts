@@ -10,18 +10,25 @@ import {
 } from "@std/assert";
 import { C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import type { C3LPath } from "./c3l-prompt-loader.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+const logger = new BreakdownLogger("c3l-prompt-loader");
 
 /**
  * Derive the expected prompt path from C3L path components.
- * Mirrors C3LPromptLoader.buildPromptPath — returns C3L logical coordinates,
- * not physical file paths (physical resolution is breakdown's concern).
+ *
+ * WARNING: Shadow contract — this function mirrors C3LPromptLoader.buildPromptPath().
+ * If the production path format changes, this helper must be updated in sync.
+ * Physical resolution (working_dir + base_dir) is breakdown's concern, not tested here.
  */
-function expectedPromptPath(_agentId: string, path: C3LPath): string {
+function expectedPromptPath(path: C3LPath): string {
   const edition = path.edition ?? "default";
   const filename = path.adaptation
     ? `f_${edition}_${path.adaptation}.md`
     : `f_${edition}.md`;
-  return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
+  const result = `${path.c1}/${path.c2}/${path.c3}/${filename}`;
+  logger.debug("expectedPromptPath", { path, result });
+  return result;
 }
 
 Deno.test("C3LPromptLoader - creates correct config name", () => {
@@ -86,7 +93,7 @@ Deno.test("C3LPromptLoader - load issue prompt with return mode", async () => {
 
   // Prompt path should match the C3L path components
   const c3lPath: C3LPath = { c1: "dev", c2: "start", c3: "issue" };
-  assertEquals(result.promptPath, expectedPromptPath("iterator", c3lPath));
+  assertEquals(result.promptPath, expectedPromptPath(c3lPath));
 });
 
 Deno.test("C3LPromptLoader - load with custom edition", async () => {
@@ -127,7 +134,7 @@ Deno.test("C3LPromptLoader - load with custom edition", async () => {
     c3: "project",
     edition: "processing",
   };
-  assertEquals(result.promptPath, expectedPromptPath("iterator", c3lPath));
+  assertEquals(result.promptPath, expectedPromptPath(c3lPath));
 });
 
 // ============================================================================
@@ -177,5 +184,5 @@ Deno.test("Reviewer - load default prompt", async () => {
 
   // Prompt path should match the C3L path components
   const c3lPath: C3LPath = { c1: "dev", c2: "start", c3: "default" };
-  assertEquals(result.promptPath, expectedPromptPath("reviewer", c3lPath));
+  assertEquals(result.promptPath, expectedPromptPath(c3lPath));
 });

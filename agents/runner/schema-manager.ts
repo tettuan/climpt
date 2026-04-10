@@ -24,6 +24,7 @@ import {
 } from "../common/schema-resolver.ts";
 import { join } from "@std/path";
 import { AGENT_LIMITS } from "../shared/constants.ts";
+import { PATHS } from "../shared/paths.ts";
 
 export interface SchemaManagerDeps {
   readonly definition: AgentDefinition;
@@ -239,7 +240,9 @@ export class SchemaManager {
     const ctx = this.deps.getContext();
     const schemasDir = join(
       ctx.cwd,
-      `.agent/${this.deps.definition.name}/schemas`,
+      PATHS.AGENT_DIR_PREFIX,
+      this.deps.definition.name,
+      PATHS.SCHEMAS_DIR,
     );
 
     try {
