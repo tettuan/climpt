@@ -118,6 +118,7 @@ registerHandler(
     const adapterConfig: ExternalStateAdapterConfig = {
       issueNumber,
       repo,
+      maxIterations: definition.runner.verdict.config.maxIterations,
       github: githubConfig as ExternalStateAdapterConfig["github"],
     };
     const adapter = new ExternalStateVerdictAdapter(

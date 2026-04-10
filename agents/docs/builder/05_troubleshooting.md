@@ -48,10 +48,10 @@ Failed to load schema from undefined#undefined
 }
 ```
 
-| プロパティ | 説明                                             | 例                                                    |
-| ---------- | ------------------------------------------------ | ----------------------------------------------------- |
-| `file`     | スキーマファイル名（schemasBase からの相対パス） | `"step-output.schema.json"`                           |
-| `schema`   | definitions 内のキー名、または JSON Pointer      | `"initial.assess"` / `"#/definitions/initial.assess"` |
+| プロパティ | 説明                                                                    | 例                                                    |
+| ---------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
+| `file`     | スキーマファイル名（エージェントの schemas ディレクトリからの相対パス） | `"step-output.schema.json"`                           |
+| `schema`   | definitions 内のキー名、または JSON Pointer                             | `"initial.assess"` / `"#/definitions/initial.assess"` |
 
 **関連ドキュメント**
 
@@ -76,11 +76,11 @@ Schema file not found: /path/to/.agent/my-agent/schemas/step-output.schema.json
 
 **原因と解決方法**
 
-| エラー種別       | 原因                                | 解決方法                                   |
-| ---------------- | ----------------------------------- | ------------------------------------------ |
-| File not found   | スキーマファイルが存在しない        | `schemasBase` ディレクトリにファイルを配置 |
-| Pointer error    | `schema` で指定したキーが存在しない | definitions 内のキー名を確認               |
-| JSON parse error | スキーマファイルが不正な JSON       | JSON 構文を検証                            |
+| エラー種別       | 原因                                | 解決方法                                                |
+| ---------------- | ----------------------------------- | ------------------------------------------------------- |
+| File not found   | スキーマファイルが存在しない        | `.agent/{agentId}/schemas` ディレクトリにファイルを配置 |
+| Pointer error    | `schema` で指定したキーが存在しない | definitions 内のキー名を確認                            |
+| JSON parse error | スキーマファイルが不正な JSON       | JSON 構文を検証                                         |
 
 **スキーマファイルの構造例**
 

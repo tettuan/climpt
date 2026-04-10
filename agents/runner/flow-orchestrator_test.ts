@@ -175,7 +175,6 @@ Deno.test("FlowOrchestrator - entry step falls back to generic entryStep", () =>
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "generic_entry_default",
         uvVariables: [],
         usesStdin: false,
       },

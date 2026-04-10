@@ -66,6 +66,47 @@ When docs files are added or removed: `deno task generate-docs-manifest`.
 
 Japanese-only files: rename to `.ja.md`, create English `.md` translation, then regenerate manifest.
 
+## Pathway Verification
+
+Verify the user journey flows smoothly across guides, help, and validation. A user should never hit a dead end or encounter an undocumented state.
+
+### User Journey Stages
+
+```
+Onboarding → Configuration → Execution → Error → Recovery
+```
+
+### Verification Table
+
+For each stage, check that the pathway is documented and navigable:
+
+| Stage | Guide exists? | --help covers it? | Validator catches mistakes? | Error points to fix? |
+|-------|:------------:|:-----------------:|:--------------------------:|:-------------------:|
+| Onboarding | README § Getting Started | `climpt --help` | — | — |
+| Configuration | docs/guides/en/ | `climpt <cmd> --help` | Schema validation | Error names the field |
+| Execution | docs/guides/en/ | — | Runtime checks | Error names the step |
+| Error | — | — | — | Error includes How-to-fix |
+| Recovery | docs/guides/en/ or FAQ | — | Re-validation | — |
+
+### Procedure
+
+1. **List entry points** — All CLI commands and config files a user interacts with
+2. **Walk each stage** — For each entry point, trace: what does the user read first? → what do they configure? → what happens on error?
+3. **Find dead ends** — A dead end is where the user encounters an error with no documented recovery path
+4. **Check cross-references** — Error messages should reference the guide that explains the fix. Guides should mention what errors to expect.
+
+### Quick checks
+
+```bash
+# Commands mentioned in README but missing from --help
+grep -oE 'climpt [a-z-]+' README.md | sort -u > $TMPDIR/readme-cmds.txt
+deno run -A mod.ts --help 2>&1 | grep -oE '[a-z-]+' > $TMPDIR/help-cmds.txt
+diff $TMPDIR/readme-cmds.txt $TMPDIR/help-cmds.txt
+
+# Error messages that lack guidance
+grep -rn "throw new\|new Error" src/ --include="*.ts" | grep -v _test.ts | grep -vE "(Fix:|Check |See |Valid )" 
+```
+
 ## Distribution Scope
 
 | Included | Excluded |
@@ -90,13 +131,14 @@ Phase 3: - [ ] Built diff table against current docs
 Phase 4: - [ ] Updated README.md, synced README.ja.md
 Phase 5: - [ ] deno task verify-docs passed, manifest updated if needed
 Phase 6: - [ ] No Japanese-only .md files remain
+Pathway: - [ ] User journey stages have no dead ends
 Memo:    - [ ] tmp/docs-review/ deleted or promoted
 ```
 
 ## References
 
-- [SEMANTIC-CHECK.md](SEMANTIC-CHECK.md) — Semantic consistency details
-- [IMPLEMENTATION-CHECK.md](IMPLEMENTATION-CHECK.md) — Formal checks (supplementary)
+- [SEMANTIC-CHECK.md](references/SEMANTIC-CHECK.md) — Semantic consistency details
+- [IMPLEMENTATION-CHECK.md](references/IMPLEMENTATION-CHECK.md) — Formal checks (supplementary)
 - `scripts/verify-docs.ts` — Automated checks (supplementary)
 - `refactoring` skill — Docs grep after structural code changes (Phase 4 Step 12)
-- `operational-guide.md` in this skill's directory — Concrete example (docs-distribution), bash commands, distribution scope, memo lifecycle, language rules
+- `references/operational-guide.md` in this skill's directory — Concrete example (docs-distribution), bash commands, distribution scope, memo lifecycle, language rules

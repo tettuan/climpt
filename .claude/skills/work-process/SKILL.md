@@ -171,4 +171,4 @@ Append after each ToDo completion.
 
 ## Reference
 
-For agent type mapping, conflict resolution, Agent prompt structure, and Agent tool parameters, read `delegation-protocol.md` in this skill's directory.
+For agent type mapping, conflict resolution, Agent prompt structure, and Agent tool parameters, read `references/delegation-protocol.md` in this skill's directory.

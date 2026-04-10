@@ -191,14 +191,15 @@ export class C3LPromptLoader {
   }
 
   /**
-   * Build the expected prompt file path (for logging)
+   * Build C3L coordinate string for logging.
+   * Runner does not resolve physical paths — that is breakdown's concern.
    */
   private buildPromptPath(path: C3LPath): string {
     const edition = path.edition ?? "default";
     const filename = path.adaptation
       ? `f_${edition}_${path.adaptation}.md`
       : `f_${edition}.md`;
-    return `.agent/${this.options.agentId}/prompts/${path.c1}/${path.c2}/${path.c3}/${filename}`;
+    return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
   }
 
   /**

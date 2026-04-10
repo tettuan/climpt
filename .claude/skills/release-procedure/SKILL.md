@@ -37,13 +37,14 @@ BRANCH=$(git branch --show-current) && VER=${BRANCH#release/}
 | 2 | バージョンアップ & ローカルCI | 1 |
 | 3 | ドキュメント更新 | 2 |
 | 4 | E2E検証 | 2 |
-| 5 | PR作成: release/* → develop（バージョン検証付き） | 3, 4 |
-| 6 | リモートCI待機: release/* → develop | 5 |
-| 7 | マージ & 検証: release/* → develop | 6 |
-| 8 | PR作成: develop → main（バージョン検証付き） | 7 |
-| 9 | リモートCI待機: develop → main | 8 |
-| 10 | マージ & 検証: develop → main | 9 |
-| 11 | vtag作成 & リリース検証 | 10 |
+| 5 | リモートCI事前テスト (workflow_dispatch) | 3, 4 |
+| 6 | PR作成: release/* → develop（バージョン検証付き） | 5 |
+| 7 | リモートCI待機: release/* → develop | 6 |
+| 8 | マージ & 検証: release/* → develop | 7 |
+| 9 | PR作成: develop → main（バージョン検証付き） | 8 |
+| 10 | リモートCI待機: develop → main | 9 |
+| 11 | マージ & 検証: develop → main | 10 |
+| 12 | vtag作成 & リリース検証 | 11 |
 
 各タスクは開始時に `in_progress`、完了時に `completed` へ更新。
 
@@ -121,7 +122,31 @@ Post-condition:
 test -z "$(git status --short)" || { echo "ABORT: dirty tree after E2E"; exit 1; }
 ```
 
-### Task 5: PR作成 release → develop
+### Task 5: リモートCI事前テスト (workflow_dispatch)
+
+PR作成前にリモートCIでテストを実行し、失敗を早期検知する。
+
+```bash
+BRANCH=$(git branch --show-current)
+gh workflow run test.yml --ref "$BRANCH"
+```
+
+実行開始を待ってから watch:
+```bash
+sleep 5
+RUN_ID=$(gh run list --workflow=test.yml --branch="$BRANCH" --limit=1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
+```
+
+Post-condition:
+```bash
+BRANCH=$(git branch --show-current)
+RUN_ID=$(gh run list --workflow=test.yml --branch="$BRANCH" --limit=1 --json databaseId,conclusion --jq '.[0].databaseId')
+CONCLUSION=$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion')
+test "$CONCLUSION" = "success" || { echo "ABORT: Remote CI failed (conclusion=$CONCLUSION)"; exit 1; }
+```
+
+### Task 6: PR作成 release → develop
 
 Gate: 全 pass まで PR 作成禁止。
 ```bash
@@ -136,15 +161,15 @@ test "$(git rev-parse origin/develop)" = "$(git rev-parse develop 2>/dev/null)" 
 gh pr create --base develop --head release/x.y.z --title "Release x.y.z: <概要>" --body "..."
 ```
 
-### Task 6: リモートCI待機: release → develop
+### Task 7: リモートCI待機: release → develop
 
 [テンプレート: リモートCI待機](references/templates.md) を `{pr_head}=release/x.y.z` で実行。
 
-### Task 7: マージ & 検証: release → develop
+### Task 8: マージ & 検証: release → develop
 
 [テンプレート: マージ & 検証](references/templates.md) を `{base}=develop` で実行。
 
-### Task 8: PR作成 develop → main
+### Task 9: PR作成 develop → main
 
 Gate: 全 pass まで PR 作成禁止。
 ```bash
@@ -159,22 +184,22 @@ test "$(git rev-parse origin/main)" = "$(git rev-parse main 2>/dev/null)" || { e
 gh pr create --base main --head develop --title "Release x.y.z" --body "..."
 ```
 
-### Task 9: リモートCI待機: develop → main
+### Task 10: リモートCI待機: develop → main
 
 [テンプレート: リモートCI待機](references/templates.md) を `{pr_head}=develop` で実行。
 
-### Task 10: マージ & 検証: develop → main
+### Task 11: マージ & 検証: develop → main
 
 [テンプレート: マージ & 検証](references/templates.md) を `{base}=main` で実行。
 
-### Task 11: vtag作成 & リリース検証
+### Task 12: vtag作成 & リリース検証
 
 **このタスクが completed にならない限りリリースは未完了。**
 
 Gate:
 ```bash
 git fetch origin
-VER=x.y.z
+BRANCH=$(git branch --show-current) && VER=${BRANCH#release/}
 git show origin/main:deno.json | grep -q "\"version\": \"$VER\"" || { echo "ABORT: main version mismatch"; exit 1; }
 git tag -l "v$VER" | grep -q . && { echo "ABORT: tag v$VER already exists"; exit 1; }
 ```

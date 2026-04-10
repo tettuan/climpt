@@ -590,7 +590,6 @@ function createTestStepRegistry(): StepRegistry {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test_initial_default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -613,7 +612,6 @@ function createTestStepRegistry(): StepRegistry {
         c2: "continuation",
         c3: "test",
         edition: "default",
-        fallbackKey: "test_continuation_default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -634,7 +632,6 @@ function createTestStepRegistry(): StepRegistry {
         c2: "closure",
         c3: "test",
         edition: "default",
-        fallbackKey: "test_closure_default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -793,7 +790,6 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
         c2: "initial",
         c3: "foo",
         edition: "default",
-        fallbackKey: "foo_initial_default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -810,7 +806,6 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
         c2: "continuation",
         c3: "foo",
         edition: "default",
-        fallbackKey: "foo_continuation_default",
         uvVariables: [],
         usesStdin: false,
       },

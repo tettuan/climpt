@@ -67,12 +67,10 @@ Reviewer の `initial.default` は
 を持つが、agent.parameters には `project`, `requirements_label`, `review_label`
 がない。
 
-これは **R-A2 違反の可能性** を示す。現状の Runner は UV 変数を CLI args
-以外からも供給できる (runtime computed values) ため、厳密な ⊇
-チェックは適切でない場合がある。
-
-→ R-A2 は「parameters ⊇ uvVariables (CLI供給分)」に精緻化する必要あり。runtime
-供給の UV 変数は Blueprint では別途マークする仕組みが必要。
+これは **R-A2 違反の可能性** を示す。R-A2 は `RUNTIME_SUPPLIED_UV_VARS`
+(`agents/shared/constants.ts`) に定義された変数を
+パラメータカバレッジチェックから除外する。上記の変数は runtime-supplied ではなく
+CLI parameters にも存在しないため、R-A2 違反となる。
 
 ### Reviewer Blueprint JSON (抜粋)
 
@@ -173,7 +171,6 @@ Reviewer の `initial.default` は
         "c2": "initial",
         "c3": "issue",
         "edition": "default",
-        "fallbackKey": "initial_issue",
         "uvVariables": ["issue"],
         "usesStdin": false,
         "condition": "args.issue !== undefined",
@@ -277,14 +274,12 @@ Reviewer の `initial.default` は
 
 ## 設計上の発見
 
-### 1. R-A2 は厳密すぎる
+### 1. R-A2 と runtime 供給変数
 
-UV 変数の供給源は CLI parameters だけではない。runtime computed values
-(iteration, completed_iterations 等) も存在する。R-A2 を
-`parameters ⊇ uvVariables` とすると、runtime 供給の変数で違反が発生する。
-
-**対応案**: R-A2 を「parameters ⊇ (uvVariables ∩ CLI供給変数)」に修正。runtime
-供給変数のリストは Blueprint Schema に embedded enum として持つ。
+UV 変数の供給源は CLI parameters だけではない。runtime supplied variables
+(iteration, completed_iterations 等) も存在する。R-A2 は
+`RUNTIME_SUPPLIED_UV_VARS` (`agents/shared/constants.ts`) に定義された変数を
+パラメータカバレッジチェックから除外することで、この問題に対応する。
 
 ### 2. condition / priority は Blueprint で表現可能
 

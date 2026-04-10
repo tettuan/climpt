@@ -28,7 +28,6 @@ function createRegistry(
       c2: partial.c2 ?? "test",
       c3: partial.c3 ?? "step",
       edition: partial.edition ?? "default",
-      fallbackKey: partial.fallbackKey ?? "fallback",
       uvVariables: partial.uvVariables ?? [],
       usesStdin: partial.usesStdin ?? false,
       ...partial,

@@ -89,15 +89,11 @@
         },
         "prompts": {
           "type": "object",
-          "required": ["registry", "fallbackDir"],
+          "required": ["registry"],
           "properties": {
             "registry": {
               "type": "string",
               "description": "Path to steps registry JSON"
-            },
-            "fallbackDir": {
-              "type": "string",
-              "description": "Fallback directory for prompts"
             }
           }
         },

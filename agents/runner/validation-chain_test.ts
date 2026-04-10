@@ -66,7 +66,6 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "initial_test",
         uvVariables: [],
         usesStdin: false,
       },
@@ -76,7 +75,6 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         c2: "continuation",
         c3: "test",
         edition: "default",
-        fallbackKey: "continuation_test",
         uvVariables: [],
         usesStdin: false,
       },
@@ -175,7 +173,7 @@ Deno.test("ValidationChain - validate returns valid when no step config", async 
   assertEquals(result.valid, true);
 });
 
-Deno.test("ValidationChain - validate returns valid when outputSchema defers to runner", async () => {
+Deno.test("ValidationChain - validate runs format validation when outputSchema defined", async () => {
   const registry = createFixtureRegistry();
   registry.validationSteps!["closure.schema"] = {
     stepId: "closure.schema",
@@ -187,11 +185,29 @@ Deno.test("ValidationChain - validate returns valid when outputSchema defers to 
     outputSchema: { type: "object" },
   };
   const chain = createChain(registry);
-  const summary = createSummary();
 
-  const result = await chain.validate("closure.schema", summary);
+  // G2+G3: outputSchema no longer causes early valid return.
+  // With valid JSON matching schema, format validation passes.
+  const validSummary = createSummary({
+    assistantResponses: ['```json\n{"status": "ok"}\n```'],
+  });
+  const passResult = await chain.validate("closure.schema", validSummary);
+  assertEquals(
+    passResult.valid,
+    true,
+    "validate() must pass when JSON matches outputSchema. " +
+      "Fix: agents/runner/validation-chain.ts validate()",
+  );
 
-  assertEquals(result.valid, true);
+  // Without JSON, format validation fails (no longer silently passes).
+  const emptySummary = createSummary();
+  const failResult = await chain.validate("closure.schema", emptySummary);
+  assertEquals(
+    failResult.valid,
+    false,
+    "validate() must fail when outputSchema defined but no JSON in response. " +
+      "Fix: agents/runner/validation-chain.ts validate()",
+  );
 });
 
 Deno.test("ValidationChain - validate returns valid when no validator available", async () => {

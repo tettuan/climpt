@@ -24,8 +24,9 @@ Iterate Agent.
 | `FAILED_STEP_ROUTING`                          | [4.2 Step routing errors](#42-step-routing-errors)                                                                |
 | `GATE_INTERPRETATION_ERROR`                    | [4.2 Step routing errors](#42-step-routing-errors)                                                                |
 | `Maximum iterations (N) reached`               | [4.3 Verdict / completion failures](#43-verdict--completion-failures)                                             |
-| `No fallback prompt found`                     | [4.4 No fallback prompt found](#44-no-fallback-prompt-found)                                                      |
+| `C3L prompt file not found`                    | [4.4 C3L prompt file not found](#44-c3l-prompt-file-not-found)                                                    |
 | `AGENT_NOT_INITIALIZED`                        | [4.5 Initialization errors](#45-initialization-and-worktree-errors)                                               |
+| `UV variable has no identified supply source`  | [4.6 UV Reachability Errors](#46-uv-reachability-errors)                                                          |
 
 ---
 
@@ -206,7 +207,7 @@ pointer or uses malformed JSON Pointer syntax.
 
 **Resolution**:
 
-1. Verify the schema file exists under the `schemasBase` directory.
+1. Verify the schema file exists under the `.agent/{agentId}/schemas` directory.
 2. Ensure `outputSchemaRef` uses the object format:
    ```json
    {
@@ -394,7 +395,6 @@ loader returns no content.
    ```bash
    ls .agent/iterator/prompts/dev/
    ```
-3. Check that `runner.flow.prompts.fallbackDir` points to a valid directory.
 
 **Prevention**: Run `--init` whenever you change agent definitions or update
 Climpt versions.
@@ -448,46 +448,35 @@ other verdict types.
 
 ---
 
-### 4.4 No Fallback Prompt Found
+### 4.4 C3L Prompt File Not Found
 
 **Error**:
 
 ```
-No fallback prompt found for key: "initial.issue" (step: initial.issue)
+[PATH] C3L prompt file not found: steps["initial.default"] → "prompts/steps/initial/default/f_default.md" does not exist
 ```
 
-**Cause**: The `fallbackKey` in `steps_registry.json` does not match any default
-template key. Most commonly, dot-separated format is used instead of
-underscore-separated format.
+**Cause**: The C3L prompt file referenced by a step in `steps_registry.json`
+does not exist at the expected path. The `--validate` flow checks every step's
+C3L prompt file and reports an error for each missing file.
 
 **Fix**:
 
-1. Open `steps_registry.json` for the failing agent
-2. Find the step referenced in the error message
-3. Change dot-separated `fallbackKey` to underscore-separated format:
-
-| Incorrect (dot)      | Correct (underscore)    |
-| -------------------- | ----------------------- |
-| `initial.issue`      | `initial_issue`         |
-| `continuation.issue` | `continuation_issue`    |
-| `initial.default`    | `initial_iterate`       |
-| `closure.issue`      | `issue_closure_default` |
-
-4. See
-   [Steps Registry Guide - fallbackKey Naming Convention](14-steps-registry-guide.md)
-   for the complete list of available keys
+1. Read the error message to identify the step ID and expected path
+2. Create the missing prompt file at the indicated path:
+   ```bash
+   mkdir -p .agent/<name>/prompts/steps/initial/default
+   touch .agent/<name>/prompts/steps/initial/default/f_default.md
+   ```
+3. Alternatively, re-run initialization to regenerate all prompt templates:
+   ```bash
+   deno run -A jsr:@aidevtool/climpt/agents/iterator --init
+   ```
 
 **Verification**:
 
 ```bash
-deno task climpt --agent <name> --dry-run --issue 1
-```
-
-**Tip**: Compare with a generated scaffold:
-
-```bash
-deno task climpt --init --agent test-compare
-# Compare generated steps_registry.json fallbackKey values with yours
+deno task agent --agent <name> --validate
 ```
 
 ---
@@ -521,6 +510,43 @@ stale worktrees regularly.
 
 ---
 
+### 4.6 UV Reachability Errors
+
+**Symptom**: `--validate` reports "UV variable has no identified supply source"
+
+**Cause**: A step declares a UV variable in `uvVariables` but no supply channel
+provides it.
+
+**Supply channels**:
+
+- Channel 1: CLI parameters declared in `agent.json` `parameters`
+- Channel 2: Runner runtime variables (iteration, completed_iterations)
+- Channel 3: VerdictHandler variables (max_iterations, remaining,
+  previous_summary)
+- Channel 4: Step handoff via `inputs` definitions
+
+**Resolution**:
+
+1. Check `uvVariables` array in `steps_registry.json` for the failing step
+2. If the variable should come from CLI: add it to `agent.json` `parameters`
+3. If it's a runtime variable: verify it's in `RUNTIME_SUPPLIED_UV_VARS`
+4. If it comes from a previous step: add an `inputs` definition with the source
+   step
+5. Run `--validate` again to confirm the fix
+
+---
+
+## Error Code Reference
+
+| Error Code        | Description                      | Guide                                                                     |
+| ----------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| PR-C3L-004        | Prompt file not found            | Section above: [C3L Prompt File Not Found](#44-c3l-prompt-file-not-found) |
+| PR-RESOLVE-003    | UV variable undefined at runtime | See: [UV Reachability Errors](#46-uv-reachability-errors)                 |
+| PR-RESOLVE-005    | UV variable not provided         | Check Channel 1 parameters                                                |
+| Validation failed | --validate found issues          | Run `--validate` and check each category below                            |
+
+---
+
 ## 5. Debugging Techniques
 
 ### 5.1 --verbose flag
@@ -534,7 +560,7 @@ deno task agent --agent iterator --issue 123 --verbose
 Verbose output includes:
 
 - Step transitions and intent routing decisions
-- Prompt loading results (success, fallback, or failure)
+- Prompt loading results (success or failure)
 - Verdict evaluation at each iteration
 - Environment detection results
 
@@ -547,6 +573,9 @@ Check configuration for structural errors without running the agent:
 ```bash
 deno task agent --agent my-agent --validate
 ```
+
+The `--validate` flag checks configuration files, schema references, and C3L
+prompt file existence for every step defined in `steps_registry.json`.
 
 Example output for a valid configuration:
 
@@ -562,7 +591,11 @@ Example output with errors:
 ```
 agent.json: ERROR - Unknown key "runner.completion" (did you mean "runner.verdict"?)
 steps_registry.json: WARNING - Step "plan" missing "stepKind" field
+[PATH] C3L prompt file not found: steps["initial.default"] → "prompts/steps/initial/default/f_default.md" does not exist
 ```
+
+See [4.4 C3L prompt file not found](#44-c3l-prompt-file-not-found) for
+resolution steps.
 
 ---
 

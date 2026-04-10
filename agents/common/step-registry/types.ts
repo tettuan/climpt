@@ -5,6 +5,7 @@
  */
 
 import type { InputSpec } from "../../src_common/contracts.ts";
+import type { PermissionMode } from "../../src_common/types/agent-definition.ts";
 
 /**
  * Step type for categorization
@@ -83,12 +84,6 @@ export interface PromptStepDefinition {
   adaptation?: string;
 
   /**
-   * Key for fallback prompt in embedded prompts
-   * Used when user prompt file doesn't exist
-   */
-  fallbackKey: string;
-
-  /**
    * List of UV (user variable) names required by this prompt
    * Example: ["issue", "repository"]
    */
@@ -105,7 +100,7 @@ export interface PromptStepDefinition {
    * Alternative to inline schema definition.
    */
   outputSchemaRef?: {
-    /** Schema file name (relative to schemasBase) */
+    /** Schema file name (relative to the agent's schemas directory) */
     file: string;
     /** Schema name within the file (top-level key) */
     schema: string;
@@ -126,6 +121,12 @@ export interface PromptStepDefinition {
    * Intent to step transition mapping.
    */
   transitions?: Transitions;
+
+  /**
+   * Override SDK permissionMode for this step.
+   * When set, takes priority over the agent-level boundaries.permissionMode.
+   */
+  permissionMode?: PermissionMode;
 
   /**
    * Optional description of what this step does
@@ -249,18 +250,6 @@ export interface StepRegistry {
 
   /** All step definitions indexed by stepId */
   steps: Record<string, PromptStepDefinition>;
-
-  /**
-   * Default base directory for user prompts
-   * Default: ".agent/{agentId}/prompts"
-   */
-  userPromptsBase?: string;
-
-  /**
-   * Base directory for schema files
-   * Default: ".agent/{agentId}/schemas"
-   */
-  schemasBase?: string;
 
   /**
    * Entry step ID for starting execution

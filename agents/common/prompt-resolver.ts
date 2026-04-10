@@ -10,8 +10,6 @@
  * - Frontmatter removal for clean prompt content
  */
 
-import { join } from "@std/path";
-import { PATHS } from "../shared/paths.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import {
@@ -64,9 +62,6 @@ export interface PromptResolverOptions {
   /** Working directory for relative path resolution */
   workingDir?: string;
 
-  /** Custom user prompts base path (overrides registry setting) */
-  userPromptsBase?: string;
-
   /** Whether to strip frontmatter from prompts (default: true) */
   stripFrontmatter?: boolean;
 
@@ -91,7 +86,6 @@ export interface PromptResolverOptions {
  */
 export class PromptResolver {
   private workingDir: string;
-  private userPromptsBase: string;
   private stripFrontmatter: boolean;
   private allowMissingVariables: boolean;
   private c3lLoader: C3LPromptLoader;
@@ -107,13 +101,9 @@ export class PromptResolver {
     options: PromptResolverOptions = {},
   ) {
     this.workingDir = options.workingDir ?? Deno.cwd();
-    this.userPromptsBase = options.userPromptsBase ??
-      registry.userPromptsBase ??
-      `${PATHS.AGENT_DIR_PREFIX}/${registry.agentId}/${PATHS.PROMPTS_DIR}`;
     this.stripFrontmatter = options.stripFrontmatter ?? true;
     this.allowMissingVariables = options.allowMissingVariables ?? false;
 
-    // Create C3LPromptLoader for breakdown integration
     this.c3lLoader = new C3LPromptLoader({
       agentId: registry.agentId,
       configSuffix: options.configSuffix ?? registry.c1,
@@ -341,18 +331,8 @@ export class PromptResolver {
   }
 
   /**
-   * Build prompt file path from step definition
-   */
-  private buildPromptPath(step: PromptStepDefinition): string {
-    const edition = step.edition ?? "default";
-    const filename = step.adaptation
-      ? `f_${edition}_${step.adaptation}.md`
-      : `f_${edition}.md`;
-    return `${this.registry.c1}/${step.c2}/${step.c3}/${filename}`;
-  }
-
-  /**
-   * Format C3L path as a human-readable string for log messages
+   * Format C3L path as a human-readable string for log/error messages.
+   * Uses C3L logical coordinates only — Runner does not resolve physical paths.
    */
   private formatC3LPath(path: C3LPath): string {
     const edition = path.edition ?? "default";
@@ -360,44 +340,6 @@ export class PromptResolver {
       ? `f_${edition}_${path.adaptation}.md`
       : `f_${edition}.md`;
     return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
-  }
-
-  /**
-   * Check if a step can be resolved (has user file)
-   *
-   * @param stepId - Step ID to check
-   * @returns true if step can be resolved
-   */
-  async canResolve(stepId: string): Promise<boolean> {
-    const step = this.registry.steps[stepId];
-    if (!step) {
-      return false;
-    }
-
-    // Check user file
-    const promptPath = this.buildPromptPath(step);
-    const userPath = join(this.workingDir, this.userPromptsBase, promptPath);
-    try {
-      await Deno.stat(userPath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Get the user file path for a step (even if it doesn't exist)
-   *
-   * @param stepId - Step ID
-   * @returns User file path or undefined if step not found
-   */
-  getUserFilePath(stepId: string): string | undefined {
-    const step = this.registry.steps[stepId];
-    if (!step) {
-      return undefined;
-    }
-    const promptPath = this.buildPromptPath(step);
-    return join(this.workingDir, this.userPromptsBase, promptPath);
   }
 }
 

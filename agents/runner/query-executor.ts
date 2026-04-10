@@ -16,6 +16,7 @@ import type {
   IterationSummary,
   RuntimeContext,
 } from "../src_common/types.ts";
+import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
 import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
 import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
@@ -30,6 +31,8 @@ import {
   filterAllowedTools,
   getToolPolicy,
   isBashCommandAllowed,
+  isToolDeniedByPermissionMode,
+  resolvePermissionMode,
 } from "../common/tool-policy.ts";
 import {
   isAssistantMessage,
@@ -110,6 +113,7 @@ export class QueryExecutor {
         ...(githubEnabled ? [GITHUB_READ_TOOL_NAME] : []),
       ];
       let currentStepKind: StepKind | undefined;
+      let stepPermissionMode: PermissionMode | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
 
       if (stepId && stepsRegistry) {
@@ -118,6 +122,7 @@ export class QueryExecutor {
           | undefined;
         if (stepDef) {
           currentStepKind = inferStepKind(stepDef);
+          stepPermissionMode = stepDef.permissionMode;
           if (currentStepKind) {
             allowedTools = filterAllowedTools(allowedTools, currentStepKind);
             ctx.logger.info(
@@ -131,7 +136,11 @@ export class QueryExecutor {
         cwd: ctx.cwd,
         systemPrompt,
         allowedTools,
-        permissionMode: this.deps.definition.runner.boundaries.permissionMode,
+        permissionMode: resolvePermissionMode(
+          stepPermissionMode,
+          currentStepKind,
+          this.deps.definition.runner.boundaries.permissionMode,
+        ),
         settingSources: ["user", "project"],
         plugins,
         resume: sessionId,
@@ -172,10 +181,30 @@ export class QueryExecutor {
               updatedInput: { questions: input.questions, answers },
             };
           }
+          // Enforce permissionMode restrictions.
+          // canUseTool returning "allow" overrides the SDK's own permissionMode
+          // check, so plan mode must be enforced here explicitly.
+          const effectiveMode = queryOptions.permissionMode as string;
+          const modeCheck = isToolDeniedByPermissionMode(
+            toolName,
+            effectiveMode as PermissionMode,
+          );
+          if (!modeCheck.allowed) {
+            return { behavior: "deny", message: modeCheck.reason ?? "" };
+          }
+
           // Allow other tools
           return { behavior: "allow", updatedInput: input };
         },
       };
+
+      const effectiveMode = queryOptions.permissionMode as string;
+      const agentMode = this.deps.definition.runner.boundaries.permissionMode;
+      if (effectiveMode !== agentMode) {
+        ctx.logger.info(
+          `[ToolPolicy] Step "${stepId}" permissionMode: ${effectiveMode} (agent-level: ${agentMode})`,
+        );
+      }
 
       // Configure sandbox
       const sandboxConfig = mergeSandboxConfig(

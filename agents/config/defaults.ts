@@ -25,7 +25,6 @@ const DEFAULTS = {
     flow: {
       prompts: {
         registry: PATHS.STEPS_REGISTRY,
-        fallbackDir: PATHS.PROMPTS_DIR,
       },
     },
     verdict: {
@@ -98,8 +97,6 @@ export function applyDefaults(raw: unknown): ResolvedAgentDefinition {
         prompts: {
           registry: (rawPrompts.registry as string) ??
             DEFAULTS.runner.flow.prompts.registry,
-          fallbackDir: (rawPrompts.fallbackDir as string) ??
-            DEFAULTS.runner.flow.prompts.fallbackDir,
         },
         schemas: rawFlow
           .schemas as AgentDefinition["runner"]["flow"]["schemas"],

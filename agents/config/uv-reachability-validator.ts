@@ -9,8 +9,9 @@
  * - Channel 3: VerdictHandler variables (max_iterations, remaining, etc.)
  * - Channel 4: Step handoff via inputs (InputSpec, stepId_key namespace)
  *
- * A UV variable with no identified supply source from any channel gets a
- * warning. Optional CLI parameters without defaults are also flagged.
+ * A UV variable with no identified supply source from any channel gets an
+ * error (will cause PR-RESOLVE failure at runtime). Optional CLI parameters
+ * without defaults are flagged as warnings.
  *
  * Additionally validates prefix substitution consistency:
  * - For each initial.X step, checks that a corresponding continuation.X exists
@@ -28,6 +29,31 @@ import {
   RUNTIME_SUPPLIED_UV_VARS,
 } from "../shared/constants.ts";
 import type { InputSpec } from "../src_common/contracts.ts";
+
+// ---------------------------------------------------------------------------
+// Exported message identifiers (used by tests to avoid hardcoded strings)
+// ---------------------------------------------------------------------------
+
+/** Message fragment: no supply source found across all channels. */
+export const MSG_NO_SUPPLY_SOURCE = "no identified supply source";
+
+/** Message fragment: runtime PR-RESOLVE failure reference. */
+export const MSG_PR_RESOLVE = "PR-RESOLVE";
+
+/** Message fragment: continuation-only variable in initial step. */
+export const MSG_CONTINUATION_ONLY = "continuation-only";
+
+/** Message fragment: PR-RESOLVE-003 error code for continuation-only violations. */
+export const MSG_PR_RESOLVE_003 = "PR-RESOLVE-003";
+
+/** Message fragment: optional CLI parameter without default. */
+export const MSG_OPTIONAL_CLI_NO_DEFAULT = "optional CLI parameter";
+
+/** Message fragment: prefix substitution mismatch warning. */
+export const MSG_PREFIX_SUBSTITUTION = "Prefix substitution";
+
+/** Message fragment: default transition will fail (missing continuation step). */
+export const MSG_DEFAULT_TRANSITION_FAIL = "Default transition will fail";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -98,7 +124,7 @@ function validatePrefixSubstitutionConsistency(
       // continuation.X is missing
       warnings.push(
         `steps["${stepId}"] exists but steps["${continuationId}"] is missing. ` +
-          `Default transition will fail if no explicit transition is configured.`,
+          `${MSG_DEFAULT_TRANSITION_FAIL} if no explicit transition is configured.`,
       );
       continue;
     }
@@ -112,14 +138,25 @@ function validatePrefixSubstitutionConsistency(
     // Both null or both empty - no mismatch
     if (initialUv === null && continuationUv === null) continue;
 
+    // Exclude CONTINUATION_ONLY_UV_VARS from the comparison.
+    // These variables are by definition only available from iteration 2+
+    // and are correctly absent from initial steps (#459).
+    // The same set is used at L240-252 to error on initial.* declarations,
+    // so the exclusion here is consistent with the validator's own rules.
+    const filteredContinuationUv = (continuationUv ?? []).filter(
+      (v) => !CONTINUATION_ONLY_UV_VARS.has(v),
+    );
+
     const initialStr = JSON.stringify(initialUv ?? []);
-    const continuationStr = JSON.stringify(continuationUv ?? []);
+    const continuationStr = JSON.stringify(filteredContinuationUv);
 
     if (initialStr !== continuationStr) {
       warnings.push(
         `steps["${stepId}"] declares uvVariables ${initialStr} but ` +
-          `steps["${continuationId}"] declares ${continuationStr}. ` +
-          `Prefix substitution (initial.* -> continuation.*) may cause UV variable mismatch at runtime.`,
+          `steps["${continuationId}"] declares ${
+            JSON.stringify(continuationUv ?? [])
+          }. ` +
+          `${MSG_PREFIX_SUBSTITUTION} (initial.* -> continuation.*) may cause UV variable mismatch at runtime.`,
       );
     }
   }
@@ -207,7 +244,7 @@ export function validateUvReachability(
           const hasDefault = "default" in paramDef;
           if (!isRequired && !hasDefault) {
             warnings.push(
-              `Step "${stepId}": UV variable "${varName}" maps to optional CLI parameter with no default value.`,
+              `Step "${stepId}": UV variable "${varName}" maps to ${MSG_OPTIONAL_CLI_NO_DEFAULT} with no default value.`,
             );
           }
         }
@@ -223,8 +260,8 @@ export function validateUvReachability(
           CONTINUATION_ONLY_UV_VARS.has(varName)
         ) {
           errors.push(
-            `Step "${stepId}": UV variable "${varName}" is continuation-only (available from iteration 2+) ` +
-              `but declared in an initial.* step. This will cause PR-RESOLVE-003 at runtime. ` +
+            `Step "${stepId}": UV variable "${varName}" is ${MSG_CONTINUATION_ONLY} (available from iteration 2+) ` +
+              `but declared in an initial.* step. This will cause ${MSG_PR_RESOLVE_003} at runtime. ` +
               `Fix: remove "${varName}" from uvVariables in steps_registry.json for step "${stepId}", ` +
               `or move it to the corresponding continuation.* step.`,
           );
@@ -238,8 +275,8 @@ export function validateUvReachability(
       }
 
       // No identified supply source from any channel
-      warnings.push(
-        `Step "${stepId}": uvVariable "${varName}" has no identified supply source (not a CLI parameter, not a runtime variable, not an input handoff).`,
+      errors.push(
+        `Step "${stepId}": uvVariable "${varName}" has ${MSG_NO_SUPPLY_SOURCE} (not a CLI parameter, not a runtime variable, not an input handoff). This will cause ${MSG_PR_RESOLVE} error at runtime.`,
       );
     }
   }

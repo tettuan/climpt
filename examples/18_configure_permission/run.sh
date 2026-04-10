@@ -9,6 +9,7 @@ source "${EXAMPLES_DIR}/common_functions.sh"
 AGENT_NAME="plan-scout"
 AGENT_DIR=".agent/${AGENT_NAME}"
 AGENT_JSON="${AGENT_DIR}/agent.json"
+STEPS_JSON="${AGENT_DIR}/steps_registry.json"
 
 main() {
   info "=== Configure Permission Mode: ${AGENT_NAME} ==="
@@ -38,7 +39,27 @@ main() {
   show_cmd jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
   jq '.runner.boundaries.permissionMode' "$AGENT_JSON"
 
-  success "permissionMode set to 'plan'"
+  success "permissionMode set to 'plan' in agent.json"
+
+  # --- steps_registry.json: add permissionMode to work steps ---
+  if [[ ! -f "$STEPS_JSON" ]]; then
+    error "${STEPS_JSON} not found"
+    return 1
+  fi
+
+  info "Before: steps_registry.json work steps"
+  show_cmd jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
+  jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
+
+  # Add permissionMode: "plan" to every step with stepKind == "work"
+  jq '.steps |= with_entries(if .value.stepKind == "work" then .value.permissionMode = "plan" else . end)' \
+    "$STEPS_JSON" > "${STEPS_JSON}.tmp" && mv "${STEPS_JSON}.tmp" "$STEPS_JSON"
+
+  info "After: steps_registry.json work steps"
+  show_cmd jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
+  jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
+
+  success "permissionMode set to 'plan' in steps_registry.json"
 }
 
 main "$@"

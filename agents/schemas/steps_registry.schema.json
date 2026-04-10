@@ -23,14 +23,6 @@
       "type": "string",
       "description": "C3L path component: c1 (e.g., 'steps')"
     },
-    "userPromptsBase": {
-      "type": "string",
-      "description": "Base directory for user prompts (default: '.agent/{agentId}/prompts')"
-    },
-    "schemasBase": {
-      "type": "string",
-      "description": "Base directory for schema files (default: '.agent/{agentId}/schemas')"
-    },
     "pathTemplate": {
       "type": "string",
       "description": "Path template with adaptation: '{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md'"
@@ -82,7 +74,7 @@
   "definitions": {
     "StepDefinition": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3", "fallbackKey"],
+      "required": ["stepId", "name", "c2", "c3"],
       "properties": {
         "stepId": {
           "type": "string",
@@ -119,10 +111,6 @@
         "adaptation": {
           "type": "string",
           "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
-        },
-        "fallbackKey": {
-          "type": "string",
-          "description": "Key for fallback prompt in embedded prompts"
         },
         "uvVariables": {
           "type": "array",
@@ -204,7 +192,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "Schema file name (relative to schemasBase)"
+          "description": "Schema file name (relative to the agent's schemas directory)"
         },
         "schema": {
           "type": "string",

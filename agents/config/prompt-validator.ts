@@ -2,18 +2,31 @@
  * Prompt Resolution Validator
  *
  * Validates that each step in steps_registry.json has a resolvable prompt:
- * - fallbackKey exists in DefaultFallbackProvider templates
  * - C3L path components (c2, c3) are non-empty strings
  * - C3L path components are consistent with stepId
+ * - C3L prompt files exist on disk (warnings for missing files)
  *
- * Responsibility: Verify prompt resolution feasibility (no I/O)
- * Side effects: None
+ * Responsibility: Verify prompt resolution feasibility
+ * Side effects: Reads filesystem metadata (Deno.stat) when agentDir is provided
  *
  * @module
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { DefaultFallbackProvider } from "../prompts/fallback.ts";
+import { buildPromptFilePath } from "./c3l-path-builder.ts";
+
+// ---------------------------------------------------------------------------
+// Exported error/warning message identifiers
+// ---------------------------------------------------------------------------
+
+/** Prefix for all file-existence warnings. */
+export const MSG_PROMPT_PREFIX = "[PROMPT]";
+/** Fragment: main C3L file was not found. */
+export const MSG_NOT_FOUND = "not found";
+/** Fragment: c2 field is missing or empty. */
+export const MSG_C2_MISSING = "c2 is missing or empty";
+/** Fragment: c3 field is missing or empty. */
+export const MSG_C3_MISSING = "c3 is missing or empty";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -29,6 +42,22 @@ function asRecord(
   return undefined;
 }
 
+/**
+ * Check whether a path exists and is a file.
+ * Returns true if it exists and is a file, false otherwise.
+ */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    return stat.isFile;
+  } catch (e: unknown) {
+    if (e instanceof Deno.errors.NotFound) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -37,55 +66,52 @@ function asRecord(
  * Validate prompt resolution for all steps in a steps registry.
  *
  * Checks per step:
- * 1. fallbackKey exists in DefaultFallbackProvider templates
- * 2. c2 and c3 are non-empty strings
- * 3. c2 and c3 are consistent with stepId parts
+ * 1. c2 and c3 are non-empty strings
+ * 2. c2 and c3 are consistent with stepId parts
+ * 3. C3L prompt file exists on disk (when agentDir is provided)
  *
  * @param registry - Parsed steps_registry.json content
+ * @param agentDir - Absolute path to the agent directory (optional; enables file checks)
  * @returns Validation result with errors and warnings
  */
-export function validatePrompts(
+export async function validatePrompts(
   registry: Record<string, unknown>,
-): ValidationResult {
+  agentDir?: string,
+): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const provider = new DefaultFallbackProvider();
-  const templates = provider.getTemplates();
-
   const stepsRaw = asRecord(registry.steps) ?? {};
+
+  // Collect file-check targets so we can run them in parallel later.
+  const fileChecks: {
+    stepId: string;
+    mainPath: string;
+  }[] = [];
+
+  const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
 
   for (const [stepId, stepDef] of Object.entries(stepsRaw)) {
     const step = asRecord(stepDef);
     if (!step) continue;
 
-    // 1. fallbackKey existence
-    const fallbackKey = step.fallbackKey;
-    if (typeof fallbackKey === "string" && fallbackKey !== "") {
-      if (!(fallbackKey in templates)) {
-        warnings.push(
-          `steps["${stepId}"].fallbackKey "${fallbackKey}" not found in DefaultFallbackProvider templates`,
-        );
-      }
-    }
-
-    // 2. C3L path components must be non-empty strings
+    // 1. C3L path components must be non-empty strings
     const c2 = step.c2;
     const c3 = step.c3;
 
     if (typeof c2 !== "string" || c2 === "") {
       errors.push(
-        `steps["${stepId}"].c2 is missing or empty`,
+        `steps["${stepId}"].${MSG_C2_MISSING}`,
       );
     }
 
     if (typeof c3 !== "string" || c3 === "") {
       errors.push(
-        `steps["${stepId}"].c3 is missing or empty`,
+        `steps["${stepId}"].${MSG_C3_MISSING}`,
       );
     }
 
-    // 3. C3L path components consistency with stepId
+    // 2. C3L path components consistency with stepId
     // stepId format: "c2.c3" (e.g., "initial.issue") or "c2.c3.suffix"
     // (e.g., "initial.project.preparation")
     if (
@@ -106,6 +132,50 @@ export function validatePrompts(
             `steps["${stepId}"].c3 is "${c3}" but stepId second part is "${stepIdC3}"`,
           );
         }
+      }
+
+      // 3. Prepare file existence check (only when agentDir is provided)
+      if (agentDir) {
+        const edition = typeof step.edition === "string" && step.edition !== ""
+          ? step.edition
+          : "default";
+        const adaptation = typeof step.adaptation === "string"
+          ? step.adaptation
+          : undefined;
+        const mainPath = buildPromptFilePath(
+          agentDir,
+          c1,
+          c2,
+          c3,
+          edition,
+          adaptation,
+        );
+
+        fileChecks.push({
+          stepId,
+          mainPath,
+        });
+      }
+    }
+  }
+
+  // 3. Run file existence checks in parallel
+  if (fileChecks.length > 0 && agentDir) {
+    const existsResults = await Promise.all(
+      fileChecks.map((fc) => fileExists(fc.mainPath)),
+    );
+
+    for (let idx = 0; idx < fileChecks.length; idx++) {
+      if (!existsResults[idx]) {
+        const relativePath = fileChecks[idx].mainPath.replace(
+          agentDir + "/",
+          "",
+        );
+        warnings.push(
+          `${MSG_PROMPT_PREFIX} steps["${
+            fileChecks[idx].stepId
+          }"]: C3L file "${relativePath}" ${MSG_NOT_FOUND}`,
+        );
       }
     }
   }

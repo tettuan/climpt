@@ -12,11 +12,15 @@ import type { IterationSummary } from "../src_common/types.ts";
 import type {
   ExtendedStepsRegistry,
   FailureAction,
+  ResponseFormat,
   ValidationStepConfig,
 } from "../common/validation-types.ts";
 import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
-import type { FormatValidationResult } from "../loop/format-validator.ts";
+import {
+  type FormatValidationResult,
+  FormatValidator,
+} from "../loop/format-validator.ts";
 
 /** Default maxAttempts when not configured */
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -82,18 +86,19 @@ export class ValidationChain {
   }
 
   /**
-   * Validate conditions for a step.
+   * Post-LLM validation for a step (Phase 2).
    *
-   * Note: Structured output validation is handled at runner level.
-   * This method only handles command-based validation fallback.
+   * Runs format validation when outputSchema is defined, then
+   * falls through to command-based validation conditions.
+   * State validation (Phase 1) runs separately via `validateState()`.
    *
    * @param stepId - Step identifier
-   * @param _summary - Current iteration summary (unused)
+   * @param summary - Current iteration summary (used for format validation)
    * @returns Validation result
    */
   async validate(
     stepId: string,
-    _summary: IterationSummary,
+    summary: IterationSummary,
   ): Promise<ValidationResult> {
     const stepConfig = this.getStepConfig(stepId);
 
@@ -103,16 +108,28 @@ export class ValidationChain {
 
     this.logger.info(`Validating conditions for step: ${stepId}`);
 
-    // Structured output validation is handled at runner level
-    // ValidationChain only handles command-based validation fallback
-    if (stepConfig.outputSchema) {
-      this.logger.debug(
-        "[ValidationChain] outputSchema defined, validation handled at runner level",
-      );
-      return { valid: true };
+    // Phase 2: Post-LLM format validation
+    if (stepConfig.outputSchema && summary) {
+      const formatValidator = new FormatValidator();
+      const responseFormat: ResponseFormat = {
+        type: "json",
+        schema: stepConfig.outputSchema,
+      };
+      const formatResult = formatValidator.validate(summary, responseFormat);
+      if (!formatResult.valid) {
+        this.logger.warn(
+          `[ValidationChain] Format validation failed: ${formatResult.error}`,
+        );
+        return {
+          valid: false,
+          retryPrompt: this.buildFormatRetryPrompt(formatResult),
+          formatValidation: formatResult,
+        };
+      }
+      this.logger.debug("[ValidationChain] Format validation passed");
     }
 
-    // Command-based validation
+    // Command-based validation conditions
     if (
       !this.stepValidator ||
       !stepConfig.validationConditions?.length
@@ -120,6 +137,31 @@ export class ValidationChain {
       return { valid: true };
     }
 
+    return await this.validateWithConditions(stepConfig);
+  }
+
+  /**
+   * Pre-flight state validation - runs BEFORE LLM call.
+   *
+   * Validates state-based conditions (command/file/semantic validators) only.
+   * Unlike `validate()`, this does NOT early-return when outputSchema is defined,
+   * because state conditions must be checked regardless of output format.
+   *
+   * @param stepId - Step identifier
+   * @returns Validation result
+   */
+  async validateState(stepId: string): Promise<ValidationResult> {
+    const stepConfig = this.getStepConfig(stepId);
+    if (!stepConfig) {
+      return { valid: true };
+    }
+
+    // Run conditions regardless of outputSchema
+    if (!this.stepValidator || !stepConfig.validationConditions?.length) {
+      return { valid: true };
+    }
+
+    this.logger.info(`Pre-flight state validation for step: ${stepId}`);
     return await this.validateWithConditions(stepConfig);
   }
 

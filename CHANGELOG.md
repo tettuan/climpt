@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.23] - 2026-04-11
+
+### Added
+- `service-consistency` skill for end-to-end service verification
+- Frontmatter/registry UV validator and config/registry consistency validator (#460)
+- Key concepts to `--help`, UV reachability troubleshooting, and error-guide mapping
+- Step-level `permissionMode` override for tool policy
+- CI optimization: run tests only on PR to develop, not every push
+
+### Fixed
+- Inject `max_iterations` and `remaining` in `poll:state` verdict handler (#461)
+- Remove `runtimeUvVariables` from schema, use `RUNTIME_SUPPLIED_UV_VARS` (#462)
+- Exclude continuation-only UV vars from prefix substitution comparison (#459)
+- Display errors from `stepRegistryValidation` and `handoffInputsResult` in `--validate` output (#456)
+- Remove fallback implementation, make C3L-only prompt resolution
+- Enforce plan mode restrictions, improve validation and docs fetch stability
+- Pass `conditionParams` to command validators for interpolation
+- Implement two-phase validation model for closure loop
+- Example 18 sets step-level `permissionMode` to enforce plan mode
+- Fix `require-await` lint in `validateState`
+
+### Changed
+- Remove `userPromptsBase` and `schemasBase` from Runner, enforce C3L coordinate boundary
+- Consolidate prompt path building to `buildPromptFilePath`, use PATHS constant
+- Remove `fallbackKey` from schema, types, validators, and configs
+- Standardize skill naming conventions and fill service consistency gaps
+- Extract message constants from validators, improve test assertions
+- Update validation documentation to reflect four-phase model
+- Improve test quality: path-validator (P1-P4), template-uv-validator edge cases, test-design evaluation fixes
+
 ## [1.13.22] - 2026-04-08
 
 ### Added

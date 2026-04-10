@@ -775,6 +775,16 @@ export function prSystemPromptLoadFailed(
   );
 }
 
+export function prSystemPromptNotFound(path: string): ConfigError {
+  return new ConfigError(
+    "PR-SYSTEM-002",
+    `System prompt file not found: "${path}". Every agent must provide a prompts/system.md file.`,
+    `C3L-only prompt resolution — no fallback`,
+    `Create a system prompt file at "${path}" with role-specific instructions for this agent.`,
+    "prompts/",
+  );
+}
+
 // --- SR-ENTRY-004: Step machine entry step (StepMachineVerdictHandler) ---
 
 export function srEntryNotConfigured(): ConfigError {

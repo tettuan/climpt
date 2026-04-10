@@ -9,6 +9,9 @@ import {
   removeFrontmatter,
 } from "./prompt-resolver.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+const logger = new BreakdownLogger("prompt-resolver");
 
 // =============================================================================
 // Test Agent Setup/Teardown
@@ -226,7 +229,6 @@ Deno.test("PromptResolver - throws when C3L prompt file not found", async () => 
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "fallback_test",
     uvVariables: [],
     usesStdin: false,
   });
@@ -250,7 +252,6 @@ Deno.test("PromptResolver - throws C3L not found when file missing (even with re
     c2: "initial",
     c3: "required",
     edition: "default",
-    fallbackKey: "required_fallback",
     uvVariables: ["required_var"],
     usesStdin: false,
   });
@@ -282,117 +283,6 @@ Deno.test("PromptResolver - throws on unknown step ID", async () => {
 // Note: frontmatter stripping tests are covered by removeFrontmatter unit tests above.
 // With fallback removed, these would require C3L prompt files on disk.
 
-Deno.test("PromptResolver - canResolve returns false for step without file", async () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "resolvable",
-    name: "Resolvable",
-    c2: "initial",
-    c3: "resolvable",
-    edition: "default",
-    fallbackKey: "resolvable_key",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const resolver = new PromptResolver(registry, {
-    workingDir: testTmpDir,
-  });
-
-  const canResolve = await resolver.canResolve("resolvable");
-
-  assertEquals(canResolve, false);
-});
-
-Deno.test("PromptResolver - canResolve returns false for unknown step", async () => {
-  const registry = createEmptyRegistry("test-agent");
-
-  const resolver = new PromptResolver(registry);
-
-  const canResolve = await resolver.canResolve("unknown");
-
-  assertEquals(canResolve, false);
-});
-
-Deno.test("PromptResolver - getUserFilePath returns correct path", () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "file.path",
-    name: "File Path",
-    c2: "initial",
-    c3: "file",
-    edition: "default",
-    fallbackKey: "key",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const resolver = new PromptResolver(registry, {
-    workingDir: "/work",
-  });
-
-  const path = resolver.getUserFilePath("file.path");
-
-  // Path should be: /work/.agent/test-agent/prompts/steps/initial/file/f_default.md
-  assertEquals(
-    path,
-    "/work/.agent/test-agent/prompts/steps/initial/file/f_default.md",
-  );
-});
-
-Deno.test("PromptResolver - getUserFilePath with adaptation", () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "file.adapted",
-    name: "Adapted File",
-    c2: "initial",
-    c3: "file",
-    edition: "preparation",
-    adaptation: "empty",
-    fallbackKey: "key",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const resolver = new PromptResolver(registry, {
-    workingDir: "/work",
-  });
-
-  const path = resolver.getUserFilePath("file.adapted");
-
-  // Path should include adaptation: f_preparation_empty.md
-  assertEquals(
-    path,
-    "/work/.agent/test-agent/prompts/steps/initial/file/f_preparation_empty.md",
-  );
-});
-
-// Test adaptation override
-Deno.test("PromptResolver - adaptation override changes resolved path", () => {
-  const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "closure.issue",
-    name: "Closure Issue",
-    c2: "closure",
-    c3: "issue",
-    edition: "default",
-    fallbackKey: "closure_issue",
-    uvVariables: [],
-    usesStdin: false,
-  });
-
-  const resolver = new PromptResolver(registry, {
-    workingDir: "/work",
-  });
-
-  // With adaptation override, path should include adaptation
-  const pathWithOverride = resolver.getUserFilePath("closure.issue");
-  assertEquals(
-    pathWithOverride,
-    "/work/.agent/test-agent/prompts/steps/closure/issue/f_default.md",
-  );
-});
-
 Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
@@ -401,7 +291,6 @@ Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)",
     c2: "closure",
     c3: "issue",
     edition: "default",
-    fallbackKey: "closure_issue",
     uvVariables: [],
     usesStdin: false,
   });
@@ -425,7 +314,6 @@ Deno.test("PromptResolver - resolve throws when C3L file missing for step with v
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test_fallback",
     uvVariables: ["name"],
     usesStdin: false,
   });

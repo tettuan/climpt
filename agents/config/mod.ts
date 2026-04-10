@@ -13,6 +13,7 @@ import type { ConfigurationContract } from "../src_common/contracts.ts";
 import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { validate, validateComplete } from "./validator.ts";
 import { applyDefaults, freeze } from "./defaults.ts";
+import { join } from "@std/path";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import {
   acValidFailed,
@@ -30,7 +31,9 @@ import { validateFlowReachability } from "./flow-validator.ts";
 import { validatePrompts } from "./prompt-validator.ts";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
 import { validateTemplateUvConsistency } from "./template-uv-validator.ts";
+import { validateFrontmatterRegistry } from "./frontmatter-registry-validator.ts";
 import { validateHandoffInputs } from "./handoff-validator.ts";
+import { validateConfigRegistryConsistency } from "./config-registry-validator.ts";
 import {
   validateIntentSchemaRef,
   validateStepKindIntents,
@@ -133,8 +136,10 @@ export interface FullValidationResult {
   promptResult: ValidationResult | null;
   uvReachabilityResult: ValidationResult | null;
   templateUvResult: ValidationResult | null;
+  frontmatterRegistryResult: ValidationResult | null;
   stepRegistryValidation: ValidationResult | null;
   handoffInputsResult: ValidationResult | null;
+  configRegistryResult: ValidationResult | null;
 }
 
 /**
@@ -173,12 +178,19 @@ export async function validateFull(
   };
 
   // 4. Steps registry (optional)
+  //    Use the registry path from the definition (runner.flow.prompts.registry)
+  //    so that --validate reads the same file the runtime would use.
   let registrySchemaResult: SchemaValidationResult | null = null;
   let crossRefResult: CrossRefResult | null = null;
   let registry: Record<string, unknown> | null = null;
 
+  const definitionRegistryPath = extractRegistryPath(raw);
+  const resolvedRegistryPath = definitionRegistryPath
+    ? join(agentDir, definitionRegistryPath)
+    : undefined;
+
   try {
-    const loaded = await loadStepsRegistry(agentDir);
+    const loaded = await loadStepsRegistry(agentDir, resolvedRegistryPath);
     if (loaded) {
       registry = loaded as Record<string, unknown>;
 
@@ -241,7 +253,9 @@ export async function validateFull(
   const flowResult = registry ? validateFlowReachability(registry) : null;
 
   // 6c. Prompt resolution validation (only when registry exists)
-  const promptResult = registry ? validatePrompts(registry) : null;
+  const promptResult = registry
+    ? await validatePrompts(registry, agentDir)
+    : null;
 
   // 6d. UV reachability validation (only when registry exists)
   const uvReachabilityResult = registry
@@ -253,8 +267,19 @@ export async function validateFull(
     ? await validateTemplateUvConsistency(registry, agentDir, baseDir)
     : null;
 
-  // 6f. Handoff-to-inputs compatibility validation (only when registry exists)
+  // 6f. Frontmatter-registry UV consistency validation (only when registry exists)
+  const frontmatterRegistryResult = registry
+    ? await validateFrontmatterRegistry(registry, agentDir, baseDir)
+    : null;
+
+  // 6g. Handoff-to-inputs compatibility validation (only when registry exists)
   const handoffInputsResult = registry ? validateHandoffInputs(registry) : null;
+
+  // 6h. Config-registry consistency (only when registry exists)
+  const configDir = join(baseDir, ".agent", "climpt", "config");
+  const configRegistryResult = registry
+    ? await validateConfigRegistryConsistency(registry, configDir)
+    : null;
 
   // 7. Aggregate
   const valid = agentSchemaResult.valid &&
@@ -266,8 +291,10 @@ export async function validateFull(
     (promptResult?.valid ?? true) &&
     (uvReachabilityResult?.valid ?? true) &&
     (templateUvResult?.valid ?? true) &&
+    (frontmatterRegistryResult?.valid ?? true) &&
     (stepRegistryValidation?.valid ?? true) &&
-    (handoffInputsResult?.valid ?? true);
+    (handoffInputsResult?.valid ?? true) &&
+    (configRegistryResult?.valid ?? true);
 
   return {
     valid,
@@ -280,7 +307,45 @@ export async function validateFull(
     promptResult,
     uvReachabilityResult,
     templateUvResult,
+    frontmatterRegistryResult,
     stepRegistryValidation,
     handoffInputsResult,
+    configRegistryResult,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract `runner.flow.prompts.registry` from a raw (untyped) agent definition.
+ *
+ * Returns the registry path string when present, or `undefined` when the
+ * definition does not specify a custom registry path.  This keeps the caller
+ * from having to do defensive property traversal on an `unknown` value.
+ */
+function extractRegistryPath(raw: unknown): string | undefined {
+  if (
+    typeof raw !== "object" || raw === null ||
+    !("runner" in raw)
+  ) {
+    return undefined;
+  }
+  const runner = (raw as Record<string, unknown>).runner;
+  if (typeof runner !== "object" || runner === null || !("flow" in runner)) {
+    return undefined;
+  }
+  const flow = (runner as Record<string, unknown>).flow;
+  if (typeof flow !== "object" || flow === null || !("prompts" in flow)) {
+    return undefined;
+  }
+  const prompts = (flow as Record<string, unknown>).prompts;
+  if (
+    typeof prompts !== "object" || prompts === null || !("registry" in prompts)
+  ) {
+    return undefined;
+  }
+  const registry = (prompts as Record<string, unknown>).registry;
+  return typeof registry === "string" ? registry : undefined;
 }

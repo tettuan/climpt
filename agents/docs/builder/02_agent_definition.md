@@ -35,8 +35,7 @@ agent.json で Agent
     "flow": {
       "systemPromptPath": "prompts/system.md",
       "prompts": {
-        "registry": "steps_registry.json",
-        "fallbackDir": "prompts/"
+        "registry": "steps_registry.json"
       }
     }
   }
@@ -73,10 +72,10 @@ agent.json で Agent
 
 ### validationConditions
 
-Completion Loop の Stage 2（Validation）で実行される検証条件を
-steps_registry.json で定義する。ValidationChain が各 validator を実行し、 結果は
-Stage 3（Verdict）の VerdictHandler に渡される。詳細は
-`design/05_structured_outputs.md` を参照。
+Completion Loop の Phase 1（Pre-flight State Validation）で実行される検証条件を
+steps_registry.json で定義する。ValidationChain が LLM 呼び出し前に各 validator
+を実行し、失敗時は LLM を呼ばずに retry する。結果は Phase 4（Verdict）の
+VerdictHandler に渡される。詳細は `design/05_structured_outputs.md` を参照。
 
 ```json
 {
@@ -254,7 +253,7 @@ Analyst (label-only) → Architect (label-only) → Writer (label-only) → Faci
 | `label-only`      | `Complete phase for Issue #N`  | `"Do NOT close the issue"` |
 | `label-and-close` | `Issue #N labeled and closed`  | `"close it when done"`     |
 
-`label-only` の場合、フォールバックプロンプト（`buildInitialPrompt()` /
+`label-only` の場合、プロンプト（`buildInitialPrompt()` /
 `buildContinuationPrompt()`）も `"action":"close"` の代わりに
 `"action":"complete"` を使用し、エージェントに phase 完了のみを指示する。
 
@@ -435,6 +434,7 @@ load(path) → parse → validate → 起動 or エラー
 - 必須フィールドの存在
 - runner.verdict.config と runner.verdict.type の整合性
 - 参照ファイルの存在
+- C3L プロンプトファイルの存在
 - validationConditions の validator 参照の妥当性
 ```
 

@@ -29,6 +29,8 @@ export interface ExternalStateAdapterConfig {
   issueNumber: number;
   /** Repository in "owner/repo" format */
   repo?: string;
+  /** Maximum polling iterations (Channel 3 variable source) */
+  maxIterations?: number;
   /** GitHub label configuration from agent definition */
   github?: {
     labels?: {
@@ -107,6 +109,9 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
           ...this.uvVariables,
           issue: String(this.config.issueNumber),
           ...(this.config.repo ? { repository: this.config.repo } : {}),
+          ...(this.config.maxIterations !== undefined
+            ? { max_iterations: String(this.config.maxIterations) }
+            : {}),
         },
       })).content;
     }
@@ -122,12 +127,19 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       : "";
 
     if (this.promptResolver) {
+      const maxIter = this.config.maxIterations;
       return (await this.promptResolver.resolve(this.stepIds.continuation, {
         uv: {
           ...this.uvVariables,
           issue: String(this.config.issueNumber),
           iteration: String(completedIterations),
           previous_summary: summaryText,
+          ...(maxIter !== undefined
+            ? {
+              max_iterations: String(maxIter),
+              remaining: String(Math.max(0, maxIter - completedIterations)),
+            }
+            : {}),
         },
       })).content;
     }

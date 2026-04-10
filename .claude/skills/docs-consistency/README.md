@@ -20,8 +20,11 @@
 ```
 docs-consistency/
 ├── SKILL.md              # メイン指示（概要、チェックリスト）
-├── IMPLEMENTATION-CHECK.md  # 詳細検証ガイド
 ├── README.md             # このファイル
+├── references/
+│   ├── IMPLEMENTATION-CHECK.md  # 詳細検証ガイド
+│   ├── SEMANTIC-CHECK.md        # 意味的整合性検証
+│   └── operational-guide.md     # 具体例・運用手順
 └── scripts/
     └── verify-docs.ts    # 自動検証スクリプト
 ```
