@@ -346,7 +346,7 @@ export const DETAIL_NODES: Record<string, HelpNode> = {
         rel: "requires",
         target: "component:step-registry",
         label:
-          "steps_registry.json defines step transitions, structured output gates, schema references",
+          "steps_registry.json defines step transitions, structured output gates, schema references, per-step permissionMode override. See docs/guides/en/14-steps-registry-guide.md",
         when: "You need to design or modify the step-flow transition logic",
       },
       {

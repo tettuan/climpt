@@ -714,6 +714,22 @@ steps:
     #               use "opus" for complex reasoning steps.
     # model: "opus"
 
+    # permissionMode (optional)
+    # Description : Override SDK permissionMode for this step.
+    # Type        : string
+    # Options     : "plan" | "acceptEdits" | "bypassPermissions"
+    # Default     : none (uses stepKind default or agent-level setting)
+    # Resolution  : step.permissionMode > stepKind default > boundaries.permissionMode
+    # Why         : Control tool permissions per step. For example,
+    #               set "plan" on an architect step to restrict it
+    #               to read-only exploration, while allowing "acceptEdits"
+    #               on implementation steps.
+    # stepKind defaults (from STEP_KIND_TOOL_POLICY):
+    #   work         — "acceptEdits"
+    #   verification — "plan"
+    #   closure      — "acceptEdits"
+    # permissionMode: "plan"
+
   # ==========================================================
   # 2. CONTINUATION STEP — Iterative work loop
   # ==========================================================

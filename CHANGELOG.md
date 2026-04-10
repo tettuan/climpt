@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.24] - 2026-04-11
+
+### Changed
+- Clarify conciseness rule in skills: drop filler words, preserve qualifiers
+- Add step-level `permissionMode` override to builder guides and `--help` output
+- Add conciseness rules to `update-docs` and `docs-consistency` skills
+
 ## [1.13.23] - 2026-04-11
 
 ### Added
