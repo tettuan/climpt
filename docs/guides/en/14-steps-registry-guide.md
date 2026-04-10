@@ -186,6 +186,41 @@ Each step can specify a `model` field (`"sonnet"`, `"opus"`, `"haiku"`).
 Resolution order: `step.model` > `runner.flow.defaultModel` > `"opus"` (system
 default). Use `"haiku"` for cost optimization on routine steps.
 
+**permissionMode override:**
+
+Each step can specify a `permissionMode` field to override the agent-level SDK
+permission mode for that step. Resolution order:
+
+1. `step.permissionMode` — explicit per-step override
+2. `stepKind` default — from `STEP_KIND_TOOL_POLICY` in `tool-policy.ts`
+3. `runner.boundaries.permissionMode` — agent-level setting
+
+| stepKind       | Default permissionMode | Effect                             |
+| -------------- | ---------------------- | ---------------------------------- |
+| `work`         | `acceptEdits`          | Write tools allowed                |
+| `verification` | `plan`                 | Read-only (Write/Edit/Bash denied) |
+| `closure`      | `acceptEdits`          | Write tools allowed                |
+
+Use `permissionMode` when the stepKind default does not match the step's
+purpose. For example, an architect step classified as `work` but intended for
+read-only planning should set `permissionMode: "plan"`:
+
+```json
+{
+  "initial.architect": {
+    "stepId": "initial.architect",
+    "stepKind": "work",
+    "permissionMode": "plan",
+    "c2": "initial",
+    "c3": "architect",
+    "edition": "default"
+  }
+}
+```
+
+Available values: `"plan"` (read-only), `"acceptEdits"` (write allowed),
+`"bypassPermissions"` (no prompts — requires `--dangerously-skip-permissions`).
+
 #### UV Variable Constraints
 
 - breakdown rejects empty-value UV variables (e.g., `--uv-repository=` produces

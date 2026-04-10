@@ -442,12 +442,12 @@ load(path) → parse → validate → 起動 or エラー
 
 ## 注意点
 
-| 項目                               | 注意                                           |
-| ---------------------------------- | ---------------------------------------------- |
-| `runner.verdict.type`              | 8 種類のみ有効。レガシー名は廃止済み           |
-| `runner.flow.systemPromptPath`     | agent.json からの相対パス                      |
-| `runner.boundaries.allowedTools`   | 許可されていないツールは実行時エラー           |
-| `runner.boundaries.permissionMode` | `bypassPermissions` は信頼できる環境でのみ使用 |
+| 項目                               | 注意                                                                                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner.verdict.type`              | 8 種類のみ有効。レガシー名は廃止済み                                                                                                                                |
+| `runner.flow.systemPromptPath`     | agent.json からの相対パス                                                                                                                                           |
+| `runner.boundaries.allowedTools`   | 許可されていないツールは実行時エラー                                                                                                                                |
+| `runner.boundaries.permissionMode` | `bypassPermissions` は信頼できる環境でのみ使用。ステップ単位で上書き可能（[14-steps-registry-guide](../../docs/guides/ja/14-steps-registry-guide.md) §14.4.1 参照） |
 
 ---
 

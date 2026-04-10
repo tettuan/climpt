@@ -1,19 +1,19 @@
 {
-  "version": "1.13.23",
+  "version": "1.13.24",
   "entries": [
     {
       "id": "builder-01_quickstart",
       "path": "../agents/docs/builder/01_quickstart.md",
       "category": "builder-guides",
       "title": "Agent Creation Quickstart",
-      "bytes": 28479
+      "bytes": 28311
     },
     {
       "id": "builder-02_agent_definition",
       "path": "../agents/docs/builder/02_agent_definition.md",
       "category": "builder-guides",
       "title": "Agent 定義",
-      "bytes": 19068
+      "bytes": 19862
     },
     {
       "id": "builder-03_builder_guide",
@@ -27,14 +27,14 @@
       "path": "../agents/docs/builder/04_config_system.md",
       "category": "builder-guides",
       "title": "設定システム",
-      "bytes": 5764
+      "bytes": 5778
     },
     {
       "id": "builder-05_troubleshooting",
       "path": "../agents/docs/builder/05_troubleshooting.md",
       "category": "builder-guides",
       "title": "Agent 開発トラブルシューティング",
-      "bytes": 13630
+      "bytes": 13800
     },
     {
       "id": "builder-06_workflow_setup",
@@ -160,7 +160,7 @@
       "category": "guides",
       "lang": "en",
       "title": "6. Config Files",
-      "bytes": 7165
+      "bytes": 8044
     },
     {
       "id": "guides-en-07-dependencies",
@@ -200,7 +200,7 @@
       "category": "guides",
       "lang": "en",
       "title": "11. Runner Configuration Reference",
-      "bytes": 25163
+      "bytes": 24501
     },
     {
       "id": "guides-en-12-troubleshooting",
@@ -208,7 +208,7 @@
       "category": "guides",
       "lang": "en",
       "title": "12. Troubleshooting Guide",
-      "bytes": 21930
+      "bytes": 23809
     },
     {
       "id": "guides-en-13-agent-creation-tutorial",
@@ -224,7 +224,7 @@
       "category": "guides",
       "lang": "en",
       "title": "14. Steps Registry Guide",
-      "bytes": 24604
+      "bytes": 22568
     },
     {
       "id": "guides-en-15-workflow-guide",
@@ -336,7 +336,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "11. Runner 設定リファレンス",
-      "bytes": 26024
+      "bytes": 25294
     },
     {
       "id": "guides-ja-12-troubleshooting",
@@ -344,7 +344,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "12. トラブルシューティングガイド",
-      "bytes": 25373
+      "bytes": 25454
     },
     {
       "id": "guides-ja-13-agent-creation-tutorial",
@@ -360,7 +360,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "14. Steps Registry ガイド",
-      "bytes": 25728
+      "bytes": 23807
     },
     {
       "id": "guides-ja-15-workflow-guide",
@@ -389,7 +389,7 @@
       "path": "prompt-customization-guide.md",
       "category": "guides",
       "title": "Prompt Customization Guide",
-      "bytes": 8587
+      "bytes": 8706
     },
     {
       "id": "blueprint-constraints",
@@ -403,14 +403,14 @@
       "path": "../agents/docs/builder/reference/blueprint/05-examples.md",
       "category": "reference",
       "title": "5. Examples",
-      "bytes": 11833
+      "bytes": 11637
     },
     {
       "id": "blueprint-integrity-rules",
       "path": "../agents/docs/builder/reference/blueprint/02-integrity-rules.md",
       "category": "reference",
       "title": "2. Integrity Rules",
-      "bytes": 21228
+      "bytes": 21335
     },
     {
       "id": "blueprint-overview",
@@ -424,14 +424,14 @@
       "path": "../agents/docs/builder/reference/blueprint/01-structure.md",
       "category": "reference",
       "title": "1. Blueprint Structure",
-      "bytes": 7050
+      "bytes": 6603
     },
     {
       "id": "blueprint-terminology",
       "path": "../agents/docs/builder/reference/blueprint/04-terminology.md",
       "category": "reference",
       "title": "4. Terminology",
-      "bytes": 7834
+      "bytes": 7712
     },
     {
       "id": "reference-claude-agent-sdk-overview",
@@ -683,7 +683,7 @@
       "path": "../agents/schemas/agent-blueprint.schema.json",
       "category": "reference",
       "title": "Climpt AgentBlueprint",
-      "bytes": 49432
+      "bytes": 48023
     }
   ]
 }
