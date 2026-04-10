@@ -1,7 +1,7 @@
 ---
 name: docs-writing
 description: This skill should be used when structuring technical documents from principle to concrete example using a 5-level abstraction framework. Applicable when writing new documentation, adding sections to builder guides, documenting design decisions, restructuring existing docs for clarity, or deciding what level of detail a document requires. Triggers - "write docs", "add documentation", "document the design", "structure this doc", 「ドキュメントを書く」「docs追加」「新規ドキュメント」「設計を文書化」「ガイドを書く」「ドキュメント構成」
-allowed-tools: Read Edit Write Grep Glob
+allowed-tools: [Read, Edit, Write, Grep, Glob]
 ---
 
 # Technical Document Writing
