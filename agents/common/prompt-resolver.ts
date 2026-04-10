@@ -12,6 +12,7 @@
 
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
+import { buildPromptFilePath } from "../config/c3l-path-builder.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import {
@@ -113,11 +114,14 @@ export class PromptResolver {
     this.stripFrontmatter = options.stripFrontmatter ?? true;
     this.allowMissingVariables = options.allowMissingVariables ?? false;
 
-    // Create C3LPromptLoader for breakdown integration
+    // Create C3LPromptLoader for breakdown integration.
+    // Pass userPromptsBase so that C3LPromptLoader's promptPath output
+    // matches the path PromptResolver uses for canResolve/getUserFilePath.
     this.c3lLoader = new C3LPromptLoader({
       agentId: registry.agentId,
       configSuffix: options.configSuffix ?? registry.c1,
       workingDir: this.workingDir,
+      userPromptsBase: this.userPromptsBase,
     });
   }
 
@@ -341,25 +345,41 @@ export class PromptResolver {
   }
 
   /**
-   * Build prompt file path from step definition
+   * Build prompt file path from step definition (relative sub-path under prompts dir)
    */
   private buildPromptPath(step: PromptStepDefinition): string {
-    const edition = step.edition ?? "default";
-    const filename = step.adaptation
-      ? `f_${edition}_${step.adaptation}.md`
-      : `f_${edition}.md`;
-    return `${this.registry.c1}/${step.c2}/${step.c3}/${filename}`;
+    // buildPromptFilePath returns "{agentDir}/prompts/{c1}/..." — strip the
+    // leading "prompts/" because callers join with userPromptsBase which
+    // already includes the prompts directory.
+    const full = buildPromptFilePath(
+      "",
+      this.registry.c1,
+      step.c2,
+      step.c3,
+      step.edition ?? "default",
+      step.adaptation,
+    );
+    return full.replace(/^prompts\//, "");
   }
 
   /**
-   * Format C3L path as a human-readable string for log messages
+   * Format C3L path as a human-readable string for log/error messages.
+   *
+   * Includes userPromptsBase prefix so the path matches what
+   * C3LPromptLoader returns on success (promptPath field).
+   * Without the prefix, PR-C3L-004 error messages show an incomplete
+   * path that doesn't correspond to any file on disk.
    */
   private formatC3LPath(path: C3LPath): string {
-    const edition = path.edition ?? "default";
-    const filename = path.adaptation
-      ? `f_${edition}_${path.adaptation}.md`
-      : `f_${edition}.md`;
-    return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
+    const subPath = buildPromptFilePath(
+      "",
+      path.c1,
+      path.c2,
+      path.c3,
+      path.edition ?? "default",
+      path.adaptation,
+    ).replace(/^prompts\//, "");
+    return join(this.userPromptsBase, subPath);
   }
 
   /**

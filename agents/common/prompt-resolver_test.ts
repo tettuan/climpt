@@ -226,7 +226,6 @@ Deno.test("PromptResolver - throws when C3L prompt file not found", async () => 
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "fallback_test",
     uvVariables: [],
     usesStdin: false,
   });
@@ -250,7 +249,6 @@ Deno.test("PromptResolver - throws C3L not found when file missing (even with re
     c2: "initial",
     c3: "required",
     edition: "default",
-    fallbackKey: "required_fallback",
     uvVariables: ["required_var"],
     usesStdin: false,
   });
@@ -290,7 +288,6 @@ Deno.test("PromptResolver - canResolve returns false for step without file", asy
     c2: "initial",
     c3: "resolvable",
     edition: "default",
-    fallbackKey: "resolvable_key",
     uvVariables: [],
     usesStdin: false,
   });
@@ -322,7 +319,6 @@ Deno.test("PromptResolver - getUserFilePath returns correct path", () => {
     c2: "initial",
     c3: "file",
     edition: "default",
-    fallbackKey: "key",
     uvVariables: [],
     usesStdin: false,
   });
@@ -349,7 +345,6 @@ Deno.test("PromptResolver - getUserFilePath with adaptation", () => {
     c3: "file",
     edition: "preparation",
     adaptation: "empty",
-    fallbackKey: "key",
     uvVariables: [],
     usesStdin: false,
   });
@@ -376,7 +371,6 @@ Deno.test("PromptResolver - adaptation override changes resolved path", () => {
     c2: "closure",
     c3: "issue",
     edition: "default",
-    fallbackKey: "closure_issue",
     uvVariables: [],
     usesStdin: false,
   });
@@ -401,7 +395,6 @@ Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)",
     c2: "closure",
     c3: "issue",
     edition: "default",
-    fallbackKey: "closure_issue",
     uvVariables: [],
     usesStdin: false,
   });
@@ -425,7 +418,6 @@ Deno.test("PromptResolver - resolve throws when C3L file missing for step with v
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test_fallback",
     uvVariables: ["name"],
     usesStdin: false,
   });

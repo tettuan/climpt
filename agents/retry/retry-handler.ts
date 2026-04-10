@@ -13,6 +13,8 @@ import type {
 } from "./types.ts";
 import type { SemanticParams } from "../common/validation-types.ts";
 import { C3LPromptLoader } from "../common/c3l-prompt-loader.ts";
+import { PATHS } from "../shared/paths.ts";
+import { buildPromptFilePath } from "../config/c3l-path-builder.ts";
 import { injectParams } from "./param-injector.ts";
 
 /**
@@ -152,10 +154,15 @@ export class RetryHandler {
     edition: string;
     adaptation?: string;
   }): string {
-    const filename = c3lPath.adaptation
-      ? `f_${c3lPath.edition}_${c3lPath.adaptation}.md`
-      : `f_${c3lPath.edition}.md`;
-    return `.agent/${this.ctx.agentId}/prompts/${c3lPath.c1}/${c3lPath.c2}/${c3lPath.c3}/${filename}`;
+    const agentDir = `${PATHS.AGENT_DIR_PREFIX}/${this.ctx.agentId}`;
+    return buildPromptFilePath(
+      agentDir,
+      c3lPath.c1,
+      c3lPath.c2,
+      c3lPath.c3,
+      c3lPath.edition,
+      c3lPath.adaptation,
+    );
   }
 
   /**

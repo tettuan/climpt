@@ -10,6 +10,8 @@
  */
 
 import { BREAKDOWN_VERSION } from "../../src/version.ts";
+import { PATHS } from "../shared/paths.ts";
+import { buildPromptFilePath } from "../config/c3l-path-builder.ts";
 
 /**
  * C3L path components
@@ -61,6 +63,8 @@ export interface C3LPromptLoaderOptions {
   configSuffix?: string;
   /** Working directory (defaults to Deno.cwd()) */
   workingDir?: string;
+  /** User prompts base path (e.g., ".agent/iterator/prompts") for prompt path construction */
+  userPromptsBase?: string;
 }
 
 /**
@@ -191,14 +195,30 @@ export class C3LPromptLoader {
   }
 
   /**
-   * Build the expected prompt file path (for logging)
+   * Build the expected prompt file path (for logging).
+   *
+   * When userPromptsBase is provided, the path is built as:
+   *   {userPromptsBase}/{c1}/{c2}/{c3}/f_{edition}.md
+   * Otherwise falls back to the default convention:
+   *   .agent/{agentId}/prompts/{c1}/{c2}/{c3}/f_{edition}.md
    */
   private buildPromptPath(path: C3LPath): string {
-    const edition = path.edition ?? "default";
-    const filename = path.adaptation
-      ? `f_${edition}_${path.adaptation}.md`
-      : `f_${edition}.md`;
-    return `.agent/${this.options.agentId}/prompts/${path.c1}/${path.c2}/${path.c3}/${filename}`;
+    if (this.options.userPromptsBase) {
+      const edition = path.edition ?? "default";
+      const filename = path.adaptation
+        ? `f_${edition}_${path.adaptation}.md`
+        : `f_${edition}.md`;
+      return `${this.options.userPromptsBase}/${path.c1}/${path.c2}/${path.c3}/${filename}`;
+    }
+    const agentDir = `${PATHS.AGENT_DIR_PREFIX}/${this.options.agentId}`;
+    return buildPromptFilePath(
+      agentDir,
+      path.c1,
+      path.c2,
+      path.c3,
+      path.edition ?? "default",
+      path.adaptation,
+    );
   }
 
   /**
