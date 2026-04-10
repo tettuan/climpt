@@ -26,6 +26,15 @@ Compare intent + implementation memos against current docs. Build a diff table:
 | 3 output modes | preserve/flatten/single | Missing | Add |
 | Default output dir | ./climpt-docs | Missing | Add |
 
+### Conciseness Check
+
+After building the diff table, verify every existing doc sentence follows these rules:
+
+- **One sentence per item**: Each feature, option, or behavior is described in exactly one sentence.
+- **Dense**: No filler words, no hedging, no redundancy — pack information into the shortest form that remains unambiguous.
+
+Flag violations in the diff table with Gap = "Shorten".
+
 ## Phase 4: Fix Docs
 
 Do not change design docs — only update implementation-facing docs.
@@ -128,6 +137,7 @@ grep -rn "throw new\|new Error" src/ --include="*.ts" | grep -v _test.ts | grep 
 Phase 1: - [ ] Read docs/internal/, wrote {feature}-intent.md
 Phase 2: - [ ] Identified impl files, wrote {feature}-implementation.md
 Phase 3: - [ ] Built diff table against current docs
+         - [ ] Conciseness check: every sentence is one-sentence-per-item, dense, no filler
 Phase 4: - [ ] Updated README.md, synced README.ja.md
 Phase 5: - [ ] deno task verify-docs passed, manifest updated if needed
 Phase 6: - [ ] No Japanese-only .md files remain

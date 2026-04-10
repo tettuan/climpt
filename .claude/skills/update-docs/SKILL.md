@@ -122,7 +122,7 @@ deno run -A mod.ts --help 2>&1 | grep -i "<feature>"
 
 ### Style
 
-- **Concise**: One sentence per feature in README
+- **One sentence**: Each feature, option, or behavior is exactly one sentence. Pack information densely — no filler words, no hedging, no redundancy.
 - **Example-first**: Show usage before explaining
 - **Searchable**: Include keywords users would search for
 
