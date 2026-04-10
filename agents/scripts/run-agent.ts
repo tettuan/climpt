@@ -77,11 +77,22 @@ Examples:
   ${RUN} --agent iterator --issue 123
   ${RUN} --agent reviewer --issue 123
 
+Key Concepts:
+  breakdown config    Config files defining prompt paths and validation patterns
+                      Location: .agent/climpt/config/{agent}-{c1}-{app,user}.yml
+  steps_registry      Step definitions, transitions, and UV variable declarations
+                      Location: .agent/{agent}/steps_registry.json
+  C3L paths           Prompt file organization: {c1}/{c2}/{c3}/f_{edition}.md
+  UV variables        User variables substituted in prompts as {uv-name}
+
 Documentation:
+  Getting started:  docs/guides/en/10-getting-started-guide.md
+  Config files:     docs/guides/en/06-config-files.md
+  Steps registry:   docs/guides/en/14-steps-registry-guide.md
+  Troubleshooting:  docs/guides/en/12-troubleshooting.md
   Quick Start:      agents/docs/builder/01_quickstart.md
   Definition Ref:   agents/docs/builder/02_agent_definition.md
   YAML Reference:   agents/docs/builder/reference/
-  Troubleshooting:  agents/docs/builder/05_troubleshooting.md
   Design Docs:      agents/docs/design/
   JSON Schemas:     agents/schemas/
 `);
@@ -401,6 +412,33 @@ async function main(): Promise<void> {
           console.log(`  \u26A0 Handoff Inputs \u2014 ${warn}`);
         }
         totalWarnings += result.handoffInputsResult.warnings.length;
+      }
+    }
+
+    // Config-registry consistency
+    if (result.configRegistryResult) {
+      if (result.configRegistryResult.valid) {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2713 Config Registry \u2014 Registry/yml patterns consistent",
+        );
+      } else {
+        // deno-lint-ignore no-console
+        console.log(
+          "  \u2717 Config Registry \u2014 Consistency errors:",
+        );
+        for (const err of result.configRegistryResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.configRegistryResult.errors.length;
+      }
+      if (result.configRegistryResult.warnings.length > 0) {
+        for (const warn of result.configRegistryResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Config Registry \u2014 ${warn}`);
+        }
+        totalWarnings += result.configRegistryResult.warnings.length;
       }
     }
 

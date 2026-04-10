@@ -26,6 +26,7 @@ Iterate Agent.
 | `Maximum iterations (N) reached`               | [4.3 Verdict / completion failures](#43-verdict--completion-failures)                                             |
 | `C3L prompt file not found`                    | [4.4 C3L prompt file not found](#44-c3l-prompt-file-not-found)                                                    |
 | `AGENT_NOT_INITIALIZED`                        | [4.5 Initialization errors](#45-initialization-and-worktree-errors)                                               |
+| `UV variable has no identified supply source`  | [4.6 UV Reachability Errors](#46-uv-reachability-errors)                                                          |
 
 ---
 
@@ -506,6 +507,43 @@ worktree setup failures.
 
 **Prevention**: Use unique branch names for each agent session and clean up
 stale worktrees regularly.
+
+---
+
+### 4.6 UV Reachability Errors
+
+**Symptom**: `--validate` reports "UV variable has no identified supply source"
+
+**Cause**: A step declares a UV variable in `uvVariables` but no supply channel
+provides it.
+
+**Supply channels**:
+
+- Channel 1: CLI parameters declared in `agent.json` `parameters`
+- Channel 2: Runner runtime variables (iteration, completed_iterations)
+- Channel 3: VerdictHandler variables (max_iterations, remaining,
+  previous_summary)
+- Channel 4: Step handoff via `inputs` definitions
+
+**Resolution**:
+
+1. Check `uvVariables` array in `steps_registry.json` for the failing step
+2. If the variable should come from CLI: add it to `agent.json` `parameters`
+3. If it's a runtime variable: verify it's in `RUNTIME_SUPPLIED_UV_VARS`
+4. If it comes from a previous step: add an `inputs` definition with the source
+   step
+5. Run `--validate` again to confirm the fix
+
+---
+
+## Error Code Reference
+
+| Error Code        | Description                      | Guide                                                                     |
+| ----------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| PR-C3L-004        | Prompt file not found            | Section above: [C3L Prompt File Not Found](#44-c3l-prompt-file-not-found) |
+| PR-RESOLVE-003    | UV variable undefined at runtime | See: [UV Reachability Errors](#46-uv-reachability-errors)                 |
+| PR-RESOLVE-005    | UV variable not provided         | Check Channel 1 parameters                                                |
+| Validation failed | --validate found issues          | Run `--validate` and check each category below                            |
 
 ---
 
