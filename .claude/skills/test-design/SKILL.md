@@ -175,6 +175,7 @@ See `references/patterns.md` for detailed explanations of these anti-patterns.
 | `contradiction-verification` | Proving a problem exists | Confirming the test's premise is valid |
 | `refactoring` | Safe structural changes | Defining before/after contracts |
 | `functional-testing` | What aspects of a validator to test (F. Validator Testing) | Defining the four testing aspects (acceptance/rejection/diagnosis/completeness) |
+| `breakdown-logger` | Test execution tracing | Visualizing runtime behavior when failure messages alone are insufficient to diagnose |
 
 ## Reference
 
