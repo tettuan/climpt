@@ -26,7 +26,6 @@ interface StepDefinition {
   c3: string; // C3L component (e.g., "issue")
   edition: string; // Edition (e.g., "default", "preparation")
   adaptation?: string; // Optional variant (e.g., "empty", "done")
-  fallbackKey: string; // Legacy key (retained in registry schema)
   uvVariables: string[]; // Required UV variable names
   usesStdin: boolean; // Whether step uses STDIN input
   description?: string; // Optional description
@@ -219,7 +218,6 @@ Create `.agent/{agent-name}/steps_registry.json`:
       "c2": "initial",
       "c3": "task",
       "edition": "default",
-      "fallbackKey": "task_initial_default",
       "uvVariables": ["task_id"],
       "usesStdin": false,
       "description": "Initial prompt for task processing"

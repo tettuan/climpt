@@ -497,7 +497,6 @@ function validTypedRegistry(
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: ["var1"],
         usesStdin: false,
         ...stepOverrides,

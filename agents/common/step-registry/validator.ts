@@ -354,9 +354,6 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.edition !== "string" || !step.edition) {
       errors.push(`Step "${stepId}": edition must be a non-empty string`);
     }
-    if (typeof step.fallbackKey !== "string" || !step.fallbackKey) {
-      errors.push(`Step "${stepId}": fallbackKey must be a non-empty string`);
-    }
     if (!Array.isArray(step.uvVariables)) {
       errors.push(`Step "${stepId}": uvVariables must be an array`);
     }

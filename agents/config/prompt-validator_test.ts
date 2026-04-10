@@ -5,19 +5,13 @@
  * - Missing c2/c3 produces errors
  * - Mismatched stepId vs c2/c3 produces warnings
  * - Valid steps produce no errors or warnings
- * - fallbackKey field is ignored when no agentDir (no validation)
  * - C3L file existence checks (when agentDir is provided)
- * - Fallback template existence checks
  */
 
 import { assert, assertEquals } from "@std/assert";
 import {
-  MSG_ALSO_NOT_FOUND,
   MSG_C2_MISSING,
   MSG_C3_MISSING,
-  MSG_FALLBACK_EXISTS,
-  MSG_FALLBACK_EXISTS_SUFFIX,
-  MSG_NO_FALLBACK_KEY,
   MSG_NOT_FOUND,
   MSG_PROMPT_PREFIX,
   validatePrompts,
@@ -110,9 +104,7 @@ Deno.test("validatePrompts - step missing c3 produces an error", async () => {
 });
 
 Deno.test("validatePrompts - step missing both c2 and c3 produces two errors", async () => {
-  const registry = registryWith("initial.issue", {
-    fallbackKey: "initial_issue",
-  });
+  const registry = registryWith("initial.issue", {});
   const stepCount = Object.keys(registry.steps as Record<string, unknown>)
     .length;
   assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
@@ -204,13 +196,10 @@ Deno.test("validatePrompts - missing steps key produces no errors", async () => 
   assertEquals(result.warnings.length, 0);
 });
 
-Deno.test("validatePrompts - fallbackKey field is ignored when no agentDir", async () => {
-  // Without agentDir, no file checks are performed.
-  // prompt-validator must NOT produce warnings or errors about fallbackKey.
+Deno.test("validatePrompts - no file checks without agentDir", async () => {
   const registry = registryWith("initial.issue", {
     c2: "initial",
     c3: "issue",
-    fallbackKey: "nonexistent_key_that_would_have_failed_before",
   });
   assert(
     Object.keys(registry.steps as Record<string, unknown>).length > 0,
@@ -222,7 +211,7 @@ Deno.test("validatePrompts - fallbackKey field is ignored when no agentDir", asy
   assertEquals(
     result.valid,
     true,
-    `Step with fallbackKey should be valid (fix: ${VALIDATOR_SRC} agentDir guard)`,
+    `Valid step should pass (fix: ${VALIDATOR_SRC} agentDir guard)`,
   );
   assertEquals(
     result.errors.length,
@@ -234,7 +223,7 @@ Deno.test("validatePrompts - fallbackKey field is ignored when no agentDir", asy
   assertEquals(
     result.warnings.length,
     0,
-    `fallbackKey should produce no warnings without agentDir (fix: ${VALIDATOR_SRC} file-check skip). Got: ${
+    `No warnings expected without agentDir (fix: ${VALIDATOR_SRC} file-check skip). Got: ${
       JSON.stringify(result.warnings)
     }`,
   );
@@ -275,18 +264,14 @@ Deno.test("validatePrompts - existing main C3L file produces no file warning", a
   }
 });
 
-Deno.test("validatePrompts - missing main file but existing fallback produces warning with fallback note", async () => {
-  // Main file does NOT exist, but fallback template does
-  const { agentDir, cleanup } = await createTempAgentDir([
-    "prompts/steps/initial/issue/f_default.md", // fallback path for fallbackKey "initial_issue"
-  ]);
+Deno.test("validatePrompts - missing C3L file produces warning", async () => {
+  const { agentDir, cleanup } = await createTempAgentDir([]);
 
   try {
     const registry = registryWith("continuation.review", {
       c2: "continuation",
       c3: "review",
       edition: "default",
-      fallbackKey: "initial_issue",
     });
     const stepCount = Object.keys(registry.steps as Record<string, unknown>)
       .length;
@@ -312,105 +297,7 @@ Deno.test("validatePrompts - missing main file but existing fallback produces wa
     assertEquals(
       promptWarnings[0].includes(MSG_NOT_FOUND),
       true,
-      `Expected ${MSG_PROMPT_PREFIX} warning about missing file (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
-        promptWarnings[0]
-      }`,
-    );
-    assertEquals(
-      promptWarnings[0].includes(MSG_FALLBACK_EXISTS) &&
-        promptWarnings[0].includes(MSG_FALLBACK_EXISTS_SUFFIX),
-      true,
-      `Warning should mention fallback exists (fix: ${VALIDATOR_SRC} fallback-exists branch). Got: ${
-        promptWarnings[0]
-      }`,
-    );
-  } finally {
-    await cleanup();
-  }
-});
-
-Deno.test("validatePrompts - missing main file and missing fallback produces warning about both", async () => {
-  // Neither main file nor fallback template exists
-  const { agentDir, cleanup } = await createTempAgentDir([]);
-
-  try {
-    const registry = registryWith("continuation.review", {
-      c2: "continuation",
-      c3: "review",
-      edition: "default",
-      fallbackKey: "initial_issue",
-    });
-    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
-      .length;
-    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
-
-    const result = await validatePrompts(registry, agentDir);
-
-    assertEquals(
-      result.valid,
-      true,
-      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
-    );
-    const promptWarnings = result.warnings.filter((w) =>
-      w.includes(MSG_PROMPT_PREFIX)
-    );
-    assertEquals(
-      promptWarnings.length,
-      stepCount,
-      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
-        JSON.stringify(promptWarnings)
-      }`,
-    );
-    assertEquals(
-      promptWarnings[0].includes(MSG_NOT_FOUND) &&
-        promptWarnings[0].includes(MSG_ALSO_NOT_FOUND),
-      true,
-      `Warning should mention both files missing (fix: ${VALIDATOR_SRC} fallback-missing branch). Got: ${
-        promptWarnings[0]
-      }`,
-    );
-  } finally {
-    await cleanup();
-  }
-});
-
-Deno.test("validatePrompts - missing main file with empty fallbackKey produces warning about no fallback", async () => {
-  // Main file does NOT exist and fallbackKey is empty
-  const { agentDir, cleanup } = await createTempAgentDir([]);
-
-  try {
-    const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
-      fallbackKey: "",
-    });
-    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
-      .length;
-    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
-
-    const result = await validatePrompts(registry, agentDir);
-
-    assertEquals(
-      result.valid,
-      true,
-      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
-    );
-    const promptWarnings = result.warnings.filter((w) =>
-      w.includes(MSG_PROMPT_PREFIX)
-    );
-    assertEquals(
-      promptWarnings.length,
-      stepCount,
-      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
-        JSON.stringify(promptWarnings)
-      }`,
-    );
-    assertEquals(
-      promptWarnings[0].includes(MSG_NOT_FOUND) &&
-        promptWarnings[0].includes(MSG_NO_FALLBACK_KEY),
-      true,
-      `Warning should mention ${MSG_NO_FALLBACK_KEY} (fix: ${VALIDATOR_SRC} no-fallback branch). Got: ${
+      `Warning should mention file ${MSG_NOT_FOUND} (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
         promptWarnings[0]
       }`,
     );
@@ -444,50 +331,6 @@ Deno.test("validatePrompts - edition defaults to 'default' when not specified", 
       0,
       `Expected no ${MSG_PROMPT_PREFIX} warnings when default edition file exists (fix: ${VALIDATOR_SRC} edition-default logic). Got: ${
         JSON.stringify(result.warnings)
-      }`,
-    );
-  } finally {
-    await cleanup();
-  }
-});
-
-Deno.test("validatePrompts - missing main file without fallbackKey field produces warning", async () => {
-  // Step has no fallbackKey field at all (not even empty string)
-  const { agentDir, cleanup } = await createTempAgentDir([]);
-
-  try {
-    const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
-      // no fallbackKey field
-    });
-    const stepCount = Object.keys(registry.steps as Record<string, unknown>)
-      .length;
-    assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
-
-    const result = await validatePrompts(registry, agentDir);
-
-    assertEquals(
-      result.valid,
-      true,
-      `File warnings should not cause invalid (fix: ${VALIDATOR_SRC} valid flag)`,
-    );
-    const promptWarnings = result.warnings.filter((w) =>
-      w.includes(MSG_PROMPT_PREFIX)
-    );
-    assertEquals(
-      promptWarnings.length,
-      stepCount,
-      `Expected ${stepCount} ${MSG_PROMPT_PREFIX} warning(s) (fix: ${VALIDATOR_SRC} file-check logic). Got: ${
-        JSON.stringify(promptWarnings)
-      }`,
-    );
-    assertEquals(
-      promptWarnings[0].includes(MSG_NO_FALLBACK_KEY),
-      true,
-      `Warning should mention ${MSG_NO_FALLBACK_KEY} (fix: ${VALIDATOR_SRC} no-fallback branch). Got: ${
-        promptWarnings[0]
       }`,
     );
   } finally {

@@ -222,14 +222,12 @@ runner:
       # ------------------------------------------------------
       # prompts.fallbackDir
       # ------------------------------------------------------
-      # Description : Directory for fallback prompt files.
+      # Description : Directory for prompt files.
       # Type        : string
       # Required    : yes
       # Default     : none
-      # Why         : When C3L resolution fails (file not
-      #               found), the runner looks here using the
-      #               step's fallbackKey. Relative to
-      #               .agent/{name}/.
+      # Why         : Base directory for C3L prompt resolution.
+      #               Relative to .agent/{name}/.
       # ------------------------------------------------------
       fallbackDir: "prompts/"
 

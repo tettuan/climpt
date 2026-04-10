@@ -6,18 +6,13 @@
  * - Template uses {uv-issue} but uvVariables is [] -> error (undeclared usage)
  * - uvVariables declares ["repo"] but template has no {uv-repo} -> warning
  * - Prompt file doesn't exist -> skip (no error from this validator)
- * - Fallback template contains {uv-issue} -> check against declarations
  * - No steps in registry -> valid
  */
 
 import { assert, assertEquals } from "@std/assert";
 import { join } from "@std/path";
 import {
-  MSG_ALSO_NOT_FOUND,
   MSG_C3L_NOT_FOUND,
-  MSG_FALLBACK_NO_UV_PREFIX,
-  MSG_FALLBACK_TEMPLATE,
-  MSG_FALLBACK_TEMPLATE_REF,
   MSG_NO_UV_PREFIX,
   MSG_NOT_DECLARED,
   MSG_UV_CHECK_SKIPPED,
@@ -84,7 +79,6 @@ Deno.test("template-uv-validator - matching UV usage and declaration is valid", 
       c3: "issue",
       edition: "default",
       uvVariables: ["issue"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -142,7 +136,6 @@ Deno.test("template-uv-validator - undeclared UV usage produces error", async ()
       c3: "issue",
       edition: "default",
       uvVariables: [],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -197,7 +190,6 @@ Deno.test("template-uv-validator - unused UV declaration produces warning", asyn
       c3: "issue",
       edition: "default",
       uvVariables: ["repo"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -244,7 +236,6 @@ Deno.test("template-uv-validator - missing prompt file produces warning", async 
       c3: "issue",
       edition: "default",
       uvVariables: ["issue"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -291,77 +282,17 @@ Deno.test("template-uv-validator - missing prompt file produces warning", async 
 });
 
 // =============================================================================
-// 5. Fallback template contains {uv-issue} -> check against declarations
+// 5. Missing C3L prompt file -> skip with warning
 // =============================================================================
 
-Deno.test("template-uv-validator - fallback-only step warns about both missing files", async () => {
+Deno.test("template-uv-validator - missing C3L prompt produces skip warning", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    // No C3L prompt file and no fallback template file
     const registry = registryWith("initial.issue", {
       c2: "initial",
       c3: "issue",
       edition: "default",
       uvVariables: [],
-      fallbackKey: "initial_issue",
-    });
-
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
-
-    // Both main and fallback missing: warning mentions both
-    const stepCount = Object.keys(
-      registry.steps as Record<string, unknown>,
-    ).length;
-    assert(
-      stepCount > 0,
-      "Test fixture must have steps to avoid vacuous pass",
-    );
-    assertEquals(
-      result.valid,
-      true,
-      `Expected valid result (fix: ${VALIDATOR_FILE} both-missing fallback path)`,
-    );
-    assertEquals(
-      result.errors.length,
-      0,
-      `Expected no errors (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.errors)
-      }`,
-    );
-    assertEquals(
-      result.warnings.length,
-      stepCount,
-      `Expected ${stepCount} warning(s) (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-    assertEquals(
-      result.warnings.some((w) =>
-        w.includes(MSG_C3L_NOT_FOUND) &&
-        w.includes(MSG_FALLBACK_TEMPLATE_REF) &&
-        w.includes("initial_issue") &&
-        w.includes(MSG_ALSO_NOT_FOUND)
-      ),
-      true,
-      `Expected warning containing "${MSG_C3L_NOT_FOUND}" and "${MSG_ALSO_NOT_FOUND}" (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
-Deno.test("template-uv-validator - fallback template UV declared but both files missing warns", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // "initial_issue" fallback uses {uv-issue}, but neither C3L nor fallback file exists
-    const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
-      uvVariables: ["issue"],
-      fallbackKey: "initial_issue",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -376,31 +307,28 @@ Deno.test("template-uv-validator - fallback template UV declared but both files 
     assertEquals(
       result.valid,
       true,
-      `Expected valid result (fix: ${VALIDATOR_FILE} both-missing fallback path)`,
+      `Expected valid result (fix: ${VALIDATOR_FILE} missing-file skip)`,
     );
     assertEquals(
       result.errors.length,
       0,
-      `Expected no errors (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
+      `Expected no errors (fix: ${VALIDATOR_FILE} missing-file skip). Got: ${
         JSON.stringify(result.errors)
       }`,
     );
-    // Warning about both missing files (UV check skipped)
     assertEquals(
       result.warnings.length,
       stepCount,
-      `Expected ${stepCount} warning(s) (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
+      `Expected ${stepCount} warning(s) (fix: ${VALIDATOR_FILE} missing-file skip). Got: ${
         JSON.stringify(result.warnings)
       }`,
     );
     assertEquals(
       result.warnings.some((w) =>
-        w.includes(MSG_C3L_NOT_FOUND) &&
-        w.includes(MSG_FALLBACK_TEMPLATE_REF) &&
-        w.includes(MSG_ALSO_NOT_FOUND)
+        w.includes(MSG_C3L_NOT_FOUND) && w.includes(MSG_UV_CHECK_SKIPPED)
       ),
       true,
-      `Expected warning containing "${MSG_C3L_NOT_FOUND}" and "${MSG_ALSO_NOT_FOUND}" (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
+      `Expected warning containing "${MSG_C3L_NOT_FOUND}" and "${MSG_UV_CHECK_SKIPPED}" (fix: ${VALIDATOR_FILE} missing-file skip). Got: ${
         JSON.stringify(result.warnings)
       }`,
     );
@@ -501,7 +429,6 @@ Deno.test("template-uv-validator - multiple UV variables all declared is valid",
       c3: "issue",
       edition: "default",
       uvVariables: ["issue", "previous_summary", "iteration"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -563,7 +490,6 @@ Deno.test("template-uv-validator - mixed undeclared and unused produces both err
       c3: "project",
       edition: "default",
       uvVariables: declaredUvNames,
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -636,7 +562,6 @@ Deno.test("template-uv-validator - adaptation path resolves correctly", async ()
       edition: "default",
       adaptation: "label_only",
       uvVariables: ["issue"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -695,7 +620,6 @@ Deno.test("template-uv-validator - only C3L file UVs are checked", async () => {
       c3: "issue",
       edition: "default",
       uvVariables: declaredUvNames,
-      fallbackKey: "initial_issue",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -726,234 +650,17 @@ Deno.test("template-uv-validator - only C3L file UVs are checked", async () => {
 });
 
 // =============================================================================
-// 10. Fallback template: missing main but valid fallback runs UV check
+// 10. Missing C3L prompt with UV declarations produces skip warning
 // =============================================================================
 
-Deno.test("template-uv-validator - missing main template with valid fallback runs UV check on fallback", async () => {
+Deno.test("template-uv-validator - missing C3L prompt skips UV check with warning", async () => {
   const dir = await Deno.makeTempDir();
   try {
-    // No main C3L prompt file for c2=continuation, c3=issue
-    // But fallback "initial_issue" template exists at c2=initial, c3=issue
-    const fallbackContent = "# Fallback\n\nIssue #{uv-issue}\nRepo: {uv-repo}";
-    await createPromptFile(
-      dir,
-      "steps",
-      "initial",
-      "issue",
-      "default",
-      fallbackContent,
-    );
-
-    const declaredUvNames = ["issue", "repo"];
-    const registry = registryWith("continuation.issue", {
-      c2: "continuation",
-      c3: "issue",
-      edition: "default",
-      uvVariables: declaredUvNames,
-      fallbackKey: "initial_issue",
-    });
-
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
-
-    // Non-vacuity: confirm fallback was actually read and validated
-    // (both UVs in fallbackContent match declaredUvNames -> 0 errors, 0 warnings)
-    assert(
-      declaredUvNames.length > 0,
-      "Test fixture must declare UV variables to avoid vacuous pass",
-    );
-    assert(
-      fallbackContent.includes("{uv-"),
-      "Fallback template must contain UV placeholders to prove validation ran",
-    );
-    // Fallback template uses {uv-issue} and {uv-repo}, both declared -> valid
-    assertEquals(
-      result.valid,
-      true,
-      `Expected valid result (fix: ${VALIDATOR_FILE} fallback UV check)`,
-    );
-    assertEquals(
-      result.errors.length,
-      0,
-      `Expected no errors (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.errors)
-      }`,
-    );
-    assertEquals(
-      result.warnings.length,
-      0,
-      `Expected no warnings (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
-// =============================================================================
-// 11. Fallback template has undeclared UV variable -> error
-// =============================================================================
-
-Deno.test("template-uv-validator - fallback template with undeclared UV produces error", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // No main C3L prompt file for c2=continuation, c3=issue
-    // Fallback "initial_issue" template uses {uv-secret} which is not declared
-    await createPromptFile(
-      dir,
-      "steps",
-      "initial",
-      "issue",
-      "default",
-      "# Fallback\n\nSecret: {uv-secret}",
-    );
-
-    // Template UV: ["secret"]; Declared: ["issue"]
-    const fallbackUvNames = ["secret"];
-    const declaredUvNames = ["issue"];
-    const undeclaredCount = fallbackUvNames.filter(
-      (v) => !declaredUvNames.includes(v),
-    ).length; // 1: "secret"
-    const unusedCount = declaredUvNames.filter(
-      (v) => !fallbackUvNames.includes(v),
-    ).length; // 1: "issue"
-
-    const registry = registryWith("continuation.issue", {
-      c2: "continuation",
-      c3: "issue",
-      edition: "default",
-      uvVariables: declaredUvNames,
-      fallbackKey: "initial_issue",
-    });
-
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
-
-    // Fallback uses {uv-secret} not declared -> error
-    assertEquals(
-      result.valid,
-      false,
-      `Expected invalid result (fix: ${VALIDATOR_FILE} fallback UV check)`,
-    );
-    assertEquals(
-      result.errors.length,
-      undeclaredCount,
-      `Expected ${undeclaredCount} error(s) (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.errors)
-      }`,
-    );
-    assertEquals(
-      result.errors.some((e) =>
-        e.includes("continuation.issue") &&
-        e.includes(MSG_FALLBACK_TEMPLATE) &&
-        e.includes("uv-secret") &&
-        e.includes(MSG_NOT_DECLARED)
-      ),
-      true,
-      `Expected error containing "${MSG_FALLBACK_TEMPLATE}" and "${MSG_NOT_DECLARED}" (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.errors)
-      }`,
-    );
-
-    // "issue" is declared but not used in fallback -> warning
-    assertEquals(
-      result.warnings.length,
-      unusedCount,
-      `Expected ${unusedCount} warning(s) (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-    assertEquals(
-      result.warnings.some((w) =>
-        w.includes("continuation.issue") &&
-        w.includes("issue") &&
-        w.includes(MSG_FALLBACK_NO_UV_PREFIX)
-      ),
-      true,
-      `Expected warning containing "${MSG_FALLBACK_NO_UV_PREFIX}" (fix: ${VALIDATOR_FILE} fallback UV check). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
-// =============================================================================
-// 12. Missing main template, both main and fallback missing -> warning mentions both
-// =============================================================================
-
-Deno.test("template-uv-validator - missing main and missing fallback warns about both", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // No main C3L prompt file and no fallback template file either
     const registry = registryWith("continuation.issue", {
       c2: "continuation",
       c3: "issue",
       edition: "default",
       uvVariables: ["issue"],
-      fallbackKey: "initial_issue",
-    });
-
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
-
-    const stepCount = Object.keys(
-      registry.steps as Record<string, unknown>,
-    ).length;
-    assert(
-      stepCount > 0,
-      "Test fixture must have steps to avoid vacuous pass",
-    );
-    assertEquals(
-      result.valid,
-      true,
-      `Expected valid result (fix: ${VALIDATOR_FILE} both-missing fallback path)`,
-    );
-    assertEquals(
-      result.errors.length,
-      0,
-      `Expected no errors (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.errors)
-      }`,
-    );
-    assertEquals(
-      result.warnings.length,
-      stepCount,
-      `Expected ${stepCount} warning(s) (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-    assertEquals(
-      result.warnings.some((w) =>
-        w.includes("continuation.issue") &&
-        w.includes(MSG_C3L_NOT_FOUND) &&
-        w.includes(MSG_FALLBACK_TEMPLATE_REF) &&
-        w.includes("initial_issue") &&
-        w.includes(MSG_ALSO_NOT_FOUND)
-      ),
-      true,
-      `Expected warning containing "${MSG_C3L_NOT_FOUND}" and "${MSG_ALSO_NOT_FOUND}" (fix: ${VALIDATOR_FILE} both-missing fallback path). Got: ${
-        JSON.stringify(result.warnings)
-      }`,
-    );
-  } finally {
-    await Deno.remove(dir, { recursive: true });
-  }
-});
-
-// =============================================================================
-// 13. Missing main template, empty fallbackKey -> original warn-and-skip behavior
-// =============================================================================
-
-Deno.test("template-uv-validator - missing main template with empty fallbackKey warns and skips", async () => {
-  const dir = await Deno.makeTempDir();
-  try {
-    // No main C3L prompt file, fallbackKey is empty
-    const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
-      uvVariables: ["issue"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -984,12 +691,14 @@ Deno.test("template-uv-validator - missing main template with empty fallbackKey 
         JSON.stringify(result.warnings)
       }`,
     );
-    // Original behavior: simple "C3L prompt file not found" without fallback mention
     assertEquals(
-      result.warnings[0].includes(MSG_C3L_NOT_FOUND) &&
-        !result.warnings[0].includes(MSG_FALLBACK_TEMPLATE_REF),
+      result.warnings.some((w) =>
+        w.includes("continuation.issue") &&
+        w.includes(MSG_C3L_NOT_FOUND) &&
+        w.includes(MSG_UV_CHECK_SKIPPED)
+      ),
       true,
-      `Expected warning containing "${MSG_C3L_NOT_FOUND}" without "${MSG_FALLBACK_TEMPLATE_REF}" (fix: ${VALIDATOR_FILE} missing-file skip). Got: ${
+      `Expected warning containing "${MSG_C3L_NOT_FOUND}" and "${MSG_UV_CHECK_SKIPPED}" (fix: ${VALIDATOR_FILE} missing-file skip). Got: ${
         JSON.stringify(result.warnings)
       }`,
     );

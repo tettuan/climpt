@@ -98,7 +98,6 @@ Deno.test("Issue 07-a — previous_summary declared: template validation passes"
       c3: "manual",
       edition: "default",
       uvVariables: ["previous_summary", "topic"],
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -196,7 +195,6 @@ Deno.test("Issue 07-c — previous_summary NOT declared: template validation pas
       c3: "manual",
       edition: "default",
       uvVariables: ["topic"], // previous_summary intentionally omitted
-      fallbackKey: "",
     });
 
     const result = await validateTemplateUvConsistency(registry, dir, dir);
@@ -260,7 +258,6 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
       c3: "manual",
       edition: "default",
       uvVariables: ["previous_summary", "topic"],
-      fallbackKey: "",
     });
 
     const templateResultA = await validateTemplateUvConsistency(
@@ -300,7 +297,6 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
       c3: "manual",
       edition: "default",
       uvVariables: ["topic"], // previous_summary omitted
-      fallbackKey: "",
     });
 
     const templateResultB = await validateTemplateUvConsistency(

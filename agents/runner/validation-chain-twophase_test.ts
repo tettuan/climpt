@@ -91,7 +91,6 @@ function createTwoPhaseRegistry(
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "initial_test",
         uvVariables: [],
         usesStdin: false,
       },

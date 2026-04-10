@@ -874,11 +874,6 @@
           "type": "string",
           "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
         },
-        "fallbackKey": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Key for fallback prompt. R-F9. R-E2: must equal {c2}_{c3} (runtime validation)."
-        },
         "uvVariables": {
           "type": "array",
           "items": { "type": "string" },

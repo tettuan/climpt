@@ -132,7 +132,6 @@ steps_registry.json の内容をそのまま書く。
     "c2": "initial",
     "c3": "issue",
     "edition": "default",
-    "fallbackKey": "initial_issue",
     "stepKind": "work",
     "uvVariables": ["issue"],
     "usesStdin": false,

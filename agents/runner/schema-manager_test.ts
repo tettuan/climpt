@@ -87,7 +87,6 @@ function createStepDef(
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test",
     uvVariables: [],
     usesStdin: false,
     ...overrides,

@@ -120,10 +120,6 @@
           "type": "string",
           "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
         },
-        "fallbackKey": {
-          "type": "string",
-          "description": "Key for fallback prompt in embedded prompts"
-        },
         "uvVariables": {
           "type": "array",
           "items": { "type": "string" },

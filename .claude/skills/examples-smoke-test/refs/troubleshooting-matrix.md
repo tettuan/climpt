@@ -16,7 +16,7 @@ Smoke test の結果と step の失敗パターンで原因を絞る。
 
 | 症状 | 原因 | 確認方法 |
 |---|---|---|
-| prompt 解決失敗 | fallback template に該当 key なし | fallbackKey が `agents/prompts/fallback.ts` に存在するか |
+| prompt 解決失敗 | C3L prompt file が存在しない | steps_registry.json の c2/c3/edition が prompts/ 配下のファイルと一致するか |
 | SDK query エラー | SDK バージョン不整合 | `deno info --json \| grep claude-agent-sdk` |
 | exit code 1 無出力 | agent.json schema 不正 | `run-agent.ts --validate --agent {name}` |
 | success:true だがエラー | query-executor がエラーを飲み込む | tmp/logs/ のセッションログで errors 確認 |

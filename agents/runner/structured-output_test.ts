@@ -65,7 +65,6 @@ Deno.test("StructuredOutput - loadSchemaForStep loads schema from outputSchemaRe
           c2: "initial",
           c3: "test",
           edition: "default",
-          fallbackKey: "test_initial_default",
           uvVariables: [],
           usesStdin: false,
           outputSchemaRef: {

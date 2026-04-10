@@ -171,7 +171,6 @@ CLI parameters にも存在しないため、R-A2 違反となる。
         "c2": "initial",
         "c3": "issue",
         "edition": "default",
-        "fallbackKey": "initial_issue",
         "uvVariables": ["issue"],
         "usesStdin": false,
         "condition": "args.issue !== undefined",

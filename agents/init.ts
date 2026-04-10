@@ -138,7 +138,6 @@ export async function initAgent(
         c2: "system",
         c3: "prompt",
         edition: "default",
-        fallbackKey: "system_prompt",
         uvVariables: ["uv-agent_name", "uv-verdict_criteria"],
         usesStdin: false,
       },
@@ -150,7 +149,6 @@ export async function initAgent(
         c3: "manual",
         edition: "default",
         stepKind: "work",
-        fallbackKey: "initial_manual",
         uvVariables: ["uv-topic", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
@@ -167,7 +165,6 @@ export async function initAgent(
         c3: "manual",
         edition: "default",
         stepKind: "work",
-        fallbackKey: "continuation_manual",
         uvVariables: ["uv-iteration", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {

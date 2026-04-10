@@ -47,15 +47,11 @@ export interface PromptResolutionLog {
    * - "user": User-provided prompt file (from common/prompt-resolver.ts)
    * - "file": Direct file read (from prompts/resolver.ts)
    * - "climpt": Resolved via Climpt CLI (from prompts/resolver.ts)
-   * - "fallback": Built-in/embedded prompt
    */
-  source: "user" | "file" | "climpt" | "fallback";
+  source: "user" | "file" | "climpt";
 
   /** Path to prompt file (e.g., "iterator/initial/issue/f_default.md") */
   promptPath?: string;
-
-  /** Fallback key used (if source is "fallback") */
-  fallbackKey?: string;
 
   /** Variables that were substituted (uv-* parameters) */
   variables?: Record<string, string>;
@@ -173,7 +169,6 @@ export class PromptLogger {
       user: "user file",
       file: "file",
       climpt: "climpt",
-      fallback: "fallback",
     };
     const sourceLabel = sourceLabels[result.source] ?? result.source;
 
@@ -237,31 +232,6 @@ export class PromptLogger {
   }
 
   /**
-   * Log when falling back from user file to embedded prompt
-   *
-   * @param stepId - Step ID
-   * @param userPath - User file path that was tried
-   * @param fallbackKey - Fallback key being used
-   */
-  async logFallback(
-    stepId: string,
-    userPath: string,
-    fallbackKey: string,
-  ): Promise<void> {
-    await this.writeLog(
-      "debug",
-      `Prompt fallback: ${stepId} (user file not found)`,
-      {
-        promptResolution: {
-          stepId,
-          attemptedUserPath: userPath,
-          fallbackKey,
-        },
-      },
-    );
-  }
-
-  /**
    * Build a log entry from resolution result
    */
   private buildLogEntry(
@@ -309,7 +279,6 @@ export async function logPromptResolution(
     user: "user file",
     file: "file",
     climpt: "climpt",
-    fallback: "fallback",
   };
   const sourceLabel = sourceLabels[result.source] ?? result.source;
   const pathInfo = result.promptPath ? ` [${result.promptPath}]` : "";

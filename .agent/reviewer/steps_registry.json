@@ -6,33 +6,40 @@
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
-
   "entryStepMapping": {
     "poll:state": "initial.issue",
     "count:iteration": "initial.default"
   },
-
   "failurePatterns": {
     "git-dirty": {
-      "description": "未コミットの変更がある",
+      "description": "\u672a\u30b3\u30df\u30c3\u30c8\u306e\u5909\u66f4\u304c\u3042\u308b",
       "edition": "failed",
       "adaptation": "git-dirty",
-      "params": ["changedFiles", "untrackedFiles"]
+      "params": [
+        "changedFiles",
+        "untrackedFiles"
+      ]
     },
     "branch-not-pushed": {
-      "description": "ブランチがリモートにプッシュされていない",
+      "description": "\u30d6\u30e9\u30f3\u30c1\u304c\u30ea\u30e2\u30fc\u30c8\u306b\u30d7\u30c3\u30b7\u30e5\u3055\u308c\u3066\u3044\u306a\u3044",
       "edition": "failed",
       "adaptation": "branch-not-pushed",
-      "params": ["branchName", "remoteStatus"]
+      "params": [
+        "branchName",
+        "remoteStatus"
+      ]
     },
     "branch-not-merged": {
-      "description": "ブランチがマージされていない",
+      "description": "\u30d6\u30e9\u30f3\u30c1\u304c\u30de\u30fc\u30b8\u3055\u308c\u3066\u3044\u306a\u3044",
       "edition": "failed",
       "adaptation": "branch-not-merged",
-      "params": ["branchName", "baseBranch", "mergeStatus"]
+      "params": [
+        "branchName",
+        "baseBranch",
+        "mergeStatus"
+      ]
     }
   },
-
   "validators": {
     "git-clean": {
       "type": "command",
@@ -66,7 +73,6 @@
       }
     }
   },
-
   "validationSteps": {
     "closure.review": {
       "stepId": "closure.review",
@@ -74,9 +80,15 @@
       "c2": "retry",
       "c3": "review",
       "validationConditions": [
-        { "validator": "git-clean" },
-        { "validator": "branch-pushed" },
-        { "validator": "branch-merged" }
+        {
+          "validator": "git-clean"
+        },
+        {
+          "validator": "branch-pushed"
+        },
+        {
+          "validator": "branch-merged"
+        }
       ],
       "onFailure": {
         "action": "retry",
@@ -89,7 +101,6 @@
       "description": "Validate review with git-clean, branch-pushed, branch-merged"
     }
   },
-
   "steps": {
     "initial.issue": {
       "stepId": "initial.issue",
@@ -98,8 +109,9 @@
       "c2": "initial",
       "c3": "issue",
       "edition": "default",
-      "fallbackKey": "initial_issue",
-      "uvVariables": ["issue"],
+      "uvVariables": [
+        "issue"
+      ],
       "usesStdin": false,
       "description": "Initial prompt for reviewing a specific GitHub Issue",
       "condition": "args.issue !== undefined",
@@ -109,16 +121,29 @@
         "schema": "initial.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "handoff"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["review.findings", "review.recommendations"]
+        "handoffFields": [
+          "review.findings",
+          "review.recommendations"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.issue" },
-        "repeat": { "target": "initial.issue" },
-        "handoff": { "target": "closure.review" }
+        "next": {
+          "target": "continuation.issue"
+        },
+        "repeat": {
+          "target": "initial.issue"
+        },
+        "handoff": {
+          "target": "closure.review"
+        }
       }
     },
     "continuation.issue": {
@@ -128,8 +153,9 @@
       "c2": "continuation",
       "c3": "issue",
       "edition": "default",
-      "fallbackKey": "continuation_issue",
-      "uvVariables": ["issue"],
+      "uvVariables": [
+        "issue"
+      ],
       "usesStdin": false,
       "description": "Continuation prompt for issue review iterations",
       "outputSchemaRef": {
@@ -137,16 +163,29 @@
         "schema": "continuation.issue"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "handoff"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["review.findings", "review.recommendations"]
+        "handoffFields": [
+          "review.findings",
+          "review.recommendations"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.issue" },
-        "repeat": { "target": "continuation.issue" },
-        "handoff": { "target": "closure.review" }
+        "next": {
+          "target": "continuation.issue"
+        },
+        "repeat": {
+          "target": "continuation.issue"
+        },
+        "handoff": {
+          "target": "closure.review"
+        }
       }
     },
     "initial.default": {
@@ -156,8 +195,11 @@
       "c2": "initial",
       "c3": "default",
       "edition": "default",
-      "fallbackKey": "initial_default",
-      "uvVariables": ["project", "requirements_label", "review_label"],
+      "uvVariables": [
+        "project",
+        "requirements_label",
+        "review_label"
+      ],
       "usesStdin": false,
       "description": "Initial prompt for review task with project context",
       "condition": "args.project !== undefined",
@@ -167,16 +209,29 @@
         "schema": "initial.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "handoff"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["review.summary", "review.issues_found"]
+        "handoffFields": [
+          "review.summary",
+          "review.issues_found"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.default" },
-        "repeat": { "target": "initial.default" },
-        "handoff": { "target": "closure.review" }
+        "next": {
+          "target": "continuation.default"
+        },
+        "repeat": {
+          "target": "initial.default"
+        },
+        "handoff": {
+          "target": "closure.review"
+        }
       }
     },
     "continuation.default": {
@@ -186,8 +241,9 @@
       "c2": "continuation",
       "c3": "default",
       "edition": "default",
-      "fallbackKey": "continuation_default",
-      "uvVariables": ["iteration"],
+      "uvVariables": [
+        "iteration"
+      ],
       "usesStdin": false,
       "description": "Continuation prompt for subsequent review iterations",
       "outputSchemaRef": {
@@ -195,16 +251,29 @@
         "schema": "continuation.default"
       },
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "handoff"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["review.progress", "review.remaining_items"]
+        "handoffFields": [
+          "review.progress",
+          "review.remaining_items"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.default" },
-        "repeat": { "target": "continuation.default" },
-        "handoff": { "target": "closure.review" }
+        "next": {
+          "target": "continuation.default"
+        },
+        "repeat": {
+          "target": "continuation.default"
+        },
+        "handoff": {
+          "target": "closure.review"
+        }
       }
     },
     "closure.review": {
@@ -215,7 +284,6 @@
       "c2": "closure",
       "c3": "review",
       "edition": "default",
-      "fallbackKey": "review_closure_default",
       "uvVariables": [],
       "usesStdin": false,
       "outputSchemaRef": {
@@ -223,15 +291,22 @@
         "schema": "closure.review"
       },
       "structuredGate": {
-        "allowedIntents": ["closing", "repeat"],
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": null },
-        "repeat": { "target": "closure.review" }
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "closure.review"
+        }
       },
       "description": "Completion prompt for review (terminal step)"
     }

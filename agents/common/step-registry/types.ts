@@ -84,12 +84,6 @@ export interface PromptStepDefinition {
   adaptation?: string;
 
   /**
-   * Key for fallback prompt in embedded prompts
-   * Used when user prompt file doesn't exist
-   */
-  fallbackKey: string;
-
-  /**
    * List of UV (user variable) names required by this prompt
    * Example: ["issue", "repository"]
    */
