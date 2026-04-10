@@ -747,14 +747,6 @@
           "type": "string",
           "description": "C3L path component: c1 (e.g., 'steps')"
         },
-        "userPromptsBase": {
-          "type": "string",
-          "description": "Base directory for user prompts"
-        },
-        "schemasBase": {
-          "type": "string",
-          "description": "Base directory for schema files"
-        },
         "pathTemplate": {
           "type": "string",
           "description": "Path template with adaptation: '{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md'"

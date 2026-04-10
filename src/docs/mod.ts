@@ -24,6 +24,8 @@ async function settledConcurrent<T, R>(
   const results: PromiseSettledResult<R>[] = [];
   for (let i = 0; i < items.length; i += concurrency) {
     const chunk = items.slice(i, i + concurrency);
+    // Intentional: bounded concurrency requires sequential await per chunk
+    // deno-lint-ignore no-await-in-loop
     results.push(...await Promise.allSettled(chunk.map(fn)));
   }
   return results;

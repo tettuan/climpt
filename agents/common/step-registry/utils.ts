@@ -71,7 +71,7 @@ export function hasStep(registry: StepRegistry, stepId: string): boolean {
  * const registry = createEmptyRegistry("my-agent");
  * // registry.agentId === "my-agent"
  * // registry.steps === {}
- * // registry.userPromptsBase === ".agent/my-agent/prompts"
+ * // registry.steps === {}
  * ```
  */
 export function createEmptyRegistry(
@@ -84,7 +84,6 @@ export function createEmptyRegistry(
     version,
     c1,
     steps: {},
-    userPromptsBase: `.agent/${agentId}/prompts`,
   };
 }
 

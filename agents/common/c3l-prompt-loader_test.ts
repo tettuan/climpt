@@ -12,16 +12,16 @@ import { C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import type { C3LPath } from "./c3l-prompt-loader.ts";
 
 /**
- * Derive the expected prompt path from the agent ID and C3L path components.
- * Mirrors C3LPromptLoader.buildPromptPath so tests stay in sync with the
- * production path-construction logic without duplicating a magic string.
+ * Derive the expected prompt path from C3L path components.
+ * Mirrors C3LPromptLoader.buildPromptPath — returns C3L logical coordinates,
+ * not physical file paths (physical resolution is breakdown's concern).
  */
-function expectedPromptPath(agentId: string, path: C3LPath): string {
+function expectedPromptPath(_agentId: string, path: C3LPath): string {
   const edition = path.edition ?? "default";
   const filename = path.adaptation
     ? `f_${edition}_${path.adaptation}.md`
     : `f_${edition}.md`;
-  return `.agent/${agentId}/prompts/${path.c1}/${path.c2}/${path.c3}/${filename}`;
+  return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
 }
 
 Deno.test("C3LPromptLoader - creates correct config name", () => {

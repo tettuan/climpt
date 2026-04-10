@@ -209,7 +209,6 @@ const reviewResult = await runReviewer({
 {
   "agentId": "iterator",
   "version": "1.2.0",
-  "userPromptsBase": ".agent/iterator/prompts",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "steps": {

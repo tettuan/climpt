@@ -253,9 +253,6 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "my-agent",
   "version": "3.0.0",
-  "userPromptsBase": ".agent/my-agent/prompts",
-  "schemasBase": ".agent/my-agent/schemas",
-
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}.md",
 

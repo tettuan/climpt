@@ -88,7 +88,6 @@ app_schema:
 
   // Build StepRegistry in-memory
   const registry = createEmptyRegistry(agentName, "steps", "1.0.0");
-  registry.userPromptsBase = `.agent/${agentName}/prompts`;
   registry.entryStep = "initial.issue";
 
   addStepDefinition(registry, {

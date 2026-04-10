@@ -237,10 +237,10 @@ export class SchemaManager {
     logger: import("../src_common/logger.ts").Logger,
   ): Promise<Record<string, unknown> | undefined> {
     const ctx = this.deps.getContext();
-    const stepsRegistry = this.deps.getStepsRegistry();
-    const schemasBase = stepsRegistry?.schemasBase ??
-      `.agent/${this.deps.definition.name}/schemas`;
-    const schemasDir = join(ctx.cwd, schemasBase);
+    const schemasDir = join(
+      ctx.cwd,
+      `.agent/${this.deps.definition.name}/schemas`,
+    );
 
     try {
       const resolver = new SchemaResolver(schemasDir);

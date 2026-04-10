@@ -57,7 +57,6 @@ Deno.test("StructuredOutput - loadSchemaForStep loads schema from outputSchemaRe
       agentId: "test-agent",
       version: "1.0.0",
       c1: "steps",
-      schemasBase: ".agent/test-agent/schemas",
       steps: {
         "initial.test": {
           stepId: "initial.test",
@@ -219,23 +218,6 @@ Deno.test("StructuredOutput - closure.issue completionStep has outputSchemaRef",
 // =============================================================================
 
 /**
- * Test that schemasBase is correctly configured
- */
-Deno.test("StructuredOutput - schemasBase is configured in registry", async () => {
-  const registryPath = ".agent/iterator/steps_registry.json";
-
-  const content = await Deno.readTextFile(registryPath);
-  const registry = JSON.parse(content) as ExtendedStepsRegistry;
-
-  assertExists(registry.schemasBase, "schemasBase should be defined");
-  assertEquals(
-    registry.schemasBase,
-    ".agent/iterator/schemas",
-    "schemasBase should point to schemas directory",
-  );
-});
-
-/**
  * Test that all schema files referenced in outputSchemaRef exist
  */
 Deno.test("StructuredOutput - all referenced schema files exist", async () => {
@@ -244,7 +226,7 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
+  const schemasDir = ".agent/iterator/schemas";
 
   // Collect all unique schema files
   const schemaFiles = new Set<string>();
@@ -265,7 +247,7 @@ Deno.test("StructuredOutput - all referenced schema files exist", async () => {
 
   // Verify each file exists
   for (const file of schemaFiles) {
-    const schemaPath = join(schemasBase, file);
+    const schemaPath = join(schemasDir, file);
     try {
       // deno-lint-ignore no-await-in-loop
       const stat = await Deno.stat(schemaPath);
@@ -285,7 +267,7 @@ Deno.test("StructuredOutput - all referenced schemas exist in files", async () =
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
+  const schemasDir = ".agent/iterator/schemas";
 
   // Collect all schema references
   const refs: Array<{ file: string; schema: string }> = [];
@@ -306,7 +288,7 @@ Deno.test("StructuredOutput - all referenced schemas exist in files", async () =
 
   // Verify each schema exists
   for (const ref of refs) {
-    const schemaPath = join(schemasBase, ref.file);
+    const schemaPath = join(schemasDir, ref.file);
     // deno-lint-ignore no-await-in-loop
     const fileContent = await Deno.readTextFile(schemaPath);
     const schemas = JSON.parse(fileContent);
@@ -618,8 +600,8 @@ Deno.test("StructuredOutput - polling schema loading path simulation", async () 
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
 
   // 3. Build schema path
-  const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
-  const schemaPath = join(schemasBase, stepDef.outputSchemaRef.file);
+  const schemasDir = ".agent/iterator/schemas";
+  const schemaPath = join(schemasDir, stepDef.outputSchemaRef.file);
 
   // 4. Load and parse schema file
   const schemaContent = await Deno.readTextFile(schemaPath);
@@ -659,10 +641,10 @@ Deno.test("StructuredOutput - polling.schema.json exists in referenced files", a
   const content = await Deno.readTextFile(registryPath);
   const registry = JSON.parse(content) as ExtendedStepsRegistry;
 
-  const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
+  const schemasDir = ".agent/iterator/schemas";
 
   // Check polling.schema.json specifically
-  const schemaPath = join(schemasBase, "polling.schema.json");
+  const schemaPath = join(schemasDir, "polling.schema.json");
   try {
     const stat = await Deno.stat(schemaPath);
     assertEquals(stat.isFile, true, `${schemaPath} should be a file`);
@@ -694,8 +676,8 @@ Deno.test("StructuredOutput - schema loading path simulation", async () => {
   assertExists(stepDef.outputSchemaRef, "outputSchemaRef should exist");
 
   // 3. Build schema path
-  const schemasBase = registry.schemasBase ?? ".agent/iterator/schemas";
-  const schemaPath = join(schemasBase, stepDef.outputSchemaRef.file);
+  const schemasDir = ".agent/iterator/schemas";
+  const schemaPath = join(schemasDir, stepDef.outputSchemaRef.file);
 
   // 4. Load and parse schema file
   const schemaContent = await Deno.readTextFile(schemaPath);

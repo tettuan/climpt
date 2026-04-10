@@ -203,7 +203,8 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --init
 
 **解決策**:
 
-1. スキーマファイルが `schemasBase` ディレクトリ内に存在することを確認。
+1. スキーマファイルが `.agent/{agentId}/schemas`
+   ディレクトリ内に存在することを確認。
 2. `outputSchemaRef` がオブジェクト形式であることを確認:
    ```json
    {

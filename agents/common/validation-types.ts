@@ -173,7 +173,7 @@ export interface ResponseFormat {
  * Reference to an external JSON Schema file
  */
 export interface OutputSchemaRef {
-  /** Schema file name (relative to schemasBase) */
+  /** Schema file name (relative to the agent's schemas directory) */
   file: string;
   /** Schema name within the file (top-level key) */
   schema: string;
@@ -276,9 +276,6 @@ export interface ValidatorResult {
  * Extends existing StepRegistry with failurePatterns and validators.
  */
 export interface ExtendedStepsRegistry extends StepRegistry {
-  /** Base path for schema files */
-  schemasBase?: string;
-
   /** Failure pattern definitions */
   failurePatterns?: Record<string, FailurePattern>;
 

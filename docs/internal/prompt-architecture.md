@@ -10,6 +10,27 @@ The prompt externalization system allows agents to:
 2. Resolve prompts using C3L path conventions
 3. Substitute variables at runtime
 
+## Design Boundary: C3L Logical Coordinates vs Physical Path
+
+Runner and Breakdown have distinct responsibilities separated by a clear
+boundary:
+
+| Layer                            | Owns                                                        | Does NOT own               |
+| -------------------------------- | ----------------------------------------------------------- | -------------------------- |
+| **Runner** (steps_registry.json) | C3L logical coordinates: c1, c2, c3, edition, adaptation    | Physical file paths        |
+| **Breakdown** (app.yml)          | Physical path resolution: working_dir + app_prompt.base_dir | Step flow, UV declarations |
+
+**Runner** knows WHAT to resolve — the C3L coordinates that identify a prompt
+logically. **Breakdown** knows WHERE the file lives — the physical path derived
+from app.yml configuration.
+
+The boundary is `C3LPromptLoader.load()`: Runner passes C3L coordinates and a
+config name, Breakdown reads app.yml to resolve the physical file, and returns
+content.
+
+Runner does not hold, construct, or log physical file paths. Log and error
+messages use C3L coordinate notation (e.g., `steps/initial/issue/f_default.md`).
+
 ## Core Components
 
 ### 1. StepRegistry (`agents/common/step-registry.ts`)
@@ -42,7 +63,6 @@ interface StepRegistry {
   pathTemplate?: string; // Path template with adaptation
   pathTemplateNoAdaptation?: string; // Path template without adaptation
   steps: Record<string, StepDefinition>;
-  userPromptsBase?: string; // Base path for user prompts
 }
 ```
 
@@ -207,7 +227,6 @@ Create `.agent/{agent-name}/steps_registry.json`:
 {
   "agentId": "my-agent",
   "version": "1.0.0",
-  "userPromptsBase": ".agent/my-agent/prompts",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",

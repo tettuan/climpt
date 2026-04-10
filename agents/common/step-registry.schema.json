@@ -23,11 +23,6 @@
       "additionalProperties": {
         "$ref": "#/definitions/StepDefinition"
       }
-    },
-    "userPromptsBase": {
-      "type": "string",
-      "description": "Default base directory for user prompts (default: .agent/{agentId}/prompts)",
-      "default": ".agent/{agentId}/prompts"
     }
   },
   "definitions": {

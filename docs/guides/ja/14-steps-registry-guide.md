@@ -95,8 +95,6 @@ sequenceDiagram
 | `agentId`                  | Yes  | エージェント識別子（例: `"iterator"`）           |
 | `version`                  | Yes  | semver 形式のスキーマバージョン                  |
 | `c1`                       | Yes  | C3L 最上位パスコンポーネント（例: `"steps"`）    |
-| `userPromptsBase`          | No   | ユーザープロンプトの基底ディレクトリ             |
-| `schemasBase`              | No   | スキーマファイルの基底ディレクトリ               |
 | `pathTemplate`             | No   | adaptation 付き C3L パステンプレート             |
 | `pathTemplateNoAdaptation` | No   | adaptation 無し C3L パステンプレート             |
 | `entryStep`                | No   | デフォルトのエントリステップ ID                  |
@@ -419,7 +417,6 @@ C3L パスの詳細は [08-prompt-structure.md](./08-prompt-structure.md) を参
 
 前提条件:
 
-- `userPromptsBase`: `.agent/{agent-name}/prompts`
 - `pathTemplate`: `{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md`
 - ステップ: `c1="steps"`, `c2="initial"`, `c3="issue"`, `edition="default"`
 

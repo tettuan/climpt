@@ -10,9 +10,6 @@
  * - Frontmatter removal for clean prompt content
  */
 
-import { join } from "@std/path";
-import { PATHS } from "../shared/paths.ts";
-import { buildPromptFilePath } from "../config/c3l-path-builder.ts";
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import {
@@ -65,9 +62,6 @@ export interface PromptResolverOptions {
   /** Working directory for relative path resolution */
   workingDir?: string;
 
-  /** Custom user prompts base path (overrides registry setting) */
-  userPromptsBase?: string;
-
   /** Whether to strip frontmatter from prompts (default: true) */
   stripFrontmatter?: boolean;
 
@@ -92,7 +86,6 @@ export interface PromptResolverOptions {
  */
 export class PromptResolver {
   private workingDir: string;
-  private userPromptsBase: string;
   private stripFrontmatter: boolean;
   private allowMissingVariables: boolean;
   private c3lLoader: C3LPromptLoader;
@@ -108,20 +101,13 @@ export class PromptResolver {
     options: PromptResolverOptions = {},
   ) {
     this.workingDir = options.workingDir ?? Deno.cwd();
-    this.userPromptsBase = options.userPromptsBase ??
-      registry.userPromptsBase ??
-      `${PATHS.AGENT_DIR_PREFIX}/${registry.agentId}/${PATHS.PROMPTS_DIR}`;
     this.stripFrontmatter = options.stripFrontmatter ?? true;
     this.allowMissingVariables = options.allowMissingVariables ?? false;
 
-    // Create C3LPromptLoader for breakdown integration.
-    // Pass userPromptsBase so that C3LPromptLoader's promptPath output
-    // matches the path PromptResolver uses for canResolve/getUserFilePath.
     this.c3lLoader = new C3LPromptLoader({
       agentId: registry.agentId,
       configSuffix: options.configSuffix ?? registry.c1,
       workingDir: this.workingDir,
-      userPromptsBase: this.userPromptsBase,
     });
   }
 
@@ -345,79 +331,15 @@ export class PromptResolver {
   }
 
   /**
-   * Build prompt file path from step definition (relative sub-path under prompts dir)
-   */
-  private buildPromptPath(step: PromptStepDefinition): string {
-    // buildPromptFilePath returns "{agentDir}/prompts/{c1}/..." — strip the
-    // leading "prompts/" because callers join with userPromptsBase which
-    // already includes the prompts directory.
-    const full = buildPromptFilePath(
-      "",
-      this.registry.c1,
-      step.c2,
-      step.c3,
-      step.edition ?? "default",
-      step.adaptation,
-    );
-    return full.replace(/^prompts\//, "");
-  }
-
-  /**
    * Format C3L path as a human-readable string for log/error messages.
-   *
-   * Includes userPromptsBase prefix so the path matches what
-   * C3LPromptLoader returns on success (promptPath field).
-   * Without the prefix, PR-C3L-004 error messages show an incomplete
-   * path that doesn't correspond to any file on disk.
+   * Uses C3L logical coordinates only — Runner does not resolve physical paths.
    */
   private formatC3LPath(path: C3LPath): string {
-    const subPath = buildPromptFilePath(
-      "",
-      path.c1,
-      path.c2,
-      path.c3,
-      path.edition ?? "default",
-      path.adaptation,
-    ).replace(/^prompts\//, "");
-    return join(this.userPromptsBase, subPath);
-  }
-
-  /**
-   * Check if a step can be resolved (has user file)
-   *
-   * @param stepId - Step ID to check
-   * @returns true if step can be resolved
-   */
-  async canResolve(stepId: string): Promise<boolean> {
-    const step = this.registry.steps[stepId];
-    if (!step) {
-      return false;
-    }
-
-    // Check user file
-    const promptPath = this.buildPromptPath(step);
-    const userPath = join(this.workingDir, this.userPromptsBase, promptPath);
-    try {
-      await Deno.stat(userPath);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Get the user file path for a step (even if it doesn't exist)
-   *
-   * @param stepId - Step ID
-   * @returns User file path or undefined if step not found
-   */
-  getUserFilePath(stepId: string): string | undefined {
-    const step = this.registry.steps[stepId];
-    if (!step) {
-      return undefined;
-    }
-    const promptPath = this.buildPromptPath(step);
-    return join(this.workingDir, this.userPromptsBase, promptPath);
+    const edition = path.edition ?? "default";
+    const filename = path.adaptation
+      ? `f_${edition}_${path.adaptation}.md`
+      : `f_${edition}.md`;
+    return `${path.c1}/${path.c2}/${path.c3}/${filename}`;
   }
 }
 

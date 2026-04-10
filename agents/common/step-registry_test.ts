@@ -34,7 +34,6 @@ Deno.test("createEmptyRegistry - creates valid empty registry", () => {
   assertEquals(registry.version, "1.0.0");
   assertEquals(registry.c1, "steps");
   assertEquals(registry.steps, {});
-  assertEquals(registry.userPromptsBase, ".agent/test-agent/prompts");
 });
 
 Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {

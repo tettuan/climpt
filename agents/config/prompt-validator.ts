@@ -160,7 +160,7 @@ export async function validatePrompts(
   }
 
   // 3. Run file existence checks in parallel
-  if (fileChecks.length > 0) {
+  if (fileChecks.length > 0 && agentDir) {
     const existsResults = await Promise.all(
       fileChecks.map((fc) => fileExists(fc.mainPath)),
     );
@@ -168,7 +168,7 @@ export async function validatePrompts(
     for (let idx = 0; idx < fileChecks.length; idx++) {
       if (!existsResults[idx]) {
         const relativePath = fileChecks[idx].mainPath.replace(
-          agentDir! + "/",
+          agentDir + "/",
           "",
         );
         warnings.push(

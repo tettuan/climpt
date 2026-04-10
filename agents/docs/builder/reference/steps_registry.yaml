@@ -82,35 +82,11 @@ version: "3.0.0"
 # Required    : yes
 # Default     : none
 # Why         : First segment of the C3L path. All prompt
-#               files live under {userPromptsBase}/{c1}/...
+#               files live under {c1}/...
 # Example     : "steps" -> prompts are under
 #               .agent/iterator/prompts/steps/
 # ------------------------------------------------------------
 c1: "steps"
-
-# ------------------------------------------------------------
-# userPromptsBase
-# ------------------------------------------------------------
-# Description : Base directory for user prompt files.
-# Type        : string
-# Required    : no (optional)
-# Default     : ".agent/{agentId}/prompts"
-# Why         : Override the default prompt directory. The
-#               C3L resolver constructs paths relative to this.
-# ------------------------------------------------------------
-userPromptsBase: ".agent/iterator/prompts"
-
-# ------------------------------------------------------------
-# schemasBase
-# ------------------------------------------------------------
-# Description : Base directory for JSON schema files.
-# Type        : string
-# Required    : no (optional)
-# Default     : ".agent/{agentId}/schemas"
-# Why         : outputSchemaRef.file is resolved relative to
-#               this directory.
-# ------------------------------------------------------------
-schemasBase: ".agent/iterator/schemas"
 
 # ------------------------------------------------------------
 # pathTemplate
@@ -566,7 +542,7 @@ steps:
     # Type        : OutputSchemaRef object
     # Fields:
     #   file   : (required) Schema file name, relative to
-    #            schemasBase (.agent/{agentId}/schemas/)
+    #            .agent/{agentId}/schemas/
     #   schema : (required) Schema name/key within the file.
     #            Used to select a sub-schema if the file
     #            contains multiple definitions.

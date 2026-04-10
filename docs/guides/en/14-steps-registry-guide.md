@@ -94,8 +94,6 @@ the contract consistent.
 | `agentId`                  | Yes      | Agent identifier (e.g., `"iterator"`)              |
 | `version`                  | Yes      | Schema version in semver format                    |
 | `c1`                       | Yes      | C3L top-level path component (e.g., `"steps"`)     |
-| `userPromptsBase`          | No       | Base directory for user prompts                    |
-| `schemasBase`              | No       | Base directory for schema files                    |
 | `pathTemplate`             | No       | C3L path template with adaptation                  |
 | `pathTemplateNoAdaptation` | No       | C3L path template without adaptation               |
 | `entryStep`                | No       | Default entry step ID                              |
@@ -466,7 +464,6 @@ Path templates define how step definitions resolve to prompt files on disk.
 
 Given:
 
-- `userPromptsBase`: `.agent/iterator/prompts`
 - `pathTemplate`: `{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md`
 - Step: `c1="steps"`, `c2="initial"`, `c3="issue"`, `edition="default"`
 

@@ -207,7 +207,7 @@ pointer or uses malformed JSON Pointer syntax.
 
 **Resolution**:
 
-1. Verify the schema file exists under the `schemasBase` directory.
+1. Verify the schema file exists under the `.agent/{agentId}/schemas` directory.
 2. Ensure `outputSchemaRef` uses the object format:
    ```json
    {

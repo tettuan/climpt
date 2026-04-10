@@ -106,10 +106,10 @@ export class ClosureManager {
         "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
       );
 
-      // Honor registry.schemasBase override per builder/01_quickstart.md
-      const schemasBase = registry.schemasBase ??
-        `.agent/${this.deps.definition.name}/schemas`;
-      const schemasDir = join(cwd, schemasBase);
+      const schemasDir = join(
+        cwd,
+        `.agent/${this.deps.definition.name}/schemas`,
+      );
 
       // Now validate intent schema enums with the correct schemasDir
       const { validateIntentSchemaEnums } = await import(

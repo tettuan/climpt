@@ -23,14 +23,6 @@
       "type": "string",
       "description": "C3L path component: c1 (e.g., 'steps')"
     },
-    "userPromptsBase": {
-      "type": "string",
-      "description": "Base directory for user prompts (default: '.agent/{agentId}/prompts')"
-    },
-    "schemasBase": {
-      "type": "string",
-      "description": "Base directory for schema files (default: '.agent/{agentId}/schemas')"
-    },
     "pathTemplate": {
       "type": "string",
       "description": "Path template with adaptation: '{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md'"
@@ -200,7 +192,7 @@
       "properties": {
         "file": {
           "type": "string",
-          "description": "Schema file name (relative to schemasBase)"
+          "description": "Schema file name (relative to the agent's schemas directory)"
         },
         "schema": {
           "type": "string",

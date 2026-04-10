@@ -61,7 +61,10 @@ const AGENT_CONSTRAINTS: HelpConstraint[] = [
       file: "steps_registry.json",
       field: "$.steps.*.outputSchemaRef.file",
     },
-    to: { file: "{schemasBase}/{outputSchemaRef.file}", field: "(file)" },
+    to: {
+      file: ".agent/{name}/schemas/{outputSchemaRef.file}",
+      field: "(file)",
+    },
     operator: "exists",
   },
   {
@@ -70,7 +73,7 @@ const AGENT_CONSTRAINTS: HelpConstraint[] = [
       file: "steps_registry.json",
       field: "$.steps.*.outputSchemaRef.schema",
     },
-    to: { file: "{schemasBase}/{outputSchemaRef.file}", field: "$" },
+    to: { file: ".agent/{name}/schemas/{outputSchemaRef.file}", field: "$" },
     operator: "references",
   },
   {
@@ -80,7 +83,7 @@ const AGENT_CONSTRAINTS: HelpConstraint[] = [
       field: "$.steps.*.structuredGate.allowedIntents",
     },
     to: {
-      file: "{schemasBase}/{outputSchemaRef.file}",
+      file: ".agent/{name}/schemas/{outputSchemaRef.file}",
       field:
         "$[{outputSchemaRef.schema}].properties.next_action.properties.action.enum",
     },
@@ -219,7 +222,6 @@ export const ROOT_NODE: HelpNode = {
         ],
         params: { name: "Agent name (used as directory name under .agent/)" },
         context: {
-          schemasBase: ".agent/{name}/schemas",
           promptsBase: ".agent/{name}/prompts",
           pathTemplate: "{c2}/{c3}/f_{edition}_{adaptation}.md",
         },
@@ -328,7 +330,6 @@ export const DETAIL_NODES: Record<string, HelpNode> = {
       ],
       params: { name: "Agent name (used as directory name under .agent/)" },
       context: {
-        schemasBase: ".agent/{name}/schemas",
         promptsBase: ".agent/{name}/prompts",
         pathTemplate: "{c2}/{c3}/f_{edition}_{adaptation}.md",
       },

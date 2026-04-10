@@ -2,7 +2,6 @@
   "agentId": "test-flow",
   "version": "3.0.0",
   "c1": "steps",
-  "schemasBase": ".agent/test-flow/schemas",
   "entryStepMapping": {
     "poll:state": "initial.test",
     "count:iteration": "initial.test",

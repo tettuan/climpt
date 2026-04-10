@@ -1,8 +1,6 @@
 {
   "agentId": "reviewer",
   "version": "3.0.0",
-  "userPromptsBase": ".agent/reviewer/prompts",
-  "schemasBase": ".agent/reviewer/schemas",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
