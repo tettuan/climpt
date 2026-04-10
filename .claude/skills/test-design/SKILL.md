@@ -1,6 +1,7 @@
 ---
 name: test-design
 description: This skill should be used when the user asks to "design test structure", "choose what to assert", "derive expected values", "write a contract test", "eliminate hardcoded test values", "improve test error messages", "review test quality", or discusses source of truth for tests, synchronization points, or diagnosability. Complements functional-testing (what to test) by guiding how to build structurally sound tests.
+allowed-tools: [Read, Glob, Grep]
 ---
 
 # Test Design
@@ -174,6 +175,7 @@ See `references/patterns.md` for detailed explanations of these anti-patterns.
 | `contradiction-verification` | Proving a problem exists | Confirming the test's premise is valid |
 | `refactoring` | Safe structural changes | Defining before/after contracts |
 | `functional-testing` | What aspects of a validator to test (F. Validator Testing) | Defining the four testing aspects (acceptance/rejection/diagnosis/completeness) |
+| `breakdown-logger` | Test execution tracing | Visualizing runtime behavior when failure messages alone are insufficient to diagnose |
 
 ## Reference
 

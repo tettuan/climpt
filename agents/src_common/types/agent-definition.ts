@@ -65,7 +65,7 @@ export interface RunnerFlowConfig {
   systemPromptPath: string;
   prompts: {
     registry: string;
-    fallbackDir: string;
+    fallbackDir?: string; // Legacy: retained for backward compatibility
   };
   schemas?: {
     base?: string;

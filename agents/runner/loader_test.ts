@@ -36,7 +36,6 @@ function createValidDefinition(): AgentDefinition {
         systemPromptPath: "./prompts/system.md",
         prompts: {
           registry: "./prompts/registry.json",
-          fallbackDir: "./prompts",
         },
       },
       verdict: {
@@ -365,16 +364,6 @@ Deno.test("validateAgentDefinition - missing prompts.registry fails", () => {
 
   assertEquals(result.valid, false);
   assertEquals(result.errors.some((e) => e.includes("registry")), true);
-});
-
-Deno.test("validateAgentDefinition - missing prompts.fallbackDir fails", () => {
-  const def = createValidDefinition();
-  def.runner.flow.prompts.fallbackDir = "";
-
-  const result = validateAgentDefinition(def);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("fallbackDir")), true);
 });
 
 Deno.test("validateAgentDefinition - missing logging.directory fails", () => {

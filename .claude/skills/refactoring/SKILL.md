@@ -125,4 +125,4 @@ deno cache --reload <entry-point>
 | `fix-checklist` | Root cause analysis before deciding what to refactor |
 | `functional-testing` | Automated test design in Phase 2 |
 | `docs-consistency` | Documentation updates in Phase 4 |
-| `workflow` | Team delegation for large-scale refactors |
+| `work-process` | Team delegation for large-scale refactors |

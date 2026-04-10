@@ -225,6 +225,24 @@ search({ query: "analyze", agent: "inspector" })
 
 ---
 
+## 6.6 Source of Truth
+
+| Concern                    | Authority             | Location                                     |
+| -------------------------- | --------------------- | -------------------------------------------- |
+| **WHAT** steps to execute  | `steps_registry.json` | `.agent/{agent}/steps_registry.json`         |
+| **WHERE** prompt files are | breakdown config      | `.agent/climpt/config/{agent}-{c1}-app.yml`  |
+| **HOW** to validate inputs | breakdown config      | `.agent/climpt/config/{agent}-{c1}-user.yml` |
+
+- `app.yml` defines `working_dir` and `app_prompt.base_dir` for physical file
+  resolution
+- `user.yml` defines `directiveType` and `layerType` patterns for input
+  validation
+- `steps_registry.json` defines step definitions with c1/c2/c3/edition for
+  logical mapping
+- The breakdown library combines these to resolve prompts at runtime
+
+---
+
 ## Setting Up a New Domain
 
 ### Step 1: Create config files

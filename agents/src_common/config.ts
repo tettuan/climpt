@@ -42,7 +42,7 @@ export function getDefaults(): Partial<AgentDefinition> {
     runner: {
       flow: {
         systemPromptPath: "",
-        prompts: { registry: "", fallbackDir: "" },
+        prompts: { registry: "" },
       },
       verdict: { type: "count:iteration", config: {} },
       boundaries: {

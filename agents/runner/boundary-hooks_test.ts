@@ -72,7 +72,6 @@ function createClosureRegistry(): ExtendedStepsRegistry {
         c2: "closure",
         c3: "test",
         edition: "default",
-        fallbackKey: "closure_test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -87,7 +86,6 @@ function createClosureRegistry(): ExtendedStepsRegistry {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "initial_test",
         uvVariables: [],
         usesStdin: false,
       },

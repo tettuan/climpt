@@ -146,31 +146,24 @@ maximum.
 
 ### 11.3.5 Prompt Resolution Priority
 
-The Runner tries two resolution paths in order. The first non-null result is
-used.
-
-- **Path A** -- C3L file resolution via `stepPromptResolver` / `closureAdapter`
-- **Path B** -- Verdict handler resolution, then `fallbackKey` lookup
+The Runner resolves prompts via C3L file resolution. C3L is the only resolution
+path.
 
 ```
 Iteration 1:
-  +-- Path A: stepPromptResolver.resolve()
-  |   +-- Success -> use content
-  +-- Path B: verdictHandler.buildInitialPrompt()
-      +-- C3L resolve -> fallbackKey lookup
+  +-- stepPromptResolver.resolve()
+      +-- C3L resolve -> use content
 
 Iteration > 1:
-  +-- Path A: closureAdapter.tryClosureAdaptation()
+  +-- closureAdapter.tryClosureAdaptation()
   |   +-- Success -> use content
-  +-- Path A: stepPromptResolver.resolve()
-  |   +-- Success -> use content
-  +-- Path B: verdictHandler.buildContinuationPrompt()
-      +-- C3L resolve -> fallbackKey lookup
+  +-- stepPromptResolver.resolve()
+      +-- C3L resolve -> use content
 ```
 
 #### `poll:state` Considerations
 
-Path B injects UV variables automatically for `poll:state`:
+The runner injects UV variables automatically for `poll:state`:
 
 | Variable           | Value             | Notes                          |
 | ------------------ | ----------------- | ------------------------------ |
@@ -178,13 +171,6 @@ Path B injects UV variables automatically for `poll:state`:
 | `repository`       | Repository path   | Empty string if not configured |
 | `iteration`        | Current iteration | Continuation only              |
 | `previous_summary` | Formatted summary | Continuation only              |
-
-Empty UV values (e.g., `--uv-repository=`) cause `breakdown` to reject C3L
-resolution. The `fallbackKey` must be correctly configured as the final safety
-net.
-
-> This is why `poll:state` agents fail when `fallbackKey` is wrong, while
-> `count:iteration` agents (Path A only, no UV injection) are unaffected.
 
 > **Validation**: The `--validate` flag only checks UV variables sourced from
 > CLI parameters (agent.json `parameters`). Runtime-injected variables like

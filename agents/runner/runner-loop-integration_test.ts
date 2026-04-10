@@ -239,6 +239,21 @@ function stubInitializeValidation(runner: AgentRunner): void {
   };
 }
 
+/**
+ * Stub resolveSystemPromptForIteration to avoid filesystem reads.
+ * Without this stub, the runner tries to read prompts/system.md from
+ * the test cwd (which doesn't exist) and throws PR-SYSTEM-002.
+ */
+function stubSystemPromptResolution(runner: AgentRunner): void {
+  // deno-lint-ignore no-explicit-any
+  (runner as any).resolveSystemPromptForIteration = () =>
+    Promise.resolve({
+      type: "preset",
+      preset: "claude_code",
+      append: "Stubbed system prompt for test",
+    });
+}
+
 // =============================================================================
 // Test 1: pendingRetryPrompt
 // =============================================================================
@@ -258,6 +273,7 @@ Deno.test("AgentRunner.run - pendingRetryPrompt is included in next iteration pr
 
   // Install minimal registry so flow orchestrator can resolve steps
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver so resolveFlowStepPrompt() returns a prompt
   // (required when stepsRegistry exists, after Phase C C3L-only enforcement)
@@ -370,6 +386,7 @@ Deno.test("AgentRunner.run - schemaResolutionFailed skips step gate routing", as
 
   // Install minimal registry
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver (C3L-only enforcement)
   // deno-lint-ignore no-explicit-any
@@ -460,6 +477,7 @@ Deno.test("AgentRunner.run - max-iteration breach emits error and stops", async 
 
   // Install minimal registry
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver (C3L-only enforcement)
   // deno-lint-ignore no-explicit-any
@@ -572,6 +590,7 @@ Deno.test("AgentRunner.run - setCurrentSummary receives IterationSummary from Qu
 
   // Install minimal registry so flow orchestrator can resolve steps
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver on closureManager so resolveFlowStepPrompt()
   // returns a prompt instead of null (which would throw when stepsRegistry exists).
@@ -677,6 +696,7 @@ Deno.test("AgentRunner.run - getLastVerdict propagates to AgentResult.verdict", 
 
   // Install minimal registry so flow orchestrator can resolve steps
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver (C3L-only enforcement)
   // deno-lint-ignore no-explicit-any
@@ -735,6 +755,7 @@ Deno.test("AgentRunner.run - result.verdict is undefined when handler has no get
 
   // Install minimal registry so flow orchestrator can resolve steps
   stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
 
   // Stub stepPromptResolver (C3L-only enforcement)
   // deno-lint-ignore no-explicit-any

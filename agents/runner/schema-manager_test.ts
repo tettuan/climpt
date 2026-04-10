@@ -87,7 +87,6 @@ function createStepDef(
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test",
     uvVariables: [],
     usesStdin: false,
     ...overrides,
@@ -99,14 +98,12 @@ function createStepDef(
  */
 function createRegistry(
   steps: Record<string, PromptStepDefinition>,
-  schemasBase?: string,
 ): ExtendedStepsRegistry {
   return {
     agentId: "test-schema",
     version: "1.0.0",
     c1: "steps",
     steps,
-    schemasBase,
   };
 }
 
@@ -223,18 +220,15 @@ Deno.test("SchemaManager - validateFlowSteps passes when all flow steps have req
 
 Deno.test("SchemaManager - loadSchemaForStep throws AgentSchemaResolutionError after 2 consecutive SchemaPointerErrors", async () => {
   const stepId = "initial.issue";
-  const registry = createRegistry(
-    {
-      [stepId]: createStepDef({
-        stepId,
-        outputSchemaRef: {
-          file: "steps.schema.json",
-          schema: "#/definitions/initial.issue",
-        },
-      }),
-    },
-    "schemas",
-  );
+  const registry = createRegistry({
+    [stepId]: createStepDef({
+      stepId,
+      outputSchemaRef: {
+        file: "steps.schema.json",
+        schema: "#/definitions/initial.issue",
+      },
+    }),
+  });
 
   const deps = createDeps(registry);
   const manager = new SchemaManager(deps);
@@ -295,15 +289,12 @@ Deno.test("SchemaManager - loadSchemaForStep throws AgentSchemaResolutionError a
 
 Deno.test("SchemaManager - loadSchemaForStep resets failure count on success", async () => {
   const stepId = "initial.test";
-  const registry = createRegistry(
-    {
-      [stepId]: createStepDef({
-        stepId,
-        outputSchemaRef: { file: "out.schema.json", schema: "test" },
-      }),
-    },
-    "schemas",
-  );
+  const registry = createRegistry({
+    [stepId]: createStepDef({
+      stepId,
+      outputSchemaRef: { file: "out.schema.json", schema: "test" },
+    }),
+  });
 
   const deps = createDeps(registry);
   const manager = new SchemaManager(deps);
@@ -370,15 +361,12 @@ Deno.test("SchemaManager - loadSchemaForStep resets failure count on success", a
 
 Deno.test("SchemaManager - schemaResolutionFailed is toggled on pointer miss and cleared on next attempt", async () => {
   const stepId = "continuation.task";
-  const registry = createRegistry(
-    {
-      [stepId]: createStepDef({
-        stepId,
-        outputSchemaRef: { file: "task.schema.json", schema: "task" },
-      }),
-    },
-    "schemas",
-  );
+  const registry = createRegistry({
+    [stepId]: createStepDef({
+      stepId,
+      outputSchemaRef: { file: "task.schema.json", schema: "task" },
+    }),
+  });
 
   const deps = createDeps(registry);
   const manager = new SchemaManager(deps);

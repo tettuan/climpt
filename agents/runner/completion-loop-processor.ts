@@ -66,10 +66,15 @@ export class CompletionLoopProcessor {
   /**
    * Completion Loop - single-shot closure procedure.
    *
-   * Encapsulates the three stages of completion:
-   * Stage 1: Closure prompt (handled externally via closureAdapter)
-   * Stage 2: Validation (external conditions check)
-   * Stage 3: Verdict (handler decision + boundary hooks)
+   * Encapsulates the four phases of completion:
+   * Phase 1: Pre-flight State Validation (external conditions check via StepValidator)
+   *          — runs in runClosureIteration BEFORE the LLM closure call.
+   *          If fail → retry without calling LLM.
+   * Phase 2: Closure Prompt (handled externally via closureAdapter)
+   * Phase 3: Format Validation (structured output check via FormatValidator)
+   *          — runs AFTER the LLM closure call against outputSchema.
+   *          If fail → format retry prompt.
+   * Phase 4: Verdict (handler decision + boundary hooks)
    *
    * Called when a completion signal is detected (closing intent,
    * AI verdict declaration, or legacy handler check).
@@ -329,6 +334,33 @@ export class CompletionLoopProcessor {
     if (this.deps.verboseLogger) {
       await this.deps.verboseLogger.logPrompt(prompt);
       await this.deps.verboseLogger.logSystemPrompt(systemPrompt);
+    }
+
+    // Step 4.5: Pre-flight state validation (Phase 1)
+    // Validate state conditions BEFORE the LLM call.
+    // Format validation (Phase 2) runs post-LLM in runClosureLoop.
+    const closureStepId = this.deps.closureManager.getClosureStepId();
+    const preFlightResult = await this.deps.closureManager
+      .validateStateConditions(
+        closureStepId,
+        ctx.logger,
+      );
+    if (!preFlightResult.valid) {
+      ctx.logger.info("[CompletionLoop] Pre-flight state validation failed", {
+        stepId: closureStepId,
+      });
+      return {
+        done: false,
+        reason: preFlightResult.retryPrompt ?? "State validation failed",
+        retryPrompt: preFlightResult.retryPrompt,
+        summary: summaries[summaries.length - 1] ?? {
+          iteration,
+          assistantResponses: [],
+          toolsUsed: [],
+          errors: [],
+        },
+        isRateLimitRetry: false,
+      };
     }
 
     // Step 5: LLM query

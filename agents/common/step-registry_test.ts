@@ -26,6 +26,9 @@ import {
   validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
+import { BreakdownLogger } from "@tettuan/breakdownlogger";
+
+const logger = new BreakdownLogger("step-registry");
 
 Deno.test("createEmptyRegistry - creates valid empty registry", () => {
   const registry = createEmptyRegistry("test-agent");
@@ -34,7 +37,6 @@ Deno.test("createEmptyRegistry - creates valid empty registry", () => {
   assertEquals(registry.version, "1.0.0");
   assertEquals(registry.c1, "steps");
   assertEquals(registry.steps, {});
-  assertEquals(registry.userPromptsBase, ".agent/test-agent/prompts");
 });
 
 Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {
@@ -52,7 +54,6 @@ Deno.test("addStepDefinition - adds step to registry", () => {
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "initial_test",
     uvVariables: ["test_var"],
     usesStdin: false,
   };
@@ -70,7 +71,6 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "initial_test",
     uvVariables: [],
     usesStdin: false,
   };
@@ -92,7 +92,6 @@ Deno.test("getStepDefinition - returns step by ID", () => {
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "initial_test",
     uvVariables: [],
     usesStdin: false,
   };
@@ -119,7 +118,6 @@ Deno.test("getStepIds - returns all step IDs", () => {
     c2: "initial",
     c3: "step1",
     edition: "default",
-    fallbackKey: "step1",
     uvVariables: [],
     usesStdin: false,
   });
@@ -129,7 +127,6 @@ Deno.test("getStepIds - returns all step IDs", () => {
     c2: "initial",
     c3: "step2",
     edition: "default",
-    fallbackKey: "step2",
     uvVariables: [],
     usesStdin: false,
   });
@@ -147,7 +144,6 @@ Deno.test("hasStep - returns true for existing step", () => {
     c2: "initial",
     c3: "existing",
     edition: "default",
-    fallbackKey: "existing",
     uvVariables: [],
     usesStdin: false,
   });
@@ -168,7 +164,6 @@ Deno.test("validateStepRegistry - validates correct registry", () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: ["var1"],
         usesStdin: true,
       },
@@ -221,7 +216,6 @@ Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
       },
@@ -251,7 +245,6 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'externalState'", (
         c2: "initial",
         c3: "externalState",
         edition: "default",
-        fallbackKey: "externalState_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -277,7 +270,6 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'structuredSignal'"
         c2: "initial",
         c3: "structuredSignal",
         edition: "default",
-        fallbackKey: "structuredSignal_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -303,7 +295,6 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'checkBudget'", () 
         c2: "initial",
         c3: "checkBudget",
         edition: "default",
-        fallbackKey: "checkBudget_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -329,7 +320,6 @@ Deno.test("validateStepRegistry - error message mentions kebab-case and LayerTyp
         c2: "initial",
         c3: "myStep",
         edition: "default",
-        fallbackKey: "myStep_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -362,7 +352,6 @@ Deno.test("validateStepRegistry - rejects uppercase c3", () => {
         c2: "initial",
         c3: "Issue",
         edition: "default",
-        fallbackKey: "issue_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -388,7 +377,6 @@ Deno.test("validateStepRegistry - accepts valid kebab-case c3", () => {
         c2: "initial",
         c3: "external-state",
         edition: "default",
-        fallbackKey: "external-state_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -411,7 +399,6 @@ Deno.test("validateStepRegistry - accepts single-word lowercase c3", () => {
         c2: "initial",
         c3: "issue",
         edition: "default",
-        fallbackKey: "issue_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -434,7 +421,6 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
         c2: "initial",
         c3: "externalState",
         edition: "default",
-        fallbackKey: "es_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -444,7 +430,6 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
         c2: "initial",
         c3: "checkBudget",
         edition: "default",
-        fallbackKey: "cb_initial",
         uvVariables: [],
         usesStdin: false,
       },
@@ -472,7 +457,6 @@ Deno.test("serializeRegistry - produces valid JSON", () => {
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test",
     uvVariables: [],
     usesStdin: false,
   });
@@ -500,7 +484,6 @@ Deno.test("loadStepRegistry - loads from file", async () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
       },
@@ -536,7 +519,6 @@ Deno.test("loadStepRegistry - normalizes null/undefined step fields", async () =
         c2: "continuation",
         c3: "issue",
         edition: "default",
-        fallbackKey: "cont_issue",
         uvVariables: null,
         // usesStdin intentionally omitted
       },
@@ -599,7 +581,6 @@ Deno.test("saveStepRegistry - saves to file", async () => {
     c2: "initial",
     c3: "saved",
     edition: "default",
-    fallbackKey: "saved",
     uvVariables: ["x"],
     usesStdin: true,
   });
@@ -633,7 +614,6 @@ Deno.test("validateIntentSchemaRef - throws when structuredGate missing intentSc
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         // Type assertion to test runtime validation of bad data
@@ -665,7 +645,6 @@ Deno.test("validateIntentSchemaRef - passes when intentSchemaRef present", () =>
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -693,7 +672,6 @@ Deno.test("validateIntentSchemaRef - passes when no structuredGate", () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         // No structuredGate - should pass
@@ -717,7 +695,6 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
         c2: "initial",
         c3: "one",
         edition: "default",
-        fallbackKey: "one",
         uvVariables: [],
         usesStdin: false,
         // Type assertion to test runtime validation of bad data
@@ -732,7 +709,6 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
         c2: "continuation",
         c3: "two",
         edition: "default",
-        fallbackKey: "two",
         uvVariables: [],
         usesStdin: false,
         // Type assertion to test runtime validation of bad data
@@ -770,7 +746,6 @@ Deno.test("StepDefinition - supports type field", () => {
     c2: "initial",
     c3: "test",
     edition: "default",
-    fallbackKey: "test",
     uvVariables: [],
     usesStdin: false,
   };
@@ -794,7 +769,6 @@ Deno.test("validateIntentSchemaRef - throws on external file reference", () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -827,7 +801,6 @@ Deno.test("validateIntentSchemaRef - throws on missing intentField", () => {
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         // Type assertion to test runtime validation of bad data
@@ -859,7 +832,6 @@ Deno.test("validateIntentSchemaRef - passes with valid internal pointer", () => 
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -914,7 +886,6 @@ Deno.test("validateIntentSchemaEnums - passes when enum matches allowedIntents e
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         outputSchemaRef: {
@@ -973,7 +944,6 @@ Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains value
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         outputSchemaRef: {
@@ -1037,7 +1007,6 @@ Deno.test("validateIntentSchemaEnums - throws when schema enum is superset of al
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         outputSchemaRef: {
@@ -1100,7 +1069,6 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "test",
         uvVariables: [],
         usesStdin: false,
         outputSchemaRef: {

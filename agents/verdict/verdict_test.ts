@@ -1096,7 +1096,6 @@ function createMockStepsRegistry(
         c2: "initial",
         c3: "test",
         edition: "default",
-        fallbackKey: "initial_test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -1117,7 +1116,6 @@ function createMockStepsRegistry(
         c2: "continuation",
         c3: "test",
         edition: "default",
-        fallbackKey: "continuation_test",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -2136,7 +2134,6 @@ Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial 
         c2: "work",
         c3: "analyze",
         edition: "default",
-        fallbackKey: "work.analyze",
         uvVariables: [],
         usesStdin: false,
       },

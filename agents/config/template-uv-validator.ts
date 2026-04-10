@@ -17,8 +17,24 @@
  */
 
 import type { ValidationResult } from "../src_common/types.ts";
-import { join } from "@std/path";
 import { RUNTIME_SUPPLIED_UV_VARS } from "../shared/constants.ts";
+import { buildPromptFilePath } from "./c3l-path-builder.ts";
+
+// ---------------------------------------------------------------------------
+// Message constants (exported for test assertions — single source of truth)
+// ---------------------------------------------------------------------------
+
+/** Error fragment: template uses {uv-X} but X is not in uvVariables. */
+export const MSG_NOT_DECLARED = "not declared in uvVariables";
+
+/** Warning fragment: uvVariables declares X but template has no {uv-X}. */
+export const MSG_NO_UV_PREFIX = "no {uv-";
+
+/** Warning fragment: C3L prompt file not found. */
+export const MSG_C3L_NOT_FOUND = "C3L prompt file not found";
+
+/** Warning fragment: UV consistency check skipped. */
+export const MSG_UV_CHECK_SKIPPED = "UV consistency check skipped";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -46,26 +62,6 @@ function extractUvVariables(content: string): Set<string> {
 }
 
 /**
- * Build the C3L prompt file path for a step.
- *
- * Format: {agentDir}/prompts/{c1}/{c2}/{c3}/f_{edition}.md
- * or with adaptation: {agentDir}/prompts/{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
- */
-function buildPromptFilePath(
-  agentDir: string,
-  c1: string,
-  c2: string,
-  c3: string,
-  edition: string,
-  adaptation?: string,
-): string {
-  const filename = adaptation
-    ? `f_${edition}_${adaptation}.md`
-    : `f_${edition}.md`;
-  return join(agentDir, "prompts", c1, c2, c3, filename);
-}
-
-/**
  * Read a file's text content. Returns null if the file does not exist
  * or cannot be read.
  */
@@ -90,10 +86,9 @@ async function readFileOrNull(path: string): Promise<string | null> {
  *
  * For each step in the registry:
  * 1. Determine the C3L prompt file path and read it
- * 2. Look up the fallback template (if fallbackKey is declared)
- * 3. Extract all {uv-xxx} placeholders from both sources
- * 4. Compare against the step's uvVariables declaration
- * 5. Report undeclared usages (errors) and unused declarations (warnings)
+ * 2. Extract all {uv-xxx} placeholders from the template
+ * 3. Compare against the step's uvVariables declaration
+ * 4. Report undeclared usages (errors) and unused declarations (warnings)
  *
  * @param registry - Parsed steps_registry.json content
  * @param agentDir - Absolute path to the agent directory (e.g., .agent/my-agent)
@@ -182,8 +177,11 @@ export async function validateTemplateUvConsistency(
       }
     }
 
-    // Skip if no prompt content
+    // If main prompt is missing, skip UV consistency check
     if (promptContent === null) {
+      warnings.push(
+        `steps["${stepId}"]: C3L prompt file not found, UV consistency check skipped`,
+      );
       continue;
     }
 

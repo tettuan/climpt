@@ -61,7 +61,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "initial",
         c3: "default",
         edition: "default",
-        fallbackKey: "initial_default",
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -75,7 +74,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "continuation",
         c3: "default",
         edition: "default",
-        fallbackKey: "continuation_default",
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -89,7 +87,6 @@ function minimalValidRegistry(): Record<string, unknown> {
         c2: "closure",
         c3: "default",
         edition: "default",
-        fallbackKey: "closure_default",
         uvVariables: [],
         usesStdin: false,
         transitions: {

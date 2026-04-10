@@ -35,8 +35,7 @@ Agent の振る舞いを定義。変更頻度: 低。
     "flow": {
       "systemPromptPath": "prompts/system.md",
       "prompts": {
-        "registry": "steps_registry.json",
-        "fallbackDir": "prompts/"
+        "registry": "steps_registry.json"
       }
     },
     "verdict": {
@@ -102,6 +101,7 @@ load → parse → merge → validate → 起動 or エラー
 - 必須フィールドの存在
 - 型の整合性
 - runner.verdict.config と runner.verdict.type の対応
+- C3L プロンプトファイルの存在検証
 ```
 
 ---

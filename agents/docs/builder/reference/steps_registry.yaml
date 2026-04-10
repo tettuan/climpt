@@ -46,7 +46,6 @@
 # Resolution order:
 #   1. pathTemplate:             {c1}/{c2}/{c3}/f_{edition}_{adaptation}.md
 #   2. pathTemplateNoAdaptation: {c1}/{c2}/{c3}/f_{edition}.md
-#   3. fallbackKey lookup in agents/prompts/fallback.ts
 # ============================================================
 
 # ------------------------------------------------------------
@@ -83,35 +82,11 @@ version: "3.0.0"
 # Required    : yes
 # Default     : none
 # Why         : First segment of the C3L path. All prompt
-#               files live under {userPromptsBase}/{c1}/...
+#               files live under {c1}/...
 # Example     : "steps" -> prompts are under
 #               .agent/iterator/prompts/steps/
 # ------------------------------------------------------------
 c1: "steps"
-
-# ------------------------------------------------------------
-# userPromptsBase
-# ------------------------------------------------------------
-# Description : Base directory for user prompt files.
-# Type        : string
-# Required    : no (optional)
-# Default     : ".agent/{agentId}/prompts"
-# Why         : Override the default prompt directory. The
-#               C3L resolver constructs paths relative to this.
-# ------------------------------------------------------------
-userPromptsBase: ".agent/iterator/prompts"
-
-# ------------------------------------------------------------
-# schemasBase
-# ------------------------------------------------------------
-# Description : Base directory for JSON schema files.
-# Type        : string
-# Required    : no (optional)
-# Default     : ".agent/{agentId}/schemas"
-# Why         : outputSchemaRef.file is resolved relative to
-#               this directory.
-# ------------------------------------------------------------
-schemasBase: ".agent/iterator/schemas"
 
 # ------------------------------------------------------------
 # pathTemplate
@@ -354,10 +329,15 @@ validators:
 # validationSteps
 # ============================================================
 # Description : Step definitions for closure validation.
-#               These are triggered when a closure step
-#               begins, BEFORE the closure prompt is sent.
-#               All validationConditions must pass for the
-#               closure to proceed.
+#               Two-phase validation model:
+#               Phase 1 (Pre-flight State Gate):
+#                 validationConditions are triggered BEFORE
+#                 the closure prompt is sent. All conditions
+#                 must pass for the LLM call to proceed.
+#               Phase 3 (Post-LLM Format Gate):
+#                 outputSchemaRef validation runs AFTER the
+#                 LLM closure call, checking structured output
+#                 against the declared schema.
 # Type        : object (string -> ValidationStep)
 # Required    : no (optional)
 #
@@ -442,7 +422,6 @@ validationSteps:
 #   name            : (required) Human-readable step name
 #   c2              : (required) C3L Category
 #   c3              : (required) C3L Classification
-#   fallbackKey     : (required) Key for fallback prompt lookup
 #   type            : (optional) "prompt" — default: "prompt"
 #   stepKind        : (optional) "work" | "verification" | "closure"
 #     Determines allowed intents:
@@ -536,16 +515,6 @@ steps:
     #               by failurePatterns during retry.
     # (not set for this step — uses pathTemplateNoAdaptation)
 
-    # fallbackKey
-    # Description : Key for embedded fallback prompt lookup.
-    # Type        : string
-    # Required    : yes
-    # Why         : When the C3L file is not found on disk,
-    #               the runner falls back to the embedded
-    #               prompt identified by this key in
-    #               agents/prompts/fallback.ts.
-    fallbackKey: "issue_initial_default"
-
     # uvVariables (optional)
     # Description : User Variable names injected into prompt.
     # Type        : array of strings
@@ -573,7 +542,7 @@ steps:
     # Type        : OutputSchemaRef object
     # Fields:
     #   file   : (required) Schema file name, relative to
-    #            schemasBase (.agent/{agentId}/schemas/)
+    #            .agent/{agentId}/schemas/
     #   schema : (required) Schema name/key within the file.
     #            Used to select a sub-schema if the file
     #            contains multiple definitions.
@@ -759,7 +728,6 @@ steps:
     c2: "continuation"
     c3: "issue"
     edition: "default"
-    fallbackKey: "issue_continuation_default"
     uvVariables: ["issue", "completed_iterations"]
     usesStdin: false
     outputSchemaRef:
@@ -804,7 +772,6 @@ steps:
     c2: "closure"
     c3: "issue"
     edition: "default"
-    fallbackKey: "issue_closure_default"
     uvVariables: ["issue"]
     usesStdin: false
     outputSchemaRef:
@@ -845,7 +812,6 @@ steps:
     c2: "closure"
     c3: "polling"
     edition: "default"
-    fallbackKey: "polling_closure_default"
     uvVariables: ["issue"]
     usesStdin: false
     outputSchemaRef:
@@ -878,7 +844,6 @@ steps:
     c2: "section"
     c3: "project"
     edition: "context"
-    fallbackKey: "section_project_context_default"
     uvVariables: [
       "project_number",
       "project_title",
@@ -911,7 +876,6 @@ steps:
     #   steps/initial/project/f_preparation_empty.md
     # If that file is missing, falls back to:
     #   steps/initial/project/f_preparation.md
-    fallbackKey: "project_preparation_no_issues_default"
     uvVariables: [
       "project_number",
       "project_title",
@@ -947,7 +911,6 @@ steps:
   #   name: "Conditional Step Example"
   #   c2: "continuation"
   #   c3: "example"
-  #   fallbackKey: "example_conditional_default"
   #   stepKind: "work"
   #   edition: "default"
   #   structuredGate:
@@ -973,7 +936,6 @@ steps:
     c2: "initial"
     c3: "polling"
     edition: "default"
-    fallbackKey: "polling_initial_default"
     uvVariables: ["issue"]
     usesStdin: false
     outputSchemaRef:
@@ -1001,7 +963,6 @@ steps:
     c2: "continuation"
     c3: "polling"
     edition: "default"
-    fallbackKey: "polling_continuation_default"
     uvVariables: ["issue", "completed_iterations"]
     usesStdin: false
     outputSchemaRef:

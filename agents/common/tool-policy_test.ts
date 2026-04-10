@@ -4,7 +4,7 @@
  * Tests stepKind-based tool permission enforcement.
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   allowsBoundaryActions,
   BOUNDARY_BASH_PATTERNS,
@@ -13,8 +13,13 @@ import {
   getToolPolicy,
   isBashCommandAllowed,
   isToolAllowed,
+  isToolDeniedByPermissionMode,
+  PLAN_MODE_WRITE_TOOLS,
+  resolvePermissionMode,
   STEP_KIND_TOOL_POLICY,
 } from "./tool-policy.ts";
+import type { PermissionMode } from "../src_common/types/agent-definition.ts";
+import type { StepKind } from "./step-registry/types.ts";
 
 Deno.test("tool-policy: BOUNDARY_TOOLS contains expected tools", () => {
   assertEquals(BOUNDARY_TOOLS.includes("githubIssueClose"), true);
@@ -319,4 +324,167 @@ Deno.test("tool-policy: STEP_KIND_TOOL_POLICY has all step kinds", () => {
   assertEquals("work" in STEP_KIND_TOOL_POLICY, true);
   assertEquals("verification" in STEP_KIND_TOOL_POLICY, true);
   assertEquals("closure" in STEP_KIND_TOOL_POLICY, true);
+});
+
+// --- resolvePermissionMode tests ---
+
+Deno.test("tool-policy: resolvePermissionMode step-level override takes priority", () => {
+  const result = resolvePermissionMode("plan", "work", "acceptEdits");
+  assertEquals(
+    result,
+    "plan",
+    "step-level permissionMode must take priority over stepKind default and agent-level. " +
+      "Fix: check resolvePermissionMode() priority logic in tool-policy.ts",
+  );
+});
+
+Deno.test("tool-policy: resolvePermissionMode returns stepKind default when step-level is undefined", () => {
+  const stepKinds = Object.keys(STEP_KIND_TOOL_POLICY) as StepKind[];
+  assert(
+    stepKinds.length > 0,
+    "Non-vacuity: STEP_KIND_TOOL_POLICY must not be empty",
+  );
+
+  for (const kind of stepKinds) {
+    const expected = STEP_KIND_TOOL_POLICY[kind].defaultPermissionMode;
+    // Use a different agent-level value to prove stepKind default wins
+    const agentLevel: PermissionMode = expected === "plan"
+      ? "acceptEdits"
+      : "plan";
+    const result = resolvePermissionMode(undefined, kind, agentLevel);
+    assertEquals(
+      result,
+      expected,
+      `stepKind "${kind}": expected STEP_KIND_TOOL_POLICY["${kind}"].defaultPermissionMode ` +
+        `(${expected}), got ${result}. ` +
+        `Fix: check resolvePermissionMode() or STEP_KIND_TOOL_POLICY in tool-policy.ts`,
+    );
+  }
+});
+
+Deno.test("tool-policy: resolvePermissionMode agent-level fallback when no stepKind", () => {
+  const result = resolvePermissionMode(
+    undefined,
+    undefined,
+    "bypassPermissions",
+  );
+  assertEquals(
+    result,
+    "bypassPermissions",
+    "When stepKind is undefined, agent-level permissionMode must be used. " +
+      "Fix: check resolvePermissionMode() fallback logic in tool-policy.ts",
+  );
+});
+
+Deno.test("tool-policy: resolvePermissionMode step-level overrides stepKind default", () => {
+  const result = resolvePermissionMode(
+    "bypassPermissions",
+    "verification",
+    "plan",
+  );
+  assertEquals(
+    result,
+    "bypassPermissions",
+    "step-level permissionMode must override stepKind default. " +
+      "Fix: check resolvePermissionMode() priority logic in tool-policy.ts",
+  );
+});
+
+Deno.test("tool-policy: resolvePermissionMode every stepKind has a defaultPermissionMode", () => {
+  const stepKinds = Object.keys(STEP_KIND_TOOL_POLICY) as StepKind[];
+  assert(stepKinds.length > 0, "STEP_KIND_TOOL_POLICY must not be empty");
+
+  for (const kind of stepKinds) {
+    const policy = STEP_KIND_TOOL_POLICY[kind];
+    assert(
+      policy.defaultPermissionMode !== undefined,
+      `stepKind "${kind}" is missing defaultPermissionMode in STEP_KIND_TOOL_POLICY. ` +
+        `Fix: add defaultPermissionMode to STEP_KIND_TOOL_POLICY["${kind}"] in tool-policy.ts`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// isToolDeniedByPermissionMode
+// ---------------------------------------------------------------------------
+
+Deno.test("tool-policy: plan mode denies write tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "plan");
+    assertEquals(
+      result.allowed,
+      false,
+      `Tool "${tool}" must be denied in plan mode (read-only exploration). ` +
+        `Fix: add "${tool}" to PLAN_MODE_WRITE_TOOLS in tool-policy.ts`,
+    );
+    assertStringIncludes(
+      result.reason ?? "",
+      "plan mode",
+      `Denial reason for "${tool}" must mention plan mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: plan mode allows read-only tools", () => {
+  const readOnlyTools = [
+    "Read",
+    "Glob",
+    "Grep",
+    "WebFetch",
+    "WebSearch",
+    "Task",
+  ];
+  for (const tool of readOnlyTools) {
+    const result = isToolDeniedByPermissionMode(tool, "plan");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in plan mode (read-only). ` +
+        `Fix: remove "${tool}" from PLAN_MODE_WRITE_TOOLS if it was added by mistake`,
+    );
+  }
+});
+
+Deno.test("tool-policy: acceptEdits mode allows all tools", () => {
+  const allTools = [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "NotebookEdit",
+    "TodoWrite",
+  ];
+  for (const tool of allTools) {
+    const result = isToolDeniedByPermissionMode(tool, "acceptEdits");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in acceptEdits mode. ` +
+        `isToolDeniedByPermissionMode must only restrict plan mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: bypassPermissions mode allows all tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "bypassPermissions");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in bypassPermissions mode`,
+    );
+  }
+});
+
+Deno.test("tool-policy: default mode allows all tools", () => {
+  for (const tool of PLAN_MODE_WRITE_TOOLS) {
+    const result = isToolDeniedByPermissionMode(tool, "default");
+    assertEquals(
+      result.allowed,
+      true,
+      `Tool "${tool}" must be allowed in default mode`,
+    );
+  }
 });

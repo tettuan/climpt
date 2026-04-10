@@ -208,13 +208,6 @@ export function validateAgentDefinition(
           "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
     }
-    if (!def.runner.flow?.prompts?.fallbackDir) {
-      errors.push(
-        "[CONFIGURATION] runner.flow.prompts.fallbackDir is required. " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
-      );
-    }
-
     // Logging validation (logging is optional; defaults fill it in)
     if (def.runner.logging) {
       if (!def.runner.logging.directory) {

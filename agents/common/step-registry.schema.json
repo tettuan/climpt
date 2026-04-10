@@ -23,11 +23,6 @@
       "additionalProperties": {
         "$ref": "#/definitions/StepDefinition"
       }
-    },
-    "userPromptsBase": {
-      "type": "string",
-      "description": "Default base directory for user prompts (default: .agent/{agentId}/prompts)",
-      "default": ".agent/{agentId}/prompts"
     }
   },
   "definitions": {
@@ -38,7 +33,6 @@
         "stepId",
         "name",
         "promptPath",
-        "fallbackKey",
         "uvVariables",
         "usesStdin"
       ],
@@ -59,11 +53,6 @@
           "description": "Relative path to prompt file from user prompts base (e.g., 'initial/issue.md')",
           "minLength": 1,
           "pattern": "^[^/].*\\.(md|txt)$"
-        },
-        "fallbackKey": {
-          "type": "string",
-          "description": "Key for fallback prompt in embedded prompts",
-          "minLength": 1
         },
         "uvVariables": {
           "type": "array",

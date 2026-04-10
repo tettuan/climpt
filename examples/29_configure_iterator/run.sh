@@ -55,7 +55,6 @@ main() {
       "c2": "system",
       "c3": "prompt",
       "edition": "default",
-      "fallbackKey": "system_prompt",
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
@@ -66,7 +65,6 @@ main() {
       "c3": "task",
       "edition": "default",
       "stepKind": "work",
-      "fallbackKey": "initial_task",
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -82,7 +80,6 @@ main() {
       "c3": "task",
       "edition": "default",
       "stepKind": "closure",
-      "fallbackKey": "closure_task",
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}

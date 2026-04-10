@@ -56,7 +56,6 @@ main() {
       "c2": "system",
       "c3": "prompt",
       "edition": "default",
-      "fallbackKey": "system_prompt",
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
@@ -67,7 +66,6 @@ main() {
       "c3": "statuscheck",
       "edition": "default",
       "stepKind": "work",
-      "fallbackKey": "initial_statuscheck",
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -83,7 +81,6 @@ main() {
       "c3": "facilitation",
       "edition": "default",
       "stepKind": "closure",
-      "fallbackKey": "closure_facilitation",
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}

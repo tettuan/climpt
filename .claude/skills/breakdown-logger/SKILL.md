@@ -1,5 +1,5 @@
 ---
-name: test-investigation
+name: breakdown-logger
 description: Use when investigating test failures, tracing test behavior, or needing visibility into test execution. Delegates to sub agent. Examples: "テストが失敗した", "test failed", "テストの中身を見たい", "trace test", "テスト調査", "investigate test", "デバッグ", "debug test".
 allowed-tools: [Read, Glob, Grep, Write, Edit, Bash]
 ---

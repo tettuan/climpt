@@ -38,7 +38,6 @@ function twoStepRegistry(opts: {
     c2: "initial",
     c3: "issue",
     edition: "default",
-    fallbackKey: "initial_issue",
     uvVariables: [],
     usesStdin: false,
   };
@@ -59,7 +58,6 @@ function twoStepRegistry(opts: {
     c2: "continuation",
     c3: "issue",
     edition: "default",
-    fallbackKey: "continuation_issue",
     uvVariables: [],
     usesStdin: false,
   };

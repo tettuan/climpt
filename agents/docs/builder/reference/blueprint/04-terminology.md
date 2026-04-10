@@ -46,7 +46,6 @@ Blueprint は以下の用語を Runtime から変更せずに使う:
 | c3              | C3L Classification                                        | steps_registry.json steps |
 | edition         | プロンプトバリアント (default / failed / preparation 等)  | steps_registry.json steps |
 | adaptation      | 失敗固有バリアント (git-dirty / test-failed 等)           | steps_registry.json steps |
-| fallbackKey     | フォールバックプロンプトキー                              | steps_registry.json steps |
 | uvVariables     | このステップが使う UV 変数名                              | steps_registry.json steps |
 | usesStdin       | stdin 入力を受けるか                                      | steps_registry.json steps |
 | outputSchemaRef | 出力 schema への参照 (file + schema)                      | steps_registry.json steps |

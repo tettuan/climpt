@@ -2,23 +2,21 @@
   "agentId": "test-flow",
   "version": "3.0.0",
   "c1": "steps",
-  "schemasBase": ".agent/test-flow/schemas",
-
   "entryStepMapping": {
     "poll:state": "initial.test",
     "count:iteration": "initial.test",
     "detect:graph": "initial.test"
   },
-
   "failurePatterns": {
     "git-dirty": {
       "description": "Uncommitted changes present",
       "edition": "failed",
       "adaptation": "git-dirty",
-      "params": ["changedFiles"]
+      "params": [
+        "changedFiles"
+      ]
     }
   },
-
   "validators": {
     "always-pass": {
       "type": "command",
@@ -28,7 +26,6 @@
       "extractParams": {}
     }
   },
-
   "validationSteps": {
     "closure.test": {
       "stepId": "closure.test",
@@ -36,7 +33,9 @@
       "c2": "retry",
       "c3": "test",
       "validationConditions": [
-        { "validator": "always-pass" }
+        {
+          "validator": "always-pass"
+        }
       ],
       "onFailure": {
         "action": "retry",
@@ -49,7 +48,9 @@
       "c2": "retry",
       "c3": "polling",
       "validationConditions": [
-        { "validator": "always-pass" }
+        {
+          "validator": "always-pass"
+        }
       ],
       "onFailure": {
         "action": "retry",
@@ -57,7 +58,6 @@
       }
     }
   },
-
   "steps": {
     "initial.test": {
       "stepId": "initial.test",
@@ -66,19 +66,27 @@
       "c2": "initial",
       "c3": "test",
       "edition": "default",
-      "fallbackKey": "test_initial_default",
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
-        "allowedIntents": ["next", "repeat"],
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["analysis.summary"]
+        "handoffFields": [
+          "analysis.summary"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.test" },
-        "repeat": { "target": "initial.test" }
+        "next": {
+          "target": "continuation.test"
+        },
+        "repeat": {
+          "target": "initial.test"
+        }
       }
     },
     "continuation.test": {
@@ -88,20 +96,31 @@
       "c2": "continuation",
       "c3": "test",
       "edition": "default",
-      "fallbackKey": "test_continuation_default",
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
-        "allowedIntents": ["next", "repeat", "handoff"],
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "handoff"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
-        "handoffFields": ["progress.files"]
+        "handoffFields": [
+          "progress.files"
+        ]
       },
       "transitions": {
-        "next": { "target": "continuation.test" },
-        "repeat": { "target": "continuation.test" },
-        "handoff": { "target": "closure.test" }
+        "next": {
+          "target": "continuation.test"
+        },
+        "repeat": {
+          "target": "continuation.test"
+        },
+        "handoff": {
+          "target": "closure.test"
+        }
       }
     },
     "closure.test": {
@@ -111,19 +130,25 @@
       "c2": "closure",
       "c3": "test",
       "edition": "default",
-      "fallbackKey": "test_closure_default",
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
-        "allowedIntents": ["closing", "repeat"],
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
         "handoffFields": []
       },
       "transitions": {
-        "closing": { "target": null },
-        "repeat": { "target": "closure.test" }
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "closure.test"
+        }
       }
     }
   }

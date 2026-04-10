@@ -54,40 +54,52 @@ Flow Loop
 
 ## Completion Loop
 
-Agent の仕事を終わらせる。三段構成で完了を判定し、Flow Loop に結果を返す。
+Agent の仕事を終わらせる。四段構成で完了を判定し、Flow Loop に結果を返す。
 「Completion Loop」は概念名であり、内部の識別子には使わない。
 
 ```
 Completion Loop
-├── Stage 1: Closure 機構
-│   何をするか: Completion Loop を起動し、AI に最終確認を促す
-│   識別子:     ClosureManager, hasClosingSignal(), closurePrompt
-│
-├── Stage 2: Validation
-│   何をするか: Step 成果物が条件を満たしたかを機械的に検証する
+├── Phase 1: Pre-flight State Validation
+│   何をするか: LLM 呼び出し前に外部状態（git clean, type-check, tests 等）を検証する
 │   識別子:     ValidationChain, StepValidator, validationSteps,
 │              validationConditions, ValidationCondition
+│   失敗時:     LLM を呼ばずに retry
 │
-└── Stage 3: Verdict
+├── Phase 2: Closure 機構
+│   何をするか: AI に最終確認を促し、証跡を構造化する
+│   識別子:     ClosureManager, hasClosingSignal(), closurePrompt
+│
+├── Phase 3: Format Validation
+│   何をするか: LLM の構造化出力を outputSchema に対して検証する
+│   識別子:     FormatValidator, outputSchemaRef
+│   失敗時:     format retry prompt を生成
+│
+└── Phase 4: Verdict
     何をするか: 検証結果に基づき Agent 完了の最終判定を下す
     識別子:     VerdictHandler, isFinished(), done / retryPrompt
 ```
 
-### 三段の境界
+### 四段の境界
 
 ```
+Pre-flight State Validation → stateCheck (外部状態の合否)
+            │ 失敗時は LLM を呼ばずに retry
+            ▼
 Closure → closureResult (AI の自己申告)
             │
             ▼
-Validation → validation.allPassed (外部検証の合否)
+Format Validation → formatCheck (構造化出力の合否)
             │
             ▼
 Verdict → { done: true } or { done: false, retryPrompt }
 ```
 
+- Pre-flight State Validation は外部コマンドで状態を検証するだけで、LLM
+  を呼ばない。
 - Closure は AI に問いかけるだけで、合否を判定しない。
-- Validation は外部コマンドで検証するだけで、Agent 完了を決めない。
-- Verdict は Validation の結果を受け取るだけで、自ら検証しない。
+- Format Validation は outputSchema で出力を検証するだけで、Agent
+  完了を決めない。
+- Verdict は検証結果を受け取るだけで、自ら検証しない。
 
 各段は単一の責務だけを持ち、隣の段の仕事を代行しない。
 

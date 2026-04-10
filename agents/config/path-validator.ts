@@ -22,6 +22,34 @@ import {
   SchemaPointerError,
   SchemaResolver,
 } from "../common/schema-resolver.ts";
+import { buildPromptFilePath } from "./c3l-path-builder.ts";
+
+// ---------------------------------------------------------------------------
+// Error / warning message identifiers (exported for test assertions)
+// ---------------------------------------------------------------------------
+
+/** Prefix for filesystem path errors. */
+export const MSG_PATH = "[PATH]";
+/** Prefix for legacy field warnings. */
+export const MSG_LEGACY = "[LEGACY]";
+/** Prefix for schema resolution errors. */
+export const MSG_SCHEMA = "[SCHEMA]";
+/** Keyword: path does not exist. */
+export const MSG_DOES_NOT_EXIST = "does not exist";
+/** Keyword: systemPromptPath field name. */
+export const MSG_SYSTEM_PROMPT_PATH = "systemPromptPath";
+/** Keyword: prompts.registry field name. */
+export const MSG_PROMPTS_REGISTRY = "prompts.registry";
+/** Keyword: fallbackDir field name. */
+export const MSG_FALLBACK_DIR = "fallbackDir";
+/** Keyword: C3L prompt file. */
+export const MSG_C3L_PROMPT_FILE = "C3L prompt file";
+/** Keyword: outputSchemaRef field name. */
+export const MSG_OUTPUT_SCHEMA_REF = "outputSchemaRef";
+/** Keyword: not found (schema resolution). */
+export const MSG_NOT_FOUND = "not found";
+/** Keyword: failed to validate schema name. */
+export const MSG_SCHEMA_VALIDATE_FAILED = "failed to validate schema name";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -45,6 +73,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 /**
  * Check whether a path exists and is a directory.
+ * Returns true only if the path exists and is a directory.
  */
 async function dirExists(path: string): Promise<boolean> {
   try {
@@ -100,18 +129,7 @@ export async function validatePaths(
     }
   }
 
-  // 2. runner.flow.prompts.fallbackDir -- directory must exist
-  const fallbackDir = definition.runner?.flow?.prompts?.fallbackDir;
-  if (typeof fallbackDir === "string" && fallbackDir !== "") {
-    const resolved = join(agentDir, fallbackDir);
-    if (!await dirExists(resolved)) {
-      errors.push(
-        `[PATH] Path not found: runner.flow.prompts.fallbackDir \u2192 "${fallbackDir}" does not exist`,
-      );
-    }
-  }
-
-  // 3. runner.flow.prompts.registry -- file must exist
+  // 2. runner.flow.prompts.registry -- file must exist
   const registryPath = definition.runner?.flow?.prompts?.registry;
   if (typeof registryPath === "string" && registryPath !== "") {
     const resolved = join(agentDir, registryPath);
@@ -122,7 +140,72 @@ export async function validatePaths(
     }
   }
 
-  // 4. Registry outputSchemaRef file checks (only if registry is provided)
+  // 3. runner.flow.prompts.fallbackDir -- legacy field, warn if present
+  const fallbackDir = definition.runner?.flow?.prompts?.fallbackDir;
+  if (typeof fallbackDir === "string" && fallbackDir !== "") {
+    const resolved = join(agentDir, fallbackDir);
+    if (!await dirExists(resolved)) {
+      errors.push(
+        `[PATH] Path not found: runner.flow.prompts.fallbackDir \u2192 "${fallbackDir}" does not exist`,
+      );
+    } else {
+      warnings.push(
+        `[LEGACY] runner.flow.prompts.fallbackDir is a legacy field; consider migrating to C3L prompt resolution`,
+      );
+    }
+  }
+
+  // 4. C3L prompt file existence checks (only if registry is provided)
+  if (registry) {
+    const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
+    const steps = asRecord(registry.steps);
+    if (steps) {
+      const c3lChecks: { stepId: string; promptPath: string }[] = [];
+      for (const [stepId, stepDef] of Object.entries(steps)) {
+        const step = asRecord(stepDef);
+        if (!step) continue;
+
+        const c2 = step.c2;
+        const c3 = step.c3;
+        const edition = step.edition;
+        if (
+          typeof c2 !== "string" || c2 === "" ||
+          typeof c3 !== "string" || c3 === "" ||
+          typeof edition !== "string" || edition === ""
+        ) {
+          continue;
+        }
+
+        const adaptation = typeof step.adaptation === "string"
+          ? step.adaptation
+          : undefined;
+        const promptPath = buildPromptFilePath(
+          agentDir,
+          c1,
+          c2,
+          c3,
+          edition,
+          adaptation,
+        );
+        c3lChecks.push({ stepId, promptPath });
+      }
+
+      const c3lResults = await Promise.all(
+        c3lChecks.map((c) => fileExists(c.promptPath)),
+      );
+      for (let i = 0; i < c3lChecks.length; i++) {
+        if (!c3lResults[i]) {
+          const c = c3lChecks[i];
+          const relativePath = c.promptPath.replace(agentDir + "/", "");
+          errors.push(
+            `[PATH] C3L prompt file not found: steps["${c.stepId}"] \u2192 "${relativePath}" does not exist`,
+          );
+        }
+      }
+    }
+  }
+
+  // 5. Registry outputSchemaRef file checks (only if registry is provided)
   if (registry) {
     const steps = asRecord(registry.steps);
     if (steps) {

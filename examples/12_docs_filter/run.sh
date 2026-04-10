@@ -42,35 +42,35 @@ main() {
   fi
   success "PASS: --lang=ja installed ${lang_count} files"
 
-  # 3. Install docs with --mode=flatten
-  info "3. Install docs with --mode=flatten"
+  # 3. Install docs with --mode=flatten (scoped to guides to limit fetch count)
+  info "3. Install docs with --mode=flatten --category=guides"
   local tmpdir_flatten
   tmpdir_flatten=$(mktemp -d)
-  show_cmd "${CLIMPT_DOCS_CMD} install ${tmpdir_flatten} --mode=flatten"
-  ${CLIMPT_DOCS_CMD} install "$tmpdir_flatten" --mode=flatten 2>&1 \
-    || { error "FAIL: docs install --mode=flatten failed"; rm -rf "$tmpdir_flatten"; return 1; }
+  show_cmd "${CLIMPT_DOCS_CMD} install ${tmpdir_flatten} --mode=flatten --category=guides"
+  ${CLIMPT_DOCS_CMD} install "$tmpdir_flatten" --mode=flatten --category=guides 2>&1 \
+    || { error "FAIL: docs install --mode=flatten --category=guides failed"; rm -rf "$tmpdir_flatten"; return 1; }
   local flatten_count
   flatten_count=$(find "$tmpdir_flatten" -type f | wc -l | tr -d ' ')
   rm -rf "$tmpdir_flatten"
   if [[ "$flatten_count" -eq 0 ]]; then
     error "FAIL: --mode=flatten produced no files"; return 1
   fi
-  success "PASS: --mode=flatten installed ${flatten_count} files"
+  success "PASS: --mode=flatten --category=guides installed ${flatten_count} files"
 
-  # 4. Install docs with --mode=single
-  info "4. Install docs with --mode=single"
+  # 4. Install docs with --mode=single (scoped to guides to limit fetch count)
+  info "4. Install docs with --mode=single --category=guides"
   local tmpdir_single
   tmpdir_single=$(mktemp -d)
-  show_cmd "${CLIMPT_DOCS_CMD} install ${tmpdir_single} --mode=single"
-  ${CLIMPT_DOCS_CMD} install "$tmpdir_single" --mode=single 2>&1 \
-    || { error "FAIL: docs install --mode=single failed"; rm -rf "$tmpdir_single"; return 1; }
+  show_cmd "${CLIMPT_DOCS_CMD} install ${tmpdir_single} --mode=single --category=guides"
+  ${CLIMPT_DOCS_CMD} install "$tmpdir_single" --mode=single --category=guides 2>&1 \
+    || { error "FAIL: docs install --mode=single --category=guides failed"; rm -rf "$tmpdir_single"; return 1; }
   local single_count
   single_count=$(find "$tmpdir_single" -type f | wc -l | tr -d ' ')
   rm -rf "$tmpdir_single"
   if [[ "$single_count" -eq 0 ]]; then
     error "FAIL: --mode=single produced no files"; return 1
   fi
-  success "PASS: --mode=single installed ${single_count} files"
+  success "PASS: --mode=single --category=guides installed ${single_count} files"
 
   success "PASS: all doc filter modes verified"
 }

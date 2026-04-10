@@ -219,12 +219,6 @@ export function validate(definition: unknown): ValidationResult {
               "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
           );
         }
-        if (prompts.fallbackDir && typeof prompts.fallbackDir !== "string") {
-          errors.push(
-            "[CONFIGURATION] runner.flow.prompts.fallbackDir must be a string path. " +
-              "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
-          );
-        }
       }
     }
 
@@ -500,14 +494,6 @@ export function validateComplete(
   if (!definition.runner?.flow?.prompts?.registry) {
     result.errors.push(
       "[CONFIGURATION] runner.flow.prompts.registry is required. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
-    );
-    result.valid = false;
-  }
-
-  if (!definition.runner?.flow?.prompts?.fallbackDir) {
-    result.errors.push(
-      "[CONFIGURATION] runner.flow.prompts.fallbackDir is required. " +
         "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
     );
     result.valid = false;

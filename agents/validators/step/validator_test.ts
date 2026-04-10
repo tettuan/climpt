@@ -2,7 +2,7 @@
  * StepValidator Tests
  */
 
-import { assertEquals, assertStringIncludes } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import type { ValidatorDefinition, ValidatorRegistry } from "./types.ts";
 import { StepValidator } from "./validator.ts";
 import { checkSuccessCondition } from "./command-runner.ts";
@@ -77,7 +77,9 @@ Deno.test("checkSuccessCondition - contains returns false when string is not fou
 });
 
 // StepValidator tests
-Deno.test("StepValidator - skips unknown validators", async () => {
+Deno.test("StepValidator - throws error for unknown validator name", async () => {
+  // G4: Unknown validator names must fail fast, not silently pass
+  // Source of truth: agents/validators/step/validator.ts validate()
   const registry: ValidatorRegistry = {
     validators: {},
   };
@@ -87,11 +89,12 @@ Deno.test("StepValidator - skips unknown validators", async () => {
     logger: mockLogger,
   });
 
-  const result = await validator.validate([
-    { validator: "unknown-validator" },
-  ]);
-
-  assertEquals(result.valid, true);
+  await assertRejects(
+    () => validator.validate([{ validator: "unknown-validator" }]),
+    Error,
+    "unknown-validator",
+    'What: unknown validator name must throw | Where: StepValidator.validate() | How-to-fix: define "unknown-validator" in the registry "validators" section',
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -239,6 +242,37 @@ Deno.test("StepValidator - multiple validators: first failure short-circuits", a
   assertStringIncludes(
     result.params!.stdout as string,
     "uncommitted changes",
+  );
+});
+
+Deno.test("StepValidator - interpolates conditionParams into command string", async () => {
+  // Source of truth: validator.ts runCommandValidator() replaces ${key} with conditionParams values
+  const registry: ValidatorRegistry = {
+    validators: {
+      "parameterized-cmd": commandValidator(
+        "echo ${message}",
+        "contains:hello-from-params",
+        "param-interpolation-failed",
+      ),
+    },
+  };
+
+  const validator = new StepValidator(registry, {
+    workingDir: Deno.cwd(),
+    logger: mockLogger,
+  });
+
+  const result = await validator.validate([
+    {
+      validator: "parameterized-cmd",
+      params: { message: "hello-from-params" },
+    },
+  ]);
+
+  assertEquals(
+    result.valid,
+    true,
+    "What: echo with interpolated param must produce output containing the param value | Where: StepValidator.validate() with conditionParams | How-to-fix: check runCommandValidator param interpolation in validator.ts",
   );
 });
 

@@ -167,8 +167,7 @@ mkdir -p .agent/${AGENT_NAME}/schemas
     "flow": {
       "systemPromptPath": "prompts/system.md",
       "prompts": {
-        "registry": "steps_registry.json",
-        "fallbackDir": "prompts/"
+        "registry": "steps_registry.json"
       }
     },
     "verdict": {
@@ -254,9 +253,6 @@ mkdir -p .agent/${AGENT_NAME}/schemas
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "my-agent",
   "version": "3.0.0",
-  "userPromptsBase": ".agent/my-agent/prompts",
-  "schemasBase": ".agent/my-agent/schemas",
-
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}.md",
 
@@ -274,7 +270,6 @@ mkdir -p .agent/${AGENT_NAME}/schemas
       "c2": "initial",
       "c3": "default",
       "edition": "default",
-      "fallbackKey": "default_initial",
       "outputSchemaRef": {
         "file": "step_outputs.schema.json",
         "schema": "#/definitions/initial.default"
