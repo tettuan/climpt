@@ -111,12 +111,34 @@ load → parse → merge → validate → 起動 or エラー
 Agent の C3L プロンプト解決は `@tettuan/breakdown` ライブラリを使用する。 各
 Agent に対応する Breakdown 設定ファイルが `.agent/climpt/config/` に必要。
 
+### ファイル命名規則
+
+Config ファイル名は `steps_registry.json` の `agentId` と `c1` から決まる:
+
+```
+{agentId}-{c1}-app.yml
+{agentId}-{c1}-user.yml
+
+例: agentId="reviewer", c1="steps"
+  → reviewer-steps-app.yml
+  → reviewer-steps-user.yml
+```
+
+`app.yml` の `base_dir` は c1 スコープのディレクトリを指す（例:
+`"prompts/steps"`）。Breakdown は `{base_dir}/{c2}/{c3}/...`
+でパスを解決するため、 c1 は `base_dir`
+に吸収され、別パラメータとして渡されない。
+
+詳細は
+[prompt-architecture.md の C3L Component Roles](../../docs/internal/prompt-architecture.md#c3l-component-roles)
+を参照。
+
 ### ファイル構成
 
 ```
 .agent/climpt/config/
-├── {agent}-steps-app.yml    # パス設定 (working_dir, base_dir)
-└── {agent}-steps-user.yml   # パラメータ検証 (directiveType, layerType)
+├── {agentId}-{c1}-app.yml    # パス設定 (working_dir, base_dir)
+└── {agentId}-{c1}-user.yml   # パラメータ検証 (directiveType, layerType)
 ```
 
 ### directiveType（必須 phase）

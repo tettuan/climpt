@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.25] - 2026-04-11
+
+### Fixed
+- Derive C3LPromptLoader workingDir from module location instead of `Deno.cwd()` (#464)
+- Add execution vs reference mode guard to release skill
+- Remove diagnostic logger, retain regression tests (#464)
+
+### Changed
+- Replace manual YAML parsing with `@tettuan/breakdownconfig` for prompt root resolution
+- Document C3L component connection points (config system, prompt system, prompt-architecture)
+- Improve update-docs skill with commit coverage plan and help concept reference
+
 ## [1.13.24] - 2026-04-11
 
 ### Changed

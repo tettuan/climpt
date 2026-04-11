@@ -108,12 +108,14 @@ function asRecord(
  * @param definition - Parsed agent definition
  * @param agentDir - Absolute path to the agent directory (e.g., .agent/my-agent)
  * @param registry - Parsed steps_registry.json content, or null if not present
+ * @param promptRoot - Absolute prompt root resolved from app.yml, or null
  * @returns Validation result with errors for missing paths
  */
 export async function validatePaths(
   definition: AgentDefinition,
   agentDir: string,
   registry?: Record<string, unknown> | null,
+  promptRoot?: string | null,
 ): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -157,49 +159,53 @@ export async function validatePaths(
 
   // 4. C3L prompt file existence checks (only if registry is provided)
   if (registry) {
-    const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
-    const steps = asRecord(registry.steps);
-    if (steps) {
-      const c3lChecks: { stepId: string; promptPath: string }[] = [];
-      for (const [stepId, stepDef] of Object.entries(steps)) {
-        const step = asRecord(stepDef);
-        if (!step) continue;
+    if (!promptRoot) {
+      warnings.push(
+        `${MSG_PATH} C3L prompt file checks skipped: app.yml not found or invalid (promptRoot unresolved)`,
+      );
+    } else {
+      const steps = asRecord(registry.steps);
+      if (steps) {
+        const c3lChecks: { stepId: string; promptPath: string }[] = [];
+        for (const [stepId, stepDef] of Object.entries(steps)) {
+          const step = asRecord(stepDef);
+          if (!step) continue;
 
-        const c2 = step.c2;
-        const c3 = step.c3;
-        const edition = step.edition;
-        if (
-          typeof c2 !== "string" || c2 === "" ||
-          typeof c3 !== "string" || c3 === "" ||
-          typeof edition !== "string" || edition === ""
-        ) {
-          continue;
+          const c2 = step.c2;
+          const c3 = step.c3;
+          const edition = step.edition;
+          if (
+            typeof c2 !== "string" || c2 === "" ||
+            typeof c3 !== "string" || c3 === "" ||
+            typeof edition !== "string" || edition === ""
+          ) {
+            continue;
+          }
+
+          const adaptation = typeof step.adaptation === "string"
+            ? step.adaptation
+            : undefined;
+          const promptPath = buildPromptFilePath(
+            promptRoot,
+            c2,
+            c3,
+            edition,
+            adaptation,
+          );
+          c3lChecks.push({ stepId, promptPath });
         }
 
-        const adaptation = typeof step.adaptation === "string"
-          ? step.adaptation
-          : undefined;
-        const promptPath = buildPromptFilePath(
-          agentDir,
-          c1,
-          c2,
-          c3,
-          edition,
-          adaptation,
+        const c3lResults = await Promise.all(
+          c3lChecks.map((c) => fileExists(c.promptPath)),
         );
-        c3lChecks.push({ stepId, promptPath });
-      }
-
-      const c3lResults = await Promise.all(
-        c3lChecks.map((c) => fileExists(c.promptPath)),
-      );
-      for (let i = 0; i < c3lChecks.length; i++) {
-        if (!c3lResults[i]) {
-          const c = c3lChecks[i];
-          const relativePath = c.promptPath.replace(agentDir + "/", "");
-          errors.push(
-            `[PATH] C3L prompt file not found: steps["${c.stepId}"] \u2192 "${relativePath}" does not exist`,
-          );
+        for (let i = 0; i < c3lChecks.length; i++) {
+          if (!c3lResults[i]) {
+            const c = c3lChecks[i];
+            const relativePath = c.promptPath.replace(promptRoot + "/", "");
+            errors.push(
+              `${MSG_PATH} C3L prompt file not found: steps["${c.stepId}"] \u2192 "${relativePath}" does not exist`,
+            );
+          }
         }
       }
     }

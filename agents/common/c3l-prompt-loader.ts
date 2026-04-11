@@ -59,7 +59,7 @@ export interface C3LPromptLoaderOptions {
   agentId: string;
   /** Config name suffix (e.g., "dev" results in config="iterator-dev") */
   configSuffix?: string;
-  /** Working directory (defaults to Deno.cwd()) */
+  /** Working directory (defaults to project root derived from module location) */
   workingDir?: string;
 }
 
@@ -78,6 +78,12 @@ export interface C3LPromptLoaderOptions {
  * }
  * ```
  */
+/** Project root derived from module location — immune to Deno.cwd() corruption */
+const PROJECT_ROOT = new URL("../../", import.meta.url).pathname.replace(
+  /\/$/,
+  "",
+);
+
 export class C3LPromptLoader {
   private readonly configName: string;
   private readonly workingDir: string;
@@ -87,7 +93,7 @@ export class C3LPromptLoader {
     this.configName = options.configSuffix
       ? `${options.agentId}-${options.configSuffix}`
       : options.agentId;
-    this.workingDir = options.workingDir ?? Deno.cwd();
+    this.workingDir = options.workingDir ?? PROJECT_ROOT;
   }
 
   /**

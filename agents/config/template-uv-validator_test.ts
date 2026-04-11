@@ -81,7 +81,13 @@ Deno.test("template-uv-validator - matching UV usage and declaration is valid", 
       uvVariables: ["issue"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const declaredUvs = registry.steps as Record<
       string,
@@ -138,7 +144,13 @@ Deno.test("template-uv-validator - undeclared UV usage produces error", async ()
       uvVariables: [],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     // Template has 1 UV variable ("issue"), uvVariables is empty -> exactly 1 error
     const templateUvCount = 1; // {uv-issue} in template
@@ -192,7 +204,13 @@ Deno.test("template-uv-validator - unused UV declaration produces warning", asyn
       uvVariables: ["repo"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     // 1 declared UV ("repo") not used in template -> exactly 1 warning
     const unusedUvCount = 1; // "repo" declared but absent from template
@@ -238,7 +256,13 @@ Deno.test("template-uv-validator - missing prompt file produces warning", async 
       uvVariables: ["issue"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     // 1 step with missing file -> exactly 1 warning
     const stepCount = Object.keys(
@@ -295,7 +319,13 @@ Deno.test("template-uv-validator - missing C3L prompt produces skip warning", as
       uvVariables: [],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const stepCount = Object.keys(
       registry.steps as Record<string, unknown>,
@@ -346,7 +376,13 @@ Deno.test("template-uv-validator - empty steps produces no errors", async () => 
   try {
     const registry: Record<string, unknown> = { c1: "steps", steps: {} };
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       Object.keys(registry.steps as Record<string, unknown>).length,
@@ -382,7 +418,13 @@ Deno.test("template-uv-validator - missing steps key produces no errors", async 
   try {
     const registry: Record<string, unknown> = {};
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -431,7 +473,13 @@ Deno.test("template-uv-validator - multiple UV variables all declared is valid",
       uvVariables: ["issue", "previous_summary", "iteration"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const uvVars = ["issue", "previous_summary", "iteration"];
     assert(
@@ -492,7 +540,13 @@ Deno.test("template-uv-validator - mixed undeclared and unused produces both err
       uvVariables: declaredUvNames,
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     // project_number is used but not declared -> error
     assertEquals(
@@ -564,7 +618,13 @@ Deno.test("template-uv-validator - adaptation path resolves correctly", async ()
       uvVariables: ["issue"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assert(
       (
@@ -622,7 +682,13 @@ Deno.test("template-uv-validator - only C3L file UVs are checked", async () => {
       uvVariables: declaredUvNames,
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -663,7 +729,13 @@ Deno.test("template-uv-validator - missing C3L prompt skips UV check with warnin
       uvVariables: ["issue"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const stepCount = Object.keys(
       registry.steps as Record<string, unknown>,
@@ -721,7 +793,13 @@ Deno.test("template-uv-validator - step with missing c2 is skipped", async () =>
       uvVariables: ["issue"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,

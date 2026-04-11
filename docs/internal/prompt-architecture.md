@@ -31,6 +31,71 @@ content.
 Runner does not hold, construct, or log physical file paths. Log and error
 messages use C3L coordinate notation (e.g., `steps/initial/issue/f_default.md`).
 
+## C3L Component Roles
+
+### Principle
+
+c1 scopes configuration, not path resolution. Because config is selected per
+`{agentId, c1}` pair, the corresponding `base_dir` already points to the
+c1-scoped directory. Breakdown resolves paths as
+`{base_dir}/{c2}/{c3}/f_{edition}.md` — c1 does not appear as a separate path
+segment.
+
+### Connection Points
+
+Each C3L component (c1, c2, c3) connects to the system at specific points.
+
+| # | Component | Connects to           | Mechanism                                                                                            | Guarantee                                                            |
+| - | --------- | --------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1 | c1        | Config file selection | `steps_registry.json` declares `c1`; config name = `{agentId}-{c1}` → loads `{agentId}-{c1}-app.yml` | One config per {agentId, c1} pair                                    |
+| 2 | c1        | `base_dir` in app.yml | `base_dir: "prompts/{c1}"` (e.g., `"prompts/steps"`)                                                 | c1 is absorbed into base_dir, not passed to breakdown as a parameter |
+| 3 | c1        | Breakdown path        | **NOT included** — breakdown resolves `{base_dir}/{c2}/{c3}/...`                                     | No path doubling; c1 appears once via base_dir                       |
+| 4 | c2        | Runner step phase     | `step-phases.ts` maps c2 to stepKind: `initial`/`continuation` → work, `verification`, `closure`     | Runner reserves these c2 values for flow control                     |
+| 5 | c2        | Breakdown directive   | Passed as the first positional argument to breakdown                                                 | Becomes the first directory segment after base_dir                   |
+| 6 | c3        | Breakdown layer       | Passed as the second positional argument to breakdown                                                | Becomes the second directory segment after base_dir                  |
+| 7 | base_dir  | Physical prompt root  | Defined in `{agentId}-{c1}-app.yml`, relative to `working_dir`                                       | All prompts for this {agentId, c1} live under this directory         |
+
+### Path Resolution Formula
+
+Breakdown resolves the physical file path by combining config values with
+runtime arguments:
+
+```
+{working_dir} / {base_dir} / {c2} / {c3} / f_{edition}.md
+     │               │         │      │
+     │               │         │      └── from step definition (positional arg 2)
+     │               │         └── from step definition (positional arg 1)
+     │               └── from app.yml app_prompt.base_dir (includes c1 directory)
+     └── from app.yml working_dir
+```
+
+c1 is **not** a separate parameter in this formula. It is already part of
+`base_dir`. This is why changing `base_dir` from `"prompts/steps"` to
+`"prompts"` breaks resolution — breakdown would look for
+`prompts/initial/{c3}/...` instead of `prompts/steps/initial/{c3}/...`.
+
+### Example: reviewer agent, initial.issue step
+
+```
+steps_registry.json:  agentId="reviewer", c1="steps"
+config name:          "reviewer-steps"  (= {agentId}-{c1})
+config file:          .agent/climpt/config/reviewer-steps-app.yml
+
+app.yml contents:
+  working_dir: ".agent/reviewer"
+  app_prompt.base_dir: "prompts/steps"
+
+Step definition:  c2="initial", c3="issue", edition="default"
+
+Breakdown resolution:
+  .agent/reviewer / prompts/steps / initial / issue / f_default.md
+  └─ working_dir    └─ base_dir     └─ c2     └─ c3   └─ filename
+```
+
+The directory tree shows `prompts/steps/initial/issue/f_default.md` — c1
+(`steps`) appears in the path, but only because `base_dir` contains it.
+Breakdown never receives c1 as a separate argument.
+
 ## Core Components
 
 ### 1. StepRegistry (`agents/common/step-registry.ts`)
@@ -495,3 +560,7 @@ Deno.test("Iterator prompt resolution", async () => {
 - [Registry Specification](./registry-specification.md)
 - [Iterator Agent Design](./iterate-agent-design.md)
 - [C3L Integration](./iterate-agent-c3l-integration.md)
+- [Prompt System Design](../../agents/docs/design/07_prompt_system.md) — C3L
+  directory structure, UV variables
+- [Config System](../../agents/docs/builder/04_config_system.md) — Breakdown
+  config naming, directiveType/layerType

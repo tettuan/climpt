@@ -1,5 +1,5 @@
 {
-  "version": "1.13.24",
+  "version": "1.13.25",
   "entries": [
     {
       "id": "builder-01_quickstart",
@@ -27,7 +27,7 @@
       "path": "../agents/docs/builder/04_config_system.md",
       "category": "builder-guides",
       "title": "設定システム",
-      "bytes": 5778
+      "bytes": 6451
     },
     {
       "id": "builder-05_troubleshooting",
@@ -233,6 +233,14 @@
       "lang": "en",
       "title": "Workflow Guide",
       "bytes": 13906
+    },
+    {
+      "id": "guides-en-16-upgrade-guide",
+      "path": "guides/en/16-upgrade-guide.md",
+      "category": "guides",
+      "lang": "en",
+      "title": "16. Upgrade Guide",
+      "bytes": 3024
     },
     {
       "id": "guides-ja-00-1-concepts",
