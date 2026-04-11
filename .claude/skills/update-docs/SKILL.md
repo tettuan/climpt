@@ -25,7 +25,7 @@ Use this skill when:
 |----------|---------|-----------------|
 | `README.md` | Quick reference | Major features, CLI syntax changes |
 | `README.ja.md` | Japanese reference | Same as README.md |
-| `--help` output | CLI help | All CLI option changes |
+| `--help` output | CLI help (see [unified-help-concept](../../docs/internal/unified-help-concept.md)) | All CLI option changes |
 | `agents/README.md` | Agent-specific docs | Agent behavior changes |
 | `docs/` | Detailed guides | Complex features, tutorials |
 | `CLAUDE.md` | Development guidelines | Internal workflow changes |
@@ -58,28 +58,41 @@ Change Type → Documentation Scope
 
 ## Process
 
-### Step 1: Identify Change Scope
+### Step 1: Build Commit Coverage Plan
+
+Enumerate all commits in the release scope and produce a coverage plan **before** updating any documentation.
 
 ```bash
-# List recently changed files
-git diff --name-only HEAD~1
-
-# Or check staged changes
-git diff --cached --name-only
+# Determine version range
+PREV_TAG=$(git tag --sort=-v:refversion | head -1)
+git log ${PREV_TAG}..HEAD --oneline
 ```
 
-### Step 2: Categorize the Change
+For each commit, produce a coverage plan table:
 
-Ask yourself:
-1. Does this add a new user-facing feature? → README, --help
-2. Does this change existing behavior? → README, CHANGELOG
-3. Does this add/modify CLI options? → --help (REQUIRED)
-4. Does this affect agent execution? → agents/README.md
-5. Is this a breaking change? → Migration guide in docs/
+```
+| commit | type | docs-action | target | reason |
+|--------|------|-------------|--------|--------|
+| abc1234 | feat | update | README, --help | New CLI option --foo |
+| def5678 | fix  | update | docs/guides | Changed retry behavior |
+| ghi9012 | refactor | skip | — | Internal only, no user impact |
+| jkl3456 | docs | self | — | Already a docs commit |
+```
 
-### Step 3: Update Documentation
+Rules:
+- **Every commit must appear** in the plan — no omissions
+- `type=feat` requires explicit `target` or a justification for `skip`
+- `type=fix` that changes user-visible behavior requires `target`
+- `type=docs` is marked `self` (already a docs change)
+- `type=refactor|chore|test` may be `skip` with reason
+
+### Step 2: Execute Updates Per Plan
+
+For each row where `docs-action = update`, apply the Decision Matrix to determine what to update.
 
 #### For CLI Options (src/cli/*)
+
+`--help` is a structured protocol for AI agents, not human-readable text. Read [unified-help-concept](../../docs/internal/unified-help-concept.md) before modifying help nodes. Key rules: Node/Edge structure, `describe → scaffold → validate → run` flow, construction tree only.
 
 1. Check `--help` output:
 ```bash
@@ -108,7 +121,7 @@ deno run -A mod.ts <command> --help
 2. Add example in README or relevant docs
 3. Update type definitions documentation if public API
 
-### Step 4: Verify Consistency
+### Step 3: Verify Consistency
 
 ```bash
 # Check README versions are in sync
@@ -116,6 +129,26 @@ diff README.md README.ja.md | head -50
 
 # Verify --help matches documentation
 deno run -A mod.ts --help 2>&1 | grep -i "<feature>"
+```
+
+### Step 4: Validate Coverage Completeness
+
+Post-condition — all checks must pass:
+
+```bash
+PREV_TAG=$(git tag --sort=-v:refversion | head -1)
+BRANCH=$(git branch --show-current) && VER=${BRANCH#release/}
+
+# 1. All commits accounted for in plan
+TOTAL=$(git log ${PREV_TAG}..HEAD --oneline | wc -l | tr -d ' ')
+echo "Total commits in range: ${TOTAL} — plan must have ${TOTAL} entries"
+
+# 2. CHANGELOG has version entry
+grep -q "## \[${VER}\]" CHANGELOG.md || { echo "FAIL: CHANGELOG missing [${VER}] entry"; exit 1; }
+
+# 3. docs/manifest.json version matches
+MANIFEST_VER=$(grep -o '"version": "[^"]*"' docs/manifest.json | head -1 | cut -d'"' -f4)
+test "$MANIFEST_VER" = "$VER" || { echo "FAIL: manifest.json version ($MANIFEST_VER) != $VER"; exit 1; }
 ```
 
 ## Documentation Guidelines

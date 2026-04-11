@@ -149,7 +149,7 @@ async function scaffoldValidAgentDir(baseDir: string): Promise<string> {
   await Deno.mkdir(configDir, { recursive: true });
   await Deno.writeTextFile(
     join(configDir, "test-agent-steps-app.yml"),
-    'working_dir: ".agent/test-agent"\n',
+    'working_dir: ".agent/test-agent"\napp_prompt:\n  base_dir: "prompts/steps"\napp_schema:\n  base_dir: "schema/steps"\n',
   );
   await Deno.writeTextFile(
     join(configDir, "test-agent-steps-user.yml"),

@@ -26,6 +26,12 @@ prompts/steps/initial/issue/f_default.md
 prompts/steps/continuation/manual/f_detailed.md
 ```
 
+> **注意**: 上記はディレクトリ構造を示す。Breakdown のパス解決では c1 は
+> `base_dir`（`"prompts/steps"`）に吸収されるため、別パラメータとして渡されない。
+> 詳細は
+> [prompt-architecture.md の C3L Component Roles](../../docs/internal/prompt-architecture.md#c3l-component-roles)
+> を参照。
+
 ### ディレクトリ構造
 
 ```

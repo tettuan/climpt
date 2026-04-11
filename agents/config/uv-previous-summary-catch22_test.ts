@@ -100,7 +100,13 @@ Deno.test("Issue 07-a — previous_summary declared: template validation passes"
       uvVariables: ["previous_summary", "topic"],
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -197,7 +203,13 @@ Deno.test("Issue 07-c — previous_summary NOT declared: template validation pas
       uvVariables: ["topic"], // previous_summary intentionally omitted
     });
 
-    const result = await validateTemplateUvConsistency(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateTemplateUvConsistency(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -260,10 +272,12 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
       uvVariables: ["previous_summary", "topic"],
     });
 
+    const promptRoot = join(dir, "prompts", "steps");
     const templateResultA = await validateTemplateUvConsistency(
       registryA,
       dir,
       dir,
+      promptRoot,
     );
     const reachResultA = validateUvReachability(registryA, agent);
 
@@ -303,6 +317,7 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
       registryB,
       dir,
       dir,
+      promptRoot,
     );
     const reachResultB = validateUvReachability(registryB, agent);
 

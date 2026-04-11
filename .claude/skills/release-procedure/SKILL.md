@@ -8,11 +8,27 @@ allowed-tools: [Bash, Read, Edit, Grep, Glob, TaskCreate, TaskUpdate, TaskGet, T
 
 version bump → CI → docs → PR → remote CI待機 → merge → vtag の順で release/* から main へ段階的にリリースする。
 
-**中断・確認不要ポリシー**: Gate pass かつ CI pass の場合、マージ確認やステップ間の中断は不要。全タスクを完遂するまで連続実行する。Gate NG・CI fail・Post-condition fail は全て同等の停止条件。原因を解消し再実行して pass するまで次タスクへ進むことを禁止。
+## 実行 vs 参照（最優先ルール）
+
+このスキルには2つの利用モードがある。最初にどちらか判定する。
+
+| モード | 判定基準 | 動作 |
+|:--|:--|:--|
+| **実行** | リリースを実際に行う指示（「release して」「merge して」「vtag 作って」「develop に入れて」等） | Task 1 から全 12 タスクを順に実行。部分実行禁止 |
+| **参照** | 手順の説明・確認を求める指示（「手順を教えて」「release手順を参考に」等） | 情報提供のみ。タスク作成・コマンド実行しない |
+
+### 実行モードの部分実行禁止
+
+実行モードでは、ユーザーの指示が特定のタスクだけを示唆していても、Task 1 から開始する。各 Gate が現在の状態を検証するため、既に完了済みの状態であれば Gate は高速に通過する。部分実行が不要な理由: Gate の通過コストは低く、スキップによるリスク（CI未通過のまま PR作成等）は高い。
+
+## 実行ポリシー
+
+- **中断不要**: Gate pass かつ CI pass の場合、確認やステップ間の中断は不要。全タスクを完遂するまで連続実行する
+- **停止条件**: Gate NG・CI fail・Post-condition fail は全て同等の停止条件。原因を解消し再実行して pass するまで次タスクへ進むことを禁止
 
 関連skill: `/branch-management`、`/local-ci`、`/git-gh-sandbox`
 
-## Gate ルール（全タスク共通・最優先）
+## Gate ルール（全タスク共通）
 
 1. **終了コードで判定**: Gate スクリプトが `exit 1` したら ABORT。echo 出力の目視判断に依存しない
 2. **ABORT 時の行動**: タスクを `in_progress` のまま保持 → ABORT 理由をユーザーに報告 → 停止。次タスクへ進むことを禁止

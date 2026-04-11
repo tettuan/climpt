@@ -249,7 +249,8 @@ Deno.test("validatePrompts - existing main C3L file produces no file warning", a
       "Fixture must have steps to avoid vacuous pass",
     );
 
-    const result = await validatePrompts(registry, agentDir);
+    const promptRoot = join(agentDir, "prompts", "steps");
+    const result = await validatePrompts(registry, agentDir, promptRoot);
 
     assertEquals(result.valid, true);
     assertEquals(
@@ -277,7 +278,8 @@ Deno.test("validatePrompts - missing C3L file produces warning", async () => {
       .length;
     assert(stepCount > 0, "Fixture must have steps to avoid vacuous pass");
 
-    const result = await validatePrompts(registry, agentDir);
+    const promptRoot = join(agentDir, "prompts", "steps");
+    const result = await validatePrompts(registry, agentDir, promptRoot);
 
     assertEquals(
       result.valid,
@@ -323,7 +325,8 @@ Deno.test("validatePrompts - edition defaults to 'default' when not specified", 
       "Fixture must have steps to avoid vacuous pass",
     );
 
-    const result = await validatePrompts(registry, agentDir);
+    const promptRoot = join(agentDir, "prompts", "steps");
+    const result = await validatePrompts(registry, agentDir, promptRoot);
 
     assertEquals(result.valid, true);
     assertEquals(

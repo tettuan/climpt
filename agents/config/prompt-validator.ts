@@ -68,15 +68,17 @@ async function fileExists(path: string): Promise<boolean> {
  * Checks per step:
  * 1. c2 and c3 are non-empty strings
  * 2. c2 and c3 are consistent with stepId parts
- * 3. C3L prompt file exists on disk (when agentDir is provided)
+ * 3. C3L prompt file exists on disk (when promptRoot is provided)
  *
  * @param registry - Parsed steps_registry.json content
- * @param agentDir - Absolute path to the agent directory (optional; enables file checks)
+ * @param _agentDir - Unused (kept for backward compatibility of call sites)
+ * @param promptRoot - Absolute prompt root resolved from app.yml (optional; enables file checks)
  * @returns Validation result with errors and warnings
  */
 export async function validatePrompts(
   registry: Record<string, unknown>,
-  agentDir?: string,
+  _agentDir?: string,
+  promptRoot?: string | null,
 ): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -88,8 +90,6 @@ export async function validatePrompts(
     stepId: string;
     mainPath: string;
   }[] = [];
-
-  const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
 
   for (const [stepId, stepDef] of Object.entries(stepsRaw)) {
     const step = asRecord(stepDef);
@@ -134,8 +134,8 @@ export async function validatePrompts(
         }
       }
 
-      // 3. Prepare file existence check (only when agentDir is provided)
-      if (agentDir) {
+      // 3. Prepare file existence check (only when promptRoot is provided)
+      if (promptRoot) {
         const edition = typeof step.edition === "string" && step.edition !== ""
           ? step.edition
           : "default";
@@ -143,8 +143,7 @@ export async function validatePrompts(
           ? step.adaptation
           : undefined;
         const mainPath = buildPromptFilePath(
-          agentDir,
-          c1,
+          promptRoot,
           c2,
           c3,
           edition,
@@ -160,7 +159,7 @@ export async function validatePrompts(
   }
 
   // 3. Run file existence checks in parallel
-  if (fileChecks.length > 0 && agentDir) {
+  if (fileChecks.length > 0 && promptRoot) {
     const existsResults = await Promise.all(
       fileChecks.map((fc) => fileExists(fc.mainPath)),
     );
@@ -168,7 +167,7 @@ export async function validatePrompts(
     for (let idx = 0; idx < fileChecks.length; idx++) {
       if (!existsResults[idx]) {
         const relativePath = fileChecks[idx].mainPath.replace(
-          agentDir + "/",
+          promptRoot + "/",
           "",
         );
         warnings.push(

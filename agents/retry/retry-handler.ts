@@ -14,7 +14,10 @@ import type {
 import type { SemanticParams } from "../common/validation-types.ts";
 import { C3LPromptLoader } from "../common/c3l-prompt-loader.ts";
 import { PATHS } from "../shared/paths.ts";
-import { buildPromptFilePath } from "../config/c3l-path-builder.ts";
+import {
+  buildPromptFilePath,
+  resolvePromptRoot,
+} from "../config/c3l-path-builder.ts";
 import { injectParams } from "./param-injector.ts";
 
 /**
@@ -114,7 +117,7 @@ export class RetryHandler {
 
     if (!loadResult.ok || !loadResult.content) {
       // Detailed error logging with path information for debugging
-      const expectedPath = this.buildExpectedPath(c3lPath);
+      const expectedPath = await this.buildExpectedPath(c3lPath);
       this.ctx.logger.warn(
         `[RetryHandler] Failed to load retry prompt: ${loadResult.error}`,
         {
@@ -145,24 +148,35 @@ export class RetryHandler {
   }
 
   /**
-   * Build expected file path for debugging
+   * Build expected file path for debugging.
+   * Resolves promptRoot from app.yml to match runtime path resolution.
    */
-  private buildExpectedPath(c3lPath: {
+  private async buildExpectedPath(c3lPath: {
     c1: string;
     c2: string;
     c3: string;
     edition: string;
     adaptation?: string;
-  }): string {
-    const agentDir = `${PATHS.AGENT_DIR_PREFIX}/${this.ctx.agentId}`;
-    return buildPromptFilePath(
-      agentDir,
+  }): Promise<string> {
+    const promptRoot = await resolvePromptRoot(
+      this.ctx.workingDir,
+      this.ctx.agentId,
       c3lPath.c1,
-      c3lPath.c2,
-      c3lPath.c3,
-      c3lPath.edition,
-      c3lPath.adaptation,
     );
+    if (promptRoot) {
+      return buildPromptFilePath(
+        promptRoot,
+        c3lPath.c2,
+        c3lPath.c3,
+        c3lPath.edition,
+        c3lPath.adaptation,
+      );
+    }
+    // Fallback for debug display when app.yml is unavailable
+    const agentDir = `${PATHS.AGENT_DIR_PREFIX}/${this.ctx.agentId}`;
+    return `${agentDir}/prompts/${c3lPath.c1}/${c3lPath.c2}/${c3lPath.c3}/f_${c3lPath.edition}${
+      c3lPath.adaptation ? `_${c3lPath.adaptation}` : ""
+    }.md`;
   }
 
   /**

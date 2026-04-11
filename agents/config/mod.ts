@@ -27,6 +27,7 @@ import type { SchemaValidationResult } from "./schema-validator.ts";
 import { validateCrossReferences } from "./registry-validator.ts";
 import type { CrossRefResult } from "./registry-validator.ts";
 import { validatePaths } from "./path-validator.ts";
+import { resolvePromptRoot } from "./c3l-path-builder.ts";
 import { validateFlowReachability } from "./flow-validator.ts";
 import { validatePrompts } from "./prompt-validator.ts";
 import { validateUvReachability } from "./uv-reachability-validator.ts";
@@ -246,15 +247,31 @@ export async function validateFull(
     };
   }
 
-  // 5b. Path validation (runs after registry loading so schema file paths can be checked)
-  const pathResult = await validatePaths(definition, agentDir, registry);
+  // 5b. Resolve prompt root from breakdown config (app.yml + user.yml merged)
+  const configDir = join(baseDir, ".agent", "climpt", "config");
+  let promptRoot: string | null = null;
+  if (registry) {
+    const regAgentId = registry.agentId;
+    const regC1 = registry.c1;
+    if (typeof regAgentId === "string" && typeof regC1 === "string") {
+      promptRoot = await resolvePromptRoot(baseDir, regAgentId, regC1);
+    }
+  }
+
+  // 5c. Path validation (runs after registry loading so schema file paths can be checked)
+  const pathResult = await validatePaths(
+    definition,
+    agentDir,
+    registry,
+    promptRoot,
+  );
 
   // 6b. Flow reachability validation (only when registry exists)
   const flowResult = registry ? validateFlowReachability(registry) : null;
 
   // 6c. Prompt resolution validation (only when registry exists)
   const promptResult = registry
-    ? await validatePrompts(registry, agentDir)
+    ? await validatePrompts(registry, agentDir, promptRoot)
     : null;
 
   // 6d. UV reachability validation (only when registry exists)
@@ -264,19 +281,23 @@ export async function validateFull(
 
   // 6e. Template UV consistency validation (only when registry exists)
   const templateUvResult = registry
-    ? await validateTemplateUvConsistency(registry, agentDir, baseDir)
+    ? await validateTemplateUvConsistency(
+      registry,
+      agentDir,
+      baseDir,
+      promptRoot,
+    )
     : null;
 
   // 6f. Frontmatter-registry UV consistency validation (only when registry exists)
   const frontmatterRegistryResult = registry
-    ? await validateFrontmatterRegistry(registry, agentDir, baseDir)
+    ? await validateFrontmatterRegistry(registry, agentDir, baseDir, promptRoot)
     : null;
 
   // 6g. Handoff-to-inputs compatibility validation (only when registry exists)
   const handoffInputsResult = registry ? validateHandoffInputs(registry) : null;
 
   // 6h. Config-registry consistency (only when registry exists)
-  const configDir = join(baseDir, ".agent", "climpt", "config");
   const configRegistryResult = registry
     ? await validateConfigRegistryConsistency(registry, configDir)
     : null;
