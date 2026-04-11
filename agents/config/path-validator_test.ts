@@ -7,7 +7,7 @@
  * - Skip behaviour for missing/empty fields and null registry
  */
 
-import { assertEquals, assertGreater } from "@std/assert";
+import { assertEquals, assertGreater, assertNotEquals } from "@std/assert";
 import { join } from "@std/path";
 import type { AgentDefinition } from "../src_common/types.ts";
 import {
@@ -345,7 +345,8 @@ Deno.test("path-validator - missing C3L prompt file reports error", async () => 
       `Non-vacuity: registry.steps must have at least 1 entry (fix: ${SRC} test fixture)`,
     );
 
-    const result = await validatePaths(def, dir, registry);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validatePaths(def, dir, registry, promptRoot);
 
     assertEquals(
       result.valid,
@@ -402,7 +403,8 @@ Deno.test("path-validator - existing C3L prompt file returns valid", async () =>
       `Non-vacuity: registry.steps must have at least 1 entry (fix: ${SRC} test fixture)`,
     );
 
-    const result = await validatePaths(def, dir, registry);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validatePaths(def, dir, registry, promptRoot);
 
     assertEquals(
       result.valid,
@@ -459,7 +461,8 @@ Deno.test("path-validator - C3L prompt with adaptation checks correct path", asy
       `Non-vacuity: registry.steps must have at least 1 entry (fix: ${SRC} test fixture)`,
     );
 
-    const result = await validatePaths(def, dir, registry);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validatePaths(def, dir, registry, promptRoot);
 
     assertEquals(
       result.valid,
@@ -505,7 +508,8 @@ Deno.test("path-validator - step without c2/c3/edition skips C3L check", async (
       `Non-vacuity: registry.steps must have at least 1 entry to exercise skip logic (fix: ${SRC} test fixture)`,
     );
 
-    const result = await validatePaths(def, dir, registry);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validatePaths(def, dir, registry, promptRoot);
 
     assertEquals(
       result.valid,
@@ -1087,6 +1091,56 @@ Deno.test("path-validator - bare schema name resolves in definitions", async () 
       0,
       `Expected 0 errors when bare schema name resolves (fix: ${SRC} schema name resolution). Got: ${
         result.errors.join("; ")
+      }`,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// 13. promptRoot = null with registry -> warning about skipped C3L checks
+// =============================================================================
+
+Deno.test("path-validator - null promptRoot with registry emits skip warning", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await createStandardLayout(dir);
+    const def = validDefinition();
+    const registry = {
+      c1: "steps",
+      steps: {
+        "initial.default": {
+          stepId: "initial.default",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
+      },
+    };
+    // P3: non-vacuity guard — registry has C3L-eligible steps
+    assertGreater(
+      Object.keys(registry.steps).length,
+      0,
+      `Non-vacuity: registry.steps must have at least 1 entry (fix: ${SRC} test fixture)`,
+    );
+
+    // Pass registry but null promptRoot — C3L checks should be skipped with warning
+    const result = await validatePaths(def, dir, registry, null);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Expected valid=true (skip is a warning, not an error) (fix: ${SRC} null promptRoot guard)`,
+    );
+    const skipWarning = result.warnings.find((w) =>
+      w.includes(MSG_PATH) && w.includes("skipped")
+    );
+    assertNotEquals(
+      skipWarning,
+      undefined,
+      `Expected ${MSG_PATH} warning about skipped C3L checks when promptRoot is null (fix: ${SRC} null promptRoot guard). Got warnings: ${
+        result.warnings.join("; ")
       }`,
     );
   } finally {

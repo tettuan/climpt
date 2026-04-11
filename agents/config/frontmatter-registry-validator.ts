@@ -122,20 +122,31 @@ function extractFrontmatterUvVars(
  * 5. Report extra vars in frontmatter (errors) and missing vars in frontmatter (warnings)
  *
  * @param registry - Parsed steps_registry.json content
- * @param agentDir - Absolute path to the agent directory (e.g., .agent/my-agent)
- * @param _baseDir - Working directory root (unused, kept for signature consistency)
+ * @param _agentDir - Unused (kept for backward compatibility of call sites)
+ * @param _baseDir - Unused (kept for backward compatibility of call sites)
+ * @param promptRoot - Absolute prompt root resolved from app.yml, or null
  * @returns Validation result with errors and warnings
  */
 export async function validateFrontmatterRegistry(
   registry: Record<string, unknown>,
-  agentDir: string,
+  _agentDir: string,
   _baseDir: string,
+  promptRoot?: string | null,
 ): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
 
   const stepsRaw = asRecord(registry.steps) ?? {};
-  const c1 = typeof registry.c1 === "string" ? registry.c1 : "steps";
+
+  if (!promptRoot) {
+    return {
+      valid: true,
+      errors: [],
+      warnings: [
+        "Frontmatter consistency check skipped: app.yml not found or invalid (promptRoot unresolved)",
+      ],
+    };
+  }
 
   // Phase 1: Collect step metadata and prompt file paths
   interface StepInfo {
@@ -174,8 +185,7 @@ export async function validateFrontmatterRegistry(
     }
 
     const promptPath = buildPromptFilePath(
-      agentDir,
-      c1,
+      promptRoot,
       c2,
       c3,
       edition,

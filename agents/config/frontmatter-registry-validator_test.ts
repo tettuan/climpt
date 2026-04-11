@@ -81,7 +81,13 @@ Deno.test("frontmatter-registry-validator - matching frontmatter and registry pr
       uvVariables: ["issue", "repo"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const declaredUvs = registry.steps as Record<
       string,
@@ -141,7 +147,13 @@ Deno.test("frontmatter-registry-validator - extra var in frontmatter produces er
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const extraVarCount = 1; // "extra_var" is in frontmatter but not registry
     assertEquals(
@@ -195,7 +207,13 @@ Deno.test("frontmatter-registry-validator - missing var in frontmatter produces 
       uvVariables: ["issue", "repo"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const missingVarCount = 1; // "repo" is in registry but not frontmatter
     assertEquals(
@@ -247,7 +265,13 @@ Deno.test("frontmatter-registry-validator - missing prompt file is skipped witho
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const stepCount = Object.keys(
       registry.steps as Record<string, unknown>,
@@ -304,7 +328,13 @@ Deno.test("frontmatter-registry-validator - no frontmatter in file is skipped wi
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     const stepCount = Object.keys(
       registry.steps as Record<string, unknown>,
@@ -363,7 +393,13 @@ Deno.test("frontmatter-registry-validator - runtime-supplied vars are excluded f
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -413,7 +449,13 @@ Deno.test("frontmatter-registry-validator - runtime-supplied vars in registry ar
       uvVariables: ["issue", "max_iterations"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -443,7 +485,13 @@ Deno.test("frontmatter-registry-validator - empty steps produces no errors", asy
   try {
     const registry: Record<string, unknown> = { c1: "steps", steps: {} };
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       Object.keys(registry.steps as Record<string, unknown>).length,
@@ -488,7 +536,13 @@ Deno.test("frontmatter-registry-validator - step with missing c2 is skipped", as
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -531,7 +585,13 @@ Deno.test("frontmatter-registry-validator - frontmatter without uvVariables key 
       uvVariables: ["issue"],
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
@@ -595,7 +655,13 @@ Deno.test("frontmatter-registry-validator - mixed extra and missing vars produce
       uvVariables: registryVars,
     });
 
-    const result = await validateFrontmatterRegistry(registry, dir, dir);
+    const promptRoot = join(dir, "prompts", "steps");
+    const result = await validateFrontmatterRegistry(
+      registry,
+      dir,
+      dir,
+      promptRoot,
+    );
 
     assertEquals(
       result.valid,
