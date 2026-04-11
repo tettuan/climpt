@@ -20,7 +20,7 @@ import { C3LPromptLoader } from "./c3l-prompt-loader.ts";
 import type { C3LPath, PromptLoadResult } from "./c3l-prompt-loader.ts";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 
-const logger = new BreakdownLogger("fix-464");
+const logger = new BreakdownLogger("c3l-second-pass");
 
 const AGENT_ID = "reviewer";
 const CONFIG_SUFFIX = "steps";

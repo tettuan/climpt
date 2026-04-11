@@ -10,9 +10,6 @@
  */
 
 import { BREAKDOWN_VERSION } from "../../src/version.ts";
-import { BreakdownLogger } from "@tettuan/breakdownlogger";
-
-const logger = new BreakdownLogger("fix-464");
 
 /**
  * C3L path components
@@ -107,15 +104,6 @@ export class C3LPromptLoader {
     // Build runBreakdown arguments
     const args = this.buildArgs(path, variables);
 
-    logger.debug("load input", {
-      c2: path.c2,
-      c3: path.c3,
-      configName: this.configName,
-      workingDir: this.workingDir,
-      cwd: Deno.cwd(),
-      args,
-    });
-
     try {
       // Dynamic import of breakdown with return mode
       const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
@@ -130,22 +118,12 @@ export class C3LPromptLoader {
       let result: { ok: boolean; data?: string; error?: string };
       try {
         Deno.chdir(this.workingDir);
-        logger.debug("pre-breakdown cwd", { cwd: Deno.cwd() });
         result = await runBreakdown(args, {
           returnMode: true,
         });
       } finally {
         Deno.chdir(originalCwd);
       }
-
-      logger.debug("breakdown result", {
-        c2: path.c2,
-        ok: result.ok,
-        hasData: !!result.data,
-        dataLength: result.data?.length ?? 0,
-        error: result.error ?? null,
-        errorType: result.error ? typeof result.error : null,
-      });
 
       if (result.ok && result.data) {
         return {
@@ -170,11 +148,6 @@ export class C3LPromptLoader {
       }
       return { ok: false };
     } catch (error) {
-      logger.debug("load exception", {
-        c2: path.c2,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorName: error instanceof Error ? error.name : "unknown",
-      });
       return {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
