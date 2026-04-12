@@ -331,6 +331,42 @@ issue の優先度を自動判定する Agent の設定。
 > 読み、`priorities.json` を同パスに書く規約で動作する。Store が空の場合は
 > ディスパッチをスキップし空の結果を返す。
 
+## 並走（複数 workflow の同時実行）
+
+`--workflow` で別名の workflow ファイルを指定できるため、同一リポジトリで複数の
+orchestrator を同時に動かせる。例えば実装サイクルとマージ判定サイクルを別
+workflow
+に分離して並走させると、ツール境界・遷移回数・ラベル名前空間を互いに汚染せずに運用
+できる。
+
+```bash
+# ターミナル A: 実装/レビューサイクル
+deno task orchestrator --workflow .agent/workflow-impl.json --label ready
+
+# ターミナル B: マージ判定サイクル（並走）
+deno task orchestrator --workflow .agent/workflow-merge.json --label merge:ready
+```
+
+### 共有状態の隔離
+
+並走時は以下の共有状態で競合が起きうる。いずれも既存の primitives で隔離する。
+
+| 共有状態                     | 競合の発生条件                                       | 隔離の手段                                                                        |
+| ---------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| GitHub ラベル名前空間        | 同一ラベル名を複数 workflow が `labelMapping` に持つ | `labelPrefix` を workflow ごとに設定（例: `impl`, `merge`）                       |
+| Issue Store                  | 同一ディレクトリに複数 orchestrator が書き込む       | `issueStore.path` を workflow ごとに分ける（v1.14 で有効化予定）                  |
+| GitHub Issue / PR への write | 同時に同一 issue に comment や label 操作を行う      | `labelMapping` の受け持ちラベルを重複させない                                     |
+| Agent 定義                   | 同一 agent ID を複数 workflow が参照する             | tool policy を共有してよい場合のみ許可; 分けたい場合は `directory` で別定義を指す |
+
+### workflow 間のハンドオフ
+
+workflow 間の引き渡しは GitHub ラベル経由で行う。workflow A の出力ラベル（例:
+reviewer の `approved` outcome が付与する `merge:ready`）を workflow B の
+`labelMapping` に入力ラベルとして宣言すれば、同一 issue/PR
+が次のサイクルへ引き渡さ れる。labelPrefix を使う場合は、ハンドオフ対象ラベルの
+prefix を両 workflow で揃え るか、prefix
+なしのベアラベルで受け渡すかを明示的に決める。
+
 ## 実行
 
 ### 基本
