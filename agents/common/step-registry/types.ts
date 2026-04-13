@@ -129,9 +129,39 @@ export interface PromptStepDefinition {
   permissionMode?: PermissionMode;
 
   /**
+   * Subprocess runner for closure steps.
+   *
+   * When set on a closure step, the AgentRunner spawns this command via
+   * Deno.Command instead of invoking the LLM. Enables deterministic side
+   * effects (e.g., merge-pr.ts) that escape the LLM boundary.
+   *
+   * args elements may contain `${context.<key>}` placeholders; the runner
+   * substitutes them from the execution context (agent parameters) before
+   * spawn. Unresolved placeholders abort with an error.
+   *
+   * @see docs/internal/pr-merger-design/ Phase 0-b/0-c
+   */
+  runner?: StepSubprocessRunner;
+
+  /**
    * Optional description of what this step does
    */
   description?: string;
+}
+
+/**
+ * Subprocess runner spec for closure steps (Phase 0-c).
+ *
+ * Declares a command to execute instead of an LLM call. Enables closure
+ * steps to perform deterministic side effects via external binaries.
+ */
+export interface StepSubprocessRunner {
+  /** Executable binary (e.g., "deno") */
+  command: string;
+  /** Command arguments; elements may contain `${context.<key>}` templates */
+  args: string[];
+  /** Subprocess timeout in milliseconds (default: 30000) */
+  timeout?: number;
 }
 
 /**

@@ -1,0 +1,10 @@
+# Breakdown Configuration for merger-steps
+# directiveType must include all STEP_PHASE values used in steps_registry.json
+# (see agents/shared/step-phases.ts for runner-required phases)
+# layerType must include all c3 values used in steps_registry.json
+params:
+  two:
+    directiveType:
+      pattern: "^(closure)$"
+    layerType:
+      pattern: "^(merge)$"

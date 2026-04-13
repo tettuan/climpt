@@ -1,0 +1,44 @@
+{
+  "$schema": "../agents/orchestrator/workflow-schema.json",
+  "version": "1.0.0",
+  "labelPrefix": "merge",
+  "phases": {
+    "merge-ready": {
+      "type": "actionable",
+      "priority": 1,
+      "agent": "merger"
+    },
+    "merge-blocked": {
+      "type": "blocking"
+    },
+    "merged": {
+      "type": "terminal"
+    }
+  },
+  "labelMapping": {
+    "ready": "merge-ready",
+    "blocked": "merge-blocked",
+    "done": "merged"
+  },
+  "agents": {
+    "merger": {
+      "role": "validator",
+      "directory": "merger",
+      "outputPhases": {
+        "merged": "merged",
+        "ci-pending": "merge-ready",
+        "approvals-missing": "merge-blocked",
+        "conflicts": "merge-blocked",
+        "rejected": "merge-blocked"
+      },
+      "fallbackPhase": "merge-blocked"
+    }
+  },
+  "rules": {
+    "maxCycles": 3,
+    "cycleDelayMs": 60000
+  },
+  "issueStore": {
+    "path": ".agent/climpt/tmp/issues-merge"
+  }
+}
