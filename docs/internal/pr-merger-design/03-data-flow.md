@@ -35,9 +35,7 @@ sequenceDiagram
 
     Note over WFI,VS: ArtifactEmitter (orchestrator 層、workflow.handoffs[] 宣言駆動)
     WFI->>WFI: workflow.handoffs.filter(h =><br/>h.when.fromAgent === sourceAgent &&<br/>h.when.outcome === sourceOutcome)
-    WFI->>GH: gh pr view N --json baseRefName<br/>(JSONPath $.github.pr.* が参照された場合のみ lazy fetch)
-    GH-->>WFI: baseRefName
-    WFI->>VS: ArtifactEmitter.emit:<br/>JSONPath 解決 → schema 検証 →<br/>writeFile(handoff.emit.path)
+    WFI->>VS: ArtifactEmitter.emit:<br/>JSONPath 解決 ($.agent.result.* / $.workflow.*) →<br/>schema 検証 → writeFile(handoff.emit.path)
     WFI->>WFI: issueStore.writeWorkflowPayload<br/>(persistPayloadTo === "issueStore" の handoff のみ)
 
     alt reviewer outcome === "approved"
@@ -250,11 +248,11 @@ TypeScript 具体 signature は `07-interfaces.md` §5 (DispatchOptions) と §6
         "path": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json"
       },
       "payloadFrom": {
-        "prNumber": "$.github.pr.number",
+        "prNumber": "$.agent.result.pr_number",
         "verdictPath": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
         "schema_version": "'1.0.0'",
-        "pr_number": "$.github.pr.number",
-        "base_branch": "$.github.pr.baseRefName",
+        "pr_number": "$.agent.result.pr_number",
+        "base_branch": "$.agent.result.base_branch",
         "verdict": "$.agent.result.outcome",
         "reviewer_summary": "$.agent.result.summary",
         "evaluated_at": "$.workflow.context.now",
@@ -274,14 +272,13 @@ T5' タスクで handoffs[] 追加を予定)。
 
 #### JSONPath 解決規則
 
-| root / 記法                 | 意味                                                                                         |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| `$.agent.result.*`          | dispatch 結果 (`ArtifactEmitInput.agentResult`) から解決                                     |
-| `$.github.pr.*`             | `gh pr view <prNumber>` を lazy fetch して取得                                               |
-| `$.workflow.context.*`      | orchestrator が inject する定数 (例: `now` = clock.now().toISOString())                      |
-| `$.workflow.agents[<id>].*` | `workflow.agents[id]` から解決。`[sourceAgent]` は sentinel で input の `sourceAgent` に解決 |
-| `'<literal>'`               | シングルクォート囲みはリテラル文字列 (JSON 型推論なし、schema 側で型強制)                    |
-| `${payload.<key>}`          | `emit.path` 内で payload 解決後に展開される simple template                                  |
+| root / 記法                 | 意味                                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------------- |
+| `$.agent.result.*`          | dispatch 結果 (`ArtifactEmitInput.agentResult`) から解決。PR 固有データ (pr_number 等) もここ |
+| `$.workflow.context.*`      | orchestrator が inject する定数 (例: `now` = clock.now().toISOString())                       |
+| `$.workflow.agents[<id>].*` | `workflow.agents[id]` から解決。`[sourceAgent]` は sentinel で input の `sourceAgent` に解決  |
+| `'<literal>'`               | シングルクォート囲みはリテラル文字列 (JSON 型推論なし、schema 側で型強制)                     |
+| `${payload.<key>}`          | `emit.path` 内で payload 解決後に展開される simple template                                   |
 
 #### fail-fast 規則
 

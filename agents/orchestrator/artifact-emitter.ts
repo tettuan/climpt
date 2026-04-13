@@ -44,17 +44,6 @@ export interface ArtifactEmitResult {
   readonly artifactPath: string;
 }
 
-/** Minimal PR metadata shape needed for `$.github.pr.*` resolution. */
-export interface PrMetadata {
-  readonly number: number;
-  readonly baseRefName: string;
-}
-
-/** Lazy GitHub accessor. Emitter never calls this unless `$.github.pr.*` is referenced. */
-export interface GithubClient {
-  prView(prNumber: number): Promise<PrMetadata>;
-}
-
 /**
  * Per-agent workflow metadata resolved from `workflow.agents` at load time.
  * Only fields actually referenced from `$.workflow.agents[<id>].*` need to be
@@ -70,7 +59,6 @@ export interface WorkflowAgentInfo {
 export interface ArtifactEmitterDeps {
   readonly schemaRegistry: SchemaRegistry;
   readonly issueStore: Pick<IssueStore, "writeWorkflowPayload">;
-  readonly githubClient: GithubClient;
   readonly clock: { now(): Date };
   readonly writeFile: (path: string, data: string) => Promise<void>;
   readonly workflowAgents: Readonly<Record<string, WorkflowAgentInfo>>;
@@ -130,24 +118,16 @@ export class HandoffSchemaValidationError extends Error {
 // =============================================================================
 
 /**
- * Regular expression identifying references to `$.github.pr.*` anywhere in
- * a `payloadFrom` expression. Used for the pre-scan that decides whether
- * the lazy GitHub fetch must fire.
- */
-const GITHUB_PR_REF_RE = /\$\.github\.pr\./;
-
-/**
  * JSONPath root dialect recognized by the emitter. Each root has a
  * dedicated resolver; no general-purpose JSONPath engine is pulled in.
  */
-type Root = "agent" | "github" | "workflow";
+type Root = "agent" | "workflow";
 
 interface ResolveContext {
   readonly agent: {
     readonly id: string;
     readonly result: Readonly<Record<string, unknown>>;
   };
-  readonly github: { readonly pr?: PrMetadata };
   readonly workflow: {
     readonly id: string;
     readonly agents: Readonly<Record<string, WorkflowAgentInfo>>;
@@ -169,25 +149,8 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
   async emit(input: ArtifactEmitInput): Promise<ArtifactEmitResult> {
     const { handoff } = input;
 
-    // Step 1: pre-scan — fetch PR metadata only if any expression actually
-    // references `$.github.pr.*`. The `prView` call is skipped entirely
-    // otherwise, keeping emissions that don't need GitHub data offline-safe.
-    //
-    // PR number source: when a handoff needs PR metadata it inherits the
-    // PR number from `input.issueNumber`. This matches workflows where the
-    // GitHub issue number and PR number coincide (e.g. PR-based workflows
-    // such as `.agent/workflow-merge.json`). Handoffs for non-PR workflows
-    // simply do not reference `$.github.pr.*` and never trigger this fetch.
-    const needsGithubPr = Object.values(handoff.payloadFrom).some((expr) =>
-      GITHUB_PR_REF_RE.test(expr)
-    );
-    const prMetadata: PrMetadata | undefined = needsGithubPr
-      ? await this.#deps.githubClient.prView(input.issueNumber)
-      : undefined;
-
     const ctx: ResolveContext = {
       agent: { id: input.sourceAgent, result: input.agentResult },
-      github: { pr: prMetadata },
       workflow: {
         id: input.workflowId,
         agents: this.#deps.workflowAgents,
@@ -195,7 +158,7 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
       },
     };
 
-    // Step 2: resolve all payloadFrom entries. Path-template expansion is
+    // Step 1: resolve all payloadFrom entries. Path-template expansion is
     // intentionally deferred to a second pass so entries may reference
     // each other via `${payload.<key>}` regardless of iteration order.
     const rawPayload: Record<string, unknown> = {};
@@ -220,7 +183,7 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
 
     const payload: IssuePayload = Object.freeze({ ...rawPayload });
 
-    // Step 3: schema validation — fail-fast, throw on unregistered ref too.
+    // Step 2: schema validation — fail-fast, throw on unregistered ref too.
     const outcome = this.#deps.schemaRegistry.validate(
       handoff.emit.schemaRef,
       payload,
@@ -233,7 +196,7 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
       );
     }
 
-    // Step 4: render artifact path template.
+    // Step 3: render artifact path template.
     const artifactPath = renderPayloadTemplate(
       handoff.emit.path,
       rawPayload,
@@ -241,14 +204,14 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
       "<emit.path>",
     );
 
-    // Step 5: write artifact. Ensure the parent directory exists — artifact
+    // Step 4: write artifact. Ensure the parent directory exists — artifact
     // paths like `tmp/climpt/orchestrator/emits/<pr>.json` may resolve to a
     // directory that does not yet exist on a fresh workspace.
     const artifactDir = dirname(artifactPath);
     await Deno.mkdir(artifactDir, { recursive: true });
     await this.#deps.writeFile(artifactPath, JSON.stringify(payload, null, 2));
 
-    // Step 6: optional issue-store persistence.
+    // Step 5: optional issue-store persistence.
     if (handoff.persistPayloadTo === "issueStore") {
       await this.#deps.issueStore.writeWorkflowPayload(
         input.issueNumber,
@@ -334,8 +297,6 @@ function resolveRoot(
   switch (root) {
     case "agent":
       return resolveAgent(rest, ctx, handoffId, key, expr);
-    case "github":
-      return resolveGithub(rest, ctx, handoffId, key, expr);
     case "workflow":
       return resolveWorkflow(rest, ctx, handoffId, key, expr);
     default:
@@ -370,46 +331,6 @@ function resolveAgent(
     throw new HandoffResolveError(handoffId, key, expr, "malformed agent path");
   }
   return walkDottedPath(ctx.agent.result, after.slice(1));
-}
-
-function resolveGithub(
-  rest: string,
-  ctx: ResolveContext,
-  handoffId: string,
-  key: string,
-  expr: string,
-): unknown {
-  if (!rest.startsWith(".pr")) {
-    throw new HandoffResolveError(
-      handoffId,
-      key,
-      expr,
-      "only $.github.pr.* is supported",
-    );
-  }
-  const after = rest.slice(".pr".length);
-  if (ctx.github.pr === undefined) {
-    // Pre-scan missed this expression: implementation bug.
-    throw new HandoffResolveError(
-      handoffId,
-      key,
-      expr,
-      "github PR metadata unavailable (pre-scan miss)",
-    );
-  }
-  if (after === "") return ctx.github.pr;
-  if (!after.startsWith(".")) {
-    throw new HandoffResolveError(
-      handoffId,
-      key,
-      expr,
-      "malformed github path",
-    );
-  }
-  return walkDottedPath(
-    ctx.github.pr as unknown as Record<string, unknown>,
-    after.slice(1),
-  );
 }
 
 function resolveWorkflow(

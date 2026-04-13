@@ -7,9 +7,9 @@
  * JSON Schema, and a real filesystem-backed {@link IssueStore} under
  * `Deno.makeTempDir`.
  *
- * These tests are intentionally offline-safe: no `$.github.pr.*`
- * expressions appear in any handoff `payloadFrom`. The stub GitHub
- * client throws if `prView` is ever called to enforce this invariant.
+ * These tests are intentionally offline-safe: handoff `payloadFrom`
+ * resolves only `$.agent.result.*` / `$.workflow.*` / literals, so no
+ * external network access is required.
  *
  * Covered contracts:
  *  1. handoff fires and writes artifact + persists payload
@@ -26,7 +26,6 @@ import { Orchestrator } from "./orchestrator.ts";
 import type { DispatchOptions, DispatchOutcome } from "./dispatcher.ts";
 import {
   DefaultArtifactEmitter,
-  type GithubClient,
   HandoffSchemaValidationError,
   type WorkflowAgentInfo,
 } from "./artifact-emitter.ts";
@@ -123,23 +122,6 @@ class StubGitHubClient implements GitHubClient {
     });
   }
 }
-
-/**
- * GitHub client for the artifact emitter that rejects any call. Handoff
- * payloadFrom expressions in this suite must never reference
- * `$.github.pr.*`; this stub makes that guarantee explicit by failing
- * loudly if the invariant regresses.
- */
-const failingGithubClient: GithubClient = {
-  prView(_prNumber: number): Promise<never> {
-    return Promise.reject(
-      new Error(
-        "prView must not be called in integration_handoff_test; " +
-          "handoffs here are offline-safe by construction",
-      ),
-    );
-  },
-};
 
 /** Stub dispatcher that records calls and returns a prepared outcome. */
 class RecordingDispatcher {
@@ -239,10 +221,10 @@ function makeWorkflow(
 }
 
 /**
- * Build a {@link HandoffDeclaration} that does not reference
- * `$.github.pr.*`, so the artifact emitter never needs a real
- * GitHub backend. `emit.path` is templated off of `payloadFrom.id`
- * so tests can exercise the path-template expansion pass.
+ * Build a {@link HandoffDeclaration} whose payloadFrom resolves only
+ * against `$.agent.result.*` and literals, keeping emission offline-safe.
+ * `emit.path` is templated off of `payloadFrom.id` so tests exercise
+ * the path-template expansion pass.
  */
 function makeHandoff(
   id: string,
@@ -339,7 +321,6 @@ async function buildHarness(opts: HarnessOptions): Promise<Harness> {
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: failingGithubClient,
     clock: { now: (): Date => new Date("2026-04-14T10:00:00.000Z") },
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -426,7 +407,7 @@ Deno.test(
         persisted?.id,
         "approved-handoff",
         "Expected persisted payload to match handoff emission. " +
-          "Fix: check DefaultArtifactEmitter step 6 (persistPayloadTo).",
+          "Fix: check DefaultArtifactEmitter step 5 (persistPayloadTo).",
       );
       assertEquals(persisted?.summary, "LGTM");
 
@@ -614,7 +595,7 @@ Deno.test(
         persisted !== undefined,
         true,
         "Expected at least one handoff to have persisted its payload. " +
-          "Fix: inspect ArtifactEmitter step 6 (persistPayloadTo).",
+          "Fix: inspect ArtifactEmitter step 5 (persistPayloadTo).",
       );
       const persistedId = persisted?.id;
       assertEquals(

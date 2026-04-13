@@ -2,7 +2,7 @@
  * Tests for artifact-emitter.ts
  *
  * Contract surface:
- *  - payload resolution across all supported JSONPath roots
+ *  - payload resolution across $.agent.result.* and $.workflow.* roots
  *  - single-quoted literal expressions
  *  - `[sourceAgent]` sentinel substitution for $.workflow.agents[...]
  *  - missing sources raise HandoffResolveError
@@ -10,16 +10,13 @@
  *  - persistPayloadTo: "issueStore" persists via writeWorkflowPayload
  *  - persistPayloadTo: "none" skips persistence
  *  - `${payload.*}` template is expanded after payloadFrom resolution
- *  - GitHub fetch is lazy — never called when no $.github.pr.* reference
  */
 
 import { assertEquals, assertRejects } from "jsr:@std/assert";
 import {
   DefaultArtifactEmitter,
-  type GithubClient,
   HandoffResolveError,
   HandoffSchemaValidationError,
-  type PrMetadata,
   type WorkflowAgentInfo,
 } from "./artifact-emitter.ts";
 import type { ValidationOutcome } from "./schema-registry.ts";
@@ -74,22 +71,6 @@ function stubIssueStore() {
   };
 }
 
-interface StubGithubClient extends GithubClient {
-  readonly callCount: { value: number };
-}
-
-function stubGithubClient(metadata?: PrMetadata): StubGithubClient {
-  const callCount = { value: 0 };
-  const pr: PrMetadata = metadata ?? { number: 123, baseRefName: "develop" };
-  return {
-    callCount,
-    prView(prNumber: number): Promise<PrMetadata> {
-      callCount.value++;
-      return Promise.resolve({ ...pr, number: prNumber });
-    },
-  };
-}
-
 function fixedClock(iso: string) {
   return { now: () => new Date(iso) };
 }
@@ -129,8 +110,8 @@ function baseHandoff(
       path: ".agent/artifacts/${payload.prNumber}.json",
     },
     payloadFrom: {
-      prNumber: "$.github.pr.number",
-      baseBranch: "$.github.pr.baseRefName",
+      prNumber: "$.agent.result.pr_number",
+      baseBranch: "$.agent.result.base_branch",
       outcome: "$.agent.result.outcome",
       summary: "$.agent.result.summary",
       schemaVersion: "'1.0.0'",
@@ -146,16 +127,14 @@ function baseHandoff(
 // Tests
 // =============================================================================
 
-Deno.test("emit: resolves payload across agent / github / workflow roots", async () => {
+Deno.test("emit: resolves payload across agent / workflow roots", async () => {
   const { registry } = stubSchemaRegistry();
   const { store, calls: storeCalls } = stubIssueStore();
-  const github = stubGithubClient({ number: 42, baseRefName: "main" });
   const { writes, writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -166,7 +145,12 @@ Deno.test("emit: resolves payload across agent / github / workflow roots", async
     issueNumber: 42,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
-    agentResult: { outcome: "approved", summary: "Looks good" },
+    agentResult: {
+      pr_number: 42,
+      base_branch: "main",
+      outcome: "approved",
+      summary: "Looks good",
+    },
     handoff: baseHandoff(),
   });
 
@@ -189,13 +173,11 @@ Deno.test("emit: resolves payload across agent / github / workflow roots", async
 Deno.test("emit: single-quoted literal becomes string payload value", async () => {
   const { registry } = stubSchemaRegistry();
   const { store } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -230,7 +212,6 @@ Deno.test("emit: single-quoted literal becomes string payload value", async () =
 Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async () => {
   const { registry } = stubSchemaRegistry();
   const { store } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const agents: Readonly<Record<string, WorkflowAgentInfo>> = {
@@ -244,7 +225,6 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: agents,
@@ -279,13 +259,11 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
 Deno.test("emit: missing source value throws HandoffResolveError", async () => {
   const { registry } = stubSchemaRegistry();
   const { store } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -322,13 +300,11 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
     outcome: { valid: false, errors: ["/prNumber must be string"] },
   });
   const { store } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile, writes } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -341,7 +317,12 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
         issueNumber: 42,
         sourceAgent: "sample-source",
         sourceOutcome: "approved",
-        agentResult: { outcome: "approved", summary: "ok" },
+        agentResult: {
+          pr_number: 42,
+          base_branch: "main",
+          outcome: "approved",
+          summary: "ok",
+        },
         handoff: baseHandoff(),
       }),
     HandoffSchemaValidationError,
@@ -358,13 +339,11 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
 Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", async () => {
   const { registry } = stubSchemaRegistry();
   const { store, calls } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -375,7 +354,12 @@ Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", asyn
     issueNumber: 99,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
-    agentResult: { outcome: "approved", summary: "ok" },
+    agentResult: {
+      pr_number: 99,
+      base_branch: "main",
+      outcome: "approved",
+      summary: "ok",
+    },
     handoff: baseHandoff({ persistPayloadTo: "issueStore" }),
   });
 
@@ -387,13 +371,11 @@ Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", asyn
 Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () => {
   const { registry } = stubSchemaRegistry();
   const { store, calls } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -404,7 +386,12 @@ Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () =
     issueNumber: 11,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
-    agentResult: { outcome: "approved", summary: "ok" },
+    agentResult: {
+      pr_number: 11,
+      base_branch: "main",
+      outcome: "approved",
+      summary: "ok",
+    },
     handoff: baseHandoff({ persistPayloadTo: "none" }),
   });
 
@@ -418,13 +405,11 @@ Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () =
 Deno.test("emit: path template expansion resolves after payloadFrom", async () => {
   const { registry } = stubSchemaRegistry();
   const { store } = stubIssueStore();
-  const github = stubGithubClient({ number: 1007, baseRefName: "main" });
   const { writes, writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -432,7 +417,7 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
 
   const handoff = baseHandoff({
     payloadFrom: {
-      prNumber: "$.github.pr.number",
+      prNumber: "$.agent.result.pr_number",
       // payload key referencing another payload key — must resolve in a
       // second pass after prNumber is populated.
       artifactRef: "artifacts/${payload.prNumber}.json",
@@ -450,7 +435,7 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
     issueNumber: 1007,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
-    agentResult: {},
+    agentResult: { pr_number: 1007 },
     handoff,
   });
 
@@ -460,88 +445,14 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
   assertEquals(writes[0].path, ".agent/out/1007-1007.json");
 });
 
-Deno.test("emit: github fetch is lazy — skipped without $.github.pr.*", async () => {
-  const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
-  const github = stubGithubClient();
-  const { writeFile } = makeWriter();
-
-  const emitter = new DefaultArtifactEmitter({
-    schemaRegistry: registry,
-    issueStore: store,
-    githubClient: github,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
-    writeFile,
-    workflowAgents: DEFAULT_AGENTS,
-  });
-
-  const handoff = baseHandoff({
-    payloadFrom: {
-      outcome: "$.agent.result.outcome",
-      evaluatedAt: "$.workflow.context.now",
-      marker: "'literal'",
-    },
-    emit: {
-      type: "artifact",
-      schemaRef: "sample-artifact@1.0.0",
-      path: ".agent/out/lazy.json",
-    },
-    persistPayloadTo: "none",
-  });
-
-  await emitter.emit({
-    workflowId: "sample-workflow",
-    issueNumber: 1,
-    sourceAgent: "sample-source",
-    sourceOutcome: "approved",
-    agentResult: { outcome: "approved" },
-    handoff,
-  });
-
-  assertEquals(
-    github.callCount.value,
-    0,
-    "githubClient.prView must not be called unless payloadFrom references $.github.pr.*",
-  );
-});
-
-Deno.test("emit: github fetch fires exactly once when $.github.pr.* is referenced", async () => {
-  const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
-  const github = stubGithubClient({ number: 42, baseRefName: "main" });
-  const { writeFile } = makeWriter();
-
-  const emitter = new DefaultArtifactEmitter({
-    schemaRegistry: registry,
-    issueStore: store,
-    githubClient: github,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
-    writeFile,
-    workflowAgents: DEFAULT_AGENTS,
-  });
-
-  await emitter.emit({
-    workflowId: "sample-workflow",
-    issueNumber: 42,
-    sourceAgent: "sample-source",
-    sourceOutcome: "approved",
-    agentResult: { outcome: "approved", summary: "ok" },
-    handoff: baseHandoff(),
-  });
-
-  assertEquals(github.callCount.value, 1);
-});
-
 Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async () => {
   const { registry } = stubSchemaRegistry();
   const { store } = stubIssueStore();
-  const github = stubGithubClient();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    githubClient: github,
     clock: fixedClock("2026-04-14T10:00:00.000Z"),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,

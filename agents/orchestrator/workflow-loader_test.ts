@@ -464,7 +464,7 @@ Deno.test("workflow-loader: config with handoffs[] and payloadSchema loads succe
           path: "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
         },
         payloadFrom: {
-          prNumber: "$.github.pr.number",
+          prNumber: "$.agent.result.pr_number",
           verdict: "$.agent.result.outcome",
           schema_version: "'1.0.0'",
         },

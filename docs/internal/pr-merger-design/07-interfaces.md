@@ -77,7 +77,6 @@ export interface ArtifactEmitter {
 emit(input):
   1. resolveContext = {
        agent:    { id: input.sourceAgent, result: input.agentResult },
-       github:   lazy fetch if $.github.pr.* referenced,
        workflow: { id: input.workflowId, agents: workflow.agents,
                    context: { now: clock.now().toISOString() } }
      }
@@ -108,7 +107,6 @@ export interface ArtifactEmitterDeps {
   readonly cwd: string;
   readonly issueStore: IssueStore;
   readonly schemaRegistry: SchemaRegistry;
-  readonly githubClient: { prView(prNumber: number): Promise<PrMetadata> };
   readonly clock: { now(): Date };
   readonly writeFile: (path: string, data: string) => Promise<void>;
   readonly workflow: {
@@ -119,6 +117,10 @@ export interface ArtifactEmitterDeps {
   };
 }
 ```
+
+> PR 固有データ (pr_number 等) は `$.agent.result.*` 経由で agent の structured
+> output から取り込む。emitter は GitHub に直接問い合わせない (issue# と PR# の
+> conflation を避けるため)。
 
 ## 3. IssuePayload (generic)
 
