@@ -23,6 +23,15 @@ import type { ValidationOutcome } from "./schema-registry.ts";
 import type { HandoffDeclaration, IssuePayload } from "./workflow-types.ts";
 
 // =============================================================================
+// Shared constants
+// =============================================================================
+// Single source of truth for the fixed clock instant. Both the fixture
+// (`fixedClock(FIXED_NOW_ISO)`) and the assertion (`evaluatedAt === FIXED_NOW_ISO`)
+// must derive from the same constant — otherwise a drift between fixture
+// and assertion becomes an undiagnosable synchronization point.
+const FIXED_NOW_ISO = "2026-04-14T10:00:00.000Z";
+
+// =============================================================================
 // Test doubles
 // =============================================================================
 
@@ -135,7 +144,7 @@ Deno.test("emit: resolves payload across agent / workflow roots", async () => {
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -159,7 +168,7 @@ Deno.test("emit: resolves payload across agent / workflow roots", async () => {
   assertEquals(result.payload.outcome, "approved");
   assertEquals(result.payload.summary, "Looks good");
   assertEquals(result.payload.schemaVersion, "1.0.0");
-  assertEquals(result.payload.evaluatedAt, "2026-04-14T10:00:00.000Z");
+  assertEquals(result.payload.evaluatedAt, FIXED_NOW_ISO);
   assertEquals(result.payload.sourceVersion, "2.3.4");
 
   assertEquals(result.artifactPath, ".agent/artifacts/42.json");
@@ -178,7 +187,7 @@ Deno.test("emit: single-quoted literal becomes string payload value", async () =
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -225,7 +234,7 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: agents,
   });
@@ -264,7 +273,7 @@ Deno.test("emit: missing source value throws HandoffResolveError", async () => {
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -305,7 +314,7 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -344,7 +353,7 @@ Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", asyn
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -376,7 +385,7 @@ Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () =
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -410,7 +419,7 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -453,7 +462,7 @@ Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async ()
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
     issueStore: store,
-    clock: fixedClock("2026-04-14T10:00:00.000Z"),
+    clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
   });
@@ -483,4 +492,142 @@ Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async ()
     HandoffResolveError,
     "not-registered",
   );
+});
+
+// =============================================================================
+// Error-path enumeration
+// =============================================================================
+// Every branch that throws HandoffResolveError in artifact-emitter.ts is
+// a public contract: it identifies which binding expression is malformed
+// so a workflow author can fix it. These tests exercise each branch and
+// assert the error message names the offending key or path fragment so
+// diagnostics stay actionable.
+
+function makeErrorPathEmitter(): DefaultArtifactEmitter {
+  const { registry } = stubSchemaRegistry();
+  const { store } = stubIssueStore();
+  const { writeFile } = makeWriter();
+  return new DefaultArtifactEmitter({
+    schemaRegistry: registry,
+    issueStore: store,
+    clock: fixedClock(FIXED_NOW_ISO),
+    writeFile,
+    workflowAgents: DEFAULT_AGENTS,
+  });
+}
+
+function minimalEmitInput(
+  payloadFrom: Readonly<Record<string, string>>,
+): Parameters<DefaultArtifactEmitter["emit"]>[0] {
+  return {
+    workflowId: "sample-workflow",
+    issueNumber: 1,
+    sourceAgent: "sample-source",
+    sourceOutcome: "approved",
+    agentResult: {},
+    handoff: baseHandoff({
+      payloadFrom,
+      persistPayloadTo: "none",
+      emit: {
+        type: "artifact",
+        schemaRef: "sample-artifact@1.0.0",
+        path: ".agent/artifacts/x.json",
+      },
+    }),
+  };
+}
+
+Deno.test("error-path: expression not starting with $. or ' raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "plain-string-no-root" })),
+    HandoffResolveError,
+    // Message must identify the offending key so the workflow author knows
+    // which payloadFrom entry to fix.
+    "bad",
+  );
+});
+
+Deno.test("error-path: unknown root (not 'agent' or 'workflow') raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "$.other.something" })),
+    HandoffResolveError,
+    "other",
+  );
+});
+
+Deno.test("error-path: `$.root` without path segment raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "$.agent" })),
+    HandoffResolveError,
+    "bad",
+  );
+});
+
+Deno.test("error-path: $.agent.* without .result prefix raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "$.agent.id" })),
+    HandoffResolveError,
+    // "only $.agent.result.* is supported" — message must surface the
+    // constraint so the author fixes the expression, not the agent.
+    "result",
+  );
+});
+
+Deno.test("error-path: $.workflow.* outside .context / .agents raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "$.workflow.unknown" })),
+    HandoffResolveError,
+    "workflow",
+  );
+});
+
+Deno.test("error-path: $.workflow.agents[ without closing ']' raises resolve error", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () => emitter.emit(minimalEmitInput({ bad: "$.workflow.agents[open" })),
+    HandoffResolveError,
+    // The parser error must identify the offending bracket so the author
+    // does not mistake this for a missing-agent error.
+    "']'",
+  );
+});
+
+Deno.test("error-path: `${payload.<missing>}` template raises resolve error naming the key", async () => {
+  const emitter = makeErrorPathEmitter();
+  await assertRejects(
+    () =>
+      emitter.emit(minimalEmitInput({
+        // Reference a key that will never be populated in the payload.
+        derived: "prefix-${payload.neverResolved}",
+      })),
+    HandoffResolveError,
+    "neverResolved",
+  );
+});
+
+Deno.test("error-path: resolve error carries handoffId, key, and expr for diagnostics", async () => {
+  const emitter = makeErrorPathEmitter();
+  let captured: unknown;
+  try {
+    await emitter.emit(minimalEmitInput({ missing: "$.agent.result.nope" }));
+  } catch (err) {
+    captured = err;
+  }
+  if (!(captured instanceof HandoffResolveError)) {
+    throw new Error(
+      `Expected HandoffResolveError; got ${
+        captured instanceof Error ? captured.message : String(captured)
+      }`,
+    );
+  }
+  // These fields are part of the public error contract — consumers
+  // (orchestrator logging, future UI) read them structurally.
+  assertEquals(captured.handoffId, "sample-handoff");
+  assertEquals(captured.key, "missing");
+  assertEquals(captured.expr, "$.agent.result.nope");
 });

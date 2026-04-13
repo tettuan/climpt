@@ -587,24 +587,18 @@ Deno.test(
       assertEquals(artifactA.id, "handoff-a");
       assertEquals(artifactB.id, "handoff-b");
 
-      // Both handoffs set persistPayloadTo: "issueStore". The second emit
-      // overwrites the first; assert the final persisted payload belongs
-      // to one of them (invariant: not missing entirely).
+      // Both handoffs set persistPayloadTo: "issueStore". The orchestrator
+      // iterates `handoffs[]` in declaration order (orchestrator.ts:317,
+      // `for (const handoff of matching)`), so the second emit overwrites
+      // the first under the single `workflow-payload-<wfId>.json` key.
+      // Last-write-wins is the ordering contract; assert it directly.
       const persisted = await harness.store.readWorkflowPayload(55, "test");
       assertEquals(
-        persisted !== undefined,
-        true,
-        "Expected at least one handoff to have persisted its payload. " +
-          "Fix: inspect ArtifactEmitter step 5 (persistPayloadTo).",
-      );
-      const persistedId = persisted?.id;
-      assertEquals(
-        persistedId === "handoff-a" || persistedId === "handoff-b",
-        true,
-        "Expected persisted payload to originate from one of the two handoffs. " +
-          `Got id=${
-            String(persistedId)
-          }. Fix: inspect emit ordering and persist contract.`,
+        persisted?.id,
+        "handoff-b",
+        "Expected last handoff in declaration order to win the persistence slot. " +
+          "Fix: if handoffs[] iteration order changes in orchestrator.ts, update this " +
+          "expectation AND document the new contract in docs/internal.",
       );
     } finally {
       await harness.cleanup();
