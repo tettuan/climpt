@@ -103,7 +103,7 @@ Deno.test(
     // Simulate AgentRunner.run composing context from this.args
     const agentArgs: Record<string, unknown> = {
       pr: 123,
-      verdictPath: ".agent/verdicts/123.json",
+      verdictPath: "tmp/climpt/orchestrator/emits/123.json",
       // Phase 0-a: prNumber is the payload-form mirror of --pr
       prNumber: 123,
     };
@@ -131,7 +131,7 @@ Deno.test(
       "--pr",
       "123",
       "--verdict",
-      ".agent/verdicts/123.json",
+      "tmp/climpt/orchestrator/emits/123.json",
     ]);
     assertEquals(result.structuredOutput, { ok: true });
   },

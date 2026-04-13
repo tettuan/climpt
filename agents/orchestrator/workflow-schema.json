@@ -165,6 +165,74 @@
     "labelPrefix": {
       "type": "string",
       "description": "Optional label namespace prefix (e.g. 'docs' produces 'docs:ready')"
+    },
+    "handoffs": {
+      "type": "array",
+      "description": "Declarative handoff entries: source agent outcome → artifact emission + optional payload persistence",
+      "items": {
+        "type": "object",
+        "required": ["id", "when", "emit", "payloadFrom", "persistPayloadTo"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Workflow-unique handoff identifier"
+          },
+          "when": {
+            "type": "object",
+            "required": ["fromAgent", "outcome"],
+            "additionalProperties": false,
+            "properties": {
+              "fromAgent": {
+                "type": "string",
+                "description": "Source agent id (a key in agents[])"
+              },
+              "outcome": {
+                "type": "string",
+                "description": "Canonical outcome string"
+              }
+            }
+          },
+          "emit": {
+            "type": "object",
+            "required": ["type", "schemaRef", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Artifact kind tag"
+              },
+              "schemaRef": {
+                "type": "string",
+                "description": "Registered schema reference, e.g. 'pr-merger-verdict@1.0.0'"
+              },
+              "path": {
+                "type": "string",
+                "description": "Target file path template (supports ${payload.*} expansion)"
+              }
+            }
+          },
+          "payloadFrom": {
+            "type": "object",
+            "description": "Payload key → JSONPath / literal expression mapping",
+            "additionalProperties": { "type": "string" }
+          },
+          "persistPayloadTo": {
+            "enum": ["issueStore", "none"],
+            "description": "Where to persist the resolved payload after emit"
+          }
+        }
+      }
+    },
+    "payloadSchema": {
+      "type": "object",
+      "required": ["$ref"],
+      "additionalProperties": false,
+      "description": "Reference to the JSON Schema used to validate IssuePayload instances for this workflow",
+      "properties": {
+        "$ref": { "type": "string" }
+      }
     }
   }
 }

@@ -362,6 +362,88 @@ Deno.test("different workflowIds do not collide", async () => {
   }
 });
 
+// === writeWorkflowPayload / readWorkflowPayload ===
+
+Deno.test("writeWorkflowPayload creates workflow-payload.{workflowId}.json", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeWorkflowPayload(42, "sample-wf", {
+      prNumber: 42,
+      verdict: "approved",
+      nested: { score: 3 },
+    });
+
+    const stat = await Deno.stat(`${tmp}/42/workflow-payload.sample-wf.json`);
+    assertEquals(stat.isFile, true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowPayload returns previously written payload", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const payload = {
+      prNumber: 7,
+      baseBranch: "develop",
+      flags: ["alpha", "beta"],
+    };
+    await store.writeWorkflowPayload(7, "sample-wf", payload);
+
+    const loaded = await store.readWorkflowPayload(7, "sample-wf");
+    assertEquals(loaded, payload);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowPayload returns undefined when file is absent", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    const result = await store.readWorkflowPayload(999, "missing-wf");
+    assertEquals(result, undefined);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("writeWorkflowPayload isolates distinct workflowIds", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    await store.writeWorkflowPayload(1, "wf-a", { marker: "a" });
+    await store.writeWorkflowPayload(1, "wf-b", { marker: "b" });
+
+    const a = await store.readWorkflowPayload(1, "wf-a");
+    const b = await store.readWorkflowPayload(1, "wf-b");
+
+    assertEquals(a, { marker: "a" });
+    assertEquals(b, { marker: "b" });
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("readWorkflowPayload propagates JSON parse errors", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const store = new IssueStore(tmp);
+    // Seed a corrupt payload file
+    await Deno.mkdir(`${tmp}/5`, { recursive: true });
+    await Deno.writeTextFile(
+      `${tmp}/5/workflow-payload.bad-wf.json`,
+      "{ not json",
+    );
+
+    await assertRejects(() => store.readWorkflowPayload(5, "bad-wf"));
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
 // === acquireLock ===
 
 Deno.test("acquireLock succeeds and release removes lock file", async () => {

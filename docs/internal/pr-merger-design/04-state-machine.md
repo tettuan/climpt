@@ -87,7 +87,7 @@ sequenceDiagram
     participant PR as GitHub PR
     participant WIMPL as workflow-impl<br/>(既存)
     participant REV as reviewer<br/>(closure step in workflow-impl)
-    participant VS as verdict-store<br/>.agent/verdicts/
+    participant VS as verdict-store<br/>tmp/climpt/orchestrator/emits/
     participant WMERGE as workflow-merge<br/>(新規)
     participant RUN as agent runner<br/>(run-agent.ts + AgentRunner)
     participant MCLI as merger-cli
@@ -97,7 +97,7 @@ sequenceDiagram
     REV->>PR: gh pr view / diff / checks<br/>(read-only, F8/F9)
     PR-->>REV: PR 内容
     REV->>REV: LLM 評価 (approved と判定)
-    REV->>VS: verdict JSON 書き込み<br/>.agent/verdicts/<pr-number>.json
+    REV->>VS: verdict JSON 書き込み<br/>tmp/climpt/orchestrator/emits/<pr-number>.json
     REV->>PR: label 付与: merge:ready<br/>(orchestrator F4 経由)
     Note over REV,WIMPL: workflow-impl の責務ここまで<br/>(merge は実行しない)
 
@@ -138,9 +138,10 @@ sequenceDiagram
 **ハンドオフ契約**:
 
 1. **書き込み側の約束 (workflow-impl / reviewer)**:
-   - 承認判定時、verdict JSON を `.agent/verdicts/<pr-number>.json` に
-     **先に書き込んでから** `merge:ready` ラベルを付ける (読み手が label を見て
-     verdict 不在になる race を回避)。
+   - 承認判定時、verdict JSON を
+     `tmp/climpt/orchestrator/emits/<pr-number>.json` に **先に書き込んでから**
+     `merge:ready` ラベルを付ける (読み手が label を見て verdict 不在になる race
+     を回避)。
    - verdict JSON は `03-data-flow.md` のスキーマに準拠。
 2. **読み込み側の約束 (workflow-merge orchestrator → agent runner →
    merger-cli)**:

@@ -72,13 +72,13 @@ Deno.test("substituteContextTemplates - replaces ${context.key} with value", () 
   const args = ["--pr", "${context.prNumber}", "--path", "${context.path}"];
   const result = substituteContextTemplates(args, {
     prNumber: 123,
-    path: ".agent/verdicts/123.json",
+    path: "tmp/climpt/orchestrator/emits/123.json",
   });
   assertEquals(result, [
     "--pr",
     "123",
     "--path",
-    ".agent/verdicts/123.json",
+    "tmp/climpt/orchestrator/emits/123.json",
   ]);
 });
 

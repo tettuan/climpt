@@ -6,7 +6,7 @@
  * tmp/pr-merger-impl/investigation/design-requirements.md § 5.6.
  *
  * This type represents the verdict JSON written by reviewer-agent to
- * `.agent/verdicts/<pr-number>.json` and consumed by the deterministic
+ * `tmp/climpt/orchestrator/emits/<pr-number>.json` and consumed by the deterministic
  * merger-cli (`agents/scripts/merge-pr.ts`) and the pure `canMerge()`
  * gate evaluator (`agents/scripts/lib/can-merge.ts`).
  *

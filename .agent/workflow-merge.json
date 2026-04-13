@@ -40,5 +40,56 @@
   },
   "issueStore": {
     "path": ".agent/climpt/tmp/issues-merge"
-  }
+  },
+  "payloadSchema": {
+    "$ref": ".agent/workflow-merge/schemas/merge-payload.json"
+  },
+  "handoffs": [
+    {
+      "id": "reviewer-approved-verdict",
+      "when": { "fromAgent": "reviewer", "outcome": "approved" },
+      "emit": {
+        "type": "verdict",
+        "schemaRef": "pr-merger-verdict@1.0.0",
+        "path": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json"
+      },
+      "payloadFrom": {
+        "prNumber": "$.agent.result.pr_number",
+        "verdictPath": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
+        "schema_version": "'1.0.0'",
+        "pr_number": "$.agent.result.pr_number",
+        "base_branch": "$.agent.result.base_branch",
+        "verdict": "'approved'",
+        "merge_method": "$.agent.result.merge_method",
+        "delete_branch": "$.agent.result.delete_branch",
+        "reviewer_summary": "$.agent.result.summary",
+        "evaluated_at": "$.workflow.context.now",
+        "reviewer_agent_version": "'1.12.0'",
+        "ci_required": "$.agent.result.ci_required"
+      },
+      "persistPayloadTo": "issueStore"
+    },
+    {
+      "id": "reviewer-rejected-verdict",
+      "when": { "fromAgent": "reviewer", "outcome": "rejected" },
+      "emit": {
+        "type": "verdict",
+        "schemaRef": "pr-merger-verdict@1.0.0",
+        "path": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json"
+      },
+      "payloadFrom": {
+        "prNumber": "$.agent.result.pr_number",
+        "verdictPath": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
+        "schema_version": "'1.0.0'",
+        "pr_number": "$.agent.result.pr_number",
+        "base_branch": "$.agent.result.base_branch",
+        "verdict": "'rejected'",
+        "reviewer_summary": "$.agent.result.summary",
+        "evaluated_at": "$.workflow.context.now",
+        "reviewer_agent_version": "'1.12.0'",
+        "ci_required": "'true'"
+      },
+      "persistPayloadTo": "issueStore"
+    }
+  ]
 }

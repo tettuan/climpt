@@ -19,7 +19,7 @@ sequenceDiagram
     participant GH as GitHub
     participant WFI as workflow-impl<br/>orchestrator
     participant Rev as reviewer-agent<br/>(LLM)
-    participant VS as verdict-store<br/>(.agent/verdicts/)
+    participant VS as verdict-store<br/>(tmp/climpt/orchestrator/emits/)
     participant WFM as workflow-merge<br/>orchestrator
     participant RUN as agent runner<br/>(run-agent.ts + AgentRunner)
     participant MC as merger-cli<br/>(agents/scripts/merge-pr.ts)
@@ -30,19 +30,26 @@ sequenceDiagram
     Rev->>GH: gh pr view/diff/checks<br/>(F8: read-only, BOUNDARY 非該当)
     GH-->>Rev: diff / metadata / checks
     Rev->>Rev: 評価 (structured output)
-    Rev->>VS: verdict JSON 書出<br/>.agent/verdicts/<N>.json
+    Rev->>WFI: outcome=approved + reviewer_summary<br/>(§7.1: reviewer は verdict JSON を書かない)
     Rev->>GH: gh pr review --approve<br/>(approved の場合)
 
-    alt verdict.verdict === "approved"
-        Rev->>GH: gh label add "merge:ready"
-    else verdict.verdict === "rejected"
-        Rev->>GH: gh label add "merge:blocked"
-        Note over Rev,GH: 終了 (merger は起動しない)
+    Note over WFI,VS: ArtifactEmitter (orchestrator 層、workflow.handoffs[] 宣言駆動)
+    WFI->>WFI: workflow.handoffs.filter(h =><br/>h.when.fromAgent === sourceAgent &&<br/>h.when.outcome === sourceOutcome)
+    WFI->>GH: gh pr view N --json baseRefName<br/>(JSONPath $.github.pr.* が参照された場合のみ lazy fetch)
+    GH-->>WFI: baseRefName
+    WFI->>VS: ArtifactEmitter.emit:<br/>JSONPath 解決 → schema 検証 →<br/>writeFile(handoff.emit.path)
+    WFI->>WFI: issueStore.writeWorkflowPayload<br/>(persistPayloadTo === "issueStore" の handoff のみ)
+
+    alt reviewer outcome === "approved"
+        WFI->>GH: gh label add "merge:ready"
+    else reviewer outcome === "rejected"
+        WFI->>GH: gh label add "merge:blocked"
+        Note over WFI,GH: 終了 (merger は起動しない)
     end
 
     Note over WFM,MC: LLM 不介在ゾーン (決定論的)
     WFM->>WFM: actionable phase handler が<br/>merge:ready phase issue を pick<br/>(issueStore per-workflow lock)
-    WFM->>RUN: spawn agents/scripts/run-agent.ts<br/>--issue N --pr N<br/>--verdict-path .agent/verdicts/N.json
+    WFM->>RUN: spawn agents/scripts/run-agent.ts<br/>--issue N --pr N<br/>--verdict-path tmp/climpt/orchestrator/emits/N.json
     RUN->>RUN: .agent/merger/agent.json load +<br/>AgentRunner.run() closure step "merge"
     RUN->>MC: closure runner が Deno.Command で<br/>merge-pr.ts --pr N --verdict path を spawn<br/>(${context.*} substitute 済)
 
@@ -90,10 +97,209 @@ sequenceDiagram
   を参照し `gh pr merge` を決定論的に実行
 - `merge:ready` ラベルは AI → 機械の引渡しトークン
 - `merge:done` / `merge:blocked` は機械側が付与する最終状態
+- artifact JSON の writer は reviewer ではなく **orchestrator 層の
+  ArtifactEmitter** (02-architecture.md §ArtifactEmitter 参照)。§7.1 非干渉
+  制約により reviewer は artifact JSON を write しない。artifact emission は
+  `workflow.handoffs[]` 宣言により駆動され、infra 側には specific agent 名の
+  分岐が存在しない。
+
+### 1.1 Payload → RunnerArgs binding rule (generic)
+
+> **Canonical source**: `tmp/pr-merger-abstraction/abstraction-design.md` §4 /
+> §5 (2026-04-14)。`dispatcher.ts` における `IssueWorkflowState.payload` から
+> `AgentRunner.run(options)` への変換を generic rule として定義する。
+
+orchestrator が agent を dispatch する際、issueStore から読み出した
+`payload: IssuePayload` (`= Readonly<Record<string, unknown>>`) は以下の generic
+rule で `runnerArgs` と `issuePayload` option に展開される。
+
+#### Binding rule (agent-agnostic)
+
+```
+for key of agent.json.parameters:
+  if payload[key] !== undefined:
+    runnerArgs[key] ← payload[key]
+```
+
+`agents/scripts/run-agent.ts:517-529` の kebab→camel 自動 mapping を経由し、 CLI
+arg (`--<kebab-key>`) として subprocess に渡り、`definition.parameters` declared
+key へ bind される。最終的に `${context.<key>}` template 展開に
+利用できる。dispatcher / runner は **payload の具体 key 名を知らない** —
+agent.json の parameters 宣言が唯一の binding source of truth。
+
+#### PR Merger 具体実現例 (concrete realization)
+
+下表は `.agent/workflow-merge.json` が `payloadSchema` で `prNumber` /
+`verdictPath` を宣言し、`.agent/merger/agent.json` が同名 parameter を宣言
+した場合の具象展開。infra 契約には現れず、workflow config 層の決定事項。
+
+| issue.payload field | runnerArgs key | agent.json parameter   | CLI arg (kebab)  | Required? |
+| ------------------- | -------------- | ---------------------- | ---------------- | :-------: |
+| `prNumber`          | `prNumber`     | `prNumber` (number)    | `--pr-number`    |    yes    |
+| `verdictPath`       | `verdictPath`  | `verdictPath` (string) | `--verdict-path` |    yes    |
+
+(既存 runnerArgs key である `issue` / `iterateMax` / `branch` / `issueStorePath`
+/ `outboxPath` は本テーブル対象外。これらは従来どおり `DispatchOptions`
+の他フィールドから生成され、payload 経路とは独立。)
+
+#### 欠損時挙動 (generic)
+
+| 条件                                                  | 挙動                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DispatchOptions.payload` 自体が `undefined`          | dispatcher は payload 由来の key を `runnerArgs` に注入しない。AgentRunner へ渡す `issuePayload` も `undefined`。→ 既存挙動 100% 保持 (後方互換性)。                                                                                                 |
+| `payload` は存在するが必須 parameter field が欠落     | `run-agent.ts` の既存 `definition.parameters.*.required` バリデーションが exit 1 で失敗する (silent default は設けない)。workflow config の `payloadSchema` (Ajv) と agent.json `parameters` を一致させることで、欠損は起動前/起動時いずれかで検出。 |
+| `payload` に追加 field (agent.json parameter 外) 含む | dispatcher は agent.json が宣言する key のみを展開する。未知 field は runnerArgs に流れない (意図しない引数汚染を防止)。                                                                                                                             |
+
+#### 優先度
+
+CLI 直接起動 (`deno task agent-<name> --<kebab-key> <value>`) が payload 経路
+と競合した場合、**CLI arg が勝つ**。理由: direct CLI 起動は debug / manual
+re-run の主要経路であり、orchestrator が管理する payload を人間が上書き
+できる柔軟性を担保する必要がある。
+
+この優先ルールは AgentRunner 側 context 合成
+`context = { ...(issuePayload ?? {}), ...agentParameters }` (02-architecture.md
+§Runner context composition 参照) と一致する (右側 spread が勝つ =
+agentParameters (= CLI args 由来) が勝つ)。
+
+TypeScript 具体 signature は `07-interfaces.md` §5 (DispatchOptions) と §6
+(AgentRunnerRunOptions) を参照。
+
+### 1.2 Handoff Declaration (workflow.json)
+
+> **Canonical source**: `tmp/pr-merger-abstraction/abstraction-design.md` §2
+> (2026-04-14)。`workflow.json.handoffs[]` が ArtifactEmitter の emission を
+> **宣言的に駆動** する。infra 側に specific agent-name 分岐は存在しない。
+
+#### Schema
+
+`workflow.json` に以下の `handoffs` 配列を追加する。`payloadSchema`
+(`IssuePayload` の Ajv 検証用) と併存する。
+
+```jsonc
+{
+  "handoffs": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": ["id", "when", "emit", "payloadFrom", "persistPayloadTo"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "workflow 内でユニークな handoff 識別子"
+        },
+        "when": {
+          "type": "object",
+          "required": ["fromAgent", "outcome"],
+          "properties": {
+            "fromAgent": {
+              "type": "string",
+              "description": "agents[] の key (データ値)"
+            },
+            "outcome": {
+              "type": "string",
+              "description": "Canonical Outcome 文字列"
+            }
+          },
+          "additionalProperties": false
+        },
+        "emit": {
+          "type": "object",
+          "required": ["type", "schemaRef", "path"],
+          "properties": {
+            "type": { "type": "string", "description": "artifact 種別タグ" },
+            "schemaRef": {
+              "type": "string",
+              "description": "registered schema id, 例: pr-merger-verdict@1.0.0"
+            },
+            "path": {
+              "type": "string",
+              "description": "書き込み先テンプレート、${payload.*} 展開可"
+            }
+          },
+          "additionalProperties": false
+        },
+        "payloadFrom": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "description": "JSONPath 式 / 'literal'"
+          },
+          "description": "payload key → source JSONPath mapping"
+        },
+        "persistPayloadTo": { "enum": ["issueStore", "none"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+```
+
+#### PR Merger 向け宣言例
+
+```jsonc
+{
+  "handoffs": [
+    {
+      "id": "reviewer-approved-verdict",
+      "when": { "fromAgent": "reviewer", "outcome": "approved" },
+      "emit": {
+        "type": "verdict",
+        "schemaRef": "pr-merger-verdict@1.0.0",
+        "path": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json"
+      },
+      "payloadFrom": {
+        "prNumber": "$.github.pr.number",
+        "verdictPath": "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
+        "schema_version": "'1.0.0'",
+        "pr_number": "$.github.pr.number",
+        "base_branch": "$.github.pr.baseRefName",
+        "verdict": "$.agent.result.outcome",
+        "reviewer_summary": "$.agent.result.summary",
+        "evaluated_at": "$.workflow.context.now",
+        "reviewer_agent_version": "$.workflow.agents[sourceAgent].version",
+        "ci_required": "'true'"
+      },
+      "persistPayloadTo": "issueStore"
+    }
+  ]
+}
+```
+
+上記は `.agent/workflow-merge.json` に追加される想定。handoff の具体追加は
+05-implementation-plan.md の Phase 0 prerequisite (`schemaRegistry` 新設) と
+共にロールアウトされる (本 PR では `.agent/workflow-merge.json` は untouched、
+T5' タスクで handoffs[] 追加を予定)。
+
+#### JSONPath 解決規則
+
+| root / 記法                 | 意味                                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| `$.agent.result.*`          | dispatch 結果 (`ArtifactEmitInput.agentResult`) から解決                                     |
+| `$.github.pr.*`             | `gh pr view <prNumber>` を lazy fetch して取得                                               |
+| `$.workflow.context.*`      | orchestrator が inject する定数 (例: `now` = clock.now().toISOString())                      |
+| `$.workflow.agents[<id>].*` | `workflow.agents[id]` から解決。`[sourceAgent]` は sentinel で input の `sourceAgent` に解決 |
+| `'<literal>'`               | シングルクォート囲みはリテラル文字列 (JSON 型推論なし、schema 側で型強制)                    |
+| `${payload.<key>}`          | `emit.path` 内で payload 解決後に展開される simple template                                  |
+
+#### fail-fast 規則
+
+- `payloadFrom` の JSONPath が `undefined` を返す → `HandoffResolveError` を
+  throw。orchestrator が `handoff-error` outcome に写像して issue を blocking
+  phase へ遷移。
+- `schemaRef` が `schemaRegistry` に未登録 → workflow load 時に error。
+- `${payload.<key>}` が path template 展開時に未定義 → error (silent default
+  なし)。
+
+infra の dispatcher / runner / orchestrator いずれも、これらの宣言を
+agent-specific に解釈しない。PR Merger 固有の `"reviewer"` / `"approved"` /
+`"pr-merger-verdict@1.0.0"` 等の文字列は **workflow.json データ内にのみ 存在**
+し、infra 契約には現れない。
 
 ## 2. Verdict JSON スキーマ
 
-パス: `.agent/verdicts/<pr-number>.json`
+パス: `tmp/climpt/orchestrator/emits/<pr-number>.json`
 
 ### JSON Schema (Draft 2020-12)
 

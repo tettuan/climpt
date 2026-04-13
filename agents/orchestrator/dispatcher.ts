@@ -6,7 +6,7 @@
  * invokes AgentRunner in-process.
  */
 
-import type { WorkflowConfig } from "./workflow-types.ts";
+import type { IssuePayload, WorkflowConfig } from "./workflow-types.ts";
 import type { RateLimitInfo } from "../src_common/types/runtime.ts";
 import { AgentRunner } from "../runner/runner.ts";
 import { loadConfiguration } from "../config/mod.ts";
@@ -56,6 +56,43 @@ export function extractHandoffData(
   return Object.keys(data).length > 0 ? data : undefined;
 }
 
+/**
+ * Compose the flat argument bag handed to {@link AgentRunner.run}.
+ *
+ * Precedence (later entries win on key collision):
+ *   1. `options.payload`  — opaque workflow-level values
+ *   2. fixed orchestration keys (`issue`, `iterateMax`, ...)
+ *
+ * The runner separately receives `options.payload` as `issuePayload` so
+ * the subprocess closure context can observe payload values even when
+ * the agent does not declare them as CLI parameters.
+ *
+ * Extracted for direct unit-testability; {@link RunnerDispatcher.dispatch}
+ * uses the same composition.
+ */
+export function composeRunnerArgs(
+  issueNumber: number,
+  options?: DispatchOptions,
+): Record<string, unknown> {
+  const runnerArgs: Record<string, unknown> = {
+    ...(options?.payload ?? {}),
+    issue: issueNumber,
+  };
+  if (options?.iterateMax !== undefined) {
+    runnerArgs.iterateMax = options.iterateMax;
+  }
+  if (options?.branch) {
+    runnerArgs.branch = options.branch;
+  }
+  if (options?.issueStorePath) {
+    runnerArgs.issueStorePath = options.issueStorePath;
+  }
+  if (options?.outboxPath) {
+    runnerArgs.outboxPath = options.outboxPath;
+  }
+  return runnerArgs;
+}
+
 /** Options passed to agent dispatch. */
 export interface DispatchOptions {
   iterateMax?: number;
@@ -63,6 +100,15 @@ export interface DispatchOptions {
   verbose?: boolean;
   issueStorePath?: string;
   outboxPath?: string;
+  /**
+   * Opaque per-workflow payload produced by a prior handoff emission.
+   * Keys are merged into `runnerArgs` before the fixed keys (`issue`,
+   * `iterateMax`, ...) so the fixed keys always win on collision, and
+   * the same payload is forwarded to the runner as `issuePayload` so
+   * the subprocess closure context can observe the workflow-level
+   * values independently of the agent's declared parameters.
+   */
+  readonly payload?: IssuePayload;
 }
 
 /** Result of a single agent dispatch. */
@@ -72,6 +118,12 @@ export interface DispatchOutcome {
   rateLimitInfo?: RateLimitInfo;
   /** Closure step structured output fields selected by handoffFields. */
   handoffData?: Record<string, string>;
+  /**
+   * Last iteration's raw `structuredOutput`; source for ArtifactEmitter
+   * `$.agent.result.*` resolution. Opaque to the dispatcher; the emitter
+   * walks paths against it.
+   */
+  readonly structuredOutput?: Record<string, unknown>;
 }
 
 /** Abstract interface for dispatching agents. */
@@ -83,39 +135,57 @@ export interface AgentDispatcher {
   ): Promise<DispatchOutcome>;
 }
 
+/** Recorded call made against {@link StubDispatcher}. */
+export interface StubDispatcherCall {
+  readonly agentId: string;
+  readonly issueNumber: number;
+  readonly options?: DispatchOptions;
+}
+
 /** Stub dispatcher for testing - returns preconfigured outcomes. */
 export class StubDispatcher implements AgentDispatcher {
   #outcomes: Map<string, string>;
   #callCount = 0;
   #rateLimitInfo?: RateLimitInfo;
   #handoffData?: Record<string, string>;
+  #structuredOutput?: Record<string, unknown>;
+  #calls: StubDispatcherCall[] = [];
 
   constructor(
     outcomes?: Record<string, string>,
     rateLimitInfo?: RateLimitInfo,
     handoffData?: Record<string, string>,
+    structuredOutput?: Record<string, unknown>,
   ) {
     this.#outcomes = new Map(Object.entries(outcomes ?? {}));
     this.#rateLimitInfo = rateLimitInfo;
     this.#handoffData = handoffData;
+    this.#structuredOutput = structuredOutput;
   }
 
   get callCount(): number {
     return this.#callCount;
   }
 
+  /** Invocation history for assertions in tests. */
+  get calls(): ReadonlyArray<StubDispatcherCall> {
+    return this.#calls;
+  }
+
   dispatch(
     agentId: string,
-    _issueNumber: number,
-    _options?: DispatchOptions,
+    issueNumber: number,
+    options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
     this.#callCount++;
+    this.#calls.push({ agentId, issueNumber, options });
     const outcome = this.#outcomes.get(agentId) ?? "success";
     return Promise.resolve({
       outcome,
       durationMs: 0,
       rateLimitInfo: this.#rateLimitInfo,
       handoffData: this.#handoffData,
+      structuredOutput: this.#structuredOutput,
     });
   }
 }
@@ -147,21 +217,10 @@ export class RunnerDispatcher implements AgentDispatcher {
 
     const definition = await loadConfiguration(agentName, this.#cwd);
 
-    const runnerArgs: Record<string, unknown> = {
-      issue: issueNumber,
-    };
-    if (options?.iterateMax !== undefined) {
-      runnerArgs.iterateMax = options.iterateMax;
-    }
-    if (options?.branch) {
-      runnerArgs.branch = options.branch;
-    }
-    if (options?.issueStorePath) {
-      runnerArgs.issueStorePath = options.issueStorePath;
-    }
-    if (options?.outboxPath) {
-      runnerArgs.outboxPath = options.outboxPath;
-    }
+    // Payload is spread as the base layer; fixed orchestration keys
+    // always win on collision, and unknown payload keys are forwarded
+    // verbatim (the runner ignores keys not declared by the agent).
+    const runnerArgs = composeRunnerArgs(issueNumber, options);
 
     const runner = new AgentRunner(definition);
     const result = await runner.run({
@@ -169,6 +228,7 @@ export class RunnerDispatcher implements AgentDispatcher {
       args: runnerArgs,
       plugins: [],
       verbose: options?.verbose,
+      issuePayload: options?.payload,
     });
 
     const durationMs = performance.now() - startMs;
@@ -187,11 +247,15 @@ export class RunnerDispatcher implements AgentDispatcher {
       registry ? Object.values(registry.steps) : [],
     );
 
+    const lastSummary = result.summaries[result.summaries.length - 1];
+    const structuredOutput = lastSummary?.structuredOutput;
+
     return {
       outcome: mapResultToOutcome(result),
       durationMs,
       rateLimitInfo: result.rateLimitInfo,
       handoffData,
+      structuredOutput,
     };
   }
 }

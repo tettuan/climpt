@@ -13,7 +13,7 @@
  *   {storePath}/{number}/workflow-state.{workflowId}.json
  */
 
-import type { IssueWorkflowState } from "./workflow-types.ts";
+import type { IssuePayload, IssueWorkflowState } from "./workflow-types.ts";
 
 /** Issue metadata stored in meta.json */
 export interface IssueMeta {
@@ -207,6 +207,53 @@ export class IssueStore {
       }
       throw error;
     }
+  }
+
+  /**
+   * Write an opaque workflow payload to
+   * `{storePath}/{issueNumber}/workflow-payload.{workflowId}.json`.
+   *
+   * Payload shape is workflow-specific and opaque to the store; callers
+   * are responsible for schema validation before calling this method.
+   */
+  async writeWorkflowPayload(
+    issueNumber: number,
+    workflowId: string,
+    payload: IssuePayload,
+  ): Promise<void> {
+    const dir = this.getIssuePath(issueNumber);
+    await Deno.mkdir(dir, { recursive: true });
+    await Deno.writeTextFile(
+      `${dir}/workflow-payload.${workflowId}.json`,
+      JSON.stringify(payload, null, 2) + "\n",
+    );
+  }
+
+  /**
+   * Read a previously persisted workflow payload.
+   *
+   * Returns `undefined` when no payload has been written for this
+   * `(issueNumber, workflowId)` pair. Any other IO or JSON parse error
+   * is propagated; this distinguishes "not present yet" from "corrupt
+   * state" in a way callers can branch on.
+   */
+  async readWorkflowPayload(
+    issueNumber: number,
+    workflowId: string,
+  ): Promise<IssuePayload | undefined> {
+    const path = `${
+      this.getIssuePath(issueNumber)
+    }/workflow-payload.${workflowId}.json`;
+    let text: string;
+    try {
+      text = await Deno.readTextFile(path);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return undefined;
+      }
+      throw error;
+    }
+    return JSON.parse(text) as IssuePayload;
   }
 
   /**

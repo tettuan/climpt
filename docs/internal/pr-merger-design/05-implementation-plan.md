@@ -18,14 +18,14 @@
 
 ### 1.1 新規・変更ファイル
 
-| パス                              | 役割                                                                               | 新規/変更 | 概算 LOC |
-| --------------------------------- | ---------------------------------------------------------------------------------- | --------- | -------- |
-| `agents/scripts/merge-pr.ts`      | merger-cli 本体 (deterministic)                                                    | 新規      | ~150     |
-| `.agent/workflow-merge.json`      | merger 用 workflow 定義                                                            | 新規      | ~50      |
-| `.agent/merger/agent.json`        | merger agent 定義 (validator role, closure step で merge-pr.ts を subprocess 起動) | 新規      | ~40      |
-| `.agent/verdicts/.gitkeep`        | verdict-store ディレクトリ (初期化用)                                              | 新規      | 0        |
-| `agents/scripts/merge-pr_test.ts` | merger-cli ユニットテスト                                                          | 新規      | ~200     |
-| `deno.json`                       | `merge-pr` タスク追加                                                              | 変更      | +2 行    |
+| パス                                     | 役割                                                                               | 新規/変更 | 概算 LOC |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- | --------- | -------- |
+| `agents/scripts/merge-pr.ts`             | merger-cli 本体 (deterministic)                                                    | 新規      | ~150     |
+| `.agent/workflow-merge.json`             | merger 用 workflow 定義                                                            | 新規      | ~50      |
+| `.agent/merger/agent.json`               | merger agent 定義 (validator role, closure step で merge-pr.ts を subprocess 起動) | 新規      | ~40      |
+| `tmp/climpt/orchestrator/emits/.gitkeep` | verdict-store ディレクトリ (初期化用)                                              | 新規      | 0        |
+| `agents/scripts/merge-pr_test.ts`        | merger-cli ユニットテスト                                                          | 新規      | ~200     |
+| `deno.json`                              | `merge-pr` タスク追加                                                              | 変更      | +2 行    |
 
 ### 1.2 変更しないファイル (非干渉制約)
 
@@ -66,7 +66,7 @@ agent.parameters binding, closure subprocess runner) が climpt runtime
 ### 1.3 verdict-store レイアウト
 
 ```
-.agent/verdicts/
+tmp/climpt/orchestrator/emits/
 ├── .gitkeep
 ├── 123.json     # PR #123 の reviewer verdict
 ├── 124.json
@@ -91,7 +91,7 @@ import type { MergePrResult, PrData, Verdict } from "./merge-pr.types.ts";
 
 interface MergePrArgs {
   pr: number; // PR 番号
-  verdictPath: string; // .agent/verdicts/<pr>.json
+  verdictPath: string; // tmp/climpt/orchestrator/emits/<pr>.json
   dryRun: boolean; // 判定のみで gh 実行しない
 }
 
@@ -255,10 +255,11 @@ merge-watcher.ts は廃止 (T10 Decision 2)。代替トリガは
 `.agent/merger/agent.json` の closure step (validator agent 既存機構)
 で、orchestrator が `agents/scripts/run-agent.ts` 経由で merger agent を
 dispatch し、AgentRunner が closure step runner 経由で
-`agents/scripts/merge-pr.ts` を `--pr <n> --verdict .agent/verdicts/<n>.json` で
-subprocess として spawn する runner-mediated flow (Amendment T14 Decision 1、
-詳細は section 2.3)。verdict 不在は merge-pr.ts の step 1 (verdict-missing →
-rejected) で処理する。
+`agents/scripts/merge-pr.ts` を
+`--pr <n> --verdict tmp/climpt/orchestrator/emits/<n>.json` で subprocess として
+spawn する runner-mediated flow (Amendment T14 Decision 1、 詳細は section
+2.3)。verdict 不在は merge-pr.ts の step 1 (verdict-missing → rejected)
+で処理する。
 
 構造上の利点:
 
@@ -351,38 +352,98 @@ runner → merge-pr.ts** の 4 層 subprocess 構造として構成される。T
 AgentRunner (RUN) participant を含む 3 ホップ構造として描画される (T14 Done
 Criteria 参照)。
 
-## 3. reviewer agent 側の変更方針
+## 3. artifact 出力方針 (workflow-declarative ArtifactEmitter 採用)
 
-### 3.1 非干渉制約
+> **Canonical source**: `tmp/pr-merger-abstraction/abstraction-design.md` §2 /
+> §3 (2026-04-14)。00-design-decisions.md § T16 により、T15 で定めた
+> orchestrator-side VerdictEmitter は ArtifactEmitter (workflow 宣言駆動)
+> に置換される。infra は specific agent 名を一切知らず、`workflow.handoffs[]`
+> 宣言を opaque data として読む。従前の Option A / C (reviewer schema 拡張 /
+> reviewer closure 新 handler) はいずれも §7.1 非干渉制約に違反するため
+> 却下のまま継承。
 
-既存の `.agent/reviewer/agent.json` と `.agent/reviewer/steps_registry.json` は
-**直接変更しない**。reviewer の評価責務・プロンプト・phase 遷移は
-そのまま維持する。
+### 3.1 採用案: workflow-declarative ArtifactEmitter
 
-### 3.2 拡張ポイント (具体実装は別タスク)
+- **位置**: `agents/orchestrator/artifact-emitter.ts` (新規、旧
+  `verdict-emitter.ts` の rename)
+- **責務**: dispatch が outcome を返した直後、orchestrator.ts が
+  `workflow.handoffs.filter(h => h.when.fromAgent === sourceAgent && h.when.outcome === sourceOutcome)`
+  を評価し、該当する handoff ごとに `ArtifactEmitter.emit(input)` を 1 回ずつ
+  呼び出す。ArtifactEmitter は (1) `handoff.payloadFrom` の JSONPath を解決
+  (必要時 `gh pr view` を lazy fetch)、(2) `handoff.emit.schemaRef` を
+  `schemaRegistry` で lookup し Ajv 検証、(3) `handoff.emit.path` テンプレート
+  を payload で展開し writeFile、(4)
+  `handoff.persistPayloadTo ===
+  "issueStore"` のとき
+  `issueStore.writeWorkflowPayload(issueNumber,
+  workflowId, payload)` で
+  persist — を決定論的に実行する。
+- **Zero infra knowledge of agent identity**: orchestrator.ts / dispatcher.ts /
+  runner.ts / artifact-emitter.ts のソース・型・enum いずれにも `"reviewer"` /
+  `"merger"` / `"iterator"` / `"verdict"` / `"pr"` の literal は現れない。将来
+  security-scan → deployer 等の新 LLM→決定論フローを追加 する際、infra
+  変更ゼロで agent 定義追加 + `workflow.json` の `handoffs[]`
+  エントリ追加のみで完結する。
+- **非干渉 (§7.1)**: reviewer agent.json / steps_registry.json /
+  reviewer.schema.json / external-state-adapter.ts / tool-policy.ts いずれも
+  **untouched**。拡張は orchestrator 層に完全閉包。
+- **詳細**: 02-architecture.md §ArtifactEmitter、03-data-flow.md §1.2 (Handoff
+  Declaration)、00-design-decisions.md § T16、07-interfaces.md §1-§2 を参照。
 
-verdict JSON を `.agent/verdicts/<pr-number>.json` に emit するために、
-以下の**局所的な追加**で対応する:
+### 3.2 却下案: Option A — reviewer schema extension
 
-- `.agent/reviewer/closure_handoff_fields.json` (新規) — closure step の
-  structured output に `verdict_payload` フィールドを追加する設定。
-  `verdict_payload` の内部フィールド名は 03-data-flow.md の JSON Schema に
-  厳密一致させる: `schema_version`, `pr_number`, `base_branch`, `verdict` (値は
-  `"approved"` | `"rejected"`), `merge_method`, `delete_branch`,
-  `reviewer_summary`, `evaluated_at`, `reviewer_agent_version`, `ci_required`。
-  旧命名 (`type` 等) は使用しない。
-- workflow-impl 側 `handoff.commentTemplates.reviewerApproved` (既存) の
-  拡張で、`verdict_payload` を `.agent/verdicts/<pr>.json` にファイル 書出する
-  (書出タイミング: reviewer が `reviewer:approved` phase に 到達した時点、F4
-  相当のパス)
+- **案の内容**: `reviewer.schema.json` に `verdict_payload` を追加し、 reviewer
+  prompt が structured output に含める。 `ExternalStateVerdictAdapter`
+  を拡張して verdict JSON を write。
+- **却下理由**: §7.1 が以下 3 ファイルを untouched と指定している:
+  - `agents/common/schemas/reviewer.schema.json`
+  - `.agent/reviewer/steps_registry.json`
+  - `.agent/reviewer/agent.json`
 
-### 3.3 未決事項 (設計段階では判断しない)
+  いずれも変更が必須となり **§7.1 違反が 3 ファイル**。user 再交渉が必要な
+  選択肢のため、解決策として成立しない。また LLM 生成の不確定性が verdict 品質
+  (schema_version / evaluated_at 等の決定論的 field) に直結するリスクも ある。
 
-- **既存 reviewer prompt の変更可否**: structured output に `verdict_payload`
-  を追加するために prompt 改訂が必要かは実装時に判断。 prompt を変えずに既存
-  `completion_fields` を流用できる場合はそちらを優先。
-- **書出の実装位置**: workflow-impl のハンドラか、reviewer runner の closure
-  step か。F6 の既存パターンとの整合で決定。
+### 3.3 却下案: Option C — reviewer closure に新 handler
+
+- **案の内容**: reviewer agent 側の closure step に新規 handler を追加し、
+  verdict JSON 書出責務を reviewer runner に持たせる。
+- **却下理由**: reviewer の `.agent/reviewer/agent.json` と
+  `.agent/reviewer/steps_registry.json` に step 定義追加が必要となり、これも
+  §7.1 違反。Option A と同様 user 再交渉を要するため不採用。
+
+### 3.4 Phase 0 / 他 Phase への影響
+
+| Phase     | ArtifactEmitter 採用後の要否                                                                                                                                                                                                       |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase 0-a | **継続必要** (dispatcher の payload → runnerArgs 展開)                                                                                                                                                                             |
+| Phase 0-b | **継続必要** (AgentRunner の `${context.*}` template substitution、`context = { ...issuePayload, ...agentParameters }` 合成)                                                                                                       |
+| Phase 0-c | **継続必要** (closure subprocess runner kind)                                                                                                                                                                                      |
+| Phase 0-d | **不要化**。boundary hook re-emission は当初 reviewer closure 側で artifact を write する経路を想定していた代替機構だったが、ArtifactEmitter が dispatch 完了点で確実に artifact を write するため、Phase 0-d は再要求されない。   |
+| Phase 0-e | **新規必要**: `agents/orchestrator/schema-registry.ts` 新設 (`<name>@<semver>` 形式で artifact schema を登録・lookup)。`workflow.json.handoffs[*].emit.schemaRef` の解決に必須。未登録 schemaRef は workflow load 時に fail-fast。 |
+
+### 3.5 reviewer agent 非干渉の確認
+
+ArtifactEmitter (workflow-declarative) 採用により以下は **全て untouched**:
+
+- `.agent/reviewer/agent.json`
+- `.agent/reviewer/steps_registry.json`
+- `agents/common/schemas/reviewer.schema.json`
+- reviewer prompt (完全無変更)
+- `handoff.commentTemplates.reviewerApproved` (当初 Option A/C
+  で想定した拡張は不要)
+
+`.agent/reviewer/closure_handoff_fields.json` も新規作成しない。artifact JSON
+合成は全て orchestrator 層の ArtifactEmitter が workflow.json `handoffs[]`
+宣言に従って実施する。
+
+### 3.6 `.agent/workflow-merge.json` updates (deferred to task T5')
+
+`.agent/workflow-merge.json` への `payloadSchema` / `handoffs[]` 追加は Phase
+0-e (schemaRegistry) 実装完了後の **task T5' (workflow-merge handoffs
+declaration)** で実施する。本 PR では workflow-merge.json 自体は untouched
+のまま、本設計書で declaration の形状のみ定義 (03-data-flow.md §1.2 の
+宣言例を参照)。
 
 ## 4. テスト方針
 
@@ -523,6 +584,6 @@ workflow.json に対して非破壊で撤退可能。
 00-design-decisions.md との整合を保つため本ドキュメントで使う名称を固定する。
 
 - merger-cli: `agents/scripts/merge-pr.ts`
-- verdict-store: `.agent/verdicts/<pr-number>.json`
+- verdict-store: `tmp/climpt/orchestrator/emits/<pr-number>.json`
 - Phase: `merge-ready` / `merge-blocked` / `merged`
 - Label (with prefix): `merge:ready` / `merge:blocked` / `merge:done`

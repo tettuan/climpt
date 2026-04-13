@@ -7,6 +7,7 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  composeRunnerArgs,
   extractHandoffData,
   mapResultToOutcome,
   StubDispatcher,
@@ -304,6 +305,66 @@ Deno.test("extractHandoffData: dot-notation path uses last segment as variable k
       `Fix: check extractHandoffData key derivation in dispatcher.ts`,
   );
   assertEquals(data[expectedKey], "deep analysis content");
+});
+
+// =============================================================================
+// composeRunnerArgs: payload forwarding contract
+// =============================================================================
+
+Deno.test("composeRunnerArgs: payload keys populate runnerArgs", () => {
+  const args = composeRunnerArgs(42, {
+    payload: { customKey: "value", otherKey: 7 },
+  });
+  assertEquals(args.issue, 42);
+  assertEquals(args.customKey, "value");
+  assertEquals(args.otherKey, 7);
+});
+
+Deno.test("composeRunnerArgs: fixed keys win over payload on collision", () => {
+  const args = composeRunnerArgs(42, {
+    payload: { issue: 9999, iterateMax: 1, branch: "payload-branch" },
+    iterateMax: 5,
+    branch: "opts-branch",
+  });
+  assertEquals(
+    args.issue,
+    42,
+    "issueNumber parameter must override payload.issue",
+  );
+  assertEquals(
+    args.iterateMax,
+    5,
+    "options.iterateMax must override payload.iterateMax",
+  );
+  assertEquals(
+    args.branch,
+    "opts-branch",
+    "options.branch must override payload.branch",
+  );
+});
+
+Deno.test("composeRunnerArgs: omitted options yield a runnerArgs containing only issue", () => {
+  const args = composeRunnerArgs(42);
+  assertEquals(Object.keys(args).sort(), ["issue"]);
+  assertEquals(args.issue, 42);
+});
+
+Deno.test("composeRunnerArgs: payload undefined leaves runnerArgs unchanged", () => {
+  const args = composeRunnerArgs(42, { iterateMax: 3 });
+  assertEquals(args, { issue: 42, iterateMax: 3 });
+});
+
+Deno.test("StubDispatcher: records DispatchOptions including payload", async () => {
+  const dispatcher = new StubDispatcher({ myAgent: "success" });
+  const payload = { verdictPath: "/tmp/verdict.json", prNumber: 123 };
+
+  await dispatcher.dispatch("myAgent", 42, { payload, iterateMax: 3 });
+
+  assertEquals(dispatcher.calls.length, 1);
+  assertEquals(dispatcher.calls[0].agentId, "myAgent");
+  assertEquals(dispatcher.calls[0].issueNumber, 42);
+  assertEquals(dispatcher.calls[0].options?.payload, payload);
+  assertEquals(dispatcher.calls[0].options?.iterateMax, 3);
 });
 
 // Invariant: missing fields in structuredOutput are silently skipped

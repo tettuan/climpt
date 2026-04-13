@@ -13,7 +13,7 @@
     },
     "verdictPath": {
       "type": "string",
-      "description": "Path to verdict JSON emitted by the reviewer (.agent/verdicts/<pr>.json)",
+      "description": "Path to verdict JSON emitted by the reviewer (tmp/climpt/orchestrator/emits/<pr>.json)",
       "required": true,
       "cli": "--verdict-path"
     }

@@ -92,6 +92,8 @@ export async function loadWorkflow(
     handoff: parsed.handoff as WorkflowConfig["handoff"],
     issueStore: rawIssueStore ?? DEFAULT_ISSUE_STORE,
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
+    handoffs: parsed.handoffs as WorkflowConfig["handoffs"],
+    payloadSchema: parsed.payloadSchema as WorkflowConfig["payloadSchema"],
   };
 
   validateCrossReferences(config);

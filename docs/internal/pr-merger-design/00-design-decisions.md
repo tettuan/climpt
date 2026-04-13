@@ -2,8 +2,9 @@
 
 > 本ドキュメントは PR Merger 設計の意思決定履歴 (Amendment chain)
 > を時系列に統合したものである。各 Amendment は後続の Amendment により部分的に
-> supersede されることがあるため、**最新の T14
-> を最優先**とし、それに矛盾しない範囲で T12/T10/T8 を参照する。
+> supersede されることがあるため、**最新の T16
+> を最優先**とし、それに矛盾しない範囲で T14/T12/T10/T8 を参照する。 T15 は T16
+> により supersede 済。
 
 ## Reading order
 
@@ -13,7 +14,9 @@
 
 ## Amendment chain
 
-T8 → T10 → T12 → T14 (最新)
+T8 → T10 → T12 → T14 → T15 → T16 (最新)
+
+T15 (VerdictEmitter) は T16 (ArtifactEmitter 抽象化) により supersede 済。
 
 ## Initial design goals
 
@@ -385,7 +388,8 @@ T12 時点の agent.json (permissions は T14 で見直し):
 #### orchestrator からの起動経路 (T12 時点)
 
 1. orchestrator が `merge-ready` phase の issue を pick (per-workflow lock)
-2. issue から `pr` (整数) と `verdictPath` (`.agent/verdicts/<pr>.json`)
+2. issue から `pr` (整数) と `verdictPath`
+   (`tmp/climpt/orchestrator/emits/<pr>.json`)
    を抽出し、`AgentDefinition.parameters` に bind
 3. validator agent 既存機構で closure step 起動 → closure runner が
    `Deno.Command("deno", ["run", ..., "agents/scripts/merge-pr.ts", "--pr", pr, "--verdict", verdictPath])`
@@ -594,7 +598,7 @@ closure.runner.args 内の template 構文:
 
 - `${context.prNumber}` — issue.payload から抽出した PR 番号 (integer)
 - `${context.verdictPath}` — issue.payload から抽出した verdict JSON パス
-  (string、`.agent/verdicts/<pr>.json`)
+  (string、`tmp/climpt/orchestrator/emits/<pr>.json`)
 
 `context.*` namespace は agent runner が issue 起動時に bind する top-level
 オブジェクト。`${parameters.xxx}` ではなく `${context.xxx}` とする理由:
@@ -640,8 +644,8 @@ parameters 優先。
 
 permissions を `--allow-read --allow-run --allow-net` の 3 種に限定 (T12
 で付けていた `--allow-write --allow-env` を削除)。`merge-pr.ts` 自身は
-`.agent/verdicts/` 以下の read のみでファイル書込を行わないため `--allow-write`
-は不要 (stdout output のみ)。`--allow-env`
+`tmp/climpt/orchestrator/emits/` 以下の read のみでファイル書込を行わないため
+`--allow-write` は不要 (stdout output のみ)。`--allow-env`
 も実装時に真に必要な変数があれば個別付与。
 
 ### Done Criteria (完了時点の記録)
@@ -669,3 +673,262 @@ permissions を `--allow-read --allow-run --allow-net` の 3 種に限定 (T12
       (#1 #2 #3) を記録
 - [x] 整合性検証: `${context.prNumber}` が 06 + 05 に出現 / run-agent.ts への
       dependency が 05 に記述 / `AgentRunner` が 02/03/04 diagram に出現
+
+---
+
+## § T15 — VerdictEmitter を orchestrator 層に置く (2026-04-14、**Superseded by T16**)
+
+> **Superseded by § T16 (2026-04-14)**: reviewer 固有名を orchestrator 層に
+> 持ち込んだ層違反を T16 で ArtifactEmitter に抽象化。本節は歴史的記録として
+> 保持するが、adoption としては T16 が authoritative。
+>
+> Amendment chain: T8 → T10 → T12 → T14 → T15 → **T16 (最新)**。T15 は T14 の
+> runner-mediated flow を継承しつつ、**verdict JSON の write 主体**
+> を明示化する。Canonical source:
+> `tmp/pr-merger-integration/integration-design.md` §2 C-2 / §5.1 / §8
+> (2026-04-14)。
+
+### 背景 (Context)
+
+T14 までの設計は「orchestrator 層で verdict を導出する」(02-architecture.md
+§133) とだけ記載していたが、**導出主体 (component 名) とその interface**
+が設計書上に存在しなかった。一方 §7.1 非干渉制約により以下は untouched 必須:
+
+- `.agent/reviewer/agent.json`
+- `.agent/reviewer/steps_registry.json`
+- `agents/common/schemas/reviewer.schema.json`
+- `agents/verdict/external-state-adapter.ts`
+- `agents/common/tool-policy.ts`
+
+他方、`merge-pr.ts` は `tmp/climpt/orchestrator/emits/<pr>.json`
+ファイルを前提とする (03-data-flow.md §1, §2)。両要件を両立する解は「reviewer の
+approved outcome を orchestrator 層が受け取り、そこで verdict JSON を合成・write
+する」 ことのみ。
+
+### 決定 (Decision)
+
+`agents/orchestrator/verdict-emitter.ts` (新規) に **VerdictEmitter** クラス
+を置き、reviewer dispatch 完了直後 (`outcome === "approved"` / `"rejected"`)
+の単一呼出点で以下を実施させる:
+
+1. `gh pr view N --json baseRefName` で PR metadata を取得
+2. `.agent/reviewer/agent.json` から reviewer agent version を読取
+3. verdict JSON を合成 (schema は 03-data-flow.md §2 に準拠、
+   `schema_version=1.0.0`、`ci_required` default=true)
+4. `tmp/climpt/orchestrator/emits/<prNumber>.json` へ `writeTextFile`
+5. `issueStore.writeWorkflowPayload(issueNumber, workflowId, {prNumber,
+   verdictPath})`
+   で payload を persist
+
+interface 具体 signature は `07-interfaces.md` §1 を参照。
+
+### 採用理由 (Rationale)
+
+| 項目                          | Option A (reviewer schema 拡張) | Option B (orchestrator VerdictEmitter) | Option C (reviewer closure 新 handler) |
+| ----------------------------- | :-----------------------------: | :------------------------------------: | :------------------------------------: |
+| §7.1 違反                     |        あり (3 ファイル)        |                **なし**                |           あり (2 ファイル)            |
+| C-1/C-2/C-3 解決              |             全解決              |               **全解決**               |                 全解決                 |
+| LLM 不介在 (verdict 決定論性) |   × (LLM が schema 生成責務)    |   **○ (orchestrator が決定論合成)**    |   × (closure 内から LLM 経路が残存)    |
+| user 再交渉の要否             |               要                |                **不要**                |                   要                   |
+| 採否                          |              却下               |                **採用**                |                  却下                  |
+
+Option B を選択する根拠は §7.1 violation がゼロであること、LLM 生成の
+不確定性から verdict JSON の決定論的 field (schema_version / evaluated_at /
+reviewer_agent_version 等) を切り離せること、reviewer agent を完全 untouched
+に保てることの 3 点。
+
+### 却下案 (Alternatives considered)
+
+- **Option A (reviewer.schema.json + reviewer/steps_registry.json 拡張 +
+  ExternalStateVerdictAdapter 拡張)**: reviewer.schema.json / reviewer の
+  steps_registry.json / agent.json / external-state-adapter.ts が §7.1 の
+  forbidden file 扱いで変更禁止。user 再交渉が必要となり採用不可。
+- **Option C (reviewer closure に新 handler 追加)**: reviewer/agent.json と
+  reviewer/steps_registry.json への step 追加が必須。 §7.1 違反のため不採用。
+
+### Consequences
+
+- **reviewer agent は完全非干渉**: prompt / schema / steps_registry /
+  closure_handoff_fields すべて unchanged。user は §7.1 を破らずに本機能を
+  受け入れ可能。
+- **verdict schema 変更は orchestrator 単独で可能**: 将来 verdict schema を v1.1
+  / v2 に拡張する際、reviewer の再交渉不要で `verdict-emitter.ts` のみ
+  改修すればよい。
+- **将来 merger 以外の決定論 agent も同経路で統合可能**: 例えば releaser agent /
+  deployer agent 等、LLM 評価 → 決定論 write → deterministic subprocess の 3
+  段構造を取る他 agent についても、VerdictEmitter と同形の orchestrator 層
+  emitter を追加することで §7.1 を破らずに統合できる。
+- **05-implementation-plan.md §3 (reviewer agent 側の変更方針) を Option B
+  前提で rewrite**: `closure_handoff_fields.json` 新規作成は 不要化。Phase 0-d
+  (boundary hook re-emission) も不要化。
+- **02-architecture.md §133 (「プロンプト本体は無変更」)**: VerdictEmitter
+  の存在により意味論が完結。forward reference を追記済み。
+
+### 影響箇所 (Cross-reference)
+
+- 02-architecture.md: §VerdictEmitter — orchestrator-side verdict 導出、 §Runner
+  context composition の 2 節を新設。
+- 03-data-flow.md: §1 end-to-end sequence に VerdictEmitter を反映、 §1.1
+  Payload → RunnerArgs binding rule を新設。
+- 05-implementation-plan.md: §3 を Option B 採用 + A/C 却下理由で rewrite。
+- 07-interfaces.md (新規): TypeScript signatures を集約。
+
+### Done Criteria
+
+- [x] 02-architecture.md §VerdictEmitter 節追加
+- [x] 02-architecture.md §Runner context composition 節追加
+- [x] 02-architecture.md §133 に forward reference
+- [x] 03-data-flow.md §1.1 Payload → RunnerArgs binding rule 追加
+- [x] 03-data-flow.md sequenceDiagram に VerdictEmitter 反映
+- [x] 05-implementation-plan.md §3 を Option B 採用版に rewrite
+- [x] 00-design-decisions.md § T15 (本 Amendment) 追加
+- [x] 07-interfaces.md 新規作成 (TypeScript signatures)
+- [x] README.md に 07-interfaces.md への参照追記
+
+---
+
+## § T16 — ArtifactEmitter 抽象化 (T15 改訂、最新, 2026-04-14)
+
+> Amendment chain: T8 → T10 → T12 → T14 → T15 → **T16 (本 Amendment、最新)**。
+> T16 は T15 の `VerdictEmitter` 名称と reviewer-specific な interface を
+> `ArtifactEmitter` + `workflow.handoffs[]` 宣言に **抽象化** する。 Canonical
+> source: `tmp/pr-merger-abstraction/abstraction-design.md` (2026-04-14)。
+
+### Context
+
+T15 (VerdictEmitter) は §7.1 非干渉を達成し、reviewer agent を完全 untouched
+に保ったが、**infra 層 (orchestrator / dispatcher / runner / verdict-emitter) に
+reviewer/merger/verdict/pr の具象 agent 名および IssuePayload の固定 shape
+を持ち込んでしまった**。具体的には:
+
+- `EmitInput.reviewerOutcome: "approved" | "rejected"` — reviewer の outcome
+  enum を infra 型に literal として埋込
+- `EmitInput.reviewerSummary` / `reviewerAgentDir` — reviewer-specific field 名
+- `IssuePayload = { prNumber: number; verdictPath: string }` — PR Merger 固有
+  shape が infra 型
+- `orchestrator.ts` 内で `if (agentId === "reviewer" && outcome === "approved")`
+  の specific branch
+
+これにより「新 LLM→決定論フロー (例: security-scan → deployer)」を追加する
+たびに infra 型・orchestrator のソースを変更する必要が残り、§7.1 非干渉 精神
+(「既存の経路に specific な変更を埋め込まない」) が infra 層では
+達成されていなかった。T15 は問題領域を reviewer agent 一式から orchestrator
+一箇所へ移しただけで、抽象化自体は未達成。
+
+### Decision
+
+`VerdictEmitter` / `verdict-emitter.ts` / `EmitInput` を **`ArtifactEmitter` /
+`artifact-emitter.ts` / `ArtifactEmitInput`** に rename + 抽象化する。
+`IssuePayload` を `Readonly<Record<string, unknown>>` (type alias) に緩和し、
+workflow-specific shape は `workflow.json.payloadSchema` (Ajv) で検証する。
+handoff 挙動は `workflow.json.handoffs[]` 配列で **宣言的に表現** し、 infra は
+filter + emit の generic ロジックのみを持つ。
+
+主な型変更 (詳細は 07-interfaces.md):
+
+```typescript
+export interface ArtifactEmitInput {
+  readonly workflowId: string;
+  readonly issueNumber: number;
+  readonly sourceAgent: string; // data, not a type
+  readonly sourceOutcome: string; // data, not enum
+  readonly agentResult: Readonly<Record<string, unknown>>;
+  readonly handoff: HandoffDeclaration;
+}
+export type IssuePayload = Readonly<Record<string, unknown>>;
+```
+
+orchestrator の dispatch 完了後フローは generic loop に一元化する:
+
+```typescript
+for (
+  const h of workflow.handoffs.filter((h) =>
+    h.when.fromAgent === dispatchedAgentId &&
+    h.when.outcome === result.outcome
+  )
+) {
+  await artifactEmitter.emit({
+    workflowId,
+    issueNumber,
+    sourceAgent: dispatchedAgentId,
+    sourceOutcome: result.outcome,
+    agentResult: result.output,
+    handoff: h,
+  });
+}
+```
+
+`if (agentId === "reviewer")` 的な分岐は消滅する。
+
+### Rationale
+
+- **Infra 変更ゼロで新フロー追加**: 新 LLM→決定論フロー (security-scan,
+  releaser, deployer 等) は agent 定義追加 + `workflow.json` に `handoffs[]`
+  エントリ 1 件追加のみで完結。`ArtifactEmitter` / `orchestrator.ts` /
+  `dispatcher.ts` / `runner.ts` への変更は必要ない。
+- **§7.1 非干渉精神の completion**: T15 時点で残っていた reviewer/merger
+  など具象 agent 名の infra 混入を払拭。forbidden file リストの精神が infra
+  型にも適用される。
+- **workflow config が source of truth**: handoff behavior は workflow.json
+  データで 100% 決定され、ソースコードを読まずに挙動を review 可能。
+
+### Consequences
+
+- **名称変更**: 設計書・将来の実装コードで `VerdictEmitter` を `ArtifactEmitter`
+  に、`verdict-emitter.ts` を `artifact-emitter.ts` に 置換。
+- **型変更**: `IssuePayload` は interface から
+  `Readonly<Record<string,
+  unknown>>` type alias に変更。固定 key (`prNumber`
+  / `verdictPath`) は infra 型から消失し、workflow-merge の payloadSchema /
+  agent.json parameters にのみ存在。
+- **Phase 0-e 新設**: `agents/orchestrator/schema-registry.ts` が prerequisite
+  として必要 (`<name>@<semver>` lookup)。05-implementation-plan.md §3.4 に Phase
+  0-e 行を追加。
+- **`.agent/workflow-merge.json` 追記**: `payloadSchema` + `handoffs[]`
+  の追加が必要。本 PR では workflow-merge.json を untouched のまま、 **T5'
+  タスク** (workflow-merge handoffs declaration) として別 scope 化する。
+- **07-interfaces.md 全面改訂**: specific-name signature を排除し、generic
+  signature に rewrite。
+- **T15 の文書は残すが adoption は T16**: T15 を「Superseded by T16」 として
+  header に明記。
+
+### Alternatives considered
+
+- **名称変更のみ (`VerdictEmitter` → `ArtifactEmitter`) で contract は T15
+  維持**: `EmitInput.reviewerOutcome` / `reviewerSummary` の reviewer literal
+  は残存するため、依存方向 (infra → workflow data) の反転が 未達成。infra 側に
+  PR Merger 固有 shape が残り、新フロー追加時の infra
+  変更ゼロを満たさない。**却下**。
+- **JSONPath の代替として簡易テンプレート (`${agent.result.summary}`) 採用**:
+  記述簡潔だが、ルート (`$.`) 非記述により「lookup source 不明瞭」となり
+  extensibility に欠ける。将来 `$.github.pr.*` を `$.gitlab.mr.*` 等に
+  拡張する際の root 分岐が難しくなるため **JSONPath を採択**。
+
+### Amendment chain
+
+**T8 → T10 → T12 → T14 → T15 → T16 (最新)**
+
+### Done Criteria
+
+- [x] 02-architecture.md §VerdictEmitter を §ArtifactEmitter に書換
+      (workflow-driven artifact emission)
+- [x] 02-architecture.md §Runner context composition を generic rule に書換
+- [x] 03-data-flow.md §1.1 Payload → RunnerArgs binding rule を generic rule +
+      「PR Merger 具体実現例」に書換
+- [x] 03-data-flow.md §1.2 Handoff Declaration (workflow.json) 節新設
+- [x] 03-data-flow.md sequenceDiagram を ArtifactEmitter に書換
+- [x] 05-implementation-plan.md §3 を workflow-declarative ArtifactEmitter
+      採用版に書換、Phase 0-e 追加、§3.6 で workflow-merge.json updates (T5')
+      を明記
+- [x] 07-interfaces.md 全面改訂 (HandoffDeclaration / ArtifactEmitter / generic
+      IssuePayload / DispatchOptions / AgentRunnerRunOptions / IssueStore /
+      SchemaRegistry)
+- [x] 00-design-decisions.md § T15 を Superseded by T16 に header 更新
+- [x] 00-design-decisions.md § T16 (本 Amendment) 追加
+- [x] README.md の 07-interfaces.md 参照行を抽象化に合わせ更新、decision record
+      list に T16 行追加
+- [x] integration-design.md に「Superseded by abstraction-design.md」の banner
+      追加 (履歴として content 保持)
+- [x] 設計書 grep で infra 契約 signature に `"reviewer"` / `"merger"` /
+      `"iterator"` / `"verdict"` / `"pr"` が literal 型として出現しないこと
+      を確認

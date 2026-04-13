@@ -16,6 +16,7 @@ import type {
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
+import type { ArtifactEmitter } from "./artifact-emitter.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import {
   resolveAgent,
@@ -38,17 +39,20 @@ export class Orchestrator {
   #github: GitHubClient;
   #dispatcher: AgentDispatcher;
   #cwd: string;
+  #artifactEmitter?: ArtifactEmitter;
 
   constructor(
     config: WorkflowConfig,
     github: GitHubClient,
     dispatcher: AgentDispatcher,
     cwd?: string,
+    artifactEmitter?: ArtifactEmitter,
   ) {
     this.#config = config;
     this.#github = github;
     this.#dispatcher = dispatcher;
     this.#cwd = cwd ?? Deno.cwd();
+    this.#artifactEmitter = artifactEmitter;
   }
 
   /** Derive a stable workflow identity from config for state file isolation. */
@@ -266,6 +270,14 @@ export class Orchestrator {
       );
 
       // Step 7: Dispatch agent
+      // Load any previously-persisted workflow payload so the agent can
+      // observe prior handoff outputs via issuePayload / runnerArgs.
+      let payload;
+      if (store) {
+        // deno-lint-ignore no-await-in-loop
+        payload = await store.readWorkflowPayload(issueNumber, wfId);
+      }
+
       // deno-lint-ignore no-await-in-loop
       const dispatchResult = await this.#dispatcher.dispatch(
         agentId,
@@ -274,6 +286,7 @@ export class Orchestrator {
           verbose: options?.verbose ?? false,
           issueStorePath: store?.storePath,
           outboxPath: store?.getOutboxPath(issueNumber),
+          payload,
         },
       );
 
@@ -288,6 +301,56 @@ export class Orchestrator {
           durationMs: dispatchResult.durationMs,
         },
       );
+
+      // Step 7a: Handoff emission
+      // Filter declarative handoffs by source agent id and outcome, then
+      // let the emitter resolve payload + write artifact + optionally
+      // persist to issue store. Fail-fast on any error per design §3.2.
+      if (
+        this.#artifactEmitter && this.#config.handoffs &&
+        dispatchResult.structuredOutput
+      ) {
+        const matching = this.#config.handoffs.filter((h) =>
+          h.when.fromAgent === agentId &&
+          h.when.outcome === dispatchResult.outcome
+        );
+        for (const handoff of matching) {
+          try {
+            // deno-lint-ignore no-await-in-loop
+            const { artifactPath } = await this.#artifactEmitter.emit({
+              workflowId: wfId,
+              issueNumber,
+              sourceAgent: agentId,
+              sourceOutcome: dispatchResult.outcome,
+              agentResult: dispatchResult.structuredOutput,
+              handoff,
+            });
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Handoff "${handoff.id}" emitted → ${artifactPath}`,
+              {
+                event: "handoff_emitted",
+                issueNumber,
+                handoffId: handoff.id,
+                artifactPath,
+              },
+            );
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            // deno-lint-ignore no-await-in-loop
+            await log.error(
+              `Handoff "${handoff.id}" failed: ${msg}`,
+              {
+                event: "handoff_error",
+                issueNumber,
+                handoffId: handoff.id,
+                error: msg,
+              },
+            );
+            throw error;
+          }
+        }
+      }
 
       // Step 7b: Process outbox after agent dispatch (when store available)
       if (store) {

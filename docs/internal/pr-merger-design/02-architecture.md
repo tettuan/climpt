@@ -18,7 +18,7 @@ flowchart LR
     subgraph LLM_PATH["LLM path (非決定論)"]
         direction TB
         RA[reviewer-agent<br/>既存・非変更]
-        VS[(verdict-store<br/>.agent/verdicts/ PR .json)]
+        VS[(verdict-store<br/>tmp/climpt/orchestrator/emits/ PR .json)]
         RA -->|writes verdict JSON| VS
     end
 
@@ -78,7 +78,7 @@ flowchart LR
 | **workflow-merge orchestrator** | 新規 (既存 orchestrator の別 workflow.json)                             | `.agent/workflow-merge.json`, GitHub labels                                 | issue phase 遷移, agent runner 起動                               | `merge-ready` phase の issue を actionable phase handler で pick し、`agents/scripts/run-agent.ts` を subprocess で起動して merger agent を dispatch する (00-design-decisions.md § T14 Decision 1)。既存 orchestrator のコードを再利用 (F1, F2, F3)。                                                                                                                              | No  |
 | **agent runner**                | 既存 (`agents/scripts/run-agent.ts` + `AgentRunner` + `boundary-hooks`) | CLI args (`--issue`, `--pr`, `--verdict-path`) + `.agent/merger/agent.json` | closure step spawn                                                | `run-agent.ts` が agent.json を load、`AgentRunner` が closure step `"merge"` を dispatch、`${context.*}` template を substitute して `merge-pr.ts` を subprocess として起動。本設計は Phase 0 prerequisite (template substitution / issue.payload binding / closure subprocess kind) を要する (00-design-decisions.md § T14 Decision 2)。**LLM 非介在** (closure は prompt なし)。 | No  |
 | **merger-cli**                  | 新規 CLI (`agents/scripts/merge-pr.ts`)                                 | `--pr <number>`, verdict JSON path                                          | exit code, `merge:done`/`merge:blocked` label, verdict outcome    | verdict を読み (不在時は step -1 で `verdict-missing` → `rejected`)、`args.pr === verdict.pr_number` を照合し (step -0.5)、GitHub API で前提ゲートを評価し、全真なら `gh pr merge` を実行する。**LLM 非介在**。                                                                                                                                                                     | No  |
-| **verdict-store**               | ファイルストア                                                          | reviewer-agent の出力                                                       | `.agent/verdicts/<pr-number>.json`                                | verdict の JSON 永続化。reviewer-agent が書き、merger-cli が読む。並走安全のため per-PR ファイル分離。                                                                                                                                                                                                                                                                              | No  |
+| **verdict-store**               | ファイルストア                                                          | reviewer-agent の出力                                                       | `tmp/climpt/orchestrator/emits/<pr-number>.json`                  | verdict の JSON 永続化。reviewer-agent が書き、merger-cli が読む。並走安全のため per-PR ファイル分離。                                                                                                                                                                                                                                                                              | No  |
 | **既存 iterator**               | LLM agent (既存)                                                        | 既存 workflow-impl                                                          | 既存の通り                                                        | **非干渉**: 本設計では一切変更しない (F5)。                                                                                                                                                                                                                                                                                                                                         | Yes |
 | **既存 reviewer closure**       | closure step (既存)                                                     | 既存 workflow-impl                                                          | 既存の通り + verdict JSON と `merge:ready` ラベル (追加出力)      | reviewer-agent が承認判定したとき、orchestrator の既存 label 付与機構 (F4) を通じて `merge:ready` を付ける。プロンプト本体は無変更。                                                                                                                                                                                                                                                | Yes |
 
@@ -130,7 +130,7 @@ flowchart LR
 | `agents/common/tool-policy.ts` (`BOUNDARY_BASH_PATTERNS`, `BOUNDARY_TOOLS`) | F5 より global block なので変更すると全 agent に影響する。merger-cli は agent runner 経由の孫 subprocess として起動され、SDK tool-policy は nested subprocess 呼出に発動しない (T14 Decision 3)。F7 の `githubPrMerge` スタブも放置。                                                                               |
 | `agents/runner/boundary-hooks.ts`                                           | F6 の boundary hook は iterator/reviewer の closure step 内で `Deno.Command("gh",...)` を実行する機構。merger 用 closure step は `boundary-hooks.ts` の共通機構を通過するが、本設計では hook の挙動を拡張しない (Phase 0-b の template substitution 拡張は AgentRunner 側で行う)。                                  |
 | `agents/verdict/external-state-adapter.ts`                                  | `githubPrMerge` ハンドラ追加は F7 で未実装だが、本設計では追加しない。LLM → adapter → `gh pr merge` の経路そのものを排除するため、ハンドラが不要。                                                                                                                                                                  |
-| reviewer agent prompt / steps_registry.json                                 | プロンプト変更なし。reviewer の出力フォーマットから orchestrator 層で verdict JSON を導出するため、prompt 側の修正は不要。                                                                                                                                                                                          |
+| reviewer agent prompt / steps_registry.json                                 | プロンプト変更なし。reviewer の出力フォーマットから orchestrator 層で artifact を導出するため、prompt 側の修正は不要 (導出主体は後述 §ArtifactEmitter — workflow-driven artifact emission を参照)。                                                                                                                 |
 | iterator agent prompt / steps_registry.json                                 | 完全非干渉。iterator は merge に関与しない。                                                                                                                                                                                                                                                                        |
 | `agents/orchestrator/workflow-loader.ts`                                    | F1, F2, F3 の既存機能 (`--workflow`, `labelPrefix`, `issueStore.path`) を流用するのみ。ローダ自体の変更不要。                                                                                                                                                                                                       |
 | `agents/scripts/run-agent.ts`                                               | T14 で本設計は `run-agent.ts` に依存する方針へ変更 (workflow-merge orchestrator → run-agent.ts → merger-cli の 3 層構造)。ただし本 PR 内での直接変更は行わず、Phase 0 prerequisite (issue.payload → agent.parameters binding、closure.runner.args template substitution) として別 PR または先行コミットで拡張する。 |
@@ -140,7 +140,8 @@ flowchart LR
 
 - `agents/scripts/merge-pr.ts` (merger-cli 本体, 新規)
 - `.agent/workflow-merge.json` (workflow 定義, 新規)
-- `.agent/verdicts/<pr-number>.json` (runtime 生成, 新規ディレクトリ)
+- `tmp/climpt/orchestrator/emits/<pr-number>.json` (runtime 生成,
+  新規ディレクトリ)
 - verdict schema 定義 (TypeScript type のみ, 配置は実装計画で決定)
 
 **変更が許されるファイル** (設計ドキュメント外):
@@ -193,3 +194,181 @@ Deterministic path における失敗モードと対処を明記する。
 
 merger-cli は最小権限。ファイル書き込み権限は持たず、GitHub への書き込みは `gh`
 経由に限定。
+
+## ArtifactEmitter — workflow-driven artifact emission
+
+> **Canonical source**: `tmp/pr-merger-abstraction/abstraction-design.md` §2 /
+> §3 (2026-04-14)。00-design-decisions.md § T16 (ArtifactEmitter 抽象化) により
+> T15 (VerdictEmitter) を supersede する。infra は **具象 agent 名を一切
+> 知らず**、handoff 動作は `workflow.json` 宣言で駆動される。
+
+### Rationale
+
+- infra 層 (orchestrator / dispatcher / runner / artifact-emitter) は
+  `"reviewer"` / `"merger"` / `"iterator"` / `"verdict"` / `"pr"` いずれの
+  literal も source / 型 / enum に持たない。handoff 挙動は **workflow.json の
+  `handoffs[]` 宣言を opaque data として読む** ことで駆動される。
+- reviewer agent は §7.1 により **プロンプト・schema・handoffFields 全て
+  untouched**。したがって agent 側で artifact JSON を write する経路は
+  設計上許されない。
+- 一方 `merge-pr.ts` のような決定論 subprocess は、on-disk artifact
+  (`tmp/climpt/orchestrator/emits/<pr>.json` 等)
+  の存在を前提とする。ファイル化は必須要件。
+- 両要件を両立する解は「dispatch 完了時の outcome と、`workflow.handoffs[]`
+  の宣言を突き合わせ、該当する handoff ごとに orchestrator 層で artifact を
+  合成・write する」こと。この責務を担う単一 component が `ArtifactEmitter`
+  である (新規 orchestrator 層 module:
+  `agents/orchestrator/artifact-emitter.ts`。 旧名 `verdict-emitter.ts` を
+  rename)。
+- 将来の LLM→決定論フロー (security-scan → deployer 等) を追加する際、 infra 側
+  (`ArtifactEmitter` / `orchestrator.ts` / `dispatcher.ts` / `runner.ts`)
+  への変更はゼロとなり、agent 定義追加 + `workflow.json` の `handoffs[]`
+  エントリ追加のみで完結する (§7.1 非干渉原則の発展)。
+
+### Component diagram
+
+```mermaid
+flowchart LR
+    subgraph CFG[workflow config]
+      WF[workflow.json<br/>handoffs[]<br/>payloadSchema]
+      SR[schemaRegistry<br/>agents/orchestrator/<br/>schema-registry.ts]
+    end
+    subgraph ORC[orchestrator 層]
+      OT[orchestrator.ts<br/>dispatch 完了 hook]
+      AE[ArtifactEmitter<br/>agents/orchestrator/<br/>artifact-emitter.ts]
+      IS[issueStore<br/>workflow payload]
+    end
+    subgraph FS[ファイルシステム]
+      AF[(artifactPath<br/>handoff.emit.path)]
+    end
+    subgraph GH[GitHub]
+      PR[gh pr view<br/>lazy fetch]
+      LBL[labels]
+    end
+
+    WF -->|handoffs[] + payloadSchema| OT
+    OT -->|1. filter handoffs<br/>by fromAgent + outcome| AE
+    AE -->|2. resolve JSONPath| PR
+    AE -->|3. resolve schema| SR
+    AE -->|4. writeFile| AF
+    AE -->|5. writeWorkflowPayload<br/>(if persistPayloadTo=issueStore)| IS
+    OT -->|6. label transition| LBL
+
+    style AE fill:#dfd,stroke:#15803d
+    style OT fill:#dfd,stroke:#15803d
+    style WF fill:#fff3bf,stroke:#8a6d00
+    style SR fill:#fff3bf,stroke:#8a6d00
+```
+
+### Component contract
+
+| 項目      | 内容                                                                                                                                                                                                                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 位置      | `agents/orchestrator/artifact-emitter.ts` (新規、旧 `verdict-emitter.ts` の rename)                                                                                                                                                                       |
+| 依存      | `IssueStore`、`SchemaRegistry` (`<name>@<semver>` の lookup)、`gh pr view` (JSONPath が `$.github.pr.*` を参照する場合のみ lazy fetch)、`clock.now()`、`writeFile`                                                                                        |
+| 入力      | `ArtifactEmitInput { workflowId: string; issueNumber: number; sourceAgent: string; sourceOutcome: string; agentResult: Readonly<Record<string, unknown>>; handoff: HandoffDeclaration }`。`sourceAgent` / `sourceOutcome` は識別子文字列 (log 用途のみ)。 |
+| 出力      | `ArtifactEmitResult { payload: Readonly<Record<string, unknown>>; artifactPath: string }` を return                                                                                                                                                       |
+| 副作用    | (1) `handoff.emit.path` テンプレート展開後のパスへ artifact JSON を write。(2) `handoff.persistPayloadTo === "issueStore"` のとき `issueStore.writeWorkflowPayload(issueNumber, workflowId, payload)` で payload を persist。                             |
+| 呼出点    | dispatch 完了直後、orchestrator が `workflow.handoffs.filter(h => h.when.fromAgent === dispatchedAgentId && h.when.outcome === result.outcome)` を評価し、該当する handoff ごとに 1 回ずつ呼出。該当ゼロなら呼出しない (specific agent 分岐なし)。        |
+| LLM 介在  | なし。`payloadFrom` の JSONPath 解決と schema 検証を決定論的に実施するのみ。                                                                                                                                                                              |
+| §7.1 影響 | reviewer agent.json / steps_registry.json / reviewer.schema.json / external-state-adapter.ts / tool-policy.ts いずれも untouched。拡張は orchestrator 層に完全閉包。                                                                                      |
+
+TypeScript interface の具体 signature は `07-interfaces.md` §1-§2 を参照。
+
+### Invocation (generic)
+
+orchestrator は dispatch 結果の outcome と `workflow.handoffs[]` の宣言を
+突き合わせるだけで、**agent-specific な if-branch を持たない**。
+
+```typescript
+// after any dispatch returns
+const dispatchResult = await dispatcher.dispatch(
+  dispatchedAgentId,
+  issueNumber,
+  options,
+);
+
+const matching = workflow.handoffs.filter((h) =>
+  h.when.fromAgent === dispatchedAgentId &&
+  h.when.outcome === dispatchResult.outcome
+);
+
+for (const handoff of matching) {
+  const { payload, artifactPath } = await artifactEmitter.emit({
+    workflowId: workflow.id,
+    issueNumber,
+    sourceAgent: dispatchedAgentId, // just a string
+    sourceOutcome: dispatchResult.outcome,
+    agentResult: dispatchResult.output,
+    handoff,
+  });
+  logger.info(
+    { handoffId: handoff.id, artifactPath },
+    "handoff.emit.completed",
+  );
+}
+```
+
+`if (agentId === "reviewer")` のような分岐は存在せず、`dispatchedAgentId` は
+workflow.agents の key として単なる string。PR Merger workflow での 具体挙動は
+`.agent/workflow-merge.json` の `handoffs[]` 宣言 (§T16 / §06 参照)
+のみが決定する。
+
+### 既存 §133「プロンプト本体は無変更」との整合
+
+コンポーネント責務表 §133 行 (既存 reviewer closure) の「プロンプト本体は
+無変更」という記述は、本節 ArtifactEmitter が artifact 合成責務を workflow
+宣言駆動で引き受けることで成立する。reviewer 側に verdict_payload field
+を追加する必要はなく、`closure_handoff_fields.json` 新設も不要。
+
+## Runner context composition
+
+> **Canonical source**: `tmp/pr-merger-abstraction/abstraction-design.md` §4 /
+> §5 (2026-04-14)。`runSubprocessClosureIteration` の context 合成ルールは
+> **generic** で、特定 agent の key 名 (`prNumber` / `verdictPath` 等) を
+> 型にも合成ロジックにも含まない。
+
+### Rule
+
+AgentRunner が closure step を dispatch する際、subprocess runner
+(`${context.*}` template substitution) に渡す `context` は以下の合成で作る:
+
+```text
+context = { ...(issuePayload ?? {}), ...agentParameters }
+```
+
+- `issuePayload` の型は `Readonly<Record<string, unknown>>`。infra は key 名
+  を知らず、workflow.json の `payloadSchema` で validate された opaque data
+  として扱う。
+- **agentParameters 優先** (右側 spread): CLI 引数は user-authoritative の
+  ため、直接 `deno task agent-merge --<param> <value>` 等で上書きが可能で
+  あるべき。debugging / manual re-run を妨げない。
+- **issuePayload は base**: orchestrator が issueStore から読み出した
+  `Record<string, unknown>` を AgentRunner.run の option (`issuePayload?`)
+  として受け取り、context base に据える。
+
+> **Note (PR Merger 具体ケース)**: `.agent/workflow-merge.json` の
+> `payloadSchema` が `prNumber` / `verdictPath` を要求する場合、payload は
+> それらを key として含み、`${context.prNumber}` / `${context.verdictPath}`
+> のテンプレート展開が成立する。ただし **infra はこの key 名を知らず**、 単に
+> Record 全体を spread するだけ。
+
+### 振る舞いの分岐 (generic)
+
+| dispatcher 呼出元              | `issuePayload` 供給             | AgentRunner の挙動                                                                                                                                  |
+| ------------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 先行 handoff なしの dispatch   | `undefined` (従来挙動)          | `context = { ...agentParameters }` — 既存挙動を 100% 保つ (後方互換性)。closure が `${context.*}` を参照しないならば non-regression。               |
+| 先行 handoff あり (issueStore) | issueStore から読出した payload | `context = { ...payload, ...agentParameters }`。agent.json の closure.runner.args 中の `${context.<payloadKey>}` が payload の key から解決される。 |
+
+### §7.1 遵守
+
+`AgentRunnerRunOptions.issuePayload` は **optional** であるため、先行 handoff
+が存在しない経路は option 未指定で従来動作。本変更は `runner.ts` の
+拡張のみで、禁止対象 (tool-policy.ts / external-state-adapter.ts / worktree.ts
+等) には一切手を入れない。
+
+`issuePayload` の型が `Readonly<Record<string, unknown>>` であることにより、
+runner は特定 workflow の固有 key に依存しない (`reviewer` / `merger` /
+`verdict` / `pr` いずれの literal も持たない)。
+
+TypeScript interface の具体 signature は `07-interfaces.md` §6 を参照。

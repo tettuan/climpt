@@ -444,3 +444,65 @@ Deno.test("workflow-loader: labelPrefix is undefined when omitted", async () => 
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// =============================================================================
+// handoffs[] and payloadSchema (declarative artifact emission bindings)
+// =============================================================================
+
+Deno.test("workflow-loader: config with handoffs[] and payloadSchema loads successfully", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    cfg.payloadSchema = { $ref: "./schemas/sample-payload.json" };
+    cfg.handoffs = [
+      {
+        id: "sample-approved",
+        when: { fromAgent: "reviewer", outcome: "approved" },
+        emit: {
+          type: "verdict",
+          schemaRef: "sample-verdict@1.0.0",
+          path: "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
+        },
+        payloadFrom: {
+          prNumber: "$.github.pr.number",
+          verdict: "$.agent.result.outcome",
+          schema_version: "'1.0.0'",
+        },
+        persistPayloadTo: "issueStore",
+      },
+    ];
+    await writeFixture(dir, cfg);
+
+    const config = await loadWorkflow(dir);
+
+    assertEquals(
+      config.payloadSchema?.$ref,
+      "./schemas/sample-payload.json",
+      "payloadSchema.$ref must round-trip through the loader. " +
+        "Fix: workflow-loader populates WorkflowConfig.payloadSchema from parsed JSON.",
+    );
+    assertEquals(config.handoffs?.length, 1);
+    assertEquals(config.handoffs?.[0].id, "sample-approved");
+    assertEquals(config.handoffs?.[0].when.fromAgent, "reviewer");
+    assertEquals(config.handoffs?.[0].when.outcome, "approved");
+    assertEquals(
+      config.handoffs?.[0].emit.schemaRef,
+      "sample-verdict@1.0.0",
+    );
+    assertEquals(config.handoffs?.[0].persistPayloadTo, "issueStore");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: handoffs and payloadSchema remain undefined when omitted", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await writeFixture(dir, validConfig());
+    const config = await loadWorkflow(dir);
+    assertEquals(config.handoffs, undefined);
+    assertEquals(config.payloadSchema, undefined);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

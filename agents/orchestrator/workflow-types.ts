@@ -78,6 +78,48 @@ export interface HandoffConfig {
   commentTemplates?: Record<string, string>;
 }
 
+/**
+ * Opaque payload associated with an issue workflow.
+ *
+ * Infra layer treats this as a generic bag of values. Workflow-specific
+ * shape is enforced by `workflow.json.payloadSchema` via Ajv validation
+ * at load / emit time. Callers narrow locally when specific keys are
+ * required.
+ */
+export type IssuePayload = Readonly<Record<string, unknown>>;
+
+/**
+ * Declarative handoff entry from `workflow.json.handoffs[]`.
+ *
+ * Represents a single "when agent X emits outcome Y, emit artifact Z"
+ * binding. Infra reads this as opaque data — no field value is
+ * interpreted as a literal type by the orchestrator / dispatcher /
+ * runner / artifact-emitter layers.
+ */
+export interface HandoffDeclaration {
+  /** Workflow-unique handoff identifier (kebab-case, starts with letter) */
+  readonly id: string;
+
+  /** Trigger condition: source agent id and canonical outcome string */
+  readonly when: {
+    readonly fromAgent: string;
+    readonly outcome: string;
+  };
+
+  /** Artifact emission descriptor */
+  readonly emit: {
+    readonly type: string;
+    readonly schemaRef: string;
+    readonly path: string;
+  };
+
+  /** Payload key → JSONPath or literal expression mapping */
+  readonly payloadFrom: Readonly<Record<string, string>>;
+
+  /** Where to persist the resolved payload after emit */
+  readonly persistPayloadTo: "issueStore" | "none";
+}
+
 // === Rules ===
 
 /** Execution constraints for the orchestrator loop */
@@ -125,6 +167,21 @@ export interface WorkflowConfig {
 
   /** Prioritizer configuration */
   prioritizer?: PrioritizerConfig;
+
+  /**
+   * Declarative handoff entries. Orchestrator filters this list after
+   * each dispatch by matching {@link HandoffDeclaration.when} against
+   * the dispatched agent id and its outcome, then invokes the
+   * ArtifactEmitter for each match.
+   */
+  readonly handoffs?: ReadonlyArray<HandoffDeclaration>;
+
+  /**
+   * Reference to the JSON Schema that validates {@link IssuePayload}
+   * instances for this workflow. Resolved against the schema registry
+   * at load time.
+   */
+  readonly payloadSchema?: { readonly $ref: string };
 }
 
 /** Issue store configuration */
@@ -212,6 +269,13 @@ export interface IssueWorkflowState {
 
   /** Ordered history of phase transitions */
   history: PhaseTransitionRecord[];
+
+  /**
+   * Opaque per-workflow payload. Populated by {@link HandoffDeclaration}
+   * entries whose `persistPayloadTo` is `"issueStore"`, consumed by
+   * subsequent dispatches via `DispatchOptions.payload`.
+   */
+  readonly payload?: IssuePayload;
 }
 
 /** Record of a single phase transition */

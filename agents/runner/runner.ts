@@ -82,6 +82,17 @@ export interface RunnerOptions {
    * Production callers should omit this to use the default Deno.Command runner.
    */
   commandRunner?: CommandRunner;
+  /**
+   * Opaque per-workflow payload injected into the subprocess closure
+   * context. When present, entries are merged as the context base with
+   * `args` layered on top, so an explicit CLI arg always wins over a
+   * payload-carried value.
+   *
+   * Infra treats the shape as `Record<string, unknown>` and performs no
+   * key-level inspection; workflow-specific validation happens at the
+   * orchestrator / ArtifactEmitter boundary before this is passed down.
+   */
+  readonly issuePayload?: Readonly<Record<string, unknown>>;
 }
 
 // Re-export for backward compatibility
@@ -93,6 +104,7 @@ export class AgentRunner {
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
   private args: Record<string, unknown> = {};
+  private issuePayload: Readonly<Record<string, unknown>> | undefined;
   private agentDir = "";
 
   // Extracted module instances
@@ -192,6 +204,7 @@ export class AgentRunner {
 
     // Store args and agentDir for later use
     this.args = options.args;
+    this.issuePayload = options.issuePayload;
     this.agentDir = agentDir;
     this.commandRunner = options.commandRunner;
 
@@ -1044,9 +1057,12 @@ export class AgentRunner {
   /**
    * Execute a closure step via subprocess runner (Phase 0-c).
    *
-   * Context composition: agent parameters (this.args) are used directly.
-   * Per design, issuePayload and agentParameters currently coincide
-   * (Phase 0-a binds payload.* → CLI args → args), so a single layer suffices.
+   * Context composition: `issuePayload` forms the base, with `this.args`
+   * (agent parameters) layered on top. Entries present in both favor
+   * `args`, so an explicit CLI argument always wins over a value
+   * propagated via the workflow payload (needed for debug / manual
+   * re-runs). When `issuePayload` is undefined the behaviour is
+   * identical to spreading `this.args` alone.
    */
   private async runSubprocessClosureIteration(
     stepId: string,
@@ -1067,7 +1083,10 @@ export class AgentRunner {
       command: stepDef.runner.command,
     });
 
-    const context: Record<string, unknown> = { ...this.args };
+    const context: Record<string, unknown> = {
+      ...(this.issuePayload ?? {}),
+      ...this.args,
+    };
 
     let subprocessResult;
     try {
