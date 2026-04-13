@@ -44,6 +44,12 @@ understand implementation details.
   provenance, ADK pattern mapping, coordination-config migration, and deferred
   decisions
 
+### PR Merger
+
+- [PR Merger Design](./pr-merger-design/README.md) - Deterministic PR merger
+  design (T14). LLM評価とmerge実行の分離、runner-mediated 4層構造、Phase 0
+  prerequisites。
+
 ### Decisions
 
 - [Deferred Decisions](./deferred-decisions.md) - Investigated but intentionally
