@@ -787,13 +787,30 @@ export class AgentRunner {
         );
       }
 
-      // Determine success: only true when completion condition was met
-      const success = completedNormally;
+      // Determine success: only true when completion condition was met,
+      // no errors accumulated, and at least one LLM response was received.
+      //
+      // Guard: completedNormally alone is insufficient. A handler may report
+      // done=true even when the SDK never responded (e.g. count:iteration
+      // with maxIterations:1 fires after a single failed iteration). Require
+      // both (a) at least one LLM response and (b) no accumulated errors
+      // before declaring success. This is orthogonal to handler
+      // responsibility (iteration budget) and belongs in the runner.
+      const success = completedNormally && allErrors.length === 0 &&
+        hasLlmResponses;
       let reason: string;
       let error: string | undefined;
 
       if (completedNormally) {
-        reason = verdictDescription;
+        if (allErrors.length > 0) {
+          reason = "Completion reported but errors accumulated";
+          error = allErrors.join("; ");
+        } else if (!hasLlmResponses) {
+          reason = "Completion reported but no LLM responses received";
+          error = "No LLM responses received across all iterations";
+        } else {
+          reason = verdictDescription;
+        }
       } else {
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
