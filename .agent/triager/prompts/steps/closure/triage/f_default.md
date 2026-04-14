@@ -11,12 +11,12 @@ uvVariables:
 
 The triage target is **any open issue that does not yet carry a workflow
 label**. "Workflow labels" are derived dynamically from the downstream
-workflow JSON passed via `--workflow` ({workflow}) — specifically the union
+workflow JSON passed via `--workflow` ({uv-workflow}) — specifically the union
 of `labelMapping` keys and `prioritizer.labels`. Issues carrying unrelated
 labels such as `enhancement`, `bug`, `documentation` are still eligible for
 triage; only issues already tagged with a workflow label are skipped.
 
-The CLI passes `{limit}` as the maximum number of issues to triage in this
+The CLI passes `{uv-limit}` as the maximum number of issues to triage in this
 run. Respect it in Step 1.
 
 Execute every bash block via `bash -c '...'`. zsh (the login shell on
@@ -31,7 +31,7 @@ the downstream workflow cares about.
 ```bash
 bash -c '
 set -euo pipefail
-WORKFLOW="{workflow}"
+WORKFLOW="{uv-workflow}"
 
 if [ ! -f "$WORKFLOW" ]; then
   echo "workflow JSON not found: $WORKFLOW" >&2
@@ -59,7 +59,7 @@ get a neutral default.
 ```bash
 bash -c '
 set -euo pipefail
-WORKFLOW="{workflow}"
+WORKFLOW="{uv-workflow}"
 
 WORKFLOW_LABELS=$(jq -r "
   [ (.labelMapping // {} | keys[]),
@@ -104,8 +104,8 @@ proceed.
 ```bash
 bash -c '
 set -euo pipefail
-WORKFLOW="{workflow}"
-LIMIT={limit}
+WORKFLOW="{uv-workflow}"
+LIMIT={uv-limit}
 
 WORKFLOW_LABELS_JSON=$(jq "
   [ (.labelMapping // {} | keys[]),

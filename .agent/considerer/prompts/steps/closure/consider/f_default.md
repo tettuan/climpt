@@ -6,12 +6,12 @@ uvVariables:
   - issue
 ---
 
-# Task: Consider issue #{issue}
+# Task: Consider issue #{uv-issue}
 
 ## Step 1 — Read the issue
 
 ```bash
-gh issue view {issue} --json number,title,body,labels,author,comments
+gh issue view {uv-issue} --json number,title,body,labels,author,comments
 ```
 
 Parse:
@@ -51,16 +51,16 @@ Execute in order:
 
 ```bash
 # Post the response
-gh issue comment {issue} --body-file <path-to-your-response>
+gh issue comment {uv-issue} --body-file <path-to-your-response>
 
 # Signal completion by adding done label.
 # (The orchestrator will also strip kind:* and apply done on phase
 # transition, and will close the issue. This self-applied label is a
 # safety net in case the transition fails.)
-gh issue edit {issue} --add-label "done"
+gh issue edit {uv-issue} --add-label "done"
 ```
 
-Write the response to a scratch file under `$TMPDIR/considerer-{issue}.md`
+Write the response to a scratch file under `$TMPDIR/considerer-{uv-issue}.md`
 first, then pass it to `--body-file`. Do not embed multi-line markdown in a
 shell argument.
 
