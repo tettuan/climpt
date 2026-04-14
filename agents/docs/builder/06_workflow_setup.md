@@ -185,7 +185,7 @@ Phase 遷移                 review → complete
 ## Label Mapping
 
 `labelMapping` で定義するラベルは、two-tier label model における「Orchestrator
-ラベル」に相当する（`08_closure_output_contract.md` R3 参照）。
+ラベル」に相当する（`09_closure_output_contract.md` R3 参照）。
 
 GitHub issue label をキー、phase ID を値とする。
 
@@ -424,7 +424,9 @@ deno task orchestrator --label docs --dry-run --verbose
 ## 関連ドキュメント
 
 - [02_agent_definition.md](./02_agent_definition.md) -- Agent 定義ファイルの構造
-- [07_github_integration.md](./07_github_integration.md) -- GitHub
+- [07_flow_design.md](./07_flow_design.md) -- role 選択・cycle 意味論・flow
+  pattern
+- [08_github_integration.md](./08_github_integration.md) -- GitHub
   連携の3層アクセスモデル
-- [08_closure_output_contract.md](./08_closure_output_contract.md) -- Closure
+- [09_closure_output_contract.md](./09_closure_output_contract.md) -- Closure
   Output Contract

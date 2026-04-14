@@ -264,7 +264,7 @@ System の動作:
 
 - [02_agent_definition.md](./02_agent_definition.md) -- verdict propagation,
   `runner.integrations.github` config
-- [07_github_integration.md](./07_github_integration.md) -- 3層アクセスモデル,
+- [08_github_integration.md](./08_github_integration.md) -- 3層アクセスモデル,
   BoundaryHook 発火条件, Orchestrator/Handoff
 - [06_workflow_setup.md](./06_workflow_setup.md) -- `labelMapping`,
   `outputPhases`, phase 遷移

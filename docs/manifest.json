@@ -44,15 +44,22 @@
       "bytes": 13511
     },
     {
-      "id": "builder-07_github_integration",
-      "path": "../agents/docs/builder/07_github_integration.md",
+      "id": "builder-07_flow_design",
+      "path": "../agents/docs/builder/07_flow_design.md",
+      "category": "builder-guides",
+      "title": "Flow Design Guide",
+      "bytes": 15247
+    },
+    {
+      "id": "builder-08_github_integration",
+      "path": "../agents/docs/builder/08_github_integration.md",
       "category": "builder-guides",
       "title": "GitHub Integration Guide",
       "bytes": 16004
     },
     {
-      "id": "builder-08_closure_output_contract",
-      "path": "../agents/docs/builder/08_closure_output_contract.md",
+      "id": "builder-09_closure_output_contract",
+      "path": "../agents/docs/builder/09_closure_output_contract.md",
       "category": "builder-guides",
       "title": "Closure Output Contract",
       "bytes": 10943
