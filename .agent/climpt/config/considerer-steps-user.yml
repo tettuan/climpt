@@ -1,0 +1,9 @@
+# Breakdown Configuration for considerer-steps
+# directiveType must include all STEP_PHASE values used in steps_registry.json
+# layerType must include all c3 values used in steps_registry.json
+params:
+  two:
+    directiveType:
+      pattern: "^(closure)$"
+    layerType:
+      pattern: "^(consider)$"

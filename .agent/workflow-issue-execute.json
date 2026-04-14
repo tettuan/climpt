@@ -1,0 +1,65 @@
+{
+  "$schema": "../agents/orchestrator/workflow-schema.json",
+  "version": "1.0.0",
+  "phases": {
+    "impl-pending": {
+      "type": "actionable",
+      "priority": 1,
+      "agent": "iterator"
+    },
+    "consider-pending": {
+      "type": "actionable",
+      "priority": 2,
+      "agent": "considerer"
+    },
+    "done": {
+      "type": "terminal"
+    },
+    "blocked": {
+      "type": "blocking"
+    }
+  },
+  "labelMapping": {
+    "kind:impl": "impl-pending",
+    "kind:consider": "consider-pending",
+    "done": "done",
+    "need clearance": "blocked"
+  },
+  "agents": {
+    "iterator": {
+      "role": "transformer",
+      "directory": "iterator",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeOnComplete": true
+    },
+    "considerer": {
+      "role": "transformer",
+      "directory": "considerer",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeOnComplete": true
+    }
+  },
+  "prioritizer": {
+    "agent": "triager",
+    "labels": [
+      "order:1",
+      "order:2",
+      "order:3",
+      "order:4",
+      "order:5",
+      "order:6",
+      "order:7",
+      "order:8",
+      "order:9"
+    ]
+  },
+  "rules": {
+    "maxCycles": 2,
+    "cycleDelayMs": 30000
+  },
+  "issueStore": {
+    "path": ".agent/climpt/tmp/issues-execute"
+  }
+}

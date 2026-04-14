@@ -21,6 +21,46 @@ Changes to the runner should be validated against these configurations.
 | reviewer    | Code review and verification         |
 | facilitator | Project monitoring and coordination  |
 | climpt      | MCP command registry and prompts     |
+| triager     | Classify unlabeled issues (kind:* + order:N) |
+| considerer  | Respond to kind:consider issues and close them |
+| merger      | Deterministic PR merge closure       |
+
+## Issue handling flow (triage → execute)
+
+Two-stage pipeline for GitHub Issues:
+
+1. **Triage** (standalone agent, bypasses orchestrator):
+
+   ```bash
+   deno task agent --agent triager
+   # or with explicit downstream workflow:
+   deno task agent --agent triager --workflow .agent/workflow-issue-execute.json
+   ```
+
+   Triager reads the downstream workflow JSON (default
+   `.agent/workflow-issue-execute.json`) to derive the **workflow label
+   set** dynamically from `labelMapping` keys + `prioritizer.labels`. It
+   bootstraps any missing labels in the repo, then scans all open issues
+   that carry **none** of the workflow labels (issues with only unrelated
+   tags like `enhancement` remain eligible), classifies each as `kind:impl`
+   or `kind:consider`, and assigns a unique `order:N` (N = 1..9, lowest
+   unused) work-order label.
+
+2. **Execute** (orchestrator workflow):
+
+   ```bash
+   deno task orchestrator --workflow .agent/workflow-issue-execute.json
+   ```
+
+   Picks up labeled issues in `order:N` ascending order. Routes
+   `kind:impl` → iterator (transformer), `kind:consider` → considerer
+   (transformer, closes the issue after responding). Transitions to
+   `done` (terminal) or `blocked` (blocking) phase on completion.
+
+   Single-issue mode: append `--issue <N>` to target one issue.
+
+Labels required in repo: `kind:impl`, `kind:consider`,
+`order:1` .. `order:9`, `done`, `need clearance`.
 
 ## Operating contexts
 

@@ -1,0 +1,26 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "considerer",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "consider"
+  },
+  "steps": {
+    "consider": {
+      "stepId": "consider",
+      "name": "Consider Implementation Request",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "default",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: read issue, research, post response, apply done label, close."
+    }
+  }
+}
