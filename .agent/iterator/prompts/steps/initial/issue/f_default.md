@@ -33,6 +33,18 @@ DO NOT perform work outside implementation:
 
 {issue_content} {cross_repo_note}
 
+## Specification Source Priority
+
+Before anything else, decide which input is the **authoritative spec**:
+
+- Run `gh issue view {uv-issue} --json labels,comments` once.
+- If labels contain `kind:detail`, **OR** any issue comment body starts with
+  `## Implementation Spec`, this issue came through the detailer stage.
+  The **latest `## Implementation Spec` comment** is the spec. Earlier
+  considerer comments are background only; on conflict, follow the
+  detailer comment.
+- Otherwise, the **issue body** is the spec (direct `kind:impl` path).
+
 ## Context Reference Rule
 
 **IMPORTANT**: If the issue body contains a "詳細コンテキスト" (Detailed

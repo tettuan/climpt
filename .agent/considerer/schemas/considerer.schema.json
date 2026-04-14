@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "considerer.schema.json",
+  "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json).",
+
+  "closure.consider": {
+    "type": "object",
+    "description": "Consider closure response — answer the issue and emit a verdict that routes phase transition.",
+    "required": ["stepId", "status", "summary", "next_action", "verdict"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "consider"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["completed", "failed"]
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line human-readable summary of what was answered."
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "Closure intent. Always 'closing' for single-iteration considerer."
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["done", "handoff-detail"],
+        "description": "Verdict propagated to orchestrator. 'done' = answer-only completion (no code change) or implementation-unnecessary or abstract-only recommendation. 'handoff-detail' = implementation should be done AND at least one concrete anchor (file, symbol, or strategy) can be named."
+      },
+      "final_summary": {
+        "type": "string",
+        "description": "One-paragraph recap including verdict rationale. Handed off to downstream phase on 'handoff-detail'."
+      },
+      "handoff_anchor": {
+        "type": "object",
+        "description": "Concrete anchor that justifies 'handoff-detail'. At least one field MUST be a non-empty string when verdict='handoff-detail'. All MAY be null when verdict='done'.",
+        "properties": {
+          "file": {
+            "type": ["string", "null"],
+            "description": "Target file path to change."
+          },
+          "symbol": {
+            "type": ["string", "null"],
+            "description": "Function / type / symbol to modify or add."
+          },
+          "strategy": {
+            "type": ["string", "null"],
+            "description": "Specific modification approach (not abstract)."
+          }
+        }
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": { "verdict": { "const": "handoff-detail" } },
+          "required": ["verdict"]
+        },
+        "then": {
+          "required": ["handoff_anchor", "final_summary"],
+          "properties": {
+            "handoff_anchor": {
+              "anyOf": [
+                { "properties": { "file": { "type": "string", "minLength": 1 } }, "required": ["file"] },
+                { "properties": { "symbol": { "type": "string", "minLength": 1 } }, "required": ["symbol"] },
+                { "properties": { "strategy": { "type": "string", "minLength": 1 } }, "required": ["strategy"] }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

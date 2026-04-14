@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "detailer.schema.json",
+  "description": "Detailer agent step schemas. Closure emits verdict in {handoff-impl, blocked} for outputPhases routing (workflow.json).",
+
+  "closure.detail": {
+    "type": "object",
+    "description": "Detail closure response — convert a considerer comment into an Implementation Spec comment and emit a verdict that routes phase transition.",
+    "required": ["stepId", "status", "summary", "next_action", "verdict", "closure_action", "detail_summary"],
+    "properties": {
+      "stepId": {
+        "type": "string",
+        "const": "detail"
+      },
+      "status": {
+        "type": "string",
+        "enum": ["completed", "failed"]
+      },
+      "summary": {
+        "type": "string",
+        "description": "One-line human-readable summary of what was specified."
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "Closure intent. Always 'closing' for single-iteration detailer."
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["handoff-impl", "blocked"],
+        "description": "Verdict propagated to orchestrator. 'handoff-impl' = all five spec sections filled (Summary / Changes / Approach / Acceptance Criteria / Test Plan). 'blocked' = specification not possible (missing considerer input, untargetable files, unmet preconditions, etc.)."
+      },
+      "closure_action": {
+        "type": "string",
+        "enum": ["label-only"],
+        "default": "label-only",
+        "description": "Detailer never closes issues itself. Label operations are deferred to the orchestrator via workflow.json labelMapping."
+      },
+      "issue": {
+        "type": "object",
+        "description": "GitHub Issue label mutations. Detailer leaves this empty — orchestrator handles phase-driven labelling.",
+        "properties": {
+          "labels": {
+            "type": "object",
+            "properties": {
+              "add": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "remove": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "detail_summary": {
+        "type": "string",
+        "description": "One-paragraph recap of the Implementation Spec. Handed off to downstream (iterator) phase on 'handoff-impl'. Required for both verdicts (empty-but-present is not acceptable)."
+      },
+      "spec_comment_url": {
+        "type": ["string", "null"],
+        "description": "URL of the posted Implementation Spec comment on the GitHub issue. Null when verdict='blocked' and no comment was posted."
+      },
+      "blocked_reason": {
+        "type": ["string", "null"],
+        "description": "Human-readable reason when verdict='blocked'. Null when verdict='handoff-impl'."
+      }
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": { "verdict": { "const": "handoff-impl" } },
+          "required": ["verdict"]
+        },
+        "then": {
+          "required": ["spec_comment_url"],
+          "properties": {
+            "spec_comment_url": { "type": "string", "minLength": 1 },
+            "detail_summary": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      {
+        "if": {
+          "properties": { "verdict": { "const": "blocked" } },
+          "required": ["verdict"]
+        },
+        "then": {
+          "required": ["blocked_reason"],
+          "properties": {
+            "blocked_reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    ]
+  }
+}

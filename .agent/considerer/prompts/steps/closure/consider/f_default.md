@@ -1,7 +1,7 @@
 ---
 stepId: consider
 name: Consider Implementation Request
-description: Single-iteration — read, research, respond, close.
+description: Single-iteration — read, research, respond, emit verdict, close.
 uvVariables:
   - issue
 ---
@@ -40,12 +40,32 @@ Required sections:
 Write in Japanese to match the issue language. Cite file paths with
 `path:line` format.
 
-## Step 4 — Post response + signal completion
+## Step 4 — Judge the verdict
+
+Before posting, decide `verdict` using the criteria in the system prompt.
+
+Emit `handoff-detail` only when **both** hold:
+1. You conclude that implementation **should** be done.
+2. You can name **at least one** concrete anchor:
+   - target file path (e.g., `agents/orchestrator/dispatcher.ts`)
+   - function / type / symbol (e.g., `mapResultToOutcome`)
+   - modification strategy (specific approach, not "refactor" or "improve")
+
+Otherwise emit `done`. This includes:
+- Question fully answered, no implementation needed.
+- Not a bug / expected behavior / won't-fix / infeasible / duplicate.
+- Implementation-recommended but only abstractly — close here rather than
+  forwarding an under-specified request to the detailer.
+
+Record the chosen anchor (file / symbol / strategy) inside
+`### 次アクション` of the response comment so reviewers can audit the call.
+
+## Step 5 — Post response + signal completion
 
 Considerer's responsibility ends at posting the response and signaling
 completion. **Do NOT run `gh issue close`** — the orchestrator closes the
-issue via `closeOnComplete: true` on phase transition to `done`. Doing it
-yourself causes a double-close error.
+issue based on phase transition. Doing it yourself causes a double-close
+error.
 
 Execute in order:
 
@@ -55,8 +75,7 @@ gh issue comment {uv-issue} --body-file <path-to-your-response>
 
 # Signal completion by adding done label.
 # (The orchestrator will also strip kind:* and apply done on phase
-# transition, and will close the issue. This self-applied label is a
-# safety net in case the transition fails.)
+# transition. This self-applied label is a safety net.)
 gh issue edit {uv-issue} --add-label "done"
 ```
 
@@ -64,12 +83,41 @@ Write the response to a scratch file under `$TMPDIR/considerer-{uv-issue}.md`
 first, then pass it to `--body-file`. Do not embed multi-line markdown in a
 shell argument.
 
-## Step 5 — Final status
+## Step 6 — Emit structured output
+
+Return a JSON object matching `closure.consider` in
+`schemas/considerer.schema.json`:
+
+```json
+{
+  "stepId": "consider",
+  "status": "completed",
+  "summary": "<one-line summary of what was answered>",
+  "next_action": { "action": "closing" },
+  "verdict": "done",
+  "final_summary": "<one-paragraph recap incl. verdict rationale>",
+  "handoff_anchor": {
+    "file": null,
+    "symbol": null,
+    "strategy": null
+  }
+}
+```
+
+Rules:
+- `verdict` MUST be `"done"` or `"handoff-detail"`.
+- For `verdict: "handoff-detail"`, at least one of
+  `handoff_anchor.file`, `handoff_anchor.symbol`, `handoff_anchor.strategy`
+  MUST be a non-empty string. All three may be filled.
+- For `verdict: "done"`, `handoff_anchor` fields MAY all be `null`.
+- `next_action.action` is always `"closing"` (single-iteration closure).
+
+## Step 7 — Final status
 
 Output a single-line summary:
 
 ```
-considerer: done #<N> (kind:consider → done, awaiting orchestrator close)
+considerer: <verdict> #<N> (kind:consider → <verdict>, awaiting orchestrator transition)
 ```
 
 On failure at any step, stop and report which step failed with the full

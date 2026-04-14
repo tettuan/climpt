@@ -7,9 +7,14 @@
       "priority": 1,
       "agent": "iterator"
     },
-    "consider-pending": {
+    "detail-pending": {
       "type": "actionable",
       "priority": 2,
+      "agent": "detailer"
+    },
+    "consider-pending": {
+      "type": "actionable",
+      "priority": 3,
       "agent": "considerer"
     },
     "done": {
@@ -21,6 +26,7 @@
   },
   "labelMapping": {
     "kind:impl": "impl-pending",
+    "kind:detail": "detail-pending",
     "kind:consider": "consider-pending",
     "done": "done",
     "need clearance": "blocked"
@@ -34,11 +40,29 @@
       "closeOnComplete": true
     },
     "considerer": {
-      "role": "transformer",
+      "role": "validator",
       "directory": "considerer",
-      "outputPhase": "done",
-      "fallbackPhase": "blocked",
-      "closeOnComplete": true
+      "outputPhases": {
+        "done": "done",
+        "handoff-detail": "detail-pending"
+      },
+      "closeOnComplete": true,
+      "closeCondition": "done"
+    },
+    "detailer": {
+      "role": "validator",
+      "directory": "detailer",
+      "outputPhases": {
+        "handoff-impl": "impl-pending",
+        "blocked": "blocked"
+      },
+      "closeOnComplete": false
+    }
+  },
+  "handoff": {
+    "commentTemplates": {
+      "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
+      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}"
     }
   },
   "prioritizer": {

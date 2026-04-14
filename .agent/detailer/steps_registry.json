@@ -1,29 +1,29 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
-  "agentId": "considerer",
-  "version": "1.1.0",
+  "agentId": "detailer",
+  "version": "1.0.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "consider"
+    "count:iteration": "detail"
   },
   "steps": {
-    "consider": {
-      "stepId": "consider",
-      "name": "Consider Implementation Request",
+    "detail": {
+      "stepId": "detail",
+      "name": "Detail Implementation Spec",
       "stepKind": "closure",
       "c2": "closure",
-      "c3": "consider",
+      "c3": "detail",
       "edition": "default",
       "uvVariables": [
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue, research, post response, emit verdict (done | handoff-detail), apply done label.",
+      "description": "Single-iteration closure: read issue body + considerer comment, compose Implementation Spec (Summary / Changes / Approach / Acceptance Criteria / Test Plan), post spec comment, emit verdict (handoff-impl | blocked). No code changes, no issue close.",
       "outputSchemaRef": {
-        "file": "considerer.schema.json",
-        "schema": "closure.consider"
+        "file": "detailer.schema.json",
+        "schema": "closure.detail"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -35,8 +35,9 @@
         "fallbackIntent": "closing",
         "handoffFields": [
           "verdict",
-          "final_summary",
-          "handoff_anchor"
+          "detail_summary",
+          "spec_comment_url",
+          "blocked_reason"
         ]
       },
       "transitions": {
@@ -44,7 +45,7 @@
           "target": null
         },
         "repeat": {
-          "target": "consider"
+          "target": "detail"
         }
       }
     }

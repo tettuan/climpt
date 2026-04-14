@@ -6,8 +6,15 @@
  */
 
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
-import { join } from "@std/path";
+import { fromFileUrl, join } from "@std/path";
 import { loadWorkflow } from "./workflow-loader.ts";
+
+/**
+ * Absolute path to the repository root. Used to integration-test the real
+ * `.agent/workflow.json` as the source of truth for the three-stage
+ * consider -> detail -> impl pipeline.
+ */
+const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 
 /** Minimal valid workflow config for test fixtures */
 function validConfig(): Record<string, unknown> {
@@ -506,3 +513,110 @@ Deno.test("workflow-loader: handoffs and payloadSchema remain undefined when omi
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// =============================================================================
+// Integration: three-stage pipeline (consider -> detail -> impl) from the
+// real .agent/workflow.json. Confirms the loader accepts the new detailer
+// agent, detail-pending phase, kind:detail label, and handoff comment
+// templates without any additional schema changes.
+// =============================================================================
+
+Deno.test(
+  "workflow-loader: real .agent/workflow.json exposes the three-stage pipeline",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+
+    // Phase: detail-pending must exist as actionable and point to detailer.
+    const detailPhase = config.phases["detail-pending"];
+    assertEquals(
+      detailPhase?.type,
+      "actionable",
+      "detail-pending phase must be declared as actionable. " +
+        "Fix: .agent/workflow.json phases['detail-pending'].type = 'actionable'.",
+    );
+    assertEquals(
+      detailPhase?.agent,
+      "detailer",
+      "detail-pending phase must dispatch the detailer agent. " +
+        "Fix: .agent/workflow.json phases['detail-pending'].agent = 'detailer'.",
+    );
+
+    // Agent: detailer must be a validator routing handoff-impl and blocked.
+    const detailer = config.agents["detailer"];
+    assertEquals(
+      detailer?.role,
+      "validator",
+      "detailer must be declared as role=validator so verdicts drive routing. " +
+        "Fix: .agent/workflow.json agents.detailer.role = 'validator'.",
+    );
+    if (detailer.role === "validator") {
+      assertEquals(
+        detailer.outputPhases["handoff-impl"],
+        "impl-pending",
+        "detailer handoff-impl verdict must route to impl-pending. " +
+          "Fix: .agent/workflow.json agents.detailer.outputPhases['handoff-impl'].",
+      );
+      assertEquals(
+        detailer.outputPhases["blocked"],
+        "blocked",
+        "detailer blocked verdict must route to the blocked phase. " +
+          "Fix: .agent/workflow.json agents.detailer.outputPhases['blocked'].",
+      );
+    }
+
+    // Agent: considerer must expose the handoff-detail verdict now that it
+    // has been promoted from transformer to validator.
+    const considerer = config.agents["considerer"];
+    assertEquals(
+      considerer?.role,
+      "validator",
+      "considerer must be declared as role=validator to emit verdicts. " +
+        "Fix: .agent/workflow.json agents.considerer.role = 'validator'.",
+    );
+    if (considerer.role === "validator") {
+      assertEquals(
+        considerer.outputPhases["handoff-detail"],
+        "detail-pending",
+        "considerer handoff-detail verdict must route to detail-pending. " +
+          "Fix: .agent/workflow.json agents.considerer.outputPhases['handoff-detail'].",
+      );
+      assertEquals(
+        considerer.outputPhases["done"],
+        "done",
+        "considerer done verdict must route to the done phase. " +
+          "Fix: .agent/workflow.json agents.considerer.outputPhases['done'].",
+      );
+    }
+
+    // labelMapping: kind:detail -> detail-pending is required so triager
+    // output routes to the new phase.
+    assertEquals(
+      config.labelMapping["kind:detail"],
+      "detail-pending",
+      "kind:detail label must map to detail-pending phase. " +
+        "Fix: .agent/workflow.json labelMapping['kind:detail'] = 'detail-pending'.",
+    );
+
+    // Handoff comment templates for both handoff legs must be present.
+    const templates = config.handoff?.commentTemplates ?? {};
+    const templateNames = ["considererHandoffDetail", "detailerHandoffImpl"];
+    for (const name of templateNames) {
+      const template = templates[name];
+      assertEquals(
+        typeof template,
+        "string",
+        `handoff.commentTemplates['${name}'] must be defined as a string. ` +
+          `Fix: add the ${name} template in .agent/workflow.json.`,
+      );
+      if (typeof template === "string") {
+        // Non-vacuity: template must be non-empty to carry a real message.
+        assertEquals(
+          template.length > 0,
+          true,
+          `handoff.commentTemplates['${name}'] must not be empty. ` +
+            `Fix: provide a meaningful body for ${name}.`,
+        );
+      }
+    }
+  },
+);
