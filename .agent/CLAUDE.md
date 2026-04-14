@@ -34,11 +34,11 @@ Two-stage pipeline for GitHub Issues:
    ```bash
    deno task agent --agent triager
    # or with explicit downstream workflow:
-   deno task agent --agent triager --workflow .agent/workflow-issue-execute.json
+   deno task agent --agent triager --workflow .agent/workflow.json
    ```
 
    Triager reads the downstream workflow JSON (default
-   `.agent/workflow-issue-execute.json`) to derive the **workflow label
+   `.agent/workflow.json`) to derive the **workflow label
    set** dynamically from `labelMapping` keys + `prioritizer.labels`. It
    bootstraps any missing labels in the repo, then scans all open issues
    that carry **none** of the workflow labels (issues with only unrelated
@@ -49,7 +49,9 @@ Two-stage pipeline for GitHub Issues:
 2. **Execute** (orchestrator workflow):
 
    ```bash
-   deno task orchestrator --workflow .agent/workflow-issue-execute.json
+   deno task orchestrator
+   # or with explicit workflow path:
+   deno task orchestrator --workflow .agent/workflow.json
    ```
 
    Picks up labeled issues in `order:N` ascending order. Routes

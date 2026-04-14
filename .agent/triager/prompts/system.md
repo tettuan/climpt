@@ -6,7 +6,7 @@ order.
 
 "Not yet triaged" means the issue carries **none** of the labels used by
 the downstream workflow JSON (`--workflow`, default
-`.agent/workflow-issue-execute.json`). Issues carrying only unrelated tags
+`.agent/workflow.json`). Issues carrying only unrelated tags
 such as `enhancement`, `bug`, `documentation` are still eligible for
 triage — those labels have no workflow meaning. Only presence of a
 workflow label (kind:*, order:*, done, need clearance) marks an issue as

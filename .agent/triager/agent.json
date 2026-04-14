@@ -16,7 +16,7 @@
       "type": "string",
       "description": "Path to the downstream workflow JSON used to derive the label taxonomy (labelMapping keys + prioritizer.labels). Issues already carrying any of these labels are considered already-triaged and skipped.",
       "required": false,
-      "default": ".agent/workflow-issue-execute.json",
+      "default": ".agent/workflow.json",
       "cli": "--workflow"
     }
   },
