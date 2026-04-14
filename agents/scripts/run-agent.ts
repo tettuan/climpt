@@ -516,12 +516,19 @@ async function main(): Promise<void> {
     // Build args for the runner
     const runnerArgs: Record<string, unknown> = {};
 
-    // Map CLI args to runner args based on definition parameters
+    // Map CLI args to runner args based on definition parameters.
+    // Precedence: explicit CLI arg > parameter.default (from agent.json).
+    // Without default-fallback, optional UV variables declared in
+    // steps_registry.json fail prompt resolution even though agent.json
+    // declares a default value.
     if (definition.parameters) {
-      for (const key of Object.keys(definition.parameters)) {
+      for (
+        const [key, param] of Object.entries(definition.parameters)
+      ) {
         // Convert camelCase to kebab-case for CLI arg lookup
         const kebabKey = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-        const value = args[kebabKey] ?? args[key];
+        const cliValue = args[kebabKey] ?? args[key];
+        const value = cliValue ?? param.default;
         if (value !== undefined) {
           runnerArgs[key] = value;
         }

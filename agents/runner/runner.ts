@@ -321,6 +321,12 @@ export class AgentRunner {
       while (true) {
         iteration++;
 
+        // Propagate iteration to verdict handler so handlers like
+        // IterationBudgetVerdictHandler can evaluate isFinished() against the
+        // current iteration. Without this, count:iteration handlers remain at
+        // their initial 0 value and never report completion.
+        ctx.verdictHandler.setCurrentIteration?.(iteration);
+
         // Emit iterationStart event
         // deno-lint-ignore no-await-in-loop
         await this.eventEmitter.emit("iterationStart", { iteration });

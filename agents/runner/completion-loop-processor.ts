@@ -248,6 +248,10 @@ export class CompletionLoopProcessor {
   }> {
     ctx.logger.info("[CompletionLoop] Iteration enter", { stepId, iteration });
 
+    // Propagate iteration to verdict handler (same rationale as Flow Loop entry
+    // in runner.ts: count:iteration handlers rely on this for isFinished()).
+    ctx.verdictHandler.setCurrentIteration?.(iteration);
+
     const lastSummary = summaries.length > 0
       ? summaries[summaries.length - 1]
       : undefined;

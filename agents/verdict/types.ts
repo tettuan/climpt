@@ -132,6 +132,14 @@ export interface VerdictHandler {
   setCurrentSummary?(summary: IterationSummary): void;
 
   /**
+   * Optional: called by runner at each iteration entry to propagate the
+   * current iteration number to handlers that need it (e.g.
+   * IterationBudgetVerdictHandler uses it for maxIterations comparison).
+   * Handlers that don't care may omit this method.
+   */
+  setCurrentIteration?(iteration: number): void;
+
+  /**
    * Supply base UV variables (CLI args + runtime) for prompt resolution.
    * Called by runner before buildInitialPrompt() / buildContinuationPrompt().
    * Handler-specific UV variables take precedence over these base values.
