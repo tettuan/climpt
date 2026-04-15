@@ -17,6 +17,7 @@ export class IterationBudgetVerdictHandler extends BaseVerdictHandler {
   private uvVariables: Record<string, string> = {};
   private readonly stepIds: VerdictStepIds;
   private lastSummary?: IterationSummary;
+  #lastVerdict?: string;
 
   constructor(
     private readonly maxIterations: number,
@@ -144,7 +145,35 @@ Work efficiently to complete your goal.
     return Promise.resolve(this.currentIteration >= this.maxIterations);
   }
 
+  /**
+   * Handle boundary hook for closure steps.
+   *
+   * Extracts `verdict` from the closure step's structured output so that
+   * `getLastVerdict()` can return it. Mirrors the pattern established by
+   * {@link StepMachineVerdictHandler} and {@link ExternalStateAdapter}.
+   *
+   * Required because the closure-signal path in `completion-loop-processor`
+   * does not populate `lastSummary`, so verdict extraction via
+   * `lastSummary.structuredOutput` alone misses closure-only verdicts.
+   */
+  onBoundaryHook(payload: {
+    stepId: string;
+    stepKind: "closure";
+    structuredOutput?: Record<string, unknown>;
+  }): Promise<void> {
+    if (payload.structuredOutput) {
+      const rawVerdict = payload.structuredOutput.verdict;
+      if (typeof rawVerdict === "string" && rawVerdict.length > 0) {
+        this.#lastVerdict = rawVerdict;
+      }
+    }
+    return Promise.resolve();
+  }
+
   override getLastVerdict(): string | undefined {
+    if (this.#lastVerdict !== undefined) {
+      return this.#lastVerdict;
+    }
     const rawVerdict = this.lastSummary?.structuredOutput?.verdict;
     if (typeof rawVerdict === "string" && rawVerdict.length > 0) {
       return rawVerdict;
