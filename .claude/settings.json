@@ -83,6 +83,7 @@
       "Skill(implement-logger)",
       "Skill(local-ci)",
       "Skill(loop)",
+      "Skill(option-scoring)",
       "Skill(refactoring)",
       "Skill(release-procedure)",
       "Skill(schedule)",
