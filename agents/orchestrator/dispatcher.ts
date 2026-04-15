@@ -6,17 +6,51 @@
  * invokes AgentRunner in-process.
  */
 
-import type { IssuePayload, WorkflowConfig } from "./workflow-types.ts";
-import type { RateLimitInfo } from "../src_common/types/runtime.ts";
+import type {
+  AgentDefinition,
+  IssuePayload,
+  WorkflowConfig,
+} from "./workflow-types.ts";
+import type {
+  AgentResult,
+  RateLimitInfo,
+} from "../src_common/types/runtime.ts";
 import { AgentRunner } from "../runner/runner.ts";
 import { loadConfiguration } from "../config/mod.ts";
 import { getValueAtPath } from "../runner/step-gate-interpreter.ts";
 
-/** Map AgentResult to DispatchOutcome.outcome string. Prefers verdict over binary. */
-export function mapResultToOutcome(
-  result: { success: boolean; verdict?: string },
+/**
+ * Resolve a DispatchOutcome.outcome string from an AgentResult, honoring the
+ * agent's declared role.
+ *
+ * - `transformer`: outcome is binary. `success=true` → "success",
+ *   `success=false` → "failed". Any `verdict` on the result is ignored because
+ *   transformers do not contribute to verdict-based routing.
+ * - `validator`: outcome is the result's `verdict`. Absence of `verdict` is a
+ *   programmer/config error — validators must always emit one — so we throw
+ *   rather than fall back to a binary outcome.
+ */
+export function resolveOutcome(
+  agent: AgentDefinition,
+  result: AgentResult,
 ): string {
-  return result.verdict ?? (result.success ? "success" : "failed");
+  switch (agent.role) {
+    case "transformer":
+      return result.success ? "success" : "failed";
+    case "validator":
+      if (!result.verdict) {
+        throw new Error(
+          `Validator agent "${
+            agent.directory ?? "(unknown)"
+          }" must return a verdict`,
+        );
+      }
+      return result.verdict;
+    default: {
+      const _exhaust: never = agent;
+      throw new Error(`Unknown agent role: ${JSON.stringify(_exhaust)}`);
+    }
+  }
 }
 
 /**
@@ -213,7 +247,12 @@ export class RunnerDispatcher implements AgentDispatcher {
     const startMs = performance.now();
 
     const agent = this.#config.agents[agentId];
-    const agentName = agent?.directory ?? agentId;
+    if (!agent) {
+      throw new Error(
+        `Unknown agent id "${agentId}": not declared in workflow.agents`,
+      );
+    }
+    const agentName = agent.directory ?? agentId;
 
     const definition = await loadConfiguration(agentName, this.#cwd);
 
@@ -251,7 +290,7 @@ export class RunnerDispatcher implements AgentDispatcher {
     const structuredOutput = lastSummary?.structuredOutput;
 
     return {
-      outcome: mapResultToOutcome(result),
+      outcome: resolveOutcome(agent, result),
       durationMs,
       rateLimitInfo: result.rateLimitInfo,
       handoffData,

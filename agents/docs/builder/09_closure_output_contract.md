@@ -211,7 +211,7 @@ System の動作:
 5. gh issue edit --add-label reviewed --remove-label needs-review
 6. gh issue close
 7. AgentResult.verdict = "approved"
-8. Orchestrator: mapResultToOutcome → "approved"
+8. Orchestrator: resolveOutcome(validator, result) → "approved"
 9. computeTransition(agent, "approved") → outputPhases["approved"]
 ```
 
@@ -255,7 +255,7 @@ System の動作:
 | BoundaryHook dispatcher     | `agents/runner/boundary-hooks.ts`            | Structure            |
 | ExternalStateVerdictAdapter | `agents/verdict/external-state-adapter.ts`   | Rules (R1, R2, R4)   |
 | CompletionLoopProcessor     | `agents/runner/completion-loop-processor.ts` | Structure (発火条件) |
-| mapResultToOutcome          | `agents/orchestrator/dispatcher.ts`          | Rules (R4)           |
+| resolveOutcome              | `agents/orchestrator/dispatcher.ts`          | Rules (R4)           |
 | computeTransition           | `agents/orchestrator/phase-transition.ts`    | Rules (R3)           |
 | computeLabelChanges         | `agents/orchestrator/phase-transition.ts`    | Rules (R3)           |
 | Issue closure schema        | `.agent/*/schemas/issue.schema.json`         | Structure            |

@@ -46,6 +46,7 @@
         "done": "done",
         "handoff-detail": "detail-pending"
       },
+      "fallbackPhase": "blocked",
       "closeOnComplete": true,
       "closeCondition": "done"
     },
@@ -56,6 +57,7 @@
         "handoff-impl": "impl-pending",
         "blocked": "blocked"
       },
+      "fallbackPhase": "blocked",
       "closeOnComplete": false
     }
   },
