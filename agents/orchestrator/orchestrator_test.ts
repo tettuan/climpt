@@ -1308,7 +1308,11 @@ Deno.test("run with store restores cycle count from persisted state", async () =
       meta: {
         number: 1,
         title: "Test",
-        labels: ["ready"],
+        // Labels must map to the persisted phase ("revision") so the
+        // staleness reset does NOT fire: `from-reviewer` -> `revision`
+        // per createTestConfig.labelMapping. A divergence here would
+        // correctly reset history (see the dedicated regression test).
+        labels: ["from-reviewer"],
         state: "open",
         assignees: [],
         milestone: null,
@@ -1352,10 +1356,385 @@ Deno.test("run with store restores cycle count from persisted state", async () =
     assertEquals(result.cycleCount, 3);
     assertEquals(result.status, "cycle_exceeded");
     assertEquals(result.history.length, 3);
-    // First two are restored, third is new
+    // First two are restored, third is new. Live labels now resolve
+    // to `revision` (matching persisted phase), so the new cycle
+    // transitions revision -> review via the iterator agent.
     assertEquals(result.history[0].from, "implementation");
-    assertEquals(result.history[2].from, "implementation");
+    assertEquals(result.history[2].from, "revision");
     assertEquals(result.history[2].agent, "iterator");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run resets history when persisted phase regressed via labels", async () => {
+  // Scenario: an issue reached "complete" (terminal) in a previous run,
+  // but the user manually relabeled it back to "ready" to retry. The
+  // persisted state still carries the terminal phase plus a saturated
+  // history (cycleCount == maxCycles). Without the staleness reset the
+  // orchestrator would short-circuit with `cycle_exceeded`; with the
+  // reset it should treat the label change as explicit retry intent
+  // and dispatch a fresh cycle.
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 2;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        // Live labels point at "implementation" via "ready" mapping.
+        labels: ["ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // Persisted state: terminal phase `complete` with a saturated
+    // cycle history that would otherwise trip `cycle_exceeded`.
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "complete",
+      cycleCount: 2,
+      correlationId: "wf-prior-run",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          from: "review",
+          to: "complete",
+          agent: "reviewer",
+          outcome: "approved",
+          timestamp: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Without the staleness reset, persisted cycleCount (2) would equal
+    // maxCycles (2) at tracker construction time and the run would exit
+    // with status "cycle_exceeded" before dispatching anything. With
+    // the reset, a fresh two-cycle run completes normally.
+    assertEquals(result.status, "completed");
+    assertEquals(result.finalPhase, "complete");
+    // Both history entries are post-reset; the pre-seeded records must
+    // not appear.
+    assertEquals(result.history.length, 2);
+    assertEquals(result.history[0].agent, "iterator");
+    assertEquals(result.history[0].from, "implementation");
+    assertEquals(result.history[0].to, "review");
+    assertEquals(result.history[1].agent, "reviewer");
+    assertEquals(result.history[1].to, "complete");
+
+    // Persisted state on disk reflects the post-reset run, not the
+    // pre-seeded history.
+    const finalState = await store.readWorkflowState(1, "default");
+    assertEquals(finalState?.cycleCount, 2);
+    assertEquals(finalState?.currentPhase, "complete");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run preserves history when persisted phase matches live labels", async () => {
+  // Companion to the regression test above: when the persisted phase
+  // still matches the phase resolved from live labels, history must be
+  // carried forward unchanged.
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 5;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        // "from-reviewer" maps to "revision", matching persisted state.
+        labels: ["from-reviewer"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "revision",
+      cycleCount: 1,
+      correlationId: "wf-prior",
+      history: [
+        {
+          from: "review",
+          to: "revision",
+          agent: "reviewer",
+          outcome: "rejected",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({ iterator: "success" });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Restored record plus one new cycle: history length 2, first entry
+    // is the pre-seeded reviewer record (not reset).
+    assertEquals(result.history.length >= 2, true);
+    assertEquals(result.history[0].agent, "reviewer");
+    assertEquals(result.history[0].outcome, "rejected");
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+// Conformance tests for staleness-check label precedence (Fix-B).
+//
+// `#resolveLivePhaseId` uses precedence
+//   blocking > actionable > terminal
+// to detect regression when an actionable label coexists with a
+// terminal one. Main loop precedence (terminal-first) is preserved
+// elsewhere to honour `closeOnComplete` semantics.
+
+Deno.test("run detects regression when live has [done, from-reviewer] but persisted is complete", async () => {
+  // [done, from-reviewer] coexists: terminal `done` + actionable
+  // `from-reviewer` (revision). Persisted is `complete` (terminal).
+  // Old terminal-first precedence would resolve livePhase=complete and
+  // falsely match persisted, suppressing the reset. New precedence
+  // resolves livePhase=revision (actionable), differs from persisted,
+  // so regression reset fires and a fresh cycle dispatches.
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 2;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["done", "from-reviewer"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // Persisted state: terminal `complete` with saturated cycle history.
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "complete",
+      cycleCount: 2,
+      correlationId: "wf-prior-run",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          from: "review",
+          to: "complete",
+          agent: "reviewer",
+          outcome: "approved",
+          timestamp: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Reset proof: persisted history was dropped (length 0). The main
+    // loop then re-applied terminal-first precedence at iteration time
+    // (preserving `closeOnComplete` semantics) and exited cleanly on
+    // `done` without dispatching. Without the reset, persisted history
+    // would survive and `cycleCount` would not be zero.
+    assertEquals(
+      result.status,
+      "completed",
+      "main loop terminal-first detection should still complete cleanly",
+    );
+    assertEquals(result.finalPhase, "complete");
+    assertEquals(
+      result.history.length,
+      0,
+      "regression reset must drop pre-seeded history before main loop runs",
+    );
+    assertEquals(
+      result.cycleCount,
+      0,
+      "main loop exits on terminal label before dispatching any cycle",
+    );
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run detects regression when live has [done, ready] but persisted is implementation", async () => {
+  // [done, ready] coexists: terminal `done` + actionable `ready`
+  // (implementation). Persisted is `implementation` (actionable).
+  // Under the precedence in effect, the resolved livePhase is compared
+  // against persisted to decide whether to reset history.
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 2;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["done", "ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    // Persisted state: actionable `implementation` with saturated cycle
+    // history. With terminal-first precedence (old behaviour) `done`
+    // wins, livePhase=complete, diverges from `implementation`, reset
+    // fires. With actionable-first precedence (Fix-B) `ready` wins,
+    // livePhase=implementation, matches persisted, no reset.
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "implementation",
+      cycleCount: 2,
+      correlationId: "wf-prior-run",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          from: "review",
+          to: "complete",
+          agent: "reviewer",
+          outcome: "approved",
+          timestamp: "2026-01-01T00:01:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Expectation per Fix-B spec: regression reset fires because
+    // phase diverges (ready prioritised, persisted differs).
+    assertEquals(
+      result.status,
+      "completed",
+      "regression reset should fire so a fresh cycle can complete",
+    );
+    assertEquals(result.finalPhase, "complete");
+    assertEquals(
+      result.history.length,
+      2,
+      "history should be post-reset (pre-seeded entries dropped)",
+    );
+  } finally {
+    await Deno.remove(tmpDir, { recursive: true });
+  }
+});
+
+Deno.test("run preserves blocking priority when [blocked, ready] coexist", async () => {
+  // [blocked, ready] coexists: blocking `blocked` + actionable `ready`
+  // (implementation). Persisted is `implementation` (actionable).
+  // Blocking must take precedence to honour user manual stop intent;
+  // livePhase=blocked diverges from persisted=implementation, so the
+  // regression reset fires but the run halts on the blocking phase.
+  const tmpDir = await Deno.makeTempDir();
+  try {
+    const config = createTestConfig();
+    config.rules.maxCycles = 5;
+    const store = new IssueStore(`${tmpDir}/store`);
+    await store.writeIssue({
+      meta: {
+        number: 1,
+        title: "Test",
+        labels: ["blocked", "ready"],
+        state: "open",
+        assignees: [],
+        milestone: null,
+      },
+      body: "test",
+      comments: [],
+    });
+
+    await store.writeWorkflowState(1, {
+      issueNumber: 1,
+      currentPhase: "implementation",
+      cycleCount: 1,
+      correlationId: "wf-prior-run",
+      history: [
+        {
+          from: "implementation",
+          to: "review",
+          agent: "iterator",
+          outcome: "success",
+          timestamp: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    }, "default");
+
+    const github = new StubGitHubClient([]);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    const result = await orchestrator.run(1, {}, store);
+
+    // Blocking precedence: livePhase=blocked, diverges from persisted
+    // actionable, reset fires; main loop then halts on blocking phase.
+    assertEquals(
+      result.status,
+      "blocked",
+      "blocking label must short-circuit the run",
+    );
+    assertEquals(result.finalPhase, "blocked");
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }

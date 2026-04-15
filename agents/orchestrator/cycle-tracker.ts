@@ -89,15 +89,10 @@ export class CycleTracker {
     maxCycles: number,
   ): CycleTracker {
     const tracker = new CycleTracker(maxCycles);
-    for (const record of state.history) {
-      tracker.record(
-        state.issueNumber,
-        record.from,
-        record.to,
-        record.agent,
-        record.outcome,
-      );
-    }
+    tracker.#history.set(
+      state.issueNumber,
+      state.history.map((r) => ({ ...r })),
+    );
     return tracker;
   }
 }

@@ -144,6 +144,14 @@ Work efficiently to complete your goal.
     return Promise.resolve(this.currentIteration >= this.maxIterations);
   }
 
+  override getLastVerdict(): string | undefined {
+    const rawVerdict = this.lastSummary?.structuredOutput?.verdict;
+    if (typeof rawVerdict === "string" && rawVerdict.length > 0) {
+      return rawVerdict;
+    }
+    return undefined;
+  }
+
   getVerdictDescription(): Promise<string> {
     return Promise.resolve(
       `Completed ${this.currentIteration}/${this.maxIterations} iterations`,

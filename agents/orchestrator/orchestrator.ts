@@ -125,13 +125,49 @@ export class Orchestrator {
       dryRun,
     });
 
-    // Restore cycle tracker from persisted state if available
+    // Restore cycle tracker from persisted state if available.
+    //
+    // Staleness detection: labels are the source of truth for the current
+    // phase. If a user manually relabels an issue (e.g. removes `done`,
+    // adds `kind:consider` to retry), the persisted `currentPhase` will
+    // lag behind the live labels. Treat that divergence as explicit retry
+    // intent and drop the cycle history so `maxCycles` doesn't block the
+    // new run. This is a one-way regression detection — label state wins.
     let tracker: CycleTracker;
     if (store) {
       const existingState = await store.readWorkflowState(issueNumber, wfId);
-      tracker = existingState
-        ? CycleTracker.fromState(existingState, maxCycles)
-        : new CycleTracker(maxCycles);
+      if (existingState) {
+        const livePhaseId = await this.#resolveLivePhaseId(
+          issueNumber,
+          store,
+          log,
+        );
+        if (
+          livePhaseId !== null &&
+          existingState.currentPhase !== livePhaseId
+        ) {
+          await log.info(
+            `State reset for issue #${issueNumber}: persisted phase ` +
+              `"${existingState.currentPhase}" was regressed to ` +
+              `"${livePhaseId}" via labels`,
+            {
+              event: "state_reset_by_label_regression",
+              issueNumber,
+              workflowId: wfId,
+              persistedPhase: existingState.currentPhase,
+              resolvedPhase: livePhaseId,
+            },
+          );
+          tracker = CycleTracker.fromState(
+            { ...existingState, history: [], cycleCount: 0 },
+            maxCycles,
+          );
+        } else {
+          tracker = CycleTracker.fromState(existingState, maxCycles);
+        }
+      } else {
+        tracker = new CycleTracker(maxCycles);
+      }
     } else {
       tracker = new CycleTracker(maxCycles);
     }
@@ -584,6 +620,64 @@ export class Orchestrator {
     );
 
     return result;
+  }
+
+  /**
+   * Resolve the current phase id from live labels for staleness detection.
+   *
+   * Prefers store meta (already the agreed source of truth for labels in
+   * store-backed runs); falls back to github on read failure so the
+   * regression check degrades gracefully rather than crashing the run.
+   * Returns the phase id for terminal/blocking labels as well as
+   * actionable ones so that any divergence from persisted state is
+   * detected. Returns null when no mapped label is present or label
+   * reads fail entirely — the caller keeps persisted state intact in
+   * that case (conservative: never drop history without evidence).
+   */
+  async #resolveLivePhaseId(
+    issueNumber: number,
+    store: IssueStore,
+    log: OrchestratorLogger,
+  ): Promise<string | null> {
+    let labels: string[];
+    try {
+      const meta = await store.readMeta(issueNumber);
+      labels = meta.labels;
+    } catch {
+      try {
+        labels = await this.#github.getIssueLabels(issueNumber);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        await log.warn(
+          `Staleness check: failed to read labels for issue #${issueNumber}: ${msg}`,
+          { event: "staleness_check_skipped", issueNumber, error: msg },
+        );
+        return null;
+      }
+    }
+
+    // Staleness check uses a different precedence than the main loop.
+    // Main loop is terminal-first to honour `closeOnComplete` semantics;
+    // here we want regression detection to fire when an actionable label
+    // coexists with a terminal one (user retry intent), so the order is:
+    //   1. blocking  — preserve manual stop intent
+    //   2. actionable — treat as regression / retry intent
+    //   3. terminal  — only when nothing else is set
+    const terminalOrBlocking = resolveTerminalOrBlocking(
+      labels,
+      this.#config,
+    );
+    if (
+      terminalOrBlocking && terminalOrBlocking.phase.type === "blocking"
+    ) {
+      return terminalOrBlocking.phaseId;
+    }
+
+    const actionable = resolvePhase(labels, this.#config);
+    if (actionable) return actionable.phaseId;
+
+    if (terminalOrBlocking) return terminalOrBlocking.phaseId;
+    return null;
   }
 
   runBatch(

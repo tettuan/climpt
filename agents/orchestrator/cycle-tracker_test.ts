@@ -1,5 +1,6 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import { CycleTracker } from "./cycle-tracker.ts";
+import type { IssueWorkflowState } from "./workflow-types.ts";
 
 Deno.test("record adds a transition", () => {
   const tracker = new CycleTracker(5);
@@ -180,6 +181,38 @@ Deno.test("fromState respects maxCycles for exceeded check", () => {
 
   assertEquals(restored.getCount(1), 3);
   assertEquals(restored.isExceeded(1), true);
+});
+
+Deno.test("fromState preserves persisted timestamps byte-for-byte", () => {
+  const fixedTs1 = "2026-01-01T00:00:00.000Z";
+  const fixedTs2 = "2026-01-01T00:01:00.000Z";
+  const state: IssueWorkflowState = {
+    issueNumber: 999,
+    currentPhase: "implementation",
+    cycleCount: 2,
+    correlationId: "test-corr",
+    history: [
+      {
+        from: "ready",
+        to: "implementation",
+        agent: "iterator",
+        outcome: "in_progress",
+        timestamp: fixedTs1,
+      },
+      {
+        from: "implementation",
+        to: "revision",
+        agent: "reviewer",
+        outcome: "needs-revision",
+        timestamp: fixedTs2,
+      },
+    ],
+  };
+  const tracker = CycleTracker.fromState(state, 5);
+  const history = tracker.getHistory(999);
+  assertEquals(history.length, 2); // non-vacuity
+  assertEquals(history[0].timestamp, fixedTs1);
+  assertEquals(history[1].timestamp, fixedTs2);
 });
 
 Deno.test("fromState allows continued recording", () => {

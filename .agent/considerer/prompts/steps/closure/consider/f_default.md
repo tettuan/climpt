@@ -73,10 +73,12 @@ Execute in order:
 # Post the response
 gh issue comment {uv-issue} --body-file <path-to-your-response>
 
-# Signal completion by adding done label.
-# (The orchestrator will also strip kind:* and apply done on phase
-# transition. This self-applied label is a safety net.)
-gh issue edit {uv-issue} --add-label "done"
+# Signal completion by atomically swapping kind:consider → done.
+# (The orchestrator will also reconcile labels on phase transition.
+# This self-applied atomic swap is a safety net that avoids the
+# invalid combined state `kind:consider` + `done` if a follow-up
+# rotation aborts.)
+gh issue edit {uv-issue} --remove-label "kind:consider" --add-label "done"
 ```
 
 Write the response to a scratch file under `$TMPDIR/considerer-{uv-issue}.md`
