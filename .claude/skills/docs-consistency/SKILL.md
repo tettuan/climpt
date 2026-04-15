@@ -1,6 +1,6 @@
 ---
 name: docs-consistency
-description: Verify and fix documentation to match implementation. Use when updating docs, releasing versions, or when user mentions 'docs consistency', 'docs update', 'docs verify', 'ドキュメント更新', '最新にして', 'docsを直して'. Extracts design intent, investigates implementation, then updates docs accordingly.
+description: Verify and fix documentation to match implementation. Use when updating docs, releasing versions, or when user mentions 'docs consistency', 'docs update', 'docs verify', 'ドキュメント更新', '最新にして', 'docsを直して'. Extracts design intent, investigates implementation, then updates docs accordingly. For doc updates during active feature implementation, use update-docs instead.
 allowed-tools: [Read, Edit, Grep, Glob, Bash, Write]
 ---
 

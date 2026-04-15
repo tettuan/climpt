@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Use when implementing new features, changing behavior, or modifying CLI options. Documents changes in README, related docs, and --help output. Determines appropriate documentation scope based on change type.
+description: Use when implementing new features, changing behavior, or modifying CLI options. Documents changes in README, related docs, and --help output. Determines appropriate documentation scope based on change type. For auditing doc drift independent of code changes, use docs-consistency instead.
 allowed-tools: [Read, Edit, Grep, Glob, Bash]
 ---
 
