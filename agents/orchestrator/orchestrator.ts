@@ -31,8 +31,21 @@ import { OutboxProcessor } from "./outbox-processor.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
+import { TransactionScope } from "./transaction-scope.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
+
+/**
+ * Idempotency marker for T6 compensation comments. Both producer
+ * (rollback emits the comment) and consumer (pre-post dedup check via
+ * `getRecentComments`) must route through this factory so the string
+ * has a single source of truth. Used as idempotencyKey in the
+ * CompensationRegistry as well.
+ */
+export const compensationMarker = (
+  issueNumber: number,
+  cycleSeq: number,
+): string => `climpt-compensation:issue-${issueNumber}:cycle-${cycleSeq}`;
 
 export class Orchestrator {
   #config: WorkflowConfig;
@@ -480,122 +493,267 @@ export class Orchestrator {
         },
       );
 
-      // Step 10: Update labels
+      // Steps 10-12 (T1..T7): phase transition as a saga.
+      // Contract: tmp/transaction-rollback/investigation/design.md §2.2.
+      //   T1  pure plan (already computed above as labelsToRemove/labelsToAdd)
+      //   T2  snapshot preImage = currentLabels
+      //   T3  label add (compensation: remove the just-added labels)
+      //   T4  label remove (compensation: restore preImage labels)
+      //   T5  handoff comment (compensation: restore preImage labels — shares
+      //       idempotency key with T4 so future dedup can collapse both)
+      //   T6  close issue (compensation: post a marker-tagged comment so
+      //       humans can intervene; label preImage restore is optional per
+      //       §3.1 and elided here — next cycle's re-read self-heals labels)
+      //   T7  local persist (store.updateMeta + writeWorkflowState) —
+      //       best-effort, runs only after commit
+      //
+      // cycleTracker.record fires only on full T3..T6 success (before commit),
+      // closing a latent bug where S2 failures still recorded a transition.
+      const targetPhaseDef = this.#config.phases[targetPhase];
+      const isTerminal = targetPhaseDef?.type === "terminal";
+      const isBlocking = targetPhaseDef?.type === "blocking";
+      const closeIntent = !dryRun && isTerminal && agent.closeOnComplete &&
+        (agent.closeCondition === undefined ||
+          agent.closeCondition === dispatchResult.outcome);
+
       if (!dryRun) {
+        const preImage = [...currentLabels];
+        const cycleSeq = tracker.getCount(issueNumber) + 1;
+        const restoreLabelsKey = `restore-labels:${issueNumber}:${cycleSeq}`;
+        const marker = compensationMarker(issueNumber, cycleSeq);
+        const scope = new TransactionScope({ logger: log });
+
         try {
-          // deno-lint-ignore no-await-in-loop
-          await this.#github.updateIssueLabels(
+          // T3: add-labels (idempotent, reversible by removal)
+          if (labelsToAdd.length > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await scope.step(
+              "add-labels",
+              () =>
+                this.#github.updateIssueLabels(issueNumber, [], labelsToAdd),
+              () => ({
+                label: "restore-labels",
+                idempotencyKey: restoreLabelsKey,
+                run: () =>
+                  this.#github.updateIssueLabels(
+                    issueNumber,
+                    labelsToAdd,
+                    [],
+                  ),
+              }),
+            );
+          }
+
+          // T4: remove-labels (reversing T4 restores preImage, which
+          //     re-adds anything we removed)
+          if (labelsToRemove.length > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await scope.step(
+              "remove-labels",
+              () =>
+                this.#github.updateIssueLabels(
+                  issueNumber,
+                  labelsToRemove,
+                  [],
+                ),
+              () => ({
+                label: "restore-labels",
+                idempotencyKey: restoreLabelsKey,
+                run: () =>
+                  this.#github.updateIssueLabels(
+                    issueNumber,
+                    [],
+                    labelsToRemove,
+                  ),
+              }),
+            );
+          }
+
+          // T5: handoff comment. Compensation is label-restore (same key
+          //     as T4) — we rely on gh label ops being idempotent rather
+          //     than deduping compensations in TransactionScope.
+          if (this.#config.handoff) {
+            const handoff = new HandoffManager(this.#config.handoff);
+            // deno-lint-ignore no-await-in-loop
+            await scope.step(
+              "handoff-comment",
+              () =>
+                handoff.renderAndPost(
+                  this.#github,
+                  issueNumber,
+                  agentId,
+                  dispatchResult.outcome,
+                  { ...dispatchResult.handoffData },
+                ),
+              () => ({
+                label: "restore-labels",
+                idempotencyKey: restoreLabelsKey,
+                run: () =>
+                  this.#github.updateIssueLabels(
+                    issueNumber,
+                    labelsToAdd, // undo T3
+                    labelsToRemove, // undo T4
+                  ),
+              }),
+            );
+          }
+
+          // T6: close issue. Compensation posts a marker-tagged comment
+          //     requesting manual intervention; the marker is checked
+          //     against recent comments to make the compensation idempotent
+          //     across retries (design §3.3).
+          //
+          // Pre-register pattern (vs scope.step): TransactionScope.step()
+          // only records a compensation *after* the action resolves, so a
+          // step() whose action throws would never register its own
+          // compensation. T6 is the one step where compensation-on-failure
+          // is the entire contract (design §3.1 row 4), so we register the
+          // compensation *before* the action and rely on commit() clearing
+          // the stack on success / rollback() running it on failure.
+          if (closeIntent) {
+            scope.record({
+              label: "compensation-comment",
+              idempotencyKey: marker,
+              run: async () => {
+                try {
+                  const recent = await this.#github.getRecentComments(
+                    issueNumber,
+                    20,
+                  );
+                  if (recent.some((c) => c.body.includes(marker))) {
+                    return;
+                  }
+                } catch {
+                  // Marker lookup is best-effort; proceed to post.
+                }
+                const body = `⚠️ 自動遷移失敗: 手動確認をお願いします\n\n` +
+                  `phase 遷移 (${phaseId} → ${targetPhase}) で issue close ` +
+                  `に失敗しました。\nラベルは元に戻されています。\n\n` +
+                  `---\n<sub>🤖 ${marker}</sub>`;
+                await this.#github.addIssueComment(issueNumber, body);
+              },
+            });
+            // deno-lint-ignore no-await-in-loop
+            await this.#github.closeIssue(issueNumber);
+            issueClosed = true;
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Closed issue #${issueNumber} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
+              {
+                event: "issue_closed",
+                issueNumber,
+                agent: agentId,
+                outcome: dispatchResult.outcome,
+              },
+            );
+          }
+
+          // All T3..T6 steps succeeded. Record the cycle *before* commit
+          // so a crash between tracker.record and commit still surfaces
+          // the registered compensations on the next run. (commit()
+          // itself is synchronous in effect, so the window is negligible.)
+          tracker.record(
             issueNumber,
-            labelsToRemove,
-            labelsToAdd,
+            phaseId,
+            targetPhase,
+            agentId,
+            dispatchResult.outcome,
           );
+
+          // deno-lint-ignore no-await-in-loop
+          await scope.commit();
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
           // deno-lint-ignore no-await-in-loop
           await log.warn(
-            `Failed to update labels for issue #${issueNumber}: ${msg}`,
-            { event: "label_update_failed", issueNumber, error: msg },
+            `Phase transition failed for issue #${issueNumber}: ${msg}`,
+            {
+              event: "phase_transition_failed",
+              issueNumber,
+              fromPhase: phaseId,
+              toPhase: targetPhase,
+              error: msg,
+            },
           );
-          // Label update failure is not fatal; continue to next cycle
+          // deno-lint-ignore no-await-in-loop
+          const report = await scope.rollback(error);
+          if (report.attempted > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `Compensation ran for issue #${issueNumber}: ` +
+                `${report.succeeded}/${report.attempted} succeeded` +
+                (report.partial ? " (partial)" : ""),
+              {
+                event: "compensation_ran",
+                issueNumber,
+                attempted: report.attempted,
+                succeeded: report.succeeded,
+                failed: report.failed.map((f) => ({
+                  label: f.label,
+                  idempotencyKey: f.idempotencyKey,
+                  error: f.error.message,
+                })),
+                partial: report.partial,
+              },
+            );
+          }
+          status = "blocked";
+          finalPhase = phaseId;
+          break;
+        } finally {
+          // Safety net: if neither commit nor rollback ran (e.g. exception
+          // escaped outside the try), ensure compensations are flushed.
+          if (!scope.isCommitted() && !scope.isRolledBack()) {
+            // deno-lint-ignore no-await-in-loop
+            await scope.rollback(new Error("scope not finalised"));
+          }
         }
 
-        // Step 10b: Update store meta to reflect new labels
+        // T7: local persist — best-effort. Next cycle re-reads labels from
+        // the source of truth (gh / store meta) so any divergence here is
+        // self-healed (design §3.1 row G5 / T7).
         if (store) {
-          const newLabels = currentLabels
+          const newLabels = preImage
             .filter((l) => !labelsToRemove.includes(l))
             .concat(labelsToAdd);
           try {
             // deno-lint-ignore no-await-in-loop
             await store.updateMeta(issueNumber, { labels: newLabels });
           } catch {
-            // Store update failure is not fatal
+            // non-fatal
+          }
+          try {
+            // deno-lint-ignore no-await-in-loop
+            await store.writeWorkflowState(
+              issueNumber,
+              tracker.toState(issueNumber, targetPhase),
+              wfId,
+            );
+          } catch {
+            // non-fatal
           }
         }
-      }
-
-      // Step 11: Record cycle
-      tracker.record(
-        issueNumber,
-        phaseId,
-        targetPhase,
-        agentId,
-        dispatchResult.outcome,
-      );
-
-      // Step 11b: Persist cycle tracker state
-      if (store) {
-        // deno-lint-ignore no-await-in-loop
-        await store.writeWorkflowState(
+      } else {
+        // dry-run: skip side-effects but still record the planned cycle so
+        // history reflects the intended transition.
+        tracker.record(
           issueNumber,
-          tracker.toState(issueNumber, targetPhase),
-          wfId,
-        );
-      }
-
-      // Step 12: Handoff comment
-      if (!dryRun && this.#config.handoff) {
-        const handoff = new HandoffManager(this.#config.handoff);
-        // deno-lint-ignore no-await-in-loop
-        await handoff.renderAndPost(
-          this.#github,
-          issueNumber,
+          phaseId,
+          targetPhase,
           agentId,
           dispatchResult.outcome,
-          { ...dispatchResult.handoffData },
         );
       }
 
       finalPhase = targetPhase;
 
-      // Check if target phase is terminal or blocking
-      const targetPhaseDef = this.#config.phases[targetPhase];
-      if (targetPhaseDef) {
-        if (targetPhaseDef.type === "terminal") {
-          status = "completed";
-
-          // closeOnComplete: close the GitHub issue when agent outcome leads to terminal
-          if (!dryRun && agent.closeOnComplete) {
-            const shouldClose = agent.closeCondition === undefined ||
-              agent.closeCondition === dispatchResult.outcome;
-            if (shouldClose) {
-              try {
-                // deno-lint-ignore no-await-in-loop
-                await this.#github.closeIssue(issueNumber);
-                issueClosed = true;
-                // deno-lint-ignore no-await-in-loop
-                await log.info(
-                  `Closed issue #${issueNumber} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
-                  {
-                    event: "issue_closed",
-                    issueNumber,
-                    agent: agentId,
-                    outcome: dispatchResult.outcome,
-                  },
-                );
-              } catch (error) {
-                const msg = error instanceof Error
-                  ? error.message
-                  : String(error);
-                // deno-lint-ignore no-await-in-loop
-                await log.warn(
-                  `Failed to close issue #${issueNumber}: ${msg}`,
-                  {
-                    event: "issue_close_failed",
-                    issueNumber,
-                    error: msg,
-                  },
-                );
-                // Non-fatal: label transition succeeded, close is best-effort
-              }
-            }
-          }
-
-          break;
-        }
-        if (targetPhaseDef.type === "blocking") {
-          status = "blocked";
-          break;
-        }
+      if (isTerminal) {
+        status = "completed";
+        break;
+      }
+      if (isBlocking) {
+        status = "blocked";
+        break;
       }
 
       // Step 13: Countdown between cycles (skip in dryRun)

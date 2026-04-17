@@ -286,24 +286,147 @@ Agent は gh 操作をファイルとして `outbox/` に書き出す。Orchestr
 
 v1.14 では `run()` がストアを単一の真実源として使用し、この二重基準を解消する。
 
+## Phase 遷移 Transaction
+
+Phase 遷移に伴う gh 複合操作 (label add / label remove / handoff comment /
+close) を unit-atomic に扱うための saga スコープ。単一サイクルの副作用を 1 つの
+`TransactionScope` に束ね、途中失敗時は LIFO で補償を走らせて issue の観測状態を
+一貫させる。
+
+- **Level 1 (Why)**: label だけ付いて issue が open のまま残る「G2 label
+  宙ぶらり」等の片側成功を阻止し、phase 遷移を unit-atomic に保つため。
+- 契約とパターンの source of truth: `agents/docs/design/09_contracts.md` の
+  「Phase 遷移の契約」セクション。ここでは Orchestrator 側の適用と補償挙動のみ
+  記述する。
+
+### T1〜T7 シーケンス
+
+`agents/orchestrator/orchestrator.ts:484-720` の実装と 1:1 対応する。pure
+計算→可逆操作→不可逆操作の順で、各境界で fail-fast する。
+
+```
+T1  pure: compute plan = { labelsToAdd, labelsToRemove, handoffComment?, closeIntent? }
+T2  snapshot: preImage = currentLabels, cycleSeq = tracker.getCount(n) + 1
+T3  scope.step("add-labels", gh.updateIssueLabels([], add),
+        compensation: gh.updateIssueLabels(add, []))
+T4  scope.step("remove-labels", gh.updateIssueLabels(remove, []),
+        compensation: gh.updateIssueLabels([], remove))
+T5  scope.step("handoff-comment", handoff.renderAndPost(...),
+        compensation: restore preImage labels)
+T6  scope.record({ label: "compensation-comment", ... });   // pre-register
+    await gh.closeIssue(n);                                 // irreversible
+T_rec  tracker.record(...)     // T3..T6 全成功時のみ
+T_commit  scope.commit()       // 補償スタックを破棄
+T7  store.updateMeta / writeWorkflowState   // best-effort、commit 後
+        ─ 失敗は次サイクル頭の gh 再読込でセルフヒール
+
+途中失敗:  catch → scope.rollback(err) が LIFO で補償を実行
+           → status="blocked" で break、次サイクルで同 phase を再試行
+finally:   commit も rollback も走らなかった場合の保険として rollback を呼ぶ
+```
+
+### 可逆性分類
+
+| 操作                 | 可逆性     | 冪等性                            | 反対操作     |
+| -------------------- | ---------- | --------------------------------- | ------------ |
+| label 追加           | 可逆       | 冪等 (gh は重複追加を no-op 扱い) | label 削除   |
+| label 削除           | 可逆       | 冪等                              | label 追加   |
+| handoff comment      | **不可逆** | 非冪等 (重複投稿)                 | 追記 comment |
+| issue close          | 可逆       | 冪等 (既 close は 409 = 実質成功) | reopen       |
+| issue reopen         | 可逆       | 冪等                              | close        |
+| compensation comment | **不可逆** | マーカーで冪等化 (下記参照)       | —            |
+
+**原則**: 可逆で冪等な操作から並べ、不可逆な状態変化 (close) を最後に置く。
+前段失敗時は後段をスキップし、既成功ぶんだけを補償で巻き戻す。
+
+### 補償マトリクス
+
+failed step に対し、どこまでの step が成功しているかで補償内容が決まる。
+
+| 成功した step     | 失敗した step    | 補償シーケンス                                   | 冪等性         |
+| ----------------- | ---------------- | ------------------------------------------------ | -------------- |
+| (なし)            | T3 add-labels    | なし (状態変化なし)                              | —              |
+| T3                | T4 remove-labels | T3 で add した label を remove                   | 冪等 (gh)      |
+| T3 + T4           | T5 handoff       | label を preImage に復元 (add ↔ remove 逆)       | 冪等 (gh)      |
+| T3 + T4 + T5      | T6 close         | **補償 comment 追記** (マーカー付き)             | マーカーで冪等 |
+| T3 + T4 + T5 + T6 | T7 local persist | 補償不要。次サイクル頭の gh 再読込でセルフヒール | —              |
+
+補償自身の失敗は `CompensationReport.failed` に集約され rollback は throw しない
+(`agents/orchestrator/transaction-scope.ts:116-160`)。log に
+`event:
+"compensation_ran"` / `"compensation_failed"` を残し、呼び出し側
+(orchestrator) は status="blocked"
+で当該サイクルを終え、次サイクルで再試行する。
+
+### 補償マーカーによる冪等化
+
+補償 comment は gh に delete API が無いため不可逆。再実行時の重複投稿を防ぐため
+決定論的マーカーを body に埋め込む。
+
+**source of truth**: `agents/orchestrator/orchestrator.ts` に export された
+`compensationMarker(issueNumber, cycleSeq)` factory を唯一の生成元とする。
+producer (T6 rollback の comment body 組み立て) と consumer (`getRecentComments`
+による事前 dedup チェック) は共にこの factory から文字列を取得する。テストも 同
+factory を import して期待値を導出する。
+
+**表示形式**: 可視 footer 署名方式。comment 本文末尾に `<sub>🤖 <marker></sub>`
+として埋め込む (旧: 不可視 HTML コメント `<!-- ... -->` は廃止)。ユーザが GitHub
+UI 上で補償 comment を 視認できることを優先しつつ、マーカー文字列は grep
+可能な形で保持する。
+
+**冪等性プロトコル**:
+
+1. 補償実行時に `github.getRecentComments(n, 20)` でマーカー存在を確認
+2. マーカーが見つかれば skip (return 早期リターン)
+3. 見つからなければ body に同マーカーを付けて `addIssueComment` を投稿
+
+参照実装: `agents/orchestrator/orchestrator.ts` の `compensationMarker` export
+と T6 の pre-register 箇所。
+
+### TransactionScope API (要約)
+
+実装: `agents/orchestrator/transaction-scope.ts`。契約の source of truth
+はコード コメント (同ファイル L20-30) 側。
+
+| メソッド                       | 役割                                                           |
+| ------------------------------ | -------------------------------------------------------------- |
+| `step(label, action, factory)` | action を実行し、成功時のみ factory() が返す補償を push        |
+| `record(comp)`                 | action を伴わず補償を先行登録 (T6 close の pre-register 用)    |
+| `commit()`                     | 補償スタックを破棄し `committed` 状態へ遷移 (冪等)             |
+| `rollback(cause)`              | LIFO で補償を実行し `CompensationReport` を返す (throw しない) |
+
+**不変条件**:
+
+- `record` / `step` は `state !== "open"` では no-op (commit/rollback
+  後の呼び出し は無視)
+- 補償は全て best-effort。個別失敗は `report.failed` に収集され、
+  `report.partial=true` として surface される
+- retry policy は各 `Compensation.run` の内部責務。TransactionScope は関与しない
+
+### 適用範囲
+
+TransactionScope は `GitHubClient` interface にしか依存せず、orchestrator の
+メインループ (phase 遷移) における gh 複合操作を unit-atomic に統合する。
+
 ## コンポーネント一覧
 
-| モジュール             | What                                               | Why                                    |
-| ---------------------- | -------------------------------------------------- | -------------------------------------- |
-| `workflow-loader.ts`   | workflow.json 読み込み・スキーマ検証・相互参照検証 | 設定漏れを起動前に排除                 |
-| `workflow-types.ts`    | Phase, Agent, Transition 等の型定義                | 全モジュールの型安全性を保証           |
-| `workflow-schema.json` | JSON Schema                                        | IDE 補完とバリデーション               |
-| `label-resolver.ts`    | Label → Phase → Agent 解決                         | priority による優先度制御              |
-| `phase-transition.ts`  | 遷移ロジック・ラベル変更計算・テンプレート展開     | Agent から遷移ロジックを分離           |
-| `cycle-tracker.ts`     | Issue ごとの遷移回数追跡                           | maxCycles でループ防止                 |
-| `dispatcher.ts`        | Agent 起動・完了ハンドリング                       | Runner 呼び出しのラッパー              |
-| `github-client.ts`     | gh コマンドのラッパー                              | gh アクセスを単一モジュールに集約      |
-| `orchestrator.ts`      | メインループ（全モジュール統合）                   | 単一 issue サイクル + batch 処理       |
-| `issue-store.ts`       | ローカルファイルシステムの issue ストア            | Agent と gh の境界を保証 _(v1.14)_     |
-| `issue-syncer.ts`      | gh → Issue Store 同期                              | リモートデータのローカル反映           |
-| `outbox-processor.ts`  | outbox ファイル読み込み・gh 実行                   | Agent の gh リクエストを検証 _(v1.14)_ |
-| `prioritizer.ts`       | 優先度ラベルの自動付与                             | batch 処理の順序最適化                 |
-| `queue.ts`             | issue のソート・キュー構築                         | 優先度順の処理を保証                   |
+| モジュール             | What                                                      | Why                                            |
+| ---------------------- | --------------------------------------------------------- | ---------------------------------------------- |
+| `workflow-loader.ts`   | workflow.json 読み込み・スキーマ検証・相互参照検証        | 設定漏れを起動前に排除                         |
+| `workflow-types.ts`    | Phase, Agent, Transition 等の型定義                       | 全モジュールの型安全性を保証                   |
+| `workflow-schema.json` | JSON Schema                                               | IDE 補完とバリデーション                       |
+| `label-resolver.ts`    | Label → Phase → Agent 解決                                | priority による優先度制御                      |
+| `phase-transition.ts`  | 遷移ロジック・ラベル変更計算・テンプレート展開            | Agent から遷移ロジックを分離                   |
+| `cycle-tracker.ts`     | Issue ごとの遷移回数追跡                                  | maxCycles でループ防止                         |
+| `dispatcher.ts`        | Agent 起動・完了ハンドリング                              | Runner 呼び出しのラッパー                      |
+| `github-client.ts`     | gh コマンドのラッパー                                     | gh アクセスを単一モジュールに集約              |
+| `orchestrator.ts`      | メインループ（全モジュール統合）                          | 単一 issue サイクル + batch 処理               |
+| `transaction-scope.ts` | Phase 遷移 saga の補償レジストリ (record/commit/rollback) | gh 複合操作を unit-atomic に保ち片側成功を阻止 |
+| `issue-store.ts`       | ローカルファイルシステムの issue ストア                   | Agent と gh の境界を保証 _(v1.14)_             |
+| `issue-syncer.ts`      | gh → Issue Store 同期                                     | リモートデータのローカル反映                   |
+| `outbox-processor.ts`  | outbox ファイル読み込み・gh 実行                          | Agent の gh リクエストを検証 _(v1.14)_         |
+| `prioritizer.ts`       | 優先度ラベルの自動付与                                    | batch 処理の順序最適化                         |
+| `queue.ts`             | issue のソート・キュー構築                                | 優先度順の処理を保証                           |
 
 ## Runner との境界
 

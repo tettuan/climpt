@@ -81,6 +81,32 @@ export class FileGitHubClient implements GitHubClient {
     await this.#store.updateMeta(issueNumber, { state: "closed" });
   }
 
+  async reopenIssue(issueNumber: number): Promise<void> {
+    await this.#store.updateMeta(issueNumber, { state: "open" });
+  }
+
+  async getRecentComments(
+    issueNumber: number,
+    limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    if (limit <= 0) return [];
+    let comments: { id: string; body: string }[] = [];
+    try {
+      comments = await this.#store.readComments(issueNumber);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      return [];
+    }
+    // Comment id is a millisecond epoch (see addIssueComment); use it as createdAt.
+    const withTimestamp = comments.map((c) => {
+      const ms = Number(c.id);
+      const createdAt = Number.isFinite(ms) ? new Date(ms).toISOString() : c.id;
+      return { body: c.body, createdAt };
+    });
+    withTimestamp.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return withTimestamp.slice(0, limit);
+  }
+
   async listIssues(criteria: IssueCriteria): Promise<IssueListItem[]> {
     const numbers = await this.#store.listIssues();
     const items: IssueListItem[] = [];

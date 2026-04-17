@@ -77,6 +77,17 @@ class StubGitHubClient implements GitHubClient {
     await Promise.resolve();
   }
 
+  reopenIssue(_issueNumber: number): Promise<void> {
+    return Promise.reject(new Error("reopenIssue not implemented"));
+  }
+
+  getRecentComments(
+    _issueNumber: number,
+    _limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    return Promise.resolve([]);
+  }
+
   async listIssues(_criteria: IssueCriteria): Promise<IssueListItem[]> {
     return await Promise.resolve([]);
   }
