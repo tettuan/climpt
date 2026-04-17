@@ -132,6 +132,10 @@ class StubGitHubClient implements GitHubClient {
       comments: [],
     });
   }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
+  }
 }
 
 /** Stub dispatcher that records calls and returns a prepared outcome. */

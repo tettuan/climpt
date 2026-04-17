@@ -48,6 +48,7 @@ export interface GitHubClient {
     issueNumber: number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]>;
+  listLabels(): Promise<string[]>;
 }
 
 /** Concrete implementation using `gh` CLI via Deno.Command. */
@@ -353,5 +354,27 @@ export class GhCliClient implements GitHubClient {
     if (stdout === "") return [];
 
     return JSON.parse(stdout) as { body: string; createdAt: string }[];
+  }
+
+  async listLabels(): Promise<string[]> {
+    const cmd = new Deno.Command("gh", {
+      args: ["label", "list", "--json", "name", "--limit", "1000"],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to list labels: ${stderr}`);
+    }
+
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+
+    const raw = JSON.parse(stdout) as { name: string }[];
+    return raw.map((l) => l.name);
   }
 }

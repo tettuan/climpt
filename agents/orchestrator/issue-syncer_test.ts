@@ -82,6 +82,10 @@ class StubGitHubClient implements GitHubClient {
     }
     return Promise.resolve(detail);
   }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
+  }
 }
 
 function makeDetail(num: number): IssueDetail {

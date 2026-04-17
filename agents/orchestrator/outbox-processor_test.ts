@@ -104,6 +104,10 @@ class StubGitHubClient implements GitHubClient {
       comments: [],
     });
   }
+
+  async listLabels(): Promise<string[]> {
+    return await Promise.resolve([]);
+  }
 }
 
 /** Create a temp IssueStore with outbox directory ready. */

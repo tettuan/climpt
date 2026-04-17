@@ -194,6 +194,10 @@ class StubGitHubClient implements GitHubClient {
       comments: [],
     });
   }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
+  }
 }
 
 // --- Tests ---
@@ -1008,6 +1012,10 @@ class BatchStubGitHubClient implements GitHubClient {
       return Promise.reject(new Error(`No detail for #${issueNumber}`));
     }
     return Promise.resolve(detail);
+  }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 }
 

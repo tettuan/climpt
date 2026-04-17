@@ -123,6 +123,26 @@ export class FileGitHubClient implements GitHubClient {
     return this.#filterByCriteria(items, criteria);
   }
 
+  async listLabels(): Promise<string[]> {
+    // Repository-level label set is kept at `{storePath}/labels.json` as a
+    // JSON array of strings — independent of any single issue. When absent,
+    // the repository is treated as having no labels (empty set).
+    const path = `${this.#store.storePath}/labels.json`;
+    try {
+      const text = await Deno.readTextFile(path);
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        throw new Error(
+          `labels.json must contain a JSON array of strings, got ${typeof parsed}`,
+        );
+      }
+      return parsed.filter((x): x is string => typeof x === "string");
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return [];
+      throw error;
+    }
+  }
+
   async getIssueDetail(issueNumber: number): Promise<IssueDetail> {
     const meta = await this.#store.readMeta(issueNumber);
     const body = await this.#store.readBody(issueNumber);
