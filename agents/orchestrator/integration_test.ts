@@ -11,6 +11,10 @@ import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
 import { IssueStore } from "./issue-store.ts";
 
+// Design §2.2: one phase transition produces one "add" call (T3) plus
+// one "remove" call (T4).
+const LABEL_CALLS_PER_TRANSITION = 2;
+
 // --- Shared workflow config fixture ---
 
 /** Valid workflow config for writing to temp files. */
@@ -398,7 +402,13 @@ Deno.test("integration: labelPrefix correctly namespaces labels", async () => {
 
     // Label updates are split into T3 (add) then T4 (remove) per design §2.2,
     // so each cycle yields two calls with only prefixed labels in each.
-    assertEquals(github.labelUpdates.length, 4);
+    const transitions = 2; // ready->review, review->done
+    assertEquals(
+      github.labelUpdates.length,
+      transitions * LABEL_CALLS_PER_TRANSITION,
+      "Expected 2 transitions × 2 label calls per transition (design §2.2) " +
+        "= 4 updates",
+    );
 
     // Cycle 1 T3: add "docs:review"
     assertEquals(github.labelUpdates[0].removed, []);
@@ -529,7 +539,13 @@ Deno.test("integration: no prefix preserves backward compatibility", async () =>
 
     // Label updates use bare labels (no prefix), split T3 (add) then T4
     // (remove) per design §2.2 — two calls per transition.
-    assertEquals(github.labelUpdates.length, 4);
+    const transitions = 2; // ready->review, review->done
+    assertEquals(
+      github.labelUpdates.length,
+      transitions * LABEL_CALLS_PER_TRANSITION,
+      "Expected 2 transitions × 2 label calls per transition (design §2.2) " +
+        "= 4 updates",
+    );
     assertEquals(github.labelUpdates[0].removed, []);
     assertEquals(github.labelUpdates[0].added, ["review"]);
     assertEquals(github.labelUpdates[1].removed, ["ready"]);

@@ -12,6 +12,10 @@ import { StubDispatcher } from "./dispatcher.ts";
 import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { IssueStore } from "./issue-store.ts";
 
+// Design §2.2: one phase transition produces one "add" call (T3) plus
+// one "remove" call (T4).
+const LABEL_CALLS_PER_TRANSITION = 2;
+
 // --- Test fixtures ---
 
 /** Minimal WorkflowConfig matching the design doc example. */
@@ -521,7 +525,13 @@ Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition c
   assertEquals(result.cycleCount, 2);
   // Label updates are split into T3 (add-only) then T4 (remove-only) per
   // design §2.2, so each cycle produces two calls with prefixed labels.
-  assertEquals(github.labelUpdates.length, 4);
+  const transitions = 2; // ready->review, review->done
+  assertEquals(
+    github.labelUpdates.length,
+    transitions * LABEL_CALLS_PER_TRANSITION,
+    "Expected 2 transitions × 2 label calls per transition (design §2.2) " +
+      "= 4 updates",
+  );
   assertEquals(github.labelUpdates[0].removed, []);
   assertEquals(github.labelUpdates[0].added, ["wf:review"]);
   assertEquals(github.labelUpdates[1].removed, ["wf:ready"]);
@@ -763,11 +773,14 @@ Deno.test(
     //   [5] cycle 2 rollback T3 compensation  remove ["done"]
     // Assert length first so subsequent index accesses are non-vacuous.
     const labelUpdates = github.labelUpdates;
+    const forwardTransitions = 2; // cycle 1 ready->review, cycle 2 review->done
+    const compensations = 2; // cycle 2 T4-comp + T3-comp (LIFO)
     assertEquals(
       labelUpdates.length,
-      6,
-      "Expected 4 forward label ops (2 per cycle) plus 2 compensations " +
-        "for the cycle-2 T6 failure (LIFO T4-comp then T3-comp). " +
+      forwardTransitions * LABEL_CALLS_PER_TRANSITION + compensations,
+      "Expected 2 forward transitions × 2 label calls per transition " +
+        "(design §2.2) = 4, plus 2 compensations for the cycle-2 T6 " +
+        "failure (LIFO T4-comp then T3-comp) = 6 total. " +
         "Fix: orchestrator.ts T3/T4 must register compensations that " +
         "invert their forward ops, and scope.rollback() must run them.",
     );
