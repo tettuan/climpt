@@ -265,6 +265,29 @@ async function main(): Promise<void> {
       }
     }
 
+    // Label existence
+    if (result.labelExistenceResult) {
+      if (result.labelExistenceResult.valid) {
+        // deno-lint-ignore no-console
+        console.log("  \u2713 Labels \u2014 All declared labels exist on repo");
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Labels \u2014 Missing labels on repository:");
+        for (const err of result.labelExistenceResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.labelExistenceResult.errors.length;
+      }
+      if (result.labelExistenceResult.warnings.length > 0) {
+        for (const warn of result.labelExistenceResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Labels \u2014 ${warn}`);
+        }
+        totalWarnings += result.labelExistenceResult.warnings.length;
+      }
+    }
+
     // Flow reachability
     if (result.flowResult) {
       if (result.flowResult.valid) {

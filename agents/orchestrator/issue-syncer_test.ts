@@ -59,6 +59,17 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve();
   }
 
+  reopenIssue(_issueNumber: number): Promise<void> {
+    return Promise.reject(new Error("reopenIssue not implemented"));
+  }
+
+  getRecentComments(
+    _issueNumber: number,
+    _limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    return Promise.resolve([]);
+  }
+
   listIssues(criteria: IssueCriteria): Promise<IssueListItem[]> {
     this.listIssuesCalls.push(criteria);
     return Promise.resolve(this.#issues);
@@ -70,6 +81,10 @@ class StubGitHubClient implements GitHubClient {
       return Promise.reject(new Error(`No detail for issue #${issueNumber}`));
     }
     return Promise.resolve(detail);
+  }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 }
 

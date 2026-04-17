@@ -318,6 +318,72 @@ flowchart LR
   4. `completionHandler.onBoundaryHook()` が `gh` コマンドを Runner プロセス
      内で実行（AI の bash ツール経由ではない）
 
+#### intent と Phase 遷移 Transaction の接続
+
+Flow 側の intent は Step の遷移先を選ぶだけで、Issue 状態そのものを変更しない。
+Issue 状態の変更 (label 付け替え / handoff comment / issue close) は、Closure
+Step が `closing` intent を出した後、Runner Boundary Hook を経由して
+Orchestrator 側の **Phase 遷移 Transaction** (`TransactionScope`) が担う。
+
+| intent     | 発行元 Step                        | Flow 側の挙動                                             | Orchestrator 側 gh 副作用                     |
+| ---------- | ---------------------------------- | --------------------------------------------------------- | --------------------------------------------- |
+| `next`     | Work / Verification Step           | `transitions.next` の Step へ進む                         | なし                                          |
+| `repeat`   | Work / Verification / Closure Step | 同 Step を再実行                                          | なし                                          |
+| `jump`     | Work / Verification Step           | `targetStepId` の Step へ跳ぶ                             | なし                                          |
+| `escalate` | Verification Step                  | support Step へ誘導 (デフォルトは `continuation.default`) | なし                                          |
+| `handoff`  | 後続 Work Step                     | `closure.<domain>` (Closure Step) へ遷移                  | なし                                          |
+| `closing`  | Closure Step                       | Flow End へ (`target: null`)                              | Boundary Hook → Phase 遷移 Transaction が起動 |
+
+`closing` intent だけが Orchestrator の TransactionScope を起動する、という 1:1
+対応が本設計の境界となる (詳細: `12_orchestrator.md` の「Phase 遷移
+Transaction」)。
+
+##### closing intent から transaction 起動までの流れ
+
+```mermaid
+sequenceDiagram
+  participant Closure as Closure Step
+  participant Gate as Gate + Router
+  participant Hook as Boundary Hook (Runner)
+  participant Orch as Orchestrator cycle
+  participant Scope as TransactionScope
+
+  Closure-->>Gate: structured output (intent="closing")
+  Gate->>Hook: signalCompletion=true
+  Hook-->>Orch: AgentResult (verdict, handoff)
+  Orch->>Scope: new TransactionScope()
+  Scope->>Scope: T3 add-labels → T4 remove-labels
+  Scope->>Scope: T5 handoff-comment → T6 close (pre-register compensation)
+  alt 全成功
+    Orch->>Scope: commit()
+    Orch->>Orch: tracker.record + T7 local persist
+  else 途中失敗
+    Orch->>Scope: rollback(error) → LIFO 補償
+    Orch->>Orch: status="blocked"
+    Note over Orch: 次サイクルで同 phase 再試行（セルフヒール）
+  end
+```
+
+##### Transaction 失敗時の自己修復
+
+Phase 遷移 Transaction が途中失敗して rollback した場合、Orchestrator は当該
+サイクルを `status="blocked"` で終える。`break` でループを抜けるが、
+`cycleTracker.record` は走らないため **maxCycles カウンタは増えない**。次回
+`run()` 呼び出し時には:
+
+1. gh から最新 labels を再取得 (Dual Truth Source: `run()` は常に gh を source
+   of truth とする)
+2. 補償で preImage に復元された labels から `resolvePhase` が **元の phase**
+   を再解決
+3. 同じ actionable phase に対し Agent を再ディスパッチ
+4. 再度 Closure Step まで到達すれば、新規 `cycleSeq` で新しい `TransactionScope`
+   が起動 (補償マーカーの `cycleSeq` が異なるため、前回失敗の compensation
+   comment と混在しない)
+
+この流れにより、「AI 的な判断を再度行わずに」外部障害 (gh rate limit / network)
+を乗り越えられる。Flow 側で intent を作り直す必要はなく、Flow と Transaction
+の責務が明確に分離される。
+
 #### 決定論的サンドボックス制御
 
 Boundary Hook に加え、サンドボックスのネットワーク遮断が Agent の GitHub

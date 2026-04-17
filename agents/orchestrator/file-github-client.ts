@@ -81,6 +81,32 @@ export class FileGitHubClient implements GitHubClient {
     await this.#store.updateMeta(issueNumber, { state: "closed" });
   }
 
+  async reopenIssue(issueNumber: number): Promise<void> {
+    await this.#store.updateMeta(issueNumber, { state: "open" });
+  }
+
+  async getRecentComments(
+    issueNumber: number,
+    limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    if (limit <= 0) return [];
+    let comments: { id: string; body: string }[] = [];
+    try {
+      comments = await this.#store.readComments(issueNumber);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      return [];
+    }
+    // Comment id is a millisecond epoch (see addIssueComment); use it as createdAt.
+    const withTimestamp = comments.map((c) => {
+      const ms = Number(c.id);
+      const createdAt = Number.isFinite(ms) ? new Date(ms).toISOString() : c.id;
+      return { body: c.body, createdAt };
+    });
+    withTimestamp.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return withTimestamp.slice(0, limit);
+  }
+
   async listIssues(criteria: IssueCriteria): Promise<IssueListItem[]> {
     const numbers = await this.#store.listIssues();
     const items: IssueListItem[] = [];
@@ -95,6 +121,26 @@ export class FileGitHubClient implements GitHubClient {
       });
     }
     return this.#filterByCriteria(items, criteria);
+  }
+
+  async listLabels(): Promise<string[]> {
+    // Repository-level label set is kept at `{storePath}/labels.json` as a
+    // JSON array of strings — independent of any single issue. When absent,
+    // the repository is treated as having no labels (empty set).
+    const path = `${this.#store.storePath}/labels.json`;
+    try {
+      const text = await Deno.readTextFile(path);
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        throw new Error(
+          `labels.json must contain a JSON array of strings, got ${typeof parsed}`,
+        );
+      }
+      return parsed.filter((x): x is string => typeof x === "string");
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return [];
+      throw error;
+    }
   }
 
   async getIssueDetail(issueNumber: number): Promise<IssueDetail> {

@@ -20,7 +20,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue, research, post response, emit verdict (done | handoff-detail), apply done label.",
+      "description": "Single-iteration closure: read issue, research, post response, emit verdict (done | handoff-detail). Orchestrator owns all label/phase transitions via TransactionScope.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider"

@@ -49,6 +49,40 @@ Error messages must state:
 - Which file(s) to fix
 - IF/THEN guidance when multiple fixes are valid
 
+### 4. Does every assertion serve the stated invariant?
+
+テスト 1 個が持つべき invariant は 1 つ (または密結合した少数)。
+
+各 assertion を書く前に「この assert は **テスト名に書いた invariant** を担保しているか?」を問う。担保していない assert は:
+
+- 別テストの責務 (責務重複)、または
+- 証拠に見せかけた over-assertion (assertion bloat)
+
+のどちらか。前者は消す、後者は invariant を言い換えるか消す。
+
+```typescript
+// テスト名: "self-heal: T6 failure recovers + marker is idempotent"
+// 担保すべき invariant: (a) 次 run で completed 到達 (b) comments.length 不変
+
+assertEquals(second.status, "completed");      // ✓ (a)
+assertEquals(github.comments.length, 1);       // ✓ (b)
+assertEquals(labelUpdates.length, 6);          // ✗ label 本数は LIFO 契約テストの責務
+assertEquals(labelUpdates[4].added, ["review"]); // ✗ 順序は transaction-scope_test.ts
+```
+
+### Derivation ladder
+
+expected 値がどこから来るかの優先順位:
+
+```
+✓ import from source of truth      // import { STEP_PHASE }
+✓ compute from named constants     // const FORWARD_OPS = 2; const expected = FORWARD_OPS * 2;
+△ arithmetic with comment          // assertEquals(x, 6) // = 2+2+2  ← 偽装されやすい
+✗ bare literal                      // assertEquals(x, 6)
+```
+
+**`// 2+2+2=6` コメントは derivation ではない**。コメントは腐るし、定数変更時に追従しない。コード-level で導出すること。
+
 ## Test Patterns
 
 ### Contract Test (Layer 1)
@@ -150,6 +184,9 @@ For full message templates and examples, see `references/patterns.md`.
 | Partial consumer enumeration | Contract の消費者が複数あるのにテストが一部しか検査しない | 全ての消費箇所を列挙してからテストを書く |
 | Shadow contract | パラメータ化された経路をバイパスするハードコード値 | ハードコード値をパラメータに置換し、非デフォルト値で回帰テスト |
 | Validator bypass | validator が存在するのにテストが設定を直接検証する | validator の動作をテストする; 検証責任は validator にある |
+| Prose derivation alibi | `// 2+2+2=6` コメントで magic number を "derived" に偽装 | named constant で **コード-level に** 導出 (Derivation ladder 参照) |
+| Assertion bloat | 1 テストが stated invariant 外の assert を抱える (他テストの責務と重複) | invariant 外の assert は削除し、既存の責務テストに委ねる |
+| Delegation trust | sub-agent の skill 適用 summary を検証せず通す | 親が同 skill の lens で re-audit (既存 assert も全スキャン) |
 
 See `references/patterns.md` for detailed explanations of these anti-patterns.
 
@@ -165,6 +202,8 @@ See `references/patterns.md` for detailed explanations of these anti-patterns.
 7. **Craft the error message** — include What/Where/How-to-fix
 8. **Verify non-vacuity** — ensure the test exercises real data
 9. **Hunt shadow contracts** — grep for hardcoded values that bypass the parameterized path
+10. **Scope expansion on review** — 指定された箇所で Anti-Pattern を発見したら、**同ファイル内で grep して同種違反を全スキャン**。レビュー対象行だけ直すのは現状維持バイアス
+11. **Re-audit on delegation** — sub-agent にテスト作成を委譲したら、返ってきた diff に対して親が本 skill の lens で再監査 (特に Derivation ladder, Assertion bloat)
 
 ## Relation to Other Skills
 

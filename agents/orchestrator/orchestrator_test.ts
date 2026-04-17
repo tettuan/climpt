@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { ConfigError } from "../shared/errors/config-errors.ts";
 import { DEFAULT_ISSUE_STORE, type WorkflowConfig } from "./workflow-types.ts";
 import type {
@@ -9,8 +9,12 @@ import type {
 } from "./github-client.ts";
 import type { DispatchOutcome } from "./dispatcher.ts";
 import { StubDispatcher } from "./dispatcher.ts";
-import { Orchestrator } from "./orchestrator.ts";
+import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { IssueStore } from "./issue-store.ts";
+
+// Design §2.2: one phase transition produces one "add" call (T3) plus
+// one "remove" call (T4).
+const LABEL_CALLS_PER_TRANSITION = 2;
 
 // --- Test fixtures ---
 
@@ -70,6 +74,11 @@ class StubGitHubClient implements GitHubClient {
   #labelSequence: string[][];
   #callIndex = 0;
   #comments: { issueNumber: number; comment: string }[] = [];
+  #commentHistory: {
+    issueNumber: number;
+    body: string;
+    createdAt: string;
+  }[] = [];
   #labelUpdates: {
     issueNumber: number;
     removed: string[];
@@ -104,6 +113,11 @@ class StubGitHubClient implements GitHubClient {
 
   addIssueComment(issueNumber: number, comment: string): Promise<void> {
     this.#comments.push({ issueNumber, comment });
+    this.#commentHistory.push({
+      issueNumber,
+      body: comment,
+      createdAt: new Date().toISOString(),
+    });
     return Promise.resolve();
   }
 
@@ -139,6 +153,23 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve();
   }
 
+  reopenIssue(_issueNumber: number): Promise<void> {
+    return Promise.reject(new Error("reopenIssue not implemented"));
+  }
+
+  getRecentComments(
+    issueNumber: number,
+    limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    if (limit <= 0) return Promise.resolve([]);
+    const filtered = this.#commentHistory
+      .filter((c) => c.issueNumber === issueNumber)
+      .slice(-limit)
+      .reverse()
+      .map((c) => ({ body: c.body, createdAt: c.createdAt }));
+    return Promise.resolve(filtered);
+  }
+
   get closedIssues(): number[] {
     return this.#closedIssues;
   }
@@ -162,6 +193,10 @@ class StubGitHubClient implements GitHubClient {
       milestone: null,
       comments: [],
     });
+  }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 }
 
@@ -492,12 +527,23 @@ Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition c
   assertEquals(result.status, "completed");
   assertEquals(result.finalPhase, "complete");
   assertEquals(result.cycleCount, 2);
-  // Label updates should use prefixed labels
-  assertEquals(github.labelUpdates.length, 2);
-  assertEquals(github.labelUpdates[0].removed, ["wf:ready"]);
+  // Label updates are split into T3 (add-only) then T4 (remove-only) per
+  // design §2.2, so each cycle produces two calls with prefixed labels.
+  const transitions = 2; // ready->review, review->done
+  assertEquals(
+    github.labelUpdates.length,
+    transitions * LABEL_CALLS_PER_TRANSITION,
+    "Expected 2 transitions × 2 label calls per transition (design §2.2) " +
+      "= 4 updates",
+  );
+  assertEquals(github.labelUpdates[0].removed, []);
   assertEquals(github.labelUpdates[0].added, ["wf:review"]);
-  assertEquals(github.labelUpdates[1].removed, ["wf:review"]);
-  assertEquals(github.labelUpdates[1].added, ["wf:done"]);
+  assertEquals(github.labelUpdates[1].removed, ["wf:ready"]);
+  assertEquals(github.labelUpdates[1].added, []);
+  assertEquals(github.labelUpdates[2].removed, []);
+  assertEquals(github.labelUpdates[2].added, ["wf:done"]);
+  assertEquals(github.labelUpdates[3].removed, ["wf:review"]);
+  assertEquals(github.labelUpdates[3].added, []);
 });
 
 // === closeOnComplete Tests ===
@@ -670,31 +716,167 @@ Deno.test("closeOnComplete: early terminal detection does NOT trigger close", as
   assertEquals(result.issueClosed, undefined);
 });
 
-Deno.test("closeOnComplete: closeIssue failure is non-fatal", async () => {
-  const config = createCloseOnCompleteConfig();
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-  github.setCloseIssueShouldThrow(true);
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+Deno.test(
+  "closeOnComplete: closeIssue failure triggers compensation and marks cycle blocked",
+  async () => {
+    // Contract (design.md §1.3 G2, §2.2 T6, §3.1 T6):
+    //   T6 close is the last irreversible op. A close failure leaves the
+    //   issue with the terminal label but still open — exactly the A↔B gap
+    //   the saga exists to close. Therefore T6 failure is *fatal to the
+    //   cycle*: scope.rollback() restores labels to preImage (via the
+    //   LIFO T4→T3 compensations), status becomes "blocked", and
+    //   issueClosed stays undefined. The next run re-reads labels from
+    //   the source of truth and retries, so no implicit success is
+    //   reported to the caller.
+    const config = createCloseOnCompleteConfig();
+    // Cycle 1: ["ready"] -> iterator success -> "review"      (T3+T4 commit)
+    // Cycle 2: ["review"] -> reviewer approved -> "complete"
+    //          T3 add "done", T4 remove "review", T6 close throws ->
+    //          rollback runs T4 comp (re-add "review") then T3 comp
+    //          (remove "done"), restoring preImage ["review"].
+    const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+    github.setCloseIssueShouldThrow(true);
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
 
-  const result = await orchestrator.run(1);
+    const result = await orchestrator.run(1);
 
-  assertEquals(
-    result.status,
-    "completed",
-    "Workflow should complete even if closeIssue fails. " +
-      "Fix: orchestrator.ts closeOnComplete error must be non-fatal",
-  );
-  assertEquals(
-    result.issueClosed,
-    undefined,
-    "issueClosed should not be true when closeIssue threw",
-  );
-  assertEquals(github.closedIssues.length, 0);
-});
+    // --- Cycle-level contract ---
+    assertEquals(
+      result.status,
+      "blocked",
+      "T6 failure must mark the cycle blocked so the caller does not " +
+        "treat a half-applied transition as completed. " +
+        'Fix: orchestrator.ts T6 catch must set status="blocked" and break.',
+    );
+    assertEquals(
+      result.issueClosed,
+      undefined,
+      "issueClosed must stay undefined when closeIssue threw — the " +
+        "OrchestratorResult contract reserves true for verified close. " +
+        "Fix: orchestrator.ts must only set issueClosed=true inside the " +
+        "T6 step action *after* closeIssue resolves.",
+    );
+    assertEquals(
+      github.closedIssues.length,
+      0,
+      "StubGitHubClient only records successful closes; closeIssue threw, " +
+        "so no issue number should have been appended.",
+    );
+
+    // --- Rollback contract: preImage label restoration ---
+    // Expected labelUpdates sequence (index: side-effect):
+    //   [0] cycle 1 T3  add    ["review"]
+    //   [1] cycle 1 T4  remove ["ready"]
+    //   [2] cycle 2 T3  add    ["done"]
+    //   [3] cycle 2 T4  remove ["review"]
+    //   [4] cycle 2 rollback T4 compensation  add ["review"]
+    //   [5] cycle 2 rollback T3 compensation  remove ["done"]
+    // Assert length first so subsequent index accesses are non-vacuous.
+    const labelUpdates = github.labelUpdates;
+    const forwardTransitions = 2; // cycle 1 ready->review, cycle 2 review->done
+    const compensations = 2; // cycle 2 T4-comp + T3-comp (LIFO)
+    assertEquals(
+      labelUpdates.length,
+      forwardTransitions * LABEL_CALLS_PER_TRANSITION + compensations,
+      "Expected 2 forward transitions × 2 label calls per transition " +
+        "(design §2.2) = 4, plus 2 compensations for the cycle-2 T6 " +
+        "failure (LIFO T4-comp then T3-comp) = 6 total. " +
+        "Fix: orchestrator.ts T3/T4 must register compensations that " +
+        "invert their forward ops, and scope.rollback() must run them.",
+    );
+
+    // Forward ops — cycle 1 (no close failure here, commits normally).
+    assertEquals(labelUpdates[0].added, ["review"]);
+    assertEquals(labelUpdates[0].removed, []);
+    assertEquals(labelUpdates[1].added, []);
+    assertEquals(labelUpdates[1].removed, ["ready"]);
+
+    // Forward ops — cycle 2 up to the T6 throw.
+    assertEquals(labelUpdates[2].added, ["done"]);
+    assertEquals(labelUpdates[2].removed, []);
+    assertEquals(labelUpdates[3].added, []);
+    assertEquals(labelUpdates[3].removed, ["review"]);
+
+    // Compensations in LIFO order (T4 registered last → runs first).
+    assertEquals(
+      labelUpdates[4].added,
+      ["review"],
+      "T4 compensation must re-add the label that T4 removed so the " +
+        "issue returns to its preImage label set.",
+    );
+    assertEquals(labelUpdates[4].removed, []);
+    assertEquals(
+      labelUpdates[5].removed,
+      ["done"],
+      "T3 compensation must remove the label that T3 added so no stale " +
+        "terminal label is left on the still-open issue (G2 closure).",
+    );
+    assertEquals(labelUpdates[5].added, []);
+
+    // --- Rollback contract: T6 compensation comment is posted ---
+    // design.md §3.1 row 4 + §3.3: on T6 (close) failure the orchestrator
+    // must post a marker-tagged "自動遷移失敗" comment so a human can
+    // intervene. The marker returned by compensationMarker() (visible
+    // `<sub>` footer signature) makes the compensation idempotent across
+    // retries.
+    //
+    // Implementation note: this works because orchestrator.ts pre-registers
+    // the compensation on scope *before* invoking closeIssue (scope.record
+    // rather than scope.step's post-success factory). On success, commit()
+    // clears the stack before the compensation can run; on failure,
+    // rollback() runs it LIFO-first. The test config has no handoff, so
+    // cycle 1 never posts anything — cycle 2 is the sole source of the
+    // single expected comment.
+    // Assert length first so subsequent index access is non-vacuous.
+    assertEquals(
+      github.comments.length,
+      1,
+      "T6 close failed, so the pre-registered compensation comment must " +
+        "have been posted during rollback(). " +
+        "Fix: orchestrator.ts T6 must call scope.record(compCommentReg) " +
+        "before invoking closeIssue so rollback() can find the " +
+        "compensation even when the action itself threw.",
+    );
+    const comp = github.comments[0];
+    assertEquals(
+      comp.issueNumber,
+      1,
+      "Compensation comment must be addressed to the same issue whose " +
+        "close failed.",
+    );
+    // Marker is derived from orchestrator.ts's exported factory so the
+    // test tracks the single source of truth. issueNumber=1, cycleSeq=2
+    // (cycle 2 is the failing cycle).
+    const expectedMarker = compensationMarker(1, 2);
+    assertStringIncludes(
+      comp.comment,
+      expectedMarker,
+      `Compensation comment body must embed the deterministic marker ` +
+        `"${expectedMarker}" produced by compensationMarker(1, 2) so a ` +
+        `retry can detect and skip re-posting (design §3.3).`,
+    );
+    // Visible footer format: user-facing warning header + <sub> signature
+    // line. Both strings are load-bearing for the "HTML comment → visible
+    // footer" contract change; if either disappears the marker may still
+    // match but the user-visibility guarantee is lost.
+    assertStringIncludes(
+      comp.comment,
+      "⚠️ 自動遷移失敗",
+      "Visible warning header must be present so the comment is readable " +
+        "in the GitHub UI (not hidden in an HTML comment).",
+    );
+    assertStringIncludes(
+      comp.comment,
+      `<sub>🤖 ${expectedMarker}</sub>`,
+      "Marker must be embedded in a <sub> footer so it is visible to " +
+        "users while remaining greppable for idempotency checks.",
+    );
+  },
+);
 
 Deno.test("closeOnComplete: closeCondition filters even when target is terminal", async () => {
   // Validator where both outcomes route to terminal, but closeCondition is "approved"
@@ -808,6 +990,17 @@ class BatchStubGitHubClient implements GitHubClient {
     return Promise.resolve();
   }
 
+  reopenIssue(_issueNumber: number): Promise<void> {
+    return Promise.reject(new Error("reopenIssue not implemented"));
+  }
+
+  getRecentComments(
+    _issueNumber: number,
+    _limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    return Promise.resolve([]);
+  }
+
   listIssues(criteria: IssueCriteria): Promise<IssueListItem[]> {
     this.listIssuesCalls.push(criteria);
     return Promise.resolve(this.#issues);
@@ -819,6 +1012,10 @@ class BatchStubGitHubClient implements GitHubClient {
       return Promise.reject(new Error(`No detail for #${issueNumber}`));
     }
     return Promise.resolve(detail);
+  }
+
+  listLabels(): Promise<string[]> {
+    return Promise.resolve([]);
   }
 }
 

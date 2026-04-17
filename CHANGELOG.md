@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `TransactionScope` saga for orchestrator phase transitions: LIFO
+  compensation registry eliminates the "label 宙ぶらり" gap where a
+  label update succeeded but `closeIssue` failed (`agents/orchestrator/transaction-scope.ts`)
+- `reopenIssue` and `getRecentComments` on `GitHubClient` for
+  compensation execution and marker-based idempotency
+- `compensationMarker(issueNumber, cycleSeq)` factory as the single
+  source of truth for compensation comment identity; visible footer
+  signature replaces the HTML-comment marker for operator auditability
+- Self-heal E2E test: T6 failure on one run recovers on the next,
+  with compensation comment posted exactly once across retries
+
+### Changed
+- Orchestrator phase-transition block rewritten as a T1..T7 saga;
+  `cycleTracker.record` now fires only on full T3..T6 success
+- `test-design` skill gains the Derivation ladder (import → named
+  constants → arithmetic-comment → bare literal) and three new
+  anti-patterns: Prose derivation alibi, Assertion bloat, Delegation
+  trust; Decision Framework adds Q4 (assertion-to-invariant alignment)
+- Orchestrator test suite: `labelUpdates.length` expected values
+  derived from `LABEL_CALLS_PER_TRANSITION = 2` (design §2.2) instead
+  of bare literals
+
 ## [1.13.25] - 2026-04-11
 
 ### Fixed
