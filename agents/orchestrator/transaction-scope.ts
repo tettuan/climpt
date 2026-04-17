@@ -125,6 +125,11 @@ export class TransactionScope {
 
     for (const compensation of pending) {
       try {
+        // Saga compensations must run in strict LIFO order; later
+        // compensations may depend on the side effects of earlier ones
+        // being already reverted. Parallel execution would break that
+        // ordering contract.
+        // deno-lint-ignore no-await-in-loop
         await compensation.run();
         succeeded += 1;
       } catch (error) {
@@ -135,6 +140,10 @@ export class TransactionScope {
           error: err,
         });
         try {
+          // Same LIFO-ordering rationale: log entry for a failed
+          // compensation must be flushed before the next compensation
+          // runs so operators see the sequence in correct order.
+          // deno-lint-ignore no-await-in-loop
           await this.#logger.warn(
             `TransactionScope compensation "${compensation.label}" failed: ${err.message}`,
             {
@@ -184,7 +193,7 @@ function causeMessage(cause: unknown): string {
 }
 
 const consoleWarnLogger: TransactionLogger = {
-  warn(message, metadata) {
+  warn(message: string, metadata?: Record<string, unknown>): Promise<void> {
     // deno-lint-ignore no-console
     console.warn(`[transaction-scope] ${message}`, metadata ?? {});
     return Promise.resolve();
