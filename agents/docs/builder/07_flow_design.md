@@ -134,6 +134,8 @@ issue を terminal / blocking まで運ぶための orchestrator のループ機
 - [ ] 最長経路の cycle 数は `maxCycles` 以下か
 - [ ] loop を含む場合、loop を抜ける条件 (成功 verdict / 外部状態変化) が
       仕組みとして存在するか
+- [ ] 同一 phase で stuck する病的ケースを `maxConsecutivePhases` で早期検知
+      するか (§2.4)
 
 **`maxCycles` の見積もり例** (Revision Loop):
 
@@ -145,7 +147,41 @@ maxCycles: 7
 
 最長経路を workflow.json の phase graph から手で辿り、その +1〜2 を設定する。
 
-### 2.4 `cycleDelayMs` の用途
+### 2.4 Phase Repetition Limit (`maxConsecutivePhases`)
+
+`maxCycles` は **総遷移回数**の上限で、`revision` に 3 回連続で留まっても別
+phase で 2 回まで消費できる設定では stuck pattern の検知が遅れる。
+`maxConsecutivePhases` は「**同一 phase が N 回連続で出現**」という局所的な
+stuck を、`maxCycles` より先に捕まえるためのガードである (`WorkflowRules`
+`agents/orchestrator/workflow-types.ts`)。
+
+| 観点     | `maxCycles` (既存)  | `maxConsecutivePhases` (新規)        |
+| -------- | ------------------- | ------------------------------------ |
+| 計測対象 | 全 phase 遷移の累計 | 直近末尾の同一 `to` phase の連続回数 |
+| 目的     | 全体の暴走上限      | 局所 stuck の早期検知                |
+| 評価順序 | 後                  | **先** (specific な判定を優先)       |
+| status   | `cycle_exceeded`    | `phase_repetition_exceeded`          |
+| event    | `cycle_exceeded`    | `consecutive_phase_exceeded`         |
+
+- 型: `number`、`integer >= 0`、optional
+- default: `0` (= **disabled**, 未指定時はチェックなし)
+- 検知ロジック: history 末尾 N 件の `record.to` がすべて同一値なら trip (異
+  phase が 1 件挟まると counter リセット)
+- 推奨値: `maxCycles >= 5` の workflow では `3`、`maxCycles <= 3` の workflow
+  では OFF のまま (`maxCycles` で十分)
+
+**例** (limit=3):
+
+```
+revision → revision → revision  ← 3 回連続 → trip (phase_repetition_exceeded)
+revision → revision → triage → revision → revision  ← triage で counter リセット
+```
+
+status / event の詳細は
+[`design/12_orchestrator.md`](../design/12_orchestrator.md) 「Status
+判定ロジック」参照。
+
+### 2.5 `cycleDelayMs` の用途
 
 cycle 間の待機時間 (ミリ秒)。
 
@@ -365,7 +401,9 @@ label を変更するまで滞留する。
    agent、成功の意味が複数ある agent を validator に昇格。
 6. **`maxCycles` を算出** — 最長経路の cycle 数を workflow.json から手で辿り、
    +1〜2 を設定 (§2.3 の例を参照)。
-7. **`cycleDelayMs` を設定** — テスト時は 0、本番は 30000 以上を目安に (§2.4)。
+7. **`maxConsecutivePhases` を検討** — `maxCycles >= 5` なら `3` を目安に設定
+   し、stuck pattern を早期検知 (§2.4)。default は `0` (OFF)。
+8. **`cycleDelayMs` を設定** — テスト時は 0、本番は 30000 以上を目安に (§2.5)。
 
 ---
 
