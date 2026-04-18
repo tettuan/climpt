@@ -40,20 +40,20 @@ export interface LabelDetail {
 
 /** Abstract interface for GitHub issue operations. */
 export interface GitHubClient {
-  getIssueLabels(issueNumber: number): Promise<string[]>;
+  getIssueLabels(subjectId: string | number): Promise<string[]>;
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void>;
-  addIssueComment(issueNumber: number, comment: string): Promise<void>;
+  addIssueComment(subjectId: string | number, comment: string): Promise<void>;
   createIssue(title: string, labels: string[], body: string): Promise<number>;
-  closeIssue(issueNumber: number): Promise<void>;
-  reopenIssue(issueNumber: number): Promise<void>;
+  closeIssue(subjectId: string | number): Promise<void>;
+  reopenIssue(subjectId: string | number): Promise<void>;
   listIssues(criteria: IssueCriteria): Promise<IssueListItem[]>;
-  getIssueDetail(issueNumber: number): Promise<IssueDetail>;
+  getIssueDetail(subjectId: string | number): Promise<IssueDetail>;
   getRecentComments(
-    issueNumber: number,
+    subjectId: string | number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]>;
   listLabels(): Promise<string[]>;
@@ -87,12 +87,12 @@ export class GhCliClient implements GitHubClient {
     this.#cwd = cwd;
   }
 
-  async getIssueLabels(issueNumber: number): Promise<string[]> {
+  async getIssueLabels(subjectId: string | number): Promise<string[]> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "view",
-        String(issueNumber),
+        String(subjectId),
         "--json",
         "labels",
         "--jq",
@@ -108,7 +108,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to get labels for issue #${issueNumber}: ${stderr}`,
+        `Failed to get labels for subject #${subjectId}: ${stderr}`,
       );
     }
 
@@ -118,11 +118,11 @@ export class GhCliClient implements GitHubClient {
   }
 
   async updateIssueLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
-    const args = ["issue", "edit", String(issueNumber)];
+    const args = ["issue", "edit", String(subjectId)];
 
     for (const label of labelsToRemove) {
       args.push("--remove-label", label);
@@ -145,20 +145,20 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to update labels for issue #${issueNumber}: ${stderr}`,
+        `Failed to update labels for subject #${subjectId}: ${stderr}`,
       );
     }
   }
 
   async addIssueComment(
-    issueNumber: number,
+    subjectId: string | number,
     comment: string,
   ): Promise<void> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "comment",
-        String(issueNumber),
+        String(subjectId),
         "--body",
         comment,
       ],
@@ -172,7 +172,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to add comment to issue #${issueNumber}: ${stderr}`,
+        `Failed to add comment to subject #${subjectId}: ${stderr}`,
       );
     }
   }
@@ -211,9 +211,9 @@ export class GhCliClient implements GitHubClient {
     return Number(match[1]);
   }
 
-  async closeIssue(issueNumber: number): Promise<void> {
+  async closeIssue(subjectId: string | number): Promise<void> {
     const cmd = new Deno.Command("gh", {
-      args: ["issue", "close", String(issueNumber)],
+      args: ["issue", "close", String(subjectId)],
       cwd: this.#cwd,
       stdout: "piped",
       stderr: "piped",
@@ -224,14 +224,14 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to close issue #${issueNumber}: ${stderr}`,
+        `Failed to close subject #${subjectId}: ${stderr}`,
       );
     }
   }
 
-  async reopenIssue(issueNumber: number): Promise<void> {
+  async reopenIssue(subjectId: string | number): Promise<void> {
     const cmd = new Deno.Command("gh", {
-      args: ["issue", "reopen", String(issueNumber)],
+      args: ["issue", "reopen", String(subjectId)],
       cwd: this.#cwd,
       stdout: "piped",
       stderr: "piped",
@@ -242,7 +242,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to reopen issue #${issueNumber}: ${stderr}`,
+        `Failed to reopen subject #${subjectId}: ${stderr}`,
       );
     }
   }
@@ -302,12 +302,12 @@ export class GhCliClient implements GitHubClient {
     }));
   }
 
-  async getIssueDetail(issueNumber: number): Promise<IssueDetail> {
+  async getIssueDetail(subjectId: string | number): Promise<IssueDetail> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "view",
-        String(issueNumber),
+        String(subjectId),
         "--json",
         "number,title,body,labels,state,assignees,milestone,comments",
       ],
@@ -321,7 +321,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to get detail for issue #${issueNumber}: ${stderr}`,
+        `Failed to get detail for subject #${subjectId}: ${stderr}`,
       );
     }
 
@@ -349,7 +349,7 @@ export class GhCliClient implements GitHubClient {
   }
 
   async getRecentComments(
-    issueNumber: number,
+    subjectId: string | number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     if (limit <= 0) return [];
@@ -358,7 +358,7 @@ export class GhCliClient implements GitHubClient {
       args: [
         "issue",
         "view",
-        String(issueNumber),
+        String(subjectId),
         "--json",
         "comments",
         "--jq",
@@ -374,7 +374,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to get recent comments for issue #${issueNumber}: ${stderr}`,
+        `Failed to get recent comments for subject #${subjectId}: ${stderr}`,
       );
     }
 

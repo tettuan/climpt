@@ -7,13 +7,13 @@
  */
 
 import type { GitHubClient, IssueCriteria } from "./github-client.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 
 export class IssueSyncer {
   #github: GitHubClient;
-  #store: IssueStore;
+  #store: SubjectStore;
 
-  constructor(github: GitHubClient, store: IssueStore) {
+  constructor(github: GitHubClient, store: SubjectStore) {
     this.#github = github;
     this.#store = store;
   }
@@ -48,20 +48,20 @@ export class IssueSyncer {
 
   /** Push label changes to GitHub and update local store. */
   async pushLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     await this.#github.updateIssueLabels(
-      issueNumber,
+      subjectId,
       labelsToRemove,
       labelsToAdd,
     );
 
-    const meta = await this.#store.readMeta(issueNumber);
+    const meta = await this.#store.readMeta(subjectId);
     const updated = meta.labels
       .filter((l) => !labelsToRemove.includes(l))
       .concat(labelsToAdd.filter((l) => !meta.labels.includes(l)));
-    await this.#store.updateMeta(issueNumber, { labels: updated });
+    await this.#store.updateMeta(subjectId, { labels: updated });
   }
 }

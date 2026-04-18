@@ -26,7 +26,7 @@ import {
 import { computeLabelChanges, computeTransition } from "./phase-transition.ts";
 import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
@@ -44,9 +44,9 @@ export type { OrchestratorOptions, OrchestratorResult };
  * CompensationRegistry as well.
  */
 export const compensationMarker = (
-  issueNumber: number,
+  subjectId: string | number,
   cycleSeq: number,
-): string => `climpt-compensation:issue-${issueNumber}:cycle-${cycleSeq}`;
+): string => `climpt-compensation:subject-${subjectId}:cycle-${cycleSeq}`;
 
 export class Orchestrator {
   #config: WorkflowConfig;
@@ -75,9 +75,9 @@ export class Orchestrator {
   }
 
   async run(
-    issueNumber: number,
+    subjectId: string | number,
     options?: OrchestratorOptions,
-    store?: IssueStore,
+    store?: SubjectStore,
     logger?: OrchestratorLogger,
   ): Promise<OrchestratorResult> {
     const ownsLogger = !logger;
@@ -97,17 +97,17 @@ export class Orchestrator {
     // Acquire per-issue lock when store is available to prevent
     // concurrent invocations on the same issue.
     const issueLock = store
-      ? await store.acquireIssueLock(this.workflowId, issueNumber)
+      ? await store.acquireIssueLock(this.workflowId, subjectId)
       : undefined;
 
     if (store && issueLock === null) {
       await log.info(
-        `Issue #${issueNumber} is already being processed, skipping`,
-        { event: "issue_locked", issueNumber, workflowId: this.workflowId },
+        `Subject #${subjectId} is already being processed, skipping`,
+        { event: "issue_locked", subjectId, workflowId: this.workflowId },
       );
       if (ownsLogger) await log.close();
       return {
-        issueNumber,
+        subjectId,
         finalPhase: "unknown",
         cycleCount: 0,
         history: [],
@@ -117,7 +117,7 @@ export class Orchestrator {
 
     try {
       return await this.#runInner(
-        issueNumber,
+        subjectId,
         options,
         store,
         this.workflowId,
@@ -130,9 +130,9 @@ export class Orchestrator {
   }
 
   async #runInner(
-    issueNumber: number,
+    subjectId: string | number,
     options: OrchestratorOptions | undefined,
-    store: IssueStore | undefined,
+    store: SubjectStore | undefined,
     workflowId: string | undefined,
     log: OrchestratorLogger,
   ): Promise<OrchestratorResult> {
@@ -141,9 +141,9 @@ export class Orchestrator {
     const maxConsecutivePhases = this.#config.rules.maxConsecutivePhases ?? 0;
     const wfId = workflowId ?? this.workflowId;
 
-    await log.info(`Run start issue #${issueNumber}`, {
+    await log.info(`Run start subject #${subjectId}`, {
       event: "run_start",
-      issueNumber,
+      subjectId,
       workflowId: wfId,
       dryRun,
     });
@@ -158,10 +158,10 @@ export class Orchestrator {
     // new run. This is a one-way regression detection — label state wins.
     let tracker: CycleTracker;
     if (store) {
-      const existingState = await store.readWorkflowState(issueNumber, wfId);
+      const existingState = await store.readWorkflowState(subjectId, wfId);
       if (existingState) {
         const livePhaseId = await this.#resolveLivePhaseId(
-          issueNumber,
+          subjectId,
           store,
           log,
         );
@@ -170,12 +170,12 @@ export class Orchestrator {
           existingState.currentPhase !== livePhaseId
         ) {
           await log.info(
-            `State reset for issue #${issueNumber}: persisted phase ` +
+            `State reset for subject #${subjectId}: persisted phase ` +
               `"${existingState.currentPhase}" was regressed to ` +
               `"${livePhaseId}" via labels`,
             {
               event: "state_reset_by_label_regression",
-              issueNumber,
+              subjectId,
               workflowId: wfId,
               persistedPhase: existingState.currentPhase,
               resolvedPhase: livePhaseId,
@@ -212,20 +212,20 @@ export class Orchestrator {
       try {
         if (store) {
           // deno-lint-ignore no-await-in-loop
-          const meta = await store.readMeta(issueNumber);
+          const meta = await store.readMeta(subjectId);
           currentLabels = meta.labels;
         } else {
           // deno-lint-ignore no-await-in-loop
-          currentLabels = await this.#github.getIssueLabels(issueNumber);
+          currentLabels = await this.#github.getIssueLabels(subjectId);
         }
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         // deno-lint-ignore no-await-in-loop
         await log.error(
-          `Failed to get labels for issue #${issueNumber}: ${msg}`,
+          `Failed to get labels for subject #${subjectId}: ${msg}`,
           {
             event: "labels_error",
-            issueNumber,
+            subjectId,
             error: msg,
           },
         );
@@ -236,7 +236,7 @@ export class Orchestrator {
       // deno-lint-ignore no-await-in-loop
       await log.info(`Labels: [${currentLabels.join(", ")}]`, {
         event: "labels",
-        issueNumber,
+        subjectId,
         labels: currentLabels,
       });
 
@@ -254,7 +254,7 @@ export class Orchestrator {
         // deno-lint-ignore no-await-in-loop
         await log.info(`Phase "${finalPhase}" is ${status}`, {
           event: "phase_terminal_or_blocked",
-          issueNumber,
+          subjectId,
           phase: finalPhase,
           status,
         });
@@ -268,7 +268,7 @@ export class Orchestrator {
         // deno-lint-ignore no-await-in-loop
         await log.info("No actionable phase found, blocking", {
           event: "phase_unresolved",
-          issueNumber,
+          subjectId,
         });
         break;
       }
@@ -279,7 +279,7 @@ export class Orchestrator {
       // deno-lint-ignore no-await-in-loop
       await log.info(`Resolved phase: "${phaseId}"`, {
         event: "phase_resolved",
-        issueNumber,
+        subjectId,
         phase: phaseId,
       });
 
@@ -290,7 +290,7 @@ export class Orchestrator {
         // deno-lint-ignore no-await-in-loop
         await log.warn(`No agent found for phase "${phaseId}"`, {
           event: "agent_unresolved",
-          issueNumber,
+          subjectId,
           phase: phaseId,
         });
         break;
@@ -301,18 +301,18 @@ export class Orchestrator {
       // Step 6a: Phase repetition check (L3) — evaluated before L1 maxCycles
       // so stuck patterns surface a specific status / event rather than
       // being absorbed by the generic cycle_exceeded path.
-      if (tracker.isPhaseRepetitionExceeded(issueNumber)) {
+      if (tracker.isPhaseRepetitionExceeded(subjectId)) {
         status = "phase_repetition_exceeded";
         // deno-lint-ignore no-await-in-loop
         await log.warn(
           `Same phase repeated ${
-            tracker.getConsecutiveCount(issueNumber)
+            tracker.getConsecutiveCount(subjectId)
           } times consecutively (limit ${maxConsecutivePhases})`,
           {
             event: "consecutive_phase_exceeded",
-            issueNumber,
+            subjectId,
             phase: phaseId,
-            consecutiveCount: tracker.getConsecutiveCount(issueNumber),
+            consecutiveCount: tracker.getConsecutiveCount(subjectId),
             maxConsecutivePhases,
           },
         );
@@ -320,17 +320,15 @@ export class Orchestrator {
       }
 
       // Step 6b: Cycle check
-      if (tracker.isExceeded(issueNumber)) {
+      if (tracker.isExceeded(subjectId)) {
         status = "cycle_exceeded";
         // deno-lint-ignore no-await-in-loop
         await log.warn(
-          `Cycle limit exceeded (${
-            tracker.getCount(issueNumber)
-          }/${maxCycles})`,
+          `Cycle limit exceeded (${tracker.getCount(subjectId)}/${maxCycles})`,
           {
             event: "cycle_exceeded",
-            issueNumber,
-            cycleCount: tracker.getCount(issueNumber),
+            subjectId,
+            cycleCount: tracker.getCount(subjectId),
             maxCycles,
           },
         );
@@ -341,8 +339,8 @@ export class Orchestrator {
       if (dryRun) {
         // deno-lint-ignore no-await-in-loop
         await log.info(
-          `[dry-run] Would dispatch agent "${agentId}" for issue #${issueNumber}`,
-          { event: "dry_run", issueNumber, agent: agentId },
+          `[dry-run] Would dispatch agent "${agentId}" for subject #${subjectId}`,
+          { event: "dry_run", subjectId, agent: agentId },
         );
         status = "dry-run";
         break;
@@ -350,8 +348,8 @@ export class Orchestrator {
 
       // deno-lint-ignore no-await-in-loop
       await log.info(
-        `Dispatching agent "${agentId}" for issue #${issueNumber}`,
-        { event: "dispatch", issueNumber, agent: agentId },
+        `Dispatching agent "${agentId}" for subject #${subjectId}`,
+        { event: "dispatch", subjectId, agent: agentId },
       );
 
       // Step 7: Dispatch agent
@@ -360,17 +358,17 @@ export class Orchestrator {
       let payload;
       if (store) {
         // deno-lint-ignore no-await-in-loop
-        payload = await store.readWorkflowPayload(issueNumber, wfId);
+        payload = await store.readWorkflowPayload(subjectId, wfId);
       }
 
       // deno-lint-ignore no-await-in-loop
       const dispatchResult = await this.#dispatcher.dispatch(
         agentId,
-        issueNumber,
+        subjectId,
         {
           verbose: options?.verbose ?? false,
           issueStorePath: store?.storePath,
-          outboxPath: store?.getOutboxPath(issueNumber),
+          outboxPath: store?.getOutboxPath(subjectId),
           payload,
         },
       );
@@ -380,7 +378,7 @@ export class Orchestrator {
         `Agent "${agentId}" outcome: "${dispatchResult.outcome}" (${dispatchResult.durationMs}ms)`,
         {
           event: "dispatch_result",
-          issueNumber,
+          subjectId,
           agent: agentId,
           outcome: dispatchResult.outcome,
           durationMs: dispatchResult.durationMs,
@@ -404,7 +402,7 @@ export class Orchestrator {
             // deno-lint-ignore no-await-in-loop
             const { artifactPath } = await this.#artifactEmitter.emit({
               workflowId: wfId,
-              issueNumber,
+              subjectId,
               sourceAgent: agentId,
               sourceOutcome: dispatchResult.outcome,
               agentResult: dispatchResult.structuredOutput,
@@ -415,7 +413,7 @@ export class Orchestrator {
               `Handoff "${handoff.id}" emitted → ${artifactPath}`,
               {
                 event: "handoff_emitted",
-                issueNumber,
+                subjectId,
                 handoffId: handoff.id,
                 artifactPath,
               },
@@ -427,7 +425,7 @@ export class Orchestrator {
               `Handoff "${handoff.id}" failed: ${msg}`,
               {
                 event: "handoff_error",
-                issueNumber,
+                subjectId,
                 handoffId: handoff.id,
                 error: msg,
               },
@@ -441,7 +439,7 @@ export class Orchestrator {
       if (store) {
         const outboxProcessor = new OutboxProcessor(this.#github, store);
         // deno-lint-ignore no-await-in-loop
-        const outboxResults = await outboxProcessor.process(issueNumber);
+        const outboxResults = await outboxProcessor.process(subjectId);
 
         if (outboxResults.length > 0) {
           const succeeded = outboxResults.filter((r) => r.success);
@@ -452,7 +450,7 @@ export class Orchestrator {
             `Outbox: ${outboxResults.length} actions (${succeeded.length} ok, ${failed.length} failed)`,
             {
               event: "outbox_processed",
-              issueNumber,
+              subjectId,
               total: outboxResults.length,
               succeeded: succeeded.length,
               failed: failed.length,
@@ -465,7 +463,7 @@ export class Orchestrator {
               `Outbox action failed: ${fail.action} (seq ${fail.sequence}): ${fail.error}`,
               {
                 event: "outbox_action_failed",
-                issueNumber,
+                subjectId,
                 action: fail.action,
                 sequence: fail.sequence,
                 error: fail.error,
@@ -479,7 +477,7 @@ export class Orchestrator {
               `Outbox not cleared: ${failed.length} failed actions remain for retry`,
               {
                 event: "outbox_not_cleared",
-                issueNumber,
+                subjectId,
                 failedCount: failed.length,
               },
             );
@@ -521,7 +519,7 @@ export class Orchestrator {
           }])`,
         {
           event: "transition",
-          issueNumber,
+          subjectId,
           fromPhase: phaseId,
           toPhase: targetPhase,
           labelsToRemove,
@@ -554,9 +552,9 @@ export class Orchestrator {
 
       if (!dryRun) {
         const preImage = [...currentLabels];
-        const cycleSeq = tracker.getCount(issueNumber) + 1;
-        const restoreLabelsKey = `restore-labels:${issueNumber}:${cycleSeq}`;
-        const marker = compensationMarker(issueNumber, cycleSeq);
+        const cycleSeq = tracker.getCount(subjectId) + 1;
+        const restoreLabelsKey = `restore-labels:${subjectId}:${cycleSeq}`;
+        const marker = compensationMarker(subjectId, cycleSeq);
         const scope = new TransactionScope({ logger: log });
 
         try {
@@ -565,14 +563,13 @@ export class Orchestrator {
             // deno-lint-ignore no-await-in-loop
             await scope.step(
               "add-labels",
-              () =>
-                this.#github.updateIssueLabels(issueNumber, [], labelsToAdd),
+              () => this.#github.updateIssueLabels(subjectId, [], labelsToAdd),
               () => ({
                 label: "restore-labels",
                 idempotencyKey: restoreLabelsKey,
                 run: () =>
                   this.#github.updateIssueLabels(
-                    issueNumber,
+                    subjectId,
                     labelsToAdd,
                     [],
                   ),
@@ -588,7 +585,7 @@ export class Orchestrator {
               "remove-labels",
               () =>
                 this.#github.updateIssueLabels(
-                  issueNumber,
+                  subjectId,
                   labelsToRemove,
                   [],
                 ),
@@ -597,7 +594,7 @@ export class Orchestrator {
                 idempotencyKey: restoreLabelsKey,
                 run: () =>
                   this.#github.updateIssueLabels(
-                    issueNumber,
+                    subjectId,
                     [],
                     labelsToRemove,
                   ),
@@ -616,7 +613,7 @@ export class Orchestrator {
               () =>
                 handoff.renderAndPost(
                   this.#github,
-                  issueNumber,
+                  subjectId,
                   agentId,
                   dispatchResult.outcome,
                   { ...dispatchResult.handoffData },
@@ -626,7 +623,7 @@ export class Orchestrator {
                 idempotencyKey: restoreLabelsKey,
                 run: () =>
                   this.#github.updateIssueLabels(
-                    issueNumber,
+                    subjectId,
                     labelsToAdd, // undo T3
                     labelsToRemove, // undo T4
                   ),
@@ -653,7 +650,7 @@ export class Orchestrator {
               run: async () => {
                 try {
                   const recent = await this.#github.getRecentComments(
-                    issueNumber,
+                    subjectId,
                     20,
                   );
                   if (recent.some((c) => c.body.includes(marker))) {
@@ -666,18 +663,18 @@ export class Orchestrator {
                   `phase 遷移 (${phaseId} → ${targetPhase}) で issue close ` +
                   `に失敗しました。\nラベルは元に戻されています。\n\n` +
                   `---\n<sub>🤖 ${marker}</sub>`;
-                await this.#github.addIssueComment(issueNumber, body);
+                await this.#github.addIssueComment(subjectId, body);
               },
             });
             // deno-lint-ignore no-await-in-loop
-            await this.#github.closeIssue(issueNumber);
+            await this.#github.closeIssue(subjectId);
             issueClosed = true;
             // deno-lint-ignore no-await-in-loop
             await log.info(
-              `Closed issue #${issueNumber} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
+              `Closed subject #${subjectId} (closeOnComplete, outcome="${dispatchResult.outcome}")`,
               {
                 event: "issue_closed",
-                issueNumber,
+                subjectId,
                 agent: agentId,
                 outcome: dispatchResult.outcome,
               },
@@ -689,7 +686,7 @@ export class Orchestrator {
           // the registered compensations on the next run. (commit()
           // itself is synchronous in effect, so the window is negligible.)
           tracker.record(
-            issueNumber,
+            subjectId,
             phaseId,
             targetPhase,
             agentId,
@@ -702,10 +699,10 @@ export class Orchestrator {
           const msg = error instanceof Error ? error.message : String(error);
           // deno-lint-ignore no-await-in-loop
           await log.warn(
-            `Phase transition failed for issue #${issueNumber}: ${msg}`,
+            `Phase transition failed for subject #${subjectId}: ${msg}`,
             {
               event: "phase_transition_failed",
-              issueNumber,
+              subjectId,
               fromPhase: phaseId,
               toPhase: targetPhase,
               error: msg,
@@ -716,12 +713,12 @@ export class Orchestrator {
           if (report.attempted > 0) {
             // deno-lint-ignore no-await-in-loop
             await log.warn(
-              `Compensation ran for issue #${issueNumber}: ` +
+              `Compensation ran for subject #${subjectId}: ` +
                 `${report.succeeded}/${report.attempted} succeeded` +
                 (report.partial ? " (partial)" : ""),
               {
                 event: "compensation_ran",
-                issueNumber,
+                subjectId,
                 attempted: report.attempted,
                 succeeded: report.succeeded,
                 failed: report.failed.map((f) => ({
@@ -754,15 +751,15 @@ export class Orchestrator {
             .concat(labelsToAdd);
           try {
             // deno-lint-ignore no-await-in-loop
-            await store.updateMeta(issueNumber, { labels: newLabels });
+            await store.updateMeta(subjectId, { labels: newLabels });
           } catch {
             // non-fatal
           }
           try {
             // deno-lint-ignore no-await-in-loop
             await store.writeWorkflowState(
-              issueNumber,
-              tracker.toState(issueNumber, targetPhase),
+              subjectId,
+              tracker.toState(subjectId, targetPhase),
               wfId,
             );
           } catch {
@@ -773,7 +770,7 @@ export class Orchestrator {
         // dry-run: skip side-effects but still record the planned cycle so
         // history reflects the intended transition.
         tracker.record(
-          issueNumber,
+          subjectId,
           phaseId,
           targetPhase,
           agentId,
@@ -800,16 +797,16 @@ export class Orchestrator {
     }
 
     const result: OrchestratorResult = {
-      issueNumber,
+      subjectId,
       finalPhase,
-      cycleCount: tracker.getCount(issueNumber),
-      history: tracker.getHistory(issueNumber),
+      cycleCount: tracker.getCount(subjectId),
+      history: tracker.getHistory(subjectId),
       status,
       ...(issueClosed ? { issueClosed } : {}),
     };
 
     await log.info(
-      `Run end issue #${issueNumber}: ${status} at "${finalPhase}" (${result.cycleCount} cycles)`,
+      `Run end subject #${subjectId}: ${status} at "${finalPhase}" (${result.cycleCount} cycles)`,
       { event: "run_end", ...result },
     );
 
@@ -829,22 +826,22 @@ export class Orchestrator {
    * that case (conservative: never drop history without evidence).
    */
   async #resolveLivePhaseId(
-    issueNumber: number,
-    store: IssueStore,
+    subjectId: string | number,
+    store: SubjectStore,
     log: OrchestratorLogger,
   ): Promise<string | null> {
     let labels: string[];
     try {
-      const meta = await store.readMeta(issueNumber);
+      const meta = await store.readMeta(subjectId);
       labels = meta.labels;
     } catch {
       try {
-        labels = await this.#github.getIssueLabels(issueNumber);
+        labels = await this.#github.getIssueLabels(subjectId);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         await log.warn(
-          `Staleness check: failed to read labels for issue #${issueNumber}: ${msg}`,
-          { event: "staleness_check_skipped", issueNumber, error: msg },
+          `Staleness check: failed to read labels for subject #${subjectId}: ${msg}`,
+          { event: "staleness_check_skipped", subjectId, error: msg },
         );
         return null;
       }

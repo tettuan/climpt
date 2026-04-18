@@ -13,7 +13,7 @@ import type {
 export class CycleTracker {
   #maxCycles: number;
   #maxConsecutivePhases: number;
-  #history: Map<number, PhaseTransitionRecord[]>;
+  #history: Map<string | number, PhaseTransitionRecord[]>;
 
   constructor(maxCycles: number, maxConsecutivePhases = 0) {
     this.#maxCycles = maxCycles;
@@ -21,9 +21,9 @@ export class CycleTracker {
     this.#history = new Map();
   }
 
-  /** Record a phase transition for an issue. */
+  /** Record a phase transition for a subject. */
   record(
-    issueNumber: number,
+    subjectId: string | number,
     from: string,
     to: string,
     agent: string,
@@ -36,17 +36,17 @@ export class CycleTracker {
       outcome,
       timestamp: new Date().toISOString(),
     };
-    const existing = this.#history.get(issueNumber);
+    const existing = this.#history.get(subjectId);
     if (existing) {
       existing.push(record);
     } else {
-      this.#history.set(issueNumber, [record]);
+      this.#history.set(subjectId, [record]);
     }
   }
 
-  /** Returns true if the issue has reached or exceeded maxCycles. */
-  isExceeded(issueNumber: number): boolean {
-    return this.getCount(issueNumber) >= this.#maxCycles;
+  /** Returns true if the subject has reached or exceeded maxCycles. */
+  isExceeded(subjectId: string | number): boolean {
+    return this.getCount(subjectId) >= this.#maxCycles;
   }
 
   /**
@@ -56,10 +56,10 @@ export class CycleTracker {
    * fewer records than the limit, or when any record in the tail window
    * diverges from the most recent `to` phase.
    */
-  isPhaseRepetitionExceeded(issueNumber: number): boolean {
+  isPhaseRepetitionExceeded(subjectId: string | number): boolean {
     const limit = this.#maxConsecutivePhases;
     if (!limit || limit <= 0) return false;
-    const records = this.#history.get(issueNumber);
+    const records = this.#history.get(subjectId);
     if (!records || records.length < limit) return false;
     const tail = records.slice(-limit);
     const target = tail[tail.length - 1].to;
@@ -71,8 +71,8 @@ export class CycleTracker {
    * history that share the same `to` phase as the most recent record.
    * Returns 0 when no history exists for the issue.
    */
-  getConsecutiveCount(issueNumber: number): number {
-    const records = this.#history.get(issueNumber) ?? [];
+  getConsecutiveCount(subjectId: string | number): number {
+    const records = this.#history.get(subjectId) ?? [];
     if (records.length === 0) return 0;
     const target = records[records.length - 1].to;
     let count = 0;
@@ -83,14 +83,14 @@ export class CycleTracker {
     return count;
   }
 
-  /** Returns the number of transitions recorded for this issue. */
-  getCount(issueNumber: number): number {
-    return this.#history.get(issueNumber)?.length ?? 0;
+  /** Returns the number of transitions recorded for this subject. */
+  getCount(subjectId: string | number): number {
+    return this.#history.get(subjectId)?.length ?? 0;
   }
 
-  /** Returns a defensive copy of the transition history for this issue. */
-  getHistory(issueNumber: number): PhaseTransitionRecord[] {
-    const records = this.#history.get(issueNumber);
+  /** Returns a defensive copy of the transition history for this subject. */
+  getHistory(subjectId: string | number): PhaseTransitionRecord[] {
+    const records = this.#history.get(subjectId);
     if (!records) return [];
     return records.map((r) => ({ ...r }));
   }
@@ -104,16 +104,19 @@ export class CycleTracker {
     return `wf-${timestamp}-${agent}`;
   }
 
-  /** Serialize tracker state for a given issue into an IssueWorkflowState. */
-  toState(issueNumber: number, currentPhase: string): IssueWorkflowState {
-    const history = this.getHistory(issueNumber);
+  /** Serialize tracker state for a given subject into an IssueWorkflowState. */
+  toState(
+    subjectId: string | number,
+    currentPhase: string,
+  ): IssueWorkflowState {
+    const history = this.getHistory(subjectId);
     const lastAgent = history.length > 0
       ? history[history.length - 1].agent
       : "unknown";
     return {
-      issueNumber,
+      subjectId,
       currentPhase,
-      cycleCount: this.getCount(issueNumber),
+      cycleCount: this.getCount(subjectId),
       correlationId: this.generateCorrelationId(lastAgent),
       history,
     };
@@ -127,7 +130,7 @@ export class CycleTracker {
   ): CycleTracker {
     const tracker = new CycleTracker(maxCycles, maxConsecutivePhases);
     tracker.#history.set(
-      state.issueNumber,
+      state.subjectId,
       state.history.map((r) => ({ ...r })),
     );
     return tracker;

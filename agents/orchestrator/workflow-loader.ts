@@ -9,7 +9,7 @@
 import { join } from "@std/path";
 import {
   type AgentDefinition,
-  DEFAULT_ISSUE_STORE,
+  DEFAULT_SUBJECT_STORE,
   type WorkflowConfig,
   type WorkflowRules,
 } from "./workflow-types.ts";
@@ -80,8 +80,8 @@ export async function loadWorkflow(
 
   validateRequiredFields(parsed);
 
-  const rawIssueStore = parsed.issueStore as
-    | WorkflowConfig["issueStore"]
+  const rawSubjectStore = parsed.subjectStore as
+    | WorkflowConfig["subjectStore"]
     | undefined;
 
   const config: WorkflowConfig = {
@@ -95,7 +95,7 @@ export async function loadWorkflow(
       parsed.rules as Partial<WorkflowRules> | undefined,
     ),
     handoff: parsed.handoff as WorkflowConfig["handoff"],
-    issueStore: rawIssueStore ?? DEFAULT_ISSUE_STORE,
+    subjectStore: rawSubjectStore ?? DEFAULT_SUBJECT_STORE,
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
     handoffs: parsed.handoffs as WorkflowConfig["handoffs"],
     payloadSchema: parsed.payloadSchema as WorkflowConfig["payloadSchema"],

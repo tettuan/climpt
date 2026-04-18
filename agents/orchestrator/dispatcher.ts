@@ -8,7 +8,7 @@
 
 import type {
   AgentDefinition,
-  IssuePayload,
+  SubjectPayload,
   WorkflowConfig,
 } from "./workflow-types.ts";
 import type {
@@ -111,12 +111,12 @@ export function extractHandoffData(
  * uses the same composition.
  */
 export function composeRunnerArgs(
-  issueNumber: number,
+  subjectId: string | number,
   options?: DispatchOptions,
 ): Record<string, unknown> {
   const runnerArgs: Record<string, unknown> = {
     ...(options?.payload ?? {}),
-    issue: issueNumber,
+    issue: subjectId,
   };
   if (options?.iterateMax !== undefined) {
     runnerArgs.iterateMax = options.iterateMax;
@@ -148,7 +148,7 @@ export interface DispatchOptions {
    * the subprocess closure context can observe the workflow-level
    * values independently of the agent's declared parameters.
    */
-  readonly payload?: IssuePayload;
+  readonly payload?: SubjectPayload;
 }
 
 /** Result of a single agent dispatch. */
@@ -170,7 +170,7 @@ export interface DispatchOutcome {
 export interface AgentDispatcher {
   dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: string | number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome>;
 }
@@ -178,7 +178,7 @@ export interface AgentDispatcher {
 /** Recorded call made against {@link StubDispatcher}. */
 export interface StubDispatcherCall {
   readonly agentId: string;
-  readonly issueNumber: number;
+  readonly subjectId: string | number;
   readonly options?: DispatchOptions;
 }
 
@@ -214,11 +214,11 @@ export class StubDispatcher implements AgentDispatcher {
 
   dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: string | number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
     this.#callCount++;
-    this.#calls.push({ agentId, issueNumber, options });
+    this.#calls.push({ agentId, subjectId, options });
     const outcome = this.#outcomes.get(agentId) ?? "success";
     return Promise.resolve({
       outcome,
@@ -247,7 +247,7 @@ export class RunnerDispatcher implements AgentDispatcher {
 
   async dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: string | number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
     const startMs = performance.now();
@@ -265,7 +265,7 @@ export class RunnerDispatcher implements AgentDispatcher {
     // Payload is spread as the base layer; fixed orchestration keys
     // always win on collision, and unknown payload keys are forwarded
     // verbatim (the runner ignores keys not declared by the agent).
-    const runnerArgs = composeRunnerArgs(issueNumber, options);
+    const runnerArgs = composeRunnerArgs(subjectId, options);
 
     const runner = new AgentRunner(definition);
     const result = await runner.run({

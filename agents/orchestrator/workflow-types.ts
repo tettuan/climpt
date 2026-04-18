@@ -108,14 +108,14 @@ export interface HandoffConfig {
 }
 
 /**
- * Opaque payload associated with an issue workflow.
+ * Opaque payload associated with a subject workflow.
  *
  * Infra layer treats this as a generic bag of values. Workflow-specific
  * shape is enforced by `workflow.json.payloadSchema` via Ajv validation
  * at load / emit time. Callers narrow locally when specific keys are
  * required.
  */
-export type IssuePayload = Readonly<Record<string, unknown>>;
+export type SubjectPayload = Readonly<Record<string, unknown>>;
 
 /**
  * Declarative handoff entry from `workflow.json.handoffs[]`.
@@ -146,7 +146,7 @@ export interface HandoffDeclaration {
   readonly payloadFrom: Readonly<Record<string, string>>;
 
   /** Where to persist the resolved payload after emit */
-  readonly persistPayloadTo: "issueStore" | "none";
+  readonly persistPayloadTo: "subjectStore" | "none";
 }
 
 // === Rules ===
@@ -205,8 +205,8 @@ export interface WorkflowConfig {
   /** Inter-agent handoff configuration */
   handoff?: HandoffConfig;
 
-  /** Issue store configuration */
-  issueStore?: IssueStoreConfig;
+  /** Subject store configuration */
+  subjectStore?: SubjectStoreConfig;
 
   /** Prioritizer configuration */
   prioritizer?: PrioritizerConfig;
@@ -220,20 +220,20 @@ export interface WorkflowConfig {
   readonly handoffs?: ReadonlyArray<HandoffDeclaration>;
 
   /**
-   * Reference to the JSON Schema that validates {@link IssuePayload}
+   * Reference to the JSON Schema that validates {@link SubjectPayload}
    * instances for this workflow. Resolved against the schema registry
    * at load time.
    */
   readonly payloadSchema?: { readonly $ref: string };
 }
 
-/** Issue store configuration */
-export interface IssueStoreConfig {
+/** Subject store configuration */
+export interface SubjectStoreConfig {
   path: string;
 }
 
-/** Default issue store configuration used when workflow.json omits issueStore. */
-export const DEFAULT_ISSUE_STORE: IssueStoreConfig = {
+/** Default subject store configuration used when workflow.json omits subjectStore. */
+export const DEFAULT_SUBJECT_STORE: SubjectStoreConfig = {
   path: ".agent/climpt/tmp/issues",
 };
 
@@ -267,7 +267,7 @@ export interface OrchestratorOptions {
 
 /** Final result of a single-issue workflow run. */
 export interface OrchestratorResult {
-  issueNumber: number;
+  subjectId: string | number;
   finalPhase: string;
   cycleCount: number;
   history: PhaseTransitionRecord[];
@@ -289,7 +289,7 @@ export interface BatchOptions extends OrchestratorOptions {
 /** Result of batch processing */
 export interface BatchResult {
   processed: OrchestratorResult[];
-  skipped: { issueNumber: number; reason: string }[];
+  skipped: { subjectId: string | number; reason: string }[];
   totalIssues: number;
   status: "completed" | "partial" | "failed";
 }
@@ -297,14 +297,14 @@ export interface BatchResult {
 // === Runtime State ===
 
 /**
- * Per-issue orchestration state.
+ * Per-subject orchestration state.
  *
  * Corresponds to ADK session.state but is persisted
  * via GitHub issue labels and comments.
  */
 export interface IssueWorkflowState {
-  /** GitHub issue number */
-  issueNumber: number;
+  /** Subject identifier (GitHub issue number or other subject) */
+  subjectId: string | number;
 
   /** Current phase ID */
   currentPhase: string;
@@ -320,10 +320,10 @@ export interface IssueWorkflowState {
 
   /**
    * Opaque per-workflow payload. Populated by {@link HandoffDeclaration}
-   * entries whose `persistPayloadTo` is `"issueStore"`, consumed by
+   * entries whose `persistPayloadTo` is `"subjectStore"`, consumed by
    * subsequent dispatches via `DispatchOptions.payload`.
    */
-  readonly payload?: IssuePayload;
+  readonly payload?: SubjectPayload;
 }
 
 /** Record of a single phase transition */
@@ -346,9 +346,9 @@ export interface PhaseTransitionRecord {
 
 // === Dispatch ===
 
-/** Result of attempting to dispatch an agent for an issue */
+/** Result of attempting to dispatch an agent for a subject */
 export type DispatchResult =
-  | { status: "dispatched"; agent: string; issueNumber: number }
+  | { status: "dispatched"; agent: string; subjectId: string | number }
   | { status: "skipped"; reason: string }
   | { status: "blocked"; reason: string }
   | { status: "terminal"; phase: string };

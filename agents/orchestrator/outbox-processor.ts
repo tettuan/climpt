@@ -7,7 +7,7 @@
  */
 
 import type { GitHubClient } from "./github-client.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 
 /** Discriminated union of outbox action types. */
 export type OutboxAction =
@@ -26,16 +26,16 @@ export interface OutboxResult {
 
 export class OutboxProcessor {
   #github: GitHubClient;
-  #store: IssueStore;
+  #store: SubjectStore;
 
-  constructor(github: GitHubClient, store: IssueStore) {
+  constructor(github: GitHubClient, store: SubjectStore) {
     this.#github = github;
     this.#store = store;
   }
 
-  /** Read and execute all outbox actions for an issue, then clear outbox. */
-  async process(issueNumber: number): Promise<OutboxResult[]> {
-    const outboxDir = this.#store.getOutboxPath(issueNumber);
+  /** Read and execute all outbox actions for a subject, then clear outbox. */
+  async process(subjectId: string | number): Promise<OutboxResult[]> {
+    const outboxDir = this.#store.getOutboxPath(subjectId);
 
     // Ensure the issue's outbox directory exists so that a subsequent
     // NotFound is truly unexpected (race condition) rather than ambiguous.
@@ -97,7 +97,7 @@ export class OutboxProcessor {
       try {
         const validated = this.#validateAction(actionObj);
         // deno-lint-ignore no-await-in-loop
-        await this.#execute(issueNumber, validated);
+        await this.#execute(subjectId, validated);
         results.push({ sequence, action: actionType, success: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -112,7 +112,7 @@ export class OutboxProcessor {
     }
 
     if (allSucceeded) {
-      await this.#store.clearOutbox(issueNumber);
+      await this.#store.clearOutbox(subjectId);
     }
 
     return results;
@@ -166,10 +166,13 @@ export class OutboxProcessor {
   }
 
   /** Execute a single outbox action against GitHub. */
-  async #execute(issueNumber: number, action: OutboxAction): Promise<void> {
+  async #execute(
+    subjectId: string | number,
+    action: OutboxAction,
+  ): Promise<void> {
     switch (action.action) {
       case "comment":
-        await this.#github.addIssueComment(issueNumber, action.body);
+        await this.#github.addIssueComment(subjectId, action.body);
         break;
       case "create-issue":
         await this.#github.createIssue(
@@ -180,13 +183,13 @@ export class OutboxProcessor {
         break;
       case "update-labels":
         await this.#github.updateIssueLabels(
-          issueNumber,
+          subjectId,
           action.remove,
           action.add,
         );
         break;
       case "close-issue":
-        await this.#github.closeIssue(issueNumber);
+        await this.#github.closeIssue(subjectId);
         break;
       default:
         throw new Error(

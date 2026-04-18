@@ -16,9 +16,9 @@
  */
 
 import { dirname } from "@std/path";
-import type { HandoffDeclaration, IssuePayload } from "./workflow-types.ts";
+import type { HandoffDeclaration, SubjectPayload } from "./workflow-types.ts";
 import type { SchemaRegistry } from "./schema-registry.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 
 // =============================================================================
 // Public contract
@@ -27,7 +27,7 @@ import type { IssueStore } from "./issue-store.ts";
 /** Input to a single handoff emission. */
 export interface ArtifactEmitInput {
   readonly workflowId: string;
-  readonly issueNumber: number;
+  readonly subjectId: string | number;
   /** Source agent id as declared in workflow.agents — data, not a type. */
   readonly sourceAgent: string;
   /** Canonical outcome string produced by the source agent — data, not enum. */
@@ -40,7 +40,7 @@ export interface ArtifactEmitInput {
 
 /** Result of a successful emission. */
 export interface ArtifactEmitResult {
-  readonly payload: IssuePayload;
+  readonly payload: SubjectPayload;
   readonly artifactPath: string;
 }
 
@@ -58,7 +58,7 @@ export interface WorkflowAgentInfo {
 /** Constructor-injected dependencies for the default emitter. */
 export interface ArtifactEmitterDeps {
   readonly schemaRegistry: SchemaRegistry;
-  readonly issueStore: Pick<IssueStore, "writeWorkflowPayload">;
+  readonly subjectStore: Pick<SubjectStore, "writeWorkflowPayload">;
   readonly clock: { now(): Date };
   readonly writeFile: (path: string, data: string) => Promise<void>;
   readonly workflowAgents: Readonly<Record<string, WorkflowAgentInfo>>;
@@ -181,7 +181,7 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
       );
     }
 
-    const payload: IssuePayload = Object.freeze({ ...rawPayload });
+    const payload: SubjectPayload = Object.freeze({ ...rawPayload });
 
     // Step 2: schema validation — fail-fast, throw on unregistered ref too.
     const outcome = this.#deps.schemaRegistry.validate(
@@ -211,10 +211,10 @@ export class DefaultArtifactEmitter implements ArtifactEmitter {
     await Deno.mkdir(artifactDir, { recursive: true });
     await this.#deps.writeFile(artifactPath, JSON.stringify(payload, null, 2));
 
-    // Step 5: optional issue-store persistence.
-    if (handoff.persistPayloadTo === "issueStore") {
-      await this.#deps.issueStore.writeWorkflowPayload(
-        input.issueNumber,
+    // Step 5: optional subject-store persistence.
+    if (handoff.persistPayloadTo === "subjectStore") {
+      await this.#deps.subjectStore.writeWorkflowPayload(
+        input.subjectId,
         input.workflowId,
         payload,
       );

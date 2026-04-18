@@ -9,7 +9,7 @@ import { join } from "@std/path";
 import {
   type BatchOptions,
   type BatchResult,
-  DEFAULT_ISSUE_STORE,
+  DEFAULT_SUBJECT_STORE,
   type IssueCriteria,
   type OrchestratorOptions,
   type OrchestratorResult,
@@ -17,7 +17,7 @@ import {
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import { IssueSyncer } from "./issue-syncer.ts";
 import { Prioritizer } from "./prioritizer.ts";
 import { Queue } from "./queue.ts";
@@ -30,9 +30,9 @@ import { summarizeSync, syncLabels } from "./label-sync.ts";
 export interface SingleIssueRunner {
   readonly workflowId: string;
   run(
-    issueNumber: number,
+    subjectId: string | number,
     options?: OrchestratorOptions,
-    store?: IssueStore,
+    store?: SubjectStore,
     logger?: OrchestratorLogger,
   ): Promise<OrchestratorResult>;
 }
@@ -67,9 +67,9 @@ export class BatchRunner {
     });
 
     try {
-      const storeConfig = this.#config.issueStore ?? DEFAULT_ISSUE_STORE;
+      const storeConfig = this.#config.subjectStore ?? DEFAULT_SUBJECT_STORE;
       const storePath = join(this.#cwd, storeConfig.path);
-      const store = new IssueStore(storePath);
+      const store = new SubjectStore(storePath);
 
       const wfId = this.#runner.workflowId;
       await log.info(`Batch start workflow "${wfId}"`, {
@@ -109,7 +109,7 @@ export class BatchRunner {
   }
 
   async #runInner(
-    store: IssueStore,
+    store: SubjectStore,
     criteria: IssueCriteria,
     options: BatchOptions | undefined,
     log: OrchestratorLogger,
@@ -192,22 +192,22 @@ export class BatchRunner {
     await log.info(`Queue built: ${queueItems.length} actionable issues`, {
       event: "queue_built",
       queueSize: queueItems.length,
-      issues: queueItems.map((q) => q.issueNumber),
+      issues: queueItems.map((q) => q.subjectId),
     });
 
     // 4. Process each issue
     const processed: OrchestratorResult[] = [];
-    const skipped: { issueNumber: number; reason: string }[] = [];
+    const skipped: { subjectId: string | number; reason: string }[] = [];
     let errorCount = 0;
 
     for (let i = 0; i < queueItems.length; i++) {
       const item = queueItems[i];
       // deno-lint-ignore no-await-in-loop
       await log.info(
-        `Processing issue #${item.issueNumber} (${i + 1}/${queueItems.length})`,
+        `Processing subject ${item.subjectId} (${i + 1}/${queueItems.length})`,
         {
           event: "issue_start",
-          issueNumber: item.issueNumber,
+          subjectId: item.subjectId,
           index: i + 1,
           total: queueItems.length,
         },
@@ -215,7 +215,7 @@ export class BatchRunner {
       try {
         // deno-lint-ignore no-await-in-loop
         const result = await this.#runner.run(
-          item.issueNumber,
+          item.subjectId,
           options,
           store,
           log,
@@ -233,13 +233,13 @@ export class BatchRunner {
       } catch (error) {
         errorCount++;
         const reason = error instanceof Error ? error.message : String(error);
-        skipped.push({ issueNumber: item.issueNumber, reason });
+        skipped.push({ subjectId: item.subjectId, reason });
         // deno-lint-ignore no-await-in-loop
         await log.error(
-          `Issue #${item.issueNumber} failed: ${reason}`,
+          `Subject ${item.subjectId} failed: ${reason}`,
           {
             event: "issue_error",
-            issueNumber: item.issueNumber,
+            subjectId: item.subjectId,
             error: reason,
           },
         );
@@ -248,8 +248,8 @@ export class BatchRunner {
 
     // Issues in store but not in queue were skipped (normal, not error)
     for (const num of issueNumbers) {
-      if (!queueItems.some((q) => q.issueNumber === num)) {
-        skipped.push({ issueNumber: num, reason: "not actionable" });
+      if (!queueItems.some((q) => q.subjectId === num)) {
+        skipped.push({ subjectId: num, reason: "not actionable" });
       }
     }
 

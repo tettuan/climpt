@@ -1,7 +1,7 @@
 /**
  * File-based GitHub Client
  *
- * Implements GitHubClient using IssueStore as the backend.
+ * Implements GitHubClient using SubjectStore as the backend.
  * Reads/writes issue data to the local filesystem instead of
  * calling the GitHub API. Used for local E2E testing without
  * network access.
@@ -14,27 +14,27 @@ import type {
   IssueListItem,
   LabelDetail,
 } from "./github-client.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 
 export class FileGitHubClient implements GitHubClient {
-  #store: IssueStore;
+  #store: SubjectStore;
 
-  constructor(store: IssueStore) {
+  constructor(store: SubjectStore) {
     this.#store = store;
   }
 
-  async getIssueLabels(issueNumber: number): Promise<string[]> {
-    const meta = await this.#store.readMeta(issueNumber);
+  async getIssueLabels(subjectId: string | number): Promise<string[]> {
+    const meta = await this.#store.readMeta(subjectId);
     return meta.labels;
   }
 
   async updateIssueLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     if (labelsToRemove.length === 0 && labelsToAdd.length === 0) return;
-    const meta = await this.#store.readMeta(issueNumber);
+    const meta = await this.#store.readMeta(subjectId);
     const removeSet = new Set(labelsToRemove);
     const updated = meta.labels.filter((l) => !removeSet.has(l));
     for (const label of labelsToAdd) {
@@ -42,14 +42,14 @@ export class FileGitHubClient implements GitHubClient {
         updated.push(label);
       }
     }
-    await this.#store.updateMeta(issueNumber, { labels: updated });
+    await this.#store.updateMeta(subjectId, { labels: updated });
   }
 
   async addIssueComment(
-    issueNumber: number,
+    subjectId: string | number,
     comment: string,
   ): Promise<void> {
-    const dir = this.#store.getIssuePath(issueNumber);
+    const dir = this.#store.getIssuePath(subjectId);
     const commentsDir = `${dir}/comments`;
     await Deno.mkdir(commentsDir, { recursive: true });
     const id = String(Date.now());
@@ -78,22 +78,22 @@ export class FileGitHubClient implements GitHubClient {
     return nextNumber;
   }
 
-  async closeIssue(issueNumber: number): Promise<void> {
-    await this.#store.updateMeta(issueNumber, { state: "closed" });
+  async closeIssue(subjectId: string | number): Promise<void> {
+    await this.#store.updateMeta(subjectId, { state: "closed" });
   }
 
-  async reopenIssue(issueNumber: number): Promise<void> {
-    await this.#store.updateMeta(issueNumber, { state: "open" });
+  async reopenIssue(subjectId: string | number): Promise<void> {
+    await this.#store.updateMeta(subjectId, { state: "open" });
   }
 
   async getRecentComments(
-    issueNumber: number,
+    subjectId: string | number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     if (limit <= 0) return [];
     let comments: { id: string; body: string }[] = [];
     try {
-      comments = await this.#store.readComments(issueNumber);
+      comments = await this.#store.readComments(subjectId);
     } catch (error) {
       if (!(error instanceof Deno.errors.NotFound)) throw error;
       return [];
@@ -250,12 +250,12 @@ export class FileGitHubClient implements GitHubClient {
     await Deno.writeTextFile(path, JSON.stringify(map, null, 2));
   }
 
-  async getIssueDetail(issueNumber: number): Promise<IssueDetail> {
-    const meta = await this.#store.readMeta(issueNumber);
-    const body = await this.#store.readBody(issueNumber);
+  async getIssueDetail(subjectId: string | number): Promise<IssueDetail> {
+    const meta = await this.#store.readMeta(subjectId);
+    const body = await this.#store.readBody(subjectId);
     let comments: { id: string; body: string }[] = [];
     try {
-      comments = await this.#store.readComments(issueNumber);
+      comments = await this.#store.readComments(subjectId);
     } catch (error) {
       if (!(error instanceof Deno.errors.NotFound)) throw error;
     }

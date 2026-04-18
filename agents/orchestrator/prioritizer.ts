@@ -7,7 +7,7 @@
  */
 
 import type { PrioritizerConfig } from "./workflow-types.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
 
 export type { PrioritizerConfig };
@@ -25,12 +25,12 @@ export interface PrioritizerResult {
 
 export class Prioritizer {
   #config: PrioritizerConfig;
-  #store: IssueStore;
+  #store: SubjectStore;
   #dispatcher: AgentDispatcher;
 
   constructor(
     config: PrioritizerConfig,
-    store: IssueStore,
+    store: SubjectStore,
     dispatcher: AgentDispatcher,
   ) {
     this.#config = config;

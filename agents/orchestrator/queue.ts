@@ -7,13 +7,13 @@
  */
 
 import type { WorkflowConfig } from "./workflow-types.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 import { resolveAgent, resolvePhase } from "./label-resolver.ts";
 
 // === Types ===
 
 export interface QueueItem {
-  issueNumber: number;
+  subjectId: string | number;
   priority: string;
   phaseId: string;
   agentId: string;
@@ -33,12 +33,12 @@ export interface QueuePriorityConfig {
 export class Queue {
   #priorityOrder: string[];
   #defaultLabel: string | undefined;
-  #store: IssueStore;
+  #store: SubjectStore;
   #config: WorkflowConfig;
 
   constructor(
     config: WorkflowConfig,
-    store: IssueStore,
+    store: SubjectStore,
     priorityConfig: QueuePriorityConfig,
   ) {
     this.#config = config;
@@ -65,7 +65,7 @@ export class Queue {
       const priority = this.#extractPriority(meta.labels);
 
       items.push({
-        issueNumber: num,
+        subjectId: num,
         priority,
         phaseId: resolved.phaseId,
         agentId: agentResult.agentId,
