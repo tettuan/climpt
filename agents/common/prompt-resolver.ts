@@ -27,17 +27,23 @@ import {
 
 /**
  * BreakdownErrorKind values that the resolver treats as "prompt file not
- * found" — both TemplateNotFound (file truly missing) and
- * ParameterParsingError (breakdown rejects the c2/c3 directive, which we
- * treat as a file-not-found symptom). Any other kind is considered a
- * user-correctable failure and surfaces as PR-C3L-002.
+ * found". TemplateNotFound is the only unambiguous signal: it means the
+ * configured path resolved to a file that does not exist on disk.
+ *
+ * ParameterParsingError is NOT included. Breakdown emits it for two
+ * unrelated conditions — an unrecognized c2/c3 directive *and* a UV
+ * value that trips breakdown's own security check (e.g. shell
+ * metacharacters in `previous_summary`). Classifying both as
+ * PR-C3L-004 ("file not found") makes the error message lie when the
+ * underlying cause is a UV value. Let it surface as PR-C3L-002 so the
+ * breakdown detail string propagates verbatim and the real cause is
+ * visible to the user.
  *
  * Exported so tests can iterate without duplicating the membership list
  * (partial-enumeration anti-pattern).
  */
 export const FILE_NOT_FOUND_KINDS = [
   "TemplateNotFound",
-  "ParameterParsingError",
 ] as const satisfies readonly BreakdownErrorKind[];
 
 export type FileNotFoundKind = typeof FILE_NOT_FOUND_KINDS[number];

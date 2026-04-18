@@ -233,7 +233,17 @@ Content`;
 });
 
 // Test PromptResolver
-Deno.test("PromptResolver - throws when C3L prompt file not found", async () => {
+//
+// NOTE on "file not found" scenarios using workingDir=testTmpDir:
+// These tests override workingDir to an empty temp dir, so breakdown cannot
+// find the test-agent config. It falls back to its default directive set
+// (to/summary/defect) and rejects "initial"/"closure" as an invalid directive
+// before ever checking the file. Breakdown therefore emits
+// ParameterParsingError, not TemplateNotFound — which under the A1 mapping
+// surfaces as PR-C3L-002, carrying breakdown's detail string verbatim.
+// The exhaustive-dispatch test below covers the TemplateNotFound→PR-C3L-004
+// branch via a stub loader, so this branch is still protected.
+Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (workingDir without config)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "initial.test",
@@ -252,11 +262,11 @@ Deno.test("PromptResolver - throws when C3L prompt file not found", async () => 
   await assertRejects(
     () => resolver.resolve("initial.test"),
     Error,
-    "C3L prompt file not found",
+    "PR-C3L-002",
   );
 });
 
-Deno.test("PromptResolver - throws C3L not found when file missing (even with required UV vars)", async () => {
+Deno.test("PromptResolver - surfaces PR-C3L-002 for step with required UV vars when breakdown rejects directive", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "required.vars",
@@ -272,11 +282,12 @@ Deno.test("PromptResolver - throws C3L not found when file missing (even with re
     workingDir: testTmpDir,
   });
 
-  // Without a C3L file, PR-C3L-004 is thrown before variable validation
+  // breakdown rejects "initial" directive before variable validation runs,
+  // so PR-C3L-002 is emitted regardless of UV variable requirements.
   await assertRejects(
     () => resolver.resolve("required.vars"),
     Error,
-    "C3L prompt file not found",
+    "PR-C3L-002",
   );
 });
 
@@ -295,7 +306,7 @@ Deno.test("PromptResolver - throws on unknown step ID", async () => {
 // Note: frontmatter stripping tests are covered by removeFrontmatter unit tests above.
 // With fallback removed, these would require C3L prompt files on disk.
 
-Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)", async () => {
+Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (closure step, no fallback)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "closure.issue",
@@ -314,11 +325,11 @@ Deno.test("PromptResolver - resolve throws when C3L file missing (no fallback)",
   await assertRejects(
     () => resolver.resolve("closure.issue"),
     Error,
-    "C3L prompt file not found",
+    "PR-C3L-002",
   );
 });
 
-Deno.test("PromptResolver - resolve throws when C3L file missing for step with variables", async () => {
+Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive (step with UV variables)", async () => {
   const registry = createEmptyRegistry("test-agent");
   addStepDefinition(registry, {
     stepId: "initial.test",
@@ -337,7 +348,7 @@ Deno.test("PromptResolver - resolve throws when C3L file missing for step with v
   await assertRejects(
     () => resolver.resolve("initial.test", { uv: { name: "World" } }),
     Error,
-    "C3L prompt file not found",
+    "PR-C3L-002",
   );
 });
 

@@ -40,13 +40,63 @@ export interface VerdictCriteria {
 }
 
 /**
+ * Shell metacharacters that breakdown's argument parser rejects as a
+ * "Shell command execution or redirection attempt". When an iteration's
+ * raw assistant response contains any of these, injecting the formatted
+ * summary as `--uv-previous_summary=<value>` trips breakdown's security
+ * check and the whole resolution fails with ParameterParsingError — which
+ * is indistinguishable at the BreakdownErrorKind level from a real
+ * parser failure.
+ *
+ * Substitution rule: map each metacharacter to a visually-similar full-
+ * width counterpart so the narrative in the summary remains readable to
+ * the next iteration while no longer matching breakdown's shell pattern.
+ * Full-width preserves glyph shape (e.g. `$` → `＄`) so model-facing
+ * semantics are preserved; the characters are distinct codepoints, so
+ * downstream shell parsers see inert text.
+ */
+const UV_SHELL_METACHAR_MAP: Readonly<Record<string, string>> = Object.freeze({
+  "`": "｀",
+  "$": "＄",
+  "&": "＆",
+  "|": "｜",
+  ";": "；",
+  ">": "＞",
+  "<": "＜",
+});
+
+const UV_SHELL_METACHAR_RE = /[`$&|;><]/g;
+
+/**
+ * Replace shell metacharacters in a string with visually-similar full-
+ * width substitutes so the result is safe to pass as a UV value
+ * (e.g. `--uv-previous_summary=<value>`) without tripping breakdown's
+ * security check.
+ *
+ * Exported for targeted unit tests; production code should prefer
+ * calling `formatIterationSummary`, which applies this sanitizer
+ * before returning.
+ */
+export function sanitizeForUvInjection(value: string): string {
+  return value.replace(
+    UV_SHELL_METACHAR_RE,
+    (ch) => UV_SHELL_METACHAR_MAP[ch] ?? ch,
+  );
+}
+
+/**
  * Format iteration summary for inclusion in continuation prompts
  *
  * Shared utility used by all completion handlers.
  * Includes structured output (status, next_action) for iteration continuity.
  *
+ * The return value is sanitized via `sanitizeForUvInjection` so it can
+ * be passed verbatim as a UV value without tripping breakdown's shell
+ * metacharacter security check. Full-width substitutions preserve the
+ * narrative for the next iteration while neutralising shell semantics.
+ *
  * @param summary - Iteration summary to format
- * @returns Formatted markdown string
+ * @returns Formatted markdown string, safe for UV injection
  */
 export function formatIterationSummary(summary: IterationSummary): string {
   const parts: string[] = [];
@@ -100,7 +150,7 @@ export function formatIterationSummary(summary: IterationSummary): string {
     parts.push(`### Errors encountered:\n${errorSummary}`);
   }
 
-  return parts.join("\n\n");
+  return sanitizeForUvInjection(parts.join("\n\n"));
 }
 
 /**
