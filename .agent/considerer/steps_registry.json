@@ -1,0 +1,52 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "considerer",
+  "version": "1.1.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "consider"
+  },
+  "steps": {
+    "consider": {
+      "stepId": "consider",
+      "name": "Consider Implementation Request",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "default",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: read issue, research, post response, emit verdict (done | handoff-detail). Orchestrator owns all label/phase transitions via TransactionScope.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": [
+          "verdict",
+          "final_summary",
+          "handoff_anchor"
+        ]
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "consider"
+        }
+      }
+    }
+  }
+}

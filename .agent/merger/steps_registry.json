@@ -1,0 +1,39 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "merger",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "merge"
+  },
+  "steps": {
+    "merge": {
+      "stepId": "merge",
+      "name": "PR Merge Closure",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "merge",
+      "edition": "default",
+      "uvVariables": [],
+      "usesStdin": false,
+      "runner": {
+        "command": "deno",
+        "args": [
+          "run",
+          "--allow-read",
+          "--allow-run",
+          "--allow-net",
+          "agents/scripts/merge-pr.ts",
+          "--pr",
+          "${context.prNumber}",
+          "--verdict",
+          "${context.verdictPath}"
+        ],
+        "timeout": 30000
+      },
+      "description": "Deterministic PR merge closure. Spawns agents/scripts/merge-pr.ts as subprocess; no LLM involvement. Context keys prNumber/verdictPath are bound from CLI parameters (--pr-number / --verdict-path) and resolved by AgentRunner template substitution."
+    }
+  }
+}

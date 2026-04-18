@@ -83,6 +83,7 @@
       "Skill(implement-logger)",
       "Skill(local-ci)",
       "Skill(loop)",
+      "Skill(option-scoring)",
       "Skill(refactoring)",
       "Skill(release-procedure)",
       "Skill(schedule)",
@@ -91,7 +92,6 @@
       "Skill(update-config)",
       "Skill(update-docs)",
       "Skill(work-process)",
-      "Skill(climpt-agent:delegate-climpt-agent)",
       "Skill(plugin-dev:create-plugin)",
       "Skill(plugin-dev:command-development)",
       "Skill(plugin-dev:plugin-settings)",
@@ -151,7 +151,6 @@
     }
   },
   "enabledPlugins": {
-    "climpt-agent@climpt-marketplace": true,
     "plugin-dev@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {

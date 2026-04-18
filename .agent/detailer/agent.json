@@ -1,0 +1,58 @@
+{
+  "$schema": "../../agents/schemas/agent.schema.json",
+  "version": "1.13.26",
+  "name": "detailer",
+  "displayName": "Implementation Detailer Agent",
+  "description": "Reads a considerer comment on a kind:detail issue and posts an implementation specification comment (target files, functions, approach, acceptance criteria). Does not modify code; hands the issue off to impl-pending for the iterator.",
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to detail",
+      "required": true,
+      "cli": "--issue"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json"
+      }
+    },
+    "verdict": {
+      "type": "count:iteration",
+      "config": {
+        "maxIterations": 1
+      }
+    },
+    "boundaries": {
+      "allowedTools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task",
+        "WebFetch"
+      ],
+      "permissionMode": "bypassPermissions"
+    },
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "labels": {
+          "inProgress": "kind:detail",
+          "completion": {
+            "add": [],
+            "remove": []
+          }
+        },
+        "defaultClosureAction": "label-only"
+      }
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/detailer",
+      "format": "jsonl",
+      "maxFiles": 100
+    }
+  }
+}

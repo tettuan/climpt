@@ -61,6 +61,11 @@ import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
 import { prC3lNoPrompt } from "../shared/errors/config-errors.ts";
 import { formatIterationSummary } from "../verdict/types.ts";
+import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import {
+  type CommandRunner,
+  runSubprocessRunner,
+} from "./subprocess-runner.ts";
 
 export interface RunnerOptions {
   /** Working directory */
@@ -71,6 +76,23 @@ export interface RunnerOptions {
   plugins?: string[];
   /** Enable verbose logging of SDK I/O */
   verbose?: boolean;
+  /**
+   * Subprocess command runner for closure-step runner specs.
+   * Test seam: allows stubbing Deno.Command without spawning real processes.
+   * Production callers should omit this to use the default Deno.Command runner.
+   */
+  commandRunner?: CommandRunner;
+  /**
+   * Opaque per-workflow payload injected into the subprocess closure
+   * context. When present, entries are merged as the context base with
+   * `args` layered on top, so an explicit CLI arg always wins over a
+   * payload-carried value.
+   *
+   * Infra treats the shape as `Record<string, unknown>` and performs no
+   * key-level inspection; workflow-specific validation happens at the
+   * orchestrator / ArtifactEmitter boundary before this is passed down.
+   */
+  readonly issuePayload?: Readonly<Record<string, unknown>>;
 }
 
 // Re-export for backward compatibility
@@ -82,6 +104,7 @@ export class AgentRunner {
   private readonly eventEmitter: AgentEventEmitter;
   private context: RuntimeContext | null = null;
   private args: Record<string, unknown> = {};
+  private issuePayload: Readonly<Record<string, unknown>> | undefined;
   private agentDir = "";
 
   // Extracted module instances
@@ -98,6 +121,9 @@ export class AgentRunner {
 
   // Verbose logging for SDK I/O debugging
   private verboseLogger: VerboseLogger | null = null;
+
+  // Optional subprocess runner override (test seam for Phase 0-c)
+  private commandRunner: CommandRunner | undefined;
 
   /**
    * Create an AgentRunner with optional dependency injection.
@@ -178,7 +204,9 @@ export class AgentRunner {
 
     // Store args and agentDir for later use
     this.args = options.args;
+    this.issuePayload = options.issuePayload;
     this.agentDir = agentDir;
+    this.commandRunner = options.commandRunner;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -293,6 +321,12 @@ export class AgentRunner {
       while (true) {
         iteration++;
 
+        // Propagate iteration to verdict handler so handlers like
+        // IterationBudgetVerdictHandler can evaluate isFinished() against the
+        // current iteration. Without this, count:iteration handlers remain at
+        // their initial 0 value and never report completion.
+        ctx.verdictHandler.setCurrentIteration?.(iteration);
+
         // Emit iterationStart event
         // deno-lint-ignore no-await-in-loop
         await this.eventEmitter.emit("iterationStart", { iteration });
@@ -316,6 +350,60 @@ export class AgentRunner {
 
         // Completion Loop: separate procedure (design: "単発の手続き")
         if (isClosureIteration) {
+          // Phase 0-c: if the closure step declares a subprocess runner,
+          // spawn it instead of invoking the LLM. Non-runner closure steps
+          // fall through to the existing prompt-based Completion Loop.
+          const subprocessStepDef = this.getSubprocessRunnerStep(stepId);
+          if (subprocessStepDef?.runner) {
+            // deno-lint-ignore no-await-in-loop
+            const subprocessResult = await this.runSubprocessClosureIteration(
+              stepId,
+              iteration,
+              subprocessStepDef,
+              summaries,
+              ctx,
+            );
+
+            sessionId = subprocessResult.summary.sessionId;
+
+            // deno-lint-ignore no-await-in-loop
+            await this.eventEmitter.emit("verdictChecked", {
+              isComplete: subprocessResult.done,
+              reason: subprocessResult.reason,
+            });
+
+            // deno-lint-ignore no-await-in-loop
+            await this.eventEmitter.emit("iterationEnd", {
+              iteration,
+              summary: subprocessResult.summary,
+            });
+
+            if (subprocessResult.done) {
+              completedNormally = true;
+              ctx.logger.info(
+                `Agent completed after ${iteration} iteration(s): ${subprocessResult.reason}`,
+              );
+              break;
+            }
+
+            // Subprocess failure: do not silently loop — surface as error.
+            const maxIterations = this.getMaxIterations();
+            if (iteration >= maxIterations) {
+              const maxIterError = new AgentMaxIterationsError(
+                maxIterations,
+                iteration,
+              );
+              ctx.logger.warn(maxIterError.message);
+              // deno-lint-ignore no-await-in-loop
+              await this.eventEmitter.emit("error", {
+                error: maxIterError,
+                recoverable: maxIterError.recoverable,
+              });
+              break;
+            }
+            continue;
+          }
+
           // deno-lint-ignore no-await-in-loop
           const result = await this.completionLoopProcessor.runClosureIteration(
             stepId,
@@ -699,13 +787,30 @@ export class AgentRunner {
         );
       }
 
-      // Determine success: only true when completion condition was met
-      const success = completedNormally;
+      // Determine success: only true when completion condition was met,
+      // no errors accumulated, and at least one LLM response was received.
+      //
+      // Guard: completedNormally alone is insufficient. A handler may report
+      // done=true even when the SDK never responded (e.g. count:iteration
+      // with maxIterations:1 fires after a single failed iteration). Require
+      // both (a) at least one LLM response and (b) no accumulated errors
+      // before declaring success. This is orthogonal to handler
+      // responsibility (iteration budget) and belongs in the runner.
+      const success = completedNormally && allErrors.length === 0 &&
+        hasLlmResponses;
       let reason: string;
       let error: string | undefined;
 
       if (completedNormally) {
-        reason = verdictDescription;
+        if (allErrors.length > 0) {
+          reason = "Completion reported but errors accumulated";
+          error = allErrors.join("; ");
+        } else if (!hasLlmResponses) {
+          reason = "Completion reported but no LLM responses received";
+          error = "No LLM responses received across all iterations";
+        } else {
+          reason = verdictDescription;
+        }
       } else {
         const maxIterations = this.getMaxIterations();
         if (iteration >= maxIterations) {
@@ -952,5 +1057,116 @@ export class AgentRunner {
    */
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Return the closure step definition when it declares a subprocess runner.
+   * Returns null otherwise — in which case the caller falls back to the
+   * existing prompt-based Completion Loop (non-interference with legacy steps).
+   */
+  private getSubprocessRunnerStep(
+    stepId: string,
+  ): PromptStepDefinition | null {
+    const registry = this.closureManager.stepsRegistry;
+    const stepDef = registry?.steps[stepId] as
+      | PromptStepDefinition
+      | undefined;
+    if (!stepDef?.runner?.command) {
+      return null;
+    }
+    return stepDef;
+  }
+
+  /**
+   * Execute a closure step via subprocess runner (Phase 0-c).
+   *
+   * Context composition: `issuePayload` forms the base, with `this.args`
+   * (agent parameters) layered on top. Entries present in both favor
+   * `args`, so an explicit CLI argument always wins over a value
+   * propagated via the workflow payload (needed for debug / manual
+   * re-runs). When `issuePayload` is undefined the behaviour is
+   * identical to spreading `this.args` alone.
+   */
+  private async runSubprocessClosureIteration(
+    stepId: string,
+    iteration: number,
+    stepDef: PromptStepDefinition,
+    summaries: IterationSummary[],
+    ctx: RuntimeContext,
+  ): Promise<{ done: boolean; reason: string; summary: IterationSummary }> {
+    if (!stepDef.runner) {
+      throw new Error(
+        `runSubprocessClosureIteration called without runner: ${stepId}`,
+      );
+    }
+
+    ctx.logger.info("[CompletionLoop] Subprocess runner enter", {
+      stepId,
+      iteration,
+      command: stepDef.runner.command,
+    });
+
+    const context: Record<string, unknown> = {
+      ...(this.issuePayload ?? {}),
+      ...this.args,
+    };
+
+    let subprocessResult;
+    try {
+      subprocessResult = await runSubprocessRunner(
+        stepDef.runner,
+        context,
+        ctx.logger,
+        { commandRunner: this.commandRunner },
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      ctx.logger.error("[CompletionLoop] Subprocess runner failed", {
+        stepId,
+        error: message,
+      });
+      const summary: IterationSummary = {
+        iteration,
+        assistantResponses: [],
+        toolsUsed: [stepDef.runner.command],
+        errors: [message],
+      };
+      summaries.push(summary);
+      return {
+        done: false,
+        reason: `Subprocess runner error: ${message}`,
+        summary,
+      };
+    }
+
+    const summary: IterationSummary = {
+      iteration,
+      assistantResponses: [],
+      toolsUsed: [stepDef.runner.command],
+      errors: subprocessResult.exitCode === 0 ? [] : [
+        `Subprocess exited with code ${subprocessResult.exitCode}`,
+      ],
+      structuredOutput: subprocessResult.structuredOutput,
+    };
+    summaries.push(summary);
+
+    // Route the structured output through the boundary hook regardless of
+    // exit code — merge-pr.ts (and similar runners) emit JSON on failure too.
+    await this.boundaryHooks.invokeBoundaryHook(stepId, summary, ctx);
+
+    if (subprocessResult.exitCode === 0) {
+      return {
+        done: true,
+        reason: `Closure subprocess "${stepDef.runner.command}" exited 0`,
+        summary,
+      };
+    }
+
+    return {
+      done: false,
+      reason:
+        `Closure subprocess "${stepDef.runner.command}" exited ${subprocessResult.exitCode}`,
+      summary,
+    };
   }
 }

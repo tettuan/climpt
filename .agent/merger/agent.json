@@ -1,0 +1,44 @@
+{
+  "$schema": "../../agents/schemas/agent.schema.json",
+  "version": "1.13.26",
+  "name": "merger",
+  "displayName": "PR Merger Agent",
+  "description": "Deterministic PR merger. Closure step spawns agents/scripts/merge-pr.ts as subprocess. No LLM involvement.",
+  "parameters": {
+    "prNumber": {
+      "type": "number",
+      "description": "GitHub PR number to merge (canonical context key; payload-form mirror of --pr)",
+      "required": true,
+      "cli": "--pr-number"
+    },
+    "verdictPath": {
+      "type": "string",
+      "description": "Path to verdict JSON emitted by the reviewer (tmp/climpt/orchestrator/emits/<pr>.json)",
+      "required": true,
+      "cli": "--verdict-path"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json"
+      }
+    },
+    "verdict": {
+      "type": "count:iteration",
+      "config": {
+        "maxIterations": 1
+      }
+    },
+    "boundaries": {
+      "allowedTools": [],
+      "permissionMode": "default"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/merger",
+      "format": "jsonl",
+      "maxFiles": 100
+    }
+  }
+}

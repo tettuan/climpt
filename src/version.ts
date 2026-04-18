@@ -22,7 +22,7 @@
  * console.log(`Climpt version: ${CLIMPT_VERSION}`);
  * ```
  */
-export const CLIMPT_VERSION = "1.13.25";
+export const CLIMPT_VERSION = "1.13.26";
 
 /**
  * Version of the breakdown package to use.
@@ -30,14 +30,21 @@ export const CLIMPT_VERSION = "1.13.25";
  * This specifies which version of {@link https://jsr.io/@tettuan/breakdown | @tettuan/breakdown}
  * JSR package should be imported and used by the Climpt CLI.
  *
+ * Pinned exact (no caret). The c3l-prompt-loader typecast tracks the
+ * `Result<string | undefined, BreakdownError>` shape introduced in 1.8.5
+ * and the structured PromptError contract guaranteed by 1.8.6+
+ * (upstream issue #104). Bumping the minor without re-checking the
+ * BreakdownError discriminated union may silently break error routing
+ * in agents/common/c3l-prompt-loader.ts and agents/common/prompt-resolver.ts.
+ *
  * @constant {string}
  * @example
  * ```typescript
  * import { BREAKDOWN_VERSION } from "./version.ts";
- * const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
+ * const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.8.4";
+export const BREAKDOWN_VERSION = "1.8.7";
 
 /**
  * Version of the frontmatter-to-schema package to use.

@@ -41,6 +41,15 @@ import {
   validateStepRegistry,
 } from "../common/step-registry/validator.ts";
 import type { StepRegistry } from "../common/step-registry/types.ts";
+import {
+  MSG_LABEL,
+  MSG_LABEL_CLIENT_UNAVAILABLE,
+  validateLabelExistence,
+} from "./label-existence-validator.ts";
+import { loadWorkflow } from "../orchestrator/workflow-loader.ts";
+import type { WorkflowConfig } from "../orchestrator/workflow-types.ts";
+import type { GitHubClient } from "../orchestrator/github-client.ts";
+import { GhCliClient } from "../orchestrator/github-client.ts";
 
 // Re-export for convenience
 export { validate, validateComplete } from "./validator.ts";
@@ -133,6 +142,7 @@ export interface FullValidationResult {
   registrySchemaResult: SchemaValidationResult | null;
   crossRefResult: CrossRefResult | null;
   pathResult: ValidationResult | null;
+  labelExistenceResult: ValidationResult | null;
   flowResult: ValidationResult | null;
   promptResult: ValidationResult | null;
   uvReachabilityResult: ValidationResult | null;
@@ -141,6 +151,15 @@ export interface FullValidationResult {
   stepRegistryValidation: ValidationResult | null;
   handoffInputsResult: ValidationResult | null;
   configRegistryResult: ValidationResult | null;
+}
+
+/**
+ * Optional dependencies for {@link validateFull}. Injected for testability —
+ * production callers omit this argument and the real `gh` CLI client is
+ * constructed automatically.
+ */
+export interface ValidateFullOptions {
+  githubClient?: GitHubClient;
 }
 
 /**
@@ -157,6 +176,7 @@ export interface FullValidationResult {
 export async function validateFull(
   agentName: string,
   baseDir: string,
+  opts?: ValidateFullOptions,
 ): Promise<FullValidationResult> {
   const agentDir = getAgentDir(agentName, baseDir);
 
@@ -266,6 +286,16 @@ export async function validateFull(
     promptRoot,
   );
 
+  // 6a. Label existence validation — online conformance check between declared
+  //     labels (labelMapping + runner.integrations.github.labels) and the
+  //     repository's actual label set. Skipped with a warning when the
+  //     workflow config is absent or the GitHub client cannot be obtained.
+  const labelExistenceResult = await runLabelExistenceValidation(
+    definition,
+    baseDir,
+    opts?.githubClient,
+  );
+
   // 6b. Flow reachability validation (only when registry exists)
   const flowResult = registry ? validateFlowReachability(registry) : null;
 
@@ -308,6 +338,7 @@ export async function validateFull(
     (registrySchemaResult?.valid ?? true) &&
     (crossRefResult?.valid ?? true) &&
     pathResult.valid &&
+    (labelExistenceResult?.valid ?? true) &&
     (flowResult?.valid ?? true) &&
     (promptResult?.valid ?? true) &&
     (uvReachabilityResult?.valid ?? true) &&
@@ -324,6 +355,7 @@ export async function validateFull(
     registrySchemaResult,
     crossRefResult,
     pathResult,
+    labelExistenceResult,
     flowResult,
     promptResult,
     uvReachabilityResult,
@@ -369,4 +401,52 @@ function extractRegistryPath(raw: unknown): string | undefined {
   }
   const registry = (prompts as Record<string, unknown>).registry;
   return typeof registry === "string" ? registry : undefined;
+}
+
+/**
+ * Run the label-existence validator with appropriate skip semantics.
+ *
+ * Skip with a warning when:
+ * - workflow.json cannot be located/parsed (the validator needs `labelMapping`
+ *   to know which labels participate in phase transitions)
+ * - the GitHubClient constructor throws (so offline `--validate` runs stay
+ *   useful for the non-network checks)
+ *
+ * Returning `null` is reserved for "validator not applicable"; all other
+ * skips surface as warnings so the author sees they were not checked.
+ */
+async function runLabelExistenceValidation(
+  definition: AgentDefinition,
+  baseDir: string,
+  injectedClient: GitHubClient | undefined,
+): Promise<ValidationResult> {
+  let workflowConfig: WorkflowConfig;
+  try {
+    workflowConfig = await loadWorkflow(baseDir);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      valid: true,
+      errors: [],
+      warnings: [
+        `${MSG_LABEL} ${MSG_LABEL_CLIENT_UNAVAILABLE}: workflow config unavailable: ${msg}`,
+      ],
+    };
+  }
+
+  let client: GitHubClient;
+  try {
+    client = injectedClient ?? new GhCliClient(baseDir);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return {
+      valid: true,
+      errors: [],
+      warnings: [
+        `${MSG_LABEL} ${MSG_LABEL_CLIENT_UNAVAILABLE}: ${msg}`,
+      ],
+    };
+  }
+
+  return await validateLabelExistence(definition, workflowConfig, client);
 }

@@ -46,6 +46,27 @@
         "type": "string"
       }
     },
+    "labels": {
+      "type": "object",
+      "description": "Declarative GitHub label specs keyed by label name. Every label referenced in labelMapping and prioritizer.labels must appear here. Color is a 6-char hex (no '#'). Orchestrator/triager sync these to the repository at startup.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["color", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{6}$",
+            "description": "GitHub label color as 6-char hex (no leading '#')."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable label description surfaced in GitHub UI."
+          }
+        }
+      }
+    },
     "agents": {
       "type": "object",
       "description": "Agent definitions keyed by agent ID",
@@ -77,6 +98,13 @@
           "outputPhase": {
             "type": "string",
             "description": "Phase to transition to on successful completion (transformer only)"
+          },
+          "fallbackPhases": {
+            "type": "object",
+            "description": "Outcome-to-phase mapping for non-success results (transformer only). When defined, the agent's verdict selects the fallback phase. Unmatched outcomes fall back to fallbackPhase.",
+            "additionalProperties": {
+              "type": "string"
+            }
           },
           "outputPhases": {
             "type": "object",
@@ -122,6 +150,11 @@
           "type": "number",
           "description": "Delay in milliseconds between cycles (shows countdown with safe-stop message)",
           "minimum": 0
+        },
+        "maxConsecutivePhases": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Block issue when same phase appears consecutively N times. 0 disables the check."
         }
       }
     },
@@ -139,9 +172,9 @@
         }
       }
     },
-    "issueStore": {
+    "subjectStore": {
       "type": "object",
-      "description": "Issue store configuration",
+      "description": "Subject store configuration",
       "additionalProperties": false,
       "properties": {
         "path": { "type": "string" }
@@ -165,6 +198,74 @@
     "labelPrefix": {
       "type": "string",
       "description": "Optional label namespace prefix (e.g. 'docs' produces 'docs:ready')"
+    },
+    "handoffs": {
+      "type": "array",
+      "description": "Declarative handoff entries: source agent outcome → artifact emission + optional payload persistence",
+      "items": {
+        "type": "object",
+        "required": ["id", "when", "emit", "payloadFrom", "persistPayloadTo"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "Workflow-unique handoff identifier"
+          },
+          "when": {
+            "type": "object",
+            "required": ["fromAgent", "outcome"],
+            "additionalProperties": false,
+            "properties": {
+              "fromAgent": {
+                "type": "string",
+                "description": "Source agent id (a key in agents[])"
+              },
+              "outcome": {
+                "type": "string",
+                "description": "Canonical outcome string"
+              }
+            }
+          },
+          "emit": {
+            "type": "object",
+            "required": ["type", "schemaRef", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Artifact kind tag"
+              },
+              "schemaRef": {
+                "type": "string",
+                "description": "Registered schema reference, e.g. 'pr-merger-verdict@1.0.0'"
+              },
+              "path": {
+                "type": "string",
+                "description": "Target file path template (supports ${payload.*} expansion)"
+              }
+            }
+          },
+          "payloadFrom": {
+            "type": "object",
+            "description": "Payload key → JSONPath / literal expression mapping",
+            "additionalProperties": { "type": "string" }
+          },
+          "persistPayloadTo": {
+            "enum": ["subjectStore", "none"],
+            "description": "Where to persist the resolved payload after emit"
+          }
+        }
+      }
+    },
+    "payloadSchema": {
+      "type": "object",
+      "required": ["$ref"],
+      "additionalProperties": false,
+      "description": "Reference to the JSON Schema used to validate SubjectPayload instances for this workflow",
+      "properties": {
+        "$ref": { "type": "string" }
+      }
     }
   }
 }

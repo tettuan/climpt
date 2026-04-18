@@ -169,7 +169,11 @@ function createSummary(
 ): IterationSummary {
   return {
     iteration: 1,
-    assistantResponses: [],
+    // Default to a non-empty assistantResponses so tests that rely on the
+    // happy-path success semantics (completedNormally && no errors &&
+    // hasLlmResponses) do not have to opt in explicitly. Tests that need
+    // to assert the "no response" failure path can override this to [].
+    assistantResponses: ["stub assistant response"],
     toolsUsed: [],
     errors: [],
     ...overrides,
@@ -452,9 +456,16 @@ Deno.test("AgentRunner.run - schemaResolutionFailed skips step gate routing", as
     "Should log info about skipping StepGate due to StructuredOutputUnavailable",
   );
 
-  // The run completes because verdictHandler.isFinished() returns true
-  assertEquals(result.success, true);
+  // The run completes in 1 iteration because verdictHandler.isFinished()
+  // returns true. However, success=false is expected because the summary
+  // carries an accumulated error (the new runner success condition requires
+  // completedNormally && no errors && hasLlmResponses).
   assertEquals(result.iterations, 1);
+  assertEquals(
+    result.success,
+    false,
+    "success must be false when summary.errors is non-empty, even if the verdict handler reports done",
+  );
 });
 
 // =============================================================================
@@ -740,6 +751,189 @@ Deno.test("AgentRunner.run - getLastVerdict propagates to AgentResult.verdict", 
 // Test 6: result.verdict is undefined when handler has no getLastVerdict
 // =============================================================================
 
+// =============================================================================
+// Test: setCurrentIteration is invoked at each Flow Loop entry (B2 regression)
+// =============================================================================
+
+/**
+ * Create a VerdictHandler that captures the sequence of iteration numbers
+ * passed to setCurrentIteration(). Used to assert that the runner
+ * propagates the loop counter on every iteration entry.
+ */
+function createIterationCapturingHandler(
+  finishedSequence: boolean[],
+): VerdictHandler & { capturedIterations: number[] } {
+  const capturedIterations: number[] = [];
+  let finishedIndex = 0;
+  return {
+    type: "count:iteration",
+    buildInitialPrompt: () => Promise.resolve("Test initial prompt"),
+    buildContinuationPrompt: () => Promise.resolve("Test continuation prompt"),
+    buildVerdictCriteria: () => ({
+      short: "Test criteria",
+      detailed: "Detailed test criteria",
+    }),
+    isFinished: () => {
+      const v = finishedSequence[
+        Math.min(finishedIndex, finishedSequence.length - 1)
+      ];
+      finishedIndex++;
+      return Promise.resolve(v);
+    },
+    getVerdictDescription: () => Promise.resolve("Test verdict"),
+    getLastVerdict: () => undefined,
+    setCurrentSummary: () => {},
+    setCurrentIteration: (iteration: number) => {
+      capturedIterations.push(iteration);
+    },
+    capturedIterations,
+  };
+}
+
+Deno.test("AgentRunner.run - setCurrentIteration is called with 1-based iteration at each Flow Loop entry", async () => {
+  logger.debug("setCurrentIteration propagation test start");
+
+  const mockLog = createMockLogger();
+  // Let the loop run 3 iterations before finishing.
+  const handler = createIterationCapturingHandler([false, false, true]);
+  const deps = createFakeDependencies(mockLog, handler);
+  const definition = createTestDefinition({ maxIterations: 10 });
+  const runner = new AgentRunner(definition, deps);
+
+  stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
+
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, (callIndex) => {
+    return createSummary({
+      iteration: callIndex + 1,
+      sessionId: "sess-iter-propagate",
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-iter-propagate",
+  });
+
+  logger.debug("setCurrentIteration propagation test result", {
+    capturedIterations: handler.capturedIterations,
+    iterations: result.iterations,
+  });
+
+  // Assert: setCurrentIteration was called at least once with 1
+  // (first Flow Loop entry must propagate iteration=1 so count:iteration
+  // handlers can evaluate isFinished() correctly).
+  assertEquals(
+    handler.capturedIterations.length >= 1,
+    true,
+    "setCurrentIteration should have been called at least once",
+  );
+  assertEquals(
+    handler.capturedIterations[0],
+    1,
+    "First setCurrentIteration call must be with iteration=1 (1-based)",
+  );
+
+  // Assert: the propagated sequence is strictly 1,2,3,... matching the
+  // loop counter.
+  for (let i = 0; i < handler.capturedIterations.length; i++) {
+    assertEquals(
+      handler.capturedIterations[i],
+      i + 1,
+      `Iteration ${i + 1} must receive iteration=${
+        i + 1
+      } via setCurrentIteration`,
+    );
+  }
+});
+
+// =============================================================================
+// Test: count:iteration + maxIterations=1 reports done:true on normal completion
+// (B2 end-to-end regression)
+// =============================================================================
+
+Deno.test("AgentRunner.run - count:iteration with maxIterations=1 reports success on normal completion", async () => {
+  logger.debug("count:iteration maxIterations=1 test start");
+
+  const mockLog = createMockLogger();
+  // Use the real IterationBudgetVerdictHandler via a thin wrapper around
+  // its public API, so isFinished() depends on setCurrentIteration.
+  const { IterationBudgetVerdictHandler } = await import(
+    "../verdict/iteration-budget.ts"
+  );
+  const realHandler = new IterationBudgetVerdictHandler(1);
+  const deps = createFakeDependencies(mockLog, realHandler);
+  const definition = createTestDefinition({ maxIterations: 1 });
+  const runner = new AgentRunner(definition, deps);
+
+  stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
+
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-b2",
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-b2-maxiter-1",
+  });
+
+  logger.debug("count:iteration maxIterations=1 test result", {
+    iterations: result.iterations,
+    success: result.success,
+  });
+
+  // B2 regression: before the fix, the handler's currentIteration stayed at 0
+  // and isFinished() returned false, causing a "Maximum iterations" warn and
+  // result.success=false. After the fix, iteration=1 is propagated so
+  // isFinished() returns true and the run completes successfully in one
+  // iteration.
+  assertEquals(
+    result.iterations,
+    1,
+    "Should complete in exactly 1 iteration",
+  );
+  assertEquals(
+    result.success,
+    true,
+    "count:iteration with maxIterations=1 must succeed on normal completion",
+  );
+
+  // There must be no "Maximum iterations" warning.
+  const warnLogs = mockLog._logs.filter((l) => l.level === "warn");
+  const maxIterWarn = warnLogs.find((l) =>
+    l.message.includes("Maximum iterations")
+  );
+  assertEquals(
+    maxIterWarn,
+    undefined,
+    "Must not emit 'Maximum iterations reached' warning when handler finishes naturally",
+  );
+});
+
 Deno.test("AgentRunner.run - result.verdict is undefined when handler has no getLastVerdict", async () => {
   logger.debug("no getLastVerdict test start");
 
@@ -792,4 +986,134 @@ Deno.test("AgentRunner.run - result.verdict is undefined when handler has no get
     "AgentResult.verdict should be undefined when handler has no getLastVerdict",
   );
   assertEquals(result.success, true);
+});
+
+// =============================================================================
+// Test: SDK failure with 0 LLM responses must result in success=false
+// (Regression for framework-fix-no-response: handler done + 0 response ->
+//  success was incorrectly true before the fix.)
+// =============================================================================
+
+Deno.test("AgentRunner.run - SDK failure with 0 LLM responses returns success=false", async () => {
+  logger.debug("SDK failure 0 response test start");
+
+  const mockLog = createMockLogger();
+  const verdictHandler = createMockVerdictHandler({
+    finishedSequence: [true],
+    verdictDescription: "Completed after 1 iteration",
+  });
+  const deps = createFakeDependencies(mockLog, verdictHandler);
+  const definition = createTestDefinition({ maxIterations: 1 });
+  const runner = new AgentRunner(definition, deps);
+
+  stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-sdk-fail",
+      assistantResponses: [],
+      errors: ["Query execution failed: API unavailable"],
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-sdk-failure",
+  });
+
+  logger.debug("SDK failure 0 response test result", {
+    success: result.success,
+    iterations: result.iterations,
+    error: result.error,
+  });
+
+  assertEquals(
+    result.success,
+    false,
+    "SDK failure with 0 responses must result in success=false despite handler done=true",
+  );
+  assertEquals(
+    result.iterations,
+    1,
+    "Iteration count must be accurate despite failure",
+  );
+  // error field should surface the accumulated error
+  assertEquals(
+    typeof result.error,
+    "string",
+    "result.error should be a string when errors accumulated",
+  );
+});
+
+// =============================================================================
+// Test: Normal LLM response with handler done=true must still succeed
+// (Regression guard: the stricter success condition must not break the
+//  happy path.)
+// =============================================================================
+
+Deno.test("AgentRunner.run - normal LLM response with handler done=true returns success=true", async () => {
+  logger.debug("normal response success test start");
+
+  const mockLog = createMockLogger();
+  const verdictHandler = createMockVerdictHandler({
+    finishedSequence: [true],
+    verdictDescription: "Completed normally",
+  });
+  const deps = createFakeDependencies(mockLog, verdictHandler);
+  const definition = createTestDefinition({ maxIterations: 1 });
+  const runner = new AgentRunner(definition, deps);
+
+  stubInitializeValidation(runner);
+  stubSystemPromptResolution(runner);
+  // deno-lint-ignore no-explicit-any
+  (runner as any).closureManager.stepPromptResolver = {
+    resolve: () =>
+      Promise.resolve({
+        content: "stub flow prompt",
+        source: "user" as const,
+        promptPath: "stub",
+      }),
+  };
+
+  stubExecuteQuery(runner, () => {
+    return createSummary({
+      iteration: 1,
+      sessionId: "sess-normal",
+      assistantResponses: ["Successfully completed the task"],
+      errors: [],
+    });
+  });
+
+  const result = await runner.run({
+    args: {},
+    cwd: "/tmp/claude/test-normal-response",
+  });
+
+  logger.debug("normal response success test result", {
+    success: result.success,
+    iterations: result.iterations,
+  });
+
+  assertEquals(
+    result.success,
+    true,
+    "Normal completion with LLM response must succeed",
+  );
+  assertEquals(result.iterations, 1);
+  assertEquals(
+    result.error,
+    undefined,
+    "No error field when everything succeeds",
+  );
 });

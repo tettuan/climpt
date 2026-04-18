@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert";
 import { Prioritizer } from "./prioritizer.ts";
 import type { PrioritizerConfig } from "./prioritizer.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 
 // === Helpers ===
@@ -57,7 +57,7 @@ function makeIssueData(number: number): {
 Deno.test("run dispatches correct agent", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -76,7 +76,7 @@ Deno.test("run dispatches correct agent", async () => {
 Deno.test("run reads and parses priorities.json", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -101,7 +101,7 @@ Deno.test("run reads and parses priorities.json", async () => {
 Deno.test("run validates priority labels", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -123,7 +123,7 @@ Deno.test("run validates priority labels", async () => {
 Deno.test("run rejects invalid priority label", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -146,7 +146,7 @@ Deno.test("run rejects invalid priority label", async () => {
 Deno.test("run applies defaultLabel for invalid priority", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig({ defaultLabel: "P3" });
 
@@ -168,7 +168,7 @@ Deno.test("run applies defaultLabel for invalid priority", async () => {
 Deno.test("run with empty store returns empty without dispatch", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -186,7 +186,7 @@ Deno.test("run with empty store returns empty without dispatch", async () => {
 Deno.test("run throws descriptive error when priorities.json not found", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 
@@ -218,7 +218,7 @@ Deno.test("run throws descriptive error when priorities.json not found", async (
 Deno.test("run writes issue-list.json before dispatch", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const dispatcher = new StubDispatcher();
     const config = makeConfig();
 

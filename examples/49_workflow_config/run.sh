@@ -37,10 +37,10 @@ main() {
     error "Scenario 1: FAIL - dry-run should exit 0, got $exit_code"
     echo "$output"
     fail=1
-  elif echo "$output" | grep -q '"issueNumber"'; then
+  elif echo "$output" | grep -q '"subjectId"'; then
     success "Scenario 1: PASS"
   else
-    error "Scenario 1: FAIL - output missing 'issueNumber'"
+    error "Scenario 1: FAIL - output missing 'subjectId'"
     echo "$output"
     fail=1
   fi

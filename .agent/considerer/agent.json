@@ -1,0 +1,45 @@
+{
+  "$schema": "../../agents/schemas/agent.schema.json",
+  "version": "1.13.26",
+  "name": "considerer",
+  "displayName": "Implementation Considerer Agent",
+  "description": "Reads a kind:consider issue (question / design request / feasibility probe that may embed an implementation ask), researches the codebase + docs, posts a considered response comment, and closes the issue.",
+  "parameters": {
+    "issue": {
+      "type": "number",
+      "description": "GitHub Issue number to consider",
+      "required": true,
+      "cli": "--issue"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json"
+      }
+    },
+    "verdict": {
+      "type": "count:iteration",
+      "config": {
+        "maxIterations": 1
+      }
+    },
+    "boundaries": {
+      "allowedTools": [
+        "Read",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task",
+        "WebFetch"
+      ],
+      "permissionMode": "bypassPermissions"
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/considerer",
+      "format": "jsonl",
+      "maxFiles": 100
+    }
+  }
+}

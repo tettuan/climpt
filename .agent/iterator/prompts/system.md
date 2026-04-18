@@ -46,6 +46,25 @@ If you find yourself doing work that belongs to another role, STOP and return yo
 
 In all modes, your job is **implementation**, not issue closure.
 
+## Specification Source Priority
+
+Before implementing, determine which input is the **authoritative spec**:
+
+1. **If the issue has (or has ever had) a `kind:detail` label** — i.e., it
+   passed through the 3-stage pipeline (`kind:consider → kind:detail →
+   kind:impl`) — the **latest detailer comment** is the spec.
+   - Detect with: `gh issue view <N> --json labels,comments` and look for a
+     comment body starting with `## Implementation Spec` (detailer's
+     `commentTemplate`). Pick the **most recent** such comment.
+   - Treat earlier considerer comments as **background / reasoning** only.
+     If they conflict with the detailer comment, **follow the detailer
+     comment**.
+2. **Otherwise (direct `kind:impl` issue, no detail stage)**: read the
+   **issue body** itself as the spec (existing behavior unchanged).
+
+Record which source you used in your first TodoWrite entry so the
+handoff summary can reference it.
+
 ## Working Style
 
 - Task-driven with progressive steps

@@ -49,9 +49,9 @@ import {
 } from "../orchestrator/dispatcher.ts";
 import type { AgentDispatcher } from "../orchestrator/dispatcher.ts";
 import { FileGitHubClient } from "../orchestrator/file-github-client.ts";
-import { IssueStore } from "../orchestrator/issue-store.ts";
+import { SubjectStore } from "../orchestrator/subject-store.ts";
 import {
-  DEFAULT_ISSUE_STORE,
+  DEFAULT_SUBJECT_STORE,
   type IssueCriteria,
 } from "../orchestrator/workflow-types.ts";
 
@@ -165,8 +165,8 @@ async function runSingleIssue(
   const config = await loadWorkflow(cwd, options.workflowPath);
 
   const store = options.local
-    ? new IssueStore(
-      join(cwd, (config.issueStore ?? DEFAULT_ISSUE_STORE).path),
+    ? new SubjectStore(
+      join(cwd, (config.subjectStore ?? DEFAULT_SUBJECT_STORE).path),
     )
     : undefined;
 
@@ -211,8 +211,8 @@ async function runBatchWorkflow(
 
   const github: GitHubClient = options.local
     ? new FileGitHubClient(
-      new IssueStore(
-        join(cwd, (config.issueStore ?? DEFAULT_ISSUE_STORE).path),
+      new SubjectStore(
+        join(cwd, (config.subjectStore ?? DEFAULT_SUBJECT_STORE).path),
       ),
     )
     : new GhCliClient(cwd);

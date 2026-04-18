@@ -30,19 +30,53 @@ export interface IssueDetail {
   comments: { id: string; body: string }[];
 }
 
+/** Detailed label record returned by listLabelsDetailed. */
+export interface LabelDetail {
+  name: string;
+  /** 6-char hex color without leading '#' */
+  color: string;
+  description: string;
+}
+
 /** Abstract interface for GitHub issue operations. */
 export interface GitHubClient {
-  getIssueLabels(issueNumber: number): Promise<string[]>;
+  getIssueLabels(subjectId: string | number): Promise<string[]>;
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void>;
-  addIssueComment(issueNumber: number, comment: string): Promise<void>;
+  addIssueComment(subjectId: string | number, comment: string): Promise<void>;
   createIssue(title: string, labels: string[], body: string): Promise<number>;
-  closeIssue(issueNumber: number): Promise<void>;
+  closeIssue(subjectId: string | number): Promise<void>;
+  reopenIssue(subjectId: string | number): Promise<void>;
   listIssues(criteria: IssueCriteria): Promise<IssueListItem[]>;
-  getIssueDetail(issueNumber: number): Promise<IssueDetail>;
+  getIssueDetail(subjectId: string | number): Promise<IssueDetail>;
+  getRecentComments(
+    subjectId: string | number,
+    limit: number,
+  ): Promise<{ body: string; createdAt: string }[]>;
+  listLabels(): Promise<string[]>;
+
+  /**
+   * Label lifecycle operations used by the pre-dispatch label-sync
+   * preflight. Implementations must be idempotent at the transport
+   * layer: createLabel on an existing name, or updateLabel to the
+   * current state, should raise a distinguishable error rather than
+   * silently mutating unrelated labels. Sync callers wrap these with
+   * try/catch and emit per-label status records.
+   */
+  listLabelsDetailed(): Promise<LabelDetail[]>;
+  createLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void>;
+  updateLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void>;
 }
 
 /** Concrete implementation using `gh` CLI via Deno.Command. */
@@ -53,12 +87,12 @@ export class GhCliClient implements GitHubClient {
     this.#cwd = cwd;
   }
 
-  async getIssueLabels(issueNumber: number): Promise<string[]> {
+  async getIssueLabels(subjectId: string | number): Promise<string[]> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "view",
-        String(issueNumber),
+        String(subjectId),
         "--json",
         "labels",
         "--jq",
@@ -74,7 +108,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to get labels for issue #${issueNumber}: ${stderr}`,
+        `Failed to get labels for subject #${subjectId}: ${stderr}`,
       );
     }
 
@@ -84,11 +118,11 @@ export class GhCliClient implements GitHubClient {
   }
 
   async updateIssueLabels(
-    issueNumber: number,
+    subjectId: string | number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
-    const args = ["issue", "edit", String(issueNumber)];
+    const args = ["issue", "edit", String(subjectId)];
 
     for (const label of labelsToRemove) {
       args.push("--remove-label", label);
@@ -111,20 +145,20 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to update labels for issue #${issueNumber}: ${stderr}`,
+        `Failed to update labels for subject #${subjectId}: ${stderr}`,
       );
     }
   }
 
   async addIssueComment(
-    issueNumber: number,
+    subjectId: string | number,
     comment: string,
   ): Promise<void> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "comment",
-        String(issueNumber),
+        String(subjectId),
         "--body",
         comment,
       ],
@@ -138,7 +172,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to add comment to issue #${issueNumber}: ${stderr}`,
+        `Failed to add comment to subject #${subjectId}: ${stderr}`,
       );
     }
   }
@@ -177,9 +211,9 @@ export class GhCliClient implements GitHubClient {
     return Number(match[1]);
   }
 
-  async closeIssue(issueNumber: number): Promise<void> {
+  async closeIssue(subjectId: string | number): Promise<void> {
     const cmd = new Deno.Command("gh", {
-      args: ["issue", "close", String(issueNumber)],
+      args: ["issue", "close", String(subjectId)],
       cwd: this.#cwd,
       stdout: "piped",
       stderr: "piped",
@@ -190,7 +224,25 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to close issue #${issueNumber}: ${stderr}`,
+        `Failed to close subject #${subjectId}: ${stderr}`,
+      );
+    }
+  }
+
+  async reopenIssue(subjectId: string | number): Promise<void> {
+    const cmd = new Deno.Command("gh", {
+      args: ["issue", "reopen", String(subjectId)],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to reopen subject #${subjectId}: ${stderr}`,
       );
     }
   }
@@ -250,12 +302,12 @@ export class GhCliClient implements GitHubClient {
     }));
   }
 
-  async getIssueDetail(issueNumber: number): Promise<IssueDetail> {
+  async getIssueDetail(subjectId: string | number): Promise<IssueDetail> {
     const cmd = new Deno.Command("gh", {
       args: [
         "issue",
         "view",
-        String(issueNumber),
+        String(subjectId),
         "--json",
         "number,title,body,labels,state,assignees,milestone,comments",
       ],
@@ -269,7 +321,7 @@ export class GhCliClient implements GitHubClient {
     if (!output.success) {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(
-        `Failed to get detail for issue #${issueNumber}: ${stderr}`,
+        `Failed to get detail for subject #${subjectId}: ${stderr}`,
       );
     }
 
@@ -294,5 +346,157 @@ export class GhCliClient implements GitHubClient {
       milestone: raw.milestone?.title ?? null,
       comments: raw.comments.map((c) => ({ id: c.id, body: c.body })),
     };
+  }
+
+  async getRecentComments(
+    subjectId: string | number,
+    limit: number,
+  ): Promise<{ body: string; createdAt: string }[]> {
+    if (limit <= 0) return [];
+
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "issue",
+        "view",
+        String(subjectId),
+        "--json",
+        "comments",
+        "--jq",
+        `.comments | sort_by(.createdAt) | reverse | .[0:${limit}] | map({body, createdAt})`,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to get recent comments for subject #${subjectId}: ${stderr}`,
+      );
+    }
+
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+
+    return JSON.parse(stdout) as { body: string; createdAt: string }[];
+  }
+
+  async listLabels(): Promise<string[]> {
+    const cmd = new Deno.Command("gh", {
+      args: ["label", "list", "--json", "name", "--limit", "1000"],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to list labels: ${stderr}`);
+    }
+
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+
+    const raw = JSON.parse(stdout) as { name: string }[];
+    return raw.map((l) => l.name);
+  }
+
+  async listLabelsDetailed(): Promise<LabelDetail[]> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "list",
+        "--json",
+        "name,color,description",
+        "--limit",
+        "1000",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to list labels: ${stderr}`);
+    }
+
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+
+    const raw = JSON.parse(stdout) as {
+      name: string;
+      color: string;
+      description?: string;
+    }[];
+    return raw.map((l) => ({
+      name: l.name,
+      // gh returns color without leading '#'; normalize for safety.
+      color: (l.color ?? "").replace(/^#/, "").toLowerCase(),
+      description: l.description ?? "",
+    }));
+  }
+
+  async createLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "create",
+        name,
+        "--color",
+        color,
+        "--description",
+        description,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to create label "${name}": ${stderr}`);
+    }
+  }
+
+  async updateLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "edit",
+        name,
+        "--color",
+        color,
+        "--description",
+        description,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to update label "${name}": ${stderr}`);
+    }
   }
 }

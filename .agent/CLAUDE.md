@@ -21,6 +21,52 @@ Changes to the runner should be validated against these configurations.
 | reviewer    | Code review and verification         |
 | facilitator | Project monitoring and coordination  |
 | climpt      | MCP command registry and prompts     |
+| triager     | Classify unlabeled issues (kind:* + order:N) |
+| considerer  | Respond to kind:consider issues and close them |
+| merger      | Deterministic PR merge closure       |
+
+## Issue handling flow (triage → execute)
+
+Two-stage pipeline for GitHub Issues:
+
+1. **Triage** (standalone agent, bypasses orchestrator):
+
+   ```bash
+   deno task agent --agent triager
+   # or with explicit downstream workflow:
+   deno task agent --agent triager --workflow .agent/workflow.json
+   ```
+
+   Triager reads the downstream workflow JSON (default
+   `.agent/workflow.json`) to derive the **workflow label
+   set** dynamically from `labelMapping` keys + `prioritizer.labels`. It
+   bootstraps any missing labels in the repo, then scans all open issues
+   that carry **none** of the workflow labels (issues with only unrelated
+   tags like `enhancement` remain eligible), classifies each as `kind:impl`
+   or `kind:consider`, and assigns a unique `order:N` (N = 1..9, lowest
+   unused) work-order label.
+
+2. **Execute** (orchestrator workflow):
+
+   ```bash
+   deno task orchestrator
+   # or with explicit workflow path:
+   deno task orchestrator --workflow .agent/workflow.json
+   ```
+
+   Picks up labeled issues in `order:N` ascending order. Routes
+   `kind:impl` → iterator (transformer), `kind:consider` → considerer
+   (transformer, closes the issue after responding). Transitions to
+   `done` (terminal) or `blocked` (blocking) phase on completion.
+
+   Single-issue mode: append `--issue <N>` to target one issue.
+
+Repository labels (name, color, description) are the declarative source
+of truth in `.agent/workflow.json` under the `labels` section. The
+orchestrator reconciles them on every batch start, and the triager does
+the same via `deno task labels:sync` as its Step 1. Contributors who add
+or rename a workflow label MUST update `labels` in `workflow.json` —
+never the triager prompt (which now only invokes the syncer).
 
 ## Operating contexts
 

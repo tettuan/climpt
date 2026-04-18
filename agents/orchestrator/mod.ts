@@ -14,14 +14,15 @@ export type {
   DispatchResult,
   HandoffConfig,
   IssueCriteria,
-  IssueStoreConfig,
   IssueWorkflowState,
+  LabelSpec,
   OrchestratorOptions,
   OrchestratorResult,
   PhaseDefinition,
   PhaseTransitionRecord,
   PhaseType,
   PrioritizerConfig,
+  SubjectStoreConfig,
   TransformerDefinition,
   TransitionResult,
   ValidatorDefinition,
@@ -55,9 +56,14 @@ export type {
   GitHubClient,
   IssueDetail,
   IssueListItem,
+  LabelDetail,
 } from "./github-client.ts";
 export { GhCliClient } from "./github-client.ts";
 export { FileGitHubClient } from "./file-github-client.ts";
+
+// Label sync
+export type { SyncAction, SyncOptions, SyncResult } from "./label-sync.ts";
+export { decideLabelAction, summarizeSync, syncLabels } from "./label-sync.ts";
 
 // Dispatcher
 export type {
@@ -67,9 +73,9 @@ export type {
 } from "./dispatcher.ts";
 export { RunnerDispatcher, StubDispatcher } from "./dispatcher.ts";
 
-// Issue store
-export type { IssueComment, IssueData, IssueMeta } from "./issue-store.ts";
-export { IssueStore } from "./issue-store.ts";
+// Subject store
+export type { IssueComment, IssueData, IssueMeta } from "./subject-store.ts";
+export { SubjectStore } from "./subject-store.ts";
 
 // Issue syncer
 export { IssueSyncer } from "./issue-syncer.ts";

@@ -25,7 +25,11 @@ export type {
   VerdictHandler,
   VerdictStepIds,
 } from "./types.ts";
-export { BaseVerdictHandler, formatIterationSummary } from "./types.ts";
+export {
+  BaseVerdictHandler,
+  formatIterationSummary,
+  sanitizeForUvInjection,
+} from "./types.ts";
 export type { IterationSummary, VerdictType } from "./types.ts";
 
 // Contract-compliant types
