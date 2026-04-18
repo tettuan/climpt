@@ -14,7 +14,6 @@ export type {
   DispatchResult,
   HandoffConfig,
   IssueCriteria,
-  IssueStoreConfig,
   IssueWorkflowState,
   LabelSpec,
   OrchestratorOptions,
@@ -23,6 +22,7 @@ export type {
   PhaseTransitionRecord,
   PhaseType,
   PrioritizerConfig,
+  SubjectStoreConfig,
   TransformerDefinition,
   TransitionResult,
   ValidatorDefinition,
@@ -73,9 +73,9 @@ export type {
 } from "./dispatcher.ts";
 export { RunnerDispatcher, StubDispatcher } from "./dispatcher.ts";
 
-// Issue store
-export type { IssueComment, IssueData, IssueMeta } from "./issue-store.ts";
-export { IssueStore } from "./issue-store.ts";
+// Subject store
+export type { IssueComment, IssueData, IssueMeta } from "./subject-store.ts";
+export { SubjectStore } from "./subject-store.ts";
 
 // Issue syncer
 export { IssueSyncer } from "./issue-syncer.ts";

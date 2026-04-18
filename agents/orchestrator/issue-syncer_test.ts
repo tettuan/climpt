@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert";
 import { IssueSyncer } from "./issue-syncer.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -24,26 +24,26 @@ class StubGitHubClient implements GitHubClient {
     this.#details = details;
   }
 
-  getIssueLabels(issueNumber: number): Promise<string[]> {
-    const detail = this.#details.get(issueNumber);
+  getIssueLabels(subjectId: number): Promise<string[]> {
+    const detail = this.#details.get(subjectId);
     return Promise.resolve(detail?.labels ?? []);
   }
 
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.labelUpdates.push({
-      number: issueNumber,
+      number: subjectId,
       remove: labelsToRemove,
       add: labelsToAdd,
     });
     return Promise.resolve();
   }
 
-  addIssueComment(issueNumber: number, comment: string): Promise<void> {
-    this.commentCalls.push({ number: issueNumber, comment });
+  addIssueComment(subjectId: number, comment: string): Promise<void> {
+    this.commentCalls.push({ number: subjectId, comment });
     return Promise.resolve();
   }
 
@@ -55,16 +55,16 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(0);
   }
 
-  closeIssue(_issueNumber: number): Promise<void> {
+  closeIssue(_subjectId: number): Promise<void> {
     return Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    _issueNumber: number,
+    _subjectId: number,
     _limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     return Promise.resolve([]);
@@ -75,10 +75,10 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(this.#issues);
   }
 
-  getIssueDetail(issueNumber: number): Promise<IssueDetail> {
-    const detail = this.#details.get(issueNumber);
+  getIssueDetail(subjectId: number): Promise<IssueDetail> {
+    const detail = this.#details.get(subjectId);
     if (detail === undefined) {
-      return Promise.reject(new Error(`No detail for issue #${issueNumber}`));
+      return Promise.reject(new Error(`No detail for issue #${subjectId}`));
     }
     return Promise.resolve(detail);
   }
@@ -147,7 +147,7 @@ Deno.test("sync fetches and stores all issues", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([10, 20]);
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     await syncer.sync({});
@@ -172,7 +172,7 @@ Deno.test("sync returns sorted issue numbers", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([30, 5, 15]);
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     const result = await syncer.sync({});
@@ -186,7 +186,7 @@ Deno.test("sync with empty list returns empty array", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([]);
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     const result = await syncer.sync({});
@@ -200,7 +200,7 @@ Deno.test("pushLabels updates both GitHub and local store", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([7]);
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     // Pre-populate store with issue 7
@@ -231,7 +231,7 @@ Deno.test("listIssues criteria passed correctly to GitHub client", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([]);
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     const criteria: IssueCriteria = {

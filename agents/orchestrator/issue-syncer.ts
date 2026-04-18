@@ -2,7 +2,7 @@
  * Issue Syncer
  *
  * Fetches issues from GitHub matching given criteria and
- * syncs their full details into the local IssueStore.
+ * syncs their full details into the local SubjectStore.
  * Also supports pushing label changes back to GitHub.
  */
 

@@ -456,7 +456,7 @@ Deno.test("composeRunnerArgs: fixed keys win over payload on collision", () => {
   assertEquals(
     args.issue,
     42,
-    "issueNumber parameter must override payload.issue",
+    "subjectId parameter must override payload.issue",
   );
   assertEquals(
     args.iterateMax,
@@ -489,7 +489,7 @@ Deno.test("StubDispatcher: records DispatchOptions including payload", async () 
 
   assertEquals(dispatcher.calls.length, 1);
   assertEquals(dispatcher.calls[0].agentId, "myAgent");
-  assertEquals(dispatcher.calls[0].issueNumber, 42);
+  assertEquals(dispatcher.calls[0].subjectId, 42);
   assertEquals(dispatcher.calls[0].options?.payload, payload);
   assertEquals(dispatcher.calls[0].options?.iterateMax, 3);
 });

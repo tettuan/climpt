@@ -2,18 +2,18 @@
  * Unit tests for FileGitHubClient
  *
  * Verifies that FileGitHubClient correctly reads/writes issue data
- * via IssueStore, matching the GitHubClient interface contract.
+ * via SubjectStore, matching the GitHubClient interface contract.
  */
 
 import { assertEquals, assertRejects } from "@std/assert";
 import { FileGitHubClient } from "./file-github-client.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 
 async function withTempStore(
-  fn: (store: IssueStore, client: FileGitHubClient) => Promise<void>,
+  fn: (store: SubjectStore, client: FileGitHubClient) => Promise<void>,
 ): Promise<void> {
   const tmp = await Deno.makeTempDir();
-  const store = new IssueStore(`${tmp}/issues`);
+  const store = new SubjectStore(`${tmp}/issues`);
   const client = new FileGitHubClient(store);
   try {
     await fn(store, client);
@@ -23,7 +23,7 @@ async function withTempStore(
 }
 
 async function seedIssue(
-  store: IssueStore,
+  store: SubjectStore,
   num: number,
   labels: string[],
   state = "open",
@@ -192,7 +192,7 @@ Deno.test("getIssueDetail assembles full issue data", async () => {
 Deno.test("getIssueDetail handles missing comments dir", async () => {
   await withTempStore(async (_store, client) => {
     const tmp = await Deno.makeTempDir();
-    const store2 = new IssueStore(`${tmp}/issues`);
+    const store2 = new SubjectStore(`${tmp}/issues`);
     const client2 = new FileGitHubClient(store2);
     // Write meta and body manually without comments dir
     await Deno.mkdir(`${tmp}/issues/1`, { recursive: true });

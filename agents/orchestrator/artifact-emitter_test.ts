@@ -7,7 +7,7 @@
  *  - `[sourceAgent]` sentinel substitution for $.workflow.agents[...]
  *  - missing sources raise HandoffResolveError
  *  - schema validation failure raises HandoffSchemaValidationError
- *  - persistPayloadTo: "issueStore" persists via writeWorkflowPayload
+ *  - persistPayloadTo: "subjectStore" persists via writeWorkflowPayload
  *  - persistPayloadTo: "none" skips persistence
  *  - `${payload.*}` template is expanded after payloadFrom resolution
  */
@@ -20,7 +20,7 @@ import {
   type WorkflowAgentInfo,
 } from "./artifact-emitter.ts";
 import type { ValidationOutcome } from "./schema-registry.ts";
-import type { HandoffDeclaration, IssuePayload } from "./workflow-types.ts";
+import type { HandoffDeclaration, SubjectPayload } from "./workflow-types.ts";
 
 // =============================================================================
 // Shared constants
@@ -57,23 +57,23 @@ function stubSchemaRegistry(opts: StubSchemaRegistryOptions = {}) {
   };
 }
 
-interface StubIssueStoreCall {
-  readonly issueNumber: number;
+interface StubSubjectStoreCall {
+  readonly subjectId: number;
   readonly workflowId: string;
-  readonly payload: IssuePayload;
+  readonly payload: SubjectPayload;
 }
 
-function stubIssueStore() {
-  const calls: StubIssueStoreCall[] = [];
+function stubSubjectStore() {
+  const calls: StubSubjectStoreCall[] = [];
   return {
     calls,
     store: {
       writeWorkflowPayload: (
-        issueNumber: number,
+        subjectId: number,
         workflowId: string,
-        payload: IssuePayload,
+        payload: SubjectPayload,
       ): Promise<void> => {
-        calls.push({ issueNumber, workflowId, payload });
+        calls.push({ subjectId, workflowId, payload });
         return Promise.resolve();
       },
     },
@@ -127,7 +127,7 @@ function baseHandoff(
       evaluatedAt: "$.workflow.context.now",
       sourceVersion: "$.workflow.agents[sourceAgent].version",
     },
-    persistPayloadTo: "issueStore",
+    persistPayloadTo: "subjectStore",
     ...overrides,
   };
 }
@@ -138,12 +138,12 @@ function baseHandoff(
 
 Deno.test("emit: resolves payload across agent / workflow roots", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store, calls: storeCalls } = stubIssueStore();
+  const { store, calls: storeCalls } = stubSubjectStore();
   const { writes, writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -151,7 +151,7 @@ Deno.test("emit: resolves payload across agent / workflow roots", async () => {
 
   const result = await emitter.emit({
     workflowId: "sample-workflow",
-    issueNumber: 42,
+    subjectId: 42,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: {
@@ -175,18 +175,18 @@ Deno.test("emit: resolves payload across agent / workflow roots", async () => {
   assertEquals(writes.length, 1);
   assertEquals(writes[0].path, ".agent/artifacts/42.json");
   assertEquals(storeCalls.length, 1);
-  assertEquals(storeCalls[0].issueNumber, 42);
+  assertEquals(storeCalls[0].subjectId, 42);
   assertEquals(storeCalls[0].workflowId, "sample-workflow");
 });
 
 Deno.test("emit: single-quoted literal becomes string payload value", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -207,7 +207,7 @@ Deno.test("emit: single-quoted literal becomes string payload value", async () =
 
   const result = await emitter.emit({
     workflowId: "sample-workflow",
-    issueNumber: 1,
+    subjectId: 1,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: {},
@@ -220,7 +220,7 @@ Deno.test("emit: single-quoted literal becomes string payload value", async () =
 
 Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const agents: Readonly<Record<string, WorkflowAgentInfo>> = {
@@ -233,7 +233,7 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: agents,
@@ -254,7 +254,7 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
 
   const result = await emitter.emit({
     workflowId: "sample-workflow",
-    issueNumber: 7,
+    subjectId: 7,
     sourceAgent: "dynamic-source",
     sourceOutcome: "approved",
     agentResult: {},
@@ -267,12 +267,12 @@ Deno.test("emit: [sourceAgent] sentinel resolves to input.sourceAgent", async ()
 
 Deno.test("emit: missing source value throws HandoffResolveError", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -294,7 +294,7 @@ Deno.test("emit: missing source value throws HandoffResolveError", async () => {
     () =>
       emitter.emit({
         workflowId: "sample-workflow",
-        issueNumber: 1,
+        subjectId: 1,
         sourceAgent: "sample-source",
         sourceOutcome: "approved",
         agentResult: {},
@@ -308,12 +308,12 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
   const { registry } = stubSchemaRegistry({
     outcome: { valid: false, errors: ["/prNumber must be string"] },
   });
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile, writes } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -323,7 +323,7 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
     () =>
       emitter.emit({
         workflowId: "sample-workflow",
-        issueNumber: 42,
+        subjectId: 42,
         sourceAgent: "sample-source",
         sourceOutcome: "approved",
         agentResult: {
@@ -345,14 +345,14 @@ Deno.test("emit: schema validation failure throws HandoffSchemaValidationError",
   );
 });
 
-Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", async () => {
+Deno.test("emit: persistPayloadTo 'subjectStore' calls writeWorkflowPayload", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store, calls } = stubIssueStore();
+  const { store, calls } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -360,7 +360,7 @@ Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", asyn
 
   await emitter.emit({
     workflowId: "persist-wf",
-    issueNumber: 99,
+    subjectId: 99,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: {
@@ -369,22 +369,22 @@ Deno.test("emit: persistPayloadTo 'issueStore' calls writeWorkflowPayload", asyn
       outcome: "approved",
       summary: "ok",
     },
-    handoff: baseHandoff({ persistPayloadTo: "issueStore" }),
+    handoff: baseHandoff({ persistPayloadTo: "subjectStore" }),
   });
 
   assertEquals(calls.length, 1);
-  assertEquals(calls[0].issueNumber, 99);
+  assertEquals(calls[0].subjectId, 99);
   assertEquals(calls[0].workflowId, "persist-wf");
 });
 
 Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store, calls } = stubIssueStore();
+  const { store, calls } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -392,7 +392,7 @@ Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () =
 
   await emitter.emit({
     workflowId: "no-persist",
-    issueNumber: 11,
+    subjectId: 11,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: {
@@ -413,12 +413,12 @@ Deno.test("emit: persistPayloadTo 'none' skips writeWorkflowPayload", async () =
 
 Deno.test("emit: path template expansion resolves after payloadFrom", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writes, writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -441,7 +441,7 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
 
   const result = await emitter.emit({
     workflowId: "sample-workflow",
-    issueNumber: 1007,
+    subjectId: 1007,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: { pr_number: 1007 },
@@ -456,12 +456,12 @@ Deno.test("emit: path template expansion resolves after payloadFrom", async () =
 
 Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async () => {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile } = makeWriter();
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -483,7 +483,7 @@ Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async ()
     () =>
       emitter.emit({
         workflowId: "sample-workflow",
-        issueNumber: 1,
+        subjectId: 1,
         sourceAgent: "not-registered",
         sourceOutcome: "approved",
         agentResult: {},
@@ -505,11 +505,11 @@ Deno.test("emit: unknown workflow agent id raises HandoffResolveError", async ()
 
 function makeErrorPathEmitter(): DefaultArtifactEmitter {
   const { registry } = stubSchemaRegistry();
-  const { store } = stubIssueStore();
+  const { store } = stubSubjectStore();
   const { writeFile } = makeWriter();
   return new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: fixedClock(FIXED_NOW_ISO),
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -521,7 +521,7 @@ function minimalEmitInput(
 ): Parameters<DefaultArtifactEmitter["emit"]>[0] {
   return {
     workflowId: "sample-workflow",
-    issueNumber: 1,
+    subjectId: 1,
     sourceAgent: "sample-source",
     sourceOutcome: "approved",
     agentResult: {},

@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert";
-import { IssueStore } from "./issue-store.ts";
-import type { IssueData } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
+import type { IssueData } from "./subject-store.ts";
 
 function makeIssueData(number: number): IssueData {
   return {
@@ -23,7 +23,7 @@ function makeIssueData(number: number): IssueData {
 Deno.test("writeIssue creates correct directory structure", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(42));
 
     const metaStat = await Deno.stat(`${tmp}/42/meta.json`);
@@ -48,7 +48,7 @@ Deno.test("writeIssue creates correct directory structure", async () => {
 Deno.test("readMeta returns stored metadata", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const data = makeIssueData(7);
     await store.writeIssue(data);
 
@@ -62,7 +62,7 @@ Deno.test("readMeta returns stored metadata", async () => {
 Deno.test("readBody returns stored body", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const data = makeIssueData(3);
     await store.writeIssue(data);
 
@@ -76,7 +76,7 @@ Deno.test("readBody returns stored body", async () => {
 Deno.test("readComments returns all comments", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const data = makeIssueData(5);
     await store.writeIssue(data);
 
@@ -92,7 +92,7 @@ Deno.test("readComments returns all comments", async () => {
 Deno.test("listIssues returns sorted issue numbers", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(30));
     await store.writeIssue(makeIssueData(5));
     await store.writeIssue(makeIssueData(12));
@@ -107,7 +107,7 @@ Deno.test("listIssues returns sorted issue numbers", async () => {
 Deno.test("listIssues returns empty for empty store", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const issues = await store.listIssues();
     assertEquals(issues, []);
   } finally {
@@ -118,7 +118,7 @@ Deno.test("listIssues returns empty for empty store", async () => {
 Deno.test("updateMeta merges partial updates", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(1));
 
     await store.updateMeta(1, { state: "closed", labels: ["wontfix"] });
@@ -133,7 +133,7 @@ Deno.test("updateMeta merges partial updates", async () => {
 Deno.test("updateMeta preserves unchanged fields", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(1));
 
     await store.updateMeta(1, { state: "closed" });
@@ -149,14 +149,14 @@ Deno.test("updateMeta preserves unchanged fields", async () => {
 });
 
 Deno.test("getOutboxPath returns correct path", () => {
-  const store = new IssueStore("/data/issues");
+  const store = new SubjectStore("/data/issues");
   assertEquals(store.getOutboxPath(42), "/data/issues/42/outbox");
 });
 
 Deno.test("clearOutbox removes files but keeps directory", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(9));
 
     const outboxDir = store.getOutboxPath(9);
@@ -181,7 +181,7 @@ Deno.test("clearOutbox removes files but keeps directory", async () => {
 Deno.test("writeIssue with empty comments creates no comment files", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const data = makeIssueData(10);
     data.comments = [];
     await store.writeIssue(data);
@@ -199,7 +199,7 @@ Deno.test("writeIssue with empty comments creates no comment files", async () =>
 Deno.test("readMeta throws for nonexistent issue", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await assertRejects(
       () => store.readMeta(999),
       Deno.errors.NotFound,
@@ -214,9 +214,9 @@ Deno.test("readMeta throws for nonexistent issue", async () => {
 Deno.test("writeWorkflowState creates workflow-state.{workflowId}.json", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeWorkflowState(42, {
-      issueNumber: 42,
+      subjectId: 42,
       currentPhase: "review",
       cycleCount: 2,
       correlationId: "wf-test-001",
@@ -248,9 +248,9 @@ Deno.test("writeWorkflowState creates workflow-state.{workflowId}.json", async (
 Deno.test("readWorkflowState returns stored state", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const state = {
-      issueNumber: 7,
+      subjectId: 7,
       currentPhase: "review",
       cycleCount: 1,
       correlationId: "wf-test-002",
@@ -276,7 +276,7 @@ Deno.test("readWorkflowState returns stored state", async () => {
 Deno.test("readWorkflowState returns null for nonexistent issue", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const result = await store.readWorkflowState(999, "default");
     assertEquals(result, null);
   } finally {
@@ -287,7 +287,7 @@ Deno.test("readWorkflowState returns null for nonexistent issue", async () => {
 Deno.test("readWorkflowState returns null when issue dir exists but no state file", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssueData(5));
     const result = await store.readWorkflowState(5, "default");
     assertEquals(result, null);
@@ -299,16 +299,16 @@ Deno.test("readWorkflowState returns null when issue dir exists but no state fil
 Deno.test("writeWorkflowState overwrites existing state", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeWorkflowState(3, {
-      issueNumber: 3,
+      subjectId: 3,
       currentPhase: "review",
       cycleCount: 1,
       correlationId: "wf-test-old",
       history: [],
     }, "default");
     await store.writeWorkflowState(3, {
-      issueNumber: 3,
+      subjectId: 3,
       currentPhase: "complete",
       cycleCount: 2,
       correlationId: "wf-test-new",
@@ -335,16 +335,16 @@ Deno.test("writeWorkflowState overwrites existing state", async () => {
 Deno.test("different workflowIds do not collide", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "review",
       cycleCount: 1,
       correlationId: "wf-docs",
       history: [],
     }, "docs");
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "testing",
       cycleCount: 3,
       correlationId: "wf-code",
@@ -367,7 +367,7 @@ Deno.test("different workflowIds do not collide", async () => {
 Deno.test("writeWorkflowPayload creates workflow-payload.{workflowId}.json", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeWorkflowPayload(42, "sample-wf", {
       prNumber: 42,
       verdict: "approved",
@@ -384,7 +384,7 @@ Deno.test("writeWorkflowPayload creates workflow-payload.{workflowId}.json", asy
 Deno.test("readWorkflowPayload returns previously written payload", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const payload = {
       prNumber: 7,
       baseBranch: "develop",
@@ -402,7 +402,7 @@ Deno.test("readWorkflowPayload returns previously written payload", async () => 
 Deno.test("readWorkflowPayload returns undefined when file is absent", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const result = await store.readWorkflowPayload(999, "missing-wf");
     assertEquals(result, undefined);
   } finally {
@@ -413,7 +413,7 @@ Deno.test("readWorkflowPayload returns undefined when file is absent", async () 
 Deno.test("writeWorkflowPayload isolates distinct workflowIds", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeWorkflowPayload(1, "wf-a", { marker: "a" });
     await store.writeWorkflowPayload(1, "wf-b", { marker: "b" });
 
@@ -430,7 +430,7 @@ Deno.test("writeWorkflowPayload isolates distinct workflowIds", async () => {
 Deno.test("readWorkflowPayload propagates JSON parse errors", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     // Seed a corrupt payload file
     await Deno.mkdir(`${tmp}/5`, { recursive: true });
     await Deno.writeTextFile(
@@ -449,7 +449,7 @@ Deno.test("readWorkflowPayload propagates JSON parse errors", async () => {
 Deno.test("acquireLock succeeds and release removes lock file", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const lock = await store.acquireLock("default");
     assertEquals(lock !== null, true);
 
@@ -472,7 +472,7 @@ Deno.test("acquireLock succeeds and release removes lock file", async () => {
 Deno.test("acquireLock returns null when same workflow lock is already held", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const first = await store.acquireLock("default");
     assertEquals(first !== null, true);
 
@@ -488,7 +488,7 @@ Deno.test("acquireLock returns null when same workflow lock is already held", as
 Deno.test("acquireLock allows reacquisition after release", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
 
     const first = await store.acquireLock("default");
     await first!.release();
@@ -503,7 +503,7 @@ Deno.test("acquireLock allows reacquisition after release", async () => {
 Deno.test("acquireLock: different workflowIds do not conflict", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
 
     const lockDocs = await store.acquireLock("docs");
     const lockCode = await store.acquireLock("code");
@@ -523,7 +523,7 @@ Deno.test("acquireLock: different workflowIds do not conflict", async () => {
 Deno.test("acquireIssueLock: acquire and release", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const lock = await store.acquireIssueLock("default", 42);
     assertEquals(lock !== null, true);
     lock!.release();
@@ -535,7 +535,7 @@ Deno.test("acquireIssueLock: acquire and release", async () => {
 Deno.test("acquireIssueLock: same issue conflicts", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const first = await store.acquireIssueLock("default", 42);
     assertEquals(first !== null, true);
 
@@ -551,7 +551,7 @@ Deno.test("acquireIssueLock: same issue conflicts", async () => {
 Deno.test("acquireIssueLock: different issues do not conflict", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const lock42 = await store.acquireIssueLock("default", 42);
     const lock99 = await store.acquireIssueLock("default", 99);
 
@@ -568,7 +568,7 @@ Deno.test("acquireIssueLock: different issues do not conflict", async () => {
 Deno.test("acquireIssueLock: workflow lock and issue lock do not conflict", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const batchLock = await store.acquireLock("default");
     const issueLock = await store.acquireIssueLock("default", 42);
 
@@ -585,7 +585,7 @@ Deno.test("acquireIssueLock: workflow lock and issue lock do not conflict", asyn
 Deno.test("acquireLock: leftover lock file from dead process can be acquired", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
 
     // Simulate a leftover lock file: create it, open+lock it, then close
     // (closing the fd releases the flock but leaves the file on disk)
@@ -607,7 +607,7 @@ Deno.test("acquireLock: leftover lock file from dead process can be acquired", a
 Deno.test("acquireLock: release is idempotent (double release does not throw)", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     const lock = await store.acquireLock("default");
     assertEquals(lock !== null, true);
 

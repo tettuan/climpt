@@ -213,7 +213,7 @@ async function buildRealEmitter(
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: {
+    subjectStore: {
       writeWorkflowPayload: (_issue, _wfId, payload) => {
         persistedPayloads.push({ ...payload });
         return Promise.resolve();
@@ -260,7 +260,7 @@ Deno.test(
 
     const result = await emitter.emit({
       workflowId: "merge",
-      issueNumber: 123,
+      subjectId: 123,
       sourceAgent: "reviewer",
       sourceOutcome: "approved",
       agentResult,
@@ -299,7 +299,7 @@ Deno.test(
 
     const result = await emitter.emit({
       workflowId: "merge",
-      issueNumber: 456,
+      subjectId: 456,
       sourceAgent: "reviewer",
       sourceOutcome: "rejected",
       agentResult,
@@ -337,7 +337,7 @@ Deno.test(
     try {
       await emitter.emit({
         workflowId: "merge",
-        issueNumber: 789,
+        subjectId: 789,
         sourceAgent: "reviewer",
         sourceOutcome: "approved",
         agentResult: incompleteAgentResult,
@@ -385,7 +385,7 @@ Deno.test(
     try {
       await emitter.emit({
         workflowId: "merge",
-        issueNumber: 1,
+        subjectId: 1,
         sourceAgent: "reviewer",
         sourceOutcome: "approved",
         agentResult: badAgentResult,

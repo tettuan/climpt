@@ -2,9 +2,9 @@
  * Integration tests for the end-to-end handoff pipeline.
  *
  * Exercises the full orchestrator → dispatcher → artifact-emitter →
- * issue-store flow with a {@link StubDispatcher} driving structured
+ * subject-store flow with a {@link StubDispatcher} driving structured
  * output, a real {@link InMemorySchemaRegistry} holding a pre-registered
- * JSON Schema, and a real filesystem-backed {@link IssueStore} under
+ * JSON Schema, and a real filesystem-backed {@link SubjectStore} under
  * `Deno.makeTempDir`.
  *
  * These tests are intentionally offline-safe: handoff `payloadFrom`
@@ -30,10 +30,10 @@ import {
   type WorkflowAgentInfo,
 } from "./artifact-emitter.ts";
 import { InMemorySchemaRegistry } from "./schema-registry.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import type {
   HandoffDeclaration,
-  IssuePayload,
+  SubjectPayload,
   WorkflowConfig,
 } from "./workflow-types.ts";
 import type {
@@ -55,9 +55,9 @@ import type {
 class StubGitHubClient implements GitHubClient {
   #labelSequence: string[][];
   #callIndex = 0;
-  #comments: { issueNumber: number; comment: string }[] = [];
+  #comments: { subjectId: number; comment: string }[] = [];
   #labelUpdates: {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] = [];
@@ -67,7 +67,7 @@ class StubGitHubClient implements GitHubClient {
     this.#labelSequence = labelSequence;
   }
 
-  getIssueLabels(_issueNumber: number): Promise<string[]> {
+  getIssueLabels(_subjectId: number): Promise<string[]> {
     const idx = Math.min(this.#callIndex, this.#labelSequence.length - 1);
     const labels = this.#labelSequence[idx];
     this.#callIndex++;
@@ -75,20 +75,20 @@ class StubGitHubClient implements GitHubClient {
   }
 
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.#labelUpdates.push({
-      issueNumber,
+      subjectId,
       removed: labelsToRemove,
       added: labelsToAdd,
     });
     return Promise.resolve();
   }
 
-  addIssueComment(issueNumber: number, comment: string): Promise<void> {
-    this.#comments.push({ issueNumber, comment });
+  addIssueComment(subjectId: number, comment: string): Promise<void> {
+    this.#comments.push({ subjectId, comment });
     return Promise.resolve();
   }
 
@@ -100,17 +100,17 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(999);
   }
 
-  closeIssue(issueNumber: number): Promise<void> {
-    this.#closedIssues.push(issueNumber);
+  closeIssue(subjectId: number): Promise<void> {
+    this.#closedIssues.push(subjectId);
     return Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    _issueNumber: number,
+    _subjectId: number,
     _limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     return Promise.resolve([]);
@@ -120,7 +120,7 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve([]);
   }
 
-  getIssueDetail(_issueNumber: number): Promise<IssueDetail> {
+  getIssueDetail(_subjectId: number): Promise<IssueDetail> {
     return Promise.resolve({
       number: 0,
       title: "",
@@ -163,7 +163,7 @@ class StubGitHubClient implements GitHubClient {
 /** Stub dispatcher that records calls and returns a prepared outcome. */
 class RecordingDispatcher {
   readonly calls: Array<
-    { agentId: string; issueNumber: number; options?: DispatchOptions }
+    { agentId: string; subjectId: number; options?: DispatchOptions }
   > = [];
   #outcome: DispatchOutcome;
 
@@ -173,10 +173,10 @@ class RecordingDispatcher {
 
   dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
-    this.calls.push({ agentId, issueNumber, options });
+    this.calls.push({ agentId, subjectId, options });
     return Promise.resolve(this.#outcome);
   }
 }
@@ -281,7 +281,7 @@ function makeHandoff(
       summary: "$.agent.result.summary",
       outcome: "$.agent.result.outcome",
     },
-    persistPayloadTo: "issueStore",
+    persistPayloadTo: "subjectStore",
   };
 }
 
@@ -299,13 +299,13 @@ interface HarnessOptions {
    * over github.getIssueLabels whenever a store is attached).
    */
   readonly seedIssues?: ReadonlyArray<
-    { issueNumber: number; labels: ReadonlyArray<string> }
+    { subjectId: number; labels: ReadonlyArray<string> }
   >;
 }
 
 interface Harness {
   readonly orchestrator: Orchestrator;
-  readonly store: IssueStore;
+  readonly store: SubjectStore;
   readonly cwd: string;
   readonly registry: InMemorySchemaRegistry;
   readonly github: StubGitHubClient;
@@ -330,14 +330,14 @@ async function buildHarness(opts: HarnessOptions): Promise<Harness> {
     registry.register(entry.ref, entry.schema);
   }
 
-  const store = new IssueStore(storePath);
+  const store = new SubjectStore(storePath);
   await store.ensureDir();
 
   for (const seed of opts.seedIssues ?? []) {
     await store.writeIssue({
       meta: {
-        number: seed.issueNumber,
-        title: `seeded #${seed.issueNumber}`,
+        number: seed.subjectId,
+        title: `seeded #${seed.subjectId}`,
         labels: [...seed.labels],
         state: "open",
         assignees: [],
@@ -357,7 +357,7 @@ async function buildHarness(opts: HarnessOptions): Promise<Harness> {
 
   const emitter = new DefaultArtifactEmitter({
     schemaRegistry: registry,
-    issueStore: store,
+    subjectStore: store,
     clock: { now: (): Date => new Date("2026-04-14T10:00:00.000Z") },
     writeFile,
     workflowAgents: DEFAULT_AGENTS,
@@ -406,7 +406,7 @@ Deno.test(
     const harness = await buildHarness({
       handoffs: [handoff],
       dispatcher,
-      seedIssues: [{ issueNumber: 42, labels: ["test:ready"] }],
+      seedIssues: [{ subjectId: 42, labels: ["test:ready"] }],
     });
 
     try {
@@ -438,7 +438,7 @@ Deno.test(
       assertEquals(artifact.summary, "LGTM");
       assertEquals(artifact.outcome, "approved");
 
-      // (b) Payload persisted via IssueStore.writeWorkflowPayload.
+      // (b) Payload persisted via SubjectStore.writeWorkflowPayload.
       const persisted = await harness.store.readWorkflowPayload(42, "test");
       assertEquals(
         persisted?.id,
@@ -468,7 +468,7 @@ Deno.test("no handoff fires when outcome does not match when.outcome", async () 
   const harness = await buildHarness({
     handoffs: [handoff],
     dispatcher,
-    seedIssues: [{ issueNumber: 7, labels: ["test:ready"] }],
+    seedIssues: [{ subjectId: 7, labels: ["test:ready"] }],
   });
 
   try {
@@ -508,7 +508,7 @@ Deno.test(
   "previously persisted payload is forwarded to subsequent dispatch",
   async () => {
     // No handoffs — we only need to verify that on run(), the orchestrator
-    // reads the prior payload from issue-store and forwards it to the
+    // reads the prior payload from subject-store and forwards it to the
     // dispatcher via DispatchOptions.payload.
     const dispatcher = new RecordingDispatcher({
       outcome: "approved",
@@ -518,11 +518,11 @@ Deno.test(
     const harness = await buildHarness({
       handoffs: [],
       dispatcher,
-      seedIssues: [{ issueNumber: 99, labels: ["test:ready"] }],
+      seedIssues: [{ subjectId: 99, labels: ["test:ready"] }],
     });
 
     try {
-      const prior: IssuePayload = Object.freeze({
+      const prior: SubjectPayload = Object.freeze({
         prNumber: 42,
         verdictPath: "some",
       });
@@ -565,7 +565,7 @@ Deno.test(
       handoffs: [handoff],
       dispatcher,
       schemas: [{ ref: "rejecting-schema@1", schema: REJECTING_SCHEMA }],
-      seedIssues: [{ issueNumber: 11, labels: ["test:ready"] }],
+      seedIssues: [{ subjectId: 11, labels: ["test:ready"] }],
     });
 
     try {
@@ -593,7 +593,7 @@ Deno.test(
     const harness = await buildHarness({
       handoffs: [handoffA, handoffB],
       dispatcher,
-      seedIssues: [{ issueNumber: 55, labels: ["test:ready"] }],
+      seedIssues: [{ subjectId: 55, labels: ["test:ready"] }],
     });
 
     try {
@@ -624,7 +624,7 @@ Deno.test(
       assertEquals(artifactA.id, "handoff-a");
       assertEquals(artifactB.id, "handoff-b");
 
-      // Both handoffs set persistPayloadTo: "issueStore". The orchestrator
+      // Both handoffs set persistPayloadTo: "subjectStore". The orchestrator
       // iterates `handoffs[]` in declaration order (orchestrator.ts:317,
       // `for (const handoff of matching)`), so the second emit overwrites
       // the first under the single `workflow-payload-<wfId>.json` key.

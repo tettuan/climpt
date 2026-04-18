@@ -131,7 +131,7 @@ Deno.test("toState serializes tracker state correctly", () => {
 
   const state = tracker.toState(1, "complete");
 
-  assertEquals(state.issueNumber, 1);
+  assertEquals(state.subjectId, 1);
   assertEquals(state.currentPhase, "complete");
   assertEquals(state.cycleCount, 2);
   assertEquals(state.history.length, 2);
@@ -147,7 +147,7 @@ Deno.test("toState for unknown issue returns empty state", () => {
   const tracker = new CycleTracker(5);
   const state = tracker.toState(999, "unknown");
 
-  assertEquals(state.issueNumber, 999);
+  assertEquals(state.subjectId, 999);
   assertEquals(state.currentPhase, "unknown");
   assertEquals(state.cycleCount, 0);
   assertEquals(state.history.length, 0);
@@ -187,7 +187,7 @@ Deno.test("fromState preserves persisted timestamps byte-for-byte", () => {
   const fixedTs1 = "2026-01-01T00:00:00.000Z";
   const fixedTs2 = "2026-01-01T00:01:00.000Z";
   const state: IssueWorkflowState = {
-    issueNumber: 999,
+    subjectId: 999,
     currentPhase: "implementation",
     cycleCount: 2,
     correlationId: "test-corr",

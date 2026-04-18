@@ -1,6 +1,9 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { ConfigError } from "../shared/errors/config-errors.ts";
-import { DEFAULT_ISSUE_STORE, type WorkflowConfig } from "./workflow-types.ts";
+import {
+  DEFAULT_SUBJECT_STORE,
+  type WorkflowConfig,
+} from "./workflow-types.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -10,7 +13,7 @@ import type {
 import type { DispatchOutcome } from "./dispatcher.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { compensationMarker, Orchestrator } from "./orchestrator.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 
 // Design §2.2: one phase transition produces one "add" call (T3) plus
@@ -74,14 +77,14 @@ function createTestConfig(): WorkflowConfig {
 class StubGitHubClient implements GitHubClient {
   #labelSequence: string[][];
   #callIndex = 0;
-  #comments: { issueNumber: number; comment: string }[] = [];
+  #comments: { subjectId: number; comment: string }[] = [];
   #commentHistory: {
-    issueNumber: number;
+    subjectId: number;
     body: string;
     createdAt: string;
   }[] = [];
   #labelUpdates: {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] = [];
@@ -92,7 +95,7 @@ class StubGitHubClient implements GitHubClient {
     this.#labelSequence = labelSequence;
   }
 
-  getIssueLabels(_issueNumber: number): Promise<string[]> {
+  getIssueLabels(_subjectId: number): Promise<string[]> {
     const idx = Math.min(this.#callIndex, this.#labelSequence.length - 1);
     const labels = this.#labelSequence[idx];
     this.#callIndex++;
@@ -100,34 +103,34 @@ class StubGitHubClient implements GitHubClient {
   }
 
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.#labelUpdates.push({
-      issueNumber,
+      subjectId,
       removed: labelsToRemove,
       added: labelsToAdd,
     });
     return Promise.resolve();
   }
 
-  addIssueComment(issueNumber: number, comment: string): Promise<void> {
-    this.#comments.push({ issueNumber, comment });
+  addIssueComment(subjectId: number, comment: string): Promise<void> {
+    this.#comments.push({ subjectId, comment });
     this.#commentHistory.push({
-      issueNumber,
+      subjectId,
       body: comment,
       createdAt: new Date().toISOString(),
     });
     return Promise.resolve();
   }
 
-  get comments(): { issueNumber: number; comment: string }[] {
+  get comments(): { subjectId: number; comment: string }[] {
     return this.#comments;
   }
 
   get labelUpdates(): {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] {
@@ -146,25 +149,25 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(999);
   }
 
-  closeIssue(issueNumber: number): Promise<void> {
+  closeIssue(subjectId: number): Promise<void> {
     if (this.#closeIssueShouldThrow) {
       return Promise.reject(new Error("gh issue close failed"));
     }
-    this.#closedIssues.push(issueNumber);
+    this.#closedIssues.push(subjectId);
     return Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    issueNumber: number,
+    subjectId: number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     if (limit <= 0) return Promise.resolve([]);
     const filtered = this.#commentHistory
-      .filter((c) => c.issueNumber === issueNumber)
+      .filter((c) => c.subjectId === subjectId)
       .slice(-limit)
       .reverse()
       .map((c) => ({ body: c.body, createdAt: c.createdAt }));
@@ -183,7 +186,7 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve([]);
   }
 
-  getIssueDetail(_issueNumber: number): Promise<IssueDetail> {
+  getIssueDetail(_subjectId: number): Promise<IssueDetail> {
     return Promise.resolve({
       number: 0,
       title: "",
@@ -280,7 +283,7 @@ Deno.test("revision cycle: rejected -> revision -> review -> approved -> complet
     dispatch: typeof StubDispatcher.prototype.dispatch;
   } = {
     ...new StubDispatcher(),
-    dispatch(agentId: string, _issueNumber: number) {
+    dispatch(agentId: string, _subjectId: number) {
       if (agentId === "reviewer") {
         reviewerCallCount++;
         const outcome = reviewerCallCount === 1 ? "rejected" : "approved";
@@ -870,13 +873,13 @@ Deno.test(
     );
     const comp = github.comments[0];
     assertEquals(
-      comp.issueNumber,
+      comp.subjectId,
       1,
       "Compensation comment must be addressed to the same issue whose " +
         "close failed.",
     );
     // Marker is derived from orchestrator.ts's exported factory so the
-    // test tracks the single source of truth. issueNumber=1, cycleSeq=2
+    // test tracks the single source of truth. subjectId=1, cycleSeq=2
     // (cycle 2 is the failing cycle).
     const expectedMarker = compensationMarker(1, 2);
     assertStringIncludes(
@@ -962,11 +965,11 @@ class BatchStubGitHubClient implements GitHubClient {
   #labelSequences: Map<number, string[][]>;
   #labelCallCounts: Map<number, number> = new Map();
   labelUpdates: {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] = [];
-  commentsCalls: { issueNumber: number; comment: string }[] = [];
+  commentsCalls: { subjectId: number; comment: string }[] = [];
   listIssuesCalls: IssueCriteria[] = [];
 
   constructor(
@@ -979,29 +982,29 @@ class BatchStubGitHubClient implements GitHubClient {
     this.#labelSequences = labelSequences;
   }
 
-  getIssueLabels(issueNumber: number): Promise<string[]> {
-    const seq = this.#labelSequences.get(issueNumber) ?? [[]];
-    const idx = this.#labelCallCounts.get(issueNumber) ?? 0;
+  getIssueLabels(subjectId: number): Promise<string[]> {
+    const seq = this.#labelSequences.get(subjectId) ?? [[]];
+    const idx = this.#labelCallCounts.get(subjectId) ?? 0;
     const labels = seq[Math.min(idx, seq.length - 1)];
-    this.#labelCallCounts.set(issueNumber, idx + 1);
+    this.#labelCallCounts.set(subjectId, idx + 1);
     return Promise.resolve([...labels]);
   }
 
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.labelUpdates.push({
-      issueNumber,
+      subjectId,
       removed: labelsToRemove,
       added: labelsToAdd,
     });
     return Promise.resolve();
   }
 
-  addIssueComment(issueNumber: number, comment: string): Promise<void> {
-    this.commentsCalls.push({ issueNumber, comment });
+  addIssueComment(subjectId: number, comment: string): Promise<void> {
+    this.commentsCalls.push({ subjectId, comment });
     return Promise.resolve();
   }
 
@@ -1013,16 +1016,16 @@ class BatchStubGitHubClient implements GitHubClient {
     return Promise.resolve(999);
   }
 
-  closeIssue(_issueNumber: number): Promise<void> {
+  closeIssue(_subjectId: number): Promise<void> {
     return Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    _issueNumber: number,
+    _subjectId: number,
     _limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     return Promise.resolve([]);
@@ -1033,10 +1036,10 @@ class BatchStubGitHubClient implements GitHubClient {
     return Promise.resolve(this.#issues);
   }
 
-  getIssueDetail(issueNumber: number): Promise<IssueDetail> {
-    const detail = this.#details.get(issueNumber);
+  getIssueDetail(subjectId: number): Promise<IssueDetail> {
+    const detail = this.#details.get(subjectId);
     if (detail === undefined) {
-      return Promise.reject(new Error(`No detail for #${issueNumber}`));
+      return Promise.reject(new Error(`No detail for #${subjectId}`));
     }
     return Promise.resolve(detail);
   }
@@ -1074,7 +1077,7 @@ class BatchStubGitHubClient implements GitHubClient {
 function createBatchTestConfig(): WorkflowConfig {
   return {
     version: "1.0.0",
-    issueStore: DEFAULT_ISSUE_STORE,
+    subjectStore: DEFAULT_SUBJECT_STORE,
     prioritizer: {
       agent: "triage-agent",
       labels: ["P1", "P2", "P3"],
@@ -1123,9 +1126,9 @@ function createBatchTestConfig(): WorkflowConfig {
 async function setupBatchStore(
   tmpDir: string,
   issues: { num: number; labels: string[] }[],
-): Promise<IssueStore> {
-  const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
-  const store = new IssueStore(storePath);
+): Promise<SubjectStore> {
+  const storePath = `${tmpDir}/${DEFAULT_SUBJECT_STORE.path}`;
+  const store = new SubjectStore(storePath);
   for (const issue of issues) {
     // deno-lint-ignore no-await-in-loop
     await store.writeIssue({
@@ -1148,7 +1151,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     // Pre-seed store with issues that have labels
     await setupBatchStore(tmpDir, [
@@ -1191,7 +1194,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
     const dispatcher = {
       dispatch(
         agentId: string,
-        _issueNumber: number,
+        _subjectId: number,
       ): Promise<DispatchOutcome> {
         dispatchedAgents.push(agentId);
         return Promise.resolve({ outcome: "success", durationMs: 0 });
@@ -1199,7 +1202,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
     };
 
     // Write a priorities.json for the triage agent to "produce"
-    const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
+    const storePath = `${tmpDir}/${DEFAULT_SUBJECT_STORE.path}`;
     const prioritiesPath = `${storePath}/priorities.json`;
     await Deno.writeTextFile(
       prioritiesPath,
@@ -1219,7 +1222,7 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
     assertEquals(result.processed.length, 0);
 
     // Local store should have updated labels
-    const store = new IssueStore(storePath);
+    const store = new SubjectStore(storePath);
     const meta10 = await store.readMeta(10);
     assertEquals(meta10.labels.includes("P1"), true);
     const meta20 = await store.readMeta(20);
@@ -1233,7 +1236,7 @@ Deno.test("runBatch processes issues in priority queue order", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     // Pre-seed: issue 10 has P2 + ready, issue 20 has P1 + ready
     // P1 should be processed before P2
@@ -1288,8 +1291,8 @@ Deno.test("runBatch processes issues in priority queue order", async () => {
     assertEquals(result.status, "completed");
     assertEquals(result.processed.length, 2);
     // P1 issue (#20) should be processed first
-    assertEquals(result.processed[0].issueNumber, 20);
-    assertEquals(result.processed[1].issueNumber, 10);
+    assertEquals(result.processed[0].subjectId, 20);
+    assertEquals(result.processed[1].subjectId, 10);
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
   }
@@ -1299,7 +1302,7 @@ Deno.test("runBatch skips non-actionable issues", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     // Issue 10 is actionable (ready), issue 20 is terminal (done)
     await setupBatchStore(tmpDir, [
@@ -1348,10 +1351,10 @@ Deno.test("runBatch skips non-actionable issues", async () => {
 
     // Only issue 10 should be processed
     assertEquals(result.processed.length, 1);
-    assertEquals(result.processed[0].issueNumber, 10);
+    assertEquals(result.processed[0].subjectId, 10);
     // Issue 20 should be skipped
     assertEquals(result.skipped.length, 1);
-    assertEquals(result.skipped[0].issueNumber, 20);
+    assertEquals(result.skipped[0].subjectId, 20);
     assertEquals(result.skipped[0].reason, "not actionable");
     assertEquals(result.totalIssues, 2);
   } finally {
@@ -1363,7 +1366,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready", "P1"] },
@@ -1391,7 +1394,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
     const github = new BatchStubGitHubClient(listItems, details, labelSeqs);
 
     // Write an outbox action before running
-    const outboxDir = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}/10/outbox`;
+    const outboxDir = `${tmpDir}/${DEFAULT_SUBJECT_STORE.path}/10/outbox`;
     await Deno.mkdir(outboxDir, { recursive: true });
     await Deno.writeTextFile(
       `${outboxDir}/001-comment.json`,
@@ -1409,7 +1412,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
       (c) => c.comment === "Agent completed",
     );
     assertEquals(commentCalls.length, 1);
-    assertEquals(commentCalls[0].issueNumber, 10);
+    assertEquals(commentCalls[0].subjectId, 10);
 
     // Outbox should be cleared after processing
     const outboxFiles: string[] = [];
@@ -1428,7 +1431,7 @@ Deno.test("run with store reads labels from store instead of GitHub", async () =
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1471,7 +1474,7 @@ Deno.test("run with store persists workflow state after each cycle", async () =>
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1497,7 +1500,7 @@ Deno.test("run with store persists workflow state after each cycle", async () =>
     // Workflow state should be persisted with final state after both cycles
     const state = await store.readWorkflowState(1, "default");
     assertEquals(state !== null, true);
-    assertEquals(state!.issueNumber, 1);
+    assertEquals(state!.subjectId, 1);
     assertEquals(state!.cycleCount, 2);
     assertEquals(state!.history.length, 2);
     assertEquals(state!.history[0].from, "implementation");
@@ -1513,7 +1516,7 @@ Deno.test("run with store updates store meta labels after transition", async () 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1552,7 +1555,7 @@ Deno.test("run with store restores cycle count from persisted state", async () =
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 3;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1572,7 +1575,7 @@ Deno.test("run with store restores cycle count from persisted state", async () =
 
     // Pre-seed workflow state with 2 existing cycles
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "revision",
       cycleCount: 2,
       correlationId: "wf-test",
@@ -1628,7 +1631,7 @@ Deno.test("run resets history when persisted phase regressed via labels", async 
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 2;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1646,7 +1649,7 @@ Deno.test("run resets history when persisted phase regressed via labels", async 
     // Persisted state: terminal phase `complete` with a saturated
     // cycle history that would otherwise trip `cycle_exceeded`.
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "complete",
       cycleCount: 2,
       correlationId: "wf-prior-run",
@@ -1710,7 +1713,7 @@ Deno.test("run preserves history when persisted phase matches live labels", asyn
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 5;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1726,7 +1729,7 @@ Deno.test("run preserves history when persisted phase matches live labels", asyn
     });
 
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "revision",
       cycleCount: 1,
       correlationId: "wf-prior",
@@ -1776,7 +1779,7 @@ Deno.test("run detects regression when live has [done, from-reviewer] but persis
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 2;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1792,7 +1795,7 @@ Deno.test("run detects regression when live has [done, from-reviewer] but persis
 
     // Persisted state: terminal `complete` with saturated cycle history.
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "complete",
       cycleCount: 2,
       correlationId: "wf-prior-run",
@@ -1858,7 +1861,7 @@ Deno.test("run detects regression when live has [done, ready] but persisted is i
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 2;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1878,7 +1881,7 @@ Deno.test("run detects regression when live has [done, ready] but persisted is i
     // fires. With actionable-first precedence (Fix-B) `ready` wins,
     // livePhase=implementation, matches persisted, no reset.
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "implementation",
       cycleCount: 2,
       correlationId: "wf-prior-run",
@@ -1937,7 +1940,7 @@ Deno.test("run preserves blocking priority when [blocked, ready] coexist", async
   try {
     const config = createTestConfig();
     config.rules.maxCycles = 5;
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -1952,7 +1955,7 @@ Deno.test("run preserves blocking priority when [blocked, ready] coexist", async
     });
 
     await store.writeWorkflowState(1, {
-      issueNumber: 1,
+      subjectId: 1,
       currentPhase: "implementation",
       cycleCount: 1,
       correlationId: "wf-prior-run",
@@ -2019,7 +2022,7 @@ Deno.test("run with store acquires issue lock", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -2056,7 +2059,7 @@ Deno.test("run with locked issue returns blocked", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -2097,7 +2100,7 @@ Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError
   try {
     const config = createBatchTestConfig();
     delete config.prioritizer; // Remove prioritizer config
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready"] },
@@ -2139,7 +2142,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready"] },
@@ -2182,7 +2185,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
     const dispatcher = {
       dispatch(
         agentId: string,
-        _issueNumber: number,
+        _subjectId: number,
       ): Promise<DispatchOutcome> {
         dispatchedAgents.push(agentId);
         return Promise.resolve({ outcome: "success", durationMs: 0 });
@@ -2190,7 +2193,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
     };
 
     // Write priorities.json for prioritizer agent
-    const storePath = `${tmpDir}/${DEFAULT_ISSUE_STORE.path}`;
+    const storePath = `${tmpDir}/${DEFAULT_SUBJECT_STORE.path}`;
     await Deno.writeTextFile(
       `${storePath}/priorities.json`,
       JSON.stringify([
@@ -2210,7 +2213,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
     assertEquals(result.status, "completed");
 
     // Store should NOT have been updated (dryRun)
-    const store = new IssueStore(storePath);
+    const store = new SubjectStore(storePath);
     const meta10 = await store.readMeta(10);
     assertEquals(meta10.labels.includes("P1"), false);
     const meta20 = await store.readMeta(20);
@@ -2227,7 +2230,7 @@ Deno.test("runBatch all-terminal issues returns completed status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     // All issues are terminal (done label)
     await setupBatchStore(tmpDir, [
@@ -2286,7 +2289,7 @@ Deno.test("runBatch empty sync returns completed status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     // No issues in store — empty listItems
     const github = new BatchStubGitHubClient(
@@ -2312,7 +2315,7 @@ Deno.test("runBatch with processing error returns partial status", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createBatchTestConfig();
-    config.issueStore = DEFAULT_ISSUE_STORE;
+    config.subjectStore = DEFAULT_SUBJECT_STORE;
 
     await setupBatchStore(tmpDir, [
       { num: 10, labels: ["ready", "P1"] },
@@ -2343,7 +2346,7 @@ Deno.test("runBatch with processing error returns partial status", async () => {
     const dispatcher = {
       dispatch(
         _agentId: string,
-        _issueNumber: number,
+        _subjectId: number,
       ): Promise<DispatchOutcome> {
         return Promise.reject(new Error("agent dispatch failed"));
       },
@@ -2355,7 +2358,7 @@ Deno.test("runBatch with processing error returns partial status", async () => {
     assertEquals(result.status, "partial");
     assertEquals(result.processed.length, 0);
     assertEquals(result.skipped.length, 1);
-    assertEquals(result.skipped[0].issueNumber, 10);
+    assertEquals(result.skipped[0].subjectId, 10);
     assertEquals(result.skipped[0].reason, "agent dispatch failed");
   } finally {
     await Deno.remove(tmpDir, { recursive: true });
@@ -2453,7 +2456,7 @@ Deno.test("outbox failure logs structured events", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createTestConfig();
-    const store = new IssueStore(`${tmpDir}/store`);
+    const store = new SubjectStore(`${tmpDir}/store`);
     await store.writeIssue({
       meta: {
         number: 1,
@@ -2748,7 +2751,7 @@ Deno.test(
       assertEquals(meta.phase, "revision");
       assertEquals(meta.consecutiveCount, 3);
       assertEquals(meta.maxConsecutivePhases, 3);
-      assertEquals(meta.issueNumber, 1);
+      assertEquals(meta.subjectId, 1);
       // cycleCount must not appear on the L3 event to keep it distinct from
       // the L1 cycle_exceeded event (design §4).
       assertEquals(
@@ -2770,7 +2773,7 @@ Deno.test(
       // maxCycles high enough that L1 never trips during this scenario.
       config.rules.maxCycles = 10;
       config.rules.maxConsecutivePhases = 3;
-      const store = new IssueStore(`${tmpDir}/store`);
+      const store = new SubjectStore(`${tmpDir}/store`);
 
       // Seed pattern mirrors orchestrator_test.ts:1567-1651 — a previously
       // completed issue that the user has manually relabeled back to an
@@ -2792,7 +2795,7 @@ Deno.test(
         comments: [],
       });
       await store.writeWorkflowState(1, {
-        issueNumber: 1,
+        subjectId: 1,
         currentPhase: "complete",
         cycleCount: 3,
         correlationId: "wf-prior",

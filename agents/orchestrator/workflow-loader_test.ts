@@ -475,7 +475,7 @@ Deno.test("workflow-loader: config with handoffs[] and payloadSchema loads succe
           verdict: "$.agent.result.outcome",
           schema_version: "'1.0.0'",
         },
-        persistPayloadTo: "issueStore",
+        persistPayloadTo: "subjectStore",
       },
     ];
     await writeFixture(dir, cfg);
@@ -496,7 +496,7 @@ Deno.test("workflow-loader: config with handoffs[] and payloadSchema loads succe
       config.handoffs?.[0].emit.schemaRef,
       "sample-verdict@1.0.0",
     );
-    assertEquals(config.handoffs?.[0].persistPayloadTo, "issueStore");
+    assertEquals(config.handoffs?.[0].persistPayloadTo, "subjectStore");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

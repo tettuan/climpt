@@ -49,10 +49,10 @@ export class Queue {
 
   /** Build sorted queue from store contents. */
   async buildQueue(scopeIssues?: number[]): Promise<QueueItem[]> {
-    const issueNumbers = scopeIssues ?? await this.#store.listIssues();
+    const subjectIds = scopeIssues ?? await this.#store.listIssues();
     const items: QueueItem[] = [];
 
-    for (const num of issueNumbers) {
+    for (const num of subjectIds) {
       // deno-lint-ignore no-await-in-loop
       const meta = await this.#store.readMeta(num);
 

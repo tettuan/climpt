@@ -9,7 +9,7 @@ import type {
 import { StubDispatcher } from "./dispatcher.ts";
 import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 
 // Design §2.2: one phase transition produces one "add" call (T3) plus
 // one "remove" call (T4).
@@ -65,14 +65,14 @@ function createValidWorkflowJson(): Record<string, unknown> {
 class StubGitHubClient implements GitHubClient {
   #labelSequence: string[][];
   #callIndex = 0;
-  #comments: { issueNumber: number; comment: string }[] = [];
+  #comments: { subjectId: number; comment: string }[] = [];
   #commentHistory: {
-    issueNumber: number;
+    subjectId: number;
     body: string;
     createdAt: string;
   }[] = [];
   #labelUpdates: {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] = [];
@@ -86,7 +86,7 @@ class StubGitHubClient implements GitHubClient {
     this.#labelSequence = labelSequence;
   }
 
-  getIssueLabels(_issueNumber: number): Promise<string[]> {
+  getIssueLabels(_subjectId: number): Promise<string[]> {
     const idx = Math.min(this.#callIndex, this.#labelSequence.length - 1);
     const labels = this.#labelSequence[idx];
     this.#callIndex++;
@@ -94,34 +94,34 @@ class StubGitHubClient implements GitHubClient {
   }
 
   updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.#labelUpdates.push({
-      issueNumber,
+      subjectId,
       removed: labelsToRemove,
       added: labelsToAdd,
     });
     return Promise.resolve();
   }
 
-  addIssueComment(issueNumber: number, comment: string): Promise<void> {
-    this.#comments.push({ issueNumber, comment });
+  addIssueComment(subjectId: number, comment: string): Promise<void> {
+    this.#comments.push({ subjectId, comment });
     this.#commentHistory.push({
-      issueNumber,
+      subjectId,
       body: comment,
       createdAt: new Date().toISOString(),
     });
     return Promise.resolve();
   }
 
-  get comments(): { issueNumber: number; comment: string }[] {
+  get comments(): { subjectId: number; comment: string }[] {
     return this.#comments;
   }
 
   get labelUpdates(): {
-    issueNumber: number;
+    subjectId: number;
     removed: string[];
     added: string[];
   }[] {
@@ -157,26 +157,26 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve(999);
   }
 
-  closeIssue(issueNumber: number): Promise<void> {
+  closeIssue(subjectId: number): Promise<void> {
     this.#closeIssueCalls++;
     if (this.#closeIssueCalls <= this.#closeIssueFailUntil) {
       return Promise.reject(new Error("gh issue close failed (stubbed)"));
     }
-    this.#closedIssues.push(issueNumber);
+    this.#closedIssues.push(subjectId);
     return Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    issueNumber: number,
+    subjectId: number,
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     if (limit <= 0) return Promise.resolve([]);
     const filtered = this.#commentHistory
-      .filter((c) => c.issueNumber === issueNumber)
+      .filter((c) => c.subjectId === subjectId)
       .slice(-limit)
       .reverse()
       .map((c) => ({ body: c.body, createdAt: c.createdAt }));
@@ -187,7 +187,7 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve([]);
   }
 
-  getIssueDetail(_issueNumber: number): Promise<IssueDetail> {
+  getIssueDetail(_subjectId: number): Promise<IssueDetail> {
     return Promise.resolve({
       number: 0,
       title: "",
@@ -683,12 +683,12 @@ Deno.test(
       // orchestrator when a store is wired in (it reads via
       // store.readMeta, not github.getIssueLabels, at cycle start).
       const storePath = `${tempDir}/store`;
-      const store = new IssueStore(storePath);
-      const issueNumber = 1;
+      const store = new SubjectStore(storePath);
+      const subjectId = 1;
       const initialLabel = "ready";
       await store.writeIssue({
         meta: {
-          number: issueNumber,
+          number: subjectId,
           title: "self-heal test",
           labels: [initialLabel],
           state: "open",
@@ -725,7 +725,7 @@ Deno.test(
       // =======================================================
       // Run 1: cycle 1 succeeds, cycle 2 T6 fails -> blocked
       // =======================================================
-      const first = await orchestrator.run(issueNumber, undefined, store);
+      const first = await orchestrator.run(subjectId, undefined, store);
 
       assertEquals(
         first.status,
@@ -745,7 +745,7 @@ Deno.test(
       // only records on full T3..T6 success, so the failing cycle's seq
       // is count+1) — no bare literal.
       const failingCycleSeq = first.cycleCount + 1;
-      const expectedMarker = compensationMarker(issueNumber, failingCycleSeq);
+      const expectedMarker = compensationMarker(subjectId, failingCycleSeq);
       assertEquals(
         github.comments.length,
         1,
@@ -758,14 +758,14 @@ Deno.test(
         github.comments[0].comment,
         expectedMarker,
         `Compensation comment must embed marker "${expectedMarker}" ` +
-          `(from compensationMarker(${issueNumber}, ${failingCycleSeq})) ` +
+          `(from compensationMarker(${subjectId}, ${failingCycleSeq})) ` +
           "so a subsequent retry can detect+skip re-posting (design §3.3).",
       );
 
       // =======================================================
       // Run 2: same issue, same stub+store -> self-heal
       // =======================================================
-      const second = await orchestrator.run(issueNumber, undefined, store);
+      const second = await orchestrator.run(subjectId, undefined, store);
 
       // I-1: Self-heal reachability.
       assertEquals(
@@ -804,7 +804,7 @@ Deno.test(
         expectedMarker,
         "I-2: The surviving marker must be run 1's — identity drift " +
           "would defeat dedup. Fix: compensationMarker must be a pure " +
-          "function of (issueNumber, cycleSeq).",
+          "function of (subjectId, cycleSeq).",
       );
 
       // I-3: cycleSeq identity across runs — the precondition that

@@ -5,7 +5,7 @@ import type {
   IssueDetail,
   IssueListItem,
 } from "./github-client.ts";
-import { IssueStore } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 
 /** Stub GitHubClient that records calls and can be configured to fail. */
@@ -18,18 +18,18 @@ class StubGitHubClient implements GitHubClient {
     this.#failOn.add(method);
   }
 
-  async getIssueLabels(_issueNumber: number): Promise<string[]> {
+  async getIssueLabels(_subjectId: number): Promise<string[]> {
     return await Promise.resolve([]);
   }
 
   async updateIssueLabels(
-    issueNumber: number,
+    subjectId: number,
     labelsToRemove: string[],
     labelsToAdd: string[],
   ): Promise<void> {
     this.calls.push({
       method: "updateIssueLabels",
-      args: [issueNumber, labelsToRemove, labelsToAdd],
+      args: [subjectId, labelsToRemove, labelsToAdd],
     });
     if (this.#failOn.has("updateIssueLabels")) {
       throw new Error("updateIssueLabels failed");
@@ -38,12 +38,12 @@ class StubGitHubClient implements GitHubClient {
   }
 
   async addIssueComment(
-    issueNumber: number,
+    subjectId: number,
     comment: string,
   ): Promise<void> {
     this.calls.push({
       method: "addIssueComment",
-      args: [issueNumber, comment],
+      args: [subjectId, comment],
     });
     if (this.#failOn.has("addIssueComment")) {
       throw new Error("addIssueComment failed");
@@ -66,10 +66,10 @@ class StubGitHubClient implements GitHubClient {
     return await Promise.resolve(this.#createdIssueNumber);
   }
 
-  async closeIssue(issueNumber: number): Promise<void> {
+  async closeIssue(subjectId: number): Promise<void> {
     this.calls.push({
       method: "closeIssue",
-      args: [issueNumber],
+      args: [subjectId],
     });
     if (this.#failOn.has("closeIssue")) {
       throw new Error("closeIssue failed");
@@ -77,12 +77,12 @@ class StubGitHubClient implements GitHubClient {
     await Promise.resolve();
   }
 
-  reopenIssue(_issueNumber: number): Promise<void> {
+  reopenIssue(_subjectId: number): Promise<void> {
     return Promise.reject(new Error("reopenIssue not implemented"));
   }
 
   getRecentComments(
-    _issueNumber: number,
+    _subjectId: number,
     _limit: number,
   ): Promise<{ body: string; createdAt: string }[]> {
     return Promise.resolve([]);
@@ -92,7 +92,7 @@ class StubGitHubClient implements GitHubClient {
     return await Promise.resolve([]);
   }
 
-  async getIssueDetail(_issueNumber: number): Promise<IssueDetail> {
+  async getIssueDetail(_subjectId: number): Promise<IssueDetail> {
     return await Promise.resolve({
       number: 0,
       title: "",
@@ -132,25 +132,25 @@ class StubGitHubClient implements GitHubClient {
   }
 }
 
-/** Create a temp IssueStore with outbox directory ready. */
+/** Create a temp SubjectStore with outbox directory ready. */
 async function setupStore(
-  issueNumber: number,
-): Promise<{ store: IssueStore; tmp: string }> {
+  subjectId: number,
+): Promise<{ store: SubjectStore; tmp: string }> {
   const tmp = await Deno.makeTempDir();
-  const store = new IssueStore(tmp);
-  const outboxDir = store.getOutboxPath(issueNumber);
+  const store = new SubjectStore(tmp);
+  const outboxDir = store.getOutboxPath(subjectId);
   await Deno.mkdir(outboxDir, { recursive: true });
   return { store, tmp };
 }
 
 /** Write an outbox action file. */
 async function writeAction(
-  store: IssueStore,
-  issueNumber: number,
+  store: SubjectStore,
+  subjectId: number,
   filename: string,
   action: Record<string, unknown>,
 ): Promise<void> {
-  const outboxDir = store.getOutboxPath(issueNumber);
+  const outboxDir = store.getOutboxPath(subjectId);
   await Deno.writeTextFile(
     `${outboxDir}/${filename}`,
     JSON.stringify(action),

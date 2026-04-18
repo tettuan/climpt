@@ -125,11 +125,11 @@ export class BatchRunner {
     const syncer = new IssueSyncer(this.#github, store);
 
     // 1. Sync issues from gh to local store
-    const issueNumbers = await syncer.sync(criteria);
-    await log.info(`Synced ${issueNumbers.length} issues`, {
+    const subjectIds = await syncer.sync(criteria);
+    await log.info(`Synced ${subjectIds.length} issues`, {
       event: "sync_complete",
-      issueCount: issueNumbers.length,
-      issueNumbers,
+      issueCount: subjectIds.length,
+      subjectIds,
     });
 
     // 2. If --prioritize mode
@@ -174,7 +174,7 @@ export class BatchRunner {
       return {
         processed: [],
         skipped: [],
-        totalIssues: issueNumbers.length,
+        totalIssues: subjectIds.length,
         status: "completed",
       };
     }
@@ -187,7 +187,7 @@ export class BatchRunner {
       }
       : { labels: [], defaultLabel: undefined };
     const queue = new Queue(this.#config, store, priorityConfig);
-    const queueItems = await queue.buildQueue(issueNumbers);
+    const queueItems = await queue.buildQueue(subjectIds);
 
     await log.info(`Queue built: ${queueItems.length} actionable issues`, {
       event: "queue_built",
@@ -247,7 +247,7 @@ export class BatchRunner {
     }
 
     // Issues in store but not in queue were skipped (normal, not error)
-    for (const num of issueNumbers) {
+    for (const num of subjectIds) {
       if (!queueItems.some((q) => q.subjectId === num)) {
         skipped.push({ subjectId: num, reason: "not actionable" });
       }
@@ -260,7 +260,7 @@ export class BatchRunner {
         event: "batch_end",
         processedCount: processed.length,
         skippedCount: skipped.length,
-        totalIssues: issueNumbers.length,
+        totalIssues: subjectIds.length,
         status: batchStatus,
       },
     );
@@ -268,7 +268,7 @@ export class BatchRunner {
     return {
       processed,
       skipped,
-      totalIssues: issueNumbers.length,
+      totalIssues: subjectIds.length,
       status: batchStatus,
     };
   }
