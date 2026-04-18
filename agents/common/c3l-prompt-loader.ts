@@ -38,33 +38,37 @@ export interface PromptVariables {
 }
 
 /**
- * Discriminated error kinds returned by breakdown 1.8.6+ via runBreakdown.
+ * Runtime-enumerable list of every discriminated error kind returned by
+ * breakdown 1.8.6+ via runBreakdown. Mirrors the (un-exported) `BreakdownError`
+ * union in jsr:@tettuan/breakdown@{@link BREAKDOWN_VERSION}/cli/breakdown.ts.
  *
- * Mirrors the (un-exported) `BreakdownError` union in
- * jsr:@tettuan/breakdown@{@link BREAKDOWN_VERSION}/cli/breakdown.ts. When the
- * upstream union grows, also widen this list and the discriminated handling
- * in {@link PromptResolver}.
+ * {@link BreakdownErrorKind} is derived from this array so the type and the
+ * runtime list cannot drift. Tests iterate over this array to achieve
+ * exhaustive dispatch coverage.
  *
  * @see https://github.com/tettuan/breakdown/issues/104
  */
-export type BreakdownErrorKind =
-  | "ConfigProfileError"
-  | "ConfigLoadError"
-  | "ParameterParsingError"
-  | "PromptGenerationError"
-  | "TwoParamsHandlerError"
-  | "OneParamsHandlerError"
-  | "ZeroParamsHandlerError"
-  | "UnknownResultType"
+export const ALL_BREAKDOWN_ERROR_KINDS = [
+  "ConfigProfileError",
+  "ConfigLoadError",
+  "ParameterParsingError",
+  "PromptGenerationError",
+  "TwoParamsHandlerError",
+  "OneParamsHandlerError",
+  "ZeroParamsHandlerError",
+  "UnknownResultType",
   // Nested PromptError kinds surfaced when the outer kind is
   // "PromptGenerationError" — the loader unwraps these so callers see the
   // underlying cause directly.
-  | "TemplateNotFound"
-  | "InvalidVariables"
-  | "SchemaError"
-  | "InvalidPath"
-  | "TemplateParseError"
-  | "ConfigurationError";
+  "TemplateNotFound",
+  "InvalidVariables",
+  "SchemaError",
+  "InvalidPath",
+  "TemplateParseError",
+  "ConfigurationError",
+] as const;
+
+export type BreakdownErrorKind = typeof ALL_BREAKDOWN_ERROR_KINDS[number];
 
 /**
  * Result of loading a prompt

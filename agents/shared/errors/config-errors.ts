@@ -786,13 +786,24 @@ export function prC3lNoPrompt(
 
 // --- PR-C3L-004: C3L prompt file not found ---
 
+/**
+ * Prefix that marks breakdown's structured-error detail appended to a
+ * PR-C3L-004 message. Exported so tests can assert propagation without
+ * duplicating the literal (shadow-contract prevention).
+ */
+export const BREAKDOWN_DETAIL_PREFIX = "Breakdown detail: ";
+
 export function prC3lPromptNotFound(
   stepId: string,
   triedPath: string,
+  breakdownDetail?: string,
 ): ConfigError {
+  const detailSuffix = breakdownDetail
+    ? `\n${BREAKDOWN_DETAIL_PREFIX}${breakdownDetail}`
+    : "";
   return new ConfigError(
     "PR-C3L-004",
-    `C3L prompt file not found for step "${stepId}" (tried: ${triedPath}).`,
+    `C3L prompt file not found for step "${stepId}" (tried: ${triedPath}).${detailSuffix}`,
     `All steps must have a C3L prompt file. Embedded fallback prompts are not supported. See design/08_step_flow_design.md.`,
     `Add a C3L prompt file for step "${stepId}" under the configured prompts directory at the expected path: ${triedPath}.`,
     "prompts/",

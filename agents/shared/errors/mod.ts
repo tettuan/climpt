@@ -81,6 +81,7 @@ export {
   acVerdict008DetectStructuredConditionRequiresSignalType,
   acVerdict009PollStateConditionRequiresIssue,
   acVerdict010UnsupportedConditionTypeInComposite,
+  BREAKDOWN_DETAIL_PREFIX,
   ConfigError,
   isPromptFileNotFound,
   prC3lBreakdownFailed,

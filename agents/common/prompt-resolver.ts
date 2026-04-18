@@ -11,7 +11,11 @@
  */
 
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
-import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
+import {
+  type BreakdownErrorKind,
+  type C3LPath,
+  C3LPromptLoader,
+} from "./c3l-prompt-loader.ts";
 import {
   prC3lBreakdownFailed,
   prC3lPromptNotFound,
@@ -20,6 +24,29 @@ import {
   prResolveUnknownStepId,
   prResolveUvNotProvided,
 } from "../shared/errors/config-errors.ts";
+
+/**
+ * BreakdownErrorKind values that the resolver treats as "prompt file not
+ * found" — both TemplateNotFound (file truly missing) and
+ * ParameterParsingError (breakdown rejects the c2/c3 directive, which we
+ * treat as a file-not-found symptom). Any other kind is considered a
+ * user-correctable failure and surfaces as PR-C3L-002.
+ *
+ * Exported so tests can iterate without duplicating the membership list
+ * (partial-enumeration anti-pattern).
+ */
+export const FILE_NOT_FOUND_KINDS = [
+  "TemplateNotFound",
+  "ParameterParsingError",
+] as const satisfies readonly BreakdownErrorKind[];
+
+export type FileNotFoundKind = typeof FILE_NOT_FOUND_KINDS[number];
+
+function isFileNotFoundKind(
+  kind: BreakdownErrorKind,
+): kind is FileNotFoundKind {
+  return (FILE_NOT_FOUND_KINDS as readonly BreakdownErrorKind[]).includes(kind);
+}
 
 /**
  * Result of prompt resolution
@@ -138,19 +165,11 @@ export class PromptResolver {
       ? { ...step, adaptation: overrides.adaptation }
       : step;
 
-    // Try breakdown. tryBreakdown either returns the resolved prompt or
-    // throws PR-C3L-002 directly for non-recoverable errors. A `null`
-    // return means "treated as file-not-found" → PR-C3L-004.
-    const resolved = await this.tryBreakdown(effectiveStep, variables);
-    if (resolved !== null) {
-      return resolved;
-    }
-
-    const c3lPath = this.buildC3LPath(effectiveStep);
-    throw prC3lPromptNotFound(
-      effectiveStep.stepId,
-      this.formatC3LPath(c3lPath),
-    );
+    // tryBreakdown returns the resolved prompt or throws. PR-C3L-004 is
+    // thrown for file-not-found conditions (with breakdown's attemptedPaths
+    // preserved as diagnostic detail); PR-C3L-002 is thrown for other
+    // structured failures so user-correctable issues propagate verbatim.
+    return await this.tryBreakdown(effectiveStep, variables);
   }
 
   /**
@@ -169,20 +188,21 @@ export class PromptResolver {
   /**
    * Try to resolve via breakdown (C3LPromptLoader).
    *
-   * Returns the resolved prompt on success, or `null` when the load
-   * failed with a "treated as file-not-found" condition (TemplateNotFound
-   * or ParameterParsingError). All other structured errors throw
-   * PR-C3L-002 directly so user-correctable issues (UV undefined,
-   * frontmatter broken, YAML parse failure, etc.) propagate without
-   * being silently collapsed to PR-C3L-004.
+   * Returns the resolved prompt on success, or throws a structured
+   * ConfigError. File-not-found conditions (TemplateNotFound /
+   * ParameterParsingError) throw PR-C3L-004 with breakdown's attemptedPaths
+   * preserved as diagnostic detail. All other structured errors throw
+   * PR-C3L-002 so user-correctable issues (UV undefined, frontmatter
+   * broken, YAML parse failure, etc.) propagate verbatim.
    *
+   * @throws ConfigError (PR-C3L-004) if the prompt file is not found
    * @throws ConfigError (PR-C3L-002) if breakdown fails with a
    *   non-file-not-found error
    */
   private async tryBreakdown(
     step: PromptStepDefinition,
     variables: PromptVariables,
-  ): Promise<PromptResolutionResult | null> {
+  ): Promise<PromptResolutionResult> {
     const c3lPath = this.buildC3LPath(step);
 
     const result = await this.c3lLoader.load(c3lPath, {
@@ -191,18 +211,19 @@ export class PromptResolver {
     });
 
     if (!result.ok || !result.content) {
-      // TemplateNotFound = the prompt file does not exist on disk.
-      // ParameterParsingError = breakdown does not recognize the c2/c3
-      // directive (e.g. the step uses a c2 that has no breakdown profile);
-      // treat the same as file-not-found so the caller throws PR-C3L-004.
-      if (
-        result.errorKind === "TemplateNotFound" ||
-        result.errorKind === "ParameterParsingError"
-      ) {
-        return null;
+      // Dispatch on errorKind via FILE_NOT_FOUND_KINDS (exported source of
+      // truth). TemplateNotFound = file missing on disk; ParameterParsingError
+      // = breakdown rejects the c2/c3 directive — both surface as PR-C3L-004
+      // with breakdown's own attemptedPaths preserved as diagnostic detail.
+      // Any other kind is user-correctable and must propagate verbatim as
+      // PR-C3L-002.
+      if (result.errorKind && isFileNotFoundKind(result.errorKind)) {
+        throw prC3lPromptNotFound(
+          step.stepId,
+          this.formatC3LPath(c3lPath),
+          result.error,
+        );
       }
-      // Any other failure (UV invalid, schema error, config load error, …)
-      // is user-correctable and must propagate verbatim.
       throw prC3lBreakdownFailed(
         step.stepId,
         result.error ?? "<no error detail>",

@@ -2,19 +2,25 @@
  * Prompt Resolver Tests
  */
 
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
+  FILE_NOT_FOUND_KINDS,
   parseFrontmatter,
   PromptResolver,
   removeFrontmatter,
 } from "./prompt-resolver.ts";
-import type {
-  BreakdownErrorKind,
-  C3LPath,
-  PromptLoadResult,
-  PromptVariables as LoaderVariables,
+import {
+  ALL_BREAKDOWN_ERROR_KINDS,
+  type BreakdownErrorKind,
+  type C3LPath,
+  type PromptLoadResult,
+  type PromptVariables as LoaderVariables,
 } from "./c3l-prompt-loader.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
+import {
+  BREAKDOWN_DETAIL_PREFIX,
+  prC3lPromptNotFound,
+} from "../shared/errors/config-errors.ts";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 
 const logger = new BreakdownLogger("prompt-resolver");
@@ -374,68 +380,145 @@ function makeResolverWithStubLoader(
   return resolver;
 }
 
-Deno.test("PromptResolver - TemplateNotFound from breakdown → PR-C3L-004 with path", async () => {
+// ----------------------------------------------------------------------------
+// Diagnosability helper — emits What/Where/Fix on failure.
+//
+// Every PR-C3L-004 / PR-C3L-002 message must contain the error code, the
+// step id, and breakdown's detail string. Centralising the assertion here
+// avoids partial checks drifting apart across tests (assertion-bloat /
+// shadow-contract anti-patterns) and gives a uniform failure template.
+// ----------------------------------------------------------------------------
+function assertPRErrorShape(
+  err: Error,
+  expected: {
+    code: "PR-C3L-004" | "PR-C3L-002";
+    stepId: string;
+    detail: string;
+    mustContainBreakdownPrefix: boolean;
+  },
+): void {
+  const msg = err.message;
+  const checks: { what: string; ok: boolean }[] = [
+    { what: `code "${expected.code}"`, ok: msg.includes(expected.code) },
+    { what: `stepId "${expected.stepId}"`, ok: msg.includes(expected.stepId) },
+    { what: `detail "${expected.detail}"`, ok: msg.includes(expected.detail) },
+  ];
+  if (expected.mustContainBreakdownPrefix) {
+    checks.push({
+      what: `BREAKDOWN_DETAIL_PREFIX "${BREAKDOWN_DETAIL_PREFIX}"`,
+      ok: msg.includes(BREAKDOWN_DETAIL_PREFIX),
+    });
+  }
+  const missing = checks.filter((c) => !c.ok).map((c) => c.what);
+  if (missing.length > 0) {
+    throw new Error(
+      [
+        `Thrown ConfigError message missing required parts.`,
+        `  Missing:        ${missing.join(", ")}`,
+        `  Actual message: ${JSON.stringify(msg)}`,
+        `  Expected code:  ${expected.code}`,
+        `  Source (dispatch): agents/common/prompt-resolver.ts tryBreakdown`,
+        `  Source (factory): agents/shared/errors/config-errors.ts (prC3lPromptNotFound / prC3lBreakdownFailed)`,
+        `  Fix: ensure the factory for ${expected.code} embeds all of {code, stepId, detail${
+          expected.mustContainBreakdownPrefix ? ", BREAKDOWN_DETAIL_PREFIX" : ""
+        }} in .message.`,
+      ].join("\n"),
+    );
+  }
+}
+
+function isFileNotFoundKind(kind: BreakdownErrorKind): boolean {
+  return (FILE_NOT_FOUND_KINDS as readonly BreakdownErrorKind[]).includes(kind);
+}
+
+// ----------------------------------------------------------------------------
+// C1: Factory contract — prC3lPromptNotFound propagates breakdownDetail
+// ----------------------------------------------------------------------------
+Deno.test("prC3lPromptNotFound - breakdownDetail appears verbatim after BREAKDOWN_DETAIL_PREFIX", () => {
+  const stepId = "initial.test";
   const triedPath = "steps/initial/test/f_default.md";
-  const resolver = makeResolverWithStubLoader({
-    ok: false,
-    errorKind: "TemplateNotFound" satisfies BreakdownErrorKind,
-    error:
-      `TemplateNotFound: Template not found: ${triedPath} (working_dir: ${testTmpDir})`,
-    promptPath: triedPath,
-  });
+  const detail = "Template not found: X. Attempted paths: /a, /b, /c";
 
-  const err = await assertRejects(
-    () => resolver.resolve("initial.test"),
-    Error,
-  );
-  // PR-C3L-004 contract: code in message, stepId in message, tried path in message
-  assertStringIncludes((err as Error).message, "PR-C3L-004");
-  assertStringIncludes((err as Error).message, "initial.test");
-  assertStringIncludes((err as Error).message, triedPath);
+  const errWith = prC3lPromptNotFound(stepId, triedPath, detail);
+  const errWithout = prC3lPromptNotFound(stepId, triedPath);
+
+  const expectedSubstring = BREAKDOWN_DETAIL_PREFIX + detail;
+  if (!errWith.message.includes(expectedSubstring)) {
+    throw new Error(
+      [
+        `prC3lPromptNotFound dropped or reformatted breakdownDetail.`,
+        `  Expected substring: ${JSON.stringify(expectedSubstring)}`,
+        `  Actual message:     ${JSON.stringify(errWith.message)}`,
+        `  Source: agents/shared/errors/config-errors.ts prC3lPromptNotFound`,
+        `  Fix:    append "\\n" + BREAKDOWN_DETAIL_PREFIX + detail when breakdownDetail is truthy.`,
+      ].join("\n"),
+    );
+  }
+
+  if (errWithout.message.includes(BREAKDOWN_DETAIL_PREFIX)) {
+    throw new Error(
+      [
+        `prC3lPromptNotFound emitted BREAKDOWN_DETAIL_PREFIX with no detail argument.`,
+        `  Actual message: ${JSON.stringify(errWithout.message)}`,
+        `  Source: agents/shared/errors/config-errors.ts prC3lPromptNotFound`,
+        `  Fix:    only append the prefix when breakdownDetail is truthy.`,
+      ].join("\n"),
+    );
+  }
 });
 
-Deno.test("PromptResolver - ParameterParsingError from breakdown → PR-C3L-004", async () => {
-  // ParameterParsingError = breakdown does not recognize the c2/c3 directive.
-  // Treated identically to file-not-found by the resolver contract.
-  const resolver = makeResolverWithStubLoader({
-    ok: false,
-    errorKind: "ParameterParsingError" satisfies BreakdownErrorKind,
-    error: "ParameterParsingError: unknown directive type",
-  });
-
-  const err = await assertRejects(
-    () => resolver.resolve("initial.test"),
-    Error,
+// ----------------------------------------------------------------------------
+// I1: Exhaustive dispatch invariant.
+//
+// Source of truth: ALL_BREAKDOWN_ERROR_KINDS (c3l-prompt-loader.ts) and
+// FILE_NOT_FOUND_KINDS (prompt-resolver.ts). The test iterates every member of
+// the runtime-enumerable union and verifies the dispatch mapping plus detail
+// preservation — no manual subset enumeration, no hardcoded kind strings.
+// ----------------------------------------------------------------------------
+Deno.test("PromptResolver - exhaustive dispatch: every BreakdownErrorKind maps to the expected ConfigError code with detail preserved", async () => {
+  // Non-vacuity: the source-of-truth array must be populated. A silent pass on
+  // an empty array would let the whole invariant rot.
+  assert(
+    ALL_BREAKDOWN_ERROR_KINDS.length > 0,
+    "ALL_BREAKDOWN_ERROR_KINDS is empty — source of truth is not enumerable; fix agents/common/c3l-prompt-loader.ts",
   );
-  assertStringIncludes((err as Error).message, "PR-C3L-004");
-});
-
-Deno.test("PromptResolver - InvalidVariables from breakdown → PR-C3L-002 (not collapsed)", async () => {
-  const resolver = makeResolverWithStubLoader({
-    ok: false,
-    errorKind: "InvalidVariables" satisfies BreakdownErrorKind,
-    error: "InvalidVariables: Invalid variables: missing uv-name",
-  });
-
-  const err = await assertRejects(
-    () => resolver.resolve("initial.test"),
-    Error,
+  // Membership guard: FILE_NOT_FOUND_KINDS must be a non-empty subset of the
+  // union, otherwise the dispatch has no PR-C3L-004 branch and the test
+  // degenerates into "everything is PR-C3L-002".
+  assert(
+    FILE_NOT_FOUND_KINDS.length > 0,
+    "FILE_NOT_FOUND_KINDS is empty — at least TemplateNotFound must be present; fix agents/common/prompt-resolver.ts",
   );
-  // PR-C3L-002 contract: do NOT collapse user-correctable errors to file-not-found
-  assertStringIncludes((err as Error).message, "PR-C3L-002");
-  assertStringIncludes((err as Error).message, "InvalidVariables");
-});
+  for (const k of FILE_NOT_FOUND_KINDS) {
+    assert(
+      (ALL_BREAKDOWN_ERROR_KINDS as readonly string[]).includes(k),
+      `FILE_NOT_FOUND_KINDS contains "${k}" which is not in ALL_BREAKDOWN_ERROR_KINDS. ` +
+        `Sources of truth have drifted: align c3l-prompt-loader.ts and prompt-resolver.ts.`,
+    );
+  }
 
-Deno.test("PromptResolver - ConfigLoadError from breakdown → PR-C3L-002", async () => {
-  const resolver = makeResolverWithStubLoader({
-    ok: false,
-    errorKind: "ConfigLoadError" satisfies BreakdownErrorKind,
-    error: "ConfigLoadError: missing app.yml",
-  });
+  for (const kind of ALL_BREAKDOWN_ERROR_KINDS) {
+    const detail = `stub-detail-for-${kind}`;
+    const resolver = makeResolverWithStubLoader({
+      ok: false,
+      errorKind: kind,
+      error: detail,
+    });
 
-  const err = await assertRejects(
-    () => resolver.resolve("initial.test"),
-    Error,
-  );
-  assertStringIncludes((err as Error).message, "PR-C3L-002");
+    const err = await assertRejects(
+      () => resolver.resolve("initial.test"),
+      Error,
+      undefined,
+      `Resolver did not throw for BreakdownErrorKind "${kind}". ` +
+        `Stub returned {ok:false}; every errorKind must produce a ConfigError.`,
+    );
+
+    const fileNotFound = isFileNotFoundKind(kind);
+    assertPRErrorShape(err as Error, {
+      code: fileNotFound ? "PR-C3L-004" : "PR-C3L-002",
+      stepId: "initial.test",
+      detail,
+      mustContainBreakdownPrefix: fileNotFound,
+    });
+  }
 });
