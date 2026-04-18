@@ -130,8 +130,15 @@ OutboxProcessor 完了後に走る（`12_orchestrator.md` §「T1〜T7
 は **lifetime で 1 回のみ** 実行される。各アイテムの SHA-256 ハッシュ
 （`title + body + sorted labels` の canonical JSON）を idempotency key として
 `deferred-emitted-keys.json` に永続化し、再 emit 時にスキップする。key の
-永続化は OutboxProcessor が全アクション成功した場合のみ行われるため、
-`createIssue` が失敗した場合は次サイクルで再試行される（issue #484）。
+永続化は **個別成功単位** で行われる: 部分失敗時でも成功した action の key は
+永続化され、次サイクルの emitter がスキップする（issue #486）。失敗した
+`createIssue` のみ次サイクルで再試行される。
+
+**不変条件（INV-PER-FILE）**: OutboxProcessor は action ファイルを
+**個別に処理** し、成功した action のファイルは即座に削除する。失敗した action
+のファイルのみ outbox に残存し、次サイクルで retry
+される。これにより、部分失敗後の再実行で 成功済み action
+が重複実行されることを防止する（issue #486）。
 
 ### R7: `{title, body, labels}` は verbatim 転送される
 
@@ -316,15 +323,17 @@ System の動作:
 
 ## 実装ファイル
 
-| コンポーネント              | パス                                         | 関連 Level           |
-| --------------------------- | -------------------------------------------- | -------------------- |
-| BoundaryHook dispatcher     | `agents/runner/boundary-hooks.ts`            | Structure            |
-| ExternalStateVerdictAdapter | `agents/verdict/external-state-adapter.ts`   | Rules (R1, R2, R4)   |
-| CompletionLoopProcessor     | `agents/runner/completion-loop-processor.ts` | Structure (発火条件) |
-| resolveOutcome              | `agents/orchestrator/dispatcher.ts`          | Rules (R4)           |
-| computeTransition           | `agents/orchestrator/phase-transition.ts`    | Rules (R3)           |
-| computeLabelChanges         | `agents/orchestrator/phase-transition.ts`    | Rules (R3)           |
-| Issue closure schema        | `.agent/*/schemas/issue.schema.json`         | Structure            |
+| コンポーネント              | パス                                            | 関連 Level                     |
+| --------------------------- | ----------------------------------------------- | ------------------------------ |
+| BoundaryHook dispatcher     | `agents/runner/boundary-hooks.ts`               | Structure                      |
+| ExternalStateVerdictAdapter | `agents/verdict/external-state-adapter.ts`      | Rules (R1, R2, R4)             |
+| CompletionLoopProcessor     | `agents/runner/completion-loop-processor.ts`    | Structure (発火条件)           |
+| resolveOutcome              | `agents/orchestrator/dispatcher.ts`             | Rules (R4)                     |
+| computeTransition           | `agents/orchestrator/phase-transition.ts`       | Rules (R3)                     |
+| computeLabelChanges         | `agents/orchestrator/phase-transition.ts`       | Rules (R3)                     |
+| OutboxProcessor             | `agents/orchestrator/outbox-processor.ts`       | Rules (R6: INV-PER-FILE)       |
+| DeferredItemsEmitter        | `agents/orchestrator/deferred-items-emitter.ts` | Rules (R5, R6: INV-IDEMPOTENT) |
+| Issue closure schema        | `.agent/*/schemas/issue.schema.json`            | Structure                      |
 
 ## 関連ドキュメント
 

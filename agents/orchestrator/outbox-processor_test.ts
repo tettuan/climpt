@@ -354,12 +354,123 @@ Deno.test("partial failure: results reflect both success and failure", async () 
     assertEquals(results[1].action, "close-issue");
     assertEquals(typeof results[1].error, "string");
 
-    // Outbox should NOT be cleared on partial failure
+    // Per-file deletion (issue #486): succeeded file removed, only
+    // the failed file remains for retry.
     const entries: string[] = [];
     for await (const entry of Deno.readDir(store.getOutboxPath(60))) {
       entries.push(entry.name);
     }
-    assertEquals(entries.length, 2);
+    assertEquals(entries.length, 1);
+    assertEquals(entries[0], "002-close.json");
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("partial failure retry: succeeded actions not re-executed (issue #486)", async () => {
+  const { store, tmp } = await setupStore(65);
+  try {
+    // Cycle 1: three create-issue actions, last one fails.
+    await writeAction(store, 65, "000-deferred-000.json", {
+      action: "create-issue",
+      title: "Task A",
+      labels: ["bug"],
+      body: "body-a",
+    });
+    await writeAction(store, 65, "000-deferred-001.json", {
+      action: "create-issue",
+      title: "Task B",
+      labels: ["bug"],
+      body: "body-b",
+    });
+    await writeAction(store, 65, "000-deferred-002.json", {
+      action: "create-issue",
+      title: "Task C",
+      labels: ["invalid-label"],
+      body: "body-c",
+    });
+
+    const github = new StubGitHubClient();
+    // Make the third createIssue fail (simulates label validation error).
+    let createCount = 0;
+    const origCreate = github.createIssue.bind(github);
+    github.createIssue = async (
+      title: string,
+      labels: string[],
+      body: string,
+    ) => {
+      createCount++;
+      if (createCount === 3) {
+        throw new Error("Label not found: invalid-label");
+      }
+      return await origCreate(title, labels, body);
+    };
+
+    const processor = new OutboxProcessor(github, store);
+    const results1 = await processor.process(65);
+
+    // Verify cycle 1 results.
+    assertEquals(results1.length, 3);
+    assertEquals(results1[0].success, true);
+    assertEquals(results1[0].filename, "000-deferred-000.json");
+    assertEquals(results1[1].success, true);
+    assertEquals(results1[1].filename, "000-deferred-001.json");
+    assertEquals(results1[2].success, false);
+    assertEquals(results1[2].filename, "000-deferred-002.json");
+
+    // Only the failed file should remain.
+    const entries1: string[] = [];
+    for await (const entry of Deno.readDir(store.getOutboxPath(65))) {
+      entries1.push(entry.name);
+    }
+    entries1.sort();
+    assertEquals(entries1, ["000-deferred-002.json"]);
+
+    // Cycle 2: process again (fix simulated — all succeed now).
+    const github2 = new StubGitHubClient();
+    const processor2 = new OutboxProcessor(github2, store);
+    const results2 = await processor2.process(65);
+
+    // Only the previously-failed action should be retried.
+    assertEquals(results2.length, 1);
+    assertEquals(results2[0].success, true);
+    assertEquals(results2[0].filename, "000-deferred-002.json");
+    assertEquals(results2[0].action, "create-issue");
+
+    // Verify zero re-execution of succeeded actions from cycle 1.
+    assertEquals(github2.calls.length, 1);
+    assertEquals(github2.calls[0].args[0], "Task C");
+
+    // Outbox should be empty after all-success cycle 2.
+    const entries2: string[] = [];
+    for await (const entry of Deno.readDir(store.getOutboxPath(65))) {
+      entries2.push(entry.name);
+    }
+    assertEquals(entries2, []);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("result includes filename for each action", async () => {
+  const { store, tmp } = await setupStore(68);
+  try {
+    await writeAction(store, 68, "001-comment.json", {
+      action: "comment",
+      body: "test",
+    });
+    await writeAction(store, 68, "002-labels.json", {
+      action: "update-labels",
+      add: ["done"],
+      remove: [],
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(68);
+
+    assertEquals(results[0].filename, "001-comment.json");
+    assertEquals(results[1].filename, "002-labels.json");
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }

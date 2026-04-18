@@ -2,8 +2,13 @@
  * Outbox Processor
  *
  * Reads queued outbox actions from the issue store and executes
- * them against GitHub in sequence order. Clears the outbox
- * after all actions succeed.
+ * them against GitHub in sequence order.
+ *
+ * Per-file success tracking: each action file is deleted immediately
+ * after successful execution. Failed action files remain on disk for
+ * retry in the next cycle. This replaces the previous all-or-nothing
+ * `clearOutbox` strategy that left succeeded files for re-execution
+ * on partial failure (see issue #486).
  */
 
 import type { GitHubClient } from "./github-client.ts";
@@ -22,6 +27,8 @@ export interface OutboxResult {
   action: string;
   success: boolean;
   error?: string;
+  /** Original filename (e.g. "000-deferred-001.json") for caller correlation. */
+  filename: string;
 }
 
 export class OutboxProcessor {
@@ -70,12 +77,12 @@ export class OutboxProcessor {
     files.sort();
 
     const results: OutboxResult[] = [];
-    let allSucceeded = true;
 
     for (const file of files) {
+      const filePath = `${outboxDir}/${file}`;
       const sequence = this.#parseSequence(file);
       // deno-lint-ignore no-await-in-loop
-      const text = await Deno.readTextFile(`${outboxDir}/${file}`);
+      const text = await Deno.readTextFile(filePath);
       let parsed: unknown;
 
       try {
@@ -86,8 +93,8 @@ export class OutboxProcessor {
           action: "unknown",
           success: false,
           error: `Invalid JSON in ${file}`,
+          filename: file,
         });
-        allSucceeded = false;
         continue;
       }
 
@@ -98,7 +105,16 @@ export class OutboxProcessor {
         const validated = this.#validateAction(actionObj);
         // deno-lint-ignore no-await-in-loop
         await this.#execute(subjectId, validated);
-        results.push({ sequence, action: actionType, success: true });
+        // Per-file deletion: remove succeeded file immediately so it is
+        // never re-processed on the next cycle (issue #486).
+        // deno-lint-ignore no-await-in-loop
+        await Deno.remove(filePath);
+        results.push({
+          sequence,
+          action: actionType,
+          success: true,
+          filename: file,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         results.push({
@@ -106,13 +122,9 @@ export class OutboxProcessor {
           action: actionType,
           success: false,
           error: message,
+          filename: file,
         });
-        allSucceeded = false;
       }
-    }
-
-    if (allSucceeded) {
-      await this.#store.clearOutbox(subjectId);
     }
 
     return results;

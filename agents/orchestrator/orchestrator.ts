@@ -462,6 +462,7 @@ export class Orchestrator {
         ? new DeferredItemsEmitter(store)
         : undefined;
       let deferredEmittedKeys: readonly string[] = [];
+      let deferredEmittedPaths: readonly string[] = [];
       if (
         deferredEmitter && dispatchResult.structuredOutput &&
         closeIntentForDeferred
@@ -473,6 +474,7 @@ export class Orchestrator {
             dispatchResult.structuredOutput,
           );
           deferredEmittedKeys = deferredResult.emittedKeys;
+          deferredEmittedPaths = deferredResult.paths;
           if (deferredResult.count > 0) {
             // deno-lint-ignore no-await-in-loop
             await log.info(
@@ -565,19 +567,36 @@ export class Orchestrator {
             );
           }
 
-          // Step 7b.1: Confirm deferred-item idempotency keys after all-success.
-          // Keys are persisted only when every outbox action succeeded, so
-          // a failed createIssue does NOT mark the item as "done" — the next
-          // cycle will re-emit and retry it. See issue #484.
+          // Step 7b.1: Confirm deferred-item idempotency keys for
+          // individually succeeded items. Previously all-or-nothing: keys
+          // were persisted only when every outbox action succeeded, causing
+          // the emitter to re-emit succeeded items on the next cycle after
+          // partial failure. Now confirms per-succeeded-item so the emitter
+          // skips them. See issues #484, #486.
           if (
-            failed.length === 0 && deferredEmitter &&
-            deferredEmittedKeys.length > 0
+            deferredEmitter && deferredEmittedKeys.length > 0 &&
+            deferredEmittedPaths.length === deferredEmittedKeys.length
           ) {
-            // deno-lint-ignore no-await-in-loop
-            await deferredEmitter.confirmEmitted(
-              subjectId,
-              deferredEmittedKeys,
-            );
+            // Build filename→key map from emitter paths.
+            const filenameToKey = new Map<string, string>();
+            for (let i = 0; i < deferredEmittedPaths.length; i++) {
+              const basename = deferredEmittedPaths[i].split("/").pop()!;
+              filenameToKey.set(basename, deferredEmittedKeys[i]);
+            }
+            const succeededKeys: string[] = [];
+            for (const result of succeeded) {
+              const key = filenameToKey.get(result.filename);
+              if (key !== undefined) {
+                succeededKeys.push(key);
+              }
+            }
+            if (succeededKeys.length > 0) {
+              // deno-lint-ignore no-await-in-loop
+              await deferredEmitter.confirmEmitted(
+                subjectId,
+                succeededKeys,
+              );
+            }
           }
         }
       }
