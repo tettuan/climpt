@@ -6,6 +6,7 @@ import type {
   IssueListItem,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
+import type { Project, ProjectField } from "./github-client.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 
@@ -147,6 +148,56 @@ class StubGitHubClient implements GitHubClient {
     return Promise.resolve();
   }
   closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve([]);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(
+    _project: ProjectRef,
+    _itemId: string,
+  ): Promise<void> {
+    this.calls.push({
+      method: "removeProjectItem",
+      args: [_project, _itemId],
+    });
+    if (this.#failOn.has("removeProjectItem")) {
+      throw new Error("removeProjectItem failed");
+    }
     return Promise.resolve();
   }
 }
@@ -511,6 +562,60 @@ Deno.test("unknown action type produces error result", async () => {
     assertEquals(results[0].action, "do-something-weird");
     assertEquals(typeof results[0].error, "string");
     assertEquals(github.calls.length, 0);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// remove-from-project outbox action
+// ---------------------------------------------------------------------------
+
+Deno.test("process remove-from-project action calls removeProjectItem", async () => {
+  const { store, tmp } = await setupStore(80);
+  try {
+    await writeAction(store, 80, "001-remove.json", {
+      action: "remove-from-project",
+      project: { owner: "org", number: 1 },
+      itemId: "PVTI_123",
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(80);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].action, "remove-from-project");
+    assertEquals(results[0].success, true);
+
+    assertEquals(github.calls.length, 1);
+    assertEquals(github.calls[0].method, "removeProjectItem");
+    assertEquals(github.calls[0].args[0], { owner: "org", number: 1 });
+    assertEquals(github.calls[0].args[1], "PVTI_123");
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("remove-from-project validates itemId is required", async () => {
+  const { store, tmp } = await setupStore(81);
+  try {
+    await writeAction(store, 81, "001-remove.json", {
+      action: "remove-from-project",
+      project: { owner: "org", number: 1 },
+      // itemId intentionally missing
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(81);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(
+      results[0].error,
+      "remove-from-project action requires 'itemId' string",
+    );
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }

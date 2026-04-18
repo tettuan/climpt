@@ -25,9 +25,9 @@
 
 import type { GitHubClient } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
+import type { ProjectRef } from "./workflow-types.ts";
 
-/** Project reference — identifies a GitHub Project v2 by owner+number or node id. */
-export type ProjectRef = { owner: string; number: number } | { id: string };
+export type { ProjectRef };
 
 /** Value types for project field updates. */
 export type ProjectFieldValue =
@@ -50,7 +50,8 @@ export type OutboxAction =
     fieldId: string;
     value: ProjectFieldValue;
   }
-  | { action: "close-project"; project: ProjectRef };
+  | { action: "close-project"; project: ProjectRef }
+  | { action: "remove-from-project"; project: ProjectRef; itemId: string };
 
 /** Trigger phase for action execution. Default (absent) = pre-close. */
 export type OutboxTrigger = "post-close";
@@ -289,6 +290,22 @@ export class OutboxProcessor {
           action: "close-project",
           project: this.#validateProjectRef(obj.project, "close-project"),
         };
+      case "remove-from-project": {
+        const project = this.#validateProjectRef(
+          obj.project,
+          "remove-from-project",
+        );
+        if (typeof obj.itemId !== "string") {
+          throw new Error(
+            "remove-from-project action requires 'itemId' string",
+          );
+        }
+        return {
+          action: "remove-from-project",
+          project,
+          itemId: obj.itemId,
+        };
+      }
       default:
         throw new Error(`Unknown outbox action: ${action}`);
     }
@@ -367,6 +384,9 @@ export class OutboxProcessor {
         break;
       case "close-project":
         await this.#github.closeProject(action.project);
+        break;
+      case "remove-from-project":
+        await this.#github.removeProjectItem(action.project, action.itemId);
         break;
       default:
         throw new Error(

@@ -13,6 +13,8 @@ import type {
   IssueDetail,
   IssueListItem,
   LabelDetail,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
@@ -316,6 +318,184 @@ export class FileGitHubClient implements GitHubClient {
       `${projectDir}/closed`,
       new Date().toISOString(),
     );
+  }
+
+  async getProjectItemIdForIssue(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string | null> {
+    const projectDir = this.#projectDir(project);
+    const itemsPath = `${projectDir}/items.json`;
+    const items = await this.#readProjectItems(itemsPath);
+    const match = items.find((i) => i.issueNumber === issueNumber);
+    return match?.id ?? null;
+  }
+
+  async listProjectItems(
+    project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    const projectDir = this.#projectDir(project);
+    const itemsPath = `${projectDir}/items.json`;
+    const items = await this.#readProjectItems(itemsPath);
+    return items.map((item) => ({
+      id: item.id,
+      issueNumber: item.issueNumber,
+    }));
+  }
+
+  async getIssueProjects(
+    issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    // Scan all project directories and check if the issue is a member.
+    const projectsDir = `${this.#store.storePath}/projects`;
+    const results: Array<{ owner: string; number: number }> = [];
+    try {
+      for await (const entry of Deno.readDir(projectsDir)) {
+        if (!entry.isDirectory) continue;
+        const itemsPath = `${projectsDir}/${entry.name}/items.json`;
+        const items = await this.#readProjectItems(itemsPath);
+        if (items.some((i) => i.issueNumber === issueNumber)) {
+          // Parse directory name format: "owner_number"
+          const parts = entry.name.split("_");
+          if (parts.length >= 2) {
+            const num = Number(parts[parts.length - 1]);
+            const owner = parts.slice(0, -1).join("_");
+            if (Number.isFinite(num)) {
+              results.push({ owner, number: num });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+    return results;
+  }
+
+  async createProjectFieldOption(
+    project: ProjectRef,
+    fieldId: string,
+    name: string,
+    _color?: string,
+  ): Promise<{ id: string; name: string }> {
+    const projectDir = this.#projectDir(project);
+    await Deno.mkdir(projectDir, { recursive: true });
+    const optionsPath = `${projectDir}/field-options.json`;
+    let options: { fieldId: string; id: string; name: string }[] = [];
+    try {
+      const text = await Deno.readTextFile(optionsPath);
+      options = JSON.parse(text);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+    const id = `OPT_file_${fieldId}_${name}`;
+    if (!options.some((o) => o.fieldId === fieldId && o.name === name)) {
+      options.push({ fieldId, id, name });
+      await Deno.writeTextFile(optionsPath, JSON.stringify(options, null, 2));
+    }
+    return { id, name };
+  }
+
+  async listUserProjects(owner: string): Promise<Project[]> {
+    const projectsDir = `${this.#store.storePath}/projects`;
+    const results: Project[] = [];
+    try {
+      for await (const entry of Deno.readDir(projectsDir)) {
+        if (!entry.isDirectory) continue;
+        const parts = entry.name.split("_");
+        if (parts.length < 2) continue;
+        const num = Number(parts[parts.length - 1]);
+        const dirOwner = parts.slice(0, -1).join("_");
+        if (!Number.isFinite(num) || dirOwner !== owner) continue;
+        const projectDir = `${projectsDir}/${entry.name}`;
+        let readme = "";
+        try {
+          readme = await Deno.readTextFile(`${projectDir}/readme.md`);
+        } catch (error) {
+          if (!(error instanceof Deno.errors.NotFound)) throw error;
+        }
+        let closed = false;
+        try {
+          await Deno.stat(`${projectDir}/closed`);
+          closed = true;
+        } catch (error) {
+          if (!(error instanceof Deno.errors.NotFound)) throw error;
+        }
+        results.push({
+          id: `PVT_file_${entry.name}`,
+          number: num,
+          owner: dirOwner,
+          title: entry.name,
+          readme,
+          shortDescription: null,
+          closed,
+        });
+      }
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+    return results;
+  }
+
+  async getProject(project: ProjectRef): Promise<Project> {
+    const projectDir = this.#projectDir(project);
+    const key = "id" in project
+      ? project.id
+      : `${project.owner}_${project.number}`;
+    const owner = "id" in project ? "" : project.owner;
+    const number = "id" in project ? 0 : project.number;
+
+    let readme = "";
+    try {
+      readme = await Deno.readTextFile(`${projectDir}/readme.md`);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+
+    let closed = false;
+    try {
+      await Deno.stat(`${projectDir}/closed`);
+      closed = true;
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+
+    return {
+      id: `PVT_file_${key}`,
+      number,
+      owner,
+      title: key,
+      readme,
+      shortDescription: null,
+      closed,
+    };
+  }
+
+  async getProjectFields(project: ProjectRef): Promise<ProjectField[]> {
+    const projectDir = this.#projectDir(project);
+    const fieldsPath = `${projectDir}/fields.json`;
+    try {
+      const text = await Deno.readTextFile(fieldsPath);
+      return JSON.parse(text) as ProjectField[];
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return [];
+      throw error;
+    }
+  }
+
+  async removeProjectItem(
+    project: ProjectRef,
+    itemId: string,
+  ): Promise<void> {
+    const projectDir = this.#projectDir(project);
+    const itemsPath = `${projectDir}/items.json`;
+    const items = await this.#readProjectItems(itemsPath);
+    const index = items.findIndex((i) => i.id === itemId);
+    if (index === -1) {
+      throw new Error(`Project item ${itemId} not found`);
+    }
+    items.splice(index, 1);
+    await Deno.writeTextFile(itemsPath, JSON.stringify(items, null, 2));
   }
 
   #projectDir(project: ProjectRef): string {

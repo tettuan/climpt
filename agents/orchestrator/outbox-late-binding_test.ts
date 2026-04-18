@@ -11,12 +11,14 @@
  */
 
 import { assertEquals, assertRejects } from "jsr:@std/assert";
-import type { GitHubClient } from "./github-client.ts";
 import type {
+  GitHubClient,
   IssueCriteria,
   IssueDetail,
   IssueListItem,
   LabelDetail,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { SubjectStore } from "./subject-store.ts";
@@ -131,6 +133,65 @@ class SpyGitHubClient implements GitHubClient {
   }
   async closeProject(project: ProjectRef): Promise<void> {
     this.calls.push({ method: "closeProject", args: [project] });
+    await Promise.resolve();
+  }
+  async getProjectItemIdForIssue(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string | null> {
+    this.calls.push({
+      method: "getProjectItemIdForIssue",
+      args: [project, issueNumber],
+    });
+    return await Promise.resolve(`PVTI_${issueNumber}`);
+  }
+  async listProjectItems(
+    project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    this.calls.push({
+      method: "listProjectItems",
+      args: [project],
+    });
+    return await Promise.resolve([]);
+  }
+  async createProjectFieldOption(
+    project: ProjectRef,
+    fieldId: string,
+    name: string,
+    _color?: string,
+  ): Promise<{ id: string; name: string }> {
+    this.calls.push({
+      method: "createProjectFieldOption",
+      args: [project, fieldId, name],
+    });
+    return await Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  async listUserProjects(_owner: string): Promise<Project[]> {
+    return await Promise.resolve([]);
+  }
+  async getProject(_project: ProjectRef): Promise<Project> {
+    return await Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  async getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return await Promise.resolve([]);
+  }
+  async removeProjectItem(
+    _project: ProjectRef,
+    _itemId: string,
+  ): Promise<void> {
     await Promise.resolve();
   }
 }
