@@ -38,7 +38,7 @@
     "maxCycles": 3,
     "cycleDelayMs": 60000
   },
-  "issueStore": {
+  "subjectStore": {
     "path": ".agent/climpt/tmp/issues-merge"
   },
   "payloadSchema": {
@@ -67,7 +67,7 @@
         "reviewer_agent_version": "'1.12.0'",
         "ci_required": "$.agent.result.ci_required"
       },
-      "persistPayloadTo": "issueStore"
+      "persistPayloadTo": "subjectStore"
     },
     {
       "id": "reviewer-rejected-verdict",
@@ -89,7 +89,7 @@
         "reviewer_agent_version": "'1.12.0'",
         "ci_required": "'true'"
       },
-      "persistPayloadTo": "issueStore"
+      "persistPayloadTo": "subjectStore"
     }
   ]
 }

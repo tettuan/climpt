@@ -172,9 +172,9 @@
         }
       }
     },
-    "issueStore": {
+    "subjectStore": {
       "type": "object",
-      "description": "Issue store configuration",
+      "description": "Subject store configuration",
       "additionalProperties": false,
       "properties": {
         "path": { "type": "string" }
@@ -252,7 +252,7 @@
             "additionalProperties": { "type": "string" }
           },
           "persistPayloadTo": {
-            "enum": ["issueStore", "none"],
+            "enum": ["subjectStore", "none"],
             "description": "Where to persist the resolved payload after emit"
           }
         }
@@ -262,7 +262,7 @@
       "type": "object",
       "required": ["$ref"],
       "additionalProperties": false,
-      "description": "Reference to the JSON Schema used to validate IssuePayload instances for this workflow",
+      "description": "Reference to the JSON Schema used to validate SubjectPayload instances for this workflow",
       "properties": {
         "$ref": { "type": "string" }
       }

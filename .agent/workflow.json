@@ -144,7 +144,7 @@
     "cycleDelayMs": 30000,
     "maxConsecutivePhases": 3
   },
-  "issueStore": {
+  "subjectStore": {
     "path": ".agent/climpt/tmp/issues-execute"
   }
 }
