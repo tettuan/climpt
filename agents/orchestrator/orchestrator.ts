@@ -28,6 +28,7 @@ import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 import type { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
+import { DeferredItemsEmitter } from "./deferred-items-emitter.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
@@ -432,6 +433,43 @@ export class Orchestrator {
             );
             throw error;
           }
+        }
+      }
+
+      // Step 7a.5: Expand agent-declared `deferred_items[]` into outbox
+      // `create-issue` actions, so the follow-up issues are filed before
+      // the current issue closes in T6. See issue #480.
+      if (store && dispatchResult.structuredOutput) {
+        try {
+          const deferredEmitter = new DeferredItemsEmitter(store);
+          // deno-lint-ignore no-await-in-loop
+          const deferredResult = await deferredEmitter.emit(
+            subjectId,
+            dispatchResult.structuredOutput,
+          );
+          if (deferredResult.count > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Deferred items emitted: ${deferredResult.count} create-issue actions queued`,
+              {
+                event: "deferred_items_emitted",
+                subjectId,
+                count: deferredResult.count,
+              },
+            );
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          // deno-lint-ignore no-await-in-loop
+          await log.error(
+            `Deferred items emission failed: ${msg}`,
+            {
+              event: "deferred_items_error",
+              subjectId,
+              error: msg,
+            },
+          );
+          throw error;
         }
       }
 
