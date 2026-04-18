@@ -2,12 +2,18 @@
  * Prompt Resolver Tests
  */
 
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import {
   parseFrontmatter,
   PromptResolver,
   removeFrontmatter,
 } from "./prompt-resolver.ts";
+import type {
+  BreakdownErrorKind,
+  C3LPath,
+  PromptLoadResult,
+  PromptVariables as LoaderVariables,
+} from "./c3l-prompt-loader.ts";
 import { addStepDefinition, createEmptyRegistry } from "./step-registry.ts";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 
@@ -327,4 +333,109 @@ Deno.test("PromptResolver - resolve throws when C3L file missing for step with v
     Error,
     "C3L prompt file not found",
   );
+});
+
+// ============================================================================
+// Contract tests: PromptLoadResult.errorKind → ConfigError code mapping
+//
+// These tests verify the resolver's discrimination contract independently of
+// the breakdown library by stubbing C3LPromptLoader.load(). They lock in
+// what each BreakdownErrorKind maps to: PR-C3L-004 for not-found-style
+// kinds, PR-C3L-002 for everything else.
+// ============================================================================
+
+/**
+ * Build a PromptResolver whose c3lLoader.load returns `loadResult` verbatim.
+ * Mutates the private `c3lLoader` field — acceptable in tests for isolating
+ * the resolver's branching logic from breakdown's IO.
+ */
+function makeResolverWithStubLoader(
+  loadResult: PromptLoadResult,
+): PromptResolver {
+  const registry = createEmptyRegistry("test-agent");
+  addStepDefinition(registry, {
+    stepId: "initial.test",
+    name: "Test Step",
+    c2: "initial",
+    c3: "test",
+    edition: "default",
+    uvVariables: [],
+    usesStdin: false,
+  });
+
+  const resolver = new PromptResolver(registry, { workingDir: testTmpDir });
+  // Inject stub loader. The resolver only calls .load(), so a partial mock
+  // satisfies the runtime contract.
+  // deno-lint-ignore no-explicit-any
+  (resolver as any).c3lLoader = {
+    load: (_path: C3LPath, _vars?: LoaderVariables) =>
+      Promise.resolve(loadResult),
+  };
+  return resolver;
+}
+
+Deno.test("PromptResolver - TemplateNotFound from breakdown → PR-C3L-004 with path", async () => {
+  const triedPath = "steps/initial/test/f_default.md";
+  const resolver = makeResolverWithStubLoader({
+    ok: false,
+    errorKind: "TemplateNotFound" satisfies BreakdownErrorKind,
+    error:
+      `TemplateNotFound: Template not found: ${triedPath} (working_dir: ${testTmpDir})`,
+    promptPath: triedPath,
+  });
+
+  const err = await assertRejects(
+    () => resolver.resolve("initial.test"),
+    Error,
+  );
+  // PR-C3L-004 contract: code in message, stepId in message, tried path in message
+  assertStringIncludes((err as Error).message, "PR-C3L-004");
+  assertStringIncludes((err as Error).message, "initial.test");
+  assertStringIncludes((err as Error).message, triedPath);
+});
+
+Deno.test("PromptResolver - ParameterParsingError from breakdown → PR-C3L-004", async () => {
+  // ParameterParsingError = breakdown does not recognize the c2/c3 directive.
+  // Treated identically to file-not-found by the resolver contract.
+  const resolver = makeResolverWithStubLoader({
+    ok: false,
+    errorKind: "ParameterParsingError" satisfies BreakdownErrorKind,
+    error: "ParameterParsingError: unknown directive type",
+  });
+
+  const err = await assertRejects(
+    () => resolver.resolve("initial.test"),
+    Error,
+  );
+  assertStringIncludes((err as Error).message, "PR-C3L-004");
+});
+
+Deno.test("PromptResolver - InvalidVariables from breakdown → PR-C3L-002 (not collapsed)", async () => {
+  const resolver = makeResolverWithStubLoader({
+    ok: false,
+    errorKind: "InvalidVariables" satisfies BreakdownErrorKind,
+    error: "InvalidVariables: Invalid variables: missing uv-name",
+  });
+
+  const err = await assertRejects(
+    () => resolver.resolve("initial.test"),
+    Error,
+  );
+  // PR-C3L-002 contract: do NOT collapse user-correctable errors to file-not-found
+  assertStringIncludes((err as Error).message, "PR-C3L-002");
+  assertStringIncludes((err as Error).message, "InvalidVariables");
+});
+
+Deno.test("PromptResolver - ConfigLoadError from breakdown → PR-C3L-002", async () => {
+  const resolver = makeResolverWithStubLoader({
+    ok: false,
+    errorKind: "ConfigLoadError" satisfies BreakdownErrorKind,
+    error: "ConfigLoadError: missing app.yml",
+  });
+
+  const err = await assertRejects(
+    () => resolver.resolve("initial.test"),
+    Error,
+  );
+  assertStringIncludes((err as Error).message, "PR-C3L-002");
 });

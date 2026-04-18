@@ -38,6 +38,35 @@ export interface PromptVariables {
 }
 
 /**
+ * Discriminated error kinds returned by breakdown 1.8.6+ via runBreakdown.
+ *
+ * Mirrors the (un-exported) `BreakdownError` union in
+ * jsr:@tettuan/breakdown@{@link BREAKDOWN_VERSION}/cli/breakdown.ts. When the
+ * upstream union grows, also widen this list and the discriminated handling
+ * in {@link PromptResolver}.
+ *
+ * @see https://github.com/tettuan/breakdown/issues/104
+ */
+export type BreakdownErrorKind =
+  | "ConfigProfileError"
+  | "ConfigLoadError"
+  | "ParameterParsingError"
+  | "PromptGenerationError"
+  | "TwoParamsHandlerError"
+  | "OneParamsHandlerError"
+  | "ZeroParamsHandlerError"
+  | "UnknownResultType"
+  // Nested PromptError kinds surfaced when the outer kind is
+  // "PromptGenerationError" — the loader unwraps these so callers see the
+  // underlying cause directly.
+  | "TemplateNotFound"
+  | "InvalidVariables"
+  | "SchemaError"
+  | "InvalidPath"
+  | "TemplateParseError"
+  | "ConfigurationError";
+
+/**
  * Result of loading a prompt
  */
 export interface PromptLoadResult {
@@ -45,8 +74,14 @@ export interface PromptLoadResult {
   ok: boolean;
   /** Loaded prompt content (with variables substituted) */
   content?: string;
-  /** Error message if load failed */
+  /** Error message if load failed (formatted from breakdown's structured error). */
   error?: string;
+  /**
+   * Discriminated error kind from breakdown 1.8.6+. Present iff `ok === false`
+   * and breakdown returned a structured error. Callers should branch on this
+   * (not on substring matches against `error`).
+   */
+  errorKind?: BreakdownErrorKind;
   /** Full path to the resolved prompt file */
   promptPath?: string;
 }
@@ -84,6 +119,115 @@ const PROJECT_ROOT = new URL("../../", import.meta.url).pathname.replace(
   "",
 );
 
+/**
+ * Structural mirror of breakdown 1.8.6+ `Result<string | undefined, BreakdownError>`.
+ *
+ * BreakdownError and PromptError are NOT exported from
+ * jsr:@tettuan/breakdown (only `runBreakdown` is exported via mod.ts), so we
+ * inline the shape here. Keep in sync with
+ * jsr:@tettuan/breakdown@{@link BREAKDOWN_VERSION}/cli/breakdown.ts and
+ * jsr:@tettuan/breakdown@{@link BREAKDOWN_VERSION}/lib/types/prompt_types.ts.
+ */
+type PromptErrorShape =
+  | {
+    kind: "TemplateNotFound";
+    path: string;
+    workingDir?: string;
+    attemptedPaths?: string[];
+  }
+  | { kind: "InvalidVariables"; details: string[] }
+  | { kind: "SchemaError"; schema: string; error: string }
+  | { kind: "InvalidPath"; message: string }
+  | { kind: "TemplateParseError"; template: string; error: string }
+  | { kind: "ConfigurationError"; message: string };
+
+type BreakdownErrorShape =
+  | { kind: "ConfigProfileError"; message: string; cause: unknown }
+  | { kind: "ConfigLoadError"; message: string }
+  | { kind: "ParameterParsingError"; message: string }
+  | { kind: "PromptGenerationError"; cause: PromptErrorShape | string }
+  | { kind: "TwoParamsHandlerError"; cause: unknown }
+  | { kind: "OneParamsHandlerError"; cause: unknown }
+  | { kind: "ZeroParamsHandlerError"; cause: unknown }
+  | { kind: "UnknownResultType"; type: string };
+
+type RunBreakdownResult =
+  | { ok: true; data: string | undefined }
+  | { ok: false; error: BreakdownErrorShape };
+
+/**
+ * Format a PromptError into a single-line human-readable message.
+ *
+ * Mirrors `formatPromptError` in
+ * jsr:@tettuan/breakdown/lib/types/prompt_types.ts so the loader does not
+ * have to import an un-exported helper.
+ */
+function formatPromptError(err: PromptErrorShape): string {
+  switch (err.kind) {
+    case "TemplateNotFound": {
+      let m = `${err.kind}: Template not found: ${err.path}`;
+      if (err.workingDir) m += ` (working_dir: ${err.workingDir})`;
+      if (err.attemptedPaths?.length) {
+        m += `\nAttempted paths: ${err.attemptedPaths.join(", ")}`;
+      }
+      return m;
+    }
+    case "InvalidVariables":
+      return `${err.kind}: Invalid variables: ${err.details.join(", ")}`;
+    case "SchemaError":
+      return `${err.kind}: Schema error in ${err.schema}: ${err.error}`;
+    case "InvalidPath":
+      return `${err.kind}: Invalid path: ${err.message}`;
+    case "TemplateParseError":
+      return `${err.kind}: Failed to parse template ${err.template}: ${err.error}`;
+    case "ConfigurationError":
+      return `${err.kind}: Configuration error: ${err.message}`;
+  }
+}
+
+/**
+ * Unwrap a BreakdownError into a `{kind, message}` pair.
+ *
+ * - For `PromptGenerationError` whose `cause` is a structured PromptError,
+ *   surface the inner kind so callers can branch on `TemplateNotFound`
+ *   directly (this is the common case for missing prompt files).
+ * - For all other kinds, return the outer kind plus a best-effort message.
+ */
+function unwrapBreakdownError(
+  err: BreakdownErrorShape,
+): { kind: BreakdownErrorKind; message: string } {
+  switch (err.kind) {
+    case "PromptGenerationError": {
+      if (typeof err.cause === "string") {
+        return { kind: "PromptGenerationError", message: err.cause };
+      }
+      return {
+        kind: err.cause.kind,
+        message: formatPromptError(err.cause),
+      };
+    }
+    case "ConfigProfileError":
+    case "ConfigLoadError":
+    case "ParameterParsingError":
+      return { kind: err.kind, message: `${err.kind}: ${err.message}` };
+    case "UnknownResultType":
+      return {
+        kind: err.kind,
+        message: `${err.kind}: ${err.type}`,
+      };
+    case "TwoParamsHandlerError":
+    case "OneParamsHandlerError":
+    case "ZeroParamsHandlerError": {
+      const causeMsg = err.cause instanceof Error
+        ? err.cause.message
+        : typeof err.cause === "string"
+        ? err.cause
+        : JSON.stringify(err.cause);
+      return { kind: err.kind, message: `${err.kind}: ${causeMsg}` };
+    }
+  }
+}
+
 export class C3LPromptLoader {
   private readonly configName: string;
   private readonly workingDir: string;
@@ -111,31 +255,23 @@ export class C3LPromptLoader {
     const args = this.buildArgs(path, variables);
 
     try {
-      // Dynamic import of breakdown with return mode.
-      // Widened typecast: breakdown 1.8.x returns Result<string | undefined,
-      // BreakdownError>, where BreakdownError is an object with {kind,
-      // message, attempted, ...}. Typecasting error as `string` (as the
-      // loader did pre-1.8.5) strips the structured error; widen to
-      // `unknown` and JSON.stringify for propagation.
-      // Pinned exact (no caret): breakdown 1.8.5 changed the runBreakdown
-      // Result shape from Result<string,string> to
-      // Result<string|undefined, BreakdownError>. Pinning to 1.8.4 keeps
-      // the loader's typecast valid until it is widened to cover both.
+      // Dynamic import of breakdown. As of 1.8.6+ (upstream issue #104),
+      // runBreakdown returns Result<string | undefined, BreakdownError>
+      // with a discriminated error union. The TemplateNotFound case is
+      // wrapped inside `PromptGenerationError.cause` (a PromptError union).
       const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
       const runBreakdown = mod.runBreakdown as (
         args: string[],
         options?: { returnMode?: boolean },
-      ) => Promise<{ ok: boolean; data?: unknown; error?: unknown }>;
+      ) => Promise<RunBreakdownResult>;
 
       // runBreakdown uses Deno.cwd() to locate config files, so we must
       // chdir to this.workingDir before the call and restore afterwards.
       const originalCwd = Deno.cwd();
-      let result: { ok: boolean; data?: unknown; error?: unknown };
+      let result: RunBreakdownResult;
       try {
         Deno.chdir(this.workingDir);
-        result = await runBreakdown(args, {
-          returnMode: true,
-        });
+        result = await runBreakdown(args, { returnMode: true });
       } finally {
         Deno.chdir(originalCwd);
       }
@@ -148,20 +284,31 @@ export class C3LPromptLoader {
         };
       }
 
-      // Propagate the breakdown error. If the breakdown result carries no
-      // error (either `ok:false` with falsy error, or `ok:true` with
-      // undefined data), synthesize a descriptive diagnostic so the caller
-      // never sees `{ok:false}` with an empty error — that was the silent
-      // collapse that masked the continuation.polling regression.
-      const promptPath = this.buildPromptPath(path);
-      if (result.error) {
-        const errorMsg = typeof result.error === "string"
-          ? result.error
-          : JSON.stringify(result.error);
-        return { ok: false, error: errorMsg };
+      // Failure path. Per #104, breakdown 1.8.6+ always populates `error`
+      // with a structured BreakdownError when ok:false. The loader
+      // unwraps PromptGenerationError.cause so the resolver sees the
+      // underlying PromptError kind (e.g. TemplateNotFound) directly.
+      if (!result.ok) {
+        const { kind, message } = unwrapBreakdownError(result.error);
+        return {
+          ok: false,
+          error: message,
+          errorKind: kind,
+          promptPath: this.buildPromptPath(path),
+        };
       }
-      const synthesized = this.synthesizeSilentError(result, promptPath, args);
-      return { ok: false, error: synthesized };
+
+      // ok:true but data is empty/undefined — should not happen in 1.8.6+
+      // since returnMode is set, but guard explicitly to avoid silent
+      // collapse if the upstream contract regresses.
+      return {
+        ok: false,
+        error:
+          `breakdown returned ok:true with empty data (returnMode=true, args=${
+            args.join(" ")
+          })`,
+        promptPath: this.buildPromptPath(path),
+      };
     } catch (error) {
       return {
         ok: false,
@@ -203,40 +350,6 @@ export class C3LPromptLoader {
     }
 
     return args;
-  }
-
-  /**
-   * Synthesize a descriptive error when breakdown returns no propagable
-   * error (either `{ok:false}` with falsy error, or `{ok:true}` with
-   * undefined data). Pre-patch these paths silently returned `{ok:false}`,
-   * making "breakdown produced no prompt" indistinguishable from
-   * "prompt file missing" at the resolver.
-   */
-  private synthesizeSilentError(
-    result: { ok: boolean; data?: unknown; error?: unknown },
-    promptPath: string,
-    args: string[],
-  ): string {
-    const marker = result.ok
-      ? "BreakdownSilentOkNoData"
-      : "BreakdownSilentNoError";
-    const snapshot = {
-      ok: result.ok,
-      dataType: typeof result.data,
-      errorType: typeof result.error,
-      keys: Object.keys(result ?? {}),
-    };
-    return JSON.stringify({
-      kind: marker,
-      message:
-        "breakdown returned a result with no propagable error or content",
-      configName: this.configName,
-      workingDir: this.workingDir,
-      breakdownVersion: BREAKDOWN_VERSION,
-      promptPath,
-      args,
-      result: snapshot,
-    });
   }
 
   /**

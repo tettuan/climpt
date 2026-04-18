@@ -30,13 +30,12 @@ export const CLIMPT_VERSION = "1.13.26";
  * This specifies which version of {@link https://jsr.io/@tettuan/breakdown | @tettuan/breakdown}
  * JSR package should be imported and used by the Climpt CLI.
  *
- * Pinned exact (no caret) — breakdown 1.8.5 changed the runBreakdown
- * Result shape from `Result<string, string>` to
- * `Result<string | undefined, BreakdownError>`, which silently broke the
- * c3l-prompt-loader's typecast and caused the continuation.polling
- * PR-C3L-004 regression (see tmp/label-bootstrap-failure/investigation/
- * T5a-resolver-rootcause.md). Do not change to a caret range without
- * widening the loader to handle both shapes.
+ * Pinned exact (no caret). The c3l-prompt-loader typecast tracks the
+ * `Result<string | undefined, BreakdownError>` shape introduced in 1.8.5
+ * and the structured PromptError contract guaranteed by 1.8.6+
+ * (upstream issue #104). Bumping the minor without re-checking the
+ * BreakdownError discriminated union may silently break error routing
+ * in agents/common/c3l-prompt-loader.ts and agents/common/prompt-resolver.ts.
  *
  * @constant {string}
  * @example
@@ -45,7 +44,7 @@ export const CLIMPT_VERSION = "1.13.26";
  * const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
  * ```
  */
-export const BREAKDOWN_VERSION = "1.8.4";
+export const BREAKDOWN_VERSION = "1.8.7";
 
 /**
  * Version of the frontmatter-to-schema package to use.

@@ -12,7 +12,6 @@
 
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
-import { BREAKDOWN_VERSION } from "../../src/version.ts";
 import {
   prC3lBreakdownFailed,
   prC3lPromptNotFound,
@@ -139,26 +138,19 @@ export class PromptResolver {
       ? { ...step, adaptation: overrides.adaptation }
       : step;
 
-    // Try breakdown
-    const breakdownResult = await this.tryBreakdown(effectiveStep, variables);
-    if (breakdownResult.kind === "resolved") {
-      return breakdownResult.value;
+    // Try breakdown. tryBreakdown either returns the resolved prompt or
+    // throws PR-C3L-002 directly for non-recoverable errors. A `null`
+    // return means "treated as file-not-found" → PR-C3L-004.
+    const resolved = await this.tryBreakdown(effectiveStep, variables);
+    if (resolved !== null) {
+      return resolved;
     }
 
-    // Breakdown produced no prompt — log the underlying error chain at
-    // warn level so PR-C3L-004 is never thrown without a diagnostic trail,
-    // then throw the same PR-C3L-004 code (stability: callers match on it).
     const c3lPath = this.buildC3LPath(effectiveStep);
-    const c3lPathStr = this.formatC3LPath(c3lPath);
-    // deno-lint-ignore no-console
-    console.warn(
-      `[prompt-resolver] PR-C3L-004 about to throw for stepId="${effectiveStep.stepId}" ` +
-        `triedPath="${c3lPathStr}" breakdownVersion=${BREAKDOWN_VERSION} ` +
-        `breakdownError=${breakdownResult.error ?? "<none>"} ` +
-        `hint="If breakdownError is empty or marker-prefixed (BreakdownSilentNoError/BreakdownSilentOkNoData), ` +
-        `this is the c3l-prompt-loader silent-collapse path — verify BREAKDOWN_VERSION (src/version.ts) matches the resolved JSR version."`,
+    throw prC3lPromptNotFound(
+      effectiveStep.stepId,
+      this.formatC3LPath(c3lPath),
     );
-    throw prC3lPromptNotFound(effectiveStep.stepId, c3lPathStr);
   }
 
   /**
@@ -175,23 +167,22 @@ export class PromptResolver {
   }
 
   /**
-   * Try to resolve via breakdown (C3LPromptLoader)
+   * Try to resolve via breakdown (C3LPromptLoader).
    *
-   * @param step - Step definition
-   * @param variables - Variables for substitution
-   * @returns Discriminated result: `{kind:"resolved", value}` on success, or
-   *   `{kind:"notFound", error?}` when no prompt was produced. The `error`
-   *   field carries the breakdown-side diagnostic (possibly synthesized by
-   *   the loader) so callers can log it before throwing PR-C3L-004.
-   * @throws ConfigError (PR-C3L-002) if breakdown fails with non-file-not-found error
+   * Returns the resolved prompt on success, or `null` when the load
+   * failed with a "treated as file-not-found" condition (TemplateNotFound
+   * or ParameterParsingError). All other structured errors throw
+   * PR-C3L-002 directly so user-correctable issues (UV undefined,
+   * frontmatter broken, YAML parse failure, etc.) propagate without
+   * being silently collapsed to PR-C3L-004.
+   *
+   * @throws ConfigError (PR-C3L-002) if breakdown fails with a
+   *   non-file-not-found error
    */
   private async tryBreakdown(
     step: PromptStepDefinition,
     variables: PromptVariables,
-  ): Promise<
-    | { kind: "resolved"; value: PromptResolutionResult }
-    | { kind: "notFound"; error?: string }
-  > {
+  ): Promise<PromptResolutionResult | null> {
     const c3lPath = this.buildC3LPath(step);
 
     const result = await this.c3lLoader.load(c3lPath, {
@@ -199,45 +190,35 @@ export class PromptResolver {
       inputText: variables.inputText,
     });
 
-    // Breakdown failed — distinguish file-not-found from other errors
     if (!result.ok || !result.content) {
-      if (result.error && !this.isParameterParsingError(result.error)) {
-        // Non-file-not-found error: UV undefined, frontmatter broken, YAML parse failure, etc.
-        // These require user correction — do not silently fall back.
-        throw prC3lBreakdownFailed(step.stepId, result.error);
+      // TemplateNotFound = the prompt file does not exist on disk.
+      // ParameterParsingError = breakdown does not recognize the c2/c3
+      // directive (e.g. the step uses a c2 that has no breakdown profile);
+      // treat the same as file-not-found so the caller throws PR-C3L-004.
+      if (
+        result.errorKind === "TemplateNotFound" ||
+        result.errorKind === "ParameterParsingError"
+      ) {
+        return null;
       }
-      // No error detail OR ParameterParsingError (breakdown doesn't recognize
-      // the directive type / parameters) = prompt file not found.
-      // Surface the underlying breakdown error so caller can log it.
-      return { kind: "notFound", error: result.error };
+      // Any other failure (UV invalid, schema error, config load error, …)
+      // is user-correctable and must propagate verbatim.
+      throw prC3lBreakdownFailed(
+        step.stepId,
+        result.error ?? "<no error detail>",
+      );
     }
 
     // Process content (strip frontmatter if needed, substitute custom variables)
     const content = this.processContent(result.content, step, variables);
 
     return {
-      kind: "resolved",
-      value: {
-        content,
-        source: "user",
-        promptPath: result.promptPath,
-        stepId: step.stepId,
-        substitutedVariables: this.getSubstitutedVariables(variables),
-      },
+      content,
+      source: "user",
+      promptPath: result.promptPath,
+      stepId: step.stepId,
+      substitutedVariables: this.getSubstitutedVariables(variables),
     };
-  }
-
-  /**
-   * Check if a C3L loader error is a ParameterParsingError.
-   *
-   * ParameterParsingError means breakdown doesn't recognize the directive
-   * type or other CLI parameters. This is NOT a user-correctable C3L
-   * template issue — it means the step simply can't be resolved via
-   * breakdown (e.g., the c2 value is not a valid breakdown directive type).
-   * Treat this the same as "file not found".
-   */
-  private isParameterParsingError(error: string): boolean {
-    return error.includes("ParameterParsingError");
   }
 
   /**
