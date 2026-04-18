@@ -5,7 +5,11 @@
  * changes for GitHub issue updates, and renders handoff templates.
  */
 
-import type { AgentDefinition, WorkflowConfig } from "./workflow-types.ts";
+import type {
+  AgentDefinition,
+  TransformerDefinition,
+  WorkflowConfig,
+} from "./workflow-types.ts";
 import { stripPrefix } from "./label-resolver.ts";
 
 /**
@@ -23,6 +27,12 @@ export function computeTransition(
   if (agent.role === "transformer") {
     if (outcome === "success") {
       return { targetPhase: agent.outputPhase, isFallback: false };
+    }
+    // Look up outcome in fallbackPhases first, then fall back to fallbackPhase
+    const typed = agent as TransformerDefinition;
+    const mappedPhase = typed.fallbackPhases?.[outcome];
+    if (mappedPhase !== undefined) {
+      return { targetPhase: mappedPhase, isFallback: true };
     }
     if (agent.fallbackPhase === undefined) {
       throw new Error(

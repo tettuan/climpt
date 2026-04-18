@@ -23,9 +23,12 @@ import { getValueAtPath } from "../runner/step-gate-interpreter.ts";
  * Resolve a DispatchOutcome.outcome string from an AgentResult, honoring the
  * agent's declared role.
  *
- * - `transformer`: outcome is binary. `success=true` → "success",
- *   `success=false` → "failed". Any `verdict` on the result is ignored because
- *   transformers do not contribute to verdict-based routing.
+ * - `transformer` (without `fallbackPhases`): outcome is binary.
+ *   `success=true` → "success", `success=false` → "failed". Any `verdict`
+ *   on the result is ignored.
+ * - `transformer` (with `fallbackPhases`): outcome uses `verdict` when
+ *   available, enabling outcome-specific fallback routing.
+ *   `success=true` → "success", `success=false` → `verdict ?? "failed"`.
  * - `validator`: outcome is the result's `verdict`. Absence of `verdict` is a
  *   programmer/config error — validators must always emit one — so we throw
  *   rather than fall back to a binary outcome.
@@ -36,6 +39,9 @@ export function resolveOutcome(
 ): string {
   switch (agent.role) {
     case "transformer":
+      if (agent.fallbackPhases) {
+        return result.verdict ?? (result.success ? "success" : "failed");
+      }
       return result.success ? "success" : "failed";
     case "validator":
       if (!result.verdict) {

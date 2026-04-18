@@ -78,6 +78,13 @@
             "type": "string",
             "description": "Phase to transition to on successful completion (transformer only)"
           },
+          "fallbackPhases": {
+            "type": "object",
+            "description": "Outcome-to-phase mapping for non-success results (transformer only). When defined, the agent's verdict selects the fallback phase. Unmatched outcomes fall back to fallbackPhase.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
           "outputPhases": {
             "type": "object",
             "description": "Judgment key to target phase mapping (validator only)",

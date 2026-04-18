@@ -57,6 +57,17 @@ export interface TransformerDefinition extends BaseAgentDefinition {
 
   /** Phase to transition to on successful completion */
   outputPhase: string;
+
+  /**
+   * Optional outcome-to-phase mapping for non-success results.
+   *
+   * When defined, `resolveOutcome` passes through the agent's `verdict`
+   * (instead of the binary "failed") and `computeTransition` looks up
+   * `fallbackPhases[outcome]` before falling back to `fallbackPhase`.
+   *
+   * Symmetric with `ValidatorDefinition.outputPhases`.
+   */
+  fallbackPhases?: Record<string, string>;
 }
 
 /** Agent that validates and routes to different phases based on judgment */

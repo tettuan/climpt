@@ -114,6 +114,54 @@ Deno.test("computeTransition - validator without fallbackPhase on unknown outcom
   );
 });
 
+// --- computeTransition: Transformer with fallbackPhases ---
+
+Deno.test("computeTransition - transformer+fallbackPhases: success → outputPhase (unchanged)", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "success");
+  assertEquals(result, { targetPhase: "review", isFallback: false });
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases: matching outcome → fallbackPhases[outcome]", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "transient");
+  assertEquals(
+    result,
+    { targetPhase: "backlog", isFallback: true },
+    "Outcome 'transient' must route to fallbackPhases['transient']. " +
+      "Fix: computeTransition must look up fallbackPhases before fallbackPhase.",
+  );
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases: unmatched outcome → fallbackPhase", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "unknown-category");
+  assertEquals(
+    result,
+    { targetPhase: "blocked", isFallback: true },
+    "Unmatched outcome must fall back to fallbackPhase. " +
+      "Fix: computeTransition must use fallbackPhase when outcome is not in fallbackPhases.",
+  );
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases, no fallbackPhase, unmatched outcome → throws", () => {
+  const agent = makeTransformer({
+    fallbackPhase: undefined,
+    fallbackPhases: { transient: "backlog" },
+  });
+  assertThrows(
+    () => computeTransition(agent, "unknown-category"),
+    Error,
+    "Transformer has no fallbackPhase",
+  );
+});
+
 // --- computeLabelChanges ---
 
 Deno.test("computeLabelChanges - removes workflow labels, adds target label", () => {

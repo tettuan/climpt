@@ -494,6 +494,94 @@ Deno.test("StubDispatcher: records DispatchOptions including payload", async () 
   assertEquals(dispatcher.calls[0].options?.iterateMax, 3);
 });
 
+// =============================================================================
+// resolveOutcome: transformer with fallbackPhases (verdict passthrough)
+//
+// When fallbackPhases is defined on a transformer, resolveOutcome passes
+// through result.verdict instead of reducing to binary "success"/"failed".
+// This enables outcome-specific fallback routing in computeTransition.
+// =============================================================================
+
+const TRANSFORMER_WITH_FALLBACK_PHASES: TransformerDefinition = {
+  role: "transformer",
+  directory: "analyst",
+  outputPhase: "planning",
+  fallbackPhase: "blocked",
+  fallbackPhases: { transient: "backlog", permanent: "blocked" },
+};
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=true → 'success' (unchanged)",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: true }),
+      ),
+      "success",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=false, no verdict → 'failed'",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: false }),
+      ),
+      "failed",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=false, verdict='transient' → 'transient'",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: false, verdict: "transient" }),
+      ),
+      "transient",
+      "When fallbackPhases is defined, verdict must pass through for routing. " +
+        "Fix: resolveOutcome's transformer branch must check agent.fallbackPhases.",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=true, verdict='transient' → 'transient' (verdict wins)",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: true, verdict: "transient" }),
+      ),
+      "transient",
+      "When fallbackPhases is defined, verdict takes precedence over success flag. " +
+        "Fix: resolveOutcome must return verdict ?? binary.",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer, no fallbackPhases): verdict still ignored",
+  () => {
+    // Existing behavior preserved: transformer without fallbackPhases ignores verdict
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_AGENT,
+        makeResult({ success: false, verdict: "transient" }),
+      ),
+      "failed",
+      "Without fallbackPhases, transformer must still ignore verdict. " +
+        "Fix: resolveOutcome must only pass verdict when fallbackPhases is defined.",
+    );
+  },
+);
+
 // Invariant: missing fields in structuredOutput are silently skipped
 Deno.test("extractHandoffData: missing field in structuredOutput → skipped, no error", () => {
   const structuredOutput: Record<string, unknown> = { present: "value" };
