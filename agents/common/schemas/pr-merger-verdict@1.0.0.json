@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pr-merger-verdict@1.0.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "pr_number",
+    "base_branch",
+    "verdict",
+    "reviewer_summary",
+    "evaluated_at",
+    "reviewer_agent_version",
+    "ci_required"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "pr_number": { "type": "number" },
+    "base_branch": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["approved", "rejected"] },
+    "merge_method": { "type": "string", "enum": ["merge", "squash", "rebase"] },
+    "delete_branch": { "type": "boolean" },
+    "reviewer_summary": { "type": "string" },
+    "evaluated_at": { "type": "string" },
+    "reviewer_agent_version": { "type": "string" },
+    "ci_required": { "type": ["string", "boolean"] },
+    "prNumber": { "type": "number" },
+    "verdictPath": { "type": "string" }
+  },
+  "additionalProperties": true
+}

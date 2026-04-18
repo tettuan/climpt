@@ -1,4 +1,5 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import { fromFileUrl } from "@std/path";
 import type {
   AgentDefinition,
   TransformerDefinition,
@@ -10,6 +11,14 @@ import {
   computeTransition,
   renderTemplate,
 } from "./phase-transition.ts";
+import { loadWorkflow } from "./workflow-loader.ts";
+
+/**
+ * Absolute path to the repository root (two levels up from this file).
+ * Used so that the real `.agent/workflow.json` can serve as the source of
+ * truth for the three-stage (consider -> detail -> impl) pipeline tests.
+ */
+const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 
 // --- Helpers ---
 
@@ -105,6 +114,54 @@ Deno.test("computeTransition - validator without fallbackPhase on unknown outcom
   );
 });
 
+// --- computeTransition: Transformer with fallbackPhases ---
+
+Deno.test("computeTransition - transformer+fallbackPhases: success → outputPhase (unchanged)", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "success");
+  assertEquals(result, { targetPhase: "review", isFallback: false });
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases: matching outcome → fallbackPhases[outcome]", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "transient");
+  assertEquals(
+    result,
+    { targetPhase: "backlog", isFallback: true },
+    "Outcome 'transient' must route to fallbackPhases['transient']. " +
+      "Fix: computeTransition must look up fallbackPhases before fallbackPhase.",
+  );
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases: unmatched outcome → fallbackPhase", () => {
+  const agent = makeTransformer({
+    fallbackPhases: { transient: "backlog", permanent: "blocked" },
+  });
+  const result = computeTransition(agent, "unknown-category");
+  assertEquals(
+    result,
+    { targetPhase: "blocked", isFallback: true },
+    "Unmatched outcome must fall back to fallbackPhase. " +
+      "Fix: computeTransition must use fallbackPhase when outcome is not in fallbackPhases.",
+  );
+});
+
+Deno.test("computeTransition - transformer+fallbackPhases, no fallbackPhase, unmatched outcome → throws", () => {
+  const agent = makeTransformer({
+    fallbackPhase: undefined,
+    fallbackPhases: { transient: "backlog" },
+  });
+  assertThrows(
+    () => computeTransition(agent, "unknown-category"),
+    Error,
+    "Transformer has no fallbackPhase",
+  );
+});
+
 // --- computeLabelChanges ---
 
 Deno.test("computeLabelChanges - removes workflow labels, adds target label", () => {
@@ -136,6 +193,118 @@ Deno.test("computeLabelChanges - no label mapping for target → empty add", () 
   assertEquals(result.labelsToRemove, ["ready"]);
   assertEquals(result.labelsToAdd, []);
 });
+
+// --- computeLabelChanges: terminal + prioritizer labels ---
+
+Deno.test(
+  "computeLabelChanges - terminal transition strips prioritizer labels (contract)",
+  async () => {
+    // Source of truth: .agent/workflow.json. done is terminal and
+    // prioritizer.labels enumerates order:N. On terminal transitions the
+    // prioritizer labels must be released so seq capacity is freed.
+    const config = await loadWorkflow(REPO_ROOT);
+    const doneLabel = findLabelForPhase(config, "done");
+    const implLabel = findLabelForPhase(config, "impl-pending");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    if (orderLabels.length === 0) {
+      throw new Error(
+        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty. " +
+          "Fix: keep order:N enumerated in prioritizer.labels or update this test.",
+      );
+    }
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [implLabel, orderLabel, "enhancement"],
+      config.labelMapping[doneLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(implLabel),
+      true,
+      "Terminal transition must remove the current kind:* label. " +
+        "Fix: labelMapping keys are always stripped regardless of target type.",
+    );
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      true,
+      "Terminal transition must remove prioritizer labels (order:N) so seq " +
+        "capacity is released. Fix: phase-transition.computeLabelChanges must " +
+        "add config.prioritizer.labels to the strip set when " +
+        "config.phases[targetPhase].type === 'terminal'.",
+    );
+    assertEquals(
+      result.labelsToRemove.includes("enhancement"),
+      false,
+      "Non-workflow labels (e.g., enhancement) must be preserved across transitions. " +
+        "Fix: strip set must be scoped to labelMapping keys ∪ prioritizer.labels only.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - non-terminal transition preserves prioritizer labels (3-stage pipe invariant)",
+  async () => {
+    // Invariant: a subject traversing consider -> detail -> impl keeps one
+    // order:N slot (workflow-issue-states.md §"Order seq の消費と解放").
+    // Only terminal transitions release it.
+    const config = await loadWorkflow(REPO_ROOT);
+    const considerLabel = findLabelForPhase(config, "consider-pending");
+    const detailLabel = findLabelForPhase(config, "detail-pending");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    if (orderLabels.length === 0) {
+      throw new Error(
+        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty.",
+      );
+    }
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [considerLabel, orderLabel],
+      config.labelMapping[detailLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      false,
+      "consider -> detail (both actionable) must preserve order:N. " +
+        "Fix: only terminal transitions may strip prioritizer labels.",
+    );
+    assertEquals(
+      result.labelsToRemove,
+      [considerLabel],
+      "Non-terminal transition must only rewrite the kind:* label.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - blocking transition preserves prioritizer labels",
+  async () => {
+    // S4.blocked retains kind:* + order:N per design (workflow-issue-states.md).
+    const config = await loadWorkflow(REPO_ROOT);
+    const implLabel = findLabelForPhase(config, "impl-pending");
+    const blockedLabel = findLabelForPhase(config, "blocked");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [implLabel, orderLabel],
+      config.labelMapping[blockedLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      false,
+      "blocking transition must preserve order:N (blocked issues still " +
+        "occupy their seq slot). Fix: phase type check must be strictly " +
+        "'terminal', not 'terminal' ∪ 'blocking'.",
+    );
+  },
+);
 
 // --- renderTemplate ---
 
@@ -212,3 +381,183 @@ Deno.test("computeLabelChanges - without prefix works as before", () => {
   assertEquals(result.labelsToRemove, ["ready"]);
   assertEquals(result.labelsToAdd, ["review"]);
 });
+
+// ---------------------------------------------------------------------------
+// Three-stage pipeline: consider -> detail -> impl
+//
+// Source of truth: .agent/workflow.json. Expectations are derived from the
+// loaded configuration so that a change in workflow.json propagates to the
+// tests without manual synchronization.
+// ---------------------------------------------------------------------------
+
+/** Narrowing helper: asserts an AgentDefinition is a ValidatorDefinition. */
+function asValidator(agent: AgentDefinition): ValidatorDefinition {
+  if (agent.role !== "validator") {
+    throw new Error(
+      `Expected validator role, received "${agent.role}". ` +
+        "Fix: .agent/workflow.json must keep this agent declared as role=validator.",
+    );
+  }
+  return agent;
+}
+
+Deno.test(
+  "computeTransition - considerer verdict=handoff-detail routes to detail-pending (from workflow.json)",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+    const considerer = asValidator(config.agents["considerer"]);
+
+    // Source of truth: outputPhases["handoff-detail"] in workflow.json.
+    const expectedPhase = considerer.outputPhases["handoff-detail"];
+    const result = computeTransition(considerer, "handoff-detail");
+
+    assertEquals(
+      result,
+      { targetPhase: expectedPhase, isFallback: false },
+      "considerer must route handoff-detail to the phase declared in " +
+        ".agent/workflow.json agents.considerer.outputPhases['handoff-detail']. " +
+        "Fix: keep outputPhases wiring and computeTransition aligned.",
+    );
+  },
+);
+
+Deno.test(
+  "computeTransition - considerer verdict=done routes to done phase (from workflow.json)",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+    const considerer = asValidator(config.agents["considerer"]);
+
+    const expectedPhase = considerer.outputPhases["done"];
+    const result = computeTransition(considerer, "done");
+
+    assertEquals(
+      result,
+      { targetPhase: expectedPhase, isFallback: false },
+      "considerer must route verdict=done to the phase declared in " +
+        ".agent/workflow.json agents.considerer.outputPhases['done']. " +
+        "Fix: keep outputPhases wiring and computeTransition aligned.",
+    );
+  },
+);
+
+Deno.test(
+  "computeTransition - detailer verdict=handoff-impl routes to impl-pending (from workflow.json)",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+    const detailer = asValidator(config.agents["detailer"]);
+
+    const expectedPhase = detailer.outputPhases["handoff-impl"];
+    const result = computeTransition(detailer, "handoff-impl");
+
+    assertEquals(
+      result,
+      { targetPhase: expectedPhase, isFallback: false },
+      "detailer must route handoff-impl to the phase declared in " +
+        ".agent/workflow.json agents.detailer.outputPhases['handoff-impl']. " +
+        "Fix: keep outputPhases wiring and computeTransition aligned.",
+    );
+  },
+);
+
+Deno.test(
+  "computeTransition - detailer verdict=blocked routes to blocked phase (from workflow.json)",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+    const detailer = asValidator(config.agents["detailer"]);
+
+    const expectedPhase = detailer.outputPhases["blocked"];
+    const result = computeTransition(detailer, "blocked");
+
+    assertEquals(
+      result,
+      { targetPhase: expectedPhase, isFallback: false },
+      "detailer must route verdict=blocked to the phase declared in " +
+        ".agent/workflow.json agents.detailer.outputPhases['blocked']. " +
+        "Fix: keep outputPhases wiring and computeTransition aligned.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - kind:consider -> detail-pending rewrites consider label to detail label",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+
+    // Derive the label pair from the labelMapping (source of truth).
+    const considerLabel = findLabelForPhase(config, "consider-pending");
+    const detailLabel = findLabelForPhase(config, "detail-pending");
+    const detailPhase = config.labelMapping[detailLabel];
+
+    const result = computeLabelChanges(
+      [considerLabel, "bug"],
+      detailPhase,
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove,
+      [considerLabel],
+      "Transition to detail-pending must remove the kind:consider label. " +
+        "Fix: .agent/workflow.json labelMapping must keep kind:consider -> consider-pending.",
+    );
+    assertEquals(
+      result.labelsToAdd,
+      [detailLabel],
+      "Transition to detail-pending must add the kind:detail label. " +
+        "Fix: .agent/workflow.json labelMapping must keep kind:detail -> detail-pending.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - kind:detail -> impl-pending rewrites detail label to impl label",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+
+    const detailLabel = findLabelForPhase(config, "detail-pending");
+    const implLabel = findLabelForPhase(config, "impl-pending");
+    const implPhase = config.labelMapping[implLabel];
+
+    const result = computeLabelChanges(
+      [detailLabel, "bug"],
+      implPhase,
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove,
+      [detailLabel],
+      "Transition to impl-pending must remove the kind:detail label. " +
+        "Fix: .agent/workflow.json labelMapping must keep kind:detail -> detail-pending.",
+    );
+    assertEquals(
+      result.labelsToAdd,
+      [implLabel],
+      "Transition to impl-pending must add the kind:impl label. " +
+        "Fix: .agent/workflow.json labelMapping must keep kind:impl -> impl-pending.",
+    );
+  },
+);
+
+/**
+ * Finds the label whose mapping targets the given phase.
+ *
+ * Throws with an actionable message when the phase is not referenced — this
+ * catches configuration drift (e.g., `detail-pending` removed from
+ * labelMapping) early so the tests do not silently pass with wrong data.
+ */
+function findLabelForPhase(
+  config: WorkflowConfig,
+  targetPhase: string,
+): string {
+  for (const [label, phase] of Object.entries(config.labelMapping)) {
+    if (phase === targetPhase) {
+      return label;
+    }
+  }
+  throw new Error(
+    `No label in .agent/workflow.json labelMapping targets phase "${targetPhase}". ` +
+      "Fix: add a label entry mapping to this phase, or update the test if the " +
+      "phase was intentionally renamed.",
+  );
+}

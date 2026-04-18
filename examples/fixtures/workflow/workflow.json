@@ -38,5 +38,5 @@
       "reviewerRejected": "[Review] Gaps found.\n{final_summary}"
     }
   },
-  "issueStore": { "path": ".agent/climpt/tmp/issues" }
+  "subjectStore": { "path": ".agent/climpt/tmp/issues" }
 }

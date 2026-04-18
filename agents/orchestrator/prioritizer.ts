@@ -7,7 +7,7 @@
  */
 
 import type { PrioritizerConfig } from "./workflow-types.ts";
-import type { IssueStore } from "./issue-store.ts";
+import type { SubjectStore } from "./subject-store.ts";
 import type { AgentDispatcher } from "./dispatcher.ts";
 
 export type { PrioritizerConfig };
@@ -25,12 +25,12 @@ export interface PrioritizerResult {
 
 export class Prioritizer {
   #config: PrioritizerConfig;
-  #store: IssueStore;
+  #store: SubjectStore;
   #dispatcher: AgentDispatcher;
 
   constructor(
     config: PrioritizerConfig,
-    store: IssueStore,
+    store: SubjectStore,
     dispatcher: AgentDispatcher,
   ) {
     this.#config = config;
@@ -43,14 +43,14 @@ export class Prioritizer {
     const storePath = this.#store.storePath;
 
     // Guard: skip dispatch if store has no issues
-    const issueNumbers = await this.#store.listIssues();
-    if (issueNumbers.length === 0) {
+    const subjectIds = await this.#store.listIssues();
+    if (subjectIds.length === 0) {
       return { assignments: [] };
     }
 
     // Write issue manifest for the agent to consume
     const issueListPath = `${storePath}/issue-list.json`;
-    await Deno.writeTextFile(issueListPath, JSON.stringify(issueNumbers));
+    await Deno.writeTextFile(issueListPath, JSON.stringify(subjectIds));
 
     await this.#dispatcher.dispatch(this.#config.agent, 0, {});
 

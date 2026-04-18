@@ -6,8 +6,15 @@
  */
 
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
-import { join } from "@std/path";
+import { fromFileUrl, join } from "@std/path";
 import { loadWorkflow } from "./workflow-loader.ts";
+
+/**
+ * Absolute path to the repository root. Used to integration-test the real
+ * `.agent/workflow.json` as the source of truth for the three-stage
+ * consider -> detail -> impl pipeline.
+ */
+const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 
 /** Minimal valid workflow config for test fixtures */
 function validConfig(): Record<string, unknown> {
@@ -440,6 +447,349 @@ Deno.test("workflow-loader: labelPrefix is undefined when omitted", async () => 
     await writeFixture(dir, validConfig());
     const config = await loadWorkflow(dir);
     assertEquals(config.labelPrefix, undefined);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// handoffs[] and payloadSchema (declarative artifact emission bindings)
+// =============================================================================
+
+Deno.test("workflow-loader: config with handoffs[] and payloadSchema loads successfully", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    cfg.payloadSchema = { $ref: "./schemas/sample-payload.json" };
+    cfg.handoffs = [
+      {
+        id: "sample-approved",
+        when: { fromAgent: "reviewer", outcome: "approved" },
+        emit: {
+          type: "verdict",
+          schemaRef: "sample-verdict@1.0.0",
+          path: "tmp/climpt/orchestrator/emits/${payload.prNumber}.json",
+        },
+        payloadFrom: {
+          prNumber: "$.agent.result.pr_number",
+          verdict: "$.agent.result.outcome",
+          schema_version: "'1.0.0'",
+        },
+        persistPayloadTo: "subjectStore",
+      },
+    ];
+    await writeFixture(dir, cfg);
+
+    const config = await loadWorkflow(dir);
+
+    assertEquals(
+      config.payloadSchema?.$ref,
+      "./schemas/sample-payload.json",
+      "payloadSchema.$ref must round-trip through the loader. " +
+        "Fix: workflow-loader populates WorkflowConfig.payloadSchema from parsed JSON.",
+    );
+    assertEquals(config.handoffs?.length, 1);
+    assertEquals(config.handoffs?.[0].id, "sample-approved");
+    assertEquals(config.handoffs?.[0].when.fromAgent, "reviewer");
+    assertEquals(config.handoffs?.[0].when.outcome, "approved");
+    assertEquals(
+      config.handoffs?.[0].emit.schemaRef,
+      "sample-verdict@1.0.0",
+    );
+    assertEquals(config.handoffs?.[0].persistPayloadTo, "subjectStore");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: handoffs and payloadSchema remain undefined when omitted", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    await writeFixture(dir, validConfig());
+    const config = await loadWorkflow(dir);
+    assertEquals(config.handoffs, undefined);
+    assertEquals(config.payloadSchema, undefined);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// Integration: three-stage pipeline (consider -> detail -> impl) from the
+// real .agent/workflow.json. Confirms the loader accepts the new detailer
+// agent, detail-pending phase, kind:detail label, and handoff comment
+// templates without any additional schema changes.
+// =============================================================================
+
+Deno.test(
+  "workflow-loader: real .agent/workflow.json exposes the three-stage pipeline",
+  async () => {
+    const config = await loadWorkflow(REPO_ROOT);
+
+    // Phase: detail-pending must exist as actionable and point to detailer.
+    const detailPhase = config.phases["detail-pending"];
+    assertEquals(
+      detailPhase?.type,
+      "actionable",
+      "detail-pending phase must be declared as actionable. " +
+        "Fix: .agent/workflow.json phases['detail-pending'].type = 'actionable'.",
+    );
+    assertEquals(
+      detailPhase?.agent,
+      "detailer",
+      "detail-pending phase must dispatch the detailer agent. " +
+        "Fix: .agent/workflow.json phases['detail-pending'].agent = 'detailer'.",
+    );
+
+    // Agent: detailer must be a validator routing handoff-impl and blocked.
+    const detailer = config.agents["detailer"];
+    assertEquals(
+      detailer?.role,
+      "validator",
+      "detailer must be declared as role=validator so verdicts drive routing. " +
+        "Fix: .agent/workflow.json agents.detailer.role = 'validator'.",
+    );
+    if (detailer.role === "validator") {
+      assertEquals(
+        detailer.outputPhases["handoff-impl"],
+        "impl-pending",
+        "detailer handoff-impl verdict must route to impl-pending. " +
+          "Fix: .agent/workflow.json agents.detailer.outputPhases['handoff-impl'].",
+      );
+      assertEquals(
+        detailer.outputPhases["blocked"],
+        "blocked",
+        "detailer blocked verdict must route to the blocked phase. " +
+          "Fix: .agent/workflow.json agents.detailer.outputPhases['blocked'].",
+      );
+    }
+
+    // Agent: considerer must expose the handoff-detail verdict now that it
+    // has been promoted from transformer to validator.
+    const considerer = config.agents["considerer"];
+    assertEquals(
+      considerer?.role,
+      "validator",
+      "considerer must be declared as role=validator to emit verdicts. " +
+        "Fix: .agent/workflow.json agents.considerer.role = 'validator'.",
+    );
+    if (considerer.role === "validator") {
+      assertEquals(
+        considerer.outputPhases["handoff-detail"],
+        "detail-pending",
+        "considerer handoff-detail verdict must route to detail-pending. " +
+          "Fix: .agent/workflow.json agents.considerer.outputPhases['handoff-detail'].",
+      );
+      assertEquals(
+        considerer.outputPhases["done"],
+        "done",
+        "considerer done verdict must route to the done phase. " +
+          "Fix: .agent/workflow.json agents.considerer.outputPhases['done'].",
+      );
+    }
+
+    // labelMapping: kind:detail -> detail-pending is required so triager
+    // output routes to the new phase.
+    assertEquals(
+      config.labelMapping["kind:detail"],
+      "detail-pending",
+      "kind:detail label must map to detail-pending phase. " +
+        "Fix: .agent/workflow.json labelMapping['kind:detail'] = 'detail-pending'.",
+    );
+
+    // Handoff comment templates for both handoff legs must be present.
+    const templates = config.handoff?.commentTemplates ?? {};
+    const templateNames = ["considererHandoffDetail", "detailerHandoffImpl"];
+    for (const name of templateNames) {
+      const template = templates[name];
+      assertEquals(
+        typeof template,
+        "string",
+        `handoff.commentTemplates['${name}'] must be defined as a string. ` +
+          `Fix: add the ${name} template in .agent/workflow.json.`,
+      );
+      if (typeof template === "string") {
+        // Non-vacuity: template must be non-empty to carry a real message.
+        assertEquals(
+          template.length > 0,
+          true,
+          `handoff.commentTemplates['${name}'] must not be empty. ` +
+            `Fix: provide a meaningful body for ${name}.`,
+        );
+      }
+    }
+  },
+);
+
+// =============================================================================
+// labels section — opt-in validation (WF-LABEL-003 / 004 / 005)
+//
+// When `labels` is absent, validation is skipped (backwards compat with
+// pre-Phase-2 configs). When declared — even as {} — the full
+// completeness + orphan + color-format contract is enforced.
+// =============================================================================
+
+/** Extend validConfig() with a `labels` section. */
+function configWithLabels(
+  labels: Record<string, { color: string; description: string }>,
+): Record<string, unknown> {
+  const cfg = validConfig();
+  cfg.labels = labels;
+  return cfg;
+}
+
+Deno.test("workflow-loader: labels absent → validation skipped (backwards compat)", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // validConfig() has no `labels` field; should load cleanly.
+    await writeFixture(dir, validConfig());
+    const config = await loadWorkflow(dir);
+    assertEquals(
+      config.labels,
+      undefined,
+      "labels must remain undefined when omitted — no implicit default.",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-003 — labels present but missing spec for a labelMapping key", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // labelMapping has 4 keys (ready, review, done, blocked); declare only 3.
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      // "blocked" intentionally missing.
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-003");
+    assertStringIncludes(
+      err.message,
+      "blocked",
+      "Error must name the specific missing label to guide the fix.",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-003 — prioritizer.labels entry without a spec fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      // "order:1" referenced by prioritizer below — not declared.
+    });
+    cfg.prioritizer = {
+      mode: "label-based",
+      labels: ["order:1"],
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-003");
+    assertStringIncludes(err.message, "order:1");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-004 — orphan spec not referenced anywhere fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      // Orphan: referenced by neither labelMapping nor prioritizer.labels.
+      "legacy:abandoned": { color: "cccccc", description: "orphan" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-004");
+    assertStringIncludes(err.message, "legacy:abandoned");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-005 — invalid color (non-hex) fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "not-a-hex", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-005");
+    assertStringIncludes(err.message, "ready");
+    assertStringIncludes(err.message, "not-a-hex");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-005 — leading '#' on color rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Common paste mistake — GitHub's label API rejects leading '#'.
+    const cfg = configWithLabels({
+      ready: { color: "#a2eeef", description: "ready" },
+      review: { color: "fbca04", description: "review" },
+      done: { color: "0e8a16", description: "done" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-005");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: valid labels section (complete + in-spec) loads", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(Object.keys(config.labels ?? {}).length, 4);
+    assertEquals(config.labels?.ready?.color, "a2eeef");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: uppercase hex colors accepted", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // GitHub normalises to lowercase internally, but the loader must
+    // accept either form to avoid gratuitously rejecting human-authored
+    // configs that use the Cb palette docs (often uppercase).
+    const cfg = configWithLabels({
+      ready: { color: "A2EEEF", description: "ready" },
+      review: { color: "FBCA04", description: "review" },
+      done: { color: "0E8A16", description: "done" },
+      blocked: { color: "D93F0B", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.labels?.ready?.color, "A2EEEF");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

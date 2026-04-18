@@ -122,10 +122,11 @@ Defines agent behavior:
 
 ### rules
 
-| Field          | Default | Description                                                       |
-| -------------- | ------- | ----------------------------------------------------------------- |
-| `maxCycles`    | 5       | Max transitions per issue (loop guard)                            |
-| `cycleDelayMs` | 10000   | Delay between cycles (ms); shows countdown with safe-stop message |
+| Field                  | Default | Description                                                                                                                              |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxCycles`            | 5       | Max transitions per issue (loop guard)                                                                                                   |
+| `cycleDelayMs`         | 10000   | Delay between cycles (ms); shows countdown with safe-stop message                                                                        |
+| `maxConsecutivePhases` | 0 (off) | Stop with `phase_repetition_exceeded` when the same phase appears N times in a row. Evaluated before `maxCycles`. `0` disables the check |
 
 ### prioritizer
 
@@ -282,6 +283,9 @@ The orchestrator outputs a JSON result:
 
 - `"completed"` — Reached a terminal phase.
 - `"blocked"` — Reached a blocking phase or no actionable labels found.
+- `"phase_repetition_exceeded"` — The same phase appeared `maxConsecutivePhases`
+  times consecutively. Catches stuck patterns earlier than `maxCycles` (default
+  `0` = disabled).
 - `"cycle_exceeded"` — Hit `maxCycles` limit.
 - `"dry-run"` — Actionable phase resolved; would dispatch but `--dry-run`
   skipped it.

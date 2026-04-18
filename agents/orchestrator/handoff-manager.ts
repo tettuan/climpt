@@ -50,7 +50,7 @@ export class HandoffManager {
    */
   async renderAndPost(
     github: GitHubClient,
-    issueNumber: number,
+    subjectId: string | number,
     agentId: string,
     outcome: string,
     vars: Record<string, string>,
@@ -59,6 +59,6 @@ export class HandoffManager {
     if (template === undefined) return;
 
     const comment = renderTemplate(template, vars);
-    await github.addIssueComment(issueNumber, comment);
+    await github.addIssueComment(subjectId, comment);
   }
 }

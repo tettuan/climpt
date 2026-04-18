@@ -191,6 +191,84 @@ StepMachineVerdictHandler が内部に遷移ロジック (transition, getNextSte
    - 外部条件 → true
 ```
 
+## Phase 遷移の契約
+
+Orchestrator が 1 サイクル内で実行する gh 複合操作 (label add / label remove /
+handoff comment / close) の一貫性を定義する契約。適用先の詳細シーケンスと補償
+マトリクスは `12_orchestrator.md` の「Phase 遷移 Transaction」セクション参照。
+
+### 不変条件
+
+```
+phase 遷移は unit-atomic である
+
+- T3..T6 全成功 ⇒ tracker.record + commit (状態確定)
+- いずれか失敗 ⇒ rollback (補償を LIFO 実行) + status="blocked" + next-cycle retry
+- 中間状態で観測されない: 「label は付いたが issue は open」「close したが
+  label は旧 phase のまま」等の片側成功は発生しない
+
+cycleTracker.record は全 T 成功時のみ起動する
+  ⇒ 部分失敗サイクルが次サイクル判定を歪めない
+```
+
+### 判断基準: TransactionScope を使うか
+
+```
+問い: 「片側成功で issue の観測状態が壊れる操作群か?」
+
+Yes ⇒ TransactionScope に閉じ込める
+No  ⇒ 独立した try/catch で best-effort 実行でよい
+```
+
+### 使用判断表
+
+| ケース                                            | 判断 | 根拠                                                      |
+| ------------------------------------------------- | ---- | --------------------------------------------------------- |
+| Phase 遷移 (label add + remove + comment + close) | 必要 | close 失敗で label 宙ぶらり (G2) が発生する               |
+| 単発 comment 投稿                                 | 不要 | 失敗しても他の状態を壊さない、単独の try/catch で足りる   |
+| 独立な複数 issue の順次操作 (batch)               | 不要 | issue 間に依存なし。issue 単位で個別に scope を作ればよい |
+| pure 計算 (computeLabelChanges 等)                | 不要 | 副作用がないため補償対象外                                |
+
+### Compensation の契約
+
+```
+record(compensation) → void
+  入力: { label, idempotencyKey, run: () => Promise<void> }
+  副作用: LIFO スタックへ push
+  前提: scope が open 状態
+  保証: committed / rolledBack 状態では no-op
+
+commit() → Promise<void>
+  副作用: 補償スタックを破棄、状態を committed へ遷移
+  保証: 冪等 (再呼び出しは no-op)
+
+rollback(cause) → Promise<CompensationReport>
+  副作用: 補償を LIFO で実行。個別失敗は捕捉され report.failed に集約
+  保証: throw しない。logger 自身の例外も rollback を止めない
+        report.partial = succeeded < attempted
+
+Compensation.run() の責務:
+  - 冪等性: 同 idempotencyKey での 2 回実行で副作用が重複しない
+    (例: compensation comment は `orchestrator.ts` の compensationMarker
+    factory から得た文字列を事前検索して skip。形式・表示は同ファイル
+    を唯一の source of truth とする)
+  - retry: 必要なら run() 内部で実装する (TransactionScope は関与しない)
+```
+
+### VerdictHandler 契約との整合
+
+VerdictHandler は Agent 完了を判定するだけで、外部副作用は onBoundaryHook
+を単一の出口として実行する (上述「VerdictHandler の責務外」参照)。Orchestrator
+側の Phase 遷移 Transaction は **この Boundary Hook の下流** で動作し、
+VerdictHandler が verdict を確定した「後」の gh 複合操作の原子性を保証する。
+両者は別レイヤーの契約であり、以下の分担を守る:
+
+```
+VerdictHandler:       Agent 完了の判定 (isFinished) まで
+Boundary Hook:        closing intent 確認 → Runner プロセスで gh 実行
+Phase 遷移 Transaction: Orchestrator サイクル内の gh 複合操作を unit-atomic に統合
+```
+
 ## 接続の契約
 
 ### LLM 問い合わせ

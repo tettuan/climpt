@@ -1,5 +1,5 @@
 /**
- * Issue Store
+ * Subject Store
  *
  * Filesystem-backed store for GitHub issue data.
  * Stores issue metadata, body, and comments in a structured
@@ -13,7 +13,7 @@
  *   {storePath}/{number}/workflow-state.{workflowId}.json
  */
 
-import type { IssueWorkflowState } from "./workflow-types.ts";
+import type { IssueWorkflowState, SubjectPayload } from "./workflow-types.ts";
 
 /** Issue metadata stored in meta.json */
 export interface IssueMeta {
@@ -38,7 +38,7 @@ export interface IssueData {
   comments: IssueComment[];
 }
 
-export class IssueStore {
+export class SubjectStore {
   #storePath: string;
   #dirEnsured = false;
 
@@ -85,21 +85,21 @@ export class IssueStore {
   }
 
   /** Read meta.json for an issue. */
-  async readMeta(issueNumber: number): Promise<IssueMeta> {
-    const path = `${this.getIssuePath(issueNumber)}/meta.json`;
+  async readMeta(subjectId: string | number): Promise<IssueMeta> {
+    const path = `${this.getIssuePath(subjectId)}/meta.json`;
     const text = await Deno.readTextFile(path);
     return JSON.parse(text) as IssueMeta;
   }
 
   /** Read body.md for an issue. */
-  async readBody(issueNumber: number): Promise<string> {
-    const path = `${this.getIssuePath(issueNumber)}/body.md`;
+  async readBody(subjectId: string | number): Promise<string> {
+    const path = `${this.getIssuePath(subjectId)}/body.md`;
     return await Deno.readTextFile(path);
   }
 
   /** Read all comments for an issue. */
-  async readComments(issueNumber: number): Promise<IssueComment[]> {
-    const commentsDir = `${this.getIssuePath(issueNumber)}/comments`;
+  async readComments(subjectId: string | number): Promise<IssueComment[]> {
+    const commentsDir = `${this.getIssuePath(subjectId)}/comments`;
     const comments: IssueComment[] = [];
 
     for await (const entry of Deno.readDir(commentsDir)) {
@@ -133,7 +133,7 @@ export class IssueStore {
         // so the situation is traceable.
         // deno-lint-ignore no-console
         console.debug(
-          `[IssueStore] NotFound after ensureDir for "${this.#storePath}"`,
+          `[SubjectStore] NotFound after ensureDir for "${this.#storePath}"`,
         );
         return [];
       }
@@ -146,12 +146,12 @@ export class IssueStore {
 
   /** Partial update of meta.json. */
   async updateMeta(
-    issueNumber: number,
+    subjectId: string | number,
     updates: Partial<IssueMeta>,
   ): Promise<void> {
-    const existing = await this.readMeta(issueNumber);
+    const existing = await this.readMeta(subjectId);
     const merged = { ...existing, ...updates };
-    const path = `${this.getIssuePath(issueNumber)}/meta.json`;
+    const path = `${this.getIssuePath(subjectId)}/meta.json`;
     await Deno.writeTextFile(
       path,
       JSON.stringify(merged, null, 2) + "\n",
@@ -159,8 +159,8 @@ export class IssueStore {
   }
 
   /** Get outbox directory path for an issue. */
-  getOutboxPath(issueNumber: number): string {
-    return `${this.#storePath}/${issueNumber}/outbox`;
+  getOutboxPath(subjectId: string | number): string {
+    return `${this.#storePath}/${subjectId}/outbox`;
   }
 
   /** Get the root store path. */
@@ -169,20 +169,20 @@ export class IssueStore {
   }
 
   /** Clear all files in outbox directory. */
-  async clearOutbox(issueNumber: number): Promise<void> {
-    const outboxDir = this.getOutboxPath(issueNumber);
+  async clearOutbox(subjectId: string | number): Promise<void> {
+    const outboxDir = this.getOutboxPath(subjectId);
     for await (const entry of Deno.readDir(outboxDir)) {
       await Deno.remove(`${outboxDir}/${entry.name}`, { recursive: true });
     }
   }
 
-  /** Write workflow state to {storePath}/{issueNumber}/workflow-state.{workflowId}.json. */
+  /** Write workflow state to {storePath}/{subjectId}/workflow-state.{workflowId}.json. */
   async writeWorkflowState(
-    issueNumber: number,
+    subjectId: string | number,
     state: IssueWorkflowState,
     workflowId: string,
   ): Promise<void> {
-    const dir = this.getIssuePath(issueNumber);
+    const dir = this.getIssuePath(subjectId);
     await Deno.mkdir(dir, { recursive: true });
     await Deno.writeTextFile(
       `${dir}/workflow-state.${workflowId}.json`,
@@ -190,13 +190,13 @@ export class IssueStore {
     );
   }
 
-  /** Read workflow state from {storePath}/{issueNumber}/workflow-state.{workflowId}.json. Returns null if not found. */
+  /** Read workflow state from {storePath}/{subjectId}/workflow-state.{workflowId}.json. Returns null if not found. */
   async readWorkflowState(
-    issueNumber: number,
+    subjectId: string | number,
     workflowId: string,
   ): Promise<IssueWorkflowState | null> {
     const path = `${
-      this.getIssuePath(issueNumber)
+      this.getIssuePath(subjectId)
     }/workflow-state.${workflowId}.json`;
     try {
       const text = await Deno.readTextFile(path);
@@ -207,6 +207,53 @@ export class IssueStore {
       }
       throw error;
     }
+  }
+
+  /**
+   * Write an opaque workflow payload to
+   * `{storePath}/{subjectId}/workflow-payload.{workflowId}.json`.
+   *
+   * Payload shape is workflow-specific and opaque to the store; callers
+   * are responsible for schema validation before calling this method.
+   */
+  async writeWorkflowPayload(
+    subjectId: string | number,
+    workflowId: string,
+    payload: SubjectPayload,
+  ): Promise<void> {
+    const dir = this.getIssuePath(subjectId);
+    await Deno.mkdir(dir, { recursive: true });
+    await Deno.writeTextFile(
+      `${dir}/workflow-payload.${workflowId}.json`,
+      JSON.stringify(payload, null, 2) + "\n",
+    );
+  }
+
+  /**
+   * Read a previously persisted workflow payload.
+   *
+   * Returns `undefined` when no payload has been written for this
+   * `(subjectId, workflowId)` pair. Any other IO or JSON parse error
+   * is propagated; this distinguishes "not present yet" from "corrupt
+   * state" in a way callers can branch on.
+   */
+  async readWorkflowPayload(
+    subjectId: string | number,
+    workflowId: string,
+  ): Promise<SubjectPayload | undefined> {
+    const path = `${
+      this.getIssuePath(subjectId)
+    }/workflow-payload.${workflowId}.json`;
+    let text: string;
+    try {
+      text = await Deno.readTextFile(path);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return undefined;
+      }
+      throw error;
+    }
+    return JSON.parse(text) as SubjectPayload;
   }
 
   /**
@@ -316,13 +363,13 @@ export class IssueStore {
    */
   async acquireIssueLock(
     workflowId: string,
-    issueNumber: number,
+    subjectId: string | number,
   ): Promise<{ release: () => void } | null> {
-    return await this.acquireLock(`${workflowId}.${issueNumber}`);
+    return await this.acquireLock(`${workflowId}.${subjectId}`);
   }
 
   /** Get issue directory path. */
-  getIssuePath(issueNumber: number): string {
-    return `${this.#storePath}/${issueNumber}`;
+  getIssuePath(subjectId: string | number): string {
+    return `${this.#storePath}/${subjectId}`;
   }
 }

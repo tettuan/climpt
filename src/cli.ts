@@ -33,7 +33,10 @@ let runBreakdown: (args: string[]) => Promise<void>;
  * @internal
  */
 async function importBreakdown(): Promise<void> {
-  const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
+  // Pinned exact (no caret) via BREAKDOWN_VERSION. See src/version.ts for
+  // the rationale (BreakdownError discriminated union must stay aligned
+  // with c3l-prompt-loader's typecast).
+  const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
   runBreakdown = mod.runBreakdown;
 }
 

@@ -1,0 +1,150 @@
+{
+  "$schema": "../agents/orchestrator/workflow-schema.json",
+  "version": "1.0.0",
+  "phases": {
+    "impl-pending": {
+      "type": "actionable",
+      "priority": 1,
+      "agent": "iterator"
+    },
+    "detail-pending": {
+      "type": "actionable",
+      "priority": 2,
+      "agent": "detailer"
+    },
+    "consider-pending": {
+      "type": "actionable",
+      "priority": 3,
+      "agent": "considerer"
+    },
+    "done": {
+      "type": "terminal"
+    },
+    "blocked": {
+      "type": "blocking"
+    }
+  },
+  "labelMapping": {
+    "kind:impl": "impl-pending",
+    "kind:detail": "detail-pending",
+    "kind:consider": "consider-pending",
+    "done": "done",
+    "need clearance": "blocked"
+  },
+  "labels": {
+    "kind:impl": {
+      "color": "a2eeef",
+      "description": "Implementation work (iterator)"
+    },
+    "kind:detail": {
+      "color": "fbca04",
+      "description": "Specification detailing (detailer)"
+    },
+    "kind:consider": {
+      "color": "bfd4f2",
+      "description": "Consideration/response (considerer)"
+    },
+    "done": {
+      "color": "0e8a16",
+      "description": "Work completed (awaiting orchestrator close)"
+    },
+    "need clearance": {
+      "color": "d93f0b",
+      "description": "Blocked — requires human clearance"
+    },
+    "order:1": {
+      "color": "c2e0c6",
+      "description": "Work order seq 1 (higher = sooner)"
+    },
+    "order:2": {
+      "color": "c2e0c6",
+      "description": "Work order seq 2"
+    },
+    "order:3": {
+      "color": "c2e0c6",
+      "description": "Work order seq 3"
+    },
+    "order:4": {
+      "color": "c2e0c6",
+      "description": "Work order seq 4"
+    },
+    "order:5": {
+      "color": "c2e0c6",
+      "description": "Work order seq 5"
+    },
+    "order:6": {
+      "color": "c2e0c6",
+      "description": "Work order seq 6"
+    },
+    "order:7": {
+      "color": "c2e0c6",
+      "description": "Work order seq 7"
+    },
+    "order:8": {
+      "color": "c2e0c6",
+      "description": "Work order seq 8"
+    },
+    "order:9": {
+      "color": "c2e0c6",
+      "description": "Work order seq 9"
+    }
+  },
+  "agents": {
+    "iterator": {
+      "role": "transformer",
+      "directory": "iterator",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeOnComplete": true
+    },
+    "considerer": {
+      "role": "validator",
+      "directory": "considerer",
+      "outputPhases": {
+        "done": "done",
+        "handoff-detail": "detail-pending"
+      },
+      "fallbackPhase": "blocked",
+      "closeOnComplete": true,
+      "closeCondition": "done"
+    },
+    "detailer": {
+      "role": "validator",
+      "directory": "detailer",
+      "outputPhases": {
+        "handoff-impl": "impl-pending",
+        "blocked": "blocked"
+      },
+      "fallbackPhase": "blocked",
+      "closeOnComplete": false
+    }
+  },
+  "handoff": {
+    "commentTemplates": {
+      "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
+      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}"
+    }
+  },
+  "prioritizer": {
+    "agent": "triager",
+    "labels": [
+      "order:1",
+      "order:2",
+      "order:3",
+      "order:4",
+      "order:5",
+      "order:6",
+      "order:7",
+      "order:8",
+      "order:9"
+    ]
+  },
+  "rules": {
+    "maxCycles": 7,
+    "cycleDelayMs": 30000,
+    "maxConsecutivePhases": 3
+  },
+  "subjectStore": {
+    "path": ".agent/climpt/tmp/issues-execute"
+  }
+}

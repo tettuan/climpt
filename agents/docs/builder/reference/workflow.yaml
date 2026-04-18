@@ -289,6 +289,26 @@ rules:
   # ----------------------------------------------------------
   cycleDelayMs: 10000
 
+  # ----------------------------------------------------------
+  # maxConsecutivePhases
+  # ----------------------------------------------------------
+  # Description : Block issue when same phase appears
+  #               consecutively N times. 0 disables the check.
+  # Type        : integer (minimum: 0)
+  # Required    : no
+  # Default     : 0 (disabled)
+  # Why         : Local stuck detection. Catches "same phase
+  #               repeats forever" patterns (e.g., revision →
+  #               revision → revision) earlier than maxCycles,
+  #               which only caps the total transition count.
+  #               Evaluated BEFORE maxCycles, so the resulting
+  #               status is "phase_repetition_exceeded" rather
+  #               than "cycle_exceeded" when both would trip.
+  #               Recommended value: 3 when maxCycles >= 5;
+  #               leave at 0 when maxCycles <= 3.
+  # ----------------------------------------------------------
+  # maxConsecutivePhases: 3
+
 # ============================================================
 # issueStore
 # ============================================================

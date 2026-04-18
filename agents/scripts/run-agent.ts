@@ -265,6 +265,29 @@ async function main(): Promise<void> {
       }
     }
 
+    // Label existence
+    if (result.labelExistenceResult) {
+      if (result.labelExistenceResult.valid) {
+        // deno-lint-ignore no-console
+        console.log("  \u2713 Labels \u2014 All declared labels exist on repo");
+      } else {
+        // deno-lint-ignore no-console
+        console.log("  \u2717 Labels \u2014 Missing labels on repository:");
+        for (const err of result.labelExistenceResult.errors) {
+          // deno-lint-ignore no-console
+          console.log(`    - ${err}`);
+        }
+        totalErrors += result.labelExistenceResult.errors.length;
+      }
+      if (result.labelExistenceResult.warnings.length > 0) {
+        for (const warn of result.labelExistenceResult.warnings) {
+          // deno-lint-ignore no-console
+          console.log(`  \u26A0 Labels \u2014 ${warn}`);
+        }
+        totalWarnings += result.labelExistenceResult.warnings.length;
+      }
+    }
+
     // Flow reachability
     if (result.flowResult) {
       if (result.flowResult.valid) {
@@ -516,12 +539,19 @@ async function main(): Promise<void> {
     // Build args for the runner
     const runnerArgs: Record<string, unknown> = {};
 
-    // Map CLI args to runner args based on definition parameters
+    // Map CLI args to runner args based on definition parameters.
+    // Precedence: explicit CLI arg > parameter.default (from agent.json).
+    // Without default-fallback, optional UV variables declared in
+    // steps_registry.json fail prompt resolution even though agent.json
+    // declares a default value.
     if (definition.parameters) {
-      for (const key of Object.keys(definition.parameters)) {
+      for (
+        const [key, param] of Object.entries(definition.parameters)
+      ) {
         // Convert camelCase to kebab-case for CLI arg lookup
         const kebabKey = key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-        const value = args[kebabKey] ?? args[key];
+        const cliValue = args[kebabKey] ?? args[key];
+        const value = cliValue ?? param.default;
         if (value !== undefined) {
           runnerArgs[key] = value;
         }

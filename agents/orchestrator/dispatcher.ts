@@ -6,17 +6,57 @@
  * invokes AgentRunner in-process.
  */
 
-import type { WorkflowConfig } from "./workflow-types.ts";
-import type { RateLimitInfo } from "../src_common/types/runtime.ts";
+import type {
+  AgentDefinition,
+  SubjectPayload,
+  WorkflowConfig,
+} from "./workflow-types.ts";
+import type {
+  AgentResult,
+  RateLimitInfo,
+} from "../src_common/types/runtime.ts";
 import { AgentRunner } from "../runner/runner.ts";
 import { loadConfiguration } from "../config/mod.ts";
 import { getValueAtPath } from "../runner/step-gate-interpreter.ts";
 
-/** Map AgentResult to DispatchOutcome.outcome string. Prefers verdict over binary. */
-export function mapResultToOutcome(
-  result: { success: boolean; verdict?: string },
+/**
+ * Resolve a DispatchOutcome.outcome string from an AgentResult, honoring the
+ * agent's declared role.
+ *
+ * - `transformer` (without `fallbackPhases`): outcome is binary.
+ *   `success=true` → "success", `success=false` → "failed". Any `verdict`
+ *   on the result is ignored.
+ * - `transformer` (with `fallbackPhases`): outcome uses `verdict` when
+ *   available, enabling outcome-specific fallback routing.
+ *   `success=true` → "success", `success=false` → `verdict ?? "failed"`.
+ * - `validator`: outcome is the result's `verdict`. Absence of `verdict` is a
+ *   programmer/config error — validators must always emit one — so we throw
+ *   rather than fall back to a binary outcome.
+ */
+export function resolveOutcome(
+  agent: AgentDefinition,
+  result: AgentResult,
 ): string {
-  return result.verdict ?? (result.success ? "success" : "failed");
+  switch (agent.role) {
+    case "transformer":
+      if (agent.fallbackPhases) {
+        return result.verdict ?? (result.success ? "success" : "failed");
+      }
+      return result.success ? "success" : "failed";
+    case "validator":
+      if (!result.verdict) {
+        throw new Error(
+          `Validator agent "${
+            agent.directory ?? "(unknown)"
+          }" must return a verdict`,
+        );
+      }
+      return result.verdict;
+    default: {
+      const _exhaust: never = agent;
+      throw new Error(`Unknown agent role: ${JSON.stringify(_exhaust)}`);
+    }
+  }
 }
 
 /**
@@ -56,6 +96,43 @@ export function extractHandoffData(
   return Object.keys(data).length > 0 ? data : undefined;
 }
 
+/**
+ * Compose the flat argument bag handed to {@link AgentRunner.run}.
+ *
+ * Precedence (later entries win on key collision):
+ *   1. `options.payload`  — opaque workflow-level values
+ *   2. fixed orchestration keys (`issue`, `iterateMax`, ...)
+ *
+ * The runner separately receives `options.payload` as `issuePayload` so
+ * the subprocess closure context can observe payload values even when
+ * the agent does not declare them as CLI parameters.
+ *
+ * Extracted for direct unit-testability; {@link RunnerDispatcher.dispatch}
+ * uses the same composition.
+ */
+export function composeRunnerArgs(
+  subjectId: string | number,
+  options?: DispatchOptions,
+): Record<string, unknown> {
+  const runnerArgs: Record<string, unknown> = {
+    ...(options?.payload ?? {}),
+    issue: subjectId,
+  };
+  if (options?.iterateMax !== undefined) {
+    runnerArgs.iterateMax = options.iterateMax;
+  }
+  if (options?.branch) {
+    runnerArgs.branch = options.branch;
+  }
+  if (options?.issueStorePath) {
+    runnerArgs.issueStorePath = options.issueStorePath;
+  }
+  if (options?.outboxPath) {
+    runnerArgs.outboxPath = options.outboxPath;
+  }
+  return runnerArgs;
+}
+
 /** Options passed to agent dispatch. */
 export interface DispatchOptions {
   iterateMax?: number;
@@ -63,6 +140,15 @@ export interface DispatchOptions {
   verbose?: boolean;
   issueStorePath?: string;
   outboxPath?: string;
+  /**
+   * Opaque per-workflow payload produced by a prior handoff emission.
+   * Keys are merged into `runnerArgs` before the fixed keys (`issue`,
+   * `iterateMax`, ...) so the fixed keys always win on collision, and
+   * the same payload is forwarded to the runner as `issuePayload` so
+   * the subprocess closure context can observe the workflow-level
+   * values independently of the agent's declared parameters.
+   */
+  readonly payload?: SubjectPayload;
 }
 
 /** Result of a single agent dispatch. */
@@ -72,15 +158,28 @@ export interface DispatchOutcome {
   rateLimitInfo?: RateLimitInfo;
   /** Closure step structured output fields selected by handoffFields. */
   handoffData?: Record<string, string>;
+  /**
+   * Last iteration's raw `structuredOutput`; source for ArtifactEmitter
+   * `$.agent.result.*` resolution. Opaque to the dispatcher; the emitter
+   * walks paths against it.
+   */
+  readonly structuredOutput?: Record<string, unknown>;
 }
 
 /** Abstract interface for dispatching agents. */
 export interface AgentDispatcher {
   dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: string | number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome>;
+}
+
+/** Recorded call made against {@link StubDispatcher}. */
+export interface StubDispatcherCall {
+  readonly agentId: string;
+  readonly subjectId: string | number;
+  readonly options?: DispatchOptions;
 }
 
 /** Stub dispatcher for testing - returns preconfigured outcomes. */
@@ -89,33 +188,44 @@ export class StubDispatcher implements AgentDispatcher {
   #callCount = 0;
   #rateLimitInfo?: RateLimitInfo;
   #handoffData?: Record<string, string>;
+  #structuredOutput?: Record<string, unknown>;
+  #calls: StubDispatcherCall[] = [];
 
   constructor(
     outcomes?: Record<string, string>,
     rateLimitInfo?: RateLimitInfo,
     handoffData?: Record<string, string>,
+    structuredOutput?: Record<string, unknown>,
   ) {
     this.#outcomes = new Map(Object.entries(outcomes ?? {}));
     this.#rateLimitInfo = rateLimitInfo;
     this.#handoffData = handoffData;
+    this.#structuredOutput = structuredOutput;
   }
 
   get callCount(): number {
     return this.#callCount;
   }
 
+  /** Invocation history for assertions in tests. */
+  get calls(): ReadonlyArray<StubDispatcherCall> {
+    return this.#calls;
+  }
+
   dispatch(
     agentId: string,
-    _issueNumber: number,
-    _options?: DispatchOptions,
+    subjectId: string | number,
+    options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
     this.#callCount++;
+    this.#calls.push({ agentId, subjectId, options });
     const outcome = this.#outcomes.get(agentId) ?? "success";
     return Promise.resolve({
       outcome,
       durationMs: 0,
       rateLimitInfo: this.#rateLimitInfo,
       handoffData: this.#handoffData,
+      structuredOutput: this.#structuredOutput,
     });
   }
 }
@@ -137,31 +247,25 @@ export class RunnerDispatcher implements AgentDispatcher {
 
   async dispatch(
     agentId: string,
-    issueNumber: number,
+    subjectId: string | number,
     options?: DispatchOptions,
   ): Promise<DispatchOutcome> {
     const startMs = performance.now();
 
     const agent = this.#config.agents[agentId];
-    const agentName = agent?.directory ?? agentId;
+    if (!agent) {
+      throw new Error(
+        `Unknown agent id "${agentId}": not declared in workflow.agents`,
+      );
+    }
+    const agentName = agent.directory ?? agentId;
 
     const definition = await loadConfiguration(agentName, this.#cwd);
 
-    const runnerArgs: Record<string, unknown> = {
-      issue: issueNumber,
-    };
-    if (options?.iterateMax !== undefined) {
-      runnerArgs.iterateMax = options.iterateMax;
-    }
-    if (options?.branch) {
-      runnerArgs.branch = options.branch;
-    }
-    if (options?.issueStorePath) {
-      runnerArgs.issueStorePath = options.issueStorePath;
-    }
-    if (options?.outboxPath) {
-      runnerArgs.outboxPath = options.outboxPath;
-    }
+    // Payload is spread as the base layer; fixed orchestration keys
+    // always win on collision, and unknown payload keys are forwarded
+    // verbatim (the runner ignores keys not declared by the agent).
+    const runnerArgs = composeRunnerArgs(subjectId, options);
 
     const runner = new AgentRunner(definition);
     const result = await runner.run({
@@ -169,6 +273,7 @@ export class RunnerDispatcher implements AgentDispatcher {
       args: runnerArgs,
       plugins: [],
       verbose: options?.verbose,
+      issuePayload: options?.payload,
     });
 
     const durationMs = performance.now() - startMs;
@@ -187,11 +292,15 @@ export class RunnerDispatcher implements AgentDispatcher {
       registry ? Object.values(registry.steps) : [],
     );
 
+    const lastSummary = result.summaries[result.summaries.length - 1];
+    const structuredOutput = lastSummary?.structuredOutput;
+
     return {
-      outcome: mapResultToOutcome(result),
+      outcome: resolveOutcome(agent, result),
       durationMs,
       rateLimitInfo: result.rateLimitInfo,
       handoffData,
+      structuredOutput,
     };
   }
 }

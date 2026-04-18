@@ -9,12 +9,15 @@
 import { join } from "@std/path";
 import {
   type AgentDefinition,
-  DEFAULT_ISSUE_STORE,
+  DEFAULT_SUBJECT_STORE,
   type WorkflowConfig,
   type WorkflowRules,
 } from "./workflow-types.ts";
 import {
   wfLabelMappingEmpty,
+  wfLabelSpecInvalidColor,
+  wfLabelSpecMissing,
+  wfLabelSpecOrphan,
   wfLabelUnknownPhase,
   wfLoadInvalidJson,
   wfLoadNotFound,
@@ -41,6 +44,7 @@ const DEFAULT_WORKFLOW_PATH = ".agent/workflow.json";
 const DEFAULT_RULES: WorkflowRules = {
   maxCycles: 5,
   cycleDelayMs: 10000,
+  maxConsecutivePhases: 0,
 };
 
 /**
@@ -76,8 +80,8 @@ export async function loadWorkflow(
 
   validateRequiredFields(parsed);
 
-  const rawIssueStore = parsed.issueStore as
-    | WorkflowConfig["issueStore"]
+  const rawSubjectStore = parsed.subjectStore as
+    | WorkflowConfig["subjectStore"]
     | undefined;
 
   const config: WorkflowConfig = {
@@ -85,13 +89,16 @@ export async function loadWorkflow(
     labelPrefix: parsed.labelPrefix as string | undefined,
     phases: parsed.phases as WorkflowConfig["phases"],
     labelMapping: parsed.labelMapping as WorkflowConfig["labelMapping"],
+    labels: parsed.labels as WorkflowConfig["labels"],
     agents: parsed.agents as WorkflowConfig["agents"],
     rules: applyDefaultRules(
       parsed.rules as Partial<WorkflowRules> | undefined,
     ),
     handoff: parsed.handoff as WorkflowConfig["handoff"],
-    issueStore: rawIssueStore ?? DEFAULT_ISSUE_STORE,
+    subjectStore: rawSubjectStore ?? DEFAULT_SUBJECT_STORE,
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
+    handoffs: parsed.handoffs as WorkflowConfig["handoffs"],
+    payloadSchema: parsed.payloadSchema as WorkflowConfig["payloadSchema"],
   };
 
   validateCrossReferences(config);
@@ -123,6 +130,8 @@ function applyDefaultRules(
   return {
     maxCycles: rules.maxCycles ?? DEFAULT_RULES.maxCycles,
     cycleDelayMs: rules.cycleDelayMs ?? DEFAULT_RULES.cycleDelayMs,
+    maxConsecutivePhases: rules.maxConsecutivePhases ??
+      DEFAULT_RULES.maxConsecutivePhases,
   };
 }
 
@@ -184,6 +193,55 @@ function validateCrossReferences(config: WorkflowConfig): void {
   // 4 & 5. Agent outputPhase/outputPhases/fallbackPhase must exist in phases
   for (const [agentId, agent] of Object.entries(config.agents)) {
     validateAgentPhaseReferences(agentId, agent, phaseIds);
+  }
+
+  // 6. labels[] completeness + color format
+  validateLabelsSection(config);
+}
+
+const HEX_COLOR_RE = /^[0-9a-fA-F]{6}$/;
+
+/**
+ * Validate the `labels` section when declared.
+ *
+ * Opt-in semantics: if `labels` is absent from workflow.json, no
+ * validation runs (backwards compat for pre-Phase-2 configs that
+ * relied on an external bootstrap). Once `labels` is declared —
+ * even as `{}` — the full completeness / orphan / color-format
+ * contract is enforced. This forces any config that adopts the
+ * declarative model to do so consistently.
+ */
+function validateLabelsSection(config: WorkflowConfig): void {
+  if (config.labels === undefined) return;
+
+  // Required labels = labelMapping keys ∪ prioritizer.labels
+  const requiredLabels = new Set<string>(Object.keys(config.labelMapping));
+  if (config.prioritizer) {
+    for (const label of config.prioritizer.labels) {
+      requiredLabels.add(label);
+    }
+  }
+
+  const declaredLabels = config.labels;
+  const declaredKeys = new Set(Object.keys(declaredLabels));
+
+  // Completeness: every required label must appear in labels[]
+  const missing = [...requiredLabels].filter((l) => !declaredKeys.has(l));
+  if (missing.length > 0) {
+    throw wfLabelSpecMissing(missing.sort());
+  }
+
+  // Orphans: declared specs must be referenced somewhere
+  const orphans = [...declaredKeys].filter((l) => !requiredLabels.has(l));
+  if (orphans.length > 0) {
+    throw wfLabelSpecOrphan(orphans.sort());
+  }
+
+  // Color format: 6-char hex, no leading '#'
+  for (const [name, spec] of Object.entries(declaredLabels)) {
+    if (!HEX_COLOR_RE.test(spec.color)) {
+      throw wfLabelSpecInvalidColor(name, spec.color);
+    }
   }
 }
 

@@ -1,8 +1,8 @@
 import { assertEquals } from "jsr:@std/assert";
 import { Queue } from "./queue.ts";
 import type { QueuePriorityConfig } from "./queue.ts";
-import { IssueStore } from "./issue-store.ts";
-import type { IssueData } from "./issue-store.ts";
+import { SubjectStore } from "./subject-store.ts";
+import type { IssueData } from "./subject-store.ts";
 import type { WorkflowConfig } from "./workflow-types.ts";
 
 // === Helpers ===
@@ -65,7 +65,7 @@ function makeIssue(
 Deno.test("buildQueue sorts by priority (P1 first)", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P3"]));
     await store.writeIssue(makeIssue(2, ["ready", "P1"]));
     await store.writeIssue(makeIssue(3, ["ready", "P2"]));
@@ -74,11 +74,11 @@ Deno.test("buildQueue sorts by priority (P1 first)", async () => {
     const items = await queue.buildQueue();
 
     assertEquals(items.length, 3);
-    assertEquals(items[0].issueNumber, 2);
+    assertEquals(items[0].subjectId, 2);
     assertEquals(items[0].priority, "P1");
-    assertEquals(items[1].issueNumber, 3);
+    assertEquals(items[1].subjectId, 3);
     assertEquals(items[1].priority, "P2");
-    assertEquals(items[2].issueNumber, 1);
+    assertEquals(items[2].subjectId, 1);
     assertEquals(items[2].priority, "P3");
   } finally {
     await Deno.remove(tmp, { recursive: true });
@@ -88,7 +88,7 @@ Deno.test("buildQueue sorts by priority (P1 first)", async () => {
 Deno.test("buildQueue skips terminal and blocking issues", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P1"]));
     await store.writeIssue(makeIssue(2, ["done", "P1"]));
     await store.writeIssue(makeIssue(3, ["blocked", "P2"]));
@@ -97,7 +97,7 @@ Deno.test("buildQueue skips terminal and blocking issues", async () => {
     const items = await queue.buildQueue();
 
     assertEquals(items.length, 1);
-    assertEquals(items[0].issueNumber, 1);
+    assertEquals(items[0].subjectId, 1);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
@@ -106,7 +106,7 @@ Deno.test("buildQueue skips terminal and blocking issues", async () => {
 Deno.test("buildQueue includes issues without priority label with lowest sort order", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P1"]));
     await store.writeIssue(makeIssue(2, ["ready"]));
     await store.writeIssue(makeIssue(3, ["ready", "P2"]));
@@ -121,11 +121,11 @@ Deno.test("buildQueue includes issues without priority label with lowest sort or
     // All three issues are included; issue 2 has no priority label
     assertEquals(items.length, 3);
     // P1 first, P2 second, unassigned ("") last
-    assertEquals(items[0].issueNumber, 1);
+    assertEquals(items[0].subjectId, 1);
     assertEquals(items[0].priority, "P1");
-    assertEquals(items[1].issueNumber, 3);
+    assertEquals(items[1].subjectId, 3);
     assertEquals(items[1].priority, "P2");
-    assertEquals(items[2].issueNumber, 2);
+    assertEquals(items[2].subjectId, 2);
     assertEquals(items[2].priority, "");
   } finally {
     await Deno.remove(tmp, { recursive: true });
@@ -135,7 +135,7 @@ Deno.test("buildQueue includes issues without priority label with lowest sort or
 Deno.test("buildQueue returns empty for empty store", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
 
     const queue = new Queue(makeWorkflowConfig(), store, makePriorityConfig());
     const items = await queue.buildQueue();
@@ -149,7 +149,7 @@ Deno.test("buildQueue returns empty for empty store", async () => {
 Deno.test("buildQueue assigns defaultLabel when no priority label found", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P1"]));
     await store.writeIssue(makeIssue(2, ["ready"]));
 
@@ -162,9 +162,9 @@ Deno.test("buildQueue assigns defaultLabel when no priority label found", async 
 
     assertEquals(items.length, 2);
     // P1 first, then P3 (default)
-    assertEquals(items[0].issueNumber, 1);
+    assertEquals(items[0].subjectId, 1);
     assertEquals(items[0].priority, "P1");
-    assertEquals(items[1].issueNumber, 2);
+    assertEquals(items[1].subjectId, 2);
     assertEquals(items[1].priority, "P3");
   } finally {
     await Deno.remove(tmp, { recursive: true });
@@ -174,7 +174,7 @@ Deno.test("buildQueue assigns defaultLabel when no priority label found", async 
 Deno.test("buildQueue with scopeIssues filters to specified issues", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P1"]));
     await store.writeIssue(makeIssue(2, ["ready", "P2"]));
     await store.writeIssue(makeIssue(3, ["ready", "P3"]));
@@ -183,8 +183,8 @@ Deno.test("buildQueue with scopeIssues filters to specified issues", async () =>
     const items = await queue.buildQueue([1, 3]);
 
     assertEquals(items.length, 2);
-    assertEquals(items[0].issueNumber, 1);
-    assertEquals(items[1].issueNumber, 3);
+    assertEquals(items[0].subjectId, 1);
+    assertEquals(items[1].subjectId, 3);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
@@ -193,7 +193,7 @@ Deno.test("buildQueue with scopeIssues filters to specified issues", async () =>
 Deno.test("buildQueue with empty scopeIssues returns empty queue", async () => {
   const tmp = await Deno.makeTempDir();
   try {
-    const store = new IssueStore(tmp);
+    const store = new SubjectStore(tmp);
     await store.writeIssue(makeIssue(1, ["ready", "P1"]));
 
     const queue = new Queue(makeWorkflowConfig(), store, makePriorityConfig());

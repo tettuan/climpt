@@ -512,6 +512,45 @@ export function wfLabelUnknownPhase(
   );
 }
 
+export function wfLabelSpecMissing(
+  missingLabels: readonly string[],
+): ConfigError {
+  const list = missingLabels.map((l) => `"${l}"`).join(", ");
+  return new ConfigError(
+    "WF-LABEL-003",
+    `Workflow config: labels[] is missing specs for: [${list}].`,
+    `Every label referenced by labelMapping or prioritizer.labels must have a matching entry in "labels" so the pre-dispatch sync can create/update it with the correct color and description. Missing specs would force the sync to invent defaults, drifting from the declared source of truth.`,
+    `Add entries to "labels" in workflow.json for: [${list}], each with { "color": "<6-hex>", "description": "<text>" }.`,
+    "workflow.json",
+  );
+}
+
+export function wfLabelSpecOrphan(
+  orphanLabels: readonly string[],
+): ConfigError {
+  const list = orphanLabels.map((l) => `"${l}"`).join(", ");
+  return new ConfigError(
+    "WF-LABEL-004",
+    `Workflow config: labels[] declares specs not referenced by labelMapping or prioritizer.labels: [${list}].`,
+    `Orphan label specs risk drifting from runtime behavior — if a label is declared but never used, the sync still pushes it and a later contributor has no signal about whether removing it is safe. Keep the label set tight.`,
+    `Either reference the label from labelMapping / prioritizer.labels, or remove the entry from "labels" in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfLabelSpecInvalidColor(
+  label: string,
+  color: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-LABEL-005",
+    `Workflow config: labels["${label}"].color "${color}" is not a valid 6-char hex value.`,
+    `GitHub label colors must be exactly 6 hex characters without a leading "#". Any other form will cause the label sync API call to fail.`,
+    `Change labels["${label}"].color in workflow.json to a 6-character hex value (0-9, a-f), e.g. "a2eeef".`,
+    "workflow.json",
+  );
+}
+
 // --- WF-RULE: Rules validation ---
 
 export function wfRuleMaxCyclesInvalid(value: number): ConfigError {
@@ -747,13 +786,24 @@ export function prC3lNoPrompt(
 
 // --- PR-C3L-004: C3L prompt file not found ---
 
+/**
+ * Prefix that marks breakdown's structured-error detail appended to a
+ * PR-C3L-004 message. Exported so tests can assert propagation without
+ * duplicating the literal (shadow-contract prevention).
+ */
+export const BREAKDOWN_DETAIL_PREFIX = "Breakdown detail: ";
+
 export function prC3lPromptNotFound(
   stepId: string,
   triedPath: string,
+  breakdownDetail?: string,
 ): ConfigError {
+  const detailSuffix = breakdownDetail
+    ? `\n${BREAKDOWN_DETAIL_PREFIX}${breakdownDetail}`
+    : "";
   return new ConfigError(
     "PR-C3L-004",
-    `C3L prompt file not found for step "${stepId}" (tried: ${triedPath}).`,
+    `C3L prompt file not found for step "${stepId}" (tried: ${triedPath}).${detailSuffix}`,
     `All steps must have a C3L prompt file. Embedded fallback prompts are not supported. See design/08_step_flow_design.md.`,
     `Add a C3L prompt file for step "${stepId}" under the configured prompts directory at the expected path: ${triedPath}.`,
     "prompts/",

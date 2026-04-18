@@ -1,5 +1,5 @@
 {
-  "version": "1.13.25",
+  "version": "1.13.26",
   "entries": [
     {
       "id": "builder-01_quickstart",
@@ -41,28 +41,35 @@
       "path": "../agents/docs/builder/06_workflow_setup.md",
       "category": "builder-guides",
       "title": "Workflow Setup",
-      "bytes": 13511
+      "bytes": 16858
     },
     {
-      "id": "builder-07_github_integration",
-      "path": "../agents/docs/builder/07_github_integration.md",
+      "id": "builder-07_flow_design",
+      "path": "../agents/docs/builder/07_flow_design.md",
+      "category": "builder-guides",
+      "title": "07. Flow 設計ガイド",
+      "bytes": 17317
+    },
+    {
+      "id": "builder-08_github_integration",
+      "path": "../agents/docs/builder/08_github_integration.md",
       "category": "builder-guides",
       "title": "GitHub Integration Guide",
       "bytes": 16004
     },
     {
-      "id": "builder-08_closure_output_contract",
-      "path": "../agents/docs/builder/08_closure_output_contract.md",
+      "id": "builder-09_closure_output_contract",
+      "path": "../agents/docs/builder/09_closure_output_contract.md",
       "category": "builder-guides",
       "title": "Closure Output Contract",
-      "bytes": 10943
+      "bytes": 10958
     },
     {
       "id": "builder-README",
       "path": "../agents/docs/builder/README.md",
       "category": "builder-guides",
       "title": "Agent Builder Guide",
-      "bytes": 4738
+      "bytes": 5336
     },
     {
       "id": "c3l_specification_v0.1",
@@ -232,7 +239,7 @@
       "category": "guides",
       "lang": "en",
       "title": "Workflow Guide",
-      "bytes": 13906
+      "bytes": 14580
     },
     {
       "id": "guides-en-16-upgrade-guide",
@@ -376,7 +383,7 @@
       "category": "guides",
       "lang": "ja",
       "title": "ワークフローガイド",
-      "bytes": 15196
+      "bytes": 15828
     },
     {
       "id": "mcp-setup",

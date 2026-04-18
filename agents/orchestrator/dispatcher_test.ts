@@ -5,13 +5,48 @@
  * - StubDispatcher: rateLimitInfo propagation, callCount, default outcome
  */
 
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertThrows } from "@std/assert";
 import {
+  composeRunnerArgs,
   extractHandoffData,
-  mapResultToOutcome,
+  resolveOutcome,
   StubDispatcher,
 } from "./dispatcher.ts";
-import type { RateLimitInfo } from "../src_common/types/runtime.ts";
+import type {
+  AgentDefinition,
+  TransformerDefinition,
+  ValidatorDefinition,
+} from "./workflow-types.ts";
+import type {
+  AgentResult,
+  RateLimitInfo,
+} from "../src_common/types/runtime.ts";
+
+// Test fixtures: minimal role-discriminated agent definitions
+const TRANSFORMER_AGENT: TransformerDefinition = {
+  role: "transformer",
+  directory: "iterator",
+  outputPhase: "done",
+  fallbackPhase: "blocked",
+};
+
+const VALIDATOR_AGENT: ValidatorDefinition = {
+  role: "validator",
+  directory: "considerer",
+  outputPhases: { approved: "done", rejected: "revision" },
+};
+
+// Minimal AgentResult factory: only the fields resolveOutcome inspects matter.
+function makeResult(
+  overrides: Partial<AgentResult> & Pick<AgentResult, "success">,
+): AgentResult {
+  return {
+    iterations: 1,
+    reason: "test",
+    summaries: [],
+    ...overrides,
+  };
+}
 
 // =============================================================================
 // StubDispatcher: rateLimitInfo
@@ -89,33 +124,126 @@ Deno.test("StubDispatcher: 'failed' outcome preserved when agent fails", async (
 });
 
 // =============================================================================
-// mapResultToOutcome: verdict-to-outcome mapping
+// resolveOutcome: role-discriminated outcome mapping
+//
+// Source of truth: AgentDefinition.role (discriminated union in
+// workflow-types.ts). Transformers emit binary success/failed; validators
+// must emit a verdict. The outcome rule differs per role — this is the
+// invariant the tests pin down.
 // =============================================================================
 
-Deno.test("mapResultToOutcome: verdict takes priority over success flag", () => {
-  const outcome = mapResultToOutcome({ success: true, verdict: "approved" });
-  assertEquals(outcome, "approved");
+// --- Transformer branch: outcome is binary, verdict is ignored ---
+
+Deno.test("resolveOutcome(transformer): success=true → 'success'", () => {
+  assertEquals(
+    resolveOutcome(TRANSFORMER_AGENT, makeResult({ success: true })),
+    "success",
+  );
 });
 
-Deno.test("mapResultToOutcome: verdict takes priority over failed flag", () => {
-  const outcome = mapResultToOutcome({ success: false, verdict: "rejected" });
-  assertEquals(outcome, "rejected");
+Deno.test("resolveOutcome(transformer): success=false → 'failed'", () => {
+  assertEquals(
+    resolveOutcome(TRANSFORMER_AGENT, makeResult({ success: false })),
+    "failed",
+  );
 });
 
-Deno.test("mapResultToOutcome: falls back to 'success' when no verdict", () => {
-  const outcome = mapResultToOutcome({ success: true });
-  assertEquals(outcome, "success");
+Deno.test(
+  "resolveOutcome(transformer): verdict on result is ignored (role governs)",
+  () => {
+    // Behavior change from the removed role-agnostic mapping: previously a
+    // verdict on any result would win over the success flag.
+    // Transformers must not route via verdict — role governs outcome shape.
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_AGENT,
+        makeResult({ success: true, verdict: "approved" }),
+      ),
+      "success",
+      "Transformer outcome must come from success flag, not verdict. " +
+        "Fix: resolveOutcome's transformer branch must ignore result.verdict.",
+    );
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_AGENT,
+        makeResult({ success: false, verdict: "rejected" }),
+      ),
+      "failed",
+    );
+  },
+);
+
+// --- Validator branch: outcome is verdict, absence throws ---
+
+Deno.test("resolveOutcome(validator): verdict becomes outcome directly", () => {
+  assertEquals(
+    resolveOutcome(
+      VALIDATOR_AGENT,
+      makeResult({ success: true, verdict: "approved" }),
+    ),
+    "approved",
+  );
 });
 
-Deno.test("mapResultToOutcome: falls back to 'failed' when no verdict", () => {
-  const outcome = mapResultToOutcome({ success: false });
-  assertEquals(outcome, "failed");
-});
+Deno.test(
+  "resolveOutcome(validator): verdict wins over success flag (success=false, verdict='rejected')",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        VALIDATOR_AGENT,
+        makeResult({ success: false, verdict: "rejected" }),
+      ),
+      "rejected",
+      "Validator outcome is the verdict regardless of success flag. " +
+        "Fix: resolveOutcome's validator branch must return result.verdict verbatim.",
+    );
+  },
+);
 
-Deno.test("mapResultToOutcome: undefined verdict treated as absent", () => {
-  const outcome = mapResultToOutcome({ success: true, verdict: undefined });
-  assertEquals(outcome, "success");
-});
+Deno.test(
+  "resolveOutcome(validator): missing verdict throws (no binary fallback)",
+  () => {
+    assertThrows(
+      () => resolveOutcome(VALIDATOR_AGENT, makeResult({ success: true })),
+      Error,
+      "must return a verdict",
+      "Validators must emit a verdict. A missing verdict is a programmer/config " +
+        "error and must throw rather than silently fall back to 'success'/'failed'. " +
+        "Fix: resolveOutcome's validator branch must throw when result.verdict is absent.",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(validator): undefined verdict treated as absent (throws)",
+  () => {
+    assertThrows(
+      () =>
+        resolveOutcome(
+          VALIDATOR_AGENT,
+          makeResult({ success: true, verdict: undefined }),
+        ),
+      Error,
+      "must return a verdict",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome: exhaustive switch rejects unknown role",
+  () => {
+    // Defensive: guards against adding a new role without updating the switch.
+    const bogus = {
+      role: "unknown",
+      directory: "x",
+    } as unknown as AgentDefinition;
+    assertThrows(
+      () => resolveOutcome(bogus, makeResult({ success: true })),
+      Error,
+      "Unknown agent role",
+    );
+  },
+);
 
 // =============================================================================
 // StubDispatcher: handoffData
@@ -305,6 +433,154 @@ Deno.test("extractHandoffData: dot-notation path uses last segment as variable k
   );
   assertEquals(data[expectedKey], "deep analysis content");
 });
+
+// =============================================================================
+// composeRunnerArgs: payload forwarding contract
+// =============================================================================
+
+Deno.test("composeRunnerArgs: payload keys populate runnerArgs", () => {
+  const args = composeRunnerArgs(42, {
+    payload: { customKey: "value", otherKey: 7 },
+  });
+  assertEquals(args.issue, 42);
+  assertEquals(args.customKey, "value");
+  assertEquals(args.otherKey, 7);
+});
+
+Deno.test("composeRunnerArgs: fixed keys win over payload on collision", () => {
+  const args = composeRunnerArgs(42, {
+    payload: { issue: 9999, iterateMax: 1, branch: "payload-branch" },
+    iterateMax: 5,
+    branch: "opts-branch",
+  });
+  assertEquals(
+    args.issue,
+    42,
+    "subjectId parameter must override payload.issue",
+  );
+  assertEquals(
+    args.iterateMax,
+    5,
+    "options.iterateMax must override payload.iterateMax",
+  );
+  assertEquals(
+    args.branch,
+    "opts-branch",
+    "options.branch must override payload.branch",
+  );
+});
+
+Deno.test("composeRunnerArgs: omitted options yield a runnerArgs containing only issue", () => {
+  const args = composeRunnerArgs(42);
+  assertEquals(Object.keys(args).sort(), ["issue"]);
+  assertEquals(args.issue, 42);
+});
+
+Deno.test("composeRunnerArgs: payload undefined leaves runnerArgs unchanged", () => {
+  const args = composeRunnerArgs(42, { iterateMax: 3 });
+  assertEquals(args, { issue: 42, iterateMax: 3 });
+});
+
+Deno.test("StubDispatcher: records DispatchOptions including payload", async () => {
+  const dispatcher = new StubDispatcher({ myAgent: "success" });
+  const payload = { verdictPath: "/tmp/verdict.json", prNumber: 123 };
+
+  await dispatcher.dispatch("myAgent", 42, { payload, iterateMax: 3 });
+
+  assertEquals(dispatcher.calls.length, 1);
+  assertEquals(dispatcher.calls[0].agentId, "myAgent");
+  assertEquals(dispatcher.calls[0].subjectId, 42);
+  assertEquals(dispatcher.calls[0].options?.payload, payload);
+  assertEquals(dispatcher.calls[0].options?.iterateMax, 3);
+});
+
+// =============================================================================
+// resolveOutcome: transformer with fallbackPhases (verdict passthrough)
+//
+// When fallbackPhases is defined on a transformer, resolveOutcome passes
+// through result.verdict instead of reducing to binary "success"/"failed".
+// This enables outcome-specific fallback routing in computeTransition.
+// =============================================================================
+
+const TRANSFORMER_WITH_FALLBACK_PHASES: TransformerDefinition = {
+  role: "transformer",
+  directory: "analyst",
+  outputPhase: "planning",
+  fallbackPhase: "blocked",
+  fallbackPhases: { transient: "backlog", permanent: "blocked" },
+};
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=true → 'success' (unchanged)",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: true }),
+      ),
+      "success",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=false, no verdict → 'failed'",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: false }),
+      ),
+      "failed",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=false, verdict='transient' → 'transient'",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: false, verdict: "transient" }),
+      ),
+      "transient",
+      "When fallbackPhases is defined, verdict must pass through for routing. " +
+        "Fix: resolveOutcome's transformer branch must check agent.fallbackPhases.",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer+fallbackPhases): success=true, verdict='transient' → 'transient' (verdict wins)",
+  () => {
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_WITH_FALLBACK_PHASES,
+        makeResult({ success: true, verdict: "transient" }),
+      ),
+      "transient",
+      "When fallbackPhases is defined, verdict takes precedence over success flag. " +
+        "Fix: resolveOutcome must return verdict ?? binary.",
+    );
+  },
+);
+
+Deno.test(
+  "resolveOutcome(transformer, no fallbackPhases): verdict still ignored",
+  () => {
+    // Existing behavior preserved: transformer without fallbackPhases ignores verdict
+    assertEquals(
+      resolveOutcome(
+        TRANSFORMER_AGENT,
+        makeResult({ success: false, verdict: "transient" }),
+      ),
+      "failed",
+      "Without fallbackPhases, transformer must still ignore verdict. " +
+        "Fix: resolveOutcome must only pass verdict when fallbackPhases is defined.",
+    );
+  },
+);
 
 // Invariant: missing fields in structuredOutput are silently skipped
 Deno.test("extractHandoffData: missing field in structuredOutput → skipped, no error", () => {

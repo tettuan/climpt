@@ -1,0 +1,27 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "triager",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "triage"
+  },
+  "steps": {
+    "triage": {
+      "stepId": "triage",
+      "name": "Triage Unlabeled Issues",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "triage",
+      "edition": "default",
+      "uvVariables": [
+        "limit",
+        "workflow"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: fetch unlabeled open issues, classify each (kind:impl / kind:consider), assign a unique order:N seq, apply both labels via gh CLI."
+    }
+  }
+}
