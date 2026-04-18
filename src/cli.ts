@@ -33,7 +33,11 @@ let runBreakdown: (args: string[]) => Promise<void>;
  * @internal
  */
 async function importBreakdown(): Promise<void> {
-  const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
+  // Pinned exact (no caret): breakdown 1.8.5 changed Result<string,string>
+  // to Result<string | undefined, BreakdownError>, silently breaking the
+  // c3l loader's typecast. Until the loader adopts the object error shape,
+  // hold the resolver at 1.8.4.
+  const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
   runBreakdown = mod.runBreakdown;
 }
 

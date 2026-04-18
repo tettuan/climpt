@@ -111,17 +111,26 @@ export class C3LPromptLoader {
     const args = this.buildArgs(path, variables);
 
     try {
-      // Dynamic import of breakdown with return mode
-      const mod = await import(`jsr:@tettuan/breakdown@^${BREAKDOWN_VERSION}`);
+      // Dynamic import of breakdown with return mode.
+      // Widened typecast: breakdown 1.8.x returns Result<string | undefined,
+      // BreakdownError>, where BreakdownError is an object with {kind,
+      // message, attempted, ...}. Typecasting error as `string` (as the
+      // loader did pre-1.8.5) strips the structured error; widen to
+      // `unknown` and JSON.stringify for propagation.
+      // Pinned exact (no caret): breakdown 1.8.5 changed the runBreakdown
+      // Result shape from Result<string,string> to
+      // Result<string|undefined, BreakdownError>. Pinning to 1.8.4 keeps
+      // the loader's typecast valid until it is widened to cover both.
+      const mod = await import(`jsr:@tettuan/breakdown@${BREAKDOWN_VERSION}`);
       const runBreakdown = mod.runBreakdown as (
         args: string[],
         options?: { returnMode?: boolean },
-      ) => Promise<{ ok: boolean; data?: string; error?: string }>;
+      ) => Promise<{ ok: boolean; data?: unknown; error?: unknown }>;
 
       // runBreakdown uses Deno.cwd() to locate config files, so we must
       // chdir to this.workingDir before the call and restore afterwards.
       const originalCwd = Deno.cwd();
-      let result: { ok: boolean; data?: string; error?: string };
+      let result: { ok: boolean; data?: unknown; error?: unknown };
       try {
         Deno.chdir(this.workingDir);
         result = await runBreakdown(args, {
@@ -131,7 +140,7 @@ export class C3LPromptLoader {
         Deno.chdir(originalCwd);
       }
 
-      if (result.ok && result.data) {
+      if (result.ok && typeof result.data === "string" && result.data) {
         return {
           ok: true,
           content: result.data,
@@ -139,20 +148,20 @@ export class C3LPromptLoader {
         };
       }
 
-      // Propagate the breakdown error if present.
-      // When result.error is falsy (e.g., file not found), return {ok: false}
-      // WITHOUT an error so the caller can distinguish "file not found" from
-      // "C3L template error" and allow fallback only for the former.
+      // Propagate the breakdown error. If the breakdown result carries no
+      // error (either `ok:false` with falsy error, or `ok:true` with
+      // undefined data), synthesize a descriptive diagnostic so the caller
+      // never sees `{ok:false}` with an empty error — that was the silent
+      // collapse that masked the continuation.polling regression.
+      const promptPath = this.buildPromptPath(path);
       if (result.error) {
         const errorMsg = typeof result.error === "string"
           ? result.error
           : JSON.stringify(result.error);
-        return {
-          ok: false,
-          error: errorMsg,
-        };
+        return { ok: false, error: errorMsg };
       }
-      return { ok: false };
+      const synthesized = this.synthesizeSilentError(result, promptPath, args);
+      return { ok: false, error: synthesized };
     } catch (error) {
       return {
         ok: false,
@@ -194,6 +203,40 @@ export class C3LPromptLoader {
     }
 
     return args;
+  }
+
+  /**
+   * Synthesize a descriptive error when breakdown returns no propagable
+   * error (either `{ok:false}` with falsy error, or `{ok:true}` with
+   * undefined data). Pre-patch these paths silently returned `{ok:false}`,
+   * making "breakdown produced no prompt" indistinguishable from
+   * "prompt file missing" at the resolver.
+   */
+  private synthesizeSilentError(
+    result: { ok: boolean; data?: unknown; error?: unknown },
+    promptPath: string,
+    args: string[],
+  ): string {
+    const marker = result.ok
+      ? "BreakdownSilentOkNoData"
+      : "BreakdownSilentNoError";
+    const snapshot = {
+      ok: result.ok,
+      dataType: typeof result.data,
+      errorType: typeof result.error,
+      keys: Object.keys(result ?? {}),
+    };
+    return JSON.stringify({
+      kind: marker,
+      message:
+        "breakdown returned a result with no propagable error or content",
+      configName: this.configName,
+      workingDir: this.workingDir,
+      breakdownVersion: BREAKDOWN_VERSION,
+      promptPath,
+      args,
+      result: snapshot,
+    });
   }
 
   /**

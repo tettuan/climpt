@@ -12,6 +12,7 @@
 
 import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
 import { type C3LPath, C3LPromptLoader } from "./c3l-prompt-loader.ts";
+import { BREAKDOWN_VERSION } from "../../src/version.ts";
 import {
   prC3lBreakdownFailed,
   prC3lPromptNotFound,
@@ -140,13 +141,23 @@ export class PromptResolver {
 
     // Try breakdown
     const breakdownResult = await this.tryBreakdown(effectiveStep, variables);
-    if (breakdownResult) {
-      return breakdownResult;
+    if (breakdownResult.kind === "resolved") {
+      return breakdownResult.value;
     }
 
-    // Breakdown returned null (file not found) — throw
+    // Breakdown produced no prompt — log the underlying error chain at
+    // warn level so PR-C3L-004 is never thrown without a diagnostic trail,
+    // then throw the same PR-C3L-004 code (stability: callers match on it).
     const c3lPath = this.buildC3LPath(effectiveStep);
     const c3lPathStr = this.formatC3LPath(c3lPath);
+    // deno-lint-ignore no-console
+    console.warn(
+      `[prompt-resolver] PR-C3L-004 about to throw for stepId="${effectiveStep.stepId}" ` +
+        `triedPath="${c3lPathStr}" breakdownVersion=${BREAKDOWN_VERSION} ` +
+        `breakdownError=${breakdownResult.error ?? "<none>"} ` +
+        `hint="If breakdownError is empty or marker-prefixed (BreakdownSilentNoError/BreakdownSilentOkNoData), ` +
+        `this is the c3l-prompt-loader silent-collapse path — verify BREAKDOWN_VERSION (src/version.ts) matches the resolved JSR version."`,
+    );
     throw prC3lPromptNotFound(effectiveStep.stepId, c3lPathStr);
   }
 
@@ -168,13 +179,19 @@ export class PromptResolver {
    *
    * @param step - Step definition
    * @param variables - Variables for substitution
-   * @returns Resolution result or null if prompt file not found
+   * @returns Discriminated result: `{kind:"resolved", value}` on success, or
+   *   `{kind:"notFound", error?}` when no prompt was produced. The `error`
+   *   field carries the breakdown-side diagnostic (possibly synthesized by
+   *   the loader) so callers can log it before throwing PR-C3L-004.
    * @throws ConfigError (PR-C3L-002) if breakdown fails with non-file-not-found error
    */
   private async tryBreakdown(
     step: PromptStepDefinition,
     variables: PromptVariables,
-  ): Promise<PromptResolutionResult | null> {
+  ): Promise<
+    | { kind: "resolved"; value: PromptResolutionResult }
+    | { kind: "notFound"; error?: string }
+  > {
     const c3lPath = this.buildC3LPath(step);
 
     const result = await this.c3lLoader.load(c3lPath, {
@@ -191,19 +208,22 @@ export class PromptResolver {
       }
       // No error detail OR ParameterParsingError (breakdown doesn't recognize
       // the directive type / parameters) = prompt file not found.
-      // Return null so caller throws PR-C3L-004.
-      return null;
+      // Surface the underlying breakdown error so caller can log it.
+      return { kind: "notFound", error: result.error };
     }
 
     // Process content (strip frontmatter if needed, substitute custom variables)
     const content = this.processContent(result.content, step, variables);
 
     return {
-      content,
-      source: "user",
-      promptPath: result.promptPath,
-      stepId: step.stepId,
-      substitutedVariables: this.getSubstitutedVariables(variables),
+      kind: "resolved",
+      value: {
+        content,
+        source: "user",
+        promptPath: result.promptPath,
+        stepId: step.stepId,
+        substitutedVariables: this.getSubstitutedVariables(variables),
+      },
     };
   }
 
