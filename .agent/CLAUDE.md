@@ -61,8 +61,12 @@ Two-stage pipeline for GitHub Issues:
 
    Single-issue mode: append `--issue <N>` to target one issue.
 
-Labels required in repo: `kind:impl`, `kind:consider`,
-`order:1` .. `order:9`, `done`, `need clearance`.
+Repository labels (name, color, description) are the declarative source
+of truth in `.agent/workflow.json` under the `labels` section. The
+orchestrator reconciles them on every batch start, and the triager does
+the same via `deno task labels:sync` as its Step 1. Contributors who add
+or rename a workflow label MUST update `labels` in `workflow.json` —
+never the triager prompt (which now only invokes the syncer).
 
 ## Operating contexts
 

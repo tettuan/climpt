@@ -16,6 +16,7 @@ export type {
   IssueCriteria,
   IssueStoreConfig,
   IssueWorkflowState,
+  LabelSpec,
   OrchestratorOptions,
   OrchestratorResult,
   PhaseDefinition,
@@ -55,9 +56,14 @@ export type {
   GitHubClient,
   IssueDetail,
   IssueListItem,
+  LabelDetail,
 } from "./github-client.ts";
 export { GhCliClient } from "./github-client.ts";
 export { FileGitHubClient } from "./file-github-client.ts";
+
+// Label sync
+export type { SyncAction, SyncOptions, SyncResult } from "./label-sync.ts";
+export { decideLabelAction, summarizeSync, syncLabels } from "./label-sync.ts";
 
 // Dispatcher
 export type {

@@ -81,6 +81,24 @@ export interface ValidatorDefinition extends BaseAgentDefinition {
 /** Discriminated union of all agent definition types */
 export type AgentDefinition = TransformerDefinition | ValidatorDefinition;
 
+// === Labels ===
+
+/**
+ * Declarative GitHub label specification.
+ *
+ * Drives idempotent pre-dispatch sync so orchestrator and triager never
+ * depend on a bash bootstrap block living inside a prompt file. Every
+ * label referenced by `labelMapping` or `prioritizer.labels` must have
+ * a matching entry here — enforced by the loader.
+ */
+export interface LabelSpec {
+  /** 6-char hex GitHub label color (no leading `#`) */
+  color: string;
+
+  /** Human-readable description surfaced in the GitHub UI */
+  description: string;
+}
+
 // === Handoff ===
 
 /** Configuration for inter-agent handoff communication */
@@ -166,6 +184,17 @@ export interface WorkflowConfig {
 
   /** GitHub label to phase ID mapping */
   labelMapping: Record<string, string>;
+
+  /**
+   * Declarative GitHub label specifications keyed by label name.
+   *
+   * Owns color + description for every label the workflow touches.
+   * Orchestrator/triager sync this to the repository at startup
+   * (idempotent, per-label try/catch). Cross-referenced against
+   * `labelMapping` keys and `prioritizer.labels` by the loader —
+   * missing entries are a configuration error (WF-LABEL-003).
+   */
+  labels?: Record<string, LabelSpec>;
 
   /** Agent definitions keyed by agent ID */
   agents: Record<string, AgentDefinition>;

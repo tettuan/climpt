@@ -46,6 +46,27 @@
         "type": "string"
       }
     },
+    "labels": {
+      "type": "object",
+      "description": "Declarative GitHub label specs keyed by label name. Every label referenced in labelMapping and prioritizer.labels must appear here. Color is a 6-char hex (no '#'). Orchestrator/triager sync these to the repository at startup.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["color", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "color": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{6}$",
+            "description": "GitHub label color as 6-char hex (no leading '#')."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable label description surfaced in GitHub UI."
+          }
+        }
+      }
+    },
     "agents": {
       "type": "object",
       "description": "Agent definitions keyed by agent ID",

@@ -32,6 +32,7 @@ import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
 import { TransactionScope } from "./transaction-scope.ts";
+import { summarizeSync, syncLabels } from "./label-sync.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -84,6 +85,14 @@ export class Orchestrator {
       await OrchestratorLogger.create(this.#cwd, {
         verbose: options?.verbose,
       });
+
+    // Preflight label sync — only when this orchestrator owns the logger,
+    // i.e. single-issue mode where BatchRunner has NOT already synced.
+    // The BatchRunner passes its own logger in, so we use that as the
+    // "running inside a batch" signal to avoid double-syncing.
+    if (ownsLogger) {
+      await this.#preflightLabelSync(log, options?.dryRun ?? false);
+    }
 
     // Acquire per-issue lock when store is available to prevent
     // concurrent invocations on the same issue.
@@ -877,5 +886,60 @@ export class Orchestrator {
       this.#cwd,
     );
     return runner.run(criteria, options);
+  }
+
+  /**
+   * Single-issue preflight sync. Mirrors BatchRunner.#preflightLabelSync
+   * but runs only when no batch logger was passed in (i.e. the user
+   * invoked `--issue` directly). Kept as an instance method so the
+   * orchestrator can reconcile labels without callers reaching into
+   * BatchRunner internals.
+   */
+  async #preflightLabelSync(
+    log: OrchestratorLogger,
+    dryRun: boolean,
+  ): Promise<void> {
+    const specs = this.#config.labels;
+    if (!specs || Object.keys(specs).length === 0) {
+      await log.info(
+        "Label sync preflight skipped: no labels[] declared in workflow.json",
+        { event: "label_sync_skipped" },
+      );
+      return;
+    }
+
+    await log.info(
+      `Label sync preflight: ${Object.keys(specs).length} declared specs${
+        dryRun ? " (dry-run)" : ""
+      }`,
+      { event: "label_sync_start", declaredCount: Object.keys(specs).length },
+    );
+
+    let results;
+    try {
+      results = await syncLabels(this.#github, specs, { dryRun });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      await log.error(
+        `Label sync preflight failed to read label state: ${msg}`,
+        { event: "label_sync_baseline_failed", error: msg },
+      );
+      return;
+    }
+
+    await log.info(summarizeSync(results), {
+      event: "label_sync_summary",
+      dryRun,
+      results,
+    });
+
+    for (const r of results) {
+      if (r.action === "failed") {
+        await log.error(
+          `Label sync failed for "${r.name}": ${r.error ?? "unknown error"}`,
+          { event: "label_sync_failed", label: r.name, error: r.error },
+        );
+      }
+    }
   }
 }

@@ -136,6 +136,28 @@ class StubGitHubClient implements GitHubClient {
   listLabels(): Promise<string[]> {
     return Promise.resolve([]);
   }
+
+  listLabelsDetailed(): Promise<
+    { name: string; color: string; description: string }[]
+  > {
+    return Promise.resolve([]);
+  }
+
+  createLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+
+  updateLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 /** Stub dispatcher that records calls and returns a prepared outcome. */

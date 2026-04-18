@@ -199,6 +199,32 @@ class StubGitHubClient implements GitHubClient {
   listLabels(): Promise<string[]> {
     return Promise.resolve([]);
   }
+
+  // Label spec methods (Phase 2 label preflight): default to inert stubs.
+  // Individual tests that care about preflight inspect LabelPreflight via
+  // a dedicated fixture; the default path returns an empty baseline and
+  // records nothing so pre-existing cycle/transition tests remain green.
+  listLabelsDetailed(): Promise<
+    { name: string; color: string; description: string }[]
+  > {
+    return Promise.resolve([]);
+  }
+
+  createLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+
+  updateLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 // --- Tests ---
@@ -1017,6 +1043,31 @@ class BatchStubGitHubClient implements GitHubClient {
 
   listLabels(): Promise<string[]> {
     return Promise.resolve([]);
+  }
+
+  // Label spec methods (Phase 2 label preflight). BatchRunner calls
+  // listLabelsDetailed() once per batch; we return an empty baseline so the
+  // preflight becomes a no-op (nothing to create, nothing to update).
+  listLabelsDetailed(): Promise<
+    { name: string; color: string; description: string }[]
+  > {
+    return Promise.resolve([]);
+  }
+
+  createLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+
+  updateLabel(
+    _name: string,
+    _color: string,
+    _description: string,
+  ): Promise<void> {
+    return Promise.resolve();
   }
 }
 

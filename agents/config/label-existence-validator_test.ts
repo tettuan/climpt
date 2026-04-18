@@ -61,6 +61,11 @@ function fakeClient(
     listIssues: unsupported("listIssues"),
     getIssueDetail: unsupported("getIssueDetail"),
     getRecentComments: unsupported("getRecentComments"),
+    // Phase 2 label-spec methods — not touched by the existence validator,
+    // but part of the GitHubClient surface.
+    listLabelsDetailed: unsupported("listLabelsDetailed"),
+    createLabel: unsupported("createLabel"),
+    updateLabel: unsupported("updateLabel"),
   } as GitHubClient;
 }
 

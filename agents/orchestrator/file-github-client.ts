@@ -12,6 +12,7 @@ import type {
   IssueCriteria,
   IssueDetail,
   IssueListItem,
+  LabelDetail,
 } from "./github-client.ts";
 import type { IssueStore } from "./issue-store.ts";
 
@@ -131,16 +132,122 @@ export class FileGitHubClient implements GitHubClient {
     try {
       const text = await Deno.readTextFile(path);
       const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed)) {
-        throw new Error(
-          `labels.json must contain a JSON array of strings, got ${typeof parsed}`,
-        );
+      if (Array.isArray(parsed)) {
+        // Legacy flat format: array of strings.
+        return parsed.filter((x): x is string => typeof x === "string");
       }
-      return parsed.filter((x): x is string => typeof x === "string");
+      if (parsed && typeof parsed === "object") {
+        // Detailed format: object keyed by name → {color, description}.
+        return Object.keys(parsed);
+      }
+      throw new Error(
+        `labels.json must be a JSON array or object, got ${typeof parsed}`,
+      );
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) return [];
       throw error;
     }
+  }
+
+  async listLabelsDetailed(): Promise<LabelDetail[]> {
+    const path = `${this.#store.storePath}/labels.json`;
+    try {
+      const text = await Deno.readTextFile(path);
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        // Legacy flat format: array of strings has no color/description.
+        return parsed
+          .filter((x): x is string => typeof x === "string")
+          .map((name) => ({ name, color: "", description: "" }));
+      }
+      if (parsed && typeof parsed === "object") {
+        const result: LabelDetail[] = [];
+        for (const [name, raw] of Object.entries(parsed)) {
+          const spec = raw as { color?: string; description?: string };
+          result.push({
+            name,
+            color: (spec.color ?? "").replace(/^#/, "").toLowerCase(),
+            description: spec.description ?? "",
+          });
+        }
+        return result;
+      }
+      throw new Error(
+        `labels.json must be a JSON array or object, got ${typeof parsed}`,
+      );
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return [];
+      throw error;
+    }
+  }
+
+  async createLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const existing = await this.#readLabelMap();
+    if (Object.prototype.hasOwnProperty.call(existing, name)) {
+      throw new Error(`Label "${name}" already exists`);
+    }
+    existing[name] = {
+      color: color.toLowerCase(),
+      description,
+    };
+    await this.#writeLabelMap(existing);
+  }
+
+  async updateLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const existing = await this.#readLabelMap();
+    if (!Object.prototype.hasOwnProperty.call(existing, name)) {
+      throw new Error(`Label "${name}" does not exist`);
+    }
+    existing[name] = {
+      color: color.toLowerCase(),
+      description,
+    };
+    await this.#writeLabelMap(existing);
+  }
+
+  async #readLabelMap(): Promise<
+    Record<string, { color: string; description: string }>
+  > {
+    const path = `${this.#store.storePath}/labels.json`;
+    try {
+      const text = await Deno.readTextFile(path);
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        // Upgrade legacy flat format in-memory; writer will persist detailed.
+        const map: Record<string, { color: string; description: string }> = {};
+        for (const name of parsed) {
+          if (typeof name === "string") {
+            map[name] = { color: "", description: "" };
+          }
+        }
+        return map;
+      }
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, { color: string; description: string }>;
+      }
+      throw new Error(
+        `labels.json must be a JSON array or object, got ${typeof parsed}`,
+      );
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return {};
+      throw error;
+    }
+  }
+
+  async #writeLabelMap(
+    map: Record<string, { color: string; description: string }>,
+  ): Promise<void> {
+    const path = `${this.#store.storePath}/labels.json`;
+    await Deno.mkdir(this.#store.storePath, { recursive: true });
+    await Deno.writeTextFile(path, JSON.stringify(map, null, 2));
   }
 
   async getIssueDetail(issueNumber: number): Promise<IssueDetail> {
