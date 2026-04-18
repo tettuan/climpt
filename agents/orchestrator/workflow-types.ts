@@ -135,6 +135,9 @@ export interface WorkflowRules {
 
   /** Interval in ms between log messages during rate limit wait (default 300000 = 5min) */
   rateLimitPollIntervalMs?: number;
+
+  /** Block when same phase appears consecutively N times. 0 = disabled. */
+  maxConsecutivePhases?: number;
 }
 
 // === Top-Level ===
@@ -228,7 +231,12 @@ export interface OrchestratorResult {
   finalPhase: string;
   cycleCount: number;
   history: PhaseTransitionRecord[];
-  status: "completed" | "blocked" | "cycle_exceeded" | "dry-run";
+  status:
+    | "completed"
+    | "blocked"
+    | "cycle_exceeded"
+    | "phase_repetition_exceeded"
+    | "dry-run";
   /** True when closeOnComplete triggered and gh issue close succeeded */
   issueClosed?: boolean;
 }
