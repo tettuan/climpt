@@ -439,14 +439,19 @@ export class Orchestrator {
       // Step 7a.5: Expand agent-declared `deferred_items[]` into outbox
       // `create-issue` actions, so the follow-up issues are filed before
       // the current issue closes in T6. See issue #480.
-      if (store && dispatchResult.structuredOutput) {
+      // Idempotency: already-confirmed items are skipped (issue #484).
+      const deferredEmitter = store
+        ? new DeferredItemsEmitter(store)
+        : undefined;
+      let deferredEmittedKeys: readonly string[] = [];
+      if (deferredEmitter && dispatchResult.structuredOutput) {
         try {
-          const deferredEmitter = new DeferredItemsEmitter(store);
           // deno-lint-ignore no-await-in-loop
           const deferredResult = await deferredEmitter.emit(
             subjectId,
             dispatchResult.structuredOutput,
           );
+          deferredEmittedKeys = deferredResult.emittedKeys;
           if (deferredResult.count > 0) {
             // deno-lint-ignore no-await-in-loop
             await log.info(
@@ -518,6 +523,21 @@ export class Orchestrator {
                 subjectId,
                 failedCount: failed.length,
               },
+            );
+          }
+
+          // Step 7b.1: Confirm deferred-item idempotency keys after all-success.
+          // Keys are persisted only when every outbox action succeeded, so
+          // a failed createIssue does NOT mark the item as "done" — the next
+          // cycle will re-emit and retry it. See issue #484.
+          if (
+            failed.length === 0 && deferredEmitter &&
+            deferredEmittedKeys.length > 0
+          ) {
+            // deno-lint-ignore no-await-in-loop
+            await deferredEmitter.confirmEmitted(
+              subjectId,
+              deferredEmittedKeys,
             );
           }
         }

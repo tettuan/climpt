@@ -17,6 +17,16 @@
  *       { absent, null, empty } inputs all emit zero files.
  *   I9. Defensive copy:
  *       mutating input.labels after emit() does not affect file content.
+ *   I10. Idempotency — duplicate prevention (issue #484):
+ *       confirmed items are not re-emitted on subsequent emit() calls.
+ *   I11. Idempotency — unconfirmed retry:
+ *       items whose keys were never confirmed ARE re-emitted.
+ *   I12. Idempotency — partial overlap:
+ *       only genuinely new items are emitted when input mixes old and new.
+ *   I13. Idempotency — restart resilience:
+ *       keys survive SubjectStore reconstruction (disk persistence).
+ *   I14. Idempotency — label order independence:
+ *       same item with differently-ordered labels produces the same key.
  *
  * The emitter's defensive validation (extractDeferredItems throws on
  * malformed input) is a fail-loud boundary — schema rejects the same
@@ -38,6 +48,7 @@ import type {
 import { OutboxProcessor } from "./outbox-processor.ts";
 import { SubjectStore } from "./subject-store.ts";
 import {
+  computeIdempotencyKey,
   DeferredItemsEmitter,
   extractDeferredItems,
 } from "./deferred-items-emitter.ts";
@@ -430,6 +441,255 @@ Deno.test(
       threw,
       "extractDeferredItems must throw on non-array input. " +
         "Fix: keep the Array.isArray guard.",
+    );
+  },
+);
+
+// =============================================================================
+// I10 — Idempotency: duplicate prevention (issue #484).
+// After emit + confirmEmitted, re-emitting the same structuredOutput must
+// produce zero new outbox files and zero createIssue calls.
+// =============================================================================
+
+Deno.test(
+  "idempotency: confirmed items are not re-emitted on second emit",
+  async () => {
+    await withTempStore(async (store) => {
+      const input = {
+        deferred_items: [
+          { title: "A", body: "body-a", labels: ["kind:impl"] },
+          { title: "B", body: "body-b", labels: ["bug"] },
+        ],
+      };
+
+      const emitter = new DeferredItemsEmitter(store);
+      const SUBJECT = 10;
+
+      // Cycle 1: emit → process outbox (simulating all-success) → confirm
+      const r1 = await emitter.emit(SUBJECT, input);
+      assertEquals(r1.count, 2, "First emit must write all items.");
+      assertGreater(
+        r1.emittedKeys.length,
+        0,
+        "First emit must return idempotency keys.",
+      );
+      // Process outbox to clear it (simulating successful OutboxProcessor run)
+      const github1 = new SpyGitHubClient();
+      const processor1 = new OutboxProcessor(github1, store);
+      await processor1.process(SUBJECT);
+      assertEquals(
+        github1.createdIssues.length,
+        2,
+        "Cycle 1 must create 2 issues.",
+      );
+      // Confirm keys after successful processing
+      await emitter.confirmEmitted(SUBJECT, r1.emittedKeys);
+
+      // Cycle 2: same input → zero new items
+      const r2 = await emitter.emit(SUBJECT, input);
+      assertEquals(
+        r2.count,
+        0,
+        "Second emit after confirm must produce 0 items. " +
+          "Fix: DeferredItemsEmitter.emit must check confirmed keys.",
+      );
+      assertEquals(r2.paths, []);
+      assertEquals([...r2.emittedKeys], []);
+
+      // Verify no outbox files were written in cycle 2
+      const github2 = new SpyGitHubClient();
+      const processor2 = new OutboxProcessor(github2, store);
+      const outboxResults = await processor2.process(SUBJECT);
+      assertEquals(
+        outboxResults.length,
+        0,
+        "No outbox actions should exist after idempotent skip.",
+      );
+      assertEquals(
+        github2.createdIssues.length,
+        0,
+        "No createIssue calls on idempotent retry.",
+      );
+    });
+  },
+);
+
+// =============================================================================
+// I11 — Idempotency: unconfirmed retry.
+// If confirmEmitted is never called (outbox processing failed), the next
+// emit must re-emit the items so they can be retried.
+// =============================================================================
+
+Deno.test(
+  "idempotency: unconfirmed items are re-emitted on retry",
+  async () => {
+    await withTempStore(async (store) => {
+      const input = {
+        deferred_items: [
+          { title: "X", body: "body-x", labels: ["enhancement"] },
+        ],
+      };
+
+      const emitter = new DeferredItemsEmitter(store);
+      const SUBJECT = 11;
+
+      // Cycle 1: emit but do NOT confirm (simulating outbox failure)
+      const r1 = await emitter.emit(SUBJECT, input);
+      assertEquals(r1.count, 1);
+      // Deliberately skip confirmEmitted — simulating outbox failure.
+
+      // Clear outbox to simulate partial state (outbox not cleared on failure,
+      // but we test the emitter's key-based behavior, not outbox state)
+      await store.clearOutbox(SUBJECT);
+
+      // Cycle 2: same input → must re-emit because no confirmation
+      const r2 = await emitter.emit(SUBJECT, input);
+      assertEquals(
+        r2.count,
+        1,
+        "Unconfirmed items must be re-emitted on retry. " +
+          "Fix: DeferredItemsEmitter must only skip items with confirmed keys.",
+      );
+    });
+  },
+);
+
+// =============================================================================
+// I12 — Idempotency: partial overlap.
+// When input mixes previously confirmed items and new items, only the new
+// items are emitted.
+// =============================================================================
+
+Deno.test(
+  "idempotency: partial overlap emits only new items",
+  async () => {
+    await withTempStore(async (store) => {
+      const itemOld = { title: "Old", body: "old-body", labels: ["bug"] };
+      const itemNew = { title: "New", body: "new-body", labels: ["feature"] };
+
+      const emitter = new DeferredItemsEmitter(store);
+      const SUBJECT = 12;
+
+      // Cycle 1: emit and confirm only itemOld
+      const r1 = await emitter.emit(SUBJECT, {
+        deferred_items: [itemOld],
+      });
+      assertEquals(r1.count, 1);
+      await emitter.confirmEmitted(SUBJECT, r1.emittedKeys);
+      await store.clearOutbox(SUBJECT);
+
+      // Cycle 2: input contains both old and new
+      const r2 = await emitter.emit(SUBJECT, {
+        deferred_items: [itemOld, itemNew],
+      });
+      assertEquals(
+        r2.count,
+        1,
+        "Only the new item must be emitted when old item is already confirmed.",
+      );
+
+      // Verify the new item is the one that was emitted
+      const github = new SpyGitHubClient();
+      const processor = new OutboxProcessor(github, store);
+      await processor.process(SUBJECT);
+
+      assertEquals(github.createdIssues.length, 1);
+      assertEquals(
+        github.createdIssues[0].title,
+        "New",
+        "Only the genuinely new item must be forwarded to createIssue.",
+      );
+    });
+  },
+);
+
+// =============================================================================
+// I13 — Idempotency: restart resilience.
+// Keys survive SubjectStore reconstruction from disk. A fresh SubjectStore
+// instance reading the same directory must see previously confirmed keys.
+// =============================================================================
+
+Deno.test(
+  "idempotency: confirmed keys persist across SubjectStore instances",
+  async () => {
+    const tmp = await Deno.makeTempDir();
+    try {
+      const storePath = `${tmp}/store`;
+      const SUBJECT = 13;
+      const input = {
+        deferred_items: [
+          { title: "Persistent", body: "survives restart", labels: ["p1"] },
+        ],
+      };
+
+      // Instance 1: emit and confirm
+      const store1 = new SubjectStore(storePath);
+      const emitter1 = new DeferredItemsEmitter(store1);
+      const r1 = await emitter1.emit(SUBJECT, input);
+      assertEquals(r1.count, 1);
+      await emitter1.confirmEmitted(SUBJECT, r1.emittedKeys);
+
+      // Instance 2: fresh store from same directory
+      const store2 = new SubjectStore(storePath);
+      const emitter2 = new DeferredItemsEmitter(store2);
+      const r2 = await emitter2.emit(SUBJECT, input);
+      assertEquals(
+        r2.count,
+        0,
+        "A fresh SubjectStore instance must see previously confirmed keys. " +
+          "Fix: keys must be persisted to disk, not held in memory.",
+      );
+    } finally {
+      await Deno.remove(tmp, { recursive: true });
+    }
+  },
+);
+
+// =============================================================================
+// I14 — Idempotency: label order independence.
+// The same item with differently-ordered labels must produce the same
+// idempotency key, so that cosmetic reordering in agent output does not
+// bypass the duplicate check.
+// =============================================================================
+
+Deno.test(
+  "idempotency: label order does not affect idempotency key",
+  async () => {
+    const item1 = { title: "T", body: "B", labels: ["b", "a", "c"] as const };
+    const item2 = { title: "T", body: "B", labels: ["c", "a", "b"] as const };
+
+    const key1 = await computeIdempotencyKey(item1);
+    const key2 = await computeIdempotencyKey(item2);
+
+    assertEquals(
+      key1,
+      key2,
+      "Items with identical content but different label order must produce " +
+        "the same idempotency key. " +
+        "Fix: computeIdempotencyKey must sort labels before hashing.",
+    );
+  },
+);
+
+// =============================================================================
+// I14b — Idempotency: different content produces different keys.
+// Guard against degenerate hash implementations that always return the same
+// value. Two items with different titles must yield distinct keys.
+// =============================================================================
+
+Deno.test(
+  "idempotency: different items produce different keys",
+  async () => {
+    const itemA = { title: "Alpha", body: "B", labels: ["l"] as const };
+    const itemB = { title: "Beta", body: "B", labels: ["l"] as const };
+
+    const keyA = await computeIdempotencyKey(itemA);
+    const keyB = await computeIdempotencyKey(itemB);
+
+    assert(
+      keyA !== keyB,
+      "Items with different content must produce different idempotency keys. " +
+        "Fix: computeIdempotencyKey hash must incorporate title/body/labels.",
     );
   },
 );

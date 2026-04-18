@@ -13,6 +13,12 @@
  * (which conventionally start at `001-`). The orchestrator closes the issue
  * via a direct saga call (T6), not via an outbox `close-issue`, so the
  * create-issue files always execute before the close.
+ *
+ * Idempotency: each item is hashed (SHA-256 of canonical JSON) to produce
+ * an idempotency key. Keys confirmed via `confirmEmitted()` are persisted
+ * in the SubjectStore. On subsequent `emit()` calls (e.g. retry cycles),
+ * items whose keys already exist are skipped, preventing duplicate issue
+ * creation (see issue #484).
  */
 
 import type { SubjectStore } from "./subject-store.ts";
@@ -28,6 +34,31 @@ export interface DeferredItem {
 export interface DeferredItemsEmitResult {
   readonly count: number;
   readonly paths: readonly string[];
+  /** Idempotency keys for items that were actually emitted (new items only). */
+  readonly emittedKeys: readonly string[];
+}
+
+/**
+ * Compute a deterministic idempotency key for a deferred item.
+ *
+ * Uses SHA-256 of a canonical JSON representation where labels are sorted
+ * to ensure order-independence. The full 64-char hex digest is returned
+ * for collision resistance.
+ */
+export async function computeIdempotencyKey(
+  item: DeferredItem,
+): Promise<string> {
+  const canonical = JSON.stringify({
+    title: item.title,
+    body: item.body,
+    labels: [...item.labels].sort(),
+  });
+  const data = new TextEncoder().encode(canonical);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = new Uint8Array(hashBuffer);
+  return Array.from(hashArray)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -99,12 +130,17 @@ export class DeferredItemsEmitter {
   }
 
   /**
-   * Emit deferred items for a subject. Returns `{count: 0, paths: []}` when
-   * the structured output has no deferred items (empty array or field absent).
+   * Emit deferred items for a subject. Returns `{count: 0, paths: [], emittedKeys: []}`
+   * when the structured output has no deferred items or all items have already
+   * been emitted in a previous cycle.
    *
    * Each item is written to `{outbox}/000-deferred-{NNN}.json` with `NNN`
    * being a 3-digit zero-padded index. The `000-` prefix ensures these files
    * sort before any externally-written outbox entries (which start at `001-`).
+   *
+   * Idempotency: items whose idempotency key (SHA-256 of canonical JSON)
+   * already exists in the confirmed keys store are skipped. This prevents
+   * duplicate issue creation on retry cycles (issue #484).
    */
   async emit(
     subjectId: string | number,
@@ -112,13 +148,29 @@ export class DeferredItemsEmitter {
   ): Promise<DeferredItemsEmitResult> {
     const items = extractDeferredItems(structuredOutput);
     if (items.length === 0) {
-      return { count: 0, paths: [] };
+      return { count: 0, paths: [], emittedKeys: [] };
+    }
+
+    // Load previously confirmed keys and filter out already-emitted items.
+    const existingKeys = await this.#store.readEmittedKeys(subjectId);
+    const existingSet = new Set(existingKeys);
+
+    const pending: { key: string; item: DeferredItem }[] = [];
+    for (const item of items) {
+      const key = await computeIdempotencyKey(item);
+      if (!existingSet.has(key)) {
+        pending.push({ key, item });
+      }
+    }
+
+    if (pending.length === 0) {
+      return { count: 0, paths: [], emittedKeys: [] };
     }
 
     const outboxDir = this.#store.getOutboxPath(subjectId);
     await Deno.mkdir(outboxDir, { recursive: true });
 
-    const writes = items.map((item, i) => {
+    const writes = pending.map(({ item }, i) => {
       const seq = String(i).padStart(3, "0");
       const path = `${outboxDir}/000-deferred-${seq}.json`;
       const payload = {
@@ -134,6 +186,29 @@ export class DeferredItemsEmitter {
     });
     const paths = await Promise.all(writes);
 
-    return { count: items.length, paths };
+    return {
+      count: pending.length,
+      paths,
+      emittedKeys: pending.map(({ key }) => key),
+    };
+  }
+
+  /**
+   * Confirm that emitted items were successfully created.
+   *
+   * Persists the given idempotency keys so that future `emit()` calls
+   * skip these items. Must be called only after OutboxProcessor has
+   * successfully processed all create-issue actions (all-success).
+   *
+   * Merges with any previously confirmed keys (union, deduplicated).
+   */
+  async confirmEmitted(
+    subjectId: string | number,
+    keys: readonly string[],
+  ): Promise<void> {
+    if (keys.length === 0) return;
+    const existing = await this.#store.readEmittedKeys(subjectId);
+    const merged = [...new Set([...existing, ...keys])];
+    await this.#store.writeEmittedKeys(subjectId, merged);
   }
 }

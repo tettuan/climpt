@@ -107,7 +107,7 @@ config を「置き換える」のではなく「追加する」。
 - `closure_action: "label-only"` + `deferred_items: [...]` → 本 issue は OPEN
   のまま派生のみ起票
 
-### R6: `deferred_items` は close より前に実行される
+### R6: `deferred_items` は close より前に冪等に実行される
 
 System は `deferred_items` の N 件を `create-issue` outbox アクションに展開し、
 OutboxProcessor（Step 7b）で GitHub に送信する。Saga T6 の `closeIssue` は
@@ -117,6 +117,13 @@ OutboxProcessor 完了後に走る（`12_orchestrator.md` §「T1〜T7
 **不変条件（INV-ORDER）**: すべての `createIssue` は唯一の `closeIssue` より
 **厳密に前** に実行される。派生 issue の起票失敗は本 issue の close を
 ブロックする（fail-fast）。
+
+**不変条件（INV-IDEMPOTENT）**: 同一 `deferred_items[i]` に対する `createIssue`
+は **lifetime で 1 回のみ** 実行される。各アイテムの SHA-256 ハッシュ
+（`title + body + sorted labels` の canonical JSON）を idempotency key として
+`deferred-emitted-keys.json` に永続化し、再 emit 時にスキップする。key の
+永続化は OutboxProcessor が全アクション成功した場合のみ行われるため、
+`createIssue` が失敗した場合は次サイクルで再試行される（issue #484）。
 
 ### R7: `{title, body, labels}` は verbatim 転送される
 
