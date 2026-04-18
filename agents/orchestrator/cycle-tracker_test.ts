@@ -230,3 +230,89 @@ Deno.test("fromState allows continued recording", () => {
   assertEquals(history[1].from, "review");
   assertEquals(history[1].to, "complete");
 });
+
+// === L3: phase repetition limit ===
+
+Deno.test("isPhaseRepetitionExceeded is disabled when maxConsecutivePhases is 0", () => {
+  const tracker = new CycleTracker(100, 0);
+  for (let i = 0; i < 10; i++) {
+    tracker.record(1, "review", "revision", "iterator", "needs-revision");
+  }
+  assertEquals(tracker.isPhaseRepetitionExceeded(1), false);
+  assertEquals(tracker.getConsecutiveCount(1), 10);
+});
+
+Deno.test(
+  "isPhaseRepetitionExceeded trips exactly at limit with same consecutive to-phase",
+  () => {
+    const tracker = new CycleTracker(100, 3);
+    tracker.record(
+      1,
+      "implementation",
+      "revision",
+      "iterator",
+      "needs-revision",
+    );
+    tracker.record(1, "revision", "revision", "iterator", "needs-revision");
+    tracker.record(1, "revision", "revision", "iterator", "needs-revision");
+    assertEquals(tracker.isPhaseRepetitionExceeded(1), true);
+    assertEquals(tracker.getConsecutiveCount(1), 3);
+  },
+);
+
+Deno.test(
+  "isPhaseRepetitionExceeded stays false when consecutive count is under the limit",
+  () => {
+    const tracker = new CycleTracker(100, 3);
+    tracker.record(
+      1,
+      "implementation",
+      "revision",
+      "iterator",
+      "needs-revision",
+    );
+    tracker.record(1, "revision", "revision", "iterator", "needs-revision");
+    assertEquals(tracker.isPhaseRepetitionExceeded(1), false);
+    assertEquals(tracker.getConsecutiveCount(1), 2);
+  },
+);
+
+Deno.test(
+  "isPhaseRepetitionExceeded resets when a different to-phase breaks the streak",
+  () => {
+    const tracker = new CycleTracker(100, 3);
+    // Sequence of `to` values: revision, revision, triage, revision, revision
+    tracker.record(
+      1,
+      "implementation",
+      "revision",
+      "iterator",
+      "needs-revision",
+    );
+    tracker.record(1, "revision", "revision", "iterator", "needs-revision");
+    tracker.record(1, "revision", "triage", "reviewer", "needs-triage");
+    tracker.record(1, "triage", "revision", "iterator", "needs-revision");
+    tracker.record(1, "revision", "revision", "iterator", "needs-revision");
+    assertEquals(tracker.isPhaseRepetitionExceeded(1), false);
+    assertEquals(tracker.getConsecutiveCount(1), 2);
+  },
+);
+
+Deno.test(
+  "isPhaseRepetitionExceeded evaluates restored history via fromState",
+  () => {
+    const seed = new CycleTracker(100, 3);
+    seed.record(1, "implementation", "revision", "iterator", "needs-revision");
+    seed.record(1, "revision", "revision", "iterator", "needs-revision");
+    seed.record(1, "revision", "revision", "iterator", "needs-revision");
+    const state = seed.toState(1, "revision");
+
+    const restored = CycleTracker.fromState(state, 100, 3);
+    assertEquals(restored.isPhaseRepetitionExceeded(1), true);
+    assertEquals(restored.getConsecutiveCount(1), 3);
+
+    // Same history but limit 0 (disabled) must not trip.
+    const disabled = CycleTracker.fromState(state, 100, 0);
+    assertEquals(disabled.isPhaseRepetitionExceeded(1), false);
+  },
+);

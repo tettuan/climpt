@@ -129,6 +129,7 @@ export class Orchestrator {
   ): Promise<OrchestratorResult> {
     const dryRun = options?.dryRun ?? false;
     const maxCycles = this.#config.rules.maxCycles;
+    const maxConsecutivePhases = this.#config.rules.maxConsecutivePhases ?? 0;
     const wfId = workflowId ?? this.workflowId;
 
     await log.info(`Run start issue #${issueNumber}`, {
@@ -174,15 +175,20 @@ export class Orchestrator {
           tracker = CycleTracker.fromState(
             { ...existingState, history: [], cycleCount: 0 },
             maxCycles,
+            maxConsecutivePhases,
           );
         } else {
-          tracker = CycleTracker.fromState(existingState, maxCycles);
+          tracker = CycleTracker.fromState(
+            existingState,
+            maxCycles,
+            maxConsecutivePhases,
+          );
         }
       } else {
-        tracker = new CycleTracker(maxCycles);
+        tracker = new CycleTracker(maxCycles, maxConsecutivePhases);
       }
     } else {
-      tracker = new CycleTracker(maxCycles);
+      tracker = new CycleTracker(maxCycles, maxConsecutivePhases);
     }
 
     let finalPhase = "unknown";
@@ -283,7 +289,28 @@ export class Orchestrator {
 
       const { agentId, agent } = agentResolution;
 
-      // Step 6: Cycle check
+      // Step 6a: Phase repetition check (L3) — evaluated before L1 maxCycles
+      // so stuck patterns surface a specific status / event rather than
+      // being absorbed by the generic cycle_exceeded path.
+      if (tracker.isPhaseRepetitionExceeded(issueNumber)) {
+        status = "phase_repetition_exceeded";
+        // deno-lint-ignore no-await-in-loop
+        await log.warn(
+          `Same phase repeated ${
+            tracker.getConsecutiveCount(issueNumber)
+          } times consecutively (limit ${maxConsecutivePhases})`,
+          {
+            event: "consecutive_phase_exceeded",
+            issueNumber,
+            phase: phaseId,
+            consecutiveCount: tracker.getConsecutiveCount(issueNumber),
+            maxConsecutivePhases,
+          },
+        );
+        break;
+      }
+
+      // Step 6b: Cycle check
       if (tracker.isExceeded(issueNumber)) {
         status = "cycle_exceeded";
         // deno-lint-ignore no-await-in-loop

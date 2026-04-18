@@ -41,6 +41,7 @@ const DEFAULT_WORKFLOW_PATH = ".agent/workflow.json";
 const DEFAULT_RULES: WorkflowRules = {
   maxCycles: 5,
   cycleDelayMs: 10000,
+  maxConsecutivePhases: 0,
 };
 
 /**
@@ -125,6 +126,8 @@ function applyDefaultRules(
   return {
     maxCycles: rules.maxCycles ?? DEFAULT_RULES.maxCycles,
     cycleDelayMs: rules.cycleDelayMs ?? DEFAULT_RULES.cycleDelayMs,
+    maxConsecutivePhases: rules.maxConsecutivePhases ??
+      DEFAULT_RULES.maxConsecutivePhases,
   };
 }
 

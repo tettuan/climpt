@@ -122,10 +122,11 @@ Agent の動作を定義:
 
 ### rules
 
-| フィールド     | デフォルト | 説明                                                                 |
-| -------------- | ---------- | -------------------------------------------------------------------- |
-| `maxCycles`    | 5          | issue あたりの最大遷移回数                                           |
-| `cycleDelayMs` | 10000      | サイクル間の待機（ミリ秒）; カウントダウンと安全停止メッセージを表示 |
+| フィールド             | デフォルト | 説明                                                                                                                      |
+| ---------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `maxCycles`            | 5          | issue あたりの最大遷移回数                                                                                                |
+| `cycleDelayMs`         | 10000      | サイクル間の待機（ミリ秒）; カウントダウンと安全停止メッセージを表示                                                      |
+| `maxConsecutivePhases` | 0 (無効)   | 同一 phase が連続 N 回出現した時点で `phase_repetition_exceeded` として停止。`maxCycles` より先に評価。`0` でチェック無効 |
 
 ### prioritizer
 
@@ -280,6 +281,9 @@ Orchestrator は JSON で結果を出力する:
 
 - `"completed"` — terminal phase に到達。
 - `"blocked"` — blocking phase に到達、またはアクション可能なラベルなし。
+- `"phase_repetition_exceeded"` — 同一 phase が `maxConsecutivePhases`
+  回連続で出現。`maxCycles` より早期に stuck パターンを検知する (default `0` =
+  無効)。
 - `"cycle_exceeded"` — `maxCycles` 制限に到達。
 - `"dry-run"` — actionable phase を解決済み。`--dry-run`
   によりディスパッチをスキップ。

@@ -11,6 +11,7 @@ import type { DispatchOutcome } from "./dispatcher.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { IssueStore } from "./issue-store.ts";
+import { CycleTracker } from "./cycle-tracker.ts";
 
 // Design §2.2: one phase transition produces one "add" call (T3) plus
 // one "remove" call (T4).
@@ -2548,3 +2549,311 @@ Deno.test("verdict propagation: unknown verdict falls back to fallbackPhase", as
   assertEquals(result.history[0].to, "blocked");
   assertEquals(result.history[0].outcome, "unknown-verdict");
 });
+
+// === L3: phase repetition limit ===
+
+/**
+ * Read the session JSONL log produced by the orchestrator for a given cwd
+ * and return the parsed entries. Tests write logs into a per-test tmpDir so
+ * exactly one session file exists per invocation.
+ */
+async function readSessionLog(
+  cwd: string,
+): Promise<
+  { level: string; message: string; metadata?: Record<string, unknown> }[]
+> {
+  const logDir = `${cwd}/tmp/logs/orchestrator`;
+  for await (const entry of Deno.readDir(logDir)) {
+    if (entry.name.endsWith(".jsonl")) {
+      const content = await Deno.readTextFile(`${logDir}/${entry.name}`);
+      return content.trim().split("\n").map((l) => JSON.parse(l));
+    }
+  }
+  throw new Error(`no session log file found under ${logDir}`);
+}
+
+Deno.test(
+  "L3 fires before L1 when same phase repeats maxConsecutivePhases times",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createTestConfig();
+      // L1 is set high enough that only L3 can trip in three cycles.
+      config.rules.maxCycles = 10;
+      config.rules.maxConsecutivePhases = 3;
+
+      // Live labels always resolve to `revision` (priority 1 actionable).
+      // The iterator's outputPhase is `review`, so every cycle produces a
+      // (from=revision, to=review) transition — giving three consecutive
+      // identical `to` values, which must trip L3.
+      const github = new StubGitHubClient([
+        ["implementation-gap"],
+        ["implementation-gap"],
+        ["implementation-gap"],
+        ["implementation-gap"],
+      ]);
+      const dispatcher = new StubDispatcher({ iterator: "success" });
+      const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+      const result = await orchestrator.run(1);
+
+      assertEquals(result.status, "phase_repetition_exceeded");
+      // Exactly three transitions recorded before the L3 check trips on the
+      // fourth cycle's pre-dispatch gate.
+      assertEquals(result.history.length, 3);
+      assertEquals(result.cycleCount, 3);
+      for (const record of result.history) {
+        assertEquals(record.to, "review");
+      }
+
+      const entries = await readSessionLog(tmpDir);
+      const l3 = entries.find((e) =>
+        e.metadata?.event === "consecutive_phase_exceeded"
+      );
+      const l1 = entries.find((e) => e.metadata?.event === "cycle_exceeded");
+      assertEquals(
+        l3 !== undefined,
+        true,
+        "consecutive_phase_exceeded event must be emitted",
+      );
+      assertEquals(
+        l1,
+        undefined,
+        "cycle_exceeded must not fire when L3 preempts it",
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "L3 disabled (default 0) preserves the existing cycle_exceeded path",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createTestConfig();
+      // maxConsecutivePhases omitted -> defaults to undefined -> 0 (disabled).
+      config.rules.maxCycles = 2;
+
+      const github = new StubGitHubClient([
+        ["implementation-gap"],
+        ["implementation-gap"],
+        ["implementation-gap"],
+      ]);
+      const dispatcher = new StubDispatcher({ iterator: "success" });
+      const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+      const result = await orchestrator.run(1);
+
+      assertEquals(result.status, "cycle_exceeded");
+      assertEquals(result.cycleCount, 2);
+
+      const entries = await readSessionLog(tmpDir);
+      const l3 = entries.find((e) =>
+        e.metadata?.event === "consecutive_phase_exceeded"
+      );
+      const l1 = entries.find((e) => e.metadata?.event === "cycle_exceeded");
+      assertEquals(
+        l3,
+        undefined,
+        "consecutive_phase_exceeded must not fire when L3 is disabled",
+      );
+      assertEquals(l1 !== undefined, true);
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "consecutive_phase_exceeded event carries phase, consecutiveCount, and maxConsecutivePhases",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createTestConfig();
+      config.rules.maxCycles = 10;
+      config.rules.maxConsecutivePhases = 3;
+
+      const github = new StubGitHubClient([
+        ["implementation-gap"],
+        ["implementation-gap"],
+        ["implementation-gap"],
+        ["implementation-gap"],
+      ]);
+      const dispatcher = new StubDispatcher({ iterator: "success" });
+      const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
+
+      await orchestrator.run(1);
+
+      const entries = await readSessionLog(tmpDir);
+      const l3 = entries.find((e) =>
+        e.metadata?.event === "consecutive_phase_exceeded"
+      );
+      if (!l3) throw new Error("consecutive_phase_exceeded event missing");
+      const meta = l3.metadata as Record<string, unknown>;
+      // The L3 gate runs after phase resolution for the next cycle, so the
+      // `phase` field reflects the phase that WOULD have been dispatched.
+      assertEquals(meta.phase, "revision");
+      assertEquals(meta.consecutiveCount, 3);
+      assertEquals(meta.maxConsecutivePhases, 3);
+      assertEquals(meta.issueNumber, 1);
+      // cycleCount must not appear on the L3 event to keep it distinct from
+      // the L1 cycle_exceeded event (design §4).
+      assertEquals(
+        Object.prototype.hasOwnProperty.call(meta, "cycleCount"),
+        false,
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "L3 counter restarts from zero after label-regression history reset",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createTestConfig();
+      // maxCycles high enough that L1 never trips during this scenario.
+      config.rules.maxCycles = 10;
+      config.rules.maxConsecutivePhases = 3;
+      const store = new IssueStore(`${tmpDir}/store`);
+
+      // Seed pattern mirrors orchestrator_test.ts:1567-1651 — a previously
+      // completed issue that the user has manually relabeled back to an
+      // actionable phase. The persisted history carries three consecutive
+      // `to=review` records that would trip L3 immediately if carried over.
+      await store.writeIssue({
+        meta: {
+          number: 1,
+          title: "Test",
+          // Live labels resolve to `implementation` via `ready`, diverging
+          // from the persisted `complete` phase -> triggers the regression
+          // reset in orchestrator.ts:158-180.
+          labels: ["ready"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "test",
+        comments: [],
+      });
+      await store.writeWorkflowState(1, {
+        issueNumber: 1,
+        currentPhase: "complete",
+        cycleCount: 3,
+        correlationId: "wf-prior",
+        history: [
+          {
+            from: "revision",
+            to: "review",
+            agent: "iterator",
+            outcome: "success",
+            timestamp: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            from: "revision",
+            to: "review",
+            agent: "iterator",
+            outcome: "success",
+            timestamp: "2026-01-01T00:01:00.000Z",
+          },
+          {
+            from: "revision",
+            to: "review",
+            agent: "iterator",
+            outcome: "success",
+            timestamp: "2026-01-01T00:02:00.000Z",
+          },
+        ],
+      }, "default");
+
+      // Cycle 1: ready -> implementation -> iterator -> review
+      // Cycle 2: review -> reviewer (approved) -> complete (terminal)
+      const github = new StubGitHubClient([
+        ["ready"],
+        ["review"],
+        ["done"],
+      ]);
+      const dispatcher = new StubDispatcher({
+        iterator: "success",
+        reviewer: "approved",
+      });
+      const orchestrator = new Orchestrator(
+        config,
+        github,
+        dispatcher,
+        tmpDir,
+      );
+
+      const result = await orchestrator.run(1, {}, store);
+
+      // The run itself completes normally: the label-regression reset drops
+      // the pre-seeded stuck history, so L3 does NOT trip despite the seed
+      // containing three consecutive `to=review` records.
+      assertEquals(result.status, "completed");
+      assertEquals(result.finalPhase, "complete");
+      // Only post-reset transitions appear (2 cycles, not 2 + 3 pre-seed).
+      assertEquals(result.history.length, 2);
+      for (const record of result.history) {
+        assertEquals(
+          record.timestamp > "2026-01-01T00:02:00.000Z",
+          true,
+          `post-reset timestamp ${record.timestamp} must exceed seed data`,
+        );
+      }
+
+      // Belt-and-braces: confirm the regression reset fired.
+      const entries = await readSessionLog(tmpDir);
+      const reset = entries.find((e) =>
+        e.metadata?.event === "state_reset_by_label_regression"
+      );
+      assertEquals(
+        reset !== undefined,
+        true,
+        "label-regression reset must fire so L3 counter starts empty",
+      );
+      // The L3 event must NOT appear — the reset nullified the seed streak.
+      const l3 = entries.find((e) =>
+        e.metadata?.event === "consecutive_phase_exceeded"
+      );
+      assertEquals(
+        l3,
+        undefined,
+        "L3 must not trip after label-regression reset clears the seed streak",
+      );
+
+      // Direct evidence of the contract itself: reconstruct a tracker from
+      // the same persisted state using the orchestrator's reset path
+      // (history: []) and verify that record()-ing the same `to` twice keeps
+      // L3 false but a third consecutive record flips it true. This mirrors
+      // the §3 pseudocode / §5 label-regression counter spec exactly.
+      const persisted = await store.readWorkflowState(1, "default");
+      if (!persisted) throw new Error("persisted state missing");
+      const tracker = CycleTracker.fromState(
+        { ...persisted, history: [], cycleCount: 0 },
+        10,
+        3,
+      );
+      tracker.record(1, "revision", "review", "iterator", "success");
+      tracker.record(1, "revision", "review", "iterator", "success");
+      assertEquals(
+        tracker.isPhaseRepetitionExceeded(1),
+        false,
+        "L3 must stay false with two post-reset records under limit 3",
+      );
+      assertEquals(tracker.getConsecutiveCount(1), 2);
+      tracker.record(1, "revision", "review", "iterator", "success");
+      assertEquals(
+        tracker.isPhaseRepetitionExceeded(1),
+        true,
+        "L3 must trip once three consecutive post-reset records accumulate",
+      );
+      assertEquals(tracker.getConsecutiveCount(1), 3);
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
