@@ -82,8 +82,9 @@
     ]
   },
   "rules": {
-    "maxCycles": 2,
-    "cycleDelayMs": 30000
+    "maxCycles": 7,
+    "cycleDelayMs": 30000,
+    "maxConsecutivePhases": 3
   },
   "issueStore": {
     "path": ".agent/climpt/tmp/issues-execute"
