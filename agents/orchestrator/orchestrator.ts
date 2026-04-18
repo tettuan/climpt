@@ -935,6 +935,7 @@ export class Orchestrator {
 
     for (const r of results) {
       if (r.action === "failed") {
+        // deno-lint-ignore no-await-in-loop -- sequential log emission preserves per-label error ordering
         await log.error(
           `Label sync failed for "${r.name}": ${r.error ?? "unknown error"}`,
           { event: "label_sync_failed", label: r.name, error: r.error },

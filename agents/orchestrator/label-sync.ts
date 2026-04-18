@@ -108,8 +108,10 @@ export async function syncLabels(
 
     try {
       if (action === "created") {
+        // deno-lint-ignore no-await-in-loop -- sequential by design: per-label try/catch + order preservation + gh rate-limit friendliness
         await github.createLabel(name, spec.color, spec.description);
       } else {
+        // deno-lint-ignore no-await-in-loop -- sequential by design (same rationale)
         await github.updateLabel(name, spec.color, spec.description);
       }
       results.push({ name, action });
