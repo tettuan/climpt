@@ -9,17 +9,51 @@
  * retry in the next cycle. This replaces the previous all-or-nothing
  * `clearOutbox` strategy that left succeeded files for re-execution
  * on partial failure (see issue #486).
+ *
+ * Late-binding contract (issue #487 Gap 1):
+ * `add-to-project` actions with `issueNumber` absent are resolved
+ * using the most recently succeeded `create-issue` result within the
+ * same process() call. This enables deferred_items inheritance where
+ * a newly created issue is automatically added to the parent's projects.
+ *
+ * Post-close trigger (issue #487 Gap 2):
+ * Actions with `trigger: "post-close"` are skipped by `process()` and
+ * executed separately via `processPostClose()` after the saga T6 close.
+ * This ensures correct ordering for operations that must follow issue
+ * close (e.g. Status=Done field updates).
  */
 
 import type { GitHubClient } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
+
+/** Project reference — identifies a GitHub Project v2 by owner+number or node id. */
+export type ProjectRef = { owner: string; number: number } | { id: string };
+
+/** Value types for project field updates. */
+export type ProjectFieldValue =
+  | string
+  | number
+  | { optionId: string }
+  | { date: string };
 
 /** Discriminated union of outbox action types. */
 export type OutboxAction =
   | { action: "comment"; body: string }
   | { action: "create-issue"; title: string; labels: string[]; body: string }
   | { action: "update-labels"; add: string[]; remove: string[] }
-  | { action: "close-issue" };
+  | { action: "close-issue" }
+  | { action: "add-to-project"; project: ProjectRef; issueNumber?: number }
+  | {
+    action: "update-project-item-field";
+    project: ProjectRef;
+    itemId: string;
+    fieldId: string;
+    value: ProjectFieldValue;
+  }
+  | { action: "close-project"; project: ProjectRef };
+
+/** Trigger phase for action execution. Default (absent) = pre-close. */
+export type OutboxTrigger = "post-close";
 
 /** Result of processing a single outbox action. */
 export interface OutboxResult {
@@ -35,13 +69,49 @@ export class OutboxProcessor {
   #github: GitHubClient;
   #store: SubjectStore;
 
+  /**
+   * Most recently created issue number from a succeeded `create-issue` action.
+   * Used for late-binding: subsequent `add-to-project` actions with
+   * `issueNumber` absent resolve to this value. Reset on each `process()` call.
+   */
+  #lastCreatedIssueNumber: number | undefined = undefined;
+
   constructor(github: GitHubClient, store: SubjectStore) {
     this.#github = github;
     this.#store = store;
   }
 
-  /** Read and execute all outbox actions for a subject, then clear outbox. */
+  /**
+   * Read and execute all pre-close outbox actions for a subject.
+   *
+   * Actions with `trigger: "post-close"` are skipped (left on disk for
+   * `processPostClose()`). All other actions are processed in filename
+   * sort order.
+   *
+   * Late-binding: `create-issue` results are tracked; subsequent
+   * `add-to-project` actions with absent `issueNumber` use the most
+   * recently created issue number.
+   */
   async process(subjectId: string | number): Promise<OutboxResult[]> {
+    this.#lastCreatedIssueNumber = undefined;
+    return await this.#processActions(subjectId, false);
+  }
+
+  /**
+   * Execute post-close outbox actions for a subject.
+   *
+   * Only processes actions with `trigger: "post-close"`. Called by the
+   * orchestrator after T6 close to ensure correct ordering (e.g.
+   * Status=Done updates that must follow issue close).
+   */
+  async processPostClose(subjectId: string | number): Promise<OutboxResult[]> {
+    return await this.#processActions(subjectId, true);
+  }
+
+  async #processActions(
+    subjectId: string | number,
+    postCloseOnly: boolean,
+  ): Promise<OutboxResult[]> {
     const outboxDir = this.#store.getOutboxPath(subjectId);
 
     // Ensure the issue's outbox directory exists so that a subsequent
@@ -100,6 +170,12 @@ export class OutboxProcessor {
 
       const actionObj = parsed as Record<string, unknown>;
       const actionType = String(actionObj.action ?? "unknown");
+      const trigger = actionObj.trigger as string | undefined;
+      const isPostClose = trigger === "post-close";
+
+      // Phase filter: skip actions that don't match the current phase.
+      if (postCloseOnly && !isPostClose) continue;
+      if (!postCloseOnly && isPostClose) continue;
 
       try {
         const validated = this.#validateAction(actionObj);
@@ -172,12 +248,76 @@ export class OutboxProcessor {
         };
       case "close-issue":
         return { action: "close-issue" };
+      case "add-to-project":
+        return {
+          action: "add-to-project",
+          project: this.#validateProjectRef(obj.project, "add-to-project"),
+          issueNumber: typeof obj.issueNumber === "number"
+            ? obj.issueNumber
+            : undefined,
+        };
+      case "update-project-item-field": {
+        const project = this.#validateProjectRef(
+          obj.project,
+          "update-project-item-field",
+        );
+        if (typeof obj.itemId !== "string") {
+          throw new Error(
+            "update-project-item-field action requires 'itemId' string",
+          );
+        }
+        if (typeof obj.fieldId !== "string") {
+          throw new Error(
+            "update-project-item-field action requires 'fieldId' string",
+          );
+        }
+        if (obj.value === undefined || obj.value === null) {
+          throw new Error(
+            "update-project-item-field action requires 'value'",
+          );
+        }
+        return {
+          action: "update-project-item-field",
+          project,
+          itemId: obj.itemId,
+          fieldId: obj.fieldId,
+          value: obj.value as ProjectFieldValue,
+        };
+      }
+      case "close-project":
+        return {
+          action: "close-project",
+          project: this.#validateProjectRef(obj.project, "close-project"),
+        };
       default:
         throw new Error(`Unknown outbox action: ${action}`);
     }
   }
 
-  /** Execute a single outbox action against GitHub. */
+  /** Validate and extract a ProjectRef from a raw object. */
+  #validateProjectRef(raw: unknown, actionName: string): ProjectRef {
+    if (raw === undefined || raw === null || typeof raw !== "object") {
+      throw new Error(`${actionName} action requires 'project' object`);
+    }
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.id === "string") {
+      return { id: obj.id };
+    }
+    if (typeof obj.owner === "string" && typeof obj.number === "number") {
+      return { owner: obj.owner, number: obj.number };
+    }
+    throw new Error(
+      `${actionName} action 'project' must have {id} or {owner, number}`,
+    );
+  }
+
+  /**
+   * Execute a single outbox action against GitHub.
+   *
+   * Late-binding contract: `create-issue` results are stored in
+   * `#lastCreatedIssueNumber`. `add-to-project` with absent `issueNumber`
+   * resolves to this value.
+   */
   async #execute(
     subjectId: string | number,
     action: OutboxAction,
@@ -186,13 +326,15 @@ export class OutboxProcessor {
       case "comment":
         await this.#github.addIssueComment(subjectId, action.body);
         break;
-      case "create-issue":
-        await this.#github.createIssue(
+      case "create-issue": {
+        const newIssueNumber = await this.#github.createIssue(
           action.title,
           action.labels,
           action.body,
         );
+        this.#lastCreatedIssueNumber = newIssueNumber;
         break;
+      }
       case "update-labels":
         await this.#github.updateIssueLabels(
           subjectId,
@@ -202,6 +344,29 @@ export class OutboxProcessor {
         break;
       case "close-issue":
         await this.#github.closeIssue(subjectId);
+        break;
+      case "add-to-project": {
+        const issueNumber = action.issueNumber ??
+          this.#lastCreatedIssueNumber;
+        if (issueNumber === undefined) {
+          throw new Error(
+            "add-to-project: issueNumber not provided and no preceding " +
+              "create-issue result available for late-binding",
+          );
+        }
+        await this.#github.addIssueToProject(action.project, issueNumber);
+        break;
+      }
+      case "update-project-item-field":
+        await this.#github.updateProjectItemField(
+          action.project,
+          action.itemId,
+          action.fieldId,
+          action.value,
+        );
+        break;
+      case "close-project":
+        await this.#github.closeProject(action.project);
         break;
       default:
         throw new Error(

@@ -14,6 +14,13 @@
  * via a direct saga call (T6), not via an outbox `close-issue`, so the
  * create-issue files always execute before the close.
  *
+ * Project inheritance (issue #487, design §2.4 Hook O2):
+ * When `parentProjects` are provided, each item without explicit `projects`
+ * inherits the parent's project memberships. For each inherited project,
+ * an `add-to-project` action is emitted immediately after the `create-issue`
+ * action with `issueNumber` absent — the OutboxProcessor's late-binding
+ * contract resolves this from the preceding `create-issue` result.
+ *
  * Idempotency: each item is hashed (SHA-256 of canonical JSON) to produce
  * an idempotency key. Keys confirmed via `confirmEmitted()` are persisted
  * in the SubjectStore. On subsequent `emit()` calls (e.g. retry cycles),
@@ -22,17 +29,25 @@
  */
 
 import type { SubjectStore } from "./subject-store.ts";
+import type { ProjectRef } from "./outbox-processor.ts";
 
 /** A single deferred follow-up task extracted from agent output. */
 export interface DeferredItem {
   readonly title: string;
   readonly body: string;
   readonly labels: readonly string[];
+  /** Explicit project bindings. Absent = inherit parent. Empty array = opt-out. */
+  readonly projects?: readonly ProjectRef[];
 }
 
 /** Successful emission: per-item file paths written to the outbox. */
 export interface DeferredItemsEmitResult {
   readonly count: number;
+  /**
+   * Paths of `create-issue` action files only (1:1 with `emittedKeys`).
+   * Supplementary `add-to-project` files are not included here as they
+   * do not carry idempotency keys.
+   */
   readonly paths: readonly string[];
   /** Idempotency keys for items that were actually emitted (new items only). */
   readonly emittedKeys: readonly string[];
@@ -116,12 +131,34 @@ export function extractDeferredItems(
       }
       labels.push(label);
     }
-    items.push({ title: obj.title, body: obj.body, labels });
+    // Parse optional projects field
+    let projects: ProjectRef[] | undefined;
+    if (obj.projects !== undefined) {
+      if (!Array.isArray(obj.projects)) {
+        throw new Error(`deferred_items[${i}].projects must be an array`);
+      }
+      projects = [];
+      for (let j = 0; j < obj.projects.length; j++) {
+        const p = obj.projects[j] as Record<string, unknown>;
+        if (typeof p.id === "string") {
+          projects.push({ id: p.id });
+        } else if (
+          typeof p.owner === "string" && typeof p.number === "number"
+        ) {
+          projects.push({ owner: p.owner, number: p.number });
+        } else {
+          throw new Error(
+            `deferred_items[${i}].projects[${j}] must have {id} or {owner, number}`,
+          );
+        }
+      }
+    }
+    items.push({ title: obj.title, body: obj.body, labels, projects });
   }
   return items;
 }
 
-/** Write `deferred_items[]` as outbox `create-issue` action files. */
+/** Write `deferred_items[]` as outbox action files. */
 export class DeferredItemsEmitter {
   #store: SubjectStore;
 
@@ -134,17 +171,27 @@ export class DeferredItemsEmitter {
    * when the structured output has no deferred items or all items have already
    * been emitted in a previous cycle.
    *
-   * Each item is written to `{outbox}/000-deferred-{NNN}.json` with `NNN`
-   * being a 3-digit zero-padded index. The `000-` prefix ensures these files
-   * sort before any externally-written outbox entries (which start at `001-`).
+   * Each item is written as a `create-issue` action followed by zero or more
+   * `add-to-project` actions (for project inheritance). Files use sequential
+   * numbering within the `000-deferred-` prefix to ensure correct sort order.
+   *
+   * Project inheritance (design §2.4 Hook O2):
+   * When `parentProjects` are provided and an item has no explicit `projects`
+   * field, an `add-to-project` action is emitted for each parent project
+   * immediately after the `create-issue` action. Items with `projects: []`
+   * (empty array) opt out of inheritance. Items with explicit `projects`
+   * use their own list.
    *
    * Idempotency: items whose idempotency key (SHA-256 of canonical JSON)
    * already exists in the confirmed keys store are skipped. This prevents
    * duplicate issue creation on retry cycles (issue #484).
+   *
+   * @param parentProjects Projects the parent issue belongs to (for inheritance)
    */
   async emit(
     subjectId: string | number,
     structuredOutput: Record<string, unknown> | undefined,
+    parentProjects?: readonly ProjectRef[],
   ): Promise<DeferredItemsEmitResult> {
     const items = extractDeferredItems(structuredOutput);
     if (items.length === 0) {
@@ -170,25 +217,57 @@ export class DeferredItemsEmitter {
     const outboxDir = this.#store.getOutboxPath(subjectId);
     await Deno.mkdir(outboxDir, { recursive: true });
 
-    const writes = pending.map(({ item }, i) => {
-      const seq = String(i).padStart(3, "0");
-      const path = `${outboxDir}/000-deferred-${seq}.json`;
-      const payload = {
+    const createIssuePaths: string[] = [];
+    const allWrites: Promise<void>[] = [];
+    let fileIndex = 0;
+
+    for (const { item } of pending) {
+      // Write create-issue action
+      const createSeq = String(fileIndex).padStart(3, "0");
+      const createPath = `${outboxDir}/000-deferred-${createSeq}.json`;
+      const createPayload = {
         action: "create-issue",
         title: item.title,
         labels: [...item.labels],
         body: item.body,
       };
-      return Deno.writeTextFile(
-        path,
-        JSON.stringify(payload, null, 2) + "\n",
-      ).then(() => path);
-    });
-    const paths = await Promise.all(writes);
+      allWrites.push(
+        Deno.writeTextFile(
+          createPath,
+          JSON.stringify(createPayload, null, 2) + "\n",
+        ),
+      );
+      createIssuePaths.push(createPath);
+      fileIndex++;
+
+      // Resolve projects for this item (inheritance logic)
+      const projectsForItem = this.#resolveProjects(item, parentProjects);
+
+      // Write add-to-project actions (one per project, late-bind issueNumber)
+      for (const project of projectsForItem) {
+        const bindSeq = String(fileIndex).padStart(3, "0");
+        const bindPath = `${outboxDir}/000-deferred-${bindSeq}.json`;
+        const bindPayload = {
+          action: "add-to-project",
+          project,
+          // issueNumber absent — OutboxProcessor late-binds from
+          // the preceding create-issue result (issue #487 Gap 1).
+        };
+        allWrites.push(
+          Deno.writeTextFile(
+            bindPath,
+            JSON.stringify(bindPayload, null, 2) + "\n",
+          ),
+        );
+        fileIndex++;
+      }
+    }
+
+    await Promise.all(allWrites);
 
     return {
       count: pending.length,
-      paths,
+      paths: createIssuePaths,
       emittedKeys: pending.map(({ key }) => key),
     };
   }
@@ -210,5 +289,26 @@ export class DeferredItemsEmitter {
     const existing = await this.#store.readEmittedKeys(subjectId);
     const merged = [...new Set([...existing, ...keys])];
     await this.#store.writeEmittedKeys(subjectId, merged);
+  }
+
+  /**
+   * Determine which projects a deferred item should be added to.
+   *
+   * Design §2.4 Hook O2:
+   * - `projects` absent + parentProjects provided → inherit all parent projects
+   * - `projects: []` (empty array) → opt-out, no project binding
+   * - `projects: [...]` (explicit list) → use that list
+   * - No parentProjects → no binding
+   */
+  #resolveProjects(
+    item: DeferredItem,
+    parentProjects?: readonly ProjectRef[],
+  ): readonly ProjectRef[] {
+    if (item.projects !== undefined) {
+      // Explicit projects field — use as-is (empty array = opt-out)
+      return item.projects;
+    }
+    // Inherit from parent
+    return parentProjects ?? [];
   }
 }

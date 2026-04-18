@@ -27,6 +27,7 @@ import type {
   IssueListItem,
   LabelDetail,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { BatchRunner } from "./batch-runner.ts";
@@ -128,6 +129,23 @@ class RecordingGithubClient implements GitHubClient {
   }
   listLabels(): Promise<string[]> {
     return Promise.resolve([]);
+  }
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
   }
 }
 

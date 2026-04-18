@@ -15,6 +15,7 @@ import type {
   LabelDetail,
 } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 
 export class FileGitHubClient implements GitHubClient {
   #store: SubjectStore;
@@ -269,6 +270,73 @@ export class FileGitHubClient implements GitHubClient {
       milestone: meta.milestone,
       comments,
     };
+  }
+
+  /**
+   * Project v2 stubs — file-based implementation stores project bindings
+   * in `{storePath}/projects/{projectNumber}/items.json`.
+   */
+  async addIssueToProject(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string> {
+    const projectDir = this.#projectDir(project);
+    await Deno.mkdir(projectDir, { recursive: true });
+    const itemsPath = `${projectDir}/items.json`;
+    const items = await this.#readProjectItems(itemsPath);
+    const itemId = `PVTI_file_${issueNumber}`;
+    if (!items.some((i: { id: string }) => i.id === itemId)) {
+      items.push({ id: itemId, issueNumber, fieldValues: {} });
+      await Deno.writeTextFile(itemsPath, JSON.stringify(items, null, 2));
+    }
+    return itemId;
+  }
+
+  async updateProjectItemField(
+    project: ProjectRef,
+    itemId: string,
+    fieldId: string,
+    value: ProjectFieldValue,
+  ): Promise<void> {
+    const projectDir = this.#projectDir(project);
+    const itemsPath = `${projectDir}/items.json`;
+    const items = await this.#readProjectItems(itemsPath);
+    const item = items.find((i: { id: string }) => i.id === itemId);
+    if (!item) {
+      throw new Error(`Project item ${itemId} not found`);
+    }
+    item.fieldValues[fieldId] = value;
+    await Deno.writeTextFile(itemsPath, JSON.stringify(items, null, 2));
+  }
+
+  async closeProject(project: ProjectRef): Promise<void> {
+    const projectDir = this.#projectDir(project);
+    await Deno.mkdir(projectDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${projectDir}/closed`,
+      new Date().toISOString(),
+    );
+  }
+
+  #projectDir(project: ProjectRef): string {
+    const key = "id" in project
+      ? project.id
+      : `${project.owner}_${project.number}`;
+    return `${this.#store.storePath}/projects/${key}`;
+  }
+
+  async #readProjectItems(
+    path: string,
+  ): Promise<
+    { id: string; issueNumber: number; fieldValues: Record<string, unknown> }[]
+  > {
+    try {
+      const text = await Deno.readTextFile(path);
+      return JSON.parse(text);
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) return [];
+      throw error;
+    }
   }
 
   #filterByCriteria(

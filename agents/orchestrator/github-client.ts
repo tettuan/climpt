@@ -7,6 +7,7 @@
  */
 
 import type { IssueCriteria } from "./workflow-types.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 
 export type { IssueCriteria };
 
@@ -77,6 +78,22 @@ export interface GitHubClient {
     color: string,
     description: string,
   ): Promise<void>;
+
+  /**
+   * Project v2 operations — additive extensions for v1.14.x project
+   * orchestration. See `agents/docs/design/13_project_orchestration.md` §2.2.
+   */
+  addIssueToProject(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string>;
+  updateProjectItemField(
+    project: ProjectRef,
+    itemId: string,
+    fieldId: string,
+    value: ProjectFieldValue,
+  ): Promise<void>;
+  closeProject(project: ProjectRef): Promise<void>;
 }
 
 /** Concrete implementation using `gh` CLI via Deno.Command. */
@@ -498,5 +515,132 @@ export class GhCliClient implements GitHubClient {
       const stderr = new TextDecoder().decode(output.stderr);
       throw new Error(`Failed to update label "${name}": ${stderr}`);
     }
+  }
+
+  /** Resolve a ProjectRef to owner and number for gh CLI commands. */
+  #resolveProjectRef(
+    ref: ProjectRef,
+  ): { owner: string; number: number } {
+    if ("owner" in ref && "number" in ref) {
+      return { owner: ref.owner, number: ref.number };
+    }
+    // Node ID refs require GraphQL to resolve owner/number; for now
+    // only owner+number refs are supported by the CLI client.
+    throw new Error(
+      `GhCliClient does not support ProjectRef by id — use {owner, number}`,
+    );
+  }
+
+  async addIssueToProject(
+    project: ProjectRef,
+    issueNumber: number,
+  ): Promise<string> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "item-add",
+        String(projectNumber),
+        "--owner",
+        owner,
+        "--url",
+        `https://github.com/${owner}/${this.#repoName()}/issues/${issueNumber}`,
+        "--format",
+        "json",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to add issue #${issueNumber} to project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    try {
+      const data = JSON.parse(stdout) as { id: string };
+      return data.id;
+    } catch {
+      // Fallback: return raw output when JSON parsing fails
+      return stdout;
+    }
+  }
+
+  async updateProjectItemField(
+    project: ProjectRef,
+    itemId: string,
+    fieldId: string,
+    value: ProjectFieldValue,
+  ): Promise<void> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const args = [
+      "project",
+      "item-edit",
+      "--id",
+      itemId,
+      "--project-id",
+      String(projectNumber),
+      "--field-id",
+      fieldId,
+    ];
+    // Value serialization depends on type
+    if (typeof value === "string") {
+      args.push("--text", value);
+    } else if (typeof value === "number") {
+      args.push("--number", String(value));
+    } else if ("optionId" in value) {
+      args.push("--single-select-option-id", value.optionId);
+    } else if ("date" in value) {
+      args.push("--date", value.date);
+    }
+    // gh project item-edit requires --owner
+    args.push("--owner", owner);
+
+    const cmd = new Deno.Command("gh", {
+      args,
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to update project item field: ${stderr}`,
+      );
+    }
+  }
+
+  async closeProject(project: ProjectRef): Promise<void> {
+    const { owner, number: projectNumber } = this.#resolveProjectRef(project);
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "project",
+        "close",
+        String(projectNumber),
+        "--owner",
+        owner,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(
+        `Failed to close project ${owner}/${projectNumber}: ${stderr}`,
+      );
+    }
+  }
+
+  /** Extract repo name from cwd for URL construction. */
+  #repoName(): string {
+    // Best-effort: use the last path component of cwd
+    const parts = this.#cwd.split("/").filter(Boolean);
+    return parts[parts.length - 1] ?? "unknown";
   }
 }

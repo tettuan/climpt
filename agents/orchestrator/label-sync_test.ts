@@ -103,6 +103,15 @@ function makeStub(options: StubOptions): {
     listLabels(): Promise<string[]> {
       throw new Error("unexpected: listLabels");
     },
+    addIssueToProject(): Promise<string> {
+      throw new Error("unexpected: addIssueToProject");
+    },
+    updateProjectItemField(): Promise<void> {
+      throw new Error("unexpected: updateProjectItemField");
+    },
+    closeProject(): Promise<void> {
+      throw new Error("unexpected: closeProject");
+    },
   };
 
   return { github, creates, updates };

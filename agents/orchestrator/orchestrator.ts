@@ -795,6 +795,49 @@ export class Orchestrator {
                 outcome: dispatchResult.outcome,
               },
             );
+
+            // T6.post: Process post-close outbox actions (issue #487 Gap 2).
+            // Actions with `trigger: "post-close"` were skipped by Step 7b
+            // and must run after close to maintain correct ordering (e.g.
+            // Status=Done field updates that require the issue to be closed).
+            if (store) {
+              const postCloseProcessor = new OutboxProcessor(
+                this.#github,
+                store,
+              );
+              // deno-lint-ignore no-await-in-loop
+              const postCloseResults = await postCloseProcessor
+                .processPostClose(subjectId);
+              if (postCloseResults.length > 0) {
+                const pcSucceeded = postCloseResults.filter((r) => r.success);
+                const pcFailed = postCloseResults.filter((r) => !r.success);
+                // deno-lint-ignore no-await-in-loop
+                await log.info(
+                  `Post-close outbox: ${postCloseResults.length} actions ` +
+                    `(${pcSucceeded.length} ok, ${pcFailed.length} failed)`,
+                  {
+                    event: "post_close_outbox_processed",
+                    subjectId,
+                    total: postCloseResults.length,
+                    succeeded: pcSucceeded.length,
+                    failed: pcFailed.length,
+                  },
+                );
+                for (const fail of pcFailed) {
+                  // deno-lint-ignore no-await-in-loop
+                  await log.warn(
+                    `Post-close action failed: ${fail.action} (seq ${fail.sequence}): ${fail.error}`,
+                    {
+                      event: "post_close_action_failed",
+                      subjectId,
+                      action: fail.action,
+                      sequence: fail.sequence,
+                      error: fail.error,
+                    },
+                  );
+                }
+              }
+            }
           }
 
           // All T3..T6 steps succeeded. Record the cycle *before* commit
