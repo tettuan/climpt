@@ -194,6 +194,118 @@ Deno.test("computeLabelChanges - no label mapping for target → empty add", () 
   assertEquals(result.labelsToAdd, []);
 });
 
+// --- computeLabelChanges: terminal + prioritizer labels ---
+
+Deno.test(
+  "computeLabelChanges - terminal transition strips prioritizer labels (contract)",
+  async () => {
+    // Source of truth: .agent/workflow.json. done is terminal and
+    // prioritizer.labels enumerates order:N. On terminal transitions the
+    // prioritizer labels must be released so seq capacity is freed.
+    const config = await loadWorkflow(REPO_ROOT);
+    const doneLabel = findLabelForPhase(config, "done");
+    const implLabel = findLabelForPhase(config, "impl-pending");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    if (orderLabels.length === 0) {
+      throw new Error(
+        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty. " +
+          "Fix: keep order:N enumerated in prioritizer.labels or update this test.",
+      );
+    }
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [implLabel, orderLabel, "enhancement"],
+      config.labelMapping[doneLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(implLabel),
+      true,
+      "Terminal transition must remove the current kind:* label. " +
+        "Fix: labelMapping keys are always stripped regardless of target type.",
+    );
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      true,
+      "Terminal transition must remove prioritizer labels (order:N) so seq " +
+        "capacity is released. Fix: phase-transition.computeLabelChanges must " +
+        "add config.prioritizer.labels to the strip set when " +
+        "config.phases[targetPhase].type === 'terminal'.",
+    );
+    assertEquals(
+      result.labelsToRemove.includes("enhancement"),
+      false,
+      "Non-workflow labels (e.g., enhancement) must be preserved across transitions. " +
+        "Fix: strip set must be scoped to labelMapping keys ∪ prioritizer.labels only.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - non-terminal transition preserves prioritizer labels (3-stage pipe invariant)",
+  async () => {
+    // Invariant: a subject traversing consider -> detail -> impl keeps one
+    // order:N slot (workflow-issue-states.md §"Order seq の消費と解放").
+    // Only terminal transitions release it.
+    const config = await loadWorkflow(REPO_ROOT);
+    const considerLabel = findLabelForPhase(config, "consider-pending");
+    const detailLabel = findLabelForPhase(config, "detail-pending");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    if (orderLabels.length === 0) {
+      throw new Error(
+        "Test precondition failed: .agent/workflow.json prioritizer.labels is empty.",
+      );
+    }
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [considerLabel, orderLabel],
+      config.labelMapping[detailLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      false,
+      "consider -> detail (both actionable) must preserve order:N. " +
+        "Fix: only terminal transitions may strip prioritizer labels.",
+    );
+    assertEquals(
+      result.labelsToRemove,
+      [considerLabel],
+      "Non-terminal transition must only rewrite the kind:* label.",
+    );
+  },
+);
+
+Deno.test(
+  "computeLabelChanges - blocking transition preserves prioritizer labels",
+  async () => {
+    // S4.blocked retains kind:* + order:N per design (workflow-issue-states.md).
+    const config = await loadWorkflow(REPO_ROOT);
+    const implLabel = findLabelForPhase(config, "impl-pending");
+    const blockedLabel = findLabelForPhase(config, "blocked");
+    const orderLabels = config.prioritizer?.labels ?? [];
+    const orderLabel = orderLabels[0];
+
+    const result = computeLabelChanges(
+      [implLabel, orderLabel],
+      config.labelMapping[blockedLabel],
+      config,
+    );
+
+    assertEquals(
+      result.labelsToRemove.includes(orderLabel),
+      false,
+      "blocking transition must preserve order:N (blocked issues still " +
+        "occupy their seq slot). Fix: phase type check must be strictly " +
+        "'terminal', not 'terminal' ∪ 'blocking'.",
+    );
+  },
+);
+
 // --- renderTemplate ---
 
 Deno.test("renderTemplate - single variable", () => {

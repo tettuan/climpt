@@ -58,6 +58,11 @@ export function computeTransition(
  * Computes which labels to remove and add for a phase transition.
  *
  * - Removes all current labels that are workflow labels (keys in labelMapping).
+ * - On terminal transitions, also removes prioritizer labels so seq capacity
+ *   is released and closed issues do not carry stale ordering state.
+ *   Non-terminal transitions (actionable / blocking) preserve prioritizer
+ *   labels — a single subject traversing consider → detail → impl keeps
+ *   one order slot per `.agent/workflow-issue-states.md §Order seq の消費と解放`.
  * - Adds the first label in labelMapping whose value equals targetPhase.
  */
 export function computeLabelChanges(
@@ -66,11 +71,18 @@ export function computeLabelChanges(
   config: WorkflowConfig,
 ): { labelsToRemove: string[]; labelsToAdd: string[] } {
   const prefix = config.labelPrefix;
-  const workflowLabelKeys = new Set(Object.keys(config.labelMapping));
+  const stripSet = new Set(Object.keys(config.labelMapping));
+
+  const isTerminal = config.phases[targetPhase]?.type === "terminal";
+  if (isTerminal && config.prioritizer?.labels) {
+    for (const label of config.prioritizer.labels) {
+      stripSet.add(label);
+    }
+  }
 
   const labelsToRemove = currentLabels.filter((label) => {
     const bare = stripPrefix(label, prefix);
-    return bare !== null && workflowLabelKeys.has(bare);
+    return bare !== null && stripSet.has(bare);
   });
 
   // NOTE: Multiple labels may map to the same phase.
