@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.26] - 2026-04-18
+
 ### Added
 - `TransactionScope` saga for orchestrator phase transitions: LIFO
   compensation registry eliminates the "label 宙ぶらり" gap where a
@@ -18,10 +20,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   signature replaces the HTML-comment marker for operator auditability
 - Self-heal E2E test: T6 failure on one run recovers on the next,
   with compensation comment posted exactly once across retries
+- L3 phase repetition limit (`maxConsecutivePhases`) for orchestrator
+  to bound same-phase loops (#477)
+- `fallbackPhases` on transformer for outcome-specific routing (#472)
+- Declarative labels in `workflow.json` with idempotent label sync (#478)
+- Declarative handoff pipeline for typed inter-agent artifacts
+- Triager + considerer agents for 2-stage issue workflow
+- Detailer agent enabling 3-stage consider → detail → impl flow
+- PR Merger agent (Phase 0-b/c + `merge-pr.ts` + merger configs)
+- `option-scoring` skill for quantified design-fit review
+- Task 13 in release-procedure skill: next-version branch bootstrap
+- Builder `flow_design` guide with renumbered GitHub / closure docs
+- PR Merger design docs (T14 runner-mediated flow)
 
 ### Changed
 - Orchestrator phase-transition block rewritten as a T1..T7 saga;
   `cycleTracker.record` now fires only on full T3..T6 success
+- Rename `IssueStore` → `SubjectStore` across orchestrator, configs,
+  and tests
+- Prioritizer labels stripped on terminal phase transitions
+- Upgrade `@tettuan/breakdown` 1.8.4 → 1.8.7 and remove silent-failure
+  bridge
+- `.agent` workflow rules tuned for v1.13.26 (`maxCycles` 2→7, L3=3
+  enabled)
+- Rename `.agent/workflow-issue-execute.json` → `workflow.json`
 - `test-design` skill gains the Derivation ladder (import → named
   constants → arithmetic-comment → bare literal) and three new
   anti-patterns: Prose derivation alibi, Assertion bloat, Delegation
@@ -29,6 +51,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Orchestrator test suite: `labelUpdates.length` expected values
   derived from `LABEL_CALLS_PER_TRANSITION = 2` (design §2.2) instead
   of bare literals
+- Cross-reference docs-consistency and update-docs skills
+- `artifact-emitter` no longer uses `$.github.pr.*` root
+- `.claude` disables climpt-agent plugin in climpt project
+
+### Fixed
+- C3L: sanitize UV `previous_summary` and surface PR-C3L-002 for
+  non-`TemplateNotFound` errors
+- C3L: surface breakdown error detail in PR-C3L-004 with exhaustive
+  dispatch tests
+- C3L: surface breakdown silent-failure as PR-C3L-002
+- Runner: extract verdict from boundary hook in
+  `IterationBudgetVerdictHandler`
+- Runner: fail `AgentResult` when handler is done but no LLM response
+- Runner: propagate iteration to verdict handler + apply parameter
+  defaults
+- Orchestrator: enforce validator verdict contract, add `fallbackPhase`
+- Orchestrator: resolve phantom-success and label regression bugs
+- Detailer: add missing label-only prompt and breakdown configs (#479)
+- `.agent`: use `{uv-*}` prefix for UV variable substitution in prompts
+- Lint: suppress `no-await-in-loop` for sequential label sync
 
 ## [1.13.25] - 2026-04-11
 
