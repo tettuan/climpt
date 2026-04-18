@@ -532,3 +532,182 @@ Deno.test(
     }
   },
 );
+
+// =============================================================================
+// C2 guard tests — deferred_items suppressed on non-close paths (issue #485).
+// =============================================================================
+
+/**
+ * INV-C2-BLOCKED: verdict "blocked" (non-close path) suppresses deferred_items
+ * emission even when items are declared in structuredOutput.
+ *
+ * Scenario: considerer returns verdict "blocked" with 3 deferred_items.
+ * Expected: 0 createIssue calls (items suppressed), 0 closeIssue calls
+ *           (blocked phase does not close).
+ */
+Deno.test(
+  "INV-C2-BLOCKED: deferred_items suppressed when verdict is blocked (non-close path)",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createConsidererLikeConfig();
+      const store = new SubjectStore(`${tmpDir}/store`);
+      const SUBJECT_ID = 10;
+      await store.writeIssue({
+        meta: {
+          number: SUBJECT_ID,
+          title: "Request with blocker",
+          labels: ["kind:consider"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "request that encounters a blocker",
+        comments: [],
+      });
+
+      // Cycle 1: kind:consider → considerer → blocked → break.
+      const github = new OrderingStubGitHubClient([
+        ["kind:consider"],
+      ]);
+
+      // Agent declares deferred_items despite blocked verdict.
+      // The orchestrator C2 guard must suppress emission.
+      const structuredOutput = {
+        stepId: "consider",
+        status: "completed",
+        summary: "Blocked by missing prerequisite",
+        next_action: { action: "closing" },
+        verdict: "blocked",
+        deferred_items: ROADMAP_ITEMS.map((i) => ({
+          ...i,
+          labels: [...i.labels],
+        })),
+      };
+
+      // outcome = "blocked" → fallbackPhase → "blocked" (type: blocking)
+      // closeCondition = "done" !== "blocked" → closeIntent = false
+      const dispatcher = new StubDispatcher(
+        { considerer: "blocked" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      const result = await orchestrator.run(SUBJECT_ID, {}, store);
+
+      // Blocked phase: issue stays open, no close.
+      assertEquals(
+        result.status,
+        "blocked",
+        `Expected status "blocked", got "${result.status}". ` +
+          `Blocked verdict must transition to blocking phase.`,
+      );
+      assert(
+        !result.issueClosed,
+        `Issue must NOT be closed on blocked verdict, ` +
+          `got issueClosed=${result.issueClosed}.`,
+      );
+
+      // C2 invariant: zero createIssue despite non-empty deferred_items.
+      const createCalls = github.log.filter((e) => e.kind === "createIssue");
+      assertEquals(
+        createCalls.length,
+        0,
+        `INV-C2-BLOCKED violated: expected 0 createIssue calls on blocked ` +
+          `verdict, got ${createCalls.length}. deferred_items must be ` +
+          `suppressed when close intent is false. ` +
+          `Fix: Step 7a.5 must gate emission on closeIntentForDeferred.`,
+      );
+
+      // No closeIssue either (blocked phase does not close).
+      const closeCalls = github.log.filter((e) => e.kind === "closeIssue");
+      assertEquals(
+        closeCalls.length,
+        0,
+        `Expected 0 closeIssue calls on blocked verdict, got ${closeCalls.length}.`,
+      );
+
+      // Outbox must be empty (nothing was written).
+      await assertOutboxEmpty(store.getOutboxPath(SUBJECT_ID));
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+/**
+ * INV-C2-DONE-EMITS: verdict "done" (close path) still emits deferred_items
+ * as before — the C2 guard does not regress the happy path.
+ *
+ * This is a regression guard complementing the existing populated test above,
+ * but explicitly named as a C2 counterpart to make the contract bidirectional.
+ */
+Deno.test(
+  "INV-C2-DONE-EMITS: deferred_items emitted when verdict is done (close path)",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createConsidererLikeConfig();
+      const store = new SubjectStore(`${tmpDir}/store`);
+      const SUBJECT_ID = 11;
+      await store.writeIssue({
+        meta: {
+          number: SUBJECT_ID,
+          title: "Roadmap request (C2 regression guard)",
+          labels: ["kind:consider"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "multi-phase request for C2 regression",
+        comments: [],
+      });
+
+      const github = new OrderingStubGitHubClient([
+        ["kind:consider"],
+        ["done"],
+      ]);
+
+      const structuredOutput = {
+        stepId: "consider",
+        status: "completed",
+        summary: "Roadmap decomposed",
+        next_action: { action: "closing" },
+        verdict: "done",
+        deferred_items: ROADMAP_ITEMS.map((i) => ({
+          ...i,
+          labels: [...i.labels],
+        })),
+      };
+
+      const dispatcher = new StubDispatcher(
+        { considerer: "done" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      const result = await orchestrator.run(SUBJECT_ID, {}, store);
+
+      assertEquals(result.status, "completed");
+      assertEquals(result.issueClosed, true);
+
+      // C2 regression: deferred_items must still be emitted on close path.
+      const createCalls = createCallsInOrder(github.log);
+      assertEquals(
+        createCalls.length,
+        ROADMAP_ITEMS.length,
+        `INV-C2-DONE-EMITS violated: expected ${ROADMAP_ITEMS.length} ` +
+          `createIssue calls on done verdict, got ${createCalls.length}. ` +
+          `C2 guard must not suppress emission on close path.`,
+      );
+      assertCreateBeforeClose(github.log);
+      assertCloseTargets(github.log, SUBJECT_ID);
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);

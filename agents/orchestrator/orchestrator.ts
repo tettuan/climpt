@@ -440,11 +440,32 @@ export class Orchestrator {
       // `create-issue` actions, so the follow-up issues are filed before
       // the current issue closes in T6. See issue #480.
       // Idempotency: already-confirmed items are skipped (issue #484).
+      //
+      // C2 guard (issue #485): deferred_items are emitted ONLY when the
+      // issue will close in this cycle (closeIntent === true). Emitting on
+      // non-close paths (e.g. verdict:"blocked") causes duplicate creation
+      // when the issue is re-dispatched after blocker resolution, even with
+      // C1 idempotency keys — the structuredOutput may differ between
+      // cycles, producing distinct keys for semantically identical items.
+      const { targetPhase: earlyTargetPhase } = computeTransition(
+        agent,
+        dispatchResult.outcome,
+      );
+      const earlyIsTerminal =
+        this.#config.phases[earlyTargetPhase]?.type === "terminal";
+      const closeIntentForDeferred = !dryRun && earlyIsTerminal &&
+        (agent.closeOnComplete ?? false) &&
+        (agent.closeCondition === undefined ||
+          agent.closeCondition === dispatchResult.outcome);
+
       const deferredEmitter = store
         ? new DeferredItemsEmitter(store)
         : undefined;
       let deferredEmittedKeys: readonly string[] = [];
-      if (deferredEmitter && dispatchResult.structuredOutput) {
+      if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        closeIntentForDeferred
+      ) {
         try {
           // deno-lint-ignore no-await-in-loop
           const deferredResult = await deferredEmitter.emit(
@@ -476,6 +497,24 @@ export class Orchestrator {
           );
           throw error;
         }
+      } else if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        !closeIntentForDeferred
+      ) {
+        // C2: log suppression so operator can trace the guard in action.
+        // deno-lint-ignore no-await-in-loop
+        await log.info(
+          `Deferred items skipped: issue will not close this cycle ` +
+            `(outcome="${dispatchResult.outcome}", ` +
+            `targetPhase="${earlyTargetPhase}")`,
+          {
+            event: "deferred_items_skipped",
+            subjectId,
+            outcome: dispatchResult.outcome,
+            targetPhase: earlyTargetPhase,
+            reason: "close_intent_false",
+          },
+        );
       }
 
       // Step 7b: Process outbox after agent dispatch (when store available)

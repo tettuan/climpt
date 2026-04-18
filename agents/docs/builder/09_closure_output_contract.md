@@ -95,17 +95,25 @@ config を「置き換える」のではなく「追加する」。
 これは Principle の帰結である: ラベルの選択は WHAT（AI の責務）であり、 System
 は HOW（`gh issue edit --add-label`）のみを担う。
 
-### R5: `deferred_items` は他フィールドと直交する
+### R5: `deferred_items` は close intent に依存する
 
-`deferred_items` は `verdict` / `closure_action` / `issue.labels` と
-**独立して** 機能する。どの組合せでも AI は自由に併用できる。
+`deferred_items` の **宣言** は `closure_action` / `issue.labels` と独立して
+可能だが、**実際の emission** は Orchestrator の close intent が `true` の場合に
+のみ実行される（C2 guard, issue #485）。close intent が `false` のパス （verdict
+が `blocked` に解決される場合など）では、宣言された `deferred_items` は no-op
+となり、outbox に書き出されない。
 
-- `verdict: "done"` + `deferred_items: [...]` → 本 issue は完了扱い、派生は別
-  issue
-- `verdict: "handoff-detail"` + `deferred_items: [...]` → handoff
-  しつつ派生を起票
-- `closure_action: "label-only"` + `deferred_items: [...]` → 本 issue は OPEN
-  のまま派生のみ起票
+これは、非 close パスで emit → 再 dispatch → 再 emit という重複作成を防止する
+ための設計である。C1 の idempotency key は同一 structuredOutput に対してのみ有効
+であり、再 dispatch 時に内容が変わると別 key が生成されるため、C1 単独では
+重複を防げない。
+
+- `verdict: "done"` + `deferred_items: [...]` → **emit される**。本 issue は
+  完了扱い、派生は別 issue
+- `verdict: "handoff-detail"` + `deferred_items: [...]` → agent config の
+  `outputPhases` で close path に該当する場合のみ emit される
+- `verdict: "blocked"` + `deferred_items: [...]` → **emit されない**（C2
+  guard）。 close intent が false のため no-op
 
 ### R6: `deferred_items` は close より前に冪等に実行される
 

@@ -75,14 +75,19 @@ threshold is strict: one concrete anchor is the minimum.
 
 ## Scope splitting via `deferred_items`
 
-Verdict decides closure of **this** issue. Scope-splitting is orthogonal: use
-`deferred_items[]` in the closure structured output to carve off work that does
-not fit in the current issue's 1-cycle budget. The runner converts each entry
-into a new GitHub issue (via outbox `create-issue`) **before** this issue
-closes, so the follow-up work is discoverable via the label trail rather than
-buried in a close comment.
+Verdict decides closure of **this** issue. Use `deferred_items[]` in the closure
+structured output to carve off work that does not fit in the current issue's
+1-cycle budget. The runner converts each entry into a new GitHub issue (via
+outbox `create-issue`) **before** this issue closes, so the follow-up work is
+discoverable via the label trail rather than buried in a close comment.
 
-Emit `deferred_items` when any of the following holds, regardless of verdict:
+**Emit `deferred_items` only when your verdict is `done` (or another close-path
+verdict).** The orchestrator gates emission on close intent — items declared
+under a non-closing verdict (e.g. `blocked`) are silently dropped to prevent
+duplicate issue creation on re-dispatch (C2, issue #485).
+
+Emit `deferred_items` when your verdict is `done` and any of the following
+holds:
 
 - The request is roadmap-scale / multi-phase and only one phase can credibly be
   handed off now (remaining phases go to `deferred_items`).
@@ -92,7 +97,8 @@ Emit `deferred_items` when any of the following holds, regardless of verdict:
   research — file it rather than drop it.
 
 Leave `deferred_items` empty (default `[]`) when the current response — plus
-the optional `handoff-detail` handoff — fully covers the issue's scope.
+the optional `handoff-detail` handoff — fully covers the issue's scope, or when
+your verdict is not on the close path.
 
 ### Anti-fabrication guard
 
