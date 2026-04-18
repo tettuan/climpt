@@ -30,6 +30,14 @@ export interface IssueDetail {
   comments: { id: string; body: string }[];
 }
 
+/** Detailed label record returned by listLabelsDetailed. */
+export interface LabelDetail {
+  name: string;
+  /** 6-char hex color without leading '#' */
+  color: string;
+  description: string;
+}
+
 /** Abstract interface for GitHub issue operations. */
 export interface GitHubClient {
   getIssueLabels(issueNumber: number): Promise<string[]>;
@@ -49,6 +57,26 @@ export interface GitHubClient {
     limit: number,
   ): Promise<{ body: string; createdAt: string }[]>;
   listLabels(): Promise<string[]>;
+
+  /**
+   * Label lifecycle operations used by the pre-dispatch label-sync
+   * preflight. Implementations must be idempotent at the transport
+   * layer: createLabel on an existing name, or updateLabel to the
+   * current state, should raise a distinguishable error rather than
+   * silently mutating unrelated labels. Sync callers wrap these with
+   * try/catch and emit per-label status records.
+   */
+  listLabelsDetailed(): Promise<LabelDetail[]>;
+  createLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void>;
+  updateLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void>;
 }
 
 /** Concrete implementation using `gh` CLI via Deno.Command. */
@@ -376,5 +404,99 @@ export class GhCliClient implements GitHubClient {
 
     const raw = JSON.parse(stdout) as { name: string }[];
     return raw.map((l) => l.name);
+  }
+
+  async listLabelsDetailed(): Promise<LabelDetail[]> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "list",
+        "--json",
+        "name,color,description",
+        "--limit",
+        "1000",
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to list labels: ${stderr}`);
+    }
+
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    if (stdout === "") return [];
+
+    const raw = JSON.parse(stdout) as {
+      name: string;
+      color: string;
+      description?: string;
+    }[];
+    return raw.map((l) => ({
+      name: l.name,
+      // gh returns color without leading '#'; normalize for safety.
+      color: (l.color ?? "").replace(/^#/, "").toLowerCase(),
+      description: l.description ?? "",
+    }));
+  }
+
+  async createLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "create",
+        name,
+        "--color",
+        color,
+        "--description",
+        description,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to create label "${name}": ${stderr}`);
+    }
+  }
+
+  async updateLabel(
+    name: string,
+    color: string,
+    description: string,
+  ): Promise<void> {
+    const cmd = new Deno.Command("gh", {
+      args: [
+        "label",
+        "edit",
+        name,
+        "--color",
+        color,
+        "--description",
+        description,
+      ],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await cmd.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to update label "${name}": ${stderr}`);
+    }
   }
 }

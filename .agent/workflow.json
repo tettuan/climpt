@@ -31,6 +31,64 @@
     "done": "done",
     "need clearance": "blocked"
   },
+  "labels": {
+    "kind:impl": {
+      "color": "a2eeef",
+      "description": "Implementation work (iterator)"
+    },
+    "kind:detail": {
+      "color": "fbca04",
+      "description": "Specification detailing (detailer)"
+    },
+    "kind:consider": {
+      "color": "bfd4f2",
+      "description": "Consideration/response (considerer)"
+    },
+    "done": {
+      "color": "0e8a16",
+      "description": "Work completed (awaiting orchestrator close)"
+    },
+    "need clearance": {
+      "color": "d93f0b",
+      "description": "Blocked — requires human clearance"
+    },
+    "order:1": {
+      "color": "c2e0c6",
+      "description": "Work order seq 1 (higher = sooner)"
+    },
+    "order:2": {
+      "color": "c2e0c6",
+      "description": "Work order seq 2"
+    },
+    "order:3": {
+      "color": "c2e0c6",
+      "description": "Work order seq 3"
+    },
+    "order:4": {
+      "color": "c2e0c6",
+      "description": "Work order seq 4"
+    },
+    "order:5": {
+      "color": "c2e0c6",
+      "description": "Work order seq 5"
+    },
+    "order:6": {
+      "color": "c2e0c6",
+      "description": "Work order seq 6"
+    },
+    "order:7": {
+      "color": "c2e0c6",
+      "description": "Work order seq 7"
+    },
+    "order:8": {
+      "color": "c2e0c6",
+      "description": "Work order seq 8"
+    },
+    "order:9": {
+      "color": "c2e0c6",
+      "description": "Work order seq 9"
+    }
+  },
   "agents": {
     "iterator": {
       "role": "transformer",

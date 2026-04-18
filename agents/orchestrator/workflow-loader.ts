@@ -15,6 +15,9 @@ import {
 } from "./workflow-types.ts";
 import {
   wfLabelMappingEmpty,
+  wfLabelSpecInvalidColor,
+  wfLabelSpecMissing,
+  wfLabelSpecOrphan,
   wfLabelUnknownPhase,
   wfLoadInvalidJson,
   wfLoadNotFound,
@@ -86,6 +89,7 @@ export async function loadWorkflow(
     labelPrefix: parsed.labelPrefix as string | undefined,
     phases: parsed.phases as WorkflowConfig["phases"],
     labelMapping: parsed.labelMapping as WorkflowConfig["labelMapping"],
+    labels: parsed.labels as WorkflowConfig["labels"],
     agents: parsed.agents as WorkflowConfig["agents"],
     rules: applyDefaultRules(
       parsed.rules as Partial<WorkflowRules> | undefined,
@@ -189,6 +193,55 @@ function validateCrossReferences(config: WorkflowConfig): void {
   // 4 & 5. Agent outputPhase/outputPhases/fallbackPhase must exist in phases
   for (const [agentId, agent] of Object.entries(config.agents)) {
     validateAgentPhaseReferences(agentId, agent, phaseIds);
+  }
+
+  // 6. labels[] completeness + color format
+  validateLabelsSection(config);
+}
+
+const HEX_COLOR_RE = /^[0-9a-fA-F]{6}$/;
+
+/**
+ * Validate the `labels` section when declared.
+ *
+ * Opt-in semantics: if `labels` is absent from workflow.json, no
+ * validation runs (backwards compat for pre-Phase-2 configs that
+ * relied on an external bootstrap). Once `labels` is declared —
+ * even as `{}` — the full completeness / orphan / color-format
+ * contract is enforced. This forces any config that adopts the
+ * declarative model to do so consistently.
+ */
+function validateLabelsSection(config: WorkflowConfig): void {
+  if (config.labels === undefined) return;
+
+  // Required labels = labelMapping keys ∪ prioritizer.labels
+  const requiredLabels = new Set<string>(Object.keys(config.labelMapping));
+  if (config.prioritizer) {
+    for (const label of config.prioritizer.labels) {
+      requiredLabels.add(label);
+    }
+  }
+
+  const declaredLabels = config.labels;
+  const declaredKeys = new Set(Object.keys(declaredLabels));
+
+  // Completeness: every required label must appear in labels[]
+  const missing = [...requiredLabels].filter((l) => !declaredKeys.has(l));
+  if (missing.length > 0) {
+    throw wfLabelSpecMissing(missing.sort());
+  }
+
+  // Orphans: declared specs must be referenced somewhere
+  const orphans = [...declaredKeys].filter((l) => !requiredLabels.has(l));
+  if (orphans.length > 0) {
+    throw wfLabelSpecOrphan(orphans.sort());
+  }
+
+  // Color format: 6-char hex, no leading '#'
+  for (const [name, spec] of Object.entries(declaredLabels)) {
+    if (!HEX_COLOR_RE.test(spec.color)) {
+      throw wfLabelSpecInvalidColor(name, spec.color);
+    }
   }
 }
 

@@ -24,6 +24,7 @@ import { Queue } from "./queue.ts";
 import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { countdownDelay } from "./countdown.ts";
+import { summarizeSync, syncLabels } from "./label-sync.ts";
 
 /** Interface for single-issue workflow execution, used by BatchRunner. */
 export interface SingleIssueRunner {
@@ -113,6 +114,14 @@ export class BatchRunner {
     options: BatchOptions | undefined,
     log: OrchestratorLogger,
   ): Promise<BatchResult> {
+    // 0a. Preflight: reconcile repository labels against workflow.json#labels.
+    // Runs once per batch, before any dispatch. Per-label try/catch inside
+    // syncLabels ensures a single permission / transport error does not abort
+    // the whole batch — aggregate failures are logged and the batch continues.
+    // The actual use site (phase transition, gh issue edit) will surface a
+    // hard error later if a required label is still missing.
+    await this.#preflightLabelSync(log, options?.dryRun ?? false);
+
     const syncer = new IssueSyncer(this.#github, store);
 
     // 1. Sync issues from gh to local store
@@ -262,5 +271,73 @@ export class BatchRunner {
       totalIssues: issueNumbers.length,
       status: batchStatus,
     };
+  }
+
+  /**
+   * One-time label reconciliation before the batch dispatches anything.
+   *
+   * Failure policy: per-label errors are absorbed by syncLabels and
+   * surfaced as a summary + per-failure warn events. The batch then
+   * continues — the orchestrator's existing phase-transition logic
+   * raises a concrete error at the actual use site if a required
+   * label is truly missing, which is preferred over aborting at
+   * preflight (a partial sync is often still usable).
+   *
+   * Bailout: if `workflow.json#labels` is absent or empty, the
+   * preflight logs a single info event and returns without touching
+   * the repository. This keeps backwards compatibility for configs
+   * that have not migrated yet (though the loader already rejects
+   * such configs for workflows that reference any label — see
+   * WF-LABEL-003).
+   */
+  async #preflightLabelSync(
+    log: OrchestratorLogger,
+    dryRun: boolean,
+  ): Promise<void> {
+    const specs = this.#config.labels;
+    if (!specs || Object.keys(specs).length === 0) {
+      await log.info(
+        "Label sync preflight skipped: no labels[] declared in workflow.json",
+        { event: "label_sync_skipped" },
+      );
+      return;
+    }
+
+    await log.info(
+      `Label sync preflight: ${Object.keys(specs).length} declared specs${
+        dryRun ? " (dry-run)" : ""
+      }`,
+      { event: "label_sync_start", declaredCount: Object.keys(specs).length },
+    );
+
+    let results;
+    try {
+      results = await syncLabels(this.#github, specs, { dryRun });
+    } catch (error) {
+      // listLabelsDetailed failed — no baseline → no safe reconciliation.
+      // Log and continue; downstream will surface concrete failures.
+      const msg = error instanceof Error ? error.message : String(error);
+      await log.error(
+        `Label sync preflight failed to read label state: ${msg}`,
+        { event: "label_sync_baseline_failed", error: msg },
+      );
+      return;
+    }
+
+    await log.info(summarizeSync(results), {
+      event: "label_sync_summary",
+      dryRun,
+      results,
+    });
+
+    // Surface failures individually so they are searchable by label name.
+    for (const r of results) {
+      if (r.action === "failed") {
+        await log.error(
+          `Label sync failed for "${r.name}": ${r.error ?? "unknown error"}`,
+          { event: "label_sync_failed", label: r.name, error: r.error },
+        );
+      }
+    }
   }
 }

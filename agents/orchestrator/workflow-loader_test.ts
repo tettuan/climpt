@@ -620,3 +620,177 @@ Deno.test(
     }
   },
 );
+
+// =============================================================================
+// labels section — opt-in validation (WF-LABEL-003 / 004 / 005)
+//
+// When `labels` is absent, validation is skipped (backwards compat with
+// pre-Phase-2 configs). When declared — even as {} — the full
+// completeness + orphan + color-format contract is enforced.
+// =============================================================================
+
+/** Extend validConfig() with a `labels` section. */
+function configWithLabels(
+  labels: Record<string, { color: string; description: string }>,
+): Record<string, unknown> {
+  const cfg = validConfig();
+  cfg.labels = labels;
+  return cfg;
+}
+
+Deno.test("workflow-loader: labels absent → validation skipped (backwards compat)", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // validConfig() has no `labels` field; should load cleanly.
+    await writeFixture(dir, validConfig());
+    const config = await loadWorkflow(dir);
+    assertEquals(
+      config.labels,
+      undefined,
+      "labels must remain undefined when omitted — no implicit default.",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-003 — labels present but missing spec for a labelMapping key", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // labelMapping has 4 keys (ready, review, done, blocked); declare only 3.
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      // "blocked" intentionally missing.
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-003");
+    assertStringIncludes(
+      err.message,
+      "blocked",
+      "Error must name the specific missing label to guide the fix.",
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-003 — prioritizer.labels entry without a spec fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      // "order:1" referenced by prioritizer below — not declared.
+    });
+    cfg.prioritizer = {
+      mode: "label-based",
+      labels: ["order:1"],
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-003");
+    assertStringIncludes(err.message, "order:1");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-004 — orphan spec not referenced anywhere fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      // Orphan: referenced by neither labelMapping nor prioritizer.labels.
+      "legacy:abandoned": { color: "cccccc", description: "orphan" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-004");
+    assertStringIncludes(err.message, "legacy:abandoned");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-005 — invalid color (non-hex) fails", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "not-a-hex", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-005");
+    assertStringIncludes(err.message, "ready");
+    assertStringIncludes(err.message, "not-a-hex");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-005 — leading '#' on color rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Common paste mistake — GitHub's label API rejects leading '#'.
+    const cfg = configWithLabels({
+      ready: { color: "#a2eeef", description: "ready" },
+      review: { color: "fbca04", description: "review" },
+      done: { color: "0e8a16", description: "done" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-005");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: valid labels section (complete + in-spec) loads", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(Object.keys(config.labels ?? {}).length, 4);
+    assertEquals(config.labels?.ready?.color, "a2eeef");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: uppercase hex colors accepted", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // GitHub normalises to lowercase internally, but the loader must
+    // accept either form to avoid gratuitously rejecting human-authored
+    // configs that use the Cb palette docs (often uppercase).
+    const cfg = configWithLabels({
+      ready: { color: "A2EEEF", description: "ready" },
+      review: { color: "FBCA04", description: "review" },
+      done: { color: "0E8A16", description: "done" },
+      blocked: { color: "D93F0B", description: "blocked" },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.labels?.ready?.color, "A2EEEF");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});

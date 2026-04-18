@@ -50,54 +50,30 @@ jq -r "
 Save the output as `WORKFLOW_LABELS` (one per line) for reuse in Steps 1
 and 2.
 
-## Step 1 — Ensure every workflow label exists in the repo (idempotent)
+## Step 1 — Reconcile workflow labels with the repository (idempotent)
 
-Each workflow label needs to exist before any agent applies it. Create
-missing ones from a known color/description table. Labels not in the table
-get a neutral default.
+Label specs (name + color + description) are declared in the workflow
+JSON under the `labels` section — a single source of truth shared by the
+orchestrator and this agent. Invoke the TypeScript syncer to create
+missing labels and update any whose color/description drifted:
 
 ```bash
 bash -c '
 set -euo pipefail
-WORKFLOW="{uv-workflow}"
-
-WORKFLOW_LABELS=$(jq -r "
-  [ (.labelMapping // {} | keys[]),
-    (.prioritizer.labels // [])[] ]
-  | unique[]
-" "$WORKFLOW")
-
-EXISTING=$(gh label list --limit 200 --json name --jq ".[].name")
-
-# Color/description table for known labels (name|color|description)
-declare -A COLOR DESC
-lookup() {
-  case "$1" in
-    kind:impl)       echo "a2eeef|Implementation work (iterator)" ;;
-    kind:consider)   echo "bfd4f2|Consideration/response (considerer)" ;;
-    order:1)         echo "c2e0c6|Work order seq 1 (higher = sooner)" ;;
-    order:[2-9])     echo "c2e0c6|Work order seq ${1#order:}" ;;
-    done)            echo "0e8a16|Work completed (awaiting orchestrator close)" ;;
-    "need clearance") echo "d93f0b|Blocked — requires human clearance" ;;
-    *)               echo "cccccc|Workflow label" ;;
-  esac
-}
-
-while IFS= read -r name; do
-  [ -z "$name" ] && continue
-  if ! printf "%s\n" "$EXISTING" | grep -Fxq "$name"; then
-    spec=$(lookup "$name")
-    color="${spec%%|*}"
-    desc="${spec#*|}"
-    gh label create "$name" --color "$color" --description "$desc"
-  fi
-done <<< "$WORKFLOW_LABELS"
+deno task labels:sync --workflow "{uv-workflow}"
 '
 ```
 
-Do NOT recreate labels that already exist. Do NOT change colors or
-descriptions of existing labels. On failure, stop and report; do not
-proceed.
+The syncer is per-label try/catch: one label failing (e.g. the GitHub
+token lacks `repo` scope for that specific label) does not abort the
+rest of the run. It prints a summary of `created / updated / nochange /
+failed` counts and exits `1` if any label failed. If the exit code is
+`1`, inspect which label failed from the syncer's output and report it
+alongside the triage summary — do not attempt to mutate the repository
+via ad-hoc `gh label` commands from this prompt.
+
+Do NOT open a bash block that calls `gh label create` / `gh label edit`
+directly — the syncer is the only way labels should be touched.
 
 ## Step 2 — List open issues missing all workflow labels
 
