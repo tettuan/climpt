@@ -41,6 +41,7 @@
   "validators": {
     "git-clean": {
       "type": "command",
+      "phase": "postllm",
       "command": "git status --porcelain",
       "successWhen": "empty",
       "failurePattern": "git-dirty",
@@ -51,6 +52,7 @@
     },
     "branch-pushed": {
       "type": "command",
+      "phase": "postllm",
       "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "successWhen": "exitCode:0",
       "failurePattern": "branch-not-pushed",
@@ -61,6 +63,7 @@
     },
     "branch-merged": {
       "type": "command",
+      "phase": "postllm",
       "command": "git log origin/develop..HEAD --oneline",
       "successWhen": "empty",
       "failurePattern": "branch-not-merged",
@@ -77,7 +80,8 @@
       "name": "Review Validation",
       "c2": "retry",
       "c3": "review",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "git-clean"
         },
@@ -96,7 +100,7 @@
         "file": "reviewer.schema.json",
         "schema": "closure.review"
       },
-      "description": "Validate review with git-clean, branch-pushed, branch-merged"
+      "description": "Validate review with git-clean, branch-pushed, branch-merged (all post-LLM — require LLM-driven fixes on failure)"
     }
   },
   "steps": {

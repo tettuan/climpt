@@ -101,7 +101,10 @@ function createTwoPhaseRegistry(
         name: "Two-Phase Closure",
         c2: "closure",
         c3: "twophase",
-        validationConditions: [{
+        // Mirror the new contract: validator is wired to the post-LLM slot.
+        // `validateState()` reads `preflightConditions`, which is empty here.
+        preflightConditions: [],
+        postLLMConditions: [{
           validator: "command",
           params: { command: "echo ok" },
         }],
@@ -131,7 +134,8 @@ function createNoConditionsRegistry(): ExtendedStepsRegistry {
         name: "No Conditions Closure",
         c2: "closure",
         c3: "nocond",
-        validationConditions: [],
+        preflightConditions: [],
+        postLLMConditions: [],
         onFailure: { action: "retry" },
       },
     },
@@ -153,7 +157,8 @@ function createSchemaOnlyRegistry(): ExtendedStepsRegistry {
         name: "Schema Only Closure",
         c2: "closure",
         c3: "schemaonly",
-        validationConditions: [],
+        preflightConditions: [],
+        postLLMConditions: [],
         onFailure: { action: "retry" },
         outputSchema: {
           type: "object",
@@ -185,26 +190,44 @@ function createChainWithValidator(
 
 Deno.test("ValidationChain two-phase model", async (t) => {
   await t.step(
-    "validateState() runs conditions regardless of outputSchema",
+    "validateState() runs preflightConditions regardless of outputSchema",
     async () => {
       // Source of truth: ValidationChain.validateState() method
-      // Contract: validateState ignores outputSchema, always runs conditions
+      // Contract: validateState reads ONLY preflightConditions and ignores
+      // outputSchema. Pre-flight is pure-predicate: failure has no retry prompt.
       const failResult: ValidatorResult = {
         valid: false,
         pattern: "test-fail",
         error: "state check failed",
       };
       const validator = createMockStepValidator(failResult);
-      // Registry has BOTH outputSchema AND validationConditions
-      const chain = createChainWithValidator(validator);
+      // Registry has outputSchema AND a preflight condition wired in.
+      const registryWithPreflight = createTwoPhaseRegistry({
+        preflightConditions: [{
+          validator: "preflight-command",
+          params: { command: "echo ok" },
+        }],
+      });
+      const chain = createChainWithValidator(
+        validator,
+        null,
+        registryWithPreflight,
+      );
 
       const result = await chain.validateState("closure.twophase");
 
       assertEquals(
         result.valid,
         false,
-        "validateState() must run validationConditions even when outputSchema is defined. " +
+        "validateState() must run preflightConditions even when outputSchema is defined. " +
           "Fix: agents/runner/validation-chain.ts validateState()",
+      );
+      // Pre-flight results carry no retryPrompt (structural guarantee).
+      assertEquals(
+        "retryPrompt" in result,
+        false,
+        "PreFlightValidatorResult must NOT expose a retryPrompt field. " +
+          "Fix: agents/common/validation-types.ts PreFlightValidatorResult",
       );
     },
   );

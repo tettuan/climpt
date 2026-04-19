@@ -147,7 +147,14 @@
     },
     "ValidationStep": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": [
+        "stepId",
+        "name",
+        "c2",
+        "c3",
+        "preflightConditions",
+        "postLLMConditions"
+      ],
       "properties": {
         "stepId": {
           "type": "string",
@@ -165,16 +172,23 @@
           "type": "string",
           "description": "C3L Classification"
         },
-        "validationConditions": {
+        "preflightConditions": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/ValidationCondition"
           },
-          "description": "Conditions that must pass for validation"
+          "description": "Conditions evaluated BEFORE the LLM call. Each validator referenced here MUST declare phase: 'preflight'. Failure aborts the closure step; no retry prompt is produced."
+        },
+        "postLLMConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ValidationCondition"
+          },
+          "description": "Conditions evaluated AFTER the LLM call. Each validator referenced here MUST declare phase: 'postllm'. May produce a retry prompt instructing the LLM to take corrective action."
         },
         "onFailure": {
           "$ref": "#/definitions/FailureAction",
-          "description": "Action when completion fails"
+          "description": "Action on postLLMConditions failure (does not apply to preflightConditions, which always abort)"
         },
         "outputSchemaRef": {
           "$ref": "#/definitions/OutputSchemaRef",
@@ -325,6 +339,11 @@
           "type": "string",
           "enum": ["command"],
           "description": "Validator type"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["preflight", "postllm"],
+          "description": "Execution phase. 'preflight' — pure predicate evaluated BEFORE the LLM call; cannot produce retry prompt; failure aborts. 'postllm' — evaluated AFTER the LLM call; may request LLM-driven remediation. Required when the validator is wired into any ValidationStep slot; phase mismatch with the slot is a load-time error."
         },
         "command": {
           "type": "string",

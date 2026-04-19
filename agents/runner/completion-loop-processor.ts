@@ -341,8 +341,15 @@ export class CompletionLoopProcessor {
     }
 
     // Step 4.5: Pre-flight state validation (Phase 1)
-    // Validate state conditions BEFORE the LLM call.
-    // Format validation (Phase 2) runs post-LLM in runClosureLoop.
+    //
+    // Pure-predicate validation BEFORE the LLM call. Pre-flight validators
+    // cannot produce a retry prompt, so failure here is ALWAYS terminal:
+    // the closure step aborts via AgentValidationAbortError. The LLM is
+    // never invoked to "fix" a pre-flight failure — that is the structural
+    // guarantee of the phase split (see agents/docs/builder/validator-catalog.md).
+    //
+    // Format validation (Phase 2) and action-requiring checks belong to
+    // post-LLM and run later inside runClosureLoop.
     const closureStepId = this.deps.closureManager.getClosureStepId();
     const preFlightResult = await this.deps.closureManager
       .validateStateConditions(
@@ -350,21 +357,18 @@ export class CompletionLoopProcessor {
         ctx.logger,
       );
     if (!preFlightResult.valid) {
-      ctx.logger.info("[CompletionLoop] Pre-flight state validation failed", {
-        stepId: closureStepId,
-      });
-      return {
-        done: false,
-        reason: preFlightResult.retryPrompt ?? "State validation failed",
-        retryPrompt: preFlightResult.retryPrompt,
-        summary: summaries[summaries.length - 1] ?? {
-          iteration,
-          assistantResponses: [],
-          toolsUsed: [],
-          errors: [],
+      const reason = preFlightResult.reason ?? "pre-flight validation failed";
+      ctx.logger.error(
+        "[CompletionLoop] Pre-flight state validation failed — aborting",
+        {
+          stepId: closureStepId,
+          reason,
         },
-        isRateLimitRetry: false,
-      };
+      );
+      throw new AgentValidationAbortError(
+        `Validation aborted for step "${closureStepId}": ${reason}`,
+        { stepId: closureStepId },
+      );
     }
 
     // Step 5: LLM query

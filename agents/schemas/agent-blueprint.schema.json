@@ -39,9 +39,10 @@
     "R-B12": "The transitions 'fallback' key must not appear in allowedIntents",
     "R-B13": "All steps must be reachable from the entry point(s) via transitions (reachability check)",
     "R-C1": "validators[*].failurePattern must be a key in failurePatterns",
-    "R-C2": "validationSteps[*].validationConditions[*].validator must be a key in validators",
+    "R-C2": "validationSteps[*].preflightConditions[*].validator AND postLLMConditions[*].validator must be keys in validators",
     "R-C3": "Direct transition fallback field (when present) must be a key in registry.steps",
     "R-C4": "Conditional transition targets values must all be keys in registry.steps or null",
+    "R-C7": "A validator referenced from validationSteps[*].preflightConditions MUST declare phase:'preflight'; one referenced from postLLMConditions MUST declare phase:'postllm'. Phase-less validators cannot be referenced from either slot.",
     "R-D1": "outputSchemaRef.file must be a key in the top-level schemas object",
     "R-D2": "outputSchemaRef.schema must exist as a definition within schemas[file] (definitions, $defs, or top-level key)",
     "R-D3": "The schema's next_action.action.enum must equal the step's allowedIntents",
@@ -1219,7 +1220,7 @@
     },
 
     "Validator": {
-      "description": "A named validator definition. Enforces: type is 'command', command, successWhen, and failurePattern are required strings. R-C1: failurePattern must be a key in failurePatterns (runtime validation).",
+      "description": "A named validator definition. Enforces: type is 'command', command, successWhen, and failurePattern are required strings. R-C1: failurePattern must be a key in failurePatterns (runtime validation). R-C7: when wired into any validationSteps[*] conditions slot, phase MUST match the slot (preflightConditions ↔ preflight, postLLMConditions ↔ postllm).",
       "type": "object",
       "required": ["type", "command", "successWhen", "failurePattern"],
       "properties": {
@@ -1227,6 +1228,11 @@
           "type": "string",
           "enum": ["command"],
           "description": "Validator type"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["preflight", "postllm"],
+          "description": "Execution phase. 'preflight' — pure predicate evaluated BEFORE the LLM call (cannot produce retry prompt; failure aborts). 'postllm' — evaluated AFTER the LLM call (may request remediation via retry prompt). Required when the validator is referenced by any ValidationStep conditions slot."
         },
         "command": {
           "type": "string",
@@ -1275,9 +1281,16 @@
     },
 
     "ValidationStep": {
-      "description": "A validation step definition. Enforces: R-C5 (onFailure.action enum), R-C6 (maxAttempts >= 1). R-C2: validationConditions[*].validator must be a key in validators (runtime validation).",
+      "description": "A validation step definition. Two distinct condition slots are enforced structurally: preflightConditions (pre-LLM, pure predicate, no retry prompt) and postLLMConditions (post-LLM, may produce retry prompt). Enforces: R-C5 (onFailure.action enum), R-C6 (maxAttempts >= 1), R-C2 (referenced validators must exist), R-C7 (validator phase must match slot).",
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": [
+        "stepId",
+        "name",
+        "c2",
+        "c3",
+        "preflightConditions",
+        "postLLMConditions"
+      ],
       "properties": {
         "stepId": {
           "type": "string",
@@ -1295,16 +1308,23 @@
           "type": "string",
           "description": "C3L Classification"
         },
-        "validationConditions": {
+        "preflightConditions": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ValidationCondition"
           },
-          "description": "Conditions that must pass for validation"
+          "description": "Conditions evaluated BEFORE the LLM call. Referenced validators MUST declare phase: 'preflight'. Failure aborts the closure step (no retry, no LLM)."
+        },
+        "postLLMConditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValidationCondition"
+          },
+          "description": "Conditions evaluated AFTER the LLM call. Referenced validators MUST declare phase: 'postllm'. May produce a retry prompt instructing the LLM to fix the observed state."
         },
         "onFailure": {
           "$ref": "#/$defs/FailureAction",
-          "description": "Action when validation fails"
+          "description": "Action on postLLMConditions failure. Does not apply to preflightConditions (always abort)."
         },
         "outputSchemaRef": {
           "$ref": "#/$defs/OutputSchemaRef",

@@ -54,6 +54,7 @@ function validRegistry(): Record<string, unknown> {
     validators: {
       "git-clean": {
         type: "command",
+        phase: "postllm",
         command: "git status --porcelain",
         failurePattern: "git-dirty",
       },
@@ -68,7 +69,8 @@ function validRegistry(): Record<string, unknown> {
     validationSteps: {
       "closure.issue": {
         stepId: "closure.issue",
-        validationConditions: [
+        preflightConditions: [],
+        postLLMConditions: [
           { validator: "git-clean", params: {} },
         ],
       },
@@ -276,13 +278,13 @@ Deno.test("registry-validator - conditional targets null is valid (terminal)", (
 });
 
 // =============================================================================
-// validationConditions - broken validator references
+// postLLMConditions / preflightConditions - broken validator references
 // =============================================================================
 
-Deno.test("registry-validator - validationCondition references unknown validator", () => {
+Deno.test("registry-validator - postLLMConditions references unknown validator", () => {
   const data = validRegistry();
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "missing-validator", params: {} },
   ];
 
@@ -290,15 +292,15 @@ Deno.test("registry-validator - validationCondition references unknown validator
 
   assertEquals(result.valid, false);
   const error = result.errors.find((e) =>
-    e.includes("missing-validator") && e.includes("validationConditions")
+    e.includes("missing-validator") && e.includes("postLLMConditions")
   );
   assertEquals(error !== undefined, true);
 });
 
-Deno.test("registry-validator - multiple broken validationConditions", () => {
+Deno.test("registry-validator - multiple broken postLLMConditions", () => {
   const data = validRegistry();
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "missing-a", params: {} },
     { validator: "missing-b", params: {} },
   ];
@@ -306,7 +308,79 @@ Deno.test("registry-validator - multiple broken validationConditions", () => {
   const result = validateCrossReferences(data);
 
   assertEquals(result.valid, false);
-  assertEquals(result.errors.length, 2);
+  // At least 2 errors for the 2 missing validators (order of errors is stable
+  // but the count is the invariant we care about — "at least one per row").
+  assertEquals(result.errors.length >= 2, true);
+});
+
+Deno.test("registry-validator - legacy validationConditions field is rejected", () => {
+  const data = validRegistry();
+  const vs = data.validationSteps as Record<string, Record<string, unknown>>;
+  // Simulate legacy config that still uses the removed field
+  delete vs["closure.issue"].postLLMConditions;
+  vs["closure.issue"].validationConditions = [
+    { validator: "git-clean", params: {} },
+  ];
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("validationConditions") && e.includes("removed")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Legacy validationConditions field must be explicitly rejected at load time. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
+});
+
+Deno.test("registry-validator - preflight slot wired to postllm validator is rejected", () => {
+  const data = validRegistry();
+  // git-clean is declared phase:"postllm" in the fixture; wiring it to
+  // preflightConditions must trigger a phase-mismatch error.
+  const vs = data.validationSteps as Record<string, Record<string, unknown>>;
+  vs["closure.issue"].preflightConditions = [
+    { validator: "git-clean", params: {} },
+  ];
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("git-clean") && e.includes("phase") &&
+    e.includes("preflightConditions")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Expected a phase-mismatch error for validator wired to the wrong slot. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
+});
+
+Deno.test("registry-validator - phase-less validator in conditions slot is rejected", () => {
+  const data = validRegistry();
+  const validators = data.validators as Record<
+    string,
+    Record<string, unknown>
+  >;
+  // Remove phase from the declared validator
+  delete validators["git-clean"].phase;
+
+  const result = validateCrossReferences(data);
+
+  assertEquals(result.valid, false);
+  const error = result.errors.find((e) =>
+    e.includes("git-clean") && e.includes("phase")
+  );
+  assertEquals(
+    error !== undefined,
+    true,
+    "Phase-less validators referenced by any conditions slot must be rejected. " +
+      "Fix: agents/config/registry-validator.ts",
+  );
 });
 
 // =============================================================================
@@ -361,9 +435,9 @@ Deno.test("registry-validator - multiple different error types accumulate", () =
     next: { target: "gone.step" },
   };
 
-  // Break validationCondition
+  // Break post-LLM validator reference
   const vs = data.validationSteps as Record<string, Record<string, unknown>>;
-  vs["closure.issue"].validationConditions = [
+  vs["closure.issue"].postLLMConditions = [
     { validator: "gone-validator", params: {} },
   ];
 

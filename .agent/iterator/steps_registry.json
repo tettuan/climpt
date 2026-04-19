@@ -86,6 +86,7 @@
   "validators": {
     "git-clean": {
       "type": "command",
+      "phase": "postllm",
       "command": "git status --porcelain",
       "successWhen": "empty",
       "failurePattern": "git-dirty",
@@ -96,6 +97,7 @@
     },
     "tests-pass": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno task test",
       "successWhen": "exitCode:0",
       "failurePattern": "test-failed",
@@ -106,6 +108,7 @@
     },
     "type-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno check src/**/*.ts agents/**/*.ts *.ts",
       "successWhen": "exitCode:0",
       "failurePattern": "type-error",
@@ -116,6 +119,7 @@
     },
     "lint-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno task lint",
       "successWhen": "exitCode:0",
       "failurePattern": "lint-error",
@@ -126,6 +130,7 @@
     },
     "format-check": {
       "type": "command",
+      "phase": "postllm",
       "command": "deno fmt --check",
       "successWhen": "exitCode:0",
       "failurePattern": "format-error",
@@ -136,6 +141,7 @@
     },
     "branch-pushed": {
       "type": "command",
+      "phase": "postllm",
       "command": "git rev-parse --abbrev-ref --symbolic-full-name @{u}",
       "successWhen": "exitCode:0",
       "failurePattern": "branch-not-pushed",
@@ -146,6 +152,7 @@
     },
     "branch-merged": {
       "type": "command",
+      "phase": "postllm",
       "command": "git log origin/develop..HEAD --oneline",
       "successWhen": "empty",
       "failurePattern": "branch-not-merged",
@@ -162,7 +169,8 @@
       "name": "Issue Validation",
       "c2": "retry",
       "c3": "issue",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "git-clean"
         },
@@ -178,21 +186,15 @@
         "file": "issue.schema.json",
         "schema": "closure.issue"
       },
-      "description": "Validate issue with git-clean and type-check. Branch merge is handled by run-agent.ts in worktree mode."
+      "description": "Validate issue with git-clean and type-check (both post-LLM — failures require LLM-driven remediation). Branch merge is handled by run-agent.ts in worktree mode."
     },
     "closure.polling": {
       "stepId": "closure.polling",
       "name": "External State Validation",
       "c2": "retry",
       "c3": "issue",
-      "validationConditions": [
-        {
-          "validator": "git-clean"
-        },
-        {
-          "validator": "type-check"
-        }
-      ],
+      "preflightConditions": [],
+      "postLLMConditions": [],
       "onFailure": {
         "action": "retry",
         "maxAttempts": 3
@@ -201,7 +203,7 @@
         "file": "polling.schema.json",
         "schema": "closure.polling"
       },
-      "description": "Validate external state with git-clean and type-check."
+      "description": "Read-only external state polling: no validator conditions. git-clean and type-check belong to closure.issue (mutating work), not polling."
     }
   },
   "steps": {

@@ -18,9 +18,11 @@ import {
   type ExtendedStepsRegistry,
   hasFlowRoutingSupport,
   hasValidationChainSupport,
+  type PostLLMValidatorResult,
+  type PreFlightValidatorResult,
 } from "../common/validation-types.ts";
 import { loadStepRegistry } from "../common/step-registry.ts";
-import { ValidationChain, type ValidationResult } from "./validation-chain.ts";
+import { ValidationChain } from "./validation-chain.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 import {
@@ -230,13 +232,17 @@ export class ClosureManager {
   }
 
   /**
-   * Validate conditions for a step.
+   * Validate post-LLM conditions for a step (Phase 2).
+   *
+   * Runs format validation when outputSchema is defined, then
+   * falls through to post-LLM validation conditions. May produce
+   * a retry prompt that instructs the LLM to take corrective action.
    */
   async validateConditions(
     stepId: string,
     _summary: IterationSummary,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<ValidationResult> {
+  ): Promise<PostLLMValidatorResult> {
     if (!this.stepsRegistry) {
       return { valid: true };
     }
@@ -257,13 +263,13 @@ export class ClosureManager {
     // Fallback to command-based validation
     if (
       !this.stepValidator ||
-      !stepConfig.validationConditions?.length
+      !stepConfig.postLLMConditions?.length
     ) {
       return { valid: true };
     }
 
     const result = await this.stepValidator.validate(
-      stepConfig.validationConditions,
+      stepConfig.postLLMConditions,
     );
 
     if (result.valid) {
@@ -290,15 +296,17 @@ export class ClosureManager {
   }
 
   /**
-   * Pre-flight state validation - runs BEFORE LLM call.
+   * Pre-flight state validation (Phase 1) — runs BEFORE the LLM call.
    *
-   * Validates only state-based conditions (command/file/semantic validators),
-   * NOT format validation (which runs post-LLM in Phase 2).
+   * Returns a `PreFlightValidatorResult` with no retry prompt. Pre-flight
+   * validators are pure predicates; on failure the caller MUST abort the
+   * closure step (no LLM invocation, no retry). Format validation is not
+   * performed here — it belongs exclusively to Phase 2.
    */
   async validateStateConditions(
     stepId: string,
     logger: import("../src_common/logger.ts").Logger,
-  ): Promise<ValidationResult> {
+  ): Promise<PreFlightValidatorResult> {
     if (!this.stepsRegistry) {
       return { valid: true };
     }
@@ -308,8 +316,8 @@ export class ClosureManager {
       return { valid: true };
     }
 
-    // Skip if no validation conditions to check
-    if (!stepConfig.validationConditions?.length) {
+    // Skip if no pre-flight conditions configured
+    if (!stepConfig.preflightConditions?.length) {
       return { valid: true };
     }
 
@@ -325,7 +333,7 @@ export class ClosureManager {
 
     logger.info(`Pre-flight state validation for step: ${stepId}`);
     const result = await this.stepValidator.validate(
-      stepConfig.validationConditions,
+      stepConfig.preflightConditions,
     );
 
     if (result.valid) {
@@ -333,22 +341,10 @@ export class ClosureManager {
       return { valid: true };
     }
 
-    logger.warn(`Pre-flight validation failed: pattern=${result.pattern}`);
-
-    if (this.retryHandler && result.pattern) {
-      const retryPrompt = await this.retryHandler.buildRetryPrompt(
-        stepConfig,
-        result,
-      );
-      return { valid: false, retryPrompt };
-    }
-
-    return {
-      valid: false,
-      retryPrompt: `State validation conditions not met: ${
-        result.error ?? result.pattern
-      }`,
-    };
+    const reason = result.error ?? result.pattern ??
+      "pre-flight validation failed";
+    logger.warn(`Pre-flight validation failed: ${reason}`);
+    return { valid: false, reason };
   }
 
   /**

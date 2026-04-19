@@ -12,6 +12,8 @@ import type { IterationSummary } from "../src_common/types.ts";
 import type {
   ExtendedStepsRegistry,
   FailureAction,
+  PostLLMValidatorResult,
+  PreFlightValidatorResult,
   ResponseFormat,
   ValidationStepConfig,
 } from "../common/validation-types.ts";
@@ -26,18 +28,11 @@ import {
 const DEFAULT_MAX_ATTEMPTS = 3;
 
 /**
- * Result of validation
+ * @deprecated Use `PostLLMValidatorResult` directly. Alias kept for one
+ * transitional usage inside agents/runner; callers should import the new
+ * name from `agents/common/validation-types.ts`.
  */
-export interface ValidationResult {
-  /** Whether validation passed */
-  valid: boolean;
-  /** Retry prompt if validation failed */
-  retryPrompt?: string;
-  /** Format validation result (if applicable) */
-  formatValidation?: FormatValidationResult;
-  /** Failure action to take (only set when valid is false) */
-  action?: FailureAction;
-}
+export type ValidationResult = PostLLMValidatorResult;
 
 /**
  * Options for ValidationChain creation
@@ -88,18 +83,18 @@ export class ValidationChain {
   /**
    * Post-LLM validation for a step (Phase 2).
    *
-   * Runs format validation when outputSchema is defined, then
-   * falls through to command-based validation conditions.
+   * Runs format validation when outputSchema is defined, then falls through
+   * to command-based validation conditions wired via `postLLMConditions`.
    * State validation (Phase 1) runs separately via `validateState()`.
    *
    * @param stepId - Step identifier
    * @param summary - Current iteration summary (used for format validation)
-   * @returns Validation result
+   * @returns Post-LLM validation result (may include retry prompt + action)
    */
   async validate(
     stepId: string,
     summary: IterationSummary,
-  ): Promise<ValidationResult> {
+  ): Promise<PostLLMValidatorResult> {
     const stepConfig = this.getStepConfig(stepId);
 
     if (!stepConfig) {
@@ -129,40 +124,41 @@ export class ValidationChain {
       this.logger.debug("[ValidationChain] Format validation passed");
     }
 
-    // Command-based validation conditions
+    // Command-based post-LLM validation conditions
     if (
       !this.stepValidator ||
-      !stepConfig.validationConditions?.length
+      !stepConfig.postLLMConditions?.length
     ) {
       return { valid: true };
     }
 
-    return await this.validateWithConditions(stepConfig);
+    return await this.validatePostLLMConditions(stepConfig);
   }
 
   /**
-   * Pre-flight state validation - runs BEFORE LLM call.
+   * Pre-flight state validation - runs BEFORE LLM call (Phase 1).
    *
-   * Validates state-based conditions (command/file/semantic validators) only.
-   * Unlike `validate()`, this does NOT early-return when outputSchema is defined,
-   * because state conditions must be checked regardless of output format.
+   * Returns a `PreFlightValidatorResult` that intentionally does NOT expose
+   * a `retryPrompt` field: pre-flight validators are pure predicates and
+   * cannot request LLM action. On failure, the caller MUST abort the
+   * closure step (AgentValidationAbortError) — no retry, no LLM invocation.
    *
    * @param stepId - Step identifier
-   * @returns Validation result
+   * @returns Pre-flight validation result (valid + optional reason)
    */
-  async validateState(stepId: string): Promise<ValidationResult> {
+  async validateState(stepId: string): Promise<PreFlightValidatorResult> {
     const stepConfig = this.getStepConfig(stepId);
     if (!stepConfig) {
       return { valid: true };
     }
 
     // Run conditions regardless of outputSchema
-    if (!this.stepValidator || !stepConfig.validationConditions?.length) {
+    if (!this.stepValidator || !stepConfig.preflightConditions?.length) {
       return { valid: true };
     }
 
     this.logger.info(`Pre-flight state validation for step: ${stepId}`);
-    return await this.validateWithConditions(stepConfig);
+    return await this.validatePreFlightConditions(stepConfig);
   }
 
   /**
@@ -212,21 +208,52 @@ export class ValidationChain {
   }
 
   /**
-   * Validate using validation conditions.
+   * Validate pre-flight conditions (Phase 1).
    *
-   * Reads `stepConfig.onFailure.action` and `maxAttempts` to determine
-   * the failure action. Unrecoverable failures override to "abort".
-   * Exceeding maxAttempts overrides to "abort".
+   * Pure predicate: runs the step validator over `preflightConditions`
+   * and collapses the outcome into `{valid, reason?}`. The retry counter
+   * is NOT touched — pre-flight has no retry concept. Any failure here
+   * signals an unrecoverable state the LLM cannot be invoked to fix.
    */
-  private async validateWithConditions(
+  private async validatePreFlightConditions(
     stepConfig: ValidationStepConfig,
-  ): Promise<ValidationResult> {
+  ): Promise<PreFlightValidatorResult> {
     if (!this.stepValidator) {
       return { valid: true };
     }
 
     const result = await this.stepValidator.validate(
-      stepConfig.validationConditions,
+      stepConfig.preflightConditions,
+    );
+
+    if (result.valid) {
+      this.logger.info("All pre-flight validation conditions passed");
+      return { valid: true };
+    }
+
+    const reason = result.error ?? result.pattern ??
+      "pre-flight validation failed";
+    this.logger.warn(`Pre-flight validation failed: ${reason}`);
+    return { valid: false, reason };
+  }
+
+  /**
+   * Validate post-LLM conditions (Phase 2).
+   *
+   * Reads `stepConfig.onFailure.action` and `maxAttempts` to determine
+   * the failure action. Unrecoverable failures override to "abort".
+   * Exceeding maxAttempts overrides to "abort". The retry counter is
+   * scoped to this path only.
+   */
+  private async validatePostLLMConditions(
+    stepConfig: ValidationStepConfig,
+  ): Promise<PostLLMValidatorResult> {
+    if (!this.stepValidator) {
+      return { valid: true };
+    }
+
+    const result = await this.stepValidator.validate(
+      stepConfig.postLLMConditions,
     );
 
     if (result.valid) {
@@ -251,7 +278,7 @@ export class ValidationChain {
       action = "abort";
     }
 
-    // Track retry attempts and enforce maxAttempts
+    // Track retry attempts and enforce maxAttempts (post-LLM only)
     if (action === "retry") {
       const currentAttempts = (this.retryAttempts.get(stepConfig.stepId) ?? 0) +
         1;

@@ -4,7 +4,8 @@
  * Validates internal consistency of a steps registry:
  * - entryStepMapping values reference existing steps
  * - transition targets reference existing steps
- * - validationConditions reference existing validators
+ * - preflightConditions / postLLMConditions reference existing validators
+ * - Validator `phase` matches the conditions slot that references it
  * - validators reference existing failurePatterns
  * - conditional transition targets reference existing steps
  *
@@ -125,26 +126,60 @@ export function validateCrossReferences(
     }
   }
 
-  // 3. validationConditions[].validator must exist in validators
+  // 3. preflightConditions / postLLMConditions: validator ref must exist
+  //    AND validator.phase must match the slot it is wired into.
+  const EXPECTED_PHASE: Record<string, "preflight" | "postllm"> = {
+    preflightConditions: "preflight",
+    postLLMConditions: "postllm",
+  };
+
   for (const [vsId, vsDef] of Object.entries(validationSteps)) {
     const vs = asRecord(vsDef);
     if (!vs) continue;
 
-    const conditions = vs.validationConditions;
-    if (!Array.isArray(conditions)) continue;
+    // Reject legacy field explicitly — no backward compat
+    if ("validationConditions" in vs) {
+      errors.push(
+        `validationSteps["${vsId}"] uses removed field "validationConditions"; split into "preflightConditions" and "postLLMConditions"`,
+      );
+    }
 
-    for (let i = 0; i < conditions.length; i++) {
-      const cond = asRecord(conditions[i]);
-      if (!cond) continue;
-
-      const validatorName = cond.validator;
-      if (
-        typeof validatorName === "string" &&
-        !validatorKeys.has(validatorName)
-      ) {
+    for (const slot of ["preflightConditions", "postLLMConditions"] as const) {
+      const conditions = vs[slot];
+      if (!Array.isArray(conditions)) {
         errors.push(
-          `validationSteps["${vsId}"].validationConditions[${i}].validator references unknown validator "${validatorName}"`,
+          `validationSteps["${vsId}"].${slot} must be an array (empty is allowed)`,
         );
+        continue;
+      }
+
+      for (let i = 0; i < conditions.length; i++) {
+        const cond = asRecord(conditions[i]);
+        if (!cond) continue;
+
+        const validatorName = cond.validator;
+        if (typeof validatorName !== "string") continue;
+
+        if (!validatorKeys.has(validatorName)) {
+          errors.push(
+            `validationSteps["${vsId}"].${slot}[${i}].validator references unknown validator "${validatorName}"`,
+          );
+          continue;
+        }
+
+        // Phase mismatch check
+        const validatorDef = asRecord(validators[validatorName]);
+        const declaredPhase = validatorDef?.phase;
+        const expectedPhase = EXPECTED_PHASE[slot];
+        if (typeof declaredPhase !== "string") {
+          errors.push(
+            `validators["${validatorName}"] is wired into ${slot} but declares no "phase" field; phase "${expectedPhase}" is required`,
+          );
+        } else if (declaredPhase !== expectedPhase) {
+          errors.push(
+            `validators["${validatorName}"].phase is "${declaredPhase}" but is wired into ${slot} (expects "${expectedPhase}")`,
+          );
+        }
       }
     }
   }

@@ -85,7 +85,8 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         name: "Issue Closure",
         c2: "closure",
         c3: "issue",
-        validationConditions: [{
+        preflightConditions: [],
+        postLLMConditions: [{
           validator: "command",
           params: { command: "echo ok" },
         }],
@@ -96,7 +97,8 @@ function createFixtureRegistry(): ExtendedStepsRegistry {
         name: "External State Closure",
         c2: "closure",
         c3: "polling",
-        validationConditions: [],
+        preflightConditions: [],
+        postLLMConditions: [],
         onFailure: { action: "retry" },
       },
     },
@@ -180,7 +182,8 @@ Deno.test("ValidationChain - validate runs format validation when outputSchema d
     name: "Schema Closure",
     c2: "closure",
     c3: "schema",
-    validationConditions: [],
+    preflightConditions: [],
+    postLLMConditions: [],
     onFailure: { action: "retry" },
     outputSchema: { type: "object" },
   };
@@ -224,7 +227,7 @@ Deno.test("ValidationChain - validate returns valid for step with empty conditio
   const chain = createChain();
   const summary = createSummary();
 
-  // closure.polling has empty completionConditions
+  // closure.polling has empty postLLMConditions
   const result = await chain.validate("closure.polling", summary);
 
   assertEquals(result.valid, true);
@@ -311,7 +314,7 @@ Deno.test("ValidationChain - validate returns invalid when stepValidator rejects
   const chain = createChainWithValidator(validator);
   const summary = createSummary();
 
-  // closure.issue has non-empty validationConditions
+  // closure.issue has non-empty postLLMConditions
   const result = await chain.validate("closure.issue", summary);
 
   assertEquals(result.valid, false);
@@ -336,7 +339,7 @@ Deno.test("ValidationChain - validate returns invalid when stepValidator rejects
 });
 
 Deno.test("ValidationChain - validate still returns valid when step has empty conditions despite failing validator", async () => {
-  // closure.polling has empty validationConditions, so validateWithConditions
+  // closure.polling has empty postLLMConditions, so the post-LLM path
   // is never reached even if a stepValidator is provided.
   const failResult: ValidatorResult = {
     valid: false,

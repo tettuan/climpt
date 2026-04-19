@@ -20,6 +20,7 @@
   "validators": {
     "always-pass": {
       "type": "command",
+      "phase": "postllm",
       "command": "echo ok",
       "successWhen": "exitCode:0",
       "failurePattern": "git-dirty",
@@ -32,7 +33,8 @@
       "name": "Test Validation",
       "c2": "retry",
       "c3": "test",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "always-pass"
         }
@@ -47,7 +49,8 @@
       "name": "External State Validation",
       "c2": "retry",
       "c3": "polling",
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "always-pass"
         }
