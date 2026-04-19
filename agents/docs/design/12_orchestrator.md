@@ -264,18 +264,48 @@ Agent から gh API への直接アクセスを排除し、ローカルファイ
 | **Agent**        | **禁止**           | Issue Store 読み取り + outbox 書き出し | gh 制限なし。`--issue` 番号のみ受け取り、gh に直接アクセス          |
 | **Orchestrator** | **許可**           | Issue Store 管理（同期・outbox 実行）  | gh 操作はすべて直接実行。IssueStore は batch のキュー構築にのみ使用 |
 
-### Outbox Pattern _(未接続)_
+### Outbox Pattern
 
 Agent は gh 操作をファイルとして `outbox/` に書き出す。Orchestrator が Agent
-完了後に順次 gh コマンドで実行する。
+完了後に `OutboxProcessor.process()` で順次 gh API を実行する。
 
-サポートする操作: `comment`, `create-issue`, `update-labels`, `close-issue`
+サポートする操作: `comment`, `create-issue`, `update-labels`, `close-issue`,
+`add-to-project`, `update-project-item-field`, `close-project`,
+`remove-from-project`
 
-> **v1.14 実装予定:**
->
-> 1. Dispatcher が `--issue-store-path` を Agent CLI 引数に追加
-> 2. `run-agent.ts` が Issue Store パスを受け取り、Agent に渡す
-> 3. 単一 issue モードでも OutboxProcessor を実行する
+#### `OutboxProcessor.process()` Sequence Contract
+
+1. **Filename-ordered execution**: outbox ディレクトリ内の `.json` ファイルを
+   ファイル名の辞書順でソートし、先頭から順次実行する。ファイル名の数値プレフィクス
+   (例: `001-comment.json` の `001`) がシーケンス番号となる。
+2. **Phase filter**: 各アクションの `trigger`
+   フィールドで実行フェーズを分離する。 `process()` は `trigger` なし
+   (pre-close) のアクションのみ実行し、 `trigger: "post-close"` のアクションは
+   `processPostClose()` で実行する。
+3. **Per-file success tracking (issue #486)**: アクション成功時にそのファイルを
+   即座に削除する。失敗したファイルはディスク上に残り、次サイクルで再試行される。
+   これにより、部分失敗後の次サイクルで成功済みアクションが再実行されない。
+4. **Late-binding (issue #487)**: `add-to-project` アクションの `issueNumber` が
+   省略された場合、同一 family 内の直前の `create-issue` 結果から解決する。
+   family ID はファイル名 `000-deferred-NNN-action.json` の `NNN`
+   から抽出される。
+5. **Return contract**: 各アクションの結果を `OutboxResult[]` で返す。`success`,
+   `sequence`, `action`, `filename` を含み、呼び出し側 (Orchestrator) が
+   per-file の成功/失敗を判別できる。
+
+#### C1 Idempotency 統合 (issues #484, #486)
+
+`DeferredItemsEmitter` の idempotency key と `OutboxProcessor` の per-file
+deletion は相互補完的に動作する:
+
+- **C1 (emitter 側)**: `emit()` 時に SHA-256 idempotency key で重複を検出し、
+  確認済みアイテムの再 emit を防止する。
+- **C3 (processor 側)**: per-file deletion で成功済みファイルを除去し、
+  次サイクルでの再実行を防止する。
+- **統合点**: Orchestrator Step 7b.1 で、OutboxProcessor の結果から成功した
+  deferred-item の idempotency key を `confirmEmitted()` に渡す。
+  部分失敗時は成功分のみ confirm され、失敗分は次サイクルで emitter が再 emit
+  し、 processor が再実行する。
 
 ## Dual Truth Source _(v1.13 の既知制約)_
 
