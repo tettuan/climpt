@@ -25,6 +25,7 @@ import { wfBatchPrioritizeMissingConfig } from "../shared/errors/config-errors.t
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { countdownDelay } from "./countdown.ts";
 import { summarizeSync, syncLabels } from "./label-sync.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 /** Interface for single-issue workflow execution, used by BatchRunner. */
 export interface SingleIssueRunner {
@@ -72,10 +73,14 @@ export class BatchRunner {
       const store = new SubjectStore(storePath);
 
       const wfId = this.#runner.workflowId;
+      const origin = detectRuntimeOrigin(import.meta.url);
       await log.info(`Batch start workflow "${wfId}"`, {
         event: "batch_start",
         workflowId: wfId,
         criteria,
+        climptVersion: origin.version,
+        climptSource: origin.source,
+        climptModuleUrl: origin.moduleUrl,
       });
 
       // 0. Workflow-level lock

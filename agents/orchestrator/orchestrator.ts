@@ -34,6 +34,7 @@ import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
 import { TransactionScope } from "./transaction-scope.ts";
 import { summarizeSync, syncLabels } from "./label-sync.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -142,11 +143,15 @@ export class Orchestrator {
     const maxConsecutivePhases = this.#config.rules.maxConsecutivePhases ?? 0;
     const wfId = workflowId ?? this.workflowId;
 
+    const origin = detectRuntimeOrigin(import.meta.url);
     await log.info(`Run start subject #${subjectId}`, {
       event: "run_start",
       subjectId,
       workflowId: wfId,
       dryRun,
+      climptVersion: origin.version,
+      climptSource: origin.source,
+      climptModuleUrl: origin.moduleUrl,
     });
 
     // Restore cycle tracker from persisted state if available.

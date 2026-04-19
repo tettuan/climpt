@@ -54,6 +54,7 @@ import {
   DEFAULT_SUBJECT_STORE,
   type IssueCriteria,
 } from "../orchestrator/workflow-types.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 async function main(): Promise<void> {
   const args = parseArgs(Deno.args, {
@@ -70,6 +71,12 @@ async function main(): Promise<void> {
     alias: { h: "help", w: "workflow", v: "verbose", p: "prioritize" },
     collect: ["label"],
   });
+
+  const origin = detectRuntimeOrigin(import.meta.url);
+  // deno-lint-ignore no-console
+  console.log(
+    `[orchestrator] climpt ${origin.version} source=${origin.source} (${origin.moduleUrl})`,
+  );
 
   if (args.help) {
     // deno-lint-ignore no-console
