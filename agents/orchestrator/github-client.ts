@@ -190,9 +190,28 @@ export interface GitHubClient {
 /** Concrete implementation using `gh` CLI via Deno.Command. */
 export class GhCliClient implements GitHubClient {
   #cwd: string;
+  #cache: Map<string, { data: unknown; expiry: number }> = new Map();
+  static readonly #CACHE_TTL_MS = 30_000;
 
   constructor(cwd: string) {
     this.#cwd = cwd;
+  }
+
+  #cacheGet<T>(key: string): T | undefined {
+    const entry = this.#cache.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiry) {
+      this.#cache.delete(key);
+      return undefined;
+    }
+    return entry.data as T;
+  }
+
+  #cacheSet(key: string, data: unknown): void {
+    this.#cache.set(key, {
+      data,
+      expiry: Date.now() + GhCliClient.#CACHE_TTL_MS,
+    });
   }
 
   async getIssueLabels(subjectId: string | number): Promise<string[]> {
@@ -772,6 +791,12 @@ export class GhCliClient implements GitHubClient {
   async listProjectItems(
     project: ProjectRef,
   ): Promise<{ id: string; issueNumber: number }[]> {
+    const cacheKey = `listProjectItems:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<{ id: string; issueNumber: number }[]>(
+      cacheKey,
+    );
+    if (cached) return cached;
+
     const { owner, number: projectNumber } = this.#resolveProjectRef(project);
     const cmd = new Deno.Command("gh", {
       args: [
@@ -801,17 +826,25 @@ export class GhCliClient implements GitHubClient {
         content: { number: number; type: string };
       }[];
     };
-    return data.items
+    const result = data.items
       .filter((item) => item.content?.type === "Issue")
       .map((item) => ({
         id: item.id,
         issueNumber: item.content.number,
       }));
+    this.#cacheSet(cacheKey, result);
+    return result;
   }
 
   async getIssueProjects(
     issueNumber: number,
   ): Promise<Array<{ owner: string; number: number }>> {
+    const cacheKey = `getIssueProjects:${JSON.stringify([issueNumber])}`;
+    const cached = this.#cacheGet<Array<{ owner: string; number: number }>>(
+      cacheKey,
+    );
+    if (cached) return cached;
+
     // Use gh issue view with GraphQL-backed projectsV2 field.
     const cmd = new Deno.Command("gh", {
       args: [
@@ -843,6 +876,7 @@ export class GhCliClient implements GitHubClient {
       if (trimmed === "") continue;
       results.push(JSON.parse(trimmed) as { owner: string; number: number });
     }
+    this.#cacheSet(cacheKey, results);
     return results;
   }
 
@@ -910,6 +944,10 @@ export class GhCliClient implements GitHubClient {
   }
 
   async listUserProjects(owner: string): Promise<Project[]> {
+    const cacheKey = `listUserProjects:${JSON.stringify([owner])}`;
+    const cached = this.#cacheGet<Project[]>(cacheKey);
+    if (cached) return cached;
+
     const cmd = new Deno.Command("gh", {
       args: [
         "project",
@@ -942,7 +980,7 @@ export class GhCliClient implements GitHubClient {
         closed: boolean;
       }[];
     };
-    return (data.projects ?? []).map((p) => ({
+    const result = (data.projects ?? []).map((p) => ({
       id: p.id,
       number: p.number,
       owner,
@@ -951,9 +989,15 @@ export class GhCliClient implements GitHubClient {
       shortDescription: p.shortDescription ?? null,
       closed: p.closed ?? false,
     }));
+    this.#cacheSet(cacheKey, result);
+    return result;
   }
 
   async getProject(project: ProjectRef): Promise<Project> {
+    const cacheKey = `getProject:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<Project>(cacheKey);
+    if (cached) return cached;
+
     const { owner, number: projectNumber } = this.#resolveProjectRef(project);
     const cmd = new Deno.Command("gh", {
       args: [
@@ -985,7 +1029,7 @@ export class GhCliClient implements GitHubClient {
       readme: string;
       closed: boolean;
     };
-    return {
+    const result: Project = {
       id: data.id,
       number: data.number,
       owner,
@@ -994,9 +1038,15 @@ export class GhCliClient implements GitHubClient {
       shortDescription: data.shortDescription ?? null,
       closed: data.closed ?? false,
     };
+    this.#cacheSet(cacheKey, result);
+    return result;
   }
 
   async getProjectFields(project: ProjectRef): Promise<ProjectField[]> {
+    const cacheKey = `getProjectFields:${JSON.stringify([project])}`;
+    const cached = this.#cacheGet<ProjectField[]>(cacheKey);
+    if (cached) return cached;
+
     const { owner, number: projectNumber } = this.#resolveProjectRef(project);
     const cmd = new Deno.Command("gh", {
       args: [
@@ -1029,12 +1079,14 @@ export class GhCliClient implements GitHubClient {
         options?: { id: string; name: string }[];
       }[];
     };
-    return (data.fields ?? []).map((f) => ({
+    const result = (data.fields ?? []).map((f) => ({
       id: f.id,
       name: f.name,
       type: f.type as ProjectField["type"],
       ...(f.options ? { options: f.options } : {}),
     }));
+    this.#cacheSet(cacheKey, result);
+    return result;
   }
 
   async removeProjectItem(
