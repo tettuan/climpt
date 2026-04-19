@@ -56,14 +56,14 @@ agent セクションと registry セクションの相互参照。
 
 バリデーション機構の内部参照。
 
-| ID   | ルール                                                                      | 検証内容               | Schema 表現 |
-| ---- | --------------------------------------------------------------------------- | ---------------------- | ----------- |
-| R-C1 | `validators[*].failurePattern` ∈ `failurePatterns` keys                     | 失敗パターンが定義済み | cross-ref   |
-| R-C2 | `validationSteps[*].validationConditions[*].validator` ∈ `validators` keys  | バリデータが定義済み   | cross-ref   |
-| R-C3 | direct transition の `fallback` フィールド (存在時) ∈ `steps` keys          | fallback 遷移先が存在  | cross-ref   |
-| R-C4 | conditional transition の `targets` 内の全 value ∈ `steps` keys ∪ {null}    | 条件分岐先が全て存在   | cross-ref   |
-| R-C5 | `validationSteps[*].onFailure.action` ∈ {retry, abort, skip}                | 有効な failure action  | enum        |
-| R-C6 | `validationSteps[*].onFailure.maxAttempts` は正の整数 (action=retry 時必須) | リトライ回数の有効性   | minimum: 1  |
+| ID   | ルール                                                                                                            | 検証内容               | Schema 表現 |
+| ---- | ----------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------- |
+| R-C1 | `validators[*].failurePattern` ∈ `failurePatterns` keys                                                           | 失敗パターンが定義済み | cross-ref   |
+| R-C2 | `validationSteps[*].preflightConditions[*].validator` および `postLLMConditions[*].validator` ∈ `validators` keys | バリデータが定義済み   | cross-ref   |
+| R-C3 | direct transition の `fallback` フィールド (存在時) ∈ `steps` keys                                                | fallback 遷移先が存在  | cross-ref   |
+| R-C4 | conditional transition の `targets` 内の全 value ∈ `steps` keys ∪ {null}                                          | 条件分岐先が全て存在   | cross-ref   |
+| R-C5 | `validationSteps[*].onFailure.action` ∈ {retry, abort, skip}                                                      | 有効な failure action  | enum        |
+| R-C6 | `validationSteps[*].onFailure.maxAttempts` は正の整数 (action=retry 時必須)                                       | リトライ回数の有効性   | minimum: 1  |
 
 ### Category D: step ↔ schema 間
 

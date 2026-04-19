@@ -67,21 +67,25 @@ agent.json で Agent
 | `detect:keyword`    | 指定キーワードを structured output で出す | LLM の宣言を Completion Loop へ透過させる                 | `verdictKeyword`                                                   |
 | `detect:structured` | JSON schema で完了宣言を受け取る          | フリーテキスト依存を無くし、FormatValidator で収束を担保  | `responseFormat`, `outputSchema`                                   |
 | `detect:graph`      | 事前に定義した step graph で判定          | Flow ループの遷移と Completion 判定を同じ図面で語れるため | `steps_registry.json`                                              |
-| `meta:composite`    | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `validationConditions`, `mode`                                     |
+| `meta:composite`    | 複数条件 (any/all) の合成                 | 高凝集のまま複雑な契約を表現し、AI の局所最適を減らす     | `operator`, `conditions`                                           |
 | `meta:custom`       | 外部 VerdictHandler で任意判定            | 特殊案件を外付けストラテジに押し出し、コアを汚さない      | カスタム factory, `verdictHandler` 設定                            |
 
-### validationConditions
+### preflightConditions / postLLMConditions
 
-Completion Loop の Phase 1（Pre-flight State Validation）で実行される検証条件を
-steps_registry.json で定義する。ValidationChain が LLM 呼び出し前に各 validator
-を実行し、失敗時は LLM を呼ばずに retry する。結果は Phase 4（Verdict）の
-VerdictHandler に渡される。詳細は `design/05_structured_outputs.md` を参照。
+Closure validation の検証条件を steps_registry.json で 2 つの slot
+に分けて定義する。 `preflightConditions` は LLM
+呼び出し前に評価される純粋述語（失敗時は即 abort）、 `postLLMConditions` は LLM
+呼び出し後に評価され失敗時に retry prompt を生成しうる。 各 validator は
+`phase: "preflight" | "postllm"` を宣言し、slot と一致する必要がある
+(R-C7)。詳細は [validator-catalog.md](./validator-catalog.md) と
+`design/05_structured_outputs.md` を参照。
 
 ```json
 {
-  "steps": {
+  "validationSteps": {
     "closure.issue": {
-      "validationConditions": [
+      "preflightConditions": [],
+      "postLLMConditions": [
         { "validator": "git-clean" },
         { "validator": "tests-pass" }
       ],
@@ -435,7 +439,7 @@ load(path) → parse → validate → 起動 or エラー
 - runner.verdict.config と runner.verdict.type の整合性
 - 参照ファイルの存在
 - C3L プロンプトファイルの存在
-- validationConditions の validator 参照の妥当性
+- preflightConditions / postLLMConditions の validator 参照と phase の妥当性
 ```
 
 ---
@@ -477,7 +481,7 @@ load(path) → parse → validate → 起動 or エラー
 | [01_quickstart.md](./01_quickstart.md)                                | ファイル作成手順                             |
 | [03_builder_guide.md](./03_builder_guide.md)                          | 設計思想と連鎖                               |
 | [04_config_system.md](./04_config_system.md)                          | 設定の優先順位                               |
-| [design/05_structured_outputs.md](../design/05_structured_outputs.md) | validationConditions の詳細                  |
+| [design/05_structured_outputs.md](../design/05_structured_outputs.md) | preflight/postLLM conditions の詳細          |
 | [09_closure_output_contract.md](./09_closure_output_contract.md)      | Closure Output Contract                      |
 | [design/08_model_selection.md](../design/08_model_selection.md)       | モデル選択の設計                             |
 | [reference/agent.yaml](./reference/agent.yaml)                        | agent.json 全フィールドリファレンス          |

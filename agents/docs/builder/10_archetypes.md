@@ -107,6 +107,7 @@ prompt 追加は不要。
 "validators": {
   "git-clean": {
     "type": "command",
+    "phase": "postllm",
     "command": "git status --porcelain",
     "successWhen": "empty",
     "failurePattern": "git-dirty"
@@ -114,7 +115,8 @@ prompt 追加は不要。
 },
 "validationSteps": {
   "closure.review": {
-    "validationConditions": [ /* 検証チェーン */ ]
+    "preflightConditions": [],
+    "postLLMConditions": [ /* 検証チェーン */ ]
   }
 }
 ```
