@@ -1083,6 +1083,64 @@ Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", 
   );
 });
 
+// === getIssueProjects failure fallback Tests (Issue #516 / §6.3) ===
+
+Deno.test("O1 hook: getIssueProjects failure skips silently and dispatch continues", async () => {
+  // Config enables injectGoalIntoPromptContext — O1 hook executes.
+  // getIssueProjects throws — dispatch must continue without project context.
+  const config = createCloseOnCompleteConfig();
+  config.projectBinding = {
+    injectGoalIntoPromptContext: true,
+    inheritProjectsForCreateIssue: false,
+  };
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  github.getIssueProjects = (_issueNumber: number) => {
+    return Promise.reject(new Error("Simulated GH API transient error"));
+  };
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.issueClosed,
+    true,
+    "Dispatch must complete and close issue even when O1 getIssueProjects fails. " +
+      "Fix: orchestrator.ts O1 hook must catch errors and continue dispatch (§6.3)",
+  );
+});
+
+Deno.test("T6.eval: getIssueProjects failure does not block close transaction", async () => {
+  // Config has projectBinding — T6.eval executes after issue close.
+  // getIssueProjects throws — close transaction must still complete.
+  const config = createCloseOnCompleteConfig();
+  config.projectBinding = {
+    injectGoalIntoPromptContext: false,
+    inheritProjectsForCreateIssue: false,
+  };
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  github.getIssueProjects = (_issueNumber: number) => {
+    return Promise.reject(new Error("Simulated T6 GH API failure"));
+  };
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.issueClosed,
+    true,
+    "Issue must still be closed when T6.eval getIssueProjects fails. " +
+      "Fix: orchestrator.ts T6.eval catch must not propagate error (§6.3)",
+  );
+});
+
 // === Batch Tests ===
 
 /**
