@@ -368,6 +368,50 @@ export class SubjectStore {
     return await this.acquireLock(`${workflowId}.${subjectId}`);
   }
 
+  /**
+   * Read persisted idempotency keys for deferred-item emission.
+   *
+   * Returns `[]` when no keys have been recorded yet (file absent).
+   * Any IO or JSON parse error other than NotFound is propagated.
+   */
+  async readEmittedKeys(subjectId: string | number): Promise<string[]> {
+    const path = this.getEmittedKeysPath(subjectId);
+    try {
+      const text = await Deno.readTextFile(path);
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return [];
+      return parsed as string[];
+    } catch (error) {
+      if (error instanceof Deno.errors.NotFound) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Persist idempotency keys for deferred-item emission.
+   *
+   * Overwrites the existing file. Callers are responsible for merging
+   * with previous keys before calling.
+   */
+  async writeEmittedKeys(
+    subjectId: string | number,
+    keys: string[],
+  ): Promise<void> {
+    const dir = this.getIssuePath(subjectId);
+    await Deno.mkdir(dir, { recursive: true });
+    await Deno.writeTextFile(
+      this.getEmittedKeysPath(subjectId),
+      JSON.stringify(keys, null, 2) + "\n",
+    );
+  }
+
+  /** Get path to the deferred-emitted-keys file. */
+  getEmittedKeysPath(subjectId: string | number): string {
+    return `${this.getIssuePath(subjectId)}/deferred-emitted-keys.json`;
+  }
+
   /** Get issue directory path. */
   getIssuePath(subjectId: string | number): string {
     return `${this.#storePath}/${subjectId}`;

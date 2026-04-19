@@ -6,12 +6,16 @@ import type {
   IssueCriteria,
   IssueDetail,
   IssueListItem,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 
 /** Stub GitHub client with configurable return values. */
 class StubGitHubClient implements GitHubClient {
   #issues: IssueListItem[];
   #details: Map<number, IssueDetail>;
+  #projectItems: { id: string; issueNumber: number }[] = [];
   labelUpdates: { number: number; remove: string[]; add: string[] }[] = [];
   listIssuesCalls: IssueCriteria[] = [];
   commentCalls: { number: number; comment: string }[] = [];
@@ -106,6 +110,67 @@ class StubGitHubClient implements GitHubClient {
     _color: string,
     _description: string,
   ): Promise<void> {
+    return Promise.resolve();
+  }
+
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  setProjectItems(items: { id: string; issueNumber: number }[]): void {
+    this.#projectItems = items;
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve(this.#projectItems);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(_project: ProjectRef, _itemId: string): Promise<void> {
     return Promise.resolve();
   }
 }
@@ -244,6 +309,77 @@ Deno.test("listIssues criteria passed correctly to GitHub client", async () => {
 
     assertEquals(github.listIssuesCalls.length, 1);
     assertEquals(github.listIssuesCalls[0], criteria);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Per-project filtering
+// ---------------------------------------------------------------------------
+
+Deno.test("sync with project filters to project member issues only", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20, 30]);
+    // Only issues 10 and 30 belong to the project
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({
+      project: { owner: "org", number: 5 },
+    });
+
+    // Only project member issues are synced
+    assertEquals(result, [10, 30]);
+    // Issue 20 should not be in the store
+    let notFound = false;
+    try {
+      await store.readMeta(20);
+    } catch {
+      notFound = true;
+    }
+    assertEquals(notFound, true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync without project syncs all issues (backward compatible)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20, 30]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({});
+
+    assertEquals(result, [10, 20, 30]);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync with project and no matching issues returns empty", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20]);
+    // Project has different issues
+    github.setProjectItems([
+      { id: "PVTI_99", issueNumber: 99 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({
+      project: { owner: "org", number: 5 },
+    });
+
+    assertEquals(result, []);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }

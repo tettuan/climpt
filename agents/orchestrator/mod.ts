@@ -81,7 +81,13 @@ export { SubjectStore } from "./subject-store.ts";
 export { IssueSyncer } from "./issue-syncer.ts";
 
 // Outbox processor
-export type { OutboxAction, OutboxResult } from "./outbox-processor.ts";
+export type {
+  OutboxAction,
+  OutboxResult,
+  OutboxTrigger,
+  ProjectFieldValue,
+  ProjectRef,
+} from "./outbox-processor.ts";
 export { OutboxProcessor } from "./outbox-processor.ts";
 
 // Prioritizer

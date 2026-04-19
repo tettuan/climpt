@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Considerer `deferred_items[]` carves roadmap-scale scope into
+  follow-up issues: schema field + prompt branch. Orchestrator
+  (`DeferredItemsEmitter`) expands each entry into an outbox
+  `create-issue` action before the current issue closes in T6,
+  so residual tasks are discoverable via the label trail instead
+  of close-comment prose (#480)
+
 ## [1.13.26] - 2026-04-18
 
 ### Added

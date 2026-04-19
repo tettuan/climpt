@@ -28,11 +28,13 @@ import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 import type { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
+import { DeferredItemsEmitter } from "./deferred-items-emitter.ts";
 import { OrchestratorLogger } from "./orchestrator-logger.ts";
 import { BatchRunner } from "./batch-runner.ts";
 import { countdownDelay } from "./countdown.ts";
 import { TransactionScope } from "./transaction-scope.ts";
 import { summarizeSync, syncLabels } from "./label-sync.ts";
+import { detectRuntimeOrigin } from "../common/runtime-origin.ts";
 
 export type { OrchestratorOptions, OrchestratorResult };
 
@@ -141,11 +143,15 @@ export class Orchestrator {
     const maxConsecutivePhases = this.#config.rules.maxConsecutivePhases ?? 0;
     const wfId = workflowId ?? this.workflowId;
 
+    const origin = detectRuntimeOrigin(import.meta.url);
     await log.info(`Run start subject #${subjectId}`, {
       event: "run_start",
       subjectId,
       workflowId: wfId,
       dryRun,
+      climptVersion: origin.version,
+      climptSource: origin.source,
+      climptModuleUrl: origin.moduleUrl,
     });
 
     // Restore cycle tracker from persisted state if available.
@@ -346,6 +352,45 @@ export class Orchestrator {
         break;
       }
 
+      // Hook O1: Project context injection (§2.4 / §6.3)
+      // When projectBinding.injectGoalIntoPromptContext is enabled,
+      // resolve project memberships for goal injection. On failure,
+      // skip silently and dispatch without project context.
+      if (this.#config.projectBinding?.injectGoalIntoPromptContext) {
+        try {
+          // deno-lint-ignore no-await-in-loop
+          const projects = await this.#github.getIssueProjects(
+            Number(subjectId),
+          );
+          if (projects.length > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Project context found for #${subjectId}: ${
+                projects.map((p) => `${p.owner}/${p.number}`).join(", ")
+              }`,
+              {
+                event: "project_context_resolved",
+                subjectId,
+                projects: projects.map((p) => `${p.owner}/${p.number}`),
+              },
+            );
+          }
+        } catch (o1Error) {
+          const o1Msg = o1Error instanceof Error
+            ? o1Error.message
+            : String(o1Error);
+          // deno-lint-ignore no-await-in-loop
+          await log.warn(
+            `Project goal injection skipped for #${subjectId}: ${o1Msg}`,
+            {
+              event: "project_injection_skipped",
+              subjectId,
+            },
+          );
+          // Continue dispatch without project context (§6.3).
+        }
+      }
+
       // deno-lint-ignore no-await-in-loop
       await log.info(
         `Dispatching agent "${agentId}" for subject #${subjectId}`,
@@ -435,6 +480,89 @@ export class Orchestrator {
         }
       }
 
+      // Step 7a.5: Expand agent-declared `deferred_items[]` into outbox
+      // `create-issue` actions, so the follow-up issues are filed before
+      // the current issue closes in T6. See issue #480.
+      // Idempotency: already-confirmed items are skipped (issue #484).
+      //
+      // C2 guard (issue #485): deferred_items are emitted ONLY when the
+      // issue will close in this cycle (closeIntent === true). Emitting on
+      // non-close paths (e.g. verdict:"blocked") causes duplicate creation
+      // when the issue is re-dispatched after blocker resolution, even with
+      // C1 idempotency keys — the structuredOutput may differ between
+      // cycles, producing distinct keys for semantically identical items.
+      const { targetPhase: earlyTargetPhase } = computeTransition(
+        agent,
+        dispatchResult.outcome,
+      );
+      const earlyIsTerminal =
+        this.#config.phases[earlyTargetPhase]?.type === "terminal";
+      const closeIntentForDeferred = !dryRun && earlyIsTerminal &&
+        (agent.closeOnComplete ?? false) &&
+        (agent.closeCondition === undefined ||
+          agent.closeCondition === dispatchResult.outcome);
+
+      const deferredEmitter = store
+        ? new DeferredItemsEmitter(store)
+        : undefined;
+      let deferredEmittedKeys: readonly string[] = [];
+      let deferredEmittedPaths: readonly string[] = [];
+      if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        closeIntentForDeferred
+      ) {
+        try {
+          // deno-lint-ignore no-await-in-loop
+          const deferredResult = await deferredEmitter.emit(
+            subjectId,
+            dispatchResult.structuredOutput,
+          );
+          deferredEmittedKeys = deferredResult.emittedKeys;
+          deferredEmittedPaths = deferredResult.paths;
+          if (deferredResult.count > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Deferred items emitted: ${deferredResult.count} create-issue actions queued`,
+              {
+                event: "deferred_items_emitted",
+                subjectId,
+                count: deferredResult.count,
+              },
+            );
+          }
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error);
+          // deno-lint-ignore no-await-in-loop
+          await log.error(
+            `Deferred items emission failed: ${msg}`,
+            {
+              event: "deferred_items_error",
+              subjectId,
+              error: msg,
+            },
+          );
+          throw error;
+        }
+      } else if (
+        deferredEmitter && dispatchResult.structuredOutput &&
+        !closeIntentForDeferred
+      ) {
+        // C2: log suppression so operator can trace the guard in action.
+        // deno-lint-ignore no-await-in-loop
+        await log.info(
+          `Deferred items skipped: issue will not close this cycle ` +
+            `(outcome="${dispatchResult.outcome}", ` +
+            `targetPhase="${earlyTargetPhase}")`,
+          {
+            event: "deferred_items_skipped",
+            subjectId,
+            outcome: dispatchResult.outcome,
+            targetPhase: earlyTargetPhase,
+            reason: "close_intent_false",
+          },
+        );
+      }
+
       // Step 7b: Process outbox after agent dispatch (when store available)
       if (store) {
         const outboxProcessor = new OutboxProcessor(this.#github, store);
@@ -481,6 +609,38 @@ export class Orchestrator {
                 failedCount: failed.length,
               },
             );
+          }
+
+          // Step 7b.1: Confirm deferred-item idempotency keys for
+          // individually succeeded items. Previously all-or-nothing: keys
+          // were persisted only when every outbox action succeeded, causing
+          // the emitter to re-emit succeeded items on the next cycle after
+          // partial failure. Now confirms per-succeeded-item so the emitter
+          // skips them. See issues #484, #486.
+          if (
+            deferredEmitter && deferredEmittedKeys.length > 0 &&
+            deferredEmittedPaths.length === deferredEmittedKeys.length
+          ) {
+            // Build filename→key map from emitter paths.
+            const filenameToKey = new Map<string, string>();
+            for (let i = 0; i < deferredEmittedPaths.length; i++) {
+              const basename = deferredEmittedPaths[i].split("/").pop()!;
+              filenameToKey.set(basename, deferredEmittedKeys[i]);
+            }
+            const succeededKeys: string[] = [];
+            for (const result of succeeded) {
+              const key = filenameToKey.get(result.filename);
+              if (key !== undefined) {
+                succeededKeys.push(key);
+              }
+            }
+            if (succeededKeys.length > 0) {
+              // deno-lint-ignore no-await-in-loop
+              await deferredEmitter.confirmEmitted(
+                subjectId,
+                succeededKeys,
+              );
+            }
           }
         }
       }
@@ -679,6 +839,121 @@ export class Orchestrator {
                 outcome: dispatchResult.outcome,
               },
             );
+
+            // T6.post: Process post-close outbox actions (issue #487 Gap 2).
+            // Actions with `trigger: "post-close"` were skipped by Step 7b
+            // and must run after close to maintain correct ordering (e.g.
+            // Status=Done field updates that require the issue to be closed).
+            if (store) {
+              const postCloseProcessor = new OutboxProcessor(
+                this.#github,
+                store,
+              );
+              // deno-lint-ignore no-await-in-loop
+              const postCloseResults = await postCloseProcessor
+                .processPostClose(subjectId);
+              if (postCloseResults.length > 0) {
+                const pcSucceeded = postCloseResults.filter((r) => r.success);
+                const pcFailed = postCloseResults.filter((r) => !r.success);
+                // deno-lint-ignore no-await-in-loop
+                await log.info(
+                  `Post-close outbox: ${postCloseResults.length} actions ` +
+                    `(${pcSucceeded.length} ok, ${pcFailed.length} failed)`,
+                  {
+                    event: "post_close_outbox_processed",
+                    subjectId,
+                    total: postCloseResults.length,
+                    succeeded: pcSucceeded.length,
+                    failed: pcFailed.length,
+                  },
+                );
+                for (const fail of pcFailed) {
+                  // deno-lint-ignore no-await-in-loop
+                  await log.warn(
+                    `Post-close action failed: ${fail.action} (seq ${fail.sequence}): ${fail.error}`,
+                    {
+                      event: "post_close_action_failed",
+                      subjectId,
+                      action: fail.action,
+                      sequence: fail.sequence,
+                      error: fail.error,
+                    },
+                  );
+                }
+              }
+            }
+          }
+
+          // T6.eval: Project completion check (issue #491).
+          // After closing an issue, check if the issue belongs to any project.
+          // If all non-sentinel items in the project have `done` label, trigger
+          // the evaluator by removing `done` from sentinel and adding `kind:eval`.
+          if (issueClosed && this.#config.projectBinding) {
+            try {
+              // deno-lint-ignore no-await-in-loop
+              const projects = await this.#github.getIssueProjects(
+                Number(subjectId),
+              );
+              for (const project of projects) {
+                // deno-lint-ignore no-await-in-loop
+                const items = await this.#github.listProjectItems(project);
+                // For each item, check labels to find sentinel and done status.
+                let sentinelNumber: number | null = null;
+                let allNonSentinelDone = true;
+                let nonSentinelCount = 0;
+                for (const item of items) {
+                  // deno-lint-ignore no-await-in-loop
+                  const itemLabels = await this.#github.getIssueLabels(
+                    item.issueNumber,
+                  );
+                  if (itemLabels.includes("project-sentinel")) {
+                    sentinelNumber = item.issueNumber;
+                  } else {
+                    nonSentinelCount++;
+                    if (!itemLabels.includes("done")) {
+                      allNonSentinelDone = false;
+                    }
+                  }
+                }
+                if (
+                  sentinelNumber !== null && nonSentinelCount > 0 &&
+                  allNonSentinelDone
+                ) {
+                  // deno-lint-ignore no-await-in-loop
+                  await this.#github.updateIssueLabels(
+                    sentinelNumber,
+                    ["done"],
+                    ["kind:eval"],
+                  );
+                  // deno-lint-ignore no-await-in-loop
+                  await log.info(
+                    `Project completion detected (${project.owner}/${project.number}): ` +
+                      `triggered evaluator on sentinel #${sentinelNumber}`,
+                    {
+                      event: "project_completion_eval_triggered",
+                      subjectId,
+                      project: `${project.owner}/${project.number}`,
+                      sentinelNumber,
+                      nonSentinelCount,
+                    },
+                  );
+                }
+              }
+            } catch (evalCheckError) {
+              const evalMsg = evalCheckError instanceof Error
+                ? evalCheckError.message
+                : String(evalCheckError);
+              // deno-lint-ignore no-await-in-loop
+              await log.warn(
+                `Project completion check failed for #${subjectId}: ${evalMsg}`,
+                {
+                  event: "project_completion_check_failed",
+                  subjectId,
+                  error: evalMsg,
+                },
+              );
+              // Non-fatal: do not block the close transaction.
+            }
           }
 
           // All T3..T6 steps succeeded. Record the cycle *before* commit

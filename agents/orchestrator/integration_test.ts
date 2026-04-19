@@ -5,7 +5,10 @@ import type {
   IssueCriteria,
   IssueDetail,
   IssueListItem,
+  Project,
+  ProjectField,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { compensationMarker, Orchestrator } from "./orchestrator.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
@@ -223,6 +226,64 @@ class StubGitHubClient implements GitHubClient {
     _color: string,
     _description: string,
   ): Promise<void> {
+    return Promise.resolve();
+  }
+
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve([]);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(_project: ProjectRef, _itemId: string): Promise<void> {
     return Promise.resolve();
   }
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "considerer.schema.json",
-  "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json).",
+  "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json). Optional deferred_items[] carves out out-of-scope tasks as new issues before close.",
 
   "closure.consider": {
     "type": "object",
@@ -57,6 +57,33 @@
           "strategy": {
             "type": ["string", "null"],
             "description": "Specific modification approach (not abstract)."
+          }
+        }
+      },
+      "deferred_items": {
+        "type": "array",
+        "description": "Out-of-scope tasks carved off for follow-up issues. Orthogonal to verdict: valid on both 'done' and 'handoff-detail'. Orchestrator converts each entry into a new GitHub issue via outbox 'create-issue' before the current issue closes. Leave empty (default) when the current response fully covers the original scope. Do NOT fabricate specification detail here — each entry must describe a task the original issue author could have filed on their own.",
+        "default": [],
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "required": ["title", "body", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Issue title. Self-contained, no reference to the parent issue number required (the runner links it back via body)."
+            },
+            "body": {
+              "type": "string",
+              "description": "Issue body in markdown. Should restate the scope concretely so the downstream agent does not need to re-read the parent issue."
+            },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Labels applied to the new issue. Usually 'kind:impl' or 'kind:consider'. Omit 'order:N' — the triager assigns it."
+            }
           }
         }
       }

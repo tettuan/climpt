@@ -5,6 +5,8 @@ import type {
   IssueDetail,
   IssueListItem,
 } from "./github-client.ts";
+import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
+import type { Project, ProjectField } from "./github-client.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
 
@@ -129,6 +131,74 @@ class StubGitHubClient implements GitHubClient {
     _description: string,
   ): Promise<void> {
     await Promise.resolve();
+  }
+
+  addIssueToProject(
+    _project: ProjectRef,
+    _issueNumber: number,
+  ): Promise<string> {
+    return Promise.resolve("PVTI_stub");
+  }
+  updateProjectItemField(
+    _project: ProjectRef,
+    _itemId: string,
+    _fieldId: string,
+    _value: ProjectFieldValue,
+  ): Promise<void> {
+    return Promise.resolve();
+  }
+  closeProject(_project: ProjectRef): Promise<void> {
+    return Promise.resolve();
+  }
+  getProjectItemIdForIssue(): Promise<string | null> {
+    return Promise.resolve(null);
+  }
+  listProjectItems(
+    _project: ProjectRef,
+  ): Promise<{ id: string; issueNumber: number }[]> {
+    return Promise.resolve([]);
+  }
+  createProjectFieldOption(
+    _project: ProjectRef,
+    _fieldId: string,
+    name: string,
+  ): Promise<{ id: string; name: string }> {
+    return Promise.resolve({ id: `OPT_${name}`, name });
+  }
+  getIssueProjects(
+    _issueNumber: number,
+  ): Promise<Array<{ owner: string; number: number }>> {
+    return Promise.resolve([]);
+  }
+  listUserProjects(_owner: string): Promise<Project[]> {
+    return Promise.resolve([]);
+  }
+  getProject(_project: ProjectRef): Promise<Project> {
+    return Promise.resolve({
+      id: "PVT_stub",
+      number: 0,
+      owner: "",
+      title: "",
+      readme: "",
+      shortDescription: null,
+      closed: false,
+    });
+  }
+  getProjectFields(_project: ProjectRef): Promise<ProjectField[]> {
+    return Promise.resolve([]);
+  }
+  removeProjectItem(
+    _project: ProjectRef,
+    _itemId: string,
+  ): Promise<void> {
+    this.calls.push({
+      method: "removeProjectItem",
+      args: [_project, _itemId],
+    });
+    if (this.#failOn.has("removeProjectItem")) {
+      throw new Error("removeProjectItem failed");
+    }
+    return Promise.resolve();
   }
 }
 
@@ -354,12 +424,123 @@ Deno.test("partial failure: results reflect both success and failure", async () 
     assertEquals(results[1].action, "close-issue");
     assertEquals(typeof results[1].error, "string");
 
-    // Outbox should NOT be cleared on partial failure
+    // Per-file deletion (issue #486): succeeded file removed, only
+    // the failed file remains for retry.
     const entries: string[] = [];
     for await (const entry of Deno.readDir(store.getOutboxPath(60))) {
       entries.push(entry.name);
     }
-    assertEquals(entries.length, 2);
+    assertEquals(entries.length, 1);
+    assertEquals(entries[0], "002-close.json");
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("partial failure retry: succeeded actions not re-executed (issue #486)", async () => {
+  const { store, tmp } = await setupStore(65);
+  try {
+    // Cycle 1: three create-issue actions, last one fails.
+    await writeAction(store, 65, "000-deferred-000.json", {
+      action: "create-issue",
+      title: "Task A",
+      labels: ["bug"],
+      body: "body-a",
+    });
+    await writeAction(store, 65, "000-deferred-001.json", {
+      action: "create-issue",
+      title: "Task B",
+      labels: ["bug"],
+      body: "body-b",
+    });
+    await writeAction(store, 65, "000-deferred-002.json", {
+      action: "create-issue",
+      title: "Task C",
+      labels: ["invalid-label"],
+      body: "body-c",
+    });
+
+    const github = new StubGitHubClient();
+    // Make the third createIssue fail (simulates label validation error).
+    let createCount = 0;
+    const origCreate = github.createIssue.bind(github);
+    github.createIssue = async (
+      title: string,
+      labels: string[],
+      body: string,
+    ) => {
+      createCount++;
+      if (createCount === 3) {
+        throw new Error("Label not found: invalid-label");
+      }
+      return await origCreate(title, labels, body);
+    };
+
+    const processor = new OutboxProcessor(github, store);
+    const results1 = await processor.process(65);
+
+    // Verify cycle 1 results.
+    assertEquals(results1.length, 3);
+    assertEquals(results1[0].success, true);
+    assertEquals(results1[0].filename, "000-deferred-000.json");
+    assertEquals(results1[1].success, true);
+    assertEquals(results1[1].filename, "000-deferred-001.json");
+    assertEquals(results1[2].success, false);
+    assertEquals(results1[2].filename, "000-deferred-002.json");
+
+    // Only the failed file should remain.
+    const entries1: string[] = [];
+    for await (const entry of Deno.readDir(store.getOutboxPath(65))) {
+      entries1.push(entry.name);
+    }
+    entries1.sort();
+    assertEquals(entries1, ["000-deferred-002.json"]);
+
+    // Cycle 2: process again (fix simulated — all succeed now).
+    const github2 = new StubGitHubClient();
+    const processor2 = new OutboxProcessor(github2, store);
+    const results2 = await processor2.process(65);
+
+    // Only the previously-failed action should be retried.
+    assertEquals(results2.length, 1);
+    assertEquals(results2[0].success, true);
+    assertEquals(results2[0].filename, "000-deferred-002.json");
+    assertEquals(results2[0].action, "create-issue");
+
+    // Verify zero re-execution of succeeded actions from cycle 1.
+    assertEquals(github2.calls.length, 1);
+    assertEquals(github2.calls[0].args[0], "Task C");
+
+    // Outbox should be empty after all-success cycle 2.
+    const entries2: string[] = [];
+    for await (const entry of Deno.readDir(store.getOutboxPath(65))) {
+      entries2.push(entry.name);
+    }
+    assertEquals(entries2, []);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("result includes filename for each action", async () => {
+  const { store, tmp } = await setupStore(68);
+  try {
+    await writeAction(store, 68, "001-comment.json", {
+      action: "comment",
+      body: "test",
+    });
+    await writeAction(store, 68, "002-labels.json", {
+      action: "update-labels",
+      add: ["done"],
+      remove: [],
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(68);
+
+    assertEquals(results[0].filename, "001-comment.json");
+    assertEquals(results[1].filename, "002-labels.json");
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
@@ -381,6 +562,60 @@ Deno.test("unknown action type produces error result", async () => {
     assertEquals(results[0].action, "do-something-weird");
     assertEquals(typeof results[0].error, "string");
     assertEquals(github.calls.length, 0);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// remove-from-project outbox action
+// ---------------------------------------------------------------------------
+
+Deno.test("process remove-from-project action calls removeProjectItem", async () => {
+  const { store, tmp } = await setupStore(80);
+  try {
+    await writeAction(store, 80, "001-remove.json", {
+      action: "remove-from-project",
+      project: { owner: "org", number: 1 },
+      itemId: "PVTI_123",
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(80);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].action, "remove-from-project");
+    assertEquals(results[0].success, true);
+
+    assertEquals(github.calls.length, 1);
+    assertEquals(github.calls[0].method, "removeProjectItem");
+    assertEquals(github.calls[0].args[0], { owner: "org", number: 1 });
+    assertEquals(github.calls[0].args[1], "PVTI_123");
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("remove-from-project validates itemId is required", async () => {
+  const { store, tmp } = await setupStore(81);
+  try {
+    await writeAction(store, 81, "001-remove.json", {
+      action: "remove-from-project",
+      project: { owner: "org", number: 1 },
+      // itemId intentionally missing
+    });
+
+    const github = new StubGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(81);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(
+      results[0].error,
+      "remove-from-project action requires 'itemId' string",
+    );
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
