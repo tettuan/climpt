@@ -17,11 +17,13 @@
       "priority": 3,
       "agent": "considerer"
     },
+    "blocked": {
+      "type": "actionable",
+      "priority": 4,
+      "agent": "clarifier"
+    },
     "done": {
       "type": "terminal"
-    },
-    "blocked": {
-      "type": "blocking"
     }
   },
   "labelMapping": {
@@ -117,12 +119,26 @@
       },
       "fallbackPhase": "blocked",
       "closeOnComplete": false
+    },
+    "clarifier": {
+      "role": "validator",
+      "directory": "clarifier",
+      "outputPhases": {
+        "ready-to-impl": "impl-pending",
+        "ready-to-consider": "consider-pending",
+        "still-blocked": "blocked"
+      },
+      "fallbackPhase": "blocked",
+      "closeOnComplete": false
     }
   },
   "handoff": {
     "commentTemplates": {
       "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
-      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}"
+      "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}",
+      "clarifierReadyToImpl": "## Clarifier: ready-to-impl\n\n{final_summary}",
+      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}",
+      "clarifierStillBlocked": "## Clarifier: still-blocked\n\n{final_summary}"
     }
   },
   "prioritizer": {

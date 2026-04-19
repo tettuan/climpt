@@ -1,0 +1,51 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "clarifier",
+  "version": "2.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "clarify"
+  },
+  "steps": {
+    "clarify": {
+      "stepId": "clarify",
+      "name": "Clarify Need-Clearance Issue",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "clarify",
+      "edition": "default",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: read issue, apply 5-gate rubric, post comment, emit verdict (ready-to-impl | ready-to-consider | still-blocked). Orchestrator owns all label/phase transitions via labelMapping.",
+      "outputSchemaRef": {
+        "file": "clarifier.schema.json",
+        "schema": "closure.clarify"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": [
+          "verdict",
+          "final_summary"
+        ]
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "clarify"
+        }
+      }
+    }
+  }
+}

@@ -12,7 +12,7 @@
  * @module
  */
 
-import { join } from "@std/path";
+import { join, relative } from "@std/path";
 import { BreakdownConfig } from "@tettuan/breakdownconfig";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,10 @@ export async function resolvePromptRoot(
   c1: string,
 ): Promise<string | null> {
   const profilePrefix = `${agentId}-${c1}`;
-  const createResult = BreakdownConfig.create(profilePrefix, projectRoot);
+  // BreakdownConfig rejects absolute paths (ABSOLUTE_PATH_NOT_ALLOWED) and
+  // resolves from Deno.cwd(). Convert projectRoot to a cwd-relative path.
+  const relRoot = relative(Deno.cwd(), projectRoot) || ".";
+  const createResult = BreakdownConfig.create(profilePrefix, relRoot);
   if (!createResult.success) return null;
 
   const config = createResult.data;
