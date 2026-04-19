@@ -56,6 +56,13 @@ export type OutboxAction =
 /** Trigger phase for action execution. Default (absent) = pre-close. */
 export type OutboxTrigger = "post-close";
 
+/** Typed result of an executed action, stored per-family for inter-action reads. */
+export interface ActionResult {
+  action: string;
+  /** Set when action is `create-issue`; the newly created issue number. */
+  issueNumber?: number;
+}
+
 /** Result of processing a single outbox action. */
 export interface OutboxResult {
   sequence: number;
@@ -72,10 +79,20 @@ export class OutboxProcessor {
 
   /**
    * Most recently created issue number from a succeeded `create-issue` action.
-   * Used for late-binding: subsequent `add-to-project` actions with
-   * `issueNumber` absent resolve to this value. Reset on each `process()` call.
+   * Used for late-binding in legacy (v1.13.x) file format where family ID is
+   * absent. Reset on each `process()` call.
    */
   #lastCreatedIssueNumber: number | undefined = undefined;
+
+  /**
+   * Per-family action result container (issue #510).
+   *
+   * Key: family id extracted from filename (`NNN` in `000-deferred-NNN-*.json`).
+   * Value: typed result of the most recently executed action in that family.
+   * Lifetime: populated on each action execution, cleared at cycle start.
+   * Access: consumers read prev-in-family only (no cross-family reads).
+   */
+  #prevResultByFamily: Map<string, ActionResult> = new Map();
 
   constructor(github: GitHubClient, store: SubjectStore) {
     this.#github = github;
@@ -95,6 +112,7 @@ export class OutboxProcessor {
    */
   async process(subjectId: string | number): Promise<OutboxResult[]> {
     this.#lastCreatedIssueNumber = undefined;
+    this.#prevResultByFamily.clear();
     return await this.#processActions(subjectId, false);
   }
 
@@ -106,6 +124,7 @@ export class OutboxProcessor {
    * Status=Done updates that must follow issue close).
    */
   async processPostClose(subjectId: string | number): Promise<OutboxResult[]> {
+    this.#prevResultByFamily.clear();
     return await this.#processActions(subjectId, true);
   }
 
@@ -180,8 +199,16 @@ export class OutboxProcessor {
 
       try {
         const validated = this.#validateAction(actionObj);
+        const familyId = this.#extractFamilyId(file);
         // deno-lint-ignore no-await-in-loop
-        await this.#execute(subjectId, validated);
+        const actionResult = await this.#execute(
+          subjectId,
+          validated,
+          familyId,
+        );
+        if (familyId !== undefined) {
+          this.#prevResultByFamily.set(familyId, actionResult);
+        }
         // Per-file deletion: remove succeeded file immediately so it is
         // never re-processed on the next cycle (issue #486).
         // deno-lint-ignore no-await-in-loop
@@ -331,18 +358,25 @@ export class OutboxProcessor {
   /**
    * Execute a single outbox action against GitHub.
    *
-   * Late-binding contract: `create-issue` results are stored in
-   * `#lastCreatedIssueNumber`. `add-to-project` with absent `issueNumber`
-   * resolves to this value.
+   * Late-binding contract (dual-mode):
+   * - Family mode (familyId defined): `add-to-project` with absent
+   *   `issueNumber` resolves from `#prevResultByFamily` for the same family.
+   *   No cross-family fallback (issue #510).
+   * - Legacy mode (familyId undefined): resolves from global
+   *   `#lastCreatedIssueNumber` (v1.13.x compat).
+   *
+   * `create-issue` results are always stored in both `#lastCreatedIssueNumber`
+   * (legacy) and returned as `ActionResult` for family-map storage by caller.
    */
   async #execute(
     subjectId: string | number,
     action: OutboxAction,
-  ): Promise<void> {
+    familyId?: string,
+  ): Promise<ActionResult> {
     switch (action.action) {
       case "comment":
         await this.#github.addIssueComment(subjectId, action.body);
-        break;
+        return { action: "comment" };
       case "create-issue": {
         const newIssueNumber = await this.#github.createIssue(
           action.title,
@@ -350,7 +384,7 @@ export class OutboxProcessor {
           action.body,
         );
         this.#lastCreatedIssueNumber = newIssueNumber;
-        break;
+        return { action: "create-issue", issueNumber: newIssueNumber };
       }
       case "update-labels":
         await this.#github.updateIssueLabels(
@@ -358,13 +392,21 @@ export class OutboxProcessor {
           action.remove,
           action.add,
         );
-        break;
+        return { action: "update-labels" };
       case "close-issue":
         await this.#github.closeIssue(subjectId);
-        break;
+        return { action: "close-issue" };
       case "add-to-project": {
-        const issueNumber = action.issueNumber ??
-          this.#lastCreatedIssueNumber;
+        let issueNumber = action.issueNumber;
+        if (issueNumber === undefined) {
+          if (familyId !== undefined) {
+            // Family mode: scoped lookup only, no global fallback.
+            issueNumber = this.#prevResultByFamily.get(familyId)?.issueNumber;
+          } else {
+            // Legacy mode: global lookup.
+            issueNumber = this.#lastCreatedIssueNumber;
+          }
+        }
         if (issueNumber === undefined) {
           throw new Error(
             "add-to-project: issueNumber not provided and no preceding " +
@@ -372,7 +414,7 @@ export class OutboxProcessor {
           );
         }
         await this.#github.addIssueToProject(action.project, issueNumber);
-        break;
+        return { action: "add-to-project" };
       }
       case "update-project-item-field":
         await this.#github.updateProjectItemField(
@@ -381,13 +423,13 @@ export class OutboxProcessor {
           action.fieldId,
           action.value,
         );
-        break;
+        return { action: "update-project-item-field" };
       case "close-project":
         await this.#github.closeProject(action.project);
-        break;
+        return { action: "close-project" };
       case "remove-from-project":
         await this.#github.removeProjectItem(action.project, action.itemId);
-        break;
+        return { action: "remove-from-project" };
       default:
         throw new Error(
           `Unknown outbox action: ${
@@ -395,6 +437,18 @@ export class OutboxProcessor {
           }`,
         );
     }
+  }
+
+  /**
+   * Extract family id from deferred action filename.
+   *
+   * Family-based naming: `000-deferred-NNN-action.json` → `"NNN"`.
+   * Legacy naming: `000-deferred-NNN.json` (no suffix) → `undefined`.
+   * Non-deferred: `001-comment.json` → `undefined`.
+   */
+  #extractFamilyId(filename: string): string | undefined {
+    const match = filename.match(/^000-deferred-(\d+)-.+\.json$/);
+    return match ? match[1] : undefined;
   }
 
   /** Extract sequence number from filename like "001-comment.json". */
