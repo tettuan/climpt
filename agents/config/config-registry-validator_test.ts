@@ -455,17 +455,34 @@ Deno.test("config-registry-validator - step without c2/c3 fields is skipped grac
 });
 
 // =============================================================================
-// Integration tests - live agent configs
+// Integration tests - dev-time agents discovered dynamically
+//
+// Agents are not hardcoded: the climpt repo ships several dev-time agents
+// under .agent/*, and adding a new one must not silently escape validation.
+// See agents/testing/discover-agents.ts and the test-design skill.
 // =============================================================================
 
-const LIVE_AGENTS = ["iterator", "reviewer", "facilitator"] as const;
-const LIVE_CONFIG_DIR = ".agent/climpt/config";
+import { discoverAgents } from "../testing/discover-agents.ts";
 
-for (const agent of LIVE_AGENTS) {
+const LIVE_CONFIG_DIR = ".agent/climpt/config";
+const liveAgents = await discoverAgents({
+  configDir: LIVE_CONFIG_DIR,
+  requireUserYml: true,
+});
+
+Deno.test("config-registry-validator/integration - at least one agent discovered (non-vacuity)", () => {
+  assertEquals(
+    liveAgents.length > 0,
+    true,
+    `No agents found under .agent/*/ with steps_registry.json + ${LIVE_CONFIG_DIR}/<name>-steps-user.yml. ` +
+      `Iterating an empty set would vacuously pass. ` +
+      `Fix: verify .agent/ contains at least one agent with both files.`,
+  );
+});
+
+for (const { name: agent, registryPath } of liveAgents) {
   Deno.test(`config-registry-validator/integration - ${agent} registry consistent with yml configs`, async () => {
-    const registryText = await Deno.readTextFile(
-      `.agent/${agent}/steps_registry.json`,
-    );
+    const registryText = await Deno.readTextFile(registryPath);
     const registry = JSON.parse(registryText) as Record<string, unknown>;
 
     const result = await validateConfigRegistryConsistency(
@@ -476,7 +493,7 @@ for (const agent of LIVE_AGENTS) {
     assertEquals(
       result.valid,
       true,
-      `Config-registry consistency errors for ${agent}: ${
+      `Config-registry consistency errors for ${agent} (${registryPath}): ${
         JSON.stringify(result.errors)
       }`,
     );

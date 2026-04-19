@@ -16,6 +16,7 @@
 import { assertEquals } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { validateHandoffInputs } from "./handoff-validator.ts";
+import { discoverAgents } from "../testing/discover-agents.ts";
 
 const logger = new BreakdownLogger("handoff-validator");
 
@@ -369,52 +370,41 @@ Deno.test("handoff-validator - empty registry produces no warnings", () => {
 });
 
 // =============================================================================
-// Live agent configs - Integration tests
+// Live agent configs - Integration tests (discovered dynamically)
+//
+// `.agent/<name>/*` is user-side config; hardcoding specific agent names
+// partial-enumerates the consumer set. See agents/testing/discover-agents.ts.
 // =============================================================================
 
-Deno.test("handoff-validator/integration - iterator steps_registry handoff-inputs valid", async () => {
-  const text = await Deno.readTextFile(".agent/iterator/steps_registry.json");
-  const data = JSON.parse(text);
+const handoffAgents = await discoverAgents();
 
-  const result = validateHandoffInputs(data);
-
+Deno.test("handoff-validator/integration - at least one agent discovered (non-vacuity)", () => {
   assertEquals(
-    result.valid,
+    handoffAgents.length > 0,
     true,
-    `Handoff-input errors: ${JSON.stringify(result.errors)}`,
-  );
-  // Warnings are informational; log them but do not fail
-  if (result.warnings.length > 0) {
-    logger.debug("iterator handoff-input warnings", {
-      count: result.warnings.length,
-    });
-  }
-});
-
-Deno.test("handoff-validator/integration - reviewer steps_registry handoff-inputs valid", async () => {
-  const text = await Deno.readTextFile(".agent/reviewer/steps_registry.json");
-  const data = JSON.parse(text);
-
-  const result = validateHandoffInputs(data);
-
-  assertEquals(
-    result.valid,
-    true,
-    `Handoff-input errors: ${JSON.stringify(result.errors)}`,
+    `No agents found under .agent/*/steps_registry.json. ` +
+      `Iterating an empty set would vacuously pass.`,
   );
 });
 
-Deno.test("handoff-validator/integration - facilitator steps_registry handoff-inputs valid", async () => {
-  const text = await Deno.readTextFile(
-    ".agent/facilitator/steps_registry.json",
-  );
-  const data = JSON.parse(text);
+for (const { name: agent, registryPath } of handoffAgents) {
+  Deno.test(`handoff-validator/integration - ${agent} steps_registry handoff-inputs valid`, async () => {
+    const text = await Deno.readTextFile(registryPath);
+    const data = JSON.parse(text);
 
-  const result = validateHandoffInputs(data);
+    const result = validateHandoffInputs(data);
 
-  assertEquals(
-    result.valid,
-    true,
-    `Handoff-input errors: ${JSON.stringify(result.errors)}`,
-  );
-});
+    assertEquals(
+      result.valid,
+      true,
+      `Handoff-input errors in ${registryPath}: ${
+        JSON.stringify(result.errors)
+      }`,
+    );
+    if (result.warnings.length > 0) {
+      logger.debug(`${agent} handoff-input warnings`, {
+        count: result.warnings.length,
+      });
+    }
+  });
+}

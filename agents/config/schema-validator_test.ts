@@ -14,6 +14,7 @@ import {
   validateRegistrySchema,
 } from "./schema-validator.ts";
 import { ALL_VERDICT_TYPES } from "../src_common/types/verdict.ts";
+import { discoverAgents } from "../testing/discover-agents.ts";
 
 const logger = new BreakdownLogger("schema-validator");
 
@@ -458,61 +459,47 @@ Deno.test("schema-validator/registry - step missing c2 reports error", async () 
 });
 
 // =============================================================================
-// Live agent configs - Integration tests
+// Live agent configs - Integration tests (discovered dynamically)
+//
+// `.agent/<name>/*` is user-side config; hardcoding specific agent names
+// partial-enumerates the consumer set. See agents/testing/discover-agents.ts.
 // =============================================================================
 
-Deno.test("schema-validator/integration - iterator agent.json passes schema", async () => {
-  const text = await Deno.readTextFile(".agent/iterator/agent.json");
-  const data = JSON.parse(text);
+const schemaAgents = await discoverAgents();
 
-  const result = await validateAgentSchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
-});
-
-Deno.test("schema-validator/integration - iterator steps_registry.json passes schema", async () => {
-  const text = await Deno.readTextFile(".agent/iterator/steps_registry.json");
-  const data = JSON.parse(text);
-
-  const result = await validateRegistrySchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
-});
-
-Deno.test("schema-validator/integration - reviewer agent.json passes schema", async () => {
-  const text = await Deno.readTextFile(".agent/reviewer/agent.json");
-  const data = JSON.parse(text);
-
-  const result = await validateAgentSchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
-});
-
-Deno.test("schema-validator/integration - reviewer steps_registry.json passes schema", async () => {
-  const text = await Deno.readTextFile(".agent/reviewer/steps_registry.json");
-  const data = JSON.parse(text);
-
-  const result = await validateRegistrySchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
-});
-
-Deno.test("schema-validator/integration - facilitator agent.json passes schema", async () => {
-  const text = await Deno.readTextFile(".agent/facilitator/agent.json");
-  const data = JSON.parse(text);
-
-  const result = await validateAgentSchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
-});
-
-Deno.test("schema-validator/integration - facilitator steps_registry.json passes schema", async () => {
-  const text = await Deno.readTextFile(
-    ".agent/facilitator/steps_registry.json",
+Deno.test("schema-validator/integration - at least one agent discovered (non-vacuity)", () => {
+  assertEquals(
+    schemaAgents.length > 0,
+    true,
+    `No agents found under .agent/*/ with agent.json + steps_registry.json. ` +
+      `Iterating an empty set would vacuously pass.`,
   );
-  const data = JSON.parse(text);
-
-  const result = await validateRegistrySchema(data);
-
-  assertEquals(result.valid, true, `Errors: ${JSON.stringify(result.errors)}`);
 });
+
+for (const { name: agent, agentJsonPath, registryPath } of schemaAgents) {
+  Deno.test(`schema-validator/integration - ${agent} agent.json passes schema`, async () => {
+    const text = await Deno.readTextFile(agentJsonPath);
+    const data = JSON.parse(text);
+
+    const result = await validateAgentSchema(data);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Schema errors in ${agentJsonPath}: ${JSON.stringify(result.errors)}`,
+    );
+  });
+
+  Deno.test(`schema-validator/integration - ${agent} steps_registry.json passes schema`, async () => {
+    const text = await Deno.readTextFile(registryPath);
+    const data = JSON.parse(text);
+
+    const result = await validateRegistrySchema(data);
+
+    assertEquals(
+      result.valid,
+      true,
+      `Schema errors in ${registryPath}: ${JSON.stringify(result.errors)}`,
+    );
+  });
+}

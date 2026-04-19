@@ -170,7 +170,26 @@ log("Test 4: STEP_KIND_TOOL_POLICY covers all step kinds");
 
 log("\nPart 2: steps_registry.json stepKind Consistency\n");
 
-const agents = ["iterator", "reviewer", "facilitator"];
+// Discover agents under `.agent/*/steps_registry.json` rather than hardcoding
+// names. This example is a user-emulating E2E check (see examples/CLAUDE.md)
+// and must cover whatever agents the user has installed.
+const agents: string[] = [];
+for await (const entry of Deno.readDir(join(repoRoot, ".agent"))) {
+  if (!entry.isDirectory) continue;
+  try {
+    await Deno.stat(
+      join(repoRoot, ".agent", entry.name, "steps_registry.json"),
+    );
+    agents.push(entry.name);
+  } catch {
+    // Not an agent directory — skip.
+  }
+}
+agents.sort();
+if (agents.length === 0) {
+  logErr("FAIL: no agents found under .agent/*/steps_registry.json");
+  Deno.exit(1);
+}
 
 for (const agent of agents) {
   log(`Agent: ${agent}`);
@@ -202,11 +221,14 @@ for (const agent of agents) {
       continue;
     }
 
-    // Check: closure steps must have "closing" in allowedIntents
-    if (stepKind === "closure") {
+    // Check: if a closure step declares a structuredGate, 'closing' must
+    // appear in allowedIntents. Single-Step archetype (archetypes.md §A)
+    // may legally omit structuredGate since its verdict is count:iteration
+    // and completion is not intent-routed — so skip when no gate exists.
+    if (stepKind === "closure" && gate) {
       if (!allowedIntents.includes("closing")) {
         logErr(
-          `  FAIL: ${stepId} is stepKind=closure but allowedIntents does not include 'closing': [${
+          `  FAIL: ${stepId} is stepKind=closure with structuredGate but allowedIntents does not include 'closing': [${
             allowedIntents.join(",")
           }]`,
         );
