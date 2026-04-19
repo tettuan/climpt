@@ -153,11 +153,13 @@ Work step のプロンプトには以下を明示する:
 
 ## 関連ドキュメント
 
-| ドキュメント                                                                                 | 内容               |
-| -------------------------------------------------------------------------------------------- | ------------------ |
-| [01_quickstart.md](./01_quickstart.md)                                                       | ファイル作成手順   |
-| [02_agent_definition.md](./02_agent_definition.md)                                           | agent.json の詳細  |
-| [04_config_system.md](./04_config_system.md)                                                 | 設定の優先順位     |
-| [design/04_step_flow_design.md](../design/04_step_flow_design.md)                            | Step Flow 設計詳細 |
-| [design/05_structured_outputs.md](../design/05_structured_outputs.md)                        | Structured Output  |
-| [docs/internal/ai-complexity-philosophy.md](../../docs/internal/ai-complexity-philosophy.md) | 設計哲学           |
+| ドキュメント                                                                                 | 内容                     |
+| -------------------------------------------------------------------------------------------- | ------------------------ |
+| [01_quickstart.md](./01_quickstart.md)                                                       | ファイル作成手順         |
+| [02_agent_definition.md](./02_agent_definition.md)                                           | agent.json の詳細        |
+| [04_config_system.md](./04_config_system.md)                                                 | 設定の優先順位           |
+| [10_archetypes.md](./10_archetypes.md)                                                       | 実例 Agent の 3 原型分類 |
+| [design/03_concept_tree.md](../design/03_concept_tree.md)                                    | 3 ファイル結線図         |
+| [design/04_step_flow_design.md](../design/04_step_flow_design.md)                            | Step Flow 設計詳細       |
+| [design/05_structured_outputs.md](../design/05_structured_outputs.md)                        | Structured Output        |
+| [docs/internal/ai-complexity-philosophy.md](../../docs/internal/ai-complexity-philosophy.md) | 設計哲学                 |

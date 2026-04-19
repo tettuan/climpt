@@ -1,9 +1,0 @@
-# Breakdown Configuration for facilitator-steps
-# directiveType must include all STEP_PHASE values used in steps_registry.json
-# (see agents/shared/step-phases.ts for runner-required phases)
-params:
-  two:
-    directiveType:
-      pattern: "^(initial|continuation|verification|closure|retry)$"
-    layerType:
-      pattern: "^(statuscheck|facilitation|discover|blockercheck|stalecheck|judge|facilitate|report)$"

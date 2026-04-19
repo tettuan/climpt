@@ -19,10 +19,11 @@ Changes to the runner should be validated against these configurations.
 |-------------|--------------------------------------|
 | iterator    | Development task execution via Issues |
 | reviewer    | Code review and verification         |
-| facilitator | Project monitoring and coordination  |
 | climpt      | MCP command registry and prompts     |
 | triager     | Classify unlabeled issues (kind:* + order:N) |
 | considerer  | Respond to kind:consider issues and close them |
+| detailer    | Detail a kind:detail issue (spec) before iterator picks it up |
+| clarifier   | Scan need-clearance issues, apply 5-gate rubric, re-queue or record reason |
 | merger      | Deterministic PR merge closure       |
 
 ## Issue handling flow (triage → execute)

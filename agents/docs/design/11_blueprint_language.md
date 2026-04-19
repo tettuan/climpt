@@ -25,8 +25,8 @@ Blueprint JSON (1 file)
 ### 価値提案: 整合性保証 (not 自動生成)
 
 v1 では「phase を書けば step
-が自動生成される」という抽象化を試みたが、実在エージェント
-(iterator/facilitator/reviewer) の step graph が多様すぎて抽象が破綻した。
+が自動生成される」という抽象化を試みたが、実在エージェント (iterator/reviewer)
+の step graph が多様すぎて抽象が破綻した。
 
 v2 では「step をそのまま書く。ただし cross-file の参照整合性を Schema
 が保証する」に転換した。

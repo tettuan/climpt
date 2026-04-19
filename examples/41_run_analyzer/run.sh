@@ -6,10 +6,10 @@ REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
 cd "$EXAMPLES_DIR"
 source "${EXAMPLES_DIR}/common_functions.sh"
 
-AGENT_NAME="facilitator"
+AGENT_NAME="analyzer"
 
 main() {
-  info "=== Run Facilitator Agent ==="
+  info "=== Run Analyzer Agent ==="
 
   check_deno
   check_climpt_init
@@ -64,7 +64,7 @@ FIXTURE
   success "Test fixture created: tmp/project-status.md"
 
   # Run agent from examples/ as cwd
-  info "Starting facilitator agent (status analysis task)..."
+  info "Starting analyzer agent (status analysis task)..."
   show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
     --agent "$AGENT_NAME"
 
@@ -74,21 +74,21 @@ FIXTURE
     || exit_code=$?
 
   if [[ -z "$output" ]]; then
-    error "FAIL: facilitate-agent produced no output"; return 1
+    error "FAIL: analyzer-agent produced no output"; return 1
   fi
 
   # Agent runner outputs "Agent completed: SUCCESS" or "Agent completed: FAILED"
   if echo "$output" | grep -q "Agent completed: FAILED"; then
-    error "FAIL: facilitate-agent reported FAILED"
+    error "FAIL: analyzer-agent reported FAILED"
     echo "$output" | tail -10 >&2
     return 1
   fi
   if ! echo "$output" | grep -q "Agent completed: SUCCESS"; then
-    error "FAIL: facilitate-agent did not reach completion (no SUCCESS/FAILED in output)"
+    error "FAIL: analyzer-agent did not reach completion (no SUCCESS/FAILED in output)"
     echo "$output" | tail -10 >&2
     return 1
   fi
-  success "PASS: facilitate-agent completed successfully"
+  success "PASS: analyzer-agent completed successfully"
 }
 
 main "$@"

@@ -150,3 +150,63 @@ Verdict Strategy (VerdictType)
 ```
 
 「Completion」は概念名としてのみ生存し、識別子からは排除する。
+
+## 設定ファイル結線図
+
+設定 3 ファイル (`agent.json` / `steps_registry.json` / `workflow.json`) と
+Runner コンポーネントの関係を 1 枚で示す。矢印は「読み取りの向き」。
+
+```
+              ┌──────────────────────────────────────────────┐
+              │                    agent.json                │
+              │  parameters.*      ← CLI --flag              │
+              │  runner.verdict    ──┐                       │
+              │  runner.boundaries ──┼──┐                    │
+              │  runner.integrations─┘  │                    │
+              └────────────┬─────────────│────────────────────┘
+                           │             │
+                    flow.prompts.registry│
+                           ▼             ▼
+              ┌──────────────────────────────────────────────┐
+              │              steps_registry.json             │
+              │  entryStepMapping   (verdictType → stepId)   │
+              │  steps[*].structuredGate                     │
+              │  steps[*].transitions     ──┐                │
+              │  steps[*].outputSchemaRef ──┼── schemas/*.json
+              │  validators / failurePatterns (archetype C)  │
+              │  pathTemplate       ──┐                      │
+              └───────────────────────│──────────────────────┘
+                                      │
+                              c1/c2/c3/edition
+                                      ▼
+                         prompts/steps/{c2}/{c3}/f_{edition}.md
+                                      │
+                                      │ resolved path
+                                      ▼
+              ┌──────────────────────────────────────────────┐
+              │              AgentRunner (runtime)            │
+              │   ┌─ FlowOrchestrator  ← structuredGate      │
+              │   ├─ WorkflowRouter    ← transitions         │
+              │   ├─ StepGateInterpreter ← allowedIntents    │
+              │   ├─ ClosureManager    ← closure step        │
+              │   ├─ ValidationChain   ← validators          │
+              │   └─ VerdictHandler    ← runner.verdict.type │
+              └──────────────────────────────────────────────┘
+
+     (外側から) workflow.json — orchestrator 専用:
+       labelMapping / prioritizer / phase-transition
+       └─ Issue ラベルで agent.name を選択 → 上の agent.json を起動
+```
+
+**読み方**:
+
+- `agent.json` は Runner 起動時の不変契約 (入力・出力境界・verdict)。
+- `steps_registry.json` は Flow 内部の遷移グラフと prompt 解決パスを提供する。
+- `workflow.json` は個別 agent の外側にあり、**どの agent をどの Issue
+  で起動するか** を決める (label 駆動の Orchestrator が解釈)。agent.json
+  を参照しない。
+- `prompts/steps/...` は `pathTemplate` と `c2/c3/edition`
+  の合成結果で解決される。 Runner が直接文字列を埋め込むことはない。
+
+矢印が 1 本でも切れれば Runner は `FAILED_SCHEMA_RESOLUTION` や
+`INTENT_NOT_FOUND` で fail-fast する。暗黙のフォールバックは存在しない。

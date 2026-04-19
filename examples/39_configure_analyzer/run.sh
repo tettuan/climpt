@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
 cd "$EXAMPLES_DIR"
 source "${EXAMPLES_DIR}/common_functions.sh"
 
-AGENT_NAME="facilitator"
+AGENT_NAME="analyzer"
 AGENT_DIR=".agent/${AGENT_NAME}"
 AGENT_JSON="${AGENT_DIR}/agent.json"
 
@@ -18,7 +18,7 @@ main() {
   # Verify agent exists (state from 38)
   if [[ ! -f "$AGENT_JSON" ]]; then
     error ".agent/${AGENT_NAME}/agent.json not found"
-    error "Run 38_init_facilitator/run.sh first"
+    error "Run 38_init_analyzer/run.sh first"
     return 1
   fi
 
@@ -29,7 +29,7 @@ main() {
     | .runner.verdict = {
         "type": "detect:structured",
         "config": {
-          "signalType": "facilitator_decision",
+          "signalType": "analyzer_decision",
           "requiredFields": ["recommendations", "reasoning"],
           "maxIterations": 3
         }
@@ -43,7 +43,7 @@ main() {
   info "Writing steps_registry.json..."
   cat > "${AGENT_DIR}/steps_registry.json" << 'REGISTRY'
 {
-  "agentId": "facilitator",
+  "agentId": "analyzer",
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
@@ -70,15 +70,15 @@ main() {
       "usesStdin": false,
       "transitions": {
         "next": {
-          "target": "closure.facilitation"
+          "target": "closure.analysis"
         }
       }
     },
-    "closure.facilitation": {
-      "stepId": "closure.facilitation",
-      "name": "Facilitation Closure",
+    "closure.analysis": {
+      "stepId": "closure.analysis",
+      "name": "Analysis Closure",
       "c2": "closure",
-      "c3": "facilitation",
+      "c3": "analysis",
       "edition": "default",
       "stepKind": "closure",
       "uvVariables": [],
@@ -98,9 +98,9 @@ REGISTRY
   rm -rf "${AGENT_DIR}/prompts/steps/continuation/manual"
 
   cat > "${AGENT_DIR}/prompts/system.md" << 'PROMPT'
-# Facilitator Agent
+# Analyzer Agent
 
-You are operating as the **facilitator** agent.
+You are operating as the **analyzer** agent.
 
 ## Role
 
@@ -114,7 +114,7 @@ You analyze project status files and provide structured recommendations.
 
 When your analysis is complete, you MUST output the following action block:
 
-```facilitator_decision
+```analyzer_decision
 {
   "recommendations": ["your recommendation here"],
   "reasoning": "your reasoning here"
@@ -137,7 +137,7 @@ PROMPT
 3. Identify risks and blockers
 4. Output your decision as a structured signal:
 
-```facilitator_decision
+```analyzer_decision
 {
   "recommendations": ["list of actionable recommendations"],
   "reasoning": "explanation of your analysis"
@@ -145,13 +145,13 @@ PROMPT
 ```
 PROMPT
 
-  mkdir -p "${AGENT_DIR}/prompts/steps/closure/facilitation"
-  cat > "${AGENT_DIR}/prompts/steps/closure/facilitation/f_default.md" << 'PROMPT'
-# Facilitation Closure
+  mkdir -p "${AGENT_DIR}/prompts/steps/closure/analysis"
+  cat > "${AGENT_DIR}/prompts/steps/closure/analysis/f_default.md" << 'PROMPT'
+# Analysis Closure
 
 Verify your analysis is complete. Output the completion signal:
 
-```facilitator_decision
+```analyzer_decision
 {
   "recommendations": ["your recommendations"],
   "reasoning": "your reasoning"
@@ -175,13 +175,13 @@ app_schema:
 APPYML
 
   cat > "${config_dir}/${AGENT_NAME}-steps-user.yml" << 'USERYML'
-# Breakdown Configuration for facilitator-steps
+# Breakdown Configuration for analyzer-steps
 params:
   two:
     directiveType:
       pattern: "^(initial|closure)$"
     layerType:
-      pattern: "^(statuscheck|facilitation)$"
+      pattern: "^(statuscheck|analysis)$"
 USERYML
   success "Breakdown config updated"
 

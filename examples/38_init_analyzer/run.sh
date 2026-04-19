@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
 cd "$EXAMPLES_DIR"
 source "${EXAMPLES_DIR}/common_functions.sh"
 
-AGENT_NAME="facilitator"
+AGENT_NAME="analyzer"
 AGENT_DIR=".agent/${AGENT_NAME}"
 
 main() {

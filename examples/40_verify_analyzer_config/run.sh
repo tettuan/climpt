@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${EXAMPLES_DIR}/.." && pwd)"
 cd "$EXAMPLES_DIR"
 source "${EXAMPLES_DIR}/common_functions.sh"
 
-AGENT_NAME="facilitator"
+AGENT_NAME="analyzer"
 AGENT_DIR=".agent/${AGENT_NAME}"
 AGENT_JSON="${AGENT_DIR}/agent.json"
 
@@ -33,10 +33,10 @@ main() {
   # Verify signalType
   local signal_type
   signal_type=$(jq -r '.runner.verdict.config.signalType // empty' "$AGENT_JSON")
-  if [[ "$signal_type" != "facilitator_decision" ]]; then
-    error "FAIL: signalType is '${signal_type}', expected 'facilitator_decision'"; return 1
+  if [[ "$signal_type" != "analyzer_decision" ]]; then
+    error "FAIL: signalType is '${signal_type}', expected 'analyzer_decision'"; return 1
   fi
-  success "PASS: signalType = facilitator_decision"
+  success "PASS: signalType = analyzer_decision"
 
   # Verify requiredFields
   local required_fields
@@ -98,11 +98,11 @@ main() {
   fi
   success "PASS: initial/statuscheck/f_default.md exists"
 
-  local closure_prompt="${AGENT_DIR}/prompts/steps/closure/facilitation/f_default.md"
+  local closure_prompt="${AGENT_DIR}/prompts/steps/closure/analysis/f_default.md"
   if [[ ! -f "$closure_prompt" ]]; then
-    error "FAIL: closure/facilitation/f_default.md not found"; return 1
+    error "FAIL: closure/analysis/f_default.md not found"; return 1
   fi
-  success "PASS: closure/facilitation/f_default.md exists"
+  success "PASS: closure/analysis/f_default.md exists"
 
   # Verify breakdown config
   local config_dir=".agent/climpt/config"

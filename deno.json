@@ -78,7 +78,6 @@
     "labels:sync": "deno run --allow-all agents/scripts/sync-labels.ts",
     "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
     "review-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent reviewer",
-    "facilitate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent facilitator",
     "agent-merge": "deno run --allow-all agents/scripts/run-agent.ts --agent merger",
     "bump-version": "deno run --allow-read --allow-write --allow-run scripts/bump-version.ts",
     "generate-docs-manifest": "deno run --allow-read --allow-write scripts/generate-docs-manifest.ts",

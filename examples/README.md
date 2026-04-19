@@ -29,7 +29,7 @@ on the state created by previous steps (steps 54-55 are state-independent):
 33-37   Reviewer       init, configure, verify,    → .agent/reviewer/ built + run (LLM)
                        run, schema
   ↓
-38-41   Facilitator    init, configure, verify,    → .agent/facilitator/ built + run (LLM)
+38-41   Analyzer       init, configure, verify,    → .agent/analyzer/ built + run (LLM)
                        run
   ↓
 42-43   Contracts      negative load, tool policy  → error handling verified
@@ -55,7 +55,7 @@ can read previous outputs and write new ones.
 configure, run) is itself an example. The plan-scout agent definition is not a
 pre-built file — it is created by running steps 16–20.
 
-**Key principle (steps 28–41):** Iterator, reviewer, and facilitator agents are
+**Key principle (steps 28–41):** Iterator, reviewer, and analyzer agents are
 also built from scratch within examples/ using the same init → configure →
 verify → run pattern. No symlinks to REPO_ROOT/.agent/ are used.
 
@@ -177,63 +177,63 @@ for f in examples/{31,36,41}_*/run.sh; do bash "$f"; done
 
 ## Directory Structure
 
-| #  | Folder                            | Description                                      | State In              | State Out                        | Verifies                                           |
-| -- | --------------------------------- | ------------------------------------------------ | --------------------- | -------------------------------- | -------------------------------------------------- |
-| 01 | 01_check_prerequisites/           | Check deno, jq                                   | —                     | —                                |                                                    |
-| 02 | 02_install/                       | Install Climpt from JSR                          | —                     | `climpt` on PATH                 |                                                    |
-| 03 | 03_init/                          | Initialize project (`climpt init`)               | —                     | `.agent/climpt/`                 |                                                    |
-| 04 | 04_verify_init/                   | Verify init result and show options              | `.agent/climpt/`      | —                                | config/ and prompts/ dirs exist                    |
-| 05 | 05_echo_test/                     | Simplest CLI invocation (echo)                   | `.agent/climpt/`      | —                                |                                                    |
-| 06 | 06_stdin_input/                   | STDIN piping patterns                            | `.agent/climpt/`      | —                                |                                                    |
-| 07 | 07_custom_variables/              | User-defined variables (`--uv-*`)                | `.agent/climpt/`      | —                                | --uv-target content; echo contains input string    |
-| 08 | 08_meta_commands/                 | Meta domain commands                             | `.agent/climpt/`      | —                                | naming pattern; YAML delimiter; content markers    |
-| 09 | 09_git_commands/                  | Git domain commands                              | `.agent/climpt/`      | —                                | branch-related content in output                   |
-| 10 | 10_docs_list/                     | List available documentation                     | —                     | —                                |                                                    |
-| 11 | 11_docs_install/                  | Install documentation files                      | —                     | `docs/`                          |                                                    |
-| 12 | 12_docs_filter/                   | Filter docs by category/language/mode            | —                     | —                                | category, lang, flatten, single produce files      |
-| 13 | 13_list_agents/                   | List available agents                            | —                     | —                                | deno tasks; agent.json configs; runner script      |
-| 14 | 14_show_agent_schema/             | Show agent.json schema                           | —                     | —                                | valid JSON; contains "runner" property             |
-| 15 | 15_show_agent_config/             | Show agent configuration structure               | —                     | —                                | dynamic layout; schema required/properties         |
-| 16 | 16_init_agent/                    | Initialize plan-scout agent                      | —                     | `.agent/plan-scout/`             |                                                    |
-| 17 | 17_show_init_result/              | Show agent init result                           | `.agent/plan-scout/`  | —                                | .runner, permissionMode, allowedTools validated    |
-| 18 | 18_configure_permission/          | Set permissionMode to "plan"                     | `.agent/plan-scout/`  | `.agent/plan-scout/` patched     |                                                    |
-| 19 | 19_configure_prompt/              | Write custom system.md                           | `.agent/plan-scout/`  | `.agent/plan-scout/` patched     |                                                    |
-| 20 | 20_show_final_config/             | Show final agent config                          | `.agent/plan-scout/`  | —                                |                                                    |
-| 21 | 21_run_plan_agent/                | Run plan-scout agent (LLM required)              | `.agent/plan-scout/`  | sentinel                         | LLM evidence in output; check_llm_ready gate       |
-| 22 | 22_verify_plan_mode/              | Verify plan mode enforcement                     | sentinel              | `outputs/agents/`                | sentinel absence proves Write was blocked          |
-| 23 | 23_verify_plan_mode_contract/     | Plan mode config contracts (no LLM)              | `.agent/plan-scout/`  | —                                | permissionMode=plan; Write in tools; not step flow |
-| 24 | 24_save_results/                  | Save agent logs and cleanup                      | `.agent/plan-scout/`  | `outputs/agents/`                |                                                    |
-| 25 | 25_prompt_resolution/             | Prompt file presence affects behavior            | —                     | —                                | real resolver for all 4 scenarios                  |
-| 26 | 26_schema_fail_fast/              | Schema fail-fast contract                        | —                     | —                                | invalid pointer throws; valid resolves             |
-| 27 | 27_intent_routing/                | Intent routing contract                          | —                     | —                                | transitions target exists; intents match           |
-| 28 | 28_init_iterator/                 | Initialize iterator agent                        | —                     | `.agent/iterator/`               |                                                    |
-| 29 | 29_configure_iterator/            | Configure iterator (verdict, params, prompts)    | `.agent/iterator/`    | `.agent/iterator/` configured    |                                                    |
-| 30 | 30_verify_iterator_config/        | Verify iterator build result                     | `.agent/iterator/`    | —                                | verdict, params, worktree, prompts, config         |
-| 31 | 31_run_iterator/                  | Run iterator agent (LLM required)                | `.agent/iterator/`    | —                                | contract validation + LLM execution evidence       |
-| 32 | 32_verify_iterator_schema/        | Verify iterator JSON schema (4-level)            | —                     | —                                | file existence, $ref, structure, gate intent       |
-| 33 | 33_init_reviewer/                 | Initialize reviewer agent                        | —                     | `.agent/reviewer/`               |                                                    |
-| 34 | 34_configure_reviewer/            | Configure reviewer (verdict, params, prompts)    | `.agent/reviewer/`    | `.agent/reviewer/` configured    |                                                    |
-| 35 | 35_verify_reviewer_config/        | Verify reviewer build result                     | `.agent/reviewer/`    | —                                | verdict, params, worktree, prompts, config         |
-| 36 | 36_run_reviewer/                  | Run reviewer agent (LLM required)                | `.agent/reviewer/`    | —                                | contract validation + LLM execution evidence       |
-| 37 | 37_verify_reviewer_schema/        | Verify reviewer JSON schema (4-level)            | —                     | —                                | file existence, $ref, structure, gate intent       |
-| 38 | 38_init_facilitator/              | Initialize facilitator agent                     | —                     | `.agent/facilitator/`            |                                                    |
-| 39 | 39_configure_facilitator/         | Configure facilitator (verdict, params, prompts) | `.agent/facilitator/` | `.agent/facilitator/` configured |                                                    |
-| 40 | 40_verify_facilitator_config/     | Verify facilitator build result                  | `.agent/facilitator/` | —                                | verdict, params, worktree, prompts, config         |
-| 41 | 41_run_facilitator/               | Run facilitator agent (LLM required)             | `.agent/facilitator/` | —                                | contract validation + LLM execution evidence       |
-| 42 | 42_negative_agent_load/           | Negative agent load contract                     | —                     | —                                | bad path/JSON/schema → proper errors               |
-| 43 | 43_stepkind_tool_policy/          | StepKind tool policy contract                    | —                     | —                                | work/verify deny boundary; closure allows          |
-| 44 | 44_generate_registry/             | Generate registry.json                           | `.agent/climpt/`      | `registry.json`                  |                                                    |
-| 45 | 45_verify_factory_completionpath/ | Verify factory completion path                   | —                     | —                                | completion path coverage verified                  |
-| 46 | 46_show_registry_structure/       | Explain registry format                          | `.agent/climpt/`      | —                                |                                                    |
-| 47 | 47_mcp_start_server/              | Start MCP server                                 | —                     | MCP running                      | package resolves; server starts without crash      |
-| 48 | 48_mcp_show_config/               | MCP integration config guide                     | —                     | —                                |                                                    |
-| 49 | 49_workflow_config/               | Workflow config validation (CLI E2E, --local)    | —                     | —                                | valid/invalid config, exit codes, JSON output      |
-| 50 | 50_workflow_resolution/           | Label → phase resolution (CLI E2E, --local)      | —                     | —                                | ready/done/blocked/unknown → correct status        |
-| 51 | 51_workflow_transition/           | Phase transition via file I/O (CLI E2E, --local) | —                     | —                                | label changes in meta.json after transitions       |
-| 52 | 52_workflow_batch/                | Batch processing (CLI E2E, --local)              | —                     | —                                | processed/skipped counts, file system changes      |
-| 53 | 53_clean/                         | Cleanup all artifacts                            | all of the above      | —                                |                                                    |
-| 54 | 54_handoff_e2e/                   | Handoff E2E data path verification               | —                     | —                                | StepContext toUV namespace, collision prevention   |
-| 55 | 55_dualloop_log_analysis/         | Dual-loop log boundary analysis                  | —                     | —                                | FlowLoop + CompletionLoop marker pairing, sequence |
+| #  | Folder                            | Description                                      | State In             | State Out                     | Verifies                                           |
+| -- | --------------------------------- | ------------------------------------------------ | -------------------- | ----------------------------- | -------------------------------------------------- |
+| 01 | 01_check_prerequisites/           | Check deno, jq                                   | —                    | —                             |                                                    |
+| 02 | 02_install/                       | Install Climpt from JSR                          | —                    | `climpt` on PATH              |                                                    |
+| 03 | 03_init/                          | Initialize project (`climpt init`)               | —                    | `.agent/climpt/`              |                                                    |
+| 04 | 04_verify_init/                   | Verify init result and show options              | `.agent/climpt/`     | —                             | config/ and prompts/ dirs exist                    |
+| 05 | 05_echo_test/                     | Simplest CLI invocation (echo)                   | `.agent/climpt/`     | —                             |                                                    |
+| 06 | 06_stdin_input/                   | STDIN piping patterns                            | `.agent/climpt/`     | —                             |                                                    |
+| 07 | 07_custom_variables/              | User-defined variables (`--uv-*`)                | `.agent/climpt/`     | —                             | --uv-target content; echo contains input string    |
+| 08 | 08_meta_commands/                 | Meta domain commands                             | `.agent/climpt/`     | —                             | naming pattern; YAML delimiter; content markers    |
+| 09 | 09_git_commands/                  | Git domain commands                              | `.agent/climpt/`     | —                             | branch-related content in output                   |
+| 10 | 10_docs_list/                     | List available documentation                     | —                    | —                             |                                                    |
+| 11 | 11_docs_install/                  | Install documentation files                      | —                    | `docs/`                       |                                                    |
+| 12 | 12_docs_filter/                   | Filter docs by category/language/mode            | —                    | —                             | category, lang, flatten, single produce files      |
+| 13 | 13_list_agents/                   | List available agents                            | —                    | —                             | deno tasks; agent.json configs; runner script      |
+| 14 | 14_show_agent_schema/             | Show agent.json schema                           | —                    | —                             | valid JSON; contains "runner" property             |
+| 15 | 15_show_agent_config/             | Show agent configuration structure               | —                    | —                             | dynamic layout; schema required/properties         |
+| 16 | 16_init_agent/                    | Initialize plan-scout agent                      | —                    | `.agent/plan-scout/`          |                                                    |
+| 17 | 17_show_init_result/              | Show agent init result                           | `.agent/plan-scout/` | —                             | .runner, permissionMode, allowedTools validated    |
+| 18 | 18_configure_permission/          | Set permissionMode to "plan"                     | `.agent/plan-scout/` | `.agent/plan-scout/` patched  |                                                    |
+| 19 | 19_configure_prompt/              | Write custom system.md                           | `.agent/plan-scout/` | `.agent/plan-scout/` patched  |                                                    |
+| 20 | 20_show_final_config/             | Show final agent config                          | `.agent/plan-scout/` | —                             |                                                    |
+| 21 | 21_run_plan_agent/                | Run plan-scout agent (LLM required)              | `.agent/plan-scout/` | sentinel                      | LLM evidence in output; check_llm_ready gate       |
+| 22 | 22_verify_plan_mode/              | Verify plan mode enforcement                     | sentinel             | `outputs/agents/`             | sentinel absence proves Write was blocked          |
+| 23 | 23_verify_plan_mode_contract/     | Plan mode config contracts (no LLM)              | `.agent/plan-scout/` | —                             | permissionMode=plan; Write in tools; not step flow |
+| 24 | 24_save_results/                  | Save agent logs and cleanup                      | `.agent/plan-scout/` | `outputs/agents/`             |                                                    |
+| 25 | 25_prompt_resolution/             | Prompt file presence affects behavior            | —                    | —                             | real resolver for all 4 scenarios                  |
+| 26 | 26_schema_fail_fast/              | Schema fail-fast contract                        | —                    | —                             | invalid pointer throws; valid resolves             |
+| 27 | 27_intent_routing/                | Intent routing contract                          | —                    | —                             | transitions target exists; intents match           |
+| 28 | 28_init_iterator/                 | Initialize iterator agent                        | —                    | `.agent/iterator/`            |                                                    |
+| 29 | 29_configure_iterator/            | Configure iterator (verdict, params, prompts)    | `.agent/iterator/`   | `.agent/iterator/` configured |                                                    |
+| 30 | 30_verify_iterator_config/        | Verify iterator build result                     | `.agent/iterator/`   | —                             | verdict, params, worktree, prompts, config         |
+| 31 | 31_run_iterator/                  | Run iterator agent (LLM required)                | `.agent/iterator/`   | —                             | contract validation + LLM execution evidence       |
+| 32 | 32_verify_iterator_schema/        | Verify iterator JSON schema (4-level)            | —                    | —                             | file existence, $ref, structure, gate intent       |
+| 33 | 33_init_reviewer/                 | Initialize reviewer agent                        | —                    | `.agent/reviewer/`            |                                                    |
+| 34 | 34_configure_reviewer/            | Configure reviewer (verdict, params, prompts)    | `.agent/reviewer/`   | `.agent/reviewer/` configured |                                                    |
+| 35 | 35_verify_reviewer_config/        | Verify reviewer build result                     | `.agent/reviewer/`   | —                             | verdict, params, worktree, prompts, config         |
+| 36 | 36_run_reviewer/                  | Run reviewer agent (LLM required)                | `.agent/reviewer/`   | —                             | contract validation + LLM execution evidence       |
+| 37 | 37_verify_reviewer_schema/        | Verify reviewer JSON schema (4-level)            | —                    | —                             | file existence, $ref, structure, gate intent       |
+| 38 | 38_init_analyzer/                 | Initialize analyzer agent                        | —                    | `.agent/analyzer/`            |                                                    |
+| 39 | 39_configure_analyzer/            | Configure analyzer (verdict, params, prompts)    | `.agent/analyzer/`   | `.agent/analyzer/` configured |                                                    |
+| 40 | 40_verify_analyzer_config/        | Verify analyzer build result                     | `.agent/analyzer/`   | —                             | verdict, params, worktree, prompts, config         |
+| 41 | 41_run_analyzer/                  | Run analyzer agent (LLM required)                | `.agent/analyzer/`   | —                             | contract validation + LLM execution evidence       |
+| 42 | 42_negative_agent_load/           | Negative agent load contract                     | —                    | —                             | bad path/JSON/schema → proper errors               |
+| 43 | 43_stepkind_tool_policy/          | StepKind tool policy contract                    | —                    | —                             | work/verify deny boundary; closure allows          |
+| 44 | 44_generate_registry/             | Generate registry.json                           | `.agent/climpt/`     | `registry.json`               |                                                    |
+| 45 | 45_verify_factory_completionpath/ | Verify factory completion path                   | —                    | —                             | completion path coverage verified                  |
+| 46 | 46_show_registry_structure/       | Explain registry format                          | `.agent/climpt/`     | —                             |                                                    |
+| 47 | 47_mcp_start_server/              | Start MCP server                                 | —                    | MCP running                   | package resolves; server starts without crash      |
+| 48 | 48_mcp_show_config/               | MCP integration config guide                     | —                    | —                             |                                                    |
+| 49 | 49_workflow_config/               | Workflow config validation (CLI E2E, --local)    | —                    | —                             | valid/invalid config, exit codes, JSON output      |
+| 50 | 50_workflow_resolution/           | Label → phase resolution (CLI E2E, --local)      | —                    | —                             | ready/done/blocked/unknown → correct status        |
+| 51 | 51_workflow_transition/           | Phase transition via file I/O (CLI E2E, --local) | —                    | —                             | label changes in meta.json after transitions       |
+| 52 | 52_workflow_batch/                | Batch processing (CLI E2E, --local)              | —                    | —                             | processed/skipped counts, file system changes      |
+| 53 | 53_clean/                         | Cleanup all artifacts                            | all of the above     | —                             |                                                    |
+| 54 | 54_handoff_e2e/                   | Handoff E2E data path verification               | —                    | —                             | StepContext toUV namespace, collision prevention   |
+| 55 | 55_dualloop_log_analysis/         | Dual-loop log boundary analysis                  | —                    | —                             | FlowLoop + CompletionLoop marker pairing, sequence |
 
 ## How to Run
 
