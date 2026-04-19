@@ -8,7 +8,6 @@ import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import {
   allowsBoundaryActions,
   BOUNDARY_BASH_PATTERNS,
-  BOUNDARY_TOOLS,
   filterAllowedTools,
   getToolPolicy,
   isBashCommandAllowed,
@@ -21,68 +20,49 @@ import {
 import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import type { StepKind } from "./step-registry/types.ts";
 
-Deno.test("tool-policy: BOUNDARY_TOOLS contains expected tools", () => {
-  assertEquals(BOUNDARY_TOOLS.includes("githubIssueClose"), true);
-  assertEquals(BOUNDARY_TOOLS.includes("githubPrMerge"), true);
-  assertEquals(BOUNDARY_TOOLS.includes("githubReleaseCreate"), true);
-});
-
-Deno.test("tool-policy: work step denies boundary tools", () => {
+Deno.test("tool-policy: work step enables boundary bash enforcement", () => {
   const policy = getToolPolicy("work");
   assertEquals(policy.blockBoundaryBash, true);
-  assertEquals(policy.denied.includes("githubIssueClose"), true);
+  assertEquals(
+    policy.denied.length,
+    0,
+    "denied list is empty --enforcement happens at bash-pattern layer",
+  );
 });
 
-Deno.test("tool-policy: verification step denies boundary tools", () => {
+Deno.test("tool-policy: verification step enables boundary bash enforcement", () => {
   const policy = getToolPolicy("verification");
   assertEquals(policy.blockBoundaryBash, true);
-  assertEquals(policy.denied.includes("githubIssueClose"), true);
+  assertEquals(policy.denied.length, 0);
 });
 
-Deno.test("tool-policy: closure step allows boundary tools but blocks bash", () => {
+Deno.test("tool-policy: closure step also enforces boundary bash", () => {
+  // Closure steps must also block bash writes --the Boundary Hook is the
+  // single write path, even when closure intent fires.
   const policy = getToolPolicy("closure");
-  // Bash commands are blocked even in closure - boundary hook handles them
   assertEquals(policy.blockBoundaryBash, true);
   assertEquals(policy.denied.length, 0);
-  // Boundary tools are still allowed (for non-bash tools like githubIssueClose)
-  assertEquals(policy.allowed.includes("githubIssueClose"), true);
 });
 
-Deno.test("tool-policy: isToolAllowed denies boundary tool in work step", () => {
-  const result = isToolAllowed("githubIssueClose", "work");
-  assertEquals(result.allowed, false);
-  assertStringIncludes(result.reason ?? "", "boundary tool");
+Deno.test("tool-policy: isToolAllowed allows base tools in every step kind", () => {
+  for (const kind of ["work", "verification", "closure"] as StepKind[]) {
+    for (const tool of ["Bash", "Read", "Write", "Edit", "Grep"]) {
+      const result = isToolAllowed(tool, kind);
+      assertEquals(
+        result.allowed,
+        true,
+        `"${tool}" must be allowed in ${kind}: ${result.reason ?? ""}`,
+      );
+    }
+  }
 });
 
-Deno.test("tool-policy: isToolAllowed allows base tool in work step", () => {
-  const result = isToolAllowed("Bash", "work");
-  assertEquals(result.allowed, true);
-  assertEquals(result.reason, undefined);
-});
-
-Deno.test("tool-policy: isToolAllowed allows boundary tool in closure step", () => {
-  const result = isToolAllowed("githubIssueClose", "closure");
-  assertEquals(result.allowed, true);
-});
-
-Deno.test("tool-policy: filterAllowedTools removes boundary tools for work step", () => {
-  const configuredTools = ["Bash", "Read", "githubIssueClose", "githubPrMerge"];
-  const filtered = filterAllowedTools(configuredTools, "work");
-
-  assertEquals(filtered.includes("Bash"), true);
-  assertEquals(filtered.includes("Read"), true);
-  assertEquals(filtered.includes("githubIssueClose"), false);
-  assertEquals(filtered.includes("githubPrMerge"), false);
-});
-
-Deno.test("tool-policy: filterAllowedTools keeps all tools for closure step", () => {
-  const configuredTools = ["Bash", "Read", "githubIssueClose", "githubPrMerge"];
-  const filtered = filterAllowedTools(configuredTools, "closure");
-
-  assertEquals(filtered.includes("Bash"), true);
-  assertEquals(filtered.includes("Read"), true);
-  assertEquals(filtered.includes("githubIssueClose"), true);
-  assertEquals(filtered.includes("githubPrMerge"), true);
+Deno.test("tool-policy: filterAllowedTools is a no-op when denied is empty", () => {
+  const configuredTools = ["Bash", "Read", "Write", "Edit"];
+  for (const kind of ["work", "verification", "closure"] as StepKind[]) {
+    const filtered = filterAllowedTools(configuredTools, kind);
+    assertEquals(filtered, configuredTools);
+  }
 });
 
 Deno.test("tool-policy: isBashCommandAllowed blocks gh issue close in work step", () => {
@@ -118,33 +98,136 @@ Deno.test("tool-policy: isBashCommandAllowed blocks gh release create in work st
   assertEquals(result.allowed, false);
 });
 
-Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS matches expected commands", () => {
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS blocks all gh issue write subcommands", () => {
   const patterns = BOUNDARY_BASH_PATTERNS;
 
-  // Should match
+  // Termination
   assertEquals(patterns.some((p) => p.test("gh issue close 123")), true);
   assertEquals(patterns.some((p) => p.test("gh issue delete 123")), true);
   assertEquals(
     patterns.some((p) => p.test("gh issue transfer 123 repo")),
     true,
   );
-  assertEquals(patterns.some((p) => p.test("gh pr merge 456")), true);
-  assertEquals(patterns.some((p) => p.test("gh release create v1.0")), true);
+  assertEquals(patterns.some((p) => p.test("gh issue reopen 123")), true);
+
+  // All issue edit forms --not just --state closed (this was the bypass gap)
   assertEquals(
     patterns.some((p) => p.test("gh issue edit 123 --state closed")),
     true,
   );
-  // gh api should be blocked entirely
+  assertEquals(
+    patterns.some((p) => p.test('gh issue edit 123 --add-label "done"')),
+    true,
+    "gh issue edit --add-label must be blocked (was bypass gap to Boundary Hook)",
+  );
+  assertEquals(
+    patterns.some((p) => p.test("gh issue edit 123 --title 'new title'")),
+    true,
+  );
+  assertEquals(
+    patterns.some((p) => p.test("gh issue edit 123 --body-file x.md")),
+    true,
+  );
+
+  // Pin/lock mutations
+  assertEquals(patterns.some((p) => p.test("gh issue pin 123")), true);
+  assertEquals(patterns.some((p) => p.test("gh issue lock 123")), true);
+});
+
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS blocks all gh pr write subcommands", () => {
+  const patterns = BOUNDARY_BASH_PATTERNS;
+
+  assertEquals(patterns.some((p) => p.test("gh pr merge 456")), true);
+  assertEquals(patterns.some((p) => p.test("gh pr close 456")), true);
+  assertEquals(patterns.some((p) => p.test("gh pr ready 456")), true);
+  assertEquals(patterns.some((p) => p.test("gh pr reopen 456")), true);
+  assertEquals(patterns.some((p) => p.test("gh pr lock 456")), true);
+  assertEquals(
+    patterns.some((p) => p.test("gh pr review 456 --approve")),
+    true,
+  );
+
+  // PR edit (label/title/body/milestone etc.) must be blocked
+  assertEquals(
+    patterns.some((p) => p.test('gh pr edit 456 --add-label "reviewed"')),
+    true,
+    "gh pr edit --add-label must be blocked (was bypass gap to Boundary Hook)",
+  );
+  assertEquals(
+    patterns.some((p) => p.test("gh pr edit 456 --title 'new'")),
+    true,
+  );
+});
+
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS blocks release/project/label/repo writes", () => {
+  const patterns = BOUNDARY_BASH_PATTERNS;
+
+  // Release
+  assertEquals(patterns.some((p) => p.test("gh release create v1.0")), true);
+  assertEquals(patterns.some((p) => p.test("gh release edit v1.0")), true);
+  assertEquals(patterns.some((p) => p.test("gh release delete v1.0")), true);
+  assertEquals(
+    patterns.some((p) => p.test("gh release upload v1.0 file.tar.gz")),
+    true,
+  );
+
+  // Project state mutations
+  assertEquals(patterns.some((p) => p.test("gh project edit 1")), true);
+  assertEquals(patterns.some((p) => p.test("gh project item-edit 1")), true);
+  assertEquals(patterns.some((p) => p.test("gh project item-add 1")), true);
+  assertEquals(
+    patterns.some((p) => p.test("gh project field-create 1")),
+    true,
+  );
+
+  // Label taxonomy
+  assertEquals(patterns.some((p) => p.test("gh label create done")), true);
+  assertEquals(patterns.some((p) => p.test("gh label edit done")), true);
+  assertEquals(patterns.some((p) => p.test("gh label delete done")), true);
+
+  // Repo writes
+  assertEquals(patterns.some((p) => p.test("gh repo create o/r")), true);
+  assertEquals(patterns.some((p) => p.test("gh repo delete o/r")), true);
+  assertEquals(patterns.some((p) => p.test("gh repo edit o/r")), true);
+  assertEquals(patterns.some((p) => p.test("gh repo archive o/r")), true);
+});
+
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS blocks direct gh api calls", () => {
+  const patterns = BOUNDARY_BASH_PATTERNS;
   assertEquals(patterns.some((p) => p.test("gh api /repos/o/r/issues")), true);
   assertEquals(
     patterns.some((p) => p.test("gh api -X PATCH /repos/o/r/issues/1")),
     true,
   );
+});
 
-  // Should not match
+Deno.test("tool-policy: BOUNDARY_BASH_PATTERNS allows reads and continuation creates", () => {
+  const patterns = BOUNDARY_BASH_PATTERNS;
+
+  // Reads --mcp__github__github_read is preferred, but bash reads remain allowed
   assertEquals(patterns.some((p) => p.test("gh issue view 123")), false);
-  assertEquals(patterns.some((p) => p.test("gh pr view 456")), false);
   assertEquals(patterns.some((p) => p.test("gh issue list")), false);
+  assertEquals(patterns.some((p) => p.test("gh pr view 456")), false);
+  assertEquals(patterns.some((p) => p.test("gh pr list")), false);
+  assertEquals(patterns.some((p) => p.test("gh pr diff 456")), false);
+  assertEquals(patterns.some((p) => p.test("gh pr checks 456")), false);
+  assertEquals(patterns.some((p) => p.test("gh project view 1")), false);
+  assertEquals(patterns.some((p) => p.test("gh project list")), false);
+  assertEquals(patterns.some((p) => p.test("gh project item-list 1")), false);
+
+  // Workflow-continuation creates are allowed (non-destructive, finalize layer)
+  assertEquals(
+    patterns.some((p) => p.test("gh issue create --title X")),
+    false,
+  );
+  assertEquals(patterns.some((p) => p.test("gh pr create --title X")), false);
+
+  // Comments remain allowed (handled by OutboxProcessor / Handoff Manager
+  // in host process; bash path is sandbox-blocked in practice)
+  assertEquals(
+    patterns.some((p) => p.test('gh issue comment 123 --body "x"')),
+    false,
+  );
 });
 
 // --- Bypass prevention: network tools targeting GitHub API ---

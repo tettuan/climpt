@@ -408,16 +408,17 @@ Boundary Hook に加え、サンドボックスのネットワーク遮断が Ag
 flowchart LR
   Work[work step] -->|allowedTools: shell,edit| SDK
   Verify[verification step] -->|allowedTools: shell,edit| SDK
-  Closure[closure step] -->|"allowedTools: shell,edit,boundary-tools<br/>(※ bash経由のghコマンドはブロック)"| SDK
+  Closure[closure step] -->|"allowedTools: shell,edit<br/>(bash の gh 書き込みは全 stepKind で一律ブロック)"| SDK
   SDK --> Boundary[[Boundary Hook]]
 ```
 
-- **What**: Runner は `stepKind` ごとに許可ツールを再構成し、Work / Verification
-  では GitHub などの副作用ツールを自動的に無効化する。Closure Step に遷移した
-  時だけ Issue close 等のツール型 API（`BOUNDARY_TOOLS`）が許可されるが、 bash
-  経由の `gh` コマンドは **全 stepKind で一律ブロック** される
-  （`blockBoundaryBash: true`）。外部副作用の実行は boundary hook が単一の
-  出口となる。
+- **What**: Runner は `stepKind` ごとに許可ツールを再構成し、全 stepKind で
+  GitHub resource への **bash 書き込みを一律ブロック** する
+  (`blockBoundaryBash: true` + `BOUNDARY_BASH_PATTERNS`)。 Issue の label
+  更新・close・state 遷移などの副作用は **closure step の structured output
+  (`issue.labels`, `closure_action` 等) を経由して Boundary Hook が単一の出口**
+  として実行する (`github-read-tool.ts:8-9` の "exclusively" 宣言を参照)。MCP
+  層に boundary tool は実装していない。
 - **Why**: 「手順中に Issue を閉じないで」とプロンプトで言う代わりに、物理的に
   呼び出せない状態にすることで AI 複雑性を排除する。Flow の実装は stepKind を
   見るだけで十分で、追加の条件分岐を必要としない。closure step でも bash 経由の
