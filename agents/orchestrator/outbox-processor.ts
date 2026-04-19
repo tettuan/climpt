@@ -113,7 +113,7 @@ export class OutboxProcessor {
   async process(subjectId: string | number): Promise<OutboxResult[]> {
     this.#lastCreatedIssueNumber = undefined;
     this.#prevResultByFamily.clear();
-    return await this.#processActions(subjectId, false);
+    return await this.#processActions(subjectId, "pre-close");
   }
 
   /**
@@ -125,12 +125,12 @@ export class OutboxProcessor {
    */
   async processPostClose(subjectId: string | number): Promise<OutboxResult[]> {
     this.#prevResultByFamily.clear();
-    return await this.#processActions(subjectId, true);
+    return await this.#processActions(subjectId, "post-close");
   }
 
   async #processActions(
     subjectId: string | number,
-    postCloseOnly: boolean,
+    phase: "pre-close" | "post-close",
   ): Promise<OutboxResult[]> {
     const outboxDir = this.#store.getOutboxPath(subjectId);
 
@@ -194,8 +194,8 @@ export class OutboxProcessor {
       const isPostClose = trigger === "post-close";
 
       // Phase filter: skip actions that don't match the current phase.
-      if (postCloseOnly && !isPostClose) continue;
-      if (!postCloseOnly && isPostClose) continue;
+      if (phase === "post-close" && !isPostClose) continue;
+      if (phase === "pre-close" && isPostClose) continue;
 
       try {
         const validated = this.#validateAction(actionObj);

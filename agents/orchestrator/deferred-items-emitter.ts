@@ -208,13 +208,15 @@ export class DeferredItemsEmitter {
     const existingKeys = await this.#store.readEmittedKeys(subjectId);
     const existingSet = new Set(existingKeys);
 
-    const pending: { key: string; item: DeferredItem }[] = [];
-    for (const item of items) {
-      const key = await computeIdempotencyKey(item);
-      if (!existingSet.has(key)) {
-        pending.push({ key, item });
-      }
-    }
+    const keyed = await Promise.all(
+      items.map(async (item) => ({
+        key: await computeIdempotencyKey(item),
+        item,
+      })),
+    );
+    const pending: { key: string; item: DeferredItem }[] = keyed.filter(
+      ({ key }) => !existingSet.has(key),
+    );
 
     if (pending.length === 0) {
       return { count: 0, paths: [], emittedKeys: [] };

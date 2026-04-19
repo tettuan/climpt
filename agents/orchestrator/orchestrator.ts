@@ -624,7 +624,9 @@ export class Orchestrator {
             // Build filename→key map from emitter paths.
             const filenameToKey = new Map<string, string>();
             for (let i = 0; i < deferredEmittedPaths.length; i++) {
-              const basename = deferredEmittedPaths[i].split("/").pop()!;
+              const path = deferredEmittedPaths[i];
+              const slash = path.lastIndexOf("/");
+              const basename = slash >= 0 ? path.slice(slash + 1) : path;
               filenameToKey.set(basename, deferredEmittedKeys[i]);
             }
             const succeededKeys: string[] = [];
