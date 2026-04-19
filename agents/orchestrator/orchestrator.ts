@@ -352,6 +352,45 @@ export class Orchestrator {
         break;
       }
 
+      // Hook O1: Project context injection (§2.4 / §6.3)
+      // When projectBinding.injectGoalIntoPromptContext is enabled,
+      // resolve project memberships for goal injection. On failure,
+      // skip silently and dispatch without project context.
+      if (this.#config.projectBinding?.injectGoalIntoPromptContext) {
+        try {
+          // deno-lint-ignore no-await-in-loop
+          const projects = await this.#github.getIssueProjects(
+            Number(subjectId),
+          );
+          if (projects.length > 0) {
+            // deno-lint-ignore no-await-in-loop
+            await log.info(
+              `Project context found for #${subjectId}: ${
+                projects.map((p) => `${p.owner}/${p.number}`).join(", ")
+              }`,
+              {
+                event: "project_context_resolved",
+                subjectId,
+                projects: projects.map((p) => `${p.owner}/${p.number}`),
+              },
+            );
+          }
+        } catch (o1Error) {
+          const o1Msg = o1Error instanceof Error
+            ? o1Error.message
+            : String(o1Error);
+          // deno-lint-ignore no-await-in-loop
+          await log.warn(
+            `Project goal injection skipped for #${subjectId}: ${o1Msg}`,
+            {
+              event: "project_injection_skipped",
+              subjectId,
+            },
+          );
+          // Continue dispatch without project context (§6.3).
+        }
+      }
+
       // deno-lint-ignore no-await-in-loop
       await log.info(
         `Dispatching agent "${agentId}" for subject #${subjectId}`,
