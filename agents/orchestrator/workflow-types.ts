@@ -225,6 +225,16 @@ export interface WorkflowConfig {
    * at load time.
    */
   readonly payloadSchema?: { readonly $ref: string };
+
+  /**
+   * Project-level orchestration binding.
+   *
+   * When absent, all project-related features (T6.eval project
+   * completion check, Hook O1 goal injection, Hook O2 project
+   * inheritance) are disabled — preserving v1.13.x behavior
+   * (Invariant I1, design doc §3).
+   */
+  projectBinding?: ProjectBindingConfig;
 }
 
 /** Subject store configuration */
@@ -249,12 +259,30 @@ export interface PrioritizerConfig {
   defaultLabel?: string;
 }
 
+/**
+ * Configuration for project-level orchestration features.
+ *
+ * When absent from `workflow.json`, all project-related code paths
+ * (T6.eval, Hook O1/O2) are no-ops — preserving v1.13.x behavior
+ * (Invariant I1).
+ */
+export interface ProjectBindingConfig {
+  /** Inject project goal into agent prompt context on dispatch */
+  injectGoalIntoPromptContext: boolean;
+  /** Inherit parent project membership when creating child issues */
+  inheritProjectsForCreateIssue: boolean;
+}
+
+/** Project reference — identifies a GitHub Project v2 by owner+number or node id. */
+export type ProjectRef = { owner: string; number: number } | { id: string };
+
 /** Criteria for fetching issues */
 export interface IssueCriteria {
   labels?: string[];
   repo?: string;
   state?: "open" | "closed" | "all";
   limit?: number;
+  project?: ProjectRef;
 }
 
 // === Orchestrator Results ===

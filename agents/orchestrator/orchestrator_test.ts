@@ -1013,6 +1013,76 @@ Deno.test("closeOnComplete: closeCondition filters even when target is terminal"
   assertEquals(result.issueClosed, undefined);
 });
 
+// === T6.eval projectBinding guard Tests (Issue #501) ===
+
+Deno.test("T6.eval: getIssueProjects is NOT called when projectBinding is absent (BC invariant I1)", async () => {
+  // Config has closeOnComplete but no projectBinding — T6.eval block must be skipped.
+  const config = createCloseOnCompleteConfig();
+  // Cycle 1: iterator success -> review
+  // Cycle 2: reviewer approved -> complete (terminal) -> closeIssue
+  let getIssueProjectsCalled = 0;
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const origGetIssueProjects = github.getIssueProjects.bind(github);
+  github.getIssueProjects = (_issueNumber: number) => {
+    getIssueProjectsCalled++;
+    return origGetIssueProjects(_issueNumber);
+  };
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.issueClosed,
+    true,
+    "Issue should still be closed via closeOnComplete. Fix: orchestrator.ts close logic",
+  );
+  assertEquals(
+    getIssueProjectsCalled,
+    0,
+    "getIssueProjects must NOT be called when projectBinding is absent. " +
+      "Fix: orchestrator.ts T6.eval guard must check this.#config.projectBinding",
+  );
+});
+
+Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", async () => {
+  // Config has closeOnComplete AND projectBinding — T6.eval block must execute.
+  const config = createCloseOnCompleteConfig();
+  config.projectBinding = {
+    injectGoalIntoPromptContext: false,
+    inheritProjectsForCreateIssue: false,
+  };
+  let getIssueProjectsCalled = 0;
+  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+  const origGetIssueProjects = github.getIssueProjects.bind(github);
+  github.getIssueProjects = (_issueNumber: number) => {
+    getIssueProjectsCalled++;
+    return origGetIssueProjects(_issueNumber);
+  };
+  const dispatcher = new StubDispatcher({
+    iterator: "success",
+    reviewer: "approved",
+  });
+  const orchestrator = new Orchestrator(config, github, dispatcher);
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(
+    result.issueClosed,
+    true,
+    "Issue should be closed via closeOnComplete. Fix: orchestrator.ts close logic",
+  );
+  assertEquals(
+    getIssueProjectsCalled,
+    1,
+    "getIssueProjects must be called when projectBinding is present. " +
+      "Fix: orchestrator.ts T6.eval guard must allow execution when projectBinding exists",
+  );
+});
+
 // === Batch Tests ===
 
 /**

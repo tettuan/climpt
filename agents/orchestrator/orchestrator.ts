@@ -845,6 +845,78 @@ export class Orchestrator {
             }
           }
 
+          // T6.eval: Project completion check (issue #491).
+          // After closing an issue, check if the issue belongs to any project.
+          // If all non-sentinel items in the project have `done` label, trigger
+          // the evaluator by removing `done` from sentinel and adding `kind:eval`.
+          if (issueClosed && this.#config.projectBinding) {
+            try {
+              // deno-lint-ignore no-await-in-loop
+              const projects = await this.#github.getIssueProjects(
+                Number(subjectId),
+              );
+              for (const project of projects) {
+                // deno-lint-ignore no-await-in-loop
+                const items = await this.#github.listProjectItems(project);
+                // For each item, check labels to find sentinel and done status.
+                let sentinelNumber: number | null = null;
+                let allNonSentinelDone = true;
+                let nonSentinelCount = 0;
+                for (const item of items) {
+                  // deno-lint-ignore no-await-in-loop
+                  const itemLabels = await this.#github.getIssueLabels(
+                    item.issueNumber,
+                  );
+                  if (itemLabels.includes("project-sentinel")) {
+                    sentinelNumber = item.issueNumber;
+                  } else {
+                    nonSentinelCount++;
+                    if (!itemLabels.includes("done")) {
+                      allNonSentinelDone = false;
+                    }
+                  }
+                }
+                if (
+                  sentinelNumber !== null && nonSentinelCount > 0 &&
+                  allNonSentinelDone
+                ) {
+                  // deno-lint-ignore no-await-in-loop
+                  await this.#github.updateIssueLabels(
+                    sentinelNumber,
+                    ["done"],
+                    ["kind:eval"],
+                  );
+                  // deno-lint-ignore no-await-in-loop
+                  await log.info(
+                    `Project completion detected (${project.owner}/${project.number}): ` +
+                      `triggered evaluator on sentinel #${sentinelNumber}`,
+                    {
+                      event: "project_completion_eval_triggered",
+                      subjectId,
+                      project: `${project.owner}/${project.number}`,
+                      sentinelNumber,
+                      nonSentinelCount,
+                    },
+                  );
+                }
+              }
+            } catch (evalCheckError) {
+              const evalMsg = evalCheckError instanceof Error
+                ? evalCheckError.message
+                : String(evalCheckError);
+              // deno-lint-ignore no-await-in-loop
+              await log.warn(
+                `Project completion check failed for #${subjectId}: ${evalMsg}`,
+                {
+                  event: "project_completion_check_failed",
+                  subjectId,
+                  error: evalMsg,
+                },
+              );
+              // Non-fatal: do not block the close transaction.
+            }
+          }
+
           // All T3..T6 steps succeeded. Record the cycle *before* commit
           // so a crash between tracker.record and commit still surfaces
           // the registered compensations on the next run. (commit()
