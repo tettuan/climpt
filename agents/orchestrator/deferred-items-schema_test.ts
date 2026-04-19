@@ -298,3 +298,51 @@ Deno.test("schema rejects deferred_items as non-array (type=array enforced)", as
   const ok = validate({ ...baseInstance(), deferred_items: "oops" });
   assertEquals(ok, false, "Non-array deferred_items must be rejected.");
 });
+
+// =============================================================================
+// I2b — Rejection: maxItems cap (issue #513).
+// Schema must reject arrays exceeding the per-cycle cap. Boundary value
+// analysis: 10 items accepted, 11 items rejected.
+// =============================================================================
+
+Deno.test("schema accepts deferred_items with exactly 10 items (boundary)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const items = Array.from({ length: 10 }, (_, i) => ({
+    title: `task-${i}`,
+    body: `body-${i}`,
+    labels: ["kind:impl"],
+  }));
+  const ok = validate({ ...baseInstance(), deferred_items: items });
+  assertEquals(
+    ok,
+    true,
+    `10 items must be accepted (at cap boundary): ${
+      JSON.stringify(validate.errors)
+    }. Fix: maxItems must be >= 10.`,
+  );
+});
+
+Deno.test("schema rejects deferred_items with 11 items (maxItems exceeded)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const items = Array.from({ length: 11 }, (_, i) => ({
+    title: `task-${i}`,
+    body: `body-${i}`,
+    labels: ["kind:impl"],
+  }));
+  const ok = validate({ ...baseInstance(), deferred_items: items });
+  assertEquals(
+    ok,
+    false,
+    "11 items must be rejected by maxItems cap. " +
+      "Fix: add maxItems: 10 to deferred_items in considerer.schema.json.",
+  );
+  const paths = (validate.errors ?? []).map((e) => e.instancePath);
+  assert(
+    paths.some((p) => p.includes("/deferred_items")),
+    `Expected an error pointing to /deferred_items, got: ${
+      paths.join(", ")
+    }. Fix: schema diagnostic quality.`,
+  );
+});

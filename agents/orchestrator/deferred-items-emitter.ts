@@ -101,6 +101,12 @@ export function extractDeferredItems(
       `deferred_items must be an array, got ${typeof raw}`,
     );
   }
+  const DEFERRED_ITEMS_CAP = 10;
+  if (raw.length > DEFERRED_ITEMS_CAP) {
+    throw new Error(
+      `deferred_items has ${raw.length} items, exceeding the cap of ${DEFERRED_ITEMS_CAP}`,
+    );
+  }
   const items: DeferredItem[] = [];
   for (let i = 0; i < raw.length; i++) {
     const entry = raw[i];

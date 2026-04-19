@@ -64,6 +64,7 @@
         "type": "array",
         "description": "Out-of-scope tasks carved off for follow-up issues. Orthogonal to verdict: valid on both 'done' and 'handoff-detail'. Orchestrator converts each entry into a new GitHub issue via outbox 'create-issue' before the current issue closes. Leave empty (default) when the current response fully covers the original scope. Do NOT fabricate specification detail here — each entry must describe a task the original issue author could have filed on their own.",
         "default": [],
+        "maxItems": 10,
         "items": {
           "type": "object",
           "required": ["title", "body", "labels"],

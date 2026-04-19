@@ -113,6 +113,11 @@ Each entry must be self-contained: `title` is a real task, `body` restates the
 concrete scope, `labels` picks `kind:impl` or `kind:consider` (the triager
 assigns `order:N` — do not set it here).
 
+The maximum number of deferred items per response is **10**. If you identify
+more than 10 follow-up tasks, reconsider whether the parent issue scope is too
+broad — split at a higher abstraction level rather than emitting fine-grained
+sub-steps.
+
 If the issue is genuinely atomic and your response covers it, emit `[]`.
 
 ## Response comment structure

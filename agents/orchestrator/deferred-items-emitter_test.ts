@@ -268,8 +268,8 @@ const ITEM_FIXTURES: ItemFixture[][] = [
   ],
   // Edge: body and labels both degenerate but schema-valid
   [{ title: "t", body: "", labels: [] }],
-  // Edge: many items exercising numeric suffix padding
-  Array.from({ length: 12 }, (_, i) => ({
+  // Edge: many items exercising numeric suffix padding (capped at 10, issue #513)
+  Array.from({ length: 10 }, (_, i) => ({
     title: `item-${i}`,
     body: `body-${i}`,
     labels: [`label-${i}`],
@@ -477,6 +477,57 @@ Deno.test(
           "Fix: extractDeferredItems throws with path-qualified message.",
       );
     });
+  },
+);
+
+// Defensive boundary: per-cycle count cap (issue #513).
+// extractDeferredItems must throw when input exceeds the cap of 10,
+// and must pass when input is exactly at the cap.
+Deno.test(
+  "defensive boundary: extractDeferredItems rejects 11 items (cap exceeded)",
+  () => {
+    const items = Array.from({ length: 11 }, (_, i) => ({
+      title: `item-${i}`,
+      body: `body-${i}`,
+      labels: [`label-${i}`],
+    }));
+    let threw = false;
+    try {
+      extractDeferredItems({ deferred_items: items });
+    } catch (err) {
+      threw = true;
+      const msg = (err as Error).message;
+      assert(
+        msg.includes("11"),
+        `Error message must include the actual count (11), got: ${msg}`,
+      );
+      assert(
+        msg.includes("10"),
+        `Error message must include the cap (10), got: ${msg}`,
+      );
+    }
+    assert(
+      threw,
+      "extractDeferredItems must throw when items exceed the cap of 10. " +
+        "Fix: add length check after Array.isArray guard.",
+    );
+  },
+);
+
+Deno.test(
+  "defensive boundary: extractDeferredItems accepts exactly 10 items",
+  () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      title: `item-${i}`,
+      body: `body-${i}`,
+      labels: [`label-${i}`],
+    }));
+    const result = extractDeferredItems({ deferred_items: items });
+    assertEquals(
+      result.length,
+      10,
+      "extractDeferredItems must accept exactly 10 items (at cap boundary).",
+    );
   },
 );
 
