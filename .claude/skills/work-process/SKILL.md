@@ -1,7 +1,7 @@
 ---
 name: work-process
-description: Orchestrate multi-step tasks with conductor pattern. Use when planning before implementation, investigating root causes, executing a provided plan, evaluating review feedback, or verifying design-implementation consistency. Trigger phrases - 「計画して」「整理して」「分析して」「チーム組成」「Implement the following plan」「レビューを踏まえ」「整合性チェック」「考えてから実装」「原因を調べて」「FBを解釈」
-allowed-tools: [Read, Write, Edit, Agent, Bash]
+description: Orchestrate multi-step tasks with conductor pattern. Use when planning before implementation, investigating root causes, executing a provided plan, evaluating review feedback, verifying design-implementation consistency, or self-critiquing synthesized results. Trigger phrases - 「計画して」「整理して」「分析して」「チーム組成」「Implement the following plan」「レビューを踏まえ」「整合性チェック」「考えてから実装」「原因を調べて」「FBを解釈」「批判的に見て」「自己検証」「盲点を探して」
+allowed-tools: [Read, Write, Edit, Agent, Bash, TaskCreate, TaskUpdate, TaskList, TaskGet]
 argument-hint: [task-description]
 ---
 
@@ -20,7 +20,9 @@ flowchart TD
     C & D & E & F & G --> H[ToDo]
     H --> I[Delegate] --> J[Record] --> K{Next?}
     K -->|Y| I
-    K -->|N| L[Done Criteria check] --> M[Done]
+    K -->|N| N[Critique pass] --> O{Revise?}
+    O -->|Y| H
+    O -->|N| L[Done Criteria check] --> M[Done]
 ```
 
 ## Entry Modes
@@ -32,7 +34,7 @@ Conductor's first job: determine the mode from user input, then follow its initi
 | **investigate** | 「原因を調べて」「整理して」「分析して」「切り分け」 | Collect facts → structure into layers → form hypothesis → verify |
 | **plan** | 「計画して」「設計して」「考えて」 | Goal → Done Criteria → Approach → ToDo decomposition |
 | **execute** | 「Implement the following plan」「進めて」「実装して」 | Receive plan → validate premises against current state → decompose ToDos → delegate |
-| **evaluate** | 「レビューを踏まえ」「FBを解釈し」「指摘を評価」 | Classify issues by severity → assess impact scope → create action plan |
+| **evaluate** | 「レビューを踏まえ」「FBを解釈し」「指摘を評価」「批判的に見て」「自己検証」「盲点を探して」 | External FB: classify by severity → assess impact scope → action plan. Self-critique: delegate adversarial review of own synthesis (see Self-Critique Pass) |
 | **verify** | 「整合しているか」「矛盾を検証」「チェックして」 | Define comparison criteria → enumerate targets → compare layers → report gaps |
 
 Modes are not exclusive. They transition: `investigate → plan → execute` or `evaluate → plan → execute`.
@@ -63,6 +65,42 @@ When user provides a plan via "Implement the following plan":
 4. Begin delegation
 
 If premises are stale, report to user before proceeding.
+
+## Execution Guard (Task Mirror)
+
+Files (`plan.md`, `progress.md`) remain the **authoritative** record. Task tool is a **guard layer** that prevents skipping ToDos during execution.
+
+| Phase | File action (authoritative) | Task action (guard) |
+|-------|----------------------------|--------------------|
+| ToDo decompose | Write all ToDos to `plan.md` Team table | `TaskCreate` one task per ToDo, same IDs (T1, T2, ...) |
+| Before delegate | — | `TaskUpdate(status=in_progress)` for the ToDo about to run |
+| After sub agent returns | Append `### T<N>` entry to `progress.md` | `TaskUpdate(status=completed)` |
+| Before "Next?" check | — | `TaskList` — if any `pending` or `in_progress` remain, MUST continue. No Done until empty. |
+| Revise (critique blocking) | Append new ToDos to `plan.md` | `TaskCreate` for the new items |
+
+Enforcement:
+- `TaskList` MUST return zero non-completed items before Done Criteria check
+- ToDo IDs in Task and in `plan.md` / `progress.md` MUST match (T1, T2, ... — no renumbering)
+- If Task and file diverge, **file wins**: reconcile Task from `plan.md`, never the reverse
+- Skip Task mirror only for trivial tasks (1 ToDo, no synthesis) — same criterion as Self-Critique skip
+
+Why this layering: file-based records survive sessions and are passable to sub agents; Task tool provides native completeness enforcement and user-visible progress.
+
+## Self-Critique Pass
+
+Before declaring Done on investigate / plan / verify modes (or any synthesis the conductor produced), delegate one adversarial review pass to an independent sub agent.
+
+| Step | Conductor action |
+|------|-----------------|
+| 1. Freeze output | Write current synthesis to `tmp/<task>/synthesis.md` |
+| 2. Launch critique | `Agent(subagent_type=Plan, prompt="Challenge the analysis in tmp/<task>/synthesis.md. Report: unstated assumptions, missing counter-evidence, logical gaps, overlooked alternatives, premature conclusions. Do NOT propose fixes — only surface weaknesses.")` |
+| 3. Triage findings | Classify critique points: blocking (must revise) / noted (document but keep) / rejected (out of scope) |
+| 4. Revise or proceed | Blocking findings → re-enter ToDo loop. Otherwise → Done Criteria check |
+
+Rules:
+- Critique agent must be **independent**: fresh context, no prior conversation history
+- Critique prompt must be **adversarial**, not confirmatory ("find weaknesses" not "validate")
+- Skip only for trivial tasks (typo fix, single-line edit) where synthesis is not required
 
 ## Conductor Pattern
 
@@ -119,6 +157,8 @@ When in doubt, delegate. Conductor loses sight of the goal when immersed in hand
 | 7 | Record to progress.md immediately on completion |
 | 8 | Technical decisions: decide without asking. Policy decisions: present options with recommendation |
 | 9 | Delegate detailed procedures to specialized skills. Structural code changes require `refactoring` skill first |
+| 10 | Before Done on investigate / plan / verify, run Self-Critique Pass with an independent sub agent. Skip only for trivial synthesis-free tasks |
+| 11 | Mirror every `plan.md` ToDo to `TaskCreate` with matching ID. Call `TaskUpdate` on start/complete. `TaskList` must be empty of non-completed items before Done. File wins on divergence |
 
 ---
 
@@ -128,6 +168,8 @@ When in doubt, delegate. Conductor loses sight of the goal when immersed in hand
 tmp/<task>/
 ├── plan.md        # Mode, Goal, Done Criteria, Team, Approach, Scope
 ├── progress.md    # Incremental records with judgment rationale
+├── synthesis.md   # Conductor's frozen output before Self-Critique Pass
+├── critique.md    # Sub agent's adversarial findings + conductor's triage
 └── investigation/ # Sub agent results
 ```
 
