@@ -315,8 +315,11 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --init
      }
    }
    ```
-2. `filterAllowedTools()` が work/verification ステップ中にバウンダリツール
-   （例: `githubIssueClose`）を自動除去するのは意図的な動作。
+2. `isBashCommandAllowed()` が全 stepKind で GitHub 書き込み系の `gh`
+   サブコマンド（例: `gh issue edit`, `gh pr merge`,
+   `gh release
+   create`）を一律ブロックするのは意図的な動作。BoundaryHook
+   が唯一の書き込み経路。
 
 **予防策**: 必要なツールを `allowedTools` に明示的に宣言し、通常運用では
 `acceptEdits` を使用する。

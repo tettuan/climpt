@@ -203,9 +203,11 @@ deno run -A jsr:@aidevtool/climpt/agents/iterator --project 5 --project-owner my
 - SDK init メッセージには登録済み全ツール（22
   個以上）が表示されるが、`allowedTools`
   による制限はツール使用時に適用される（初期化時ではない）
-- Climpt エージェントは `filterAllowedTools()`
-  による追加のステップ種別フィルタを 適用する — boundary ツール（例:
-  `githubIssueClose`）は work/verification ステップで自動的に除外される
+- Climpt エージェントは `isBashCommandAllowed()`
+  による追加のステップ種別フィルタを 適用する — GitHub 書き込み系の `gh`
+  サブコマンド（例: `gh issue edit`, `gh pr merge`, `gh release create`,
+  `gh api`）は全ステップで bash パターンブロックされる。BoundaryHook
+  が単一の書き込み経路
 - ツール制限を構造的に保証するには、`permissionMode` だけに頼らず `allowedTools`
   を明示的に定義すること
 

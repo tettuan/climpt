@@ -13,55 +13,74 @@ import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import type { StepKind } from "./step-registry.ts";
 
 /**
- * Boundary tools that can only be used in Closure steps.
- *
- * These tools perform actions that affect external state (GitHub issues, PRs, etc.)
- * and should only be executed when the workflow has confirmed completion.
- */
-export const BOUNDARY_TOOLS = [
-  // GitHub issue operations
-  "githubIssueClose",
-  "githubIssueUpdate",
-  "githubIssueComment",
-  // GitHub PR operations
-  "githubPrClose",
-  "githubPrMerge",
-  "githubPrUpdate",
-  // GitHub release operations
-  "githubReleaseCreate",
-  "githubReleasePublish",
-] as const;
-
-/**
  * Bash command patterns that are considered boundary actions.
  *
  * These patterns are checked when Bash tool is used to prevent
  * boundary actions from being executed directly via bash in ANY step kind
- * (including closure steps). The Boundary Hook is the only execution path.
+ * (including closure steps). The Boundary Hook is the single write path.
  *
  * Classification criteria --blocked vs allowed:
- *   Blocked: Termination actions (close, merge, delete) and state mutations
- *            that are irreversible or require structured decision-making.
- *            These MUST go through the Boundary Hook.
- *   Allowed: Workflow continuation actions (e.g. `gh pr create`) and
- *            read-only queries (e.g. `gh issue view`). PR creation is a
- *            non-destructive continuation action handled by the finalize
- *            layer, not a closure/termination action.
+ *   Blocked: All state-mutating write subcommands on GitHub resources that
+ *            are owned by the Boundary Hook / OutboxProcessor / Orchestrator
+ *            host-process layer. Labels, state transitions, and releases
+ *            MUST go through those paths, never direct bash from the agent.
+ *   Allowed: Read-only queries (e.g. `gh issue view`, `gh pr diff`) and
+ *            workflow-continuation creates (e.g. `gh pr create`,
+ *            `gh issue create`). Creates are non-destructive and handled
+ *            by the finalize / outbox layers, not a closure action.
  */
 export const BOUNDARY_BASH_PATTERNS = [
-  // Termination actions --close/delete/merge end a workflow
+  // Issue write subcommands --all forms of edit (label/state/title/body),
+  // close/delete/transfer/reopen/pin/lock end or mutate issue state.
+  /\bgh\s+issue\s+edit\b/,
   /\bgh\s+issue\s+close\b/,
   /\bgh\s+issue\s+delete\b/,
   /\bgh\s+issue\s+transfer\b/,
-  /\bgh\s+issue\s+edit\s+.*--state\s+closed/,
   /\bgh\s+issue\s+reopen\b/,
-  // PR termination/state mutations
+  /\bgh\s+issue\s+pin\b/,
+  /\bgh\s+issue\s+unpin\b/,
+  /\bgh\s+issue\s+lock\b/,
+  /\bgh\s+issue\s+unlock\b/,
+  // PR write subcommands --edit covers label/title/body mutation,
+  // close/merge/ready/review/reopen/lock mutate PR state.
+  /\bgh\s+pr\s+edit\b/,
   /\bgh\s+pr\s+close\b/,
   /\bgh\s+pr\s+merge\b/,
   /\bgh\s+pr\s+ready\b/,
+  /\bgh\s+pr\s+review\b/,
+  /\bgh\s+pr\s+reopen\b/,
+  /\bgh\s+pr\s+lock\b/,
   // Release operations --public-facing and irreversible
   /\bgh\s+release\s+create\b/,
   /\bgh\s+release\s+edit\b/,
+  /\bgh\s+release\s+delete\b/,
+  /\bgh\s+release\s+upload\b/,
+  // Project writes --item add/edit/archive/delete, field mutation,
+  // project edit/delete/close are orchestrator-layer operations.
+  /\bgh\s+project\s+edit\b/,
+  /\bgh\s+project\s+delete\b/,
+  /\bgh\s+project\s+close\b/,
+  /\bgh\s+project\s+copy\b/,
+  /\bgh\s+project\s+field-create\b/,
+  /\bgh\s+project\s+field-delete\b/,
+  /\bgh\s+project\s+item-add\b/,
+  /\bgh\s+project\s+item-archive\b/,
+  /\bgh\s+project\s+item-create\b/,
+  /\bgh\s+project\s+item-delete\b/,
+  /\bgh\s+project\s+item-edit\b/,
+  // Label admin --label taxonomy is repo-level config, not agent scope.
+  /\bgh\s+label\s+create\b/,
+  /\bgh\s+label\s+edit\b/,
+  /\bgh\s+label\s+delete\b/,
+  /\bgh\s+label\s+clone\b/,
+  // Repo writes --creation/deletion/metadata mutation
+  /\bgh\s+repo\s+create\b/,
+  /\bgh\s+repo\s+delete\b/,
+  /\bgh\s+repo\s+edit\b/,
+  /\bgh\s+repo\s+archive\b/,
+  /\bgh\s+repo\s+unarchive\b/,
+  /\bgh\s+repo\s+rename\b/,
+  /\bgh\s+repo\s+fork\b/,
   // GitHub API - block all direct API calls (can bypass other restrictions)
   /\bgh\s+api\b/,
 
@@ -82,8 +101,6 @@ export const BOUNDARY_BASH_PATTERNS = [
   /"state"\s*:\s*"closed"/,
   /'state'\s*:\s*'closed'/,
 ] as const;
-
-export type BoundaryTool = (typeof BOUNDARY_TOOLS)[number];
 
 /**
  * Base tools available to all step kinds.
@@ -122,25 +139,30 @@ export interface ToolSet {
 /**
  * Tool policy mapping for each step kind.
  *
- * - work: Base tools only, boundary actions blocked
- * - verification: Base tools only, boundary actions blocked
- * - closure: All tools including boundary tools
+ * GitHub write operations are enforced exclusively at the bash layer
+ * (BOUNDARY_BASH_PATTERNS). No MCP-level boundary tools exist because
+ * the single write path is the Boundary Hook (closure step structured
+ * output) + OutboxProcessor / Orchestrator in the host process.
+ *
+ * See agents/runner/github-read-tool.ts:8-9:
+ *   "Write operations (edit, close, comment, create) are not exposed.
+ *    Those are handled exclusively by the Boundary Hook."
  */
 export const STEP_KIND_TOOL_POLICY: Record<StepKind, ToolSet> = {
   work: {
     allowed: BASE_TOOLS,
-    denied: BOUNDARY_TOOLS,
+    denied: [],
     blockBoundaryBash: true,
     defaultPermissionMode: "acceptEdits",
   },
   verification: {
     allowed: BASE_TOOLS,
-    denied: BOUNDARY_TOOLS,
+    denied: [],
     blockBoundaryBash: true,
     defaultPermissionMode: "plan",
   },
   closure: {
-    allowed: [...BASE_TOOLS, ...BOUNDARY_TOOLS],
+    allowed: BASE_TOOLS,
     denied: [],
     // Block boundary bash commands even in closure steps.
     // The boundary hook handles GitHub operations based on defaultClosureAction.
@@ -174,12 +196,11 @@ export function isToolAllowed(
   const policy = STEP_KIND_TOOL_POLICY[stepKind];
 
   // Check if explicitly denied
-  if (policy.denied.includes(tool as BoundaryTool)) {
+  if (policy.denied.includes(tool)) {
     return {
       allowed: false,
-      reason:
-        `Tool "${tool}" is a boundary tool and not allowed in ${stepKind} steps. ` +
-        `Boundary actions are handled by the Boundary Hook in closure steps.`,
+      reason: `Tool "${tool}" is not allowed in ${stepKind} steps. ` +
+        `GitHub writes are handled by the Boundary Hook.`,
     };
   }
 
@@ -253,7 +274,7 @@ export function filterAllowedTools(
 
   return configuredTools.filter((tool) => {
     // Remove explicitly denied tools
-    if (policy.denied.includes(tool as BoundaryTool)) {
+    if (policy.denied.includes(tool)) {
       return false;
     }
     return true;
