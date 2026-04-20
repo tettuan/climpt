@@ -1323,6 +1323,255 @@ Deno.test("O1 hook: getProject failure skips injection (§6.3 fallback)", async 
   );
 });
 
+// === O2 Hook: Project Inheritance for Deferred Items ===
+
+Deno.test(
+  "O2 hook: parentProjects passed to deferred emitter when inheritProjectsForCreateIssue=true",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createCloseOnCompleteConfig();
+      config.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: true,
+      };
+      const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+
+      let getIssueProjectsCalls: number[] = [];
+      github.getIssueProjects = (issueNumber: number) => {
+        getIssueProjectsCalls.push(issueNumber);
+        return Promise.resolve([
+          { owner: "org-a", number: 10 },
+          { owner: "org-a", number: 20 },
+        ]);
+      };
+
+      const structuredOutput: Record<string, unknown> = {
+        deferred_items: [
+          { title: "Child issue 1", body: "body 1", labels: ["ready"] },
+        ],
+      };
+      const dispatcher = new StubDispatcher(
+        { iterator: "success", reviewer: "approved" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const store = new SubjectStore(`${tmpDir}/store`);
+      await store.writeIssue({
+        meta: {
+          number: 1,
+          title: "Test",
+          labels: ["ready"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "test",
+        comments: [],
+      });
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      const result = await orchestrator.run(1, {}, store);
+
+      assertEquals(
+        result.issueClosed,
+        true,
+        "Issue must close when reviewer approves. " +
+          "Fix: orchestrator.ts closeOnComplete logic.",
+      );
+      // O2 must query parent projects for issue #1 during the reviewer cycle
+      // (the cycle that triggers closeIntentForDeferred).
+      assertEquals(
+        getIssueProjectsCalls.length > 0,
+        true,
+        "getIssueProjects must be called when inheritProjectsForCreateIssue=true. " +
+          "Fix: orchestrator.ts O2 hook must call getIssueProjects.",
+      );
+      assertEquals(
+        getIssueProjectsCalls[getIssueProjectsCalls.length - 1],
+        1,
+        "getIssueProjects must be called with the subject issue number. " +
+          "Fix: orchestrator.ts O2 hook subjectId argument.",
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "O2 hook: getIssueProjects NOT called when inheritProjectsForCreateIssue=false",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createCloseOnCompleteConfig();
+      config.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+      };
+      const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+
+      let getIssueProjectsCalled = 0;
+      github.getIssueProjects = (_issueNumber: number) => {
+        getIssueProjectsCalled++;
+        return Promise.resolve([]);
+      };
+
+      const structuredOutput: Record<string, unknown> = {
+        deferred_items: [
+          { title: "Child issue", body: "body", labels: ["ready"] },
+        ],
+      };
+      const dispatcher = new StubDispatcher(
+        { iterator: "success", reviewer: "approved" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const store = new SubjectStore(`${tmpDir}/store`);
+      await store.writeIssue({
+        meta: {
+          number: 1,
+          title: "Test",
+          labels: ["ready"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "test",
+        comments: [],
+      });
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      await orchestrator.run(1, {}, store);
+
+      // When projectBinding is present, T6.eval calls getIssueProjects once
+      // during the close transaction. O2 hook must NOT add any extra call.
+      assertEquals(
+        getIssueProjectsCalled,
+        1,
+        "getIssueProjects must be called exactly once (T6.eval only) when " +
+          "inheritProjectsForCreateIssue=false — O2 hook must not add a call. " +
+          "Fix: orchestrator.ts O2 hook config guard.",
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "O2 hook: getIssueProjects failure skips silently and emission continues (§6.3)",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createCloseOnCompleteConfig();
+      config.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: true,
+      };
+      const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+
+      github.getIssueProjects = (_issueNumber: number) => {
+        return Promise.reject(new Error("Simulated GH API transient error"));
+      };
+
+      const structuredOutput: Record<string, unknown> = {
+        deferred_items: [
+          { title: "Child issue", body: "body", labels: ["ready"] },
+        ],
+      };
+      const dispatcher = new StubDispatcher(
+        { iterator: "success", reviewer: "approved" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const store = new SubjectStore(`${tmpDir}/store`);
+      await store.writeIssue({
+        meta: {
+          number: 1,
+          title: "Test",
+          labels: ["ready"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "test",
+        comments: [],
+      });
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      const result = await orchestrator.run(1, {}, store);
+
+      assertEquals(
+        result.issueClosed,
+        true,
+        "Dispatch must complete even when O2 getIssueProjects fails. " +
+          "Fix: orchestrator.ts O2 catch must not re-throw (§6.3 fallback).",
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "O2 hook: no getIssueProjects call when projectBinding is absent",
+  async () => {
+    const tmpDir = await Deno.makeTempDir();
+    try {
+      const config = createCloseOnCompleteConfig();
+      // No projectBinding at all
+      const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
+
+      let getIssueProjectsCalled = 0;
+      github.getIssueProjects = (_issueNumber: number) => {
+        getIssueProjectsCalled++;
+        return Promise.resolve([]);
+      };
+
+      const structuredOutput: Record<string, unknown> = {
+        deferred_items: [
+          { title: "Child issue", body: "body", labels: ["ready"] },
+        ],
+      };
+      const dispatcher = new StubDispatcher(
+        { iterator: "success", reviewer: "approved" },
+        undefined,
+        undefined,
+        structuredOutput,
+      );
+      const store = new SubjectStore(`${tmpDir}/store`);
+      await store.writeIssue({
+        meta: {
+          number: 1,
+          title: "Test",
+          labels: ["ready"],
+          state: "open",
+          assignees: [],
+          milestone: null,
+        },
+        body: "test",
+        comments: [],
+      });
+      const orchestrator = new Orchestrator(config, github, dispatcher);
+
+      await orchestrator.run(1, {}, store);
+
+      assertEquals(
+        getIssueProjectsCalled,
+        0,
+        "getIssueProjects must NOT be called when projectBinding is absent. " +
+          "Fix: orchestrator.ts O2 hook config guard.",
+      );
+    } finally {
+      await Deno.remove(tmpDir, { recursive: true });
+    }
+  },
+);
+
 // === Batch Tests ===
 
 /**

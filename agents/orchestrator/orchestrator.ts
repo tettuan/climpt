@@ -525,11 +525,57 @@ export class Orchestrator {
         deferredEmitter && dispatchResult.structuredOutput &&
         closeIntentForDeferred
       ) {
+        // Hook O2: Project inheritance for deferred child issues (§2.4 / §6.3)
+        // When projectBinding.inheritProjectsForCreateIssue is enabled,
+        // resolve parent project memberships and pass them to the emitter
+        // so child issues inherit the parent's projects.
+        // On failure, skip silently and emit without project context.
+        let parentProjects:
+          | readonly { owner: string; number: number }[]
+          | undefined;
+        if (this.#config.projectBinding?.inheritProjectsForCreateIssue) {
+          try {
+            // deno-lint-ignore no-await-in-loop
+            parentProjects = await this.#github.getIssueProjects(
+              Number(subjectId),
+            );
+            if (parentProjects.length > 0) {
+              // deno-lint-ignore no-await-in-loop
+              await log.info(
+                `O2: Parent projects resolved for #${subjectId}: ${
+                  parentProjects.map((p) => `${p.owner}/${p.number}`).join(
+                    ", ",
+                  )
+                }`,
+                {
+                  event: "o2_parent_projects_resolved",
+                  subjectId,
+                  projects: parentProjects.map((p) => `${p.owner}/${p.number}`),
+                },
+              );
+            }
+          } catch (o2Error) {
+            const o2Msg = o2Error instanceof Error
+              ? o2Error.message
+              : String(o2Error);
+            // deno-lint-ignore no-await-in-loop
+            await log.warn(
+              `O2: Project inheritance skipped for #${subjectId}: ${o2Msg}`,
+              {
+                event: "o2_project_inheritance_skipped",
+                subjectId,
+              },
+            );
+            // Continue emission without parent projects (§6.3).
+          }
+        }
+
         try {
           // deno-lint-ignore no-await-in-loop
           const deferredResult = await deferredEmitter.emit(
             subjectId,
             dispatchResult.structuredOutput,
+            parentProjects,
           );
           deferredEmittedKeys = deferredResult.emittedKeys;
           deferredEmittedPaths = deferredResult.paths;
