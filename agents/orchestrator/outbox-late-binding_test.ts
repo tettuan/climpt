@@ -584,7 +584,7 @@ Deno.test("add-to-project: project ref by id", async () => {
   }
 });
 
-Deno.test("update-project-item-field action validation", async () => {
+Deno.test("update-project-item-field action dispatches with correct arguments", async () => {
   const { store, tmp } = await setupStore(302);
   try {
     await writeAction(store, 302, "001-update.json", {
@@ -602,6 +602,20 @@ Deno.test("update-project-item-field action validation", async () => {
     assertEquals(results.length, 1);
     assertEquals(results[0].success, true);
     assertEquals(results[0].action, "update-project-item-field");
+
+    // Verify dispatch routing: correct method with correct arguments
+    const call = github.calls.find(
+      (c) => c.method === "updateProjectItemField",
+    );
+    assertEquals(
+      call !== undefined,
+      true,
+      "updateProjectItemField should be called",
+    );
+    assertEquals(call!.args[0], { owner: "org", number: 1 });
+    assertEquals(call!.args[1], "PVTI_1");
+    assertEquals(call!.args[2], "FLD_1");
+    assertEquals(call!.args[3], "In Progress");
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
@@ -624,6 +638,152 @@ Deno.test("close-project action execution", async () => {
 
     const call = github.calls.find((c) => c.method === "closeProject");
     assertEquals(call!.args[0], { owner: "org", number: 3 });
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ===========================================================================
+// Validation error paths for new action types (issue #506)
+// ===========================================================================
+
+Deno.test("update-project-item-field validation: requires project", async () => {
+  const { store, tmp } = await setupStore(310);
+  try {
+    await writeAction(store, 310, "001-update.json", {
+      action: "update-project-item-field",
+      // project intentionally missing
+      itemId: "PVTI_1",
+      fieldId: "FLD_1",
+      value: "Done",
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(310);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(results[0].error!.includes("project"), true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("update-project-item-field validation: requires itemId", async () => {
+  const { store, tmp } = await setupStore(311);
+  try {
+    await writeAction(store, 311, "001-update.json", {
+      action: "update-project-item-field",
+      project: { owner: "org", number: 1 },
+      // itemId intentionally missing
+      fieldId: "FLD_1",
+      value: "Done",
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(311);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(
+      results[0].error,
+      "update-project-item-field action requires 'itemId' string",
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("update-project-item-field validation: requires fieldId", async () => {
+  const { store, tmp } = await setupStore(312);
+  try {
+    await writeAction(store, 312, "001-update.json", {
+      action: "update-project-item-field",
+      project: { owner: "org", number: 1 },
+      itemId: "PVTI_1",
+      // fieldId intentionally missing
+      value: "Done",
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(312);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(
+      results[0].error,
+      "update-project-item-field action requires 'fieldId' string",
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("update-project-item-field validation: requires value", async () => {
+  const { store, tmp } = await setupStore(313);
+  try {
+    await writeAction(store, 313, "001-update.json", {
+      action: "update-project-item-field",
+      project: { owner: "org", number: 1 },
+      itemId: "PVTI_1",
+      fieldId: "FLD_1",
+      // value intentionally missing
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(313);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(
+      results[0].error,
+      "update-project-item-field action requires 'value'",
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("close-project validation: requires project", async () => {
+  const { store, tmp } = await setupStore(314);
+  try {
+    await writeAction(store, 314, "001-close.json", {
+      action: "close-project",
+      // project intentionally missing
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(314);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(results[0].error!.includes("project"), true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("remove-from-project validation: requires project", async () => {
+  const { store, tmp } = await setupStore(315);
+  try {
+    await writeAction(store, 315, "001-remove.json", {
+      action: "remove-from-project",
+      // project intentionally missing
+      itemId: "PVTI_123",
+    });
+
+    const github = new SpyGitHubClient();
+    const processor = new OutboxProcessor(github, store);
+    const results = await processor.process(315);
+
+    assertEquals(results.length, 1);
+    assertEquals(results[0].success, false);
+    assertEquals(results[0].error!.includes("project"), true);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
