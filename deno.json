@@ -75,6 +75,8 @@
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
     "orchestrator": "deno run --allow-all agents/scripts/run-workflow.ts",
     "agent": "deno run --allow-all agents/scripts/run-agent.ts",
+    "project:list": "deno run --allow-all agents/scripts/project-list.ts",
+    "project:items": "deno run --allow-all agents/scripts/project-items.ts",
     "project:init": "deno run --allow-all agents/scripts/project-init.ts",
     "labels:sync": "deno run --allow-all agents/scripts/sync-labels.ts",
     "iterate-agent": "deno run --allow-all agents/scripts/run-agent.ts --agent iterator",
