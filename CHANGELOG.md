@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.27] - 2026-04-20
+
+### Fixed
+- Bump `@tettuan/breakdownconfig` `^1.2.4` → `^1.2.6`, which removes
+  the absolute-path allowlist that rejected realpath-resolved
+  `/private/tmp/...` baseDirs on macOS and user-home `baseDir`
+  entries; traversal (`..`) remains rejected (#517)
+- Bump `BREAKDOWN_VERSION` 1.8.7 → 1.8.9 to pick up the refreshed
+  `breakdownconfig` transitive packaging
+
 ## [1.13.26] - 2026-04-18
 
 ### Added
