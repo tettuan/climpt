@@ -299,15 +299,92 @@ v1.14.x の新機能は **user が explicit に on にしかつ issue を projec
 | Project 完了判断 / close            | **user `.agent/<name>/`** (outbox `close-project`)             |
 | Release PR 作成                     | **user** (manual, `/release-procedure`)                        |
 
-## 6. Open items for Level 3
+## 6. Level 3: Open design decisions
 
-Level 2 契約が確定したら、Level 3 (Flow/Process) で以下を詳細化:
+旧 item 1 (OutboxProcessor inter-action state) は §2.3 late-binding contract
+(L119-134) で定義済み、#487 で実装済み。以下 4 項目が残る未解決事項であり、
+各項目に chosen default / rationale / implementation note を記載する。
 
-1. OutboxProcessor inter-action state の具体的 protocol (late-bind の実装形)
-2. `listUserProjects` / `getProject` の cache / rate-limit policy
-3. `gh project` CLI の sandbox allow-list 更新範囲
-4. `getIssueProjects` 失敗時の dispatch fallback (skip injection vs block cycle)
-5. 複数 owner scope (組織と個人 project の混在) の扱い
+### 6.1 Cache / rate-limit
+
+**Default**: Process-lifetime `Map<string, {data, expiry}>` cache、TTL 30 秒。
+
+**Rationale**: GitHub GraphQL API は 5,000 points/hour。典型的な dispatch cycle
+(issue 10-20 件) では数十 calls — ceiling の 1% 未満。O1 (goal injection) が
+実装されても数百 calls/cycle で上限には到達しない。TTL 30 秒は単一 dispatch
+cycle (秒〜低分) 内の重複呼び出しを排除し、cycle 間は `countdownDelay`
+またはプロセス 再起動で自然に expire する。明示的 invalidation 不要。P1
+(Stateless) との整合: 永続化しない in-memory cache は stateless 原則を破らない。
+
+**Implementation note**: `GhCliClient` 内に
+`#cache: Map<string, {data: unknown,
+expiry: number}>` を追加。各 read メソッド
+(`listUserProjects`, `getProject`, `getIssueProjects`, `listProjectItems`,
+`getProjectFields`, `getProjectItemIdForIssue`) の先頭で `#cacheGet(key)` → hit
+なら return、miss なら fetch + `#cacheSet(key, data, ttlMs=30_000)`。
+
+### 6.2 Sandbox allow-list
+
+**Default**: 変更不要。
+
+**Rationale**: `gh project *` コマンドは orchestrator (host process) の
+`Deno.Command()` で実行される。Agent SDK sandbox は agent 内部の Bash tool
+実行に のみ適用される。orchestrator は agent の外側で動くため sandbox boundary
+の外にいる。 `sandbox-defaults.ts:25-28` のコメントが設計を明示: "System paths
+(Boundary Hook, worktree, orchestrator) use Deno.Command outside the sandbox and
+are not affected." agent 側から直接 `gh project` を実行する use case は §5
+Boundary summary で排除されている (project 操作は climpt framework の責務)。
+
+**Implementation note**: 実装不要。現行の `sandbox-defaults.ts` を維持。
+
+### 6.3 `getIssueProjects` failure fallback
+
+**Default**: Skip silently (warn log + continue dispatch)。
+
+**Rationale**: Goal injection (O1) は supplementary context であり agent
+の必須入力 ではない — `{{project_goals}}` が空でも agent は label-based workflow
+で正常に動作 する。P1 (Stateless) により cached fallback data は持たない — block
+か skip の 二択。dispatch cycle を block すると全 issue
+の進行が停止し、transient error で 全停止は不均衡。warning log で operator
+が検知可能、次の dispatch cycle で自然に リトライされる。
+
+**Implementation note**: `orchestrator.ts` の O1 hook
+実装時に以下のパターンで実装:
+
+```typescript
+try {
+  const projects = await this.#github.getIssueProjects(owner, issueNumber);
+  // inject {{project_goals}} etc.
+} catch (err) {
+  await log.warn(
+    `Project goal injection skipped for #${issueNumber}: ${err.message}`,
+    {
+      event: "project_injection_skipped",
+      subjectId: issueNumber,
+      error: err.message,
+    },
+  );
+  // continue dispatch without project context
+}
+```
+
+T6.eval (`orchestrator.ts:843`) の completion check も同様: skip +
+warn。sentinel 評価は次の close event で再試行される。
+
+### 6.4 Multi-owner scope
+
+**Default**: 暗黙のデフォルト owner を持たない (常に明示指定)。
+
+**Rationale**: GH Projects v2 の `number` は owner-scoped — `tettuan/1` と
+`my-org/1` は別 project。`ProjectRef { owner, number }` は owner-scoped number
+で 十分に disambiguate する。`getIssueProjects` が `{ owner, number }`
+を返すため、 O2 inheritance 時に owner 情報が自然に伝播する。暗黙の owner
+(GitHub user endpoint から推定) は組織 project
+を見落とすリスクがある。`listUserProjects` は CLI utility (探索用) であり
+dispatch 本流には使われない。
+
+**Implementation note**: 実装不要。現行の `ProjectRef { owner, number }` 型と
+`listUserProjects(owner: string)` の明示 owner 引数を維持。
 
 ## 7. 関連
 
