@@ -149,6 +149,31 @@ const hooks = {
 };
 ```
 
+## OutboxAction 拡張 (v1.14.x)
+
+v1.14.x で Project Orchestration を導入するにあたり、OutboxAction union に 4
+種の project 操作が追加された。
+
+| action                      | 用途                                     |
+| --------------------------- | ---------------------------------------- |
+| `add-to-project`            | Issue を project に追加 (late-bind 対応) |
+| `remove-from-project`       | Project item の削除                      |
+| `update-project-item-field` | Project item の field 値更新             |
+| `close-project`             | Project の close                         |
+
+既存 4 種 (`comment`, `create-issue`, `update-labels`, `close-issue`) は不変。
+契約の詳細 (late-binding、DeferredItemsEmitter との連携) は
+[§13 Project Orchestration](13_project_orchestration.md) §2.3 を参照。
+
+## IssueCriteria 拡張 (v1.14.x)
+
+`IssueCriteria` に `project?: ProjectRef` field が追加され、project-scoped な
+issue dispatch が可能になった。CLI では `--project <owner>/<number>`
+で指定する。 未指定時は従来の label/state filter のみで動作する (BC 維持)。
+
+契約の詳細は [§13 Project Orchestration](13_project_orchestration.md) §2.6
+を参照。
+
 ## 拡張しないもの
 
 以下は Agent の責務外。外部で対応する。

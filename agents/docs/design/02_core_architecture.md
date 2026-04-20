@@ -249,6 +249,17 @@ Step B receives uv-s_a.finding
 - 並列化や複数タスクの配分は外部オーケストレータの責務であり、Agent 内では
   一切扱わない。
 
+## Stateless 原則と Project membership (v1.14.x)
+
+v1.14.x で導入された Project Orchestration においても、Stateless
+原則は維持される。 Issue と同様に、Project membership (所属
+project、goal/readme) はローカルに永続化 せず、全て GH への live query
+で取得する。in-memory cache (TTL 30 秒) は使用するが、
+プロセス終了で消滅するため永続状態には含まれない。
+
+契約の詳細は [§13 Project Orchestration](13_project_orchestration.md) §1 (P1
+Stateless) および §2.1 を参照。
+
 ## 命名規則（Verdict / Validation / Closure）
 
 ### Why

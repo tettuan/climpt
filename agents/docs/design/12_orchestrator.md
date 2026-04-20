@@ -150,6 +150,23 @@ deno task orchestrator --label docs --state open
 6. BatchResult 出力
 ```
 
+### Project Orchestration Hooks (v1.14.x)
+
+Orchestrator の dispatch サイクルに 2 つの hook が追加された。いずれも
+`workflow.json.projectBinding` が有効かつ issue が project に所属する場合のみ
+起動する。契約の詳細は [§13 Project Orchestration](13_project_orchestration.md)
+§2.4 を参照。
+
+| Hook | タイミング                        | 責務                                                       |
+| ---- | --------------------------------- | ---------------------------------------------------------- |
+| O1   | Agent dispatch 前                 | Issue 所属 project の goal (readme) を agent prompt に注入 |
+| O2   | `deferred_items` の outbox 変換時 | Parent issue の project membership を子 issue に継承       |
+
+- **O1** は `getIssueProjects` 失敗時に dispatch を block せず skip する
+  (supplementary context のため)。
+- **O2** は `DeferredItem.projects` field の三形態 (不在=継承 / `[]=`opt-out /
+  明示指定) で制御される。
+
 ### Status 判定ロジック
 
 **per-issue status** (`OrchestratorResult.status`):
