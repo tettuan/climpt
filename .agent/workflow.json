@@ -22,6 +22,16 @@
       "priority": 4,
       "agent": "clarifier"
     },
+    "plan-pending": {
+      "type": "actionable",
+      "priority": 5,
+      "agent": "project-planner"
+    },
+    "eval-pending": {
+      "type": "actionable",
+      "priority": 6,
+      "agent": "project-evaluator"
+    },
     "done": {
       "type": "terminal"
     }
@@ -31,7 +41,9 @@
     "kind:detail": "detail-pending",
     "kind:consider": "consider-pending",
     "done": "done",
-    "need clearance": "blocked"
+    "need clearance": "blocked",
+    "kind:plan": "plan-pending",
+    "kind:eval": "eval-pending"
   },
   "labels": {
     "kind:impl": {
@@ -89,6 +101,18 @@
     "order:9": {
       "color": "c2e0c6",
       "description": "Work order seq 9"
+    },
+    "kind:plan": {
+      "color": "c5def5",
+      "description": "Planning request (project-planner)"
+    },
+    "kind:eval": {
+      "color": "d4c5f9",
+      "description": "Evaluation request (project-evaluator)"
+    },
+    "project-sentinel": {
+      "color": "e6e6e6",
+      "description": "Sentinel issue for project lifecycle (planner/evaluator)"
     }
   },
   "agents": {
@@ -129,6 +153,20 @@
       },
       "fallbackPhase": "consider-pending",
       "closeOnComplete": false
+    },
+    "project-planner": {
+      "role": "transformer",
+      "directory": "project-planner",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeOnComplete": false
+    },
+    "project-evaluator": {
+      "role": "transformer",
+      "directory": "project-evaluator",
+      "outputPhase": "done",
+      "fallbackPhase": "blocked",
+      "closeOnComplete": true
     }
   },
   "handoff": {
