@@ -113,6 +113,41 @@ Each entry must be self-contained: `title` is a real task, `body` restates the
 concrete scope, `labels` picks `kind:impl` or `kind:consider` (the triager
 assigns `order:N` — do not set it here).
 
+### `projects` field semantics
+
+Each `deferred_items` entry has an optional `projects` field that controls which
+GitHub Projects the new issue is added to. Three forms are valid:
+
+1. **Absent** (field omitted) — inherit the parent issue's project memberships.
+   When `workflow.json.projectBinding.inheritProjectsForCreateIssue` is enabled,
+   the orchestrator copies all of the parent issue's project bindings to the new
+   issue automatically. This is the default behavior.
+
+   ```json
+   { "title": "...", "body": "...", "labels": ["kind:impl"] }
+   ```
+
+2. **Empty array** (`[]`) — explicit opt-out. The new issue is not added to any
+   project, even if the parent belongs to one or more projects.
+
+   ```json
+   { "title": "...", "body": "...", "labels": ["kind:impl"], "projects": [] }
+   ```
+
+3. **Non-empty array** — explicit list of project references. The new issue is
+   added to exactly these projects; the parent's memberships are ignored.
+
+   ```json
+   {
+     "title": "...", "body": "...", "labels": ["kind:impl"],
+     "projects": [{ "owner": "tettuan", "number": 3 }]
+   }
+   ```
+
+Use form 1 (omit) in most cases. Use form 2 when the follow-up task is
+cross-cutting or intentionally project-unaffiliated. Use form 3 only when the
+new issue belongs to a different project than its parent.
+
 The maximum number of deferred items per response is **10**. If you identify
 more than 10 follow-up tasks, reconsider whether the parent issue scope is too
 broad — split at a higher abstraction level rather than emitting fine-grained

@@ -83,6 +83,30 @@
               "type": "array",
               "items": { "type": "string" },
               "description": "Labels applied to the new issue. Usually 'kind:impl' or 'kind:consider'. Omit 'order:N' — the triager assigns it."
+            },
+            "projects": {
+              "type": "array",
+              "description": "Project bindings for the new issue. Absent = inherit parent's projects (when inheritProjectsForCreateIssue is on). Empty array = explicit opt-out (no inheritance). Non-empty array = use this explicit list, parent ignored.",
+              "items": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "required": ["owner", "number"],
+                    "properties": {
+                      "owner": { "type": "string", "minLength": 1 },
+                      "number": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "required": ["id"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
             }
           }
         }
