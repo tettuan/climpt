@@ -1,0 +1,20 @@
+{
+  "projects": [
+    {
+      "id": "PVT_kwDOABC123",
+      "number": 1,
+      "title": "v1.14.0 Roadmap",
+      "shortDescription": "Feature tracking",
+      "readme": "Project readme content",
+      "closed": false
+    },
+    {
+      "id": "PVT_kwDOABC456",
+      "number": 2,
+      "title": "Backlog",
+      "shortDescription": null,
+      "readme": "",
+      "closed": true
+    }
+  ]
+}
