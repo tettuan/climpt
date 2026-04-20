@@ -346,3 +346,320 @@ Deno.test("schema rejects deferred_items with 11 items (maxItems exceeded)", asy
     }. Fix: schema diagnostic quality.`,
   );
 });
+
+// =============================================================================
+// P1 — Projects field three-form semantics (issue #509).
+// Source of truth: considerer.schema.json deferred_items.items.properties.projects
+//
+// Three valid forms:
+//   1. Absent  → inherit parent's projects (default)
+//   2. []      → explicit opt-out
+//   3. [{…}]   → explicit list (owner/number OR id)
+// =============================================================================
+
+Deno.test("schema accepts deferred_item with projects absent (inherit form)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "Inherit task",
+        body: "inherits parent projects",
+        labels: ["kind:impl"],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    true,
+    `Projects-absent item rejected: ${JSON.stringify(validate.errors)}. ` +
+      `Fix: projects must be optional in deferred_items item schema.`,
+  );
+});
+
+Deno.test("schema accepts deferred_item with projects empty array (opt-out form)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "Opt-out task",
+        body: "no project binding",
+        labels: ["kind:impl"],
+        projects: [],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    true,
+    `Projects-empty-array item rejected: ${JSON.stringify(validate.errors)}. ` +
+      `Fix: empty array must be a valid projects value (opt-out semantics).`,
+  );
+});
+
+Deno.test("schema accepts deferred_item with projects owner/number (explicit form)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "Explicit task",
+        body: "bound to specific project",
+        labels: ["kind:impl"],
+        projects: [{ owner: "tettuan", number: 3 }],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    true,
+    `Projects with {owner,number} rejected: ${
+      JSON.stringify(validate.errors)
+    }. ` +
+      `Fix: oneOf must include the {owner,number} variant.`,
+  );
+});
+
+Deno.test("schema accepts deferred_item with projects id (explicit form)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "ID-ref task",
+        body: "bound by project node ID",
+        labels: ["kind:consider"],
+        projects: [{ id: "PVT_kwHOAxxxxxxx" }],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    true,
+    `Projects with {id} rejected: ${JSON.stringify(validate.errors)}. ` +
+      `Fix: oneOf must include the {id} variant.`,
+  );
+});
+
+Deno.test("schema accepts deferred_item with mixed project refs in one array", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "Mixed refs task",
+        body: "both ref forms in one array",
+        labels: ["kind:impl"],
+        projects: [
+          { owner: "tettuan", number: 5 },
+          { id: "PVT_kwHOBxxxxxxx" },
+        ],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    true,
+    `Mixed project refs rejected: ${JSON.stringify(validate.errors)}. ` +
+      `Fix: projects.items.oneOf must allow both variants coexisting in the array.`,
+  );
+});
+
+// =============================================================================
+// P2 — Projects field rejection: invalid shapes (issue #509).
+// =============================================================================
+
+Deno.test("schema rejects projects as string (type=array enforced)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      { title: "t", body: "b", labels: [], projects: "PVT_invalid" },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "projects as string must be rejected. Fix: projects.type must be 'array'.",
+  );
+  const paths = (validate.errors ?? []).map((e) => e.instancePath);
+  assert(
+    paths.some((p) => p.includes("/deferred_items/0/projects")),
+    `Expected an error pointing to /deferred_items/0/projects, got: ${
+      paths.join(", ")
+    }. Fix: schema diagnostic quality.`,
+  );
+});
+
+Deno.test("schema rejects projects as number (type=array enforced)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      { title: "t", body: "b", labels: [], projects: 42 },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "projects as number must be rejected. Fix: projects.type must be 'array'.",
+  );
+});
+
+Deno.test("schema rejects projects item with empty owner (minLength enforced)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "t",
+        body: "b",
+        labels: [],
+        projects: [{ owner: "", number: 1 }],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "Empty owner must be rejected. Fix: owner.minLength must be 1.",
+  );
+});
+
+Deno.test("schema rejects projects item with zero number (minimum enforced)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      {
+        title: "t",
+        body: "b",
+        labels: [],
+        projects: [{ owner: "x", number: 0 }],
+      },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "number=0 must be rejected. Fix: number.minimum must be 1.",
+  );
+});
+
+Deno.test("schema rejects projects item with empty id (minLength enforced)", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      { title: "t", body: "b", labels: [], projects: [{ id: "" }] },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "Empty id must be rejected. Fix: id.minLength must be 1.",
+  );
+});
+
+Deno.test("schema rejects projects item matching neither oneOf variant", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+  const ok = validate({
+    ...baseInstance(),
+    deferred_items: [
+      { title: "t", body: "b", labels: [], projects: [{ unknown: "field" }] },
+    ],
+  });
+  assertEquals(
+    ok,
+    false,
+    "Project item with unknown shape must be rejected by oneOf. " +
+      "Fix: projects.items.oneOf must require {owner,number} or {id}.",
+  );
+});
+
+// =============================================================================
+// P3 — Prompt fixture: full considerer output with all three projects forms
+// validates against schema (issue #509 AC bullet 2).
+// =============================================================================
+
+Deno.test("prompt fixture with all three projects forms validates against schema", async () => {
+  const schema = await loadCloseConsiderSchema();
+  const validate = compileValidator(schema);
+
+  // Fixture: a considerer output that carves off three follow-up tasks, each
+  // using a different projects form (absent, empty, explicit).
+  const fixture = {
+    stepId: "consider",
+    status: "completed",
+    summary: "Answered: three-form projects fixture",
+    next_action: { action: "closing" },
+    verdict: "done",
+    deferred_items: [
+      // Form 1: absent — inherits parent projects
+      {
+        title: "Inherit parent projects",
+        body: "Uses default inheritance",
+        labels: ["kind:impl"],
+      },
+      // Form 2: empty array — opt-out
+      {
+        title: "No project binding",
+        body: "Explicitly opts out",
+        labels: ["kind:consider"],
+        projects: [],
+      },
+      // Form 3: explicit list with both ref variants
+      {
+        title: "Explicit project binding",
+        body: "Bound to specific projects",
+        labels: ["kind:impl"],
+        projects: [
+          { owner: "tettuan", number: 3 },
+          { id: "PVT_kwHOCxxxxxxx" },
+        ],
+      },
+    ],
+  };
+
+  const ok = validate(fixture);
+  assertEquals(
+    ok,
+    true,
+    `Prompt fixture with all three projects forms rejected: ${
+      JSON.stringify(validate.errors)
+    }. Fix: schema must accept absent, empty, and explicit projects forms coexisting.`,
+  );
+
+  // Non-vacuity: verify the fixture actually has all three forms
+  const items = fixture.deferred_items;
+  assertEquals(
+    items.length,
+    3,
+    "Fixture must contain exactly 3 items (one per form).",
+  );
+  assert(
+    !("projects" in items[0]),
+    "First item must have projects absent (inherit form).",
+  );
+  assertEquals(
+    (items[1].projects as unknown[]).length,
+    0,
+    "Second item must have empty projects array (opt-out form).",
+  );
+  assert(
+    (items[2].projects as unknown[]).length > 0,
+    "Third item must have non-empty projects array (explicit form).",
+  );
+});
