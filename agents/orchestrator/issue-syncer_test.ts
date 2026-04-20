@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert";
 import { IssueSyncer } from "./issue-syncer.ts";
 import { SubjectStore } from "./subject-store.ts";
+import { Queue } from "./queue.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -10,6 +11,7 @@ import type {
   ProjectField,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
+import type { WorkflowConfig } from "./workflow-types.ts";
 
 /** Stub GitHub client with configurable return values. */
 class StubGitHubClient implements GitHubClient {
@@ -18,6 +20,7 @@ class StubGitHubClient implements GitHubClient {
   #projectItems: { id: string; issueNumber: number }[] = [];
   labelUpdates: { number: number; remove: string[]; add: string[] }[] = [];
   listIssuesCalls: IssueCriteria[] = [];
+  listProjectItemsCalls: ProjectRef[] = [];
   commentCalls: { number: number; comment: string }[] = [];
 
   constructor(
@@ -137,8 +140,9 @@ class StubGitHubClient implements GitHubClient {
     this.#projectItems = items;
   }
   listProjectItems(
-    _project: ProjectRef,
+    project: ProjectRef,
   ): Promise<{ id: string; issueNumber: number }[]> {
+    this.listProjectItemsCalls.push(project);
     return Promise.resolve(this.#projectItems);
   }
   createProjectFieldOption(
@@ -175,12 +179,12 @@ class StubGitHubClient implements GitHubClient {
   }
 }
 
-function makeDetail(num: number): IssueDetail {
+function makeDetail(num: number, labels = ["bug"]): IssueDetail {
   return {
     number: num,
     title: `Issue ${num}`,
     body: `Body of issue ${num}`,
-    labels: ["bug"],
+    labels,
     state: "open",
     assignees: ["alice"],
     milestone: null,
@@ -188,11 +192,11 @@ function makeDetail(num: number): IssueDetail {
   };
 }
 
-function makeListItem(num: number): IssueListItem {
+function makeListItem(num: number, labels = ["bug"]): IssueListItem {
   return {
     number: num,
     title: `Issue ${num}`,
-    labels: ["bug"],
+    labels,
     state: "open",
   };
 }
@@ -200,10 +204,21 @@ function makeListItem(num: number): IssueListItem {
 function makeStub(
   nums: number[],
 ): StubGitHubClient {
-  const items = nums.map(makeListItem);
+  const items = nums.map((n) => makeListItem(n));
   const details = new Map<number, IssueDetail>();
   for (const num of nums) {
     details.set(num, makeDetail(num));
+  }
+  return new StubGitHubClient(items, details);
+}
+
+function makeStubWithLabels(
+  entries: { num: number; labels: string[] }[],
+): StubGitHubClient {
+  const items = entries.map((e) => makeListItem(e.num, e.labels));
+  const details = new Map<number, IssueDetail>();
+  for (const e of entries) {
+    details.set(e.num, makeDetail(e.num, e.labels));
   }
   return new StubGitHubClient(items, details);
 }
@@ -380,6 +395,152 @@ Deno.test("sync with project and no matching issues returns empty", async () => 
     });
 
     assertEquals(result, []);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync with project calls listProjectItems exactly once", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20, 30]);
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const projectRef = { owner: "org", number: 5 };
+    await syncer.sync({ project: projectRef });
+
+    assertEquals(github.listProjectItemsCalls.length, 1);
+    assertEquals(github.listProjectItemsCalls[0], projectRef);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync without project does not call listProjectItems", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    await syncer.sync({});
+
+    assertEquals(github.listProjectItemsCalls.length, 0);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync with project and labels applies both filters (intersection)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    // listIssues returns items matching label criteria
+    const github = makeStub([10, 20, 30]);
+    // Project only contains issues 10 and 30
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const criteria: IssueCriteria = {
+      labels: ["kind:impl"],
+      state: "open",
+      limit: 50,
+      project: { owner: "org", number: 5 },
+    };
+    const result = await syncer.sync(criteria);
+
+    // Label/state/limit criteria passed to listIssues
+    assertEquals(github.listIssuesCalls.length, 1);
+    assertEquals(github.listIssuesCalls[0], criteria);
+
+    // Project intersection further filtered: only 10 and 30 are members
+    assertEquals(result, [10, 30]);
+
+    // Issue 20 is not stored (excluded by project filter)
+    let notFound = false;
+    try {
+      await store.readMeta(20);
+    } catch {
+      notFound = true;
+    }
+    assertEquals(notFound, true);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Prioritizer orders within project-filtered set
+// ---------------------------------------------------------------------------
+
+Deno.test("queue orders project-filtered issues by priority; non-members never surface", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    // 4 issues: 10 (P3), 20 (P1), 30 (P2), 40 (P1)
+    // All have "ready" label for phase resolution
+    const github = makeStubWithLabels([
+      { num: 10, labels: ["ready", "P3"] },
+      { num: 20, labels: ["ready", "P1"] },
+      { num: 30, labels: ["ready", "P2"] },
+      { num: 40, labels: ["ready", "P1"] },
+    ]);
+    // Project only contains 10, 30, 40 — issue 20 is NOT a member
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+      { id: "PVTI_40", issueNumber: 40 },
+    ]);
+
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    // Sync with project filter
+    const synced = await syncer.sync({
+      project: { owner: "org", number: 5 },
+    });
+    // Issue 20 excluded by project filter
+    assertEquals(synced, [10, 30, 40]);
+
+    // Build queue from synced issues
+    const workflowConfig: WorkflowConfig = {
+      version: "1",
+      phases: {
+        ready: { type: "actionable", priority: 1, agent: "writer" },
+      },
+      labelMapping: { ready: "ready" },
+      agents: {
+        writer: { role: "transformer", outputPhase: "done" },
+      },
+      rules: { maxCycles: 5, cycleDelayMs: 0 },
+    };
+
+    const queue = new Queue(workflowConfig, store, {
+      labels: ["P1", "P2", "P3"],
+    });
+    const items = await queue.buildQueue(synced);
+
+    // 3 items (issue 20 never surfaces)
+    assertEquals(items.length, 3);
+
+    // Ordered by priority: P1 first, then P2, then P3
+    assertEquals(items[0].subjectId, 40);
+    assertEquals(items[0].priority, "P1");
+    assertEquals(items[1].subjectId, 30);
+    assertEquals(items[1].priority, "P2");
+    assertEquals(items[2].subjectId, 10);
+    assertEquals(items[2].priority, "P3");
+
+    // Issue 20 (non-member) is not in the queue
+    const queuedIds = items.map((item) => item.subjectId);
+    assertEquals(queuedIds.includes(20), false);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }
