@@ -116,6 +116,7 @@ export function composeRunnerArgs(
 ): Record<string, unknown> {
   const runnerArgs: Record<string, unknown> = {
     ...(options?.payload ?? {}),
+    ...(options?.promptContext ?? {}),
     issue: subjectId,
   };
   if (options?.iterateMax !== undefined) {
@@ -149,6 +150,14 @@ export interface DispatchOptions {
    * values independently of the agent's declared parameters.
    */
   readonly payload?: SubjectPayload;
+  /**
+   * Additional key-value pairs injected into the runner's UV variable
+   * namespace.  Used by Hook O1 to pass project context template
+   * variables (`project_goals`, `project_titles`, etc.) to the agent
+   * prompt.  Keys are merged after `payload` and before fixed
+   * orchestration keys, so fixed keys always win on collision.
+   */
+  readonly promptContext?: Readonly<Record<string, string>>;
 }
 
 /** Result of a single agent dispatch. */

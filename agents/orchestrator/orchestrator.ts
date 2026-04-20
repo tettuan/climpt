@@ -354,24 +354,37 @@ export class Orchestrator {
 
       // Hook O1: Project context injection (§2.4 / §6.3)
       // When projectBinding.injectGoalIntoPromptContext is enabled,
-      // resolve project memberships for goal injection. On failure,
-      // skip silently and dispatch without project context.
+      // resolve project memberships and inject template variables into
+      // dispatch prompt context.  On failure, skip silently and
+      // dispatch without project context.
+      let promptContext: Record<string, string> | undefined;
       if (this.#config.projectBinding?.injectGoalIntoPromptContext) {
         try {
           // deno-lint-ignore no-await-in-loop
-          const projects = await this.#github.getIssueProjects(
+          const projectRefs = await this.#github.getIssueProjects(
             Number(subjectId),
           );
-          if (projects.length > 0) {
+          if (projectRefs.length > 0) {
+            // Resolve full Project details for each membership.
+            // deno-lint-ignore no-await-in-loop
+            const details = await Promise.all(
+              projectRefs.map((ref) => this.#github.getProject(ref)),
+            );
+            promptContext = {
+              project_goals: JSON.stringify(details.map((p) => p.readme)),
+              project_titles: JSON.stringify(details.map((p) => p.title)),
+              project_numbers: JSON.stringify(details.map((p) => p.number)),
+              project_ids: JSON.stringify(details.map((p) => p.id)),
+            };
             // deno-lint-ignore no-await-in-loop
             await log.info(
-              `Project context found for #${subjectId}: ${
-                projects.map((p) => `${p.owner}/${p.number}`).join(", ")
+              `Project context injected for #${subjectId}: ${
+                projectRefs.map((p) => `${p.owner}/${p.number}`).join(", ")
               }`,
               {
-                event: "project_context_resolved",
+                event: "project_context_injected",
                 subjectId,
-                projects: projects.map((p) => `${p.owner}/${p.number}`),
+                projects: projectRefs.map((p) => `${p.owner}/${p.number}`),
               },
             );
           }
@@ -415,6 +428,7 @@ export class Orchestrator {
           issueStorePath: store?.storePath,
           outboxPath: store?.getOutboxPath(subjectId),
           payload,
+          promptContext,
         },
       );
 
