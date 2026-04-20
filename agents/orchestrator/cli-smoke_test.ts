@@ -43,6 +43,19 @@ Deno.test("cli: no args runs without error (batch mode, no --issue required)", a
   }
 });
 
+Deno.test("cli: --help shows --project option", async () => {
+  const cmd = new Deno.Command("deno", {
+    args: ["run", "--allow-all", RUN_WORKFLOW, "--help"],
+    stdout: "piped",
+    stderr: "piped",
+  });
+  const output = await cmd.output();
+  const stdout = new TextDecoder().decode(output.stdout);
+
+  assertEquals(output.success, true);
+  assertStringIncludes(stdout, "--project");
+});
+
 Deno.test("cli: invalid --workflow path shows descriptive error", async () => {
   const tempDir = await Deno.makeTempDir();
   try {

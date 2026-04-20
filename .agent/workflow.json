@@ -125,10 +125,9 @@
       "directory": "clarifier",
       "outputPhases": {
         "ready-to-impl": "impl-pending",
-        "ready-to-consider": "consider-pending",
-        "still-blocked": "blocked"
+        "ready-to-consider": "consider-pending"
       },
-      "fallbackPhase": "blocked",
+      "fallbackPhase": "consider-pending",
       "closeOnComplete": false
     }
   },
@@ -137,8 +136,7 @@
       "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
       "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}",
       "clarifierReadyToImpl": "## Clarifier: ready-to-impl\n\n{final_summary}",
-      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}",
-      "clarifierStillBlocked": "## Clarifier: still-blocked\n\n{final_summary}"
+      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}"
     }
   },
   "prioritizer": {
@@ -159,6 +157,10 @@
     "maxCycles": 7,
     "cycleDelayMs": 30000,
     "maxConsecutivePhases": 3
+  },
+  "projectBinding": {
+    "injectGoalIntoPromptContext": false,
+    "inheritProjectsForCreateIssue": false
   },
   "subjectStore": {
     "path": ".agent/climpt/tmp/issues-execute"

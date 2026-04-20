@@ -21,9 +21,25 @@ export class IssueSyncer {
   /** Fetch issues matching criteria, sync full details to local store. */
   async sync(criteria: IssueCriteria): Promise<number[]> {
     const items = await this.#github.listIssues(criteria);
+
+    // Per-project pre-filter: when criteria.project is specified,
+    // only sync issues that belong to the target project.
+    let filtered: typeof items;
+    if (criteria.project !== undefined) {
+      const projectItems = await this.#github.listProjectItems(
+        criteria.project,
+      );
+      const memberNumbers = new Set(
+        projectItems.map((pi) => pi.issueNumber),
+      );
+      filtered = items.filter((item) => memberNumbers.has(item.number));
+    } else {
+      filtered = items;
+    }
+
     const numbers: number[] = [];
 
-    for (const item of items) {
+    for (const item of filtered) {
       // deno-lint-ignore no-await-in-loop
       const detail = await this.#github.getIssueDetail(item.number);
       // deno-lint-ignore no-await-in-loop

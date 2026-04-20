@@ -66,6 +66,7 @@ async function main(): Promise<void> {
       "limit",
       "issue",
       "stub-dispatch",
+      "project",
     ],
     boolean: ["verbose", "dry-run", "help", "prioritize", "local"],
     alias: { h: "help", w: "workflow", v: "verbose", p: "prioritize" },
@@ -93,6 +94,7 @@ Options:
   --label <label>        Filter issues by label (repeatable, batch mode)
   --repo <owner/repo>    Target repository (default: current repo)
   --state <state>        Issue state: open, closed, all (default: open)
+  --project <owner/number> Filter issues by GitHub Project v2 (batch mode)
   --limit <number>       Maximum issues to fetch (default: 30)
   --prioritize, -p       Run prioritizer agent only, then exit (batch mode)
   --verbose, -v          Enable verbose logging
@@ -150,6 +152,19 @@ Options:
   }
   if (args.limit !== undefined) {
     criteria.limit = Number(args.limit);
+  }
+  if (args.project !== undefined) {
+    const parts = args.project.split("/");
+    if (
+      parts.length !== 2 || parts[1] === "" || Number.isNaN(Number(parts[1]))
+    ) {
+      // deno-lint-ignore no-console
+      console.error(
+        `Invalid --project: ${args.project}. Must be <owner>/<number> (e.g., tettuan/5).`,
+      );
+      Deno.exit(1);
+    }
+    criteria.project = { owner: parts[0], number: Number(parts[1]) };
   }
 
   await runBatchWorkflow(cwd, criteria, {
