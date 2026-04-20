@@ -266,6 +266,21 @@
       "properties": {
         "$ref": { "type": "string" }
       }
+    },
+    "projectBinding": {
+      "type": "object",
+      "description": "Project-level orchestration binding. When absent, all project-related features are disabled — preserving v1.13.x behavior (Invariant I1).",
+      "additionalProperties": false,
+      "properties": {
+        "injectGoalIntoPromptContext": {
+          "type": "boolean",
+          "description": "Inject project goal into agent prompt context on dispatch"
+        },
+        "inheritProjectsForCreateIssue": {
+          "type": "boolean",
+          "description": "Inherit parent project membership when creating child issues"
+        }
+      }
     }
   }
 }
