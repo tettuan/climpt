@@ -72,25 +72,27 @@ Evaluate in order. Record pass/fail + short note per gate.
 6. **Gate 5 — dependency resolvable**: no unresolved external deps
    mentioned. Pure function — no `gh issue view #DEP` recursion.
 
-Short-circuit rule: the **first failing gate** determines the
-`still-blocked` reason; remaining gates MAY still be evaluated and
-recorded (encouraged for transparency) but the verdict is locked.
+Short-circuit rule: the **first failing gate** determines the comment's
+"Failing gate" line. Remaining gates MUST still be evaluated and
+recorded (the schema requires all 5 entries). The verdict itself is
+locked to `ready-to-consider` as soon as any gate fails.
 
 ## Step 4 — Decide verdict
 
-- All 5 gates pass AND issue has `EXISTING_KIND = kind:impl` →
+- All 5 gates pass AND `EXISTING_KIND = kind:impl` →
   verdict = `ready-to-impl`.
 - All 5 gates pass AND `EXISTING_KIND = kind:consider` →
   verdict = `ready-to-consider`.
 - All 5 gates pass AND `EXISTING_KIND` empty → pick via system-prompt
   table (`質問/相談/検討` → `ready-to-consider`, named files/functions
   + bug + repro → `ready-to-impl`, both → `ready-to-consider`).
-- Any gate fails → verdict = `still-blocked`.
+- Any gate fails → verdict = `ready-to-consider` (considerer absorbs
+  ambiguity; record the failing gate in the comment).
 
 `EXISTING_KIND = kind:detail` → orchestrator will not dispatch
 clarifier to this issue (`blocked` phase only fires when `need
 clearance` is the actionable label). If you somehow reach this state
-anyway, emit `still-blocked` with `alignment` fail, note =
+anyway, emit `ready-to-consider` with `alignment` fail, note =
 "detailer-owned, clarifier should not be invoked".
 
 ## Step 5 — Compose + post the verdict comment
@@ -104,7 +106,7 @@ set -euo pipefail
 # Write the comment body to $TMPDIR first (multi-line markdown in
 # shell args is fragile).
 cat > "$TMPDIR/clarifier-{uv-issue}-comment.md" <<'"'"'EOF'"'"'
-## Clarifier verdict: <fill in>
+## Clarifier verdict: <ready-to-impl | ready-to-consider>
 
 ### Judgment (5-gate rubric)
 - alignment (Gate 1, incl. Gate 0 kind coherence): <pass|fail> — <note>
@@ -113,7 +115,7 @@ cat > "$TMPDIR/clarifier-{uv-issue}-comment.md" <<'"'"'EOF'"'"'
 - acceptance (Gate 4): <pass|fail> — <note>
 - dependency (Gate 5): <pass|fail> — <note>
 
-### Interpreted scope (only when verdict is ready-*)
+### Interpreted scope (when any gate passed — always for ready-to-impl)
 - Anchor: <path:line | symbol>
 - Strategy: <1-3 lines>
 - Acceptance criteria:
@@ -121,9 +123,9 @@ cat > "$TMPDIR/clarifier-{uv-issue}-comment.md" <<'"'"'EOF'"'"'
 - References:
   - <workflow-issue-states.md:NN, CLAUDE.md §..., ...>
 
-### Still-blocked reason (only when verdict is still-blocked)
+### Gate failures (only when at least one gate failed — verdict is ready-to-consider)
 - Failing gate: <alignment | state-machine | scope | acceptance | dependency>
-- What would unblock: <concrete criterion the human can act on>
+- What would unblock: <concrete criterion the human or considerer can act on>
 EOF
 # (The LLM overwrites the placeholder body before posting.)
 
@@ -162,12 +164,12 @@ Return a JSON object matching `closure.clarify` in
 
 Rules:
 
-- `verdict` MUST be `"ready-to-impl"`, `"ready-to-consider"`, or
-  `"still-blocked"`.
-- For `verdict: "still-blocked"`, at least one `gates[].pass` MUST be
-  `false` (schema-enforced via `allOf`/`contains`).
+- `verdict` MUST be `"ready-to-impl"` or `"ready-to-consider"`.
 - `rationale.gates` MUST contain exactly 5 entries, one per gate name
   in the enum. Every entry needs a non-empty `note`.
+- Gate failure is recorded via `gates[].pass = false` and surfaced in
+  the comment's "Gate failures" section. The verdict itself remains
+  `ready-to-consider` — no self-loop back to `blocked`.
 - `next_action.action` is always `"closing"` (single-iteration).
 
 ## Step 7 — Final status

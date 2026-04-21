@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "clarifier.schema.json",
-  "description": "Clarifier agent step schemas. Closure emits verdict in {ready-to-impl, ready-to-consider, still-blocked} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly.",
+  "description": "Clarifier agent step schemas. Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration.",
 
   "closure.clarify": {
     "type": "object",
@@ -35,12 +35,12 @@
       },
       "verdict": {
         "type": "string",
-        "enum": ["ready-to-impl", "ready-to-consider", "still-blocked"],
-        "description": "Routing verdict. 'ready-to-impl' → impl-pending (iterator). 'ready-to-consider' → consider-pending (considerer). 'still-blocked' → blocked (stays in clarify queue — a comment SHOULD record which gate failed)."
+        "enum": ["ready-to-impl", "ready-to-consider"],
+        "description": "Routing verdict. 'ready-to-impl' → impl-pending (iterator). 'ready-to-consider' → consider-pending (considerer). When any rubric gate fails, route to 'ready-to-consider' and record the failing gate + what would unblock in the comment — considerer absorbs ambiguity. No self-loop back to blocked."
       },
       "rationale": {
         "type": "object",
-        "description": "Gate-by-gate breakdown. Each entry MUST name the gate and whether it passed. When verdict='still-blocked', at least one entry MUST be {pass:false}.",
+        "description": "Gate-by-gate breakdown. Each entry MUST name the gate and whether it passed. Gate failure does not block routing — considerer receives the issue and decides handoff.",
         "required": ["gates"],
         "properties": {
           "gates": {
@@ -67,29 +67,6 @@
         "type": "string",
         "description": "One-paragraph recap of the verdict reasoning. Used as commentTemplates variable on handoff."
       }
-    },
-    "allOf": [
-      {
-        "if": {
-          "properties": { "verdict": { "const": "still-blocked" } },
-          "required": ["verdict"]
-        },
-        "then": {
-          "properties": {
-            "rationale": {
-              "properties": {
-                "gates": {
-                  "contains": {
-                    "type": "object",
-                    "properties": { "pass": { "const": false } },
-                    "required": ["pass"]
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    ]
+    }
   }
 }
