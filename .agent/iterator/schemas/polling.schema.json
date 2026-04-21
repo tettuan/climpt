@@ -99,6 +99,10 @@
           }
         }
       },
+      "run_started_sha": {
+        "type": "string",
+        "description": "RC3: HEAD SHA captured at the start of the run via `git rev-parse HEAD`. Propagated to downstream precheck steps."
+      },
       "progress": { "$ref": "#/$defs/workProgress" }
     }
   },

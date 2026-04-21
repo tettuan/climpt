@@ -81,6 +81,40 @@
         "baseBranch",
         "mergeStatus"
       ]
+    },
+    "commit-binding-missing": {
+      "description": "No commit references (#<issue>)",
+      "edition": "failed",
+      "adaptation": "commit-binding-missing",
+      "params": [
+        "issue"
+      ]
+    },
+    "off-run-only": {
+      "description": "All commits referencing this issue pre-date the run",
+      "edition": "failed",
+      "adaptation": "off-run-only",
+      "params": [
+        "issue",
+        "run_started_sha"
+      ]
+    },
+    "ac-coverage-incomplete": {
+      "description": "Acceptance Criteria coverage is incomplete",
+      "edition": "failed",
+      "adaptation": "ac-coverage-incomplete",
+      "params": [
+        "missing_ac_ids"
+      ]
+    },
+    "kind-boundary-breach": {
+      "description": "Changed paths violate the kind:* scope frozen at triage",
+      "edition": "failed",
+      "adaptation": "kind-boundary-breach",
+      "params": [
+        "kind_at_triage",
+        "kind_boundary_violations"
+      ]
     }
   },
   "validators": {
@@ -161,6 +195,34 @@
         "baseBranch": "stdout",
         "mergeStatus": "parseMergeStatus"
       }
+    },
+    "commit-binding-nonempty": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "git log --grep='(#${issue})' --oneline | head -1",
+      "successWhen": "non-empty",
+      "failurePattern": "commit-binding-missing"
+    },
+    "commit-in-run": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "git rev-list ${run_started_sha}..HEAD --grep='(#${issue})' | head -1",
+      "successWhen": "non-empty",
+      "failurePattern": "off-run-only"
+    },
+    "ac-coverage-complete": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test \"${ac_coverage_complete}\" = \"true\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "ac-coverage-incomplete"
+    },
+    "kind-boundary-clean": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test -z \"${kind_boundary_violations}\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "kind-boundary-breach"
     }
   },
   "validationSteps": {
@@ -204,6 +266,72 @@
         "schema": "closure.polling"
       },
       "description": "Read-only external state polling: no validator conditions. git-clean and type-check belong to closure.issue (mutating work), not polling."
+    },
+    "closure.issue.precheck-commit-verify": {
+      "stepId": "closure.issue.precheck-commit-verify",
+      "name": "Commit Binding + In-Run Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "commit-binding-nonempty"
+        },
+        {
+          "validator": "commit-in-run"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "description": "RC2/RC3: verify at least one in-run commit references (#<issue>). Missing binding → commit-binding-missing retry; only off-run commits → off-run-only retry."
+    },
+    "closure.issue.precheck-ac-verify": {
+      "stepId": "closure.issue.precheck-ac-verify",
+      "name": "Acceptance Criteria Coverage Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "ac-coverage-complete"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "description": "RC5: assert ac_coverage_complete=true. Incomplete coverage → ac-coverage-incomplete retry, which handles only missing_ac_ids."
+    },
+    "closure.issue.precheck-kind-scope": {
+      "stepId": "closure.issue.precheck-kind-scope",
+      "name": "Kind Boundary Scope Validation",
+      "c2": "retry",
+      "c3": "issue",
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "kind-boundary-clean"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "description": "RC6: assert kind_boundary_violations is empty. Non-empty → kind-boundary-breach retry, which reverts only the listed out-of-scope paths."
     }
   },
   "steps": {
@@ -275,7 +403,8 @@
         "fallbackIntent": "next",
         "handoffFields": [
           "progress.completed_files",
-          "progress.pending_tasks"
+          "progress.pending_tasks",
+          "run_started_sha"
         ]
       },
       "transitions": {
@@ -286,10 +415,347 @@
           "target": "continuation.issue"
         },
         "handoff": {
-          "target": "closure.issue"
+          "target": "closure.issue.precheck-commit-list"
         }
       },
       "description": "Continuation prompt for issue iterations"
+    },
+    "closure.issue.precheck-commit-list": {
+      "stepId": "closure.issue.precheck-commit-list",
+      "name": "Precheck - Enumerate In-Run Commits",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-commit-list",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-commit-verify"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-commit-list"
+        }
+      },
+      "description": "RC2 S1: enumerate in-run commits referencing (#<issue>)"
+    },
+    "closure.issue.precheck-commit-verify": {
+      "stepId": "closure.issue.precheck-commit-verify",
+      "name": "Precheck - Verify Commit SHAs and Off-Run",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-commit-verify",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-kind-read"
+        },
+        "repeat": {
+          "target": "closure.issue.remediate-commit-missing"
+        }
+      },
+      "description": "RC2 S2 + RC3: verify commit SHAs exist, capture changed_paths, flag off-run commits"
+    },
+    "closure.issue.remediate-commit-missing": {
+      "stepId": "closure.issue.remediate-commit-missing",
+      "name": "Remediate - Bind Commit to Issue",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "remediate-commit-missing",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-commit-list"
+        },
+        "repeat": {
+          "target": "closure.issue.remediate-commit-missing"
+        }
+      },
+      "description": "RC2 S3: amend or create a commit carrying the (#<issue>) trailer"
+    },
+    "closure.issue.precheck-kind-read": {
+      "stepId": "closure.issue.precheck-kind-read",
+      "name": "Precheck - Read Kind At Triage Artifact",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-kind-read",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_at_triage"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-kind-scope"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-kind-read"
+        }
+      },
+      "description": "RC6 K1: read .agent/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first)."
+    },
+    "closure.issue.precheck-kind-scope": {
+      "stepId": "closure.issue.precheck-kind-scope",
+      "name": "Precheck - Verify Kind Boundary Scope",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-kind-scope",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_at_triage",
+          "kind_boundary_violations"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-extract"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-kind-scope"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-kind-scope"
+      ],
+      "description": "RC6 K2: apply kind:* scope rule to commit_verification.changed_paths. Violations handed off; validator kind-boundary-clean enforces."
+    },
+    "closure.issue.precheck-ac-extract": {
+      "stepId": "closure.issue.precheck-ac-extract",
+      "name": "Precheck - Extract Acceptance Criteria",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-ac-extract",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_at_triage",
+          "kind_boundary_violations",
+          "ac_list"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-map"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-extract"
+        }
+      },
+      "description": "RC5 S1: extract AC bullets from issue body into ac_list"
+    },
+    "closure.issue.precheck-ac-map": {
+      "stepId": "closure.issue.precheck-ac-map",
+      "name": "Precheck - Map AC to Evidence",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-ac-map",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_at_triage",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-verify"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-map"
+        }
+      },
+      "description": "RC5 S2: map each AC to evidence paths drawn from commit_verification.changed_paths"
+    },
+    "closure.issue.precheck-ac-verify": {
+      "stepId": "closure.issue.precheck-ac-verify",
+      "name": "Precheck - Verify AC Coverage",
+      "type": "prompt",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "issue",
+      "edition": "precheck-ac-verify",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_at_triage",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping",
+          "ac_coverage_complete",
+          "missing_ac_ids"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-verify"
+        }
+      },
+      "description": "RC5 S3: verify every AC has non-empty evidence; typed ACs require specific path prefixes"
     },
     "closure.issue": {
       "stepId": "closure.issue",
@@ -901,7 +1367,8 @@
         "handoffFields": [
           "analysis.understanding",
           "analysis.approach",
-          "issue"
+          "issue",
+          "run_started_sha"
         ]
       },
       "transitions": {
@@ -941,7 +1408,8 @@
         "fallbackIntent": "next",
         "handoffFields": [
           "iteration.work_done",
-          "progress"
+          "progress",
+          "run_started_sha"
         ]
       },
       "transitions": {

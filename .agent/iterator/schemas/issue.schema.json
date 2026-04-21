@@ -243,6 +243,98 @@
         "type": "array",
         "items": { "$ref": "common.schema.json#/$defs/commitInfo" },
         "description": "Issue解決に含まれる全コミット"
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at the start of this run (RC3). Propagated via handoffFields from initial.polling."
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1: commits in this run that reference (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3: per-sha existence, off-run flag, and changed_paths",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "ac_list": {
+        "type": "array",
+        "description": "RC5 S1: extracted acceptance criteria bullets",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "text"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "ac_mapping": {
+        "type": "array",
+        "description": "RC5 S2: AC to evidence path mapping",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "evidence_paths", "evidence_type"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "evidence_paths": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "evidence_type": { "type": "string" }
+          }
+        }
+      },
+      "ac_coverage_complete": {
+        "type": "boolean",
+        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+      },
+      "missing_ac_ids": {
+        "type": "array",
+        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "items": { "type": "string" }
+      },
+      "kind_at_triage": {
+        "type": "string",
+        "enum": ["kind:impl", "kind:consider", "kind:design"],
+        "description": "RC6: kind label frozen at triage time, read verbatim from .agent/out/kind_at_triage/<issue>.txt. Source of truth for the scope rule applied by precheck-kind-scope."
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "RC6: out-of-scope paths for the current kind_at_triage. Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry.",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     }
   }

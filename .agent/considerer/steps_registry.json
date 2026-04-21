@@ -1,14 +1,252 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "considerer",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "consider"
+    "count:iteration": "closure.consider.doc-scan"
+  },
+  "failurePatterns": {
+    "doc-paths-not-diffed": {
+      "description": "Required doc paths have no diff",
+      "edition": "failed",
+      "adaptation": "doc-paths-not-diffed"
+    },
+    "kind-boundary-breach": {
+      "description": "Changed paths violate the kind:* scope frozen at triage",
+      "edition": "failed",
+      "adaptation": "kind-boundary-breach",
+      "params": [
+        "kind_at_triage",
+        "kind_boundary_violations"
+      ]
+    }
+  },
+  "validators": {
+    "doc-paths-diffed": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test -z \"${doc_paths_required}\" || for p in ${doc_paths_required}; do git log --oneline -1 -- $p | grep -q . || exit 1; done",
+      "successWhen": "exitCode:0",
+      "failurePattern": "doc-paths-not-diffed"
+    },
+    "kind-boundary-clean": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test -z \"${kind_boundary_violations}\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "kind-boundary-breach"
+    }
+  },
+  "validationSteps": {
+    "closure.consider.doc-verify": {
+      "stepId": "closure.consider.doc-verify",
+      "name": "Doc Diff Verification",
+      "c2": "retry",
+      "c3": "consider",
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "doc-paths-diffed"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "description": "Runner re-checks what the LLM claimed: each required doc path must have a diff in the current run."
+    },
+    "closure.consider.precheck-kind-scope": {
+      "stepId": "closure.consider.precheck-kind-scope",
+      "name": "Kind Boundary Scope Validation",
+      "c2": "retry",
+      "c3": "consider",
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "kind-boundary-clean"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "description": "RC6: assert kind_boundary_violations is empty. Non-empty → kind-boundary-breach retry, which reverts only the listed out-of-scope paths."
+    }
   },
   "steps": {
+    "closure.consider.doc-scan": {
+      "stepId": "closure.consider.doc-scan",
+      "name": "Scan Issue For Required Doc Paths",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "doc-scan",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Extract every doc path mentioned in issue body + comments (docs/**, **/design*.md, agents/docs/**). Read-only; single artifact = doc_paths_required.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "doc_paths_required"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.doc-verify"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-scan"
+        }
+      }
+    },
+    "closure.consider.doc-verify": {
+      "stepId": "closure.consider.doc-verify",
+      "name": "Verify Required Doc Paths Have Diffs",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "doc-verify",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "For each required doc path, run `git diff --name-only <base>..HEAD -- <path>`. If any diffed=false, short-circuit to handoff-detail verdict via closing intent; otherwise proceed to consider.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat",
+          "closing"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "verdict"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.precheck-kind-read"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-scan"
+        },
+        "closing": {
+          "target": null
+        }
+      }
+    },
+    "closure.consider.precheck-kind-read": {
+      "stepId": "closure.consider.precheck-kind-read",
+      "name": "Precheck - Read Kind At Triage Artifact",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "precheck-kind-read",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "RC6 K1: read .agent/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first).",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "kind_at_triage"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.precheck-kind-scope"
+        },
+        "repeat": {
+          "target": "closure.consider.precheck-kind-read"
+        }
+      }
+    },
+    "closure.consider.precheck-kind-scope": {
+      "stepId": "closure.consider.precheck-kind-scope",
+      "name": "Precheck - Verify Kind Boundary Scope",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "precheck-kind-scope",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "RC6 K2: apply kind:* scope rule to this run's changed paths. Violations handed off; validator kind-boundary-clean enforces.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results",
+          "kind_at_triage",
+          "kind_boundary_violations"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "consider"
+        },
+        "repeat": {
+          "target": "closure.consider.precheck-kind-scope"
+        }
+      },
+      "validationSteps": [
+        "closure.consider.precheck-kind-scope"
+      ]
+    },
     "consider": {
       "stepId": "consider",
       "name": "Consider Implementation Request",
@@ -36,7 +274,9 @@
         "handoffFields": [
           "verdict",
           "final_summary",
-          "handoff_anchor"
+          "handoff_anchor",
+          "kind_at_triage",
+          "kind_boundary_violations"
         ]
       },
       "transitions": {

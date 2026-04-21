@@ -60,6 +60,42 @@
           }
         }
       },
+      "doc_paths_required": {
+        "type": "array",
+        "description": "[RC4] Doc paths (docs/**, **/design*.md, agents/docs/**) mentioned in the issue body + comments. Populated by closure.consider.doc-scan. Additive / optional.",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "description": "[RC4] Per-path diff verification result for this run. Populated by closure.consider.doc-verify. Additive / optional.",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
+          }
+        }
+      },
+      "kind_at_triage": {
+        "type": "string",
+        "enum": ["kind:impl", "kind:consider", "kind:design"],
+        "description": "[RC6] Kind label frozen at triage time, read verbatim from .agent/out/kind_at_triage/<issue>.txt. Populated by closure.consider.precheck-kind-read. Additive / optional."
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "[RC6] Out-of-scope paths for the current kind_at_triage. Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry. Populated by closure.consider.precheck-kind-scope.",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
       "deferred_items": {
         "type": "array",
         "description": "Out-of-scope tasks carved off for follow-up issues. Orthogonal to verdict: valid on both 'done' and 'handoff-detail'. Orchestrator converts each entry into a new GitHub issue via outbox 'create-issue' before the current issue closes. Leave empty (default) when the current response fully covers the original scope. Do NOT fabricate specification detail here — each entry must describe a task the original issue author could have filed on their own.",

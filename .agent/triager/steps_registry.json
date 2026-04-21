@@ -12,7 +12,7 @@
     "triage": {
       "stepId": "triage",
       "name": "Triage Unlabeled Issues",
-      "stepKind": "closure",
+      "stepKind": "work",
       "c2": "closure",
       "c3": "triage",
       "edition": "default",
@@ -21,7 +21,59 @@
         "workflow"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: fetch unlabeled open issues, classify each (kind:impl / kind:consider), assign a unique order:N seq, apply both labels via gh CLI."
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": []
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.triage.record-kind"
+        },
+        "repeat": {
+          "target": "triage"
+        }
+      },
+      "description": "Fetch unlabeled open issues, classify each (kind:impl / kind:consider / kind:design), assign a unique order:N seq, apply both labels via gh CLI. Hands off to closure.triage.record-kind to persist the kind decision."
+    },
+    "closure.triage.record-kind": {
+      "stepId": "closure.triage.record-kind",
+      "name": "Record Kind At Triage",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "triage",
+      "edition": "record-kind",
+      "uvVariables": [
+        "limit",
+        "workflow"
+      ],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "kind_conflicts"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": null
+        },
+        "repeat": {
+          "target": "closure.triage.record-kind"
+        }
+      },
+      "description": "RC6: persist per-issue kind labels to .agent/out/kind_at_triage/<N>.txt. Refuse to overwrite; emit repeat on conflict so human can reconcile."
     }
   }
 }

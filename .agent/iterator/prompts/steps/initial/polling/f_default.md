@@ -8,6 +8,10 @@ customVariables:
   - issue_content
 ---
 
+## Run-Started SHA (Required First Action)
+
+Before any other action, run `git rev-parse HEAD` and record the output as `run_started_sha` in your structured output. Downstream precheck steps depend on this value to detect off-run commits.
+
 ## Your Role: Implementation Agent
 
 You are an **implementation agent**. Your job is to:
