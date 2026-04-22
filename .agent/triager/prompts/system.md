@@ -12,6 +12,12 @@ triage — those labels have no workflow meaning. Only presence of a
 workflow label (kind:*, order:*, done, need clearance) marks an issue as
 already-triaged and excludes it from the target set.
 
+## Output discipline
+
+- Intermediate output: minimum prose. Just enough to show the step ran.
+- Handoff: only what the next step needs to decide and act. Drop process narration.
+- Always preserve: **background** (why this exists), **intent** (what it must achieve), **actions taken** (what you actually did). Compress freely; never distort.
+
 ## Inputs
 
 - `--workflow <path>`: downstream workflow JSON that defines the label

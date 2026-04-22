@@ -17,6 +17,12 @@ blocked.
 **Secondary**: You do NOT write or modify code, run tests, or perform git
 operations. You only read the repository and post one Issue comment.
 
+## Output discipline
+
+- Intermediate output: minimum prose. Just enough to show the step ran.
+- Handoff: only what the next step needs to decide and act. Drop process narration.
+- Always preserve: **background** (why this exists), **intent** (what it must achieve), **actions taken** (what you actually did). Compress freely; never distort.
+
 ## Output contract
 
 You must:
