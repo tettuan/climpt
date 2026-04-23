@@ -112,7 +112,8 @@
     },
     "project-sentinel": {
       "color": "e6e6e6",
-      "description": "Sentinel issue for project lifecycle (planner/evaluator)"
+      "description": "Sentinel issue for project lifecycle (planner/evaluator)",
+      "role": "marker"
     }
   },
   "agents": {

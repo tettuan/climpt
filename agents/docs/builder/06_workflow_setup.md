@@ -200,6 +200,33 @@ GitHub issue label をキー、phase ID を値とする。
 複数ラベルが同一 phase にマッピング可能（例: `implementation-gap` と
 `from-reviewer` → `revision`）。未定義ラベルは無視される。
 
+## Label Role (`routing` / `marker`)
+
+`labels[]` で宣言するラベルは `role` を持つ。既定は `routing`。
+
+| role                | 役割                                    | `labelMapping` / `prioritizer.labels` への参照 | sync 対象 | 典型例                                                    |
+| ------------------- | --------------------------------------- | ---------------------------------------------- | --------- | --------------------------------------------------------- |
+| `routing` (default) | phase dispatch のトリガ                 | **必須** (orphan 検査が走る)                   | yes       | `ready`, `review`, `done`, `order:N`                      |
+| `marker`            | 識別専用 (コードが `includes()` で判定) | 禁止ではないが通常は不要                       | yes       | `project-sentinel` など「付いていること自体が意味」のタグ |
+
+**使い分け**: そのラベルが付いたら「特定の phase へ行く」なら
+`routing`。「付いていること自体が意味」なら `marker`。
+
+`marker` は opt-in。既定は `routing` のままなので、既存の宣言に影響しない。
+
+```json
+{
+  "labels": {
+    "ready": { "color": "a2eeef", "description": "work ready" },
+    "project-sentinel": {
+      "color": "e6e6e6",
+      "description": "Sentinel issue for project lifecycle",
+      "role": "marker"
+    }
+  }
+}
+```
+
 ## Rules
 
 | フィールド             | 型      | デフォルト | 説明                                                                                                                                                         |

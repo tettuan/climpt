@@ -231,8 +231,14 @@ function validateLabelsSection(config: WorkflowConfig): void {
     throw wfLabelSpecMissing(missing.sort());
   }
 
-  // Orphans: declared specs must be referenced somewhere
-  const orphans = [...declaredKeys].filter((l) => !requiredLabels.has(l));
+  // Orphans: routing labels must be referenced somewhere. Marker labels
+  // (role="marker") are identification-only and exempt — they are consumed
+  // by code via label-membership probes (e.g., project-sentinel), not by
+  // phase dispatch. Marker role is opt-in, so the default stays strict.
+  const orphans = [...declaredKeys].filter((l) => {
+    if (requiredLabels.has(l)) return false;
+    return (declaredLabels[l].role ?? "routing") !== "marker";
+  });
   if (orphans.length > 0) {
     throw wfLabelSpecOrphan(orphans.sort());
   }

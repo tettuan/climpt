@@ -84,12 +84,24 @@ export type AgentDefinition = TransformerDefinition | ValidatorDefinition;
 // === Labels ===
 
 /**
+ * Label role: determines whether the validator demands the label be
+ * referenced by `labelMapping` / `prioritizer.labels` (routing) or
+ * allows it as a declared-but-not-routed identification tag (marker).
+ *
+ * - `routing` (default): participates in phase dispatch. Orphan check enforced.
+ * - `marker`: identification-only (e.g., `project-sentinel`). Consumed by
+ *   code via `labels.includes(...)` probes, not by phase routing. Exempt
+ *   from the orphan check but still synced and color-validated.
+ */
+export type LabelRole = "routing" | "marker";
+
+/**
  * Declarative GitHub label specification.
  *
  * Drives idempotent pre-dispatch sync so orchestrator and triager never
- * depend on a bash bootstrap block living inside a prompt file. Every
- * label referenced by `labelMapping` or `prioritizer.labels` must have
- * a matching entry here — enforced by the loader.
+ * depend on a bash bootstrap block living inside a prompt file. Routing
+ * labels (default) must be referenced by `labelMapping` or
+ * `prioritizer.labels`; marker labels bypass that check.
  */
 export interface LabelSpec {
   /** 6-char hex GitHub label color (no leading `#`) */
@@ -97,6 +109,11 @@ export interface LabelSpec {
 
   /** Human-readable description surfaced in the GitHub UI */
   description: string;
+
+  /**
+   * Label role (default: `routing`). See {@link LabelRole}.
+   */
+  role?: LabelRole;
 }
 
 // === Handoff ===

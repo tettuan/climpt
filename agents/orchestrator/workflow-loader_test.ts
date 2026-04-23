@@ -631,7 +631,10 @@ Deno.test(
 
 /** Extend validConfig() with a `labels` section. */
 function configWithLabels(
-  labels: Record<string, { color: string; description: string }>,
+  labels: Record<
+    string,
+    { color: string; description: string; role?: "routing" | "marker" }
+  >,
 ): Record<string, unknown> {
   const cfg = validConfig();
   cfg.labels = labels;
@@ -715,6 +718,59 @@ Deno.test("workflow-loader: WF-LABEL-004 — orphan spec not referenced anywhere
     const err = await assertRejects(() => loadWorkflow(dir), Error);
     assertStringIncludes(err.message, "WF-LABEL-004");
     assertStringIncludes(err.message, "legacy:abandoned");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-004 — marker role bypasses orphan check", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // A marker label is declared (so it gets synced to GitHub and code can
+    // safely probe for it via labels.includes(...)), but it is NOT routed
+    // via labelMapping or prioritizer.labels. The orphan check must permit
+    // this because the marker role is the declarative escape hatch for
+    // identification-only labels (e.g., project-sentinel).
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      "meta:sentinel": {
+        color: "e6e6e6",
+        description: "identification-only marker",
+        role: "marker",
+      },
+    });
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.labels?.["meta:sentinel"]?.role, "marker");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-LABEL-004 — explicit role='routing' still triggers orphan check", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    // Guard rail: a label with role='routing' (the default, stated
+    // explicitly here) must still participate in orphan detection.
+    // Only role='marker' is exempt — marker must be opt-in, not implicit.
+    const cfg = configWithLabels({
+      ready: { color: "a2eeef", description: "ready for work" },
+      review: { color: "fbca04", description: "under review" },
+      done: { color: "0e8a16", description: "complete" },
+      blocked: { color: "d93f0b", description: "blocked" },
+      "legacy:unused": {
+        color: "cccccc",
+        description: "declared but not routed",
+        role: "routing",
+      },
+    });
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-LABEL-004");
+    assertStringIncludes(err.message, "legacy:unused");
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

@@ -48,7 +48,7 @@
     },
     "labels": {
       "type": "object",
-      "description": "Declarative GitHub label specs keyed by label name. Every label referenced in labelMapping and prioritizer.labels must appear here. Color is a 6-char hex (no '#'). Orchestrator/triager sync these to the repository at startup.",
+      "description": "Declarative GitHub label specs keyed by label name. Routing labels (role=routing, default) must be referenced by labelMapping or prioritizer.labels; marker labels (role=marker) are identification-only and bypass the orphan check. All labels are synced to the repository at startup. Color is a 6-char hex (no '#').",
       "additionalProperties": {
         "type": "object",
         "required": ["color", "description"],
@@ -63,6 +63,12 @@
             "type": "string",
             "minLength": 1,
             "description": "Human-readable label description surfaced in GitHub UI."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["routing", "marker"],
+            "default": "routing",
+            "description": "Label role. 'routing' (default) participates in phase dispatch and must be referenced by labelMapping or prioritizer.labels. 'marker' is identification-only (e.g., project-sentinel) — declared and synced, but exempt from the orphan check because it is consumed by code via label-membership probes."
           }
         }
       }
