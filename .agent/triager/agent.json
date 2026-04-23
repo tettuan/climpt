@@ -30,7 +30,7 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 1
+        "maxIterations": 3
       }
     },
     "boundaries": {
