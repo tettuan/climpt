@@ -80,7 +80,7 @@ default triage prompt). Use `set -euo pipefail`.
    numbers — a mismatch between a prior triage decision and this run requires
    human resolution (delete the file manually or re-label the issue).
 
-4. If `kind_conflicts` is empty, emit `next` (or simply complete the step).
+4. If `kind_conflicts` is empty, emit `closing` (or simply complete the step).
 
 ## Do ONLY this
 
@@ -89,5 +89,5 @@ default triage prompt). Use `set -euo pipefail`.
 - Do not add the file to git (no `git add`).
 - Do not change any GitHub labels here — label application happened in the
   prior `triage` step.
-- Do not emit intents other than `next` (all recorded or matched) or `repeat`
+- Do not emit intents other than `closing` (all recorded or matched) or `repeat`
   (conflict detected, needs human).

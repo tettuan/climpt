@@ -21,18 +21,22 @@
         "workflow"
       ],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "triager.schema.json",
+        "schema": "triage"
+      },
       "structuredGate": {
         "allowedIntents": [
-          "next",
+          "handoff",
           "repeat"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "fallbackIntent": "handoff",
         "handoffFields": []
       },
       "transitions": {
-        "next": {
+        "handoff": {
           "target": "closure.triage.record-kind"
         },
         "repeat": {
@@ -53,20 +57,24 @@
         "workflow"
       ],
       "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "triager.schema.json",
+        "schema": "closure.triage.record-kind"
+      },
       "structuredGate": {
         "allowedIntents": [
-          "next",
+          "closing",
           "repeat"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "fallbackIntent": "closing",
         "handoffFields": [
           "kind_conflicts"
         ]
       },
       "transitions": {
-        "next": {
+        "closing": {
           "target": null
         },
         "repeat": {
