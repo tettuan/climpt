@@ -830,6 +830,7 @@ export class AgentRunner {
       // Extract verdict from verdict handler for orchestrator routing
       const verdictValue = ctx.verdictHandler.getLastVerdict();
 
+      const sessionLogPath = ctx.logger.getLogPath();
       const result: AgentResult = {
         success,
         iterations: iteration,
@@ -847,6 +848,7 @@ export class AgentRunner {
         }),
         ...(lastRateLimitInfo && { rateLimitInfo: lastRateLimitInfo }),
         ...(verdictValue && { verdict: verdictValue }),
+        ...(sessionLogPath && { logPath: sessionLogPath }),
       };
 
       // Emit completed event
@@ -875,6 +877,7 @@ export class AgentRunner {
       const lastRateLimitInfoOnError = [...summaries].reverse().find((s) =>
         s.rateLimitInfo !== undefined
       )?.rateLimitInfo;
+      const sessionLogPathOnError = ctx.logger.getLogPath();
       return {
         success: false,
         iterations: iteration,
@@ -893,6 +896,7 @@ export class AgentRunner {
         ...(lastRateLimitInfoOnError && {
           rateLimitInfo: lastRateLimitInfoOnError,
         }),
+        ...(sessionLogPathOnError && { logPath: sessionLogPathOnError }),
       };
     } finally {
       // Close verbose logger if enabled

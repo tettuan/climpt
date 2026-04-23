@@ -643,6 +643,10 @@ async function main(): Promise<void> {
       // deno-lint-ignore no-console
       console.log(`Duration: ${(result.durationMs / 1000).toFixed(1)}s`);
     }
+    if (result.logPath) {
+      // deno-lint-ignore no-console
+      console.log(`Log: ${result.logPath}`);
+    }
     if (result.error) {
       // deno-lint-ignore no-console
       console.error(`Error: ${result.error}`);
