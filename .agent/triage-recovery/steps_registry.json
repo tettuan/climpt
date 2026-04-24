@@ -1,0 +1,49 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "triage-recovery",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "recover"
+  },
+  "steps": {
+    "recover": {
+      "stepId": "recover",
+      "name": "Recover Orphan Terminal-Labeled Issues",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "recover",
+      "edition": "default",
+      "uvVariables": [
+        "limit",
+        "workflow"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "triage-recovery.schema.json",
+        "schema": "recover"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": []
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "recover"
+        }
+      },
+      "description": "Find OPEN issues that both triager and orchestrator skip — issues carrying ≥1 workflow label with zero actionable labels — and strip every orphan workflow label via gh issue edit --remove-label so the issue falls back to unlabeled state and becomes eligible for triager on the next run. Predicates derived dynamically from the workflow JSON (labelMapping + prioritizer.labels + phases.<phase>.type). No kind:* assignment here — triager owns classification."
+    }
+  }
+}

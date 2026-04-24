@@ -21,6 +21,7 @@ Changes to the runner should be validated against these configurations.
 | reviewer    | Code review and verification         |
 | climpt      | MCP command registry and prompts     |
 | triager     | Classify unlabeled issues (kind:* + order:N) |
+| triage-recovery | Strip orphan workflow labels from issues that both triager and orchestrator skip |
 | considerer  | Respond to kind:consider issues and close them |
 | detailer    | Detail a kind:detail issue (spec) before iterator picks it up |
 | clarifier   | Scan need-clearance issues, apply 5-gate rubric, re-queue or record reason |

@@ -1,0 +1,42 @@
+{
+  "$schema": "../../agents/schemas/agent.schema.json",
+  "version": "1.14.0",
+  "name": "triage-recovery",
+  "displayName": "Issue Triage Recovery Agent",
+  "description": "Standalone sweep that strips orphan workflow labels from OPEN issues that both pipelines skip: triager skips anything carrying a workflow label (labelMapping keys ∪ prioritizer.labels), orchestrator skips anything without a label mapped to an actionable phase. The intersection (orphan open issues) gets every orphan workflow label stripped so triager re-picks them on the next run. Predicates are derived dynamically from the workflow JSON — no hardcoded label names.",
+  "parameters": {
+    "limit": {
+      "type": "number",
+      "description": "Maximum number of issues to recover in one run",
+      "required": false,
+      "default": 9,
+      "cli": "--limit"
+    },
+    "workflow": {
+      "type": "string",
+      "description": "Path to the downstream workflow JSON used to derive the workflow label set and phase-type mapping. Orphan candidates are open issues whose only workflow label maps to a terminal phase.",
+      "required": false,
+      "default": ".agent/workflow.json",
+      "cli": "--workflow"
+    }
+  },
+  "runner": {
+    "flow": {
+      "systemPromptPath": "prompts/system.md",
+      "prompts": {
+        "registry": "steps_registry.json"
+      }
+    },
+    "verdict": {
+      "type": "count:iteration",
+      "config": {
+        "maxIterations": 3
+      }
+    },
+    "logging": {
+      "directory": "tmp/logs/agents/triage-recovery",
+      "format": "jsonl",
+      "maxFiles": 100
+    }
+  }
+}

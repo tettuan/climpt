@@ -1,0 +1,6 @@
+# Build Configuration for triage-recovery-steps
+working_dir: ".agent/triage-recovery"
+app_prompt:
+  base_dir: "prompts/steps"
+app_schema:
+  base_dir: "schema/steps"
