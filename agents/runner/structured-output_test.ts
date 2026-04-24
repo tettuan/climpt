@@ -345,10 +345,6 @@ Deno.test("StructuredOutput - getStepIdForIteration returns correct stepId", () 
         type: "poll:state",
         config: { maxIterations: 10 },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: {
         directory: "./logs",

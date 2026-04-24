@@ -42,10 +42,6 @@ function minimalValidAgent(): Record<string, unknown> {
           maxIterations: 10,
         },
       },
-      boundaries: {
-        allowedTools: ["Read", "Write"],
-        permissionMode: "default",
-      },
     },
   };
 }
@@ -144,10 +140,6 @@ Deno.test("schema-validator/agent - full iterator-like agent passes", async () =
       verdict: {
         type: "poll:state",
         config: { maxIterations: 500 },
-      },
-      boundaries: {
-        allowedTools: ["Read", "Write", "Bash"],
-        permissionMode: "acceptEdits",
       },
       integrations: {
         github: {

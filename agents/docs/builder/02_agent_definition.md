@@ -16,7 +16,7 @@ agent.json で Agent
   "runner": {
     "flow": { "..." },
     "verdict": { "..." },
-    "boundaries": { "..." },
+    "boundaries": { "..." },       // optional — sandbox only
     "integrations": { "..." },
     "actions": { "..." },
     "execution": { "..." },
@@ -131,18 +131,22 @@ BoundaryHook は `verdict` に加えて、structured output の `issue.labels.ad
 
 ## runner.boundaries
 
-ツール許可、権限、サンドボックス（セキュリティポリシー）。
+サンドボックス（セキュリティポリシー）のみ。`allowedTools` と `permissionMode`
+は `.agent/climpt/config/claude.settings.climpt.agents.{agent-name}.json`
+（無ければ `.agent/climpt/config/claude.settings.climpt.agents.json`）の
+`permissions.allow` / `permissions.defaultMode` に移動した。
 
 ```json
 {
   "runner": {
     "boundaries": {
-      "allowedTools": ["Read", "Write", "Edit", "Bash"],
-      "permissionMode": "plan | acceptEdits | bypassPermissions"
+      "sandbox": { "enabled": true }
     }
   }
 }
 ```
+
+`boundaries` 自体はオプション。sandbox 未指定なら省略可。
 
 ### サンドボックスと GitHub アクセス制御
 
@@ -157,7 +161,8 @@ BoundaryHook は `verdict` に加えて、structured output の `issue.labels.ad
 
 **Agent の GitHub 読み取り** は `mcp__github__github_read` MCP ツールで行う。
 このツールはホストプロセス（サンドボックス外）で `gh` コマンドを実行するため、
-TLS/Keychain の制約を受けない。Runner が `allowedTools` に自動追加する。
+TLS/Keychain の制約を受けない。Runner が実行時の allowed-tools
+集合に自動追加する。
 
 **Agent の GitHub 書き込み** は BoundaryHook（closure step のみ）が担う。 Agent
 は structured output で意図を宣言するだけであり、`gh` コマンドの実行は Runner の
@@ -446,12 +451,12 @@ load(path) → parse → validate → 起動 or エラー
 
 ## 注意点
 
-| 項目                               | 注意                                                                                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `runner.verdict.type`              | 8 種類のみ有効。レガシー名は廃止済み                                                                                                                                |
-| `runner.flow.systemPromptPath`     | agent.json からの相対パス                                                                                                                                           |
-| `runner.boundaries.allowedTools`   | 許可されていないツールは実行時エラー                                                                                                                                |
-| `runner.boundaries.permissionMode` | `bypassPermissions` は信頼できる環境でのみ使用。ステップ単位で上書き可能（[14-steps-registry-guide](../../docs/guides/ja/14-steps-registry-guide.md) §14.4.1 参照） |
+| 項目                                 | 注意                                                                                                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner.verdict.type`                | 8 種類のみ有効。レガシー名は廃止済み                                                                                                                                                                |
+| `runner.flow.systemPromptPath`       | agent.json からの相対パス                                                                                                                                                                           |
+| `permissions.allow` (settings)       | `.agent/climpt/config/claude.settings.climpt.agents.{name}.json` で定義。許可されていないツールは `canUseTool` で hard-deny                                                                         |
+| `permissions.defaultMode` (settings) | 同上 settings の `defaultMode`。`bypassPermissions` は信頼できる環境でのみ使用。ステップ単位で上書き可能（[14-steps-registry-guide](../../docs/guides/ja/14-steps-registry-guide.md) §14.4.1 参照） |
 
 ---
 

@@ -61,10 +61,6 @@ function createTestDefinition(
         type: verdictType,
         config: { maxIterations: 20 },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },

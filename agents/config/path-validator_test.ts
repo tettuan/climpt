@@ -56,10 +56,6 @@ function validDefinition(): AgentDefinition {
         type: "detect:graph",
         config: { registryPath: "steps_registry.json" },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "default",
-      },
     },
   };
 }

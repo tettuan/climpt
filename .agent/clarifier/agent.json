@@ -25,15 +25,6 @@
         "maxIterations": 1
       }
     },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep"
-      ],
-      "permissionMode": "bypassPermissions"
-    },
     "logging": {
       "directory": "tmp/logs/agents/clarifier",
       "format": "jsonl",

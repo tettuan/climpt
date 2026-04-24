@@ -36,7 +36,15 @@ export interface CompletionLoopDeps {
   readonly closureManager: ClosureManager;
   readonly boundaryHooks: BoundaryHooks;
   readonly closureAdapter: ClosureAdapter;
-  readonly queryExecutor: QueryExecutor;
+  /**
+   * Async factory for the SDK-bound {@link QueryExecutor}.
+   *
+   * Constructed lazily by {@link AgentRunner.ensureQueryExecutor}. Only
+   * the closure LLM path calls this — subprocess closures skip it so the
+   * settings file is never read for merger-style agents. Subsequent calls
+   * return the cached instance (idempotent).
+   */
+  getQueryExecutor(): Promise<QueryExecutor>;
   readonly flowOrchestrator: FlowOrchestrator;
   readonly schemaManager: SchemaManager;
   readonly eventEmitter: AgentEventEmitter;
@@ -372,7 +380,8 @@ export class CompletionLoopProcessor {
     }
 
     // Step 5: LLM query
-    const summary = await this.deps.queryExecutor.executeQuery({
+    const queryExecutor = await this.deps.getQueryExecutor();
+    const summary = await queryExecutor.executeQuery({
       prompt,
       systemPrompt,
       plugins,

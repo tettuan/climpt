@@ -25,17 +25,6 @@
         "maxIterations": 1
       }
     },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task",
-        "WebFetch"
-      ],
-      "permissionMode": "bypassPermissions"
-    },
     "integrations": {
       "github": {
         "enabled": true,

@@ -42,10 +42,6 @@ function createValidDefinition(): AgentDefinition {
         type: "count:iteration",
         config: { maxIterations: 10 },
       },
-      boundaries: {
-        allowedTools: ["Read", "Write"],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: {
         directory: "./logs",
@@ -264,28 +260,6 @@ Deno.test("validateAgentDefinition - invalid completion type fails", () => {
     result.errors.some((e) => e.includes("verdict.type")),
     true,
   );
-});
-
-Deno.test("validateAgentDefinition - missing permissionMode fails", () => {
-  const def = createValidDefinition();
-  // @ts-ignore - intentionally testing invalid state
-  def.runner.boundaries.permissionMode = "";
-
-  const result = validateAgentDefinition(def);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("permissionMode")), true);
-});
-
-Deno.test("validateAgentDefinition - invalid permissionMode fails", () => {
-  const def = createValidDefinition();
-  // @ts-ignore - intentionally testing invalid state
-  def.runner.boundaries.permissionMode = "invalid-mode";
-
-  const result = validateAgentDefinition(def);
-
-  assertEquals(result.valid, false);
-  assertEquals(result.errors.some((e) => e.includes("permissionMode")), true);
 });
 
 // =============================================================================

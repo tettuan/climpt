@@ -89,10 +89,6 @@ function makeDefinition(labels?: GitHubLabelsConfig): AgentDefinition {
         type: "detect:graph",
         config: { registryPath: "steps_registry.json" },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "default",
-      },
       integrations: labels === undefined
         ? undefined
         : { github: { enabled: true, labels } },

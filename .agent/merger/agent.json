@@ -31,10 +31,6 @@
         "maxIterations": 1
       }
     },
-    "boundaries": {
-      "allowedTools": [],
-      "permissionMode": "default"
-    },
     "logging": {
       "directory": "tmp/logs/agents/merger",
       "format": "jsonl",

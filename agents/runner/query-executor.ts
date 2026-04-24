@@ -50,9 +50,11 @@ import {
 import type { VerboseLogger } from "./verbose-logger.ts";
 import { AGENT_LIMITS, TRUNCATION } from "../shared/constants.ts";
 import type { SchemaManager } from "./schema-manager.ts";
+import type { LoadedAgentSettings } from "../config/settings-loader.ts";
 
 export interface QueryExecutorDeps {
   readonly definition: AgentDefinition;
+  readonly settings: LoadedAgentSettings;
   getContext(): RuntimeContext;
   getStepsRegistry(): ExtendedStepsRegistry | null;
   getVerboseLogger(): VerboseLogger | null;
@@ -109,7 +111,9 @@ export class QueryExecutor {
       const githubEnabled =
         this.deps.definition.runner.integrations?.github?.enabled !== false;
       let allowedTools = [
-        ...this.deps.definition.runner.boundaries.allowedTools,
+        ...extractAllowedToolNames(
+          this.deps.settings.settings.permissions?.allow ?? [],
+        ),
         ...(githubEnabled ? [GITHUB_READ_TOOL_NAME] : []),
       ];
       let currentStepKind: StepKind | undefined;
@@ -139,9 +143,12 @@ export class QueryExecutor {
         permissionMode: resolvePermissionMode(
           stepPermissionMode,
           currentStepKind,
-          this.deps.definition.runner.boundaries.permissionMode,
+          narrowAgentPermissionMode(
+            this.deps.settings.settings.permissions?.defaultMode,
+          ),
         ),
-        settingSources: ["user", "project"],
+        settingSources: ["project"],
+        settings: this.deps.settings.settings,
         plugins,
         resume: sessionId,
         // Auto-respond to AskUserQuestion to enable autonomous execution
@@ -149,11 +156,8 @@ export class QueryExecutor {
           toolName: string,
           input: Record<string, unknown>,
         ) => {
-          // Enforce allowedTools boundary
-          if (
-            allowedTools.length > 0 &&
-            !allowedTools.includes(toolName)
-          ) {
+          // Enforce allowedTools boundary (Plan Z: empty list = deny-all)
+          if (!allowedTools.includes(toolName)) {
             return {
               behavior: "deny",
               message: `Tool "${toolName}" not in allowedTools`,
@@ -199,16 +203,18 @@ export class QueryExecutor {
       };
 
       const effectiveMode = queryOptions.permissionMode as string;
-      const agentMode = this.deps.definition.runner.boundaries.permissionMode;
+      const agentMode = narrowAgentPermissionMode(
+        this.deps.settings.settings.permissions?.defaultMode,
+      );
       if (effectiveMode !== agentMode) {
         ctx.logger.info(
           `[ToolPolicy] Step "${stepId}" permissionMode: ${effectiveMode} (agent-level: ${agentMode})`,
         );
       }
 
-      // Configure sandbox
+      // Configure sandbox (runner.boundaries is now optional on the blueprint)
       const sandboxConfig = mergeSandboxConfig(
-        this.deps.definition.runner.boundaries.sandbox,
+        this.deps.definition.runner.boundaries?.sandbox,
       );
       if (sandboxConfig.enabled === false) {
         queryOptions.dangerouslySkipPermissions = true;
@@ -651,4 +657,52 @@ export function createBoundaryBashBlockingHook(
 
     return Promise.resolve({});
   };
+}
+
+/**
+ * Narrow the SDK-declared `Settings.permissions.defaultMode` (which includes
+ * `"dontAsk"`) down to the {@link PermissionMode} subset this agent runtime
+ * enforces. Unknown / missing values collapse to `"default"`.
+ *
+ * Plan Z does not model `"dontAsk"`; if a settings file ever declares it the
+ * loader accepts it (it is valid per SDK schema) but the runner treats it as
+ * the safe `"default"` baseline rather than silently promoting to a more
+ * permissive mode.
+ *
+ * @internal Exported for testing.
+ */
+export function narrowAgentPermissionMode(
+  mode: string | undefined,
+): PermissionMode {
+  switch (mode) {
+    case "default":
+    case "plan":
+    case "acceptEdits":
+    case "bypassPermissions":
+      return mode;
+    default:
+      return "default";
+  }
+}
+
+/**
+ * Strip SDK rule syntax (e.g. `"Bash(git:*)"`) down to the bare tool name
+ * (`"Bash"`) so it can be compared against `canUseTool.toolName`, which the
+ * SDK always invokes with the bare tool identifier.
+ *
+ * Bare entries (no parenthesis) pass through unchanged. Duplicates are
+ * collapsed via Set so a rule like `["Bash(git:*)", "Bash(npm:*)"]` yields
+ * a single `"Bash"` in the returned list.
+ *
+ * @internal Exported for testing.
+ */
+export function extractAllowedToolNames(
+  rules: readonly string[],
+): string[] {
+  const out = new Set<string>();
+  for (const r of rules) {
+    const paren = r.indexOf("(");
+    out.add(paren < 0 ? r : r.slice(0, paren));
+  }
+  return [...out];
 }

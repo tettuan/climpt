@@ -33,15 +33,6 @@
         "maxIterations": 3
       }
     },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep"
-      ],
-      "permissionMode": "bypassPermissions"
-    },
     "logging": {
       "directory": "tmp/logs/agents/triager",
       "format": "jsonl",

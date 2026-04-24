@@ -60,10 +60,6 @@ function createTestDefinition(
           maxIterations: overrides.maxIterations ?? 20,
         },
       },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: {
         directory: "/tmp/claude/test-runner-loop-logs",
@@ -205,26 +201,31 @@ function createMinimalRegistry(): ExtendedStepsRegistry {
 }
 
 /**
- * Replace QueryExecutor.executeQuery on a runner instance with a stub
- * that returns summaries from a provided factory function.
+ * Install a stubbed {@link QueryExecutor.executeQuery} on a runner.
  *
- * Uses bracket notation to access the private queryExecutor field.
+ * After the T4 refactor, the runner lazily builds its QueryExecutor inside
+ * `ensureQueryExecutor()` (so merger-style agents never trigger settings
+ * loading). Tests cannot pre-populate `this.queryExecutor` — instead we
+ * replace `ensureQueryExecutor()` itself with a factory that returns a
+ * minimal stub object, bypassing settings-loader entirely.
  */
 function stubExecuteQuery(
   runner: AgentRunner,
   summaryFactory: (callIndex: number, prompt: string) => IterationSummary,
 ): void {
   let callIndex = 0;
+  const stubExecutor = {
+    executeQuery: (options: { prompt: string; iteration: number }) => {
+      const summary = summaryFactory(callIndex, options.prompt);
+      callIndex++;
+      return Promise.resolve(summary);
+    },
+  } as unknown as QueryExecutor;
   // deno-lint-ignore no-explicit-any
-  const qe = (runner as any).queryExecutor as QueryExecutor;
+  (runner as any).ensureQueryExecutor = () => Promise.resolve(stubExecutor);
+  // Also seed the cache slot so any direct reads return the stub.
   // deno-lint-ignore no-explicit-any
-  (qe as any).executeQuery = (
-    options: { prompt: string; iteration: number },
-  ) => {
-    const summary = summaryFactory(callIndex, options.prompt);
-    callIndex++;
-    return Promise.resolve(summary);
-  };
+  (runner as any).queryExecutor = stubExecutor;
 }
 
 /**

@@ -746,7 +746,7 @@ steps:
     # Type        : string
     # Options     : "plan" | "acceptEdits" | "bypassPermissions"
     # Default     : none (uses stepKind default or agent-level setting)
-    # Resolution  : step.permissionMode > stepKind default > boundaries.permissionMode
+    # Resolution  : step.permissionMode > stepKind default > permissions.defaultMode (from .agent/climpt/config/claude.settings.climpt.agents.*.json)
     # Why         : Control tool permissions per step. For example,
     #               set "plan" on an architect step to restrict it
     #               to read-only exploration, while allowing "acceptEdits"

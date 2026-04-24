@@ -45,10 +45,6 @@ export function getDefaults(): Partial<AgentDefinition> {
         prompts: { registry: "" },
       },
       verdict: { type: "count:iteration", config: {} },
-      boundaries: {
-        allowedTools: [],
-        permissionMode: "plan",
-      },
       integrations: {
         github: { enabled: false },
       },

@@ -55,16 +55,6 @@ const LEGACY_TOP_LEVEL_KEYS = new Set([
 ]);
 
 /**
- * Valid permission modes
- */
-const VALID_PERMISSION_MODES = [
-  "default",
-  "plan",
-  "acceptEdits",
-  "bypassPermissions",
-];
-
-/**
  * Valid logging formats
  */
 const VALID_LOGGING_FORMATS = ["jsonl", "text"];
@@ -85,7 +75,7 @@ export function validate(definition: unknown): ValidationResult {
       valid: false,
       errors: [
         "[CONFIGURATION] Definition must be an object. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+        "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       ],
       warnings,
     };
@@ -98,7 +88,7 @@ export function validate(definition: unknown): ValidationResult {
     if (!(field in def)) {
       errors.push(
         `[CONFIGURATION] Missing required field: ${field}. ` +
-          `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+          `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
       );
     }
   }
@@ -112,7 +102,7 @@ export function validate(definition: unknown): ValidationResult {
       errors.push(
         "[CONFIGURATION] Detected v1.11.x config format. The flat structure (behavior, prompts, logging) " +
           "was replaced with the runner.* hierarchy in v1.12.0. " +
-          "\u2192 See: docs/guides/en/09-migration-guide.md",
+          "→ See: docs/guides/en/09-migration-guide.md",
       );
     }
   }
@@ -133,13 +123,13 @@ export function validate(definition: unknown): ValidationResult {
     if (!/^[a-z][a-z0-9-]*$/.test(def.name)) {
       errors.push(
         "[CONFIGURATION] Name must be lowercase alphanumeric with hyphens, starting with a letter. " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+          "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
     }
   } else if (def.name !== undefined) {
     errors.push(
       "[CONFIGURATION] Name must be a string. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+        "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
     );
   }
 
@@ -148,12 +138,12 @@ export function validate(definition: unknown): ValidationResult {
     if (typeof def.version !== "string") {
       errors.push(
         "[CONFIGURATION] version must be a string. " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+          "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
     } else if (!/^\d+\.\d+\.\d+$/.test(def.version)) {
       errors.push(
         "[CONFIGURATION] version must be semver format (e.g., '1.0.0'). " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+          "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
     }
   }
@@ -176,7 +166,7 @@ export function validate(definition: unknown): ValidationResult {
             `[CONFIGURATION] Invalid verdict type: ${verdict.type}. Must be one of: ${
               ALL_VERDICT_TYPES.join(", ")
             }. ` +
-              `\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict`,
+              `→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict`,
           );
         }
       }
@@ -191,23 +181,6 @@ export function validate(definition: unknown): ValidationResult {
       }
     }
 
-    // Validate runner.boundaries
-    if (runner.boundaries && typeof runner.boundaries === "object") {
-      const boundaries = runner.boundaries as Record<string, unknown>;
-
-      if (
-        boundaries.permissionMode &&
-        !VALID_PERMISSION_MODES.includes(boundaries.permissionMode as string)
-      ) {
-        errors.push(
-          `[CONFIGURATION] runner.boundaries.permissionMode must be one of: ${
-            VALID_PERMISSION_MODES.join(", ")
-          }. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
-        );
-      }
-    }
-
     // Validate runner.flow.prompts
     if (runner.flow && typeof runner.flow === "object") {
       const flow = runner.flow as Record<string, unknown>;
@@ -216,7 +189,7 @@ export function validate(definition: unknown): ValidationResult {
         if (prompts.registry && typeof prompts.registry !== "string") {
           errors.push(
             "[CONFIGURATION] runner.flow.prompts.registry must be a string path. " +
-              "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+              "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
           );
         }
       }
@@ -234,13 +207,13 @@ export function validate(definition: unknown): ValidationResult {
           `[CONFIGURATION] runner.logging.format must be one of: ${
             VALID_LOGGING_FORMATS.join(", ")
           }. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+            `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
       if (logging.directory && typeof logging.directory !== "string") {
         errors.push(
           "[CONFIGURATION] runner.logging.directory must be a string. " +
-            "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+            "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
         );
       }
     }
@@ -256,7 +229,7 @@ export function validate(definition: unknown): ValidationResult {
       if (!paramObj.cli) {
         errors.push(
           `[CONFIGURATION] Parameter '${name}' missing cli flag. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+            `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       } else if (
         typeof paramObj.cli === "string" &&
@@ -264,7 +237,7 @@ export function validate(definition: unknown): ValidationResult {
       ) {
         errors.push(
           `[CONFIGURATION] Parameter '${name}' cli flag must start with '--'. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+            `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
 
@@ -281,7 +254,7 @@ export function validate(definition: unknown): ValidationResult {
       if (!paramObj.type) {
         errors.push(
           `[CONFIGURATION] Parameter '${name}' missing type. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+            `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
 
@@ -312,7 +285,7 @@ export function validate(definition: unknown): ValidationResult {
         if (mismatch) {
           errors.push(
             `[CONFIGURATION] Parameter '${name}': default value type '${typeof defaultVal}' does not match declared type '${declaredType}'. ` +
-              `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+              `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
           );
         }
       }
@@ -334,7 +307,7 @@ export function validate(definition: unknown): ValidationResult {
           `[CONFIGURATION] CLI flag '${flag}' is used by multiple parameters: ${
             names.join(", ")
           }. ` +
-            `\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
+            `→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure`,
         );
       }
     }
@@ -364,7 +337,7 @@ function validateVerdictConfig(
       if (!config.maxIterations) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.maxIterations is required for count:iteration verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       } else if (
         typeof config.maxIterations !== "number" ||
@@ -372,7 +345,7 @@ function validateVerdictConfig(
       ) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.maxIterations must be a positive number. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -381,7 +354,7 @@ function validateVerdictConfig(
       if (!config.verdictKeyword) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.verdictKeyword is required for detect:keyword verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -390,7 +363,7 @@ function validateVerdictConfig(
       if (!config.handlerPath) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.handlerPath is required for meta:custom verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -399,7 +372,7 @@ function validateVerdictConfig(
       if (!config.maxChecks) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.maxChecks is required for count:check verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       } else if (
         typeof config.maxChecks !== "number" ||
@@ -407,7 +380,7 @@ function validateVerdictConfig(
       ) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.maxChecks must be a positive number. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -416,7 +389,7 @@ function validateVerdictConfig(
       if (!config.signalType) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.signalType is required for detect:structured verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -425,7 +398,7 @@ function validateVerdictConfig(
       if (!config.operator) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.operator is required for meta:composite verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       if (
@@ -435,7 +408,7 @@ function validateVerdictConfig(
       ) {
         errors.push(
           "[CONFIGURATION] runner.verdict.config.conditions is required for meta:composite verdict type. " +
-            "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+            "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
         );
       }
       break;
@@ -462,7 +435,7 @@ export function validateComplete(
   if (!definition.runner?.verdict?.type) {
     result.errors.push(
       "[CONFIGURATION] runner.verdict.type is required. " +
-        "\u2192 See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
+        "→ See: docs/guides/en/11-runner-reference.md#113-runnerverdict",
     );
     result.valid = false;
   }
@@ -470,23 +443,7 @@ export function validateComplete(
   if (!definition.runner?.flow?.systemPromptPath) {
     result.errors.push(
       "[CONFIGURATION] runner.flow.systemPromptPath is required. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
-    );
-    result.valid = false;
-  }
-
-  if (!definition.runner?.boundaries?.allowedTools) {
-    result.errors.push(
-      "[CONFIGURATION] runner.boundaries.allowedTools is required. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
-    );
-    result.valid = false;
-  }
-
-  if (!definition.runner?.boundaries?.permissionMode) {
-    result.errors.push(
-      "[CONFIGURATION] runner.boundaries.permissionMode is required. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+        "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
     );
     result.valid = false;
   }
@@ -494,7 +451,7 @@ export function validateComplete(
   if (!definition.runner?.flow?.prompts?.registry) {
     result.errors.push(
       "[CONFIGURATION] runner.flow.prompts.registry is required. " +
-        "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+        "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
     );
     result.valid = false;
   }
@@ -505,14 +462,14 @@ export function validateComplete(
     if (!definition.runner.logging.directory) {
       result.errors.push(
         "[CONFIGURATION] runner.logging.directory is required. " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+          "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
       result.valid = false;
     }
     if (!definition.runner.logging.format) {
       result.errors.push(
         "[CONFIGURATION] runner.logging.format is required. " +
-          "\u2192 See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
+          "→ See: docs/guides/en/12-troubleshooting.md#23-validation-failure",
       );
       result.valid = false;
     }

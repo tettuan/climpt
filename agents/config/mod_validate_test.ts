@@ -35,10 +35,6 @@ function minimalValidAgentJson(): Record<string, unknown> {
           maxIterations: 3,
         },
       },
-      boundaries: {
-        permissionMode: "default",
-        allowedTools: ["Read", "Write"],
-      },
     },
     parameters: {},
   };

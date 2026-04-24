@@ -85,10 +85,6 @@ function createMockAgentDefinition(
         },
       },
       verdict,
-      boundaries: {
-        allowedTools: ["Bash", "Read", "Write"],
-        permissionMode: "plan",
-      },
       execution: {},
       logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
     },
@@ -1272,10 +1268,6 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
         type: "poll:state",
         config: { maxIterations: 10 },
       },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
-      },
       integrations: {
         github: {
           enabled: true,
@@ -1325,10 +1317,6 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
         config: {
           maxIterations: 10,
         },
-      },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
       },
       integrations: {
         github: {
@@ -1380,10 +1368,6 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
         config: {
           maxIterations: 5,
         },
-      },
-      boundaries: {
-        allowedTools: ["Bash", "Read"],
-        permissionMode: "default",
       },
       integrations: {
         github: {

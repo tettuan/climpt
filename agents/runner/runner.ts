@@ -59,6 +59,7 @@ import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
+import { loadAgentSettings } from "../config/settings-loader.ts";
 import { prC3lNoPrompt } from "../shared/errors/config-errors.ts";
 import { formatIterationSummary } from "../verdict/types.ts";
 import type { PromptStepDefinition } from "../common/step-registry/types.ts";
@@ -111,7 +112,14 @@ export class AgentRunner {
   private readonly closureManager: ClosureManager;
   private readonly schemaManager: SchemaManager;
   private readonly flowOrchestrator: FlowOrchestrator;
-  private readonly queryExecutor: QueryExecutor;
+  /**
+   * QueryExecutor is constructed lazily on the first SDK-bound iteration
+   * (see {@link ensureQueryExecutor}). Merger agents never reach the SDK
+   * path (subprocess-closure) so they must not trigger settings loading —
+   * lazy init makes that a structural guarantee rather than a runtime
+   * opt-out.
+   */
+  private queryExecutor: QueryExecutor | null = null;
   private readonly boundaryHooks: BoundaryHooks;
   private readonly closureAdapter: ClosureAdapter;
   private completionLoopProcessor!: CompletionLoopProcessor;
@@ -157,14 +165,6 @@ export class AgentRunner {
       hasFlowRoutingEnabled: () => this.closureManager.hasFlowRoutingEnabled(),
     });
 
-    this.queryExecutor = new QueryExecutor({
-      definition: this.definition,
-      getContext: () => this.getContext(),
-      getStepsRegistry: () => this.closureManager.stepsRegistry,
-      getVerboseLogger: () => this.verboseLogger,
-      getSchemaManager: () => this.schemaManager,
-    });
-
     this.boundaryHooks = new BoundaryHooks({
       getStepsRegistry: () => this.closureManager.stepsRegistry,
       getEventEmitter: () => this.eventEmitter,
@@ -196,6 +196,35 @@ export class AgentRunner {
       throw new AgentNotInitializedError();
     }
     return this.context;
+  }
+
+  /**
+   * Build (once, lazily) the {@link QueryExecutor} used by Flow Loop and
+   * Completion Loop iterations.
+   *
+   * Settings are loaded from
+   * `.agent/climpt/config/claude.settings.climpt.agents.{name}.json`
+   * (with shared-file fallback) via {@link loadAgentSettings}. Merger-style
+   * agents that only run subprocess closures never reach this helper, so
+   * they are not required to ship a per-agent settings file.
+   *
+   * Idempotent: subsequent calls return the cached instance.
+   */
+  private async ensureQueryExecutor(): Promise<QueryExecutor> {
+    if (this.queryExecutor !== null) {
+      return this.queryExecutor;
+    }
+    const ctx = this.getContext();
+    const settings = await loadAgentSettings(this.definition.name, ctx.cwd);
+    this.queryExecutor = new QueryExecutor({
+      definition: this.definition,
+      settings,
+      getContext: () => this.getContext(),
+      getStepsRegistry: () => this.closureManager.stepsRegistry,
+      getVerboseLogger: () => this.verboseLogger,
+      getSchemaManager: () => this.schemaManager,
+    });
+    return this.queryExecutor;
   }
 
   async initialize(options: RunnerOptions): Promise<void> {
@@ -277,7 +306,7 @@ export class AgentRunner {
       closureManager: this.closureManager,
       boundaryHooks: this.boundaryHooks,
       closureAdapter: this.closureAdapter,
-      queryExecutor: this.queryExecutor,
+      getQueryExecutor: () => this.ensureQueryExecutor(),
       flowOrchestrator: this.flowOrchestrator,
       schemaManager: this.schemaManager,
       eventEmitter: this.eventEmitter,
@@ -574,7 +603,9 @@ export class AgentRunner {
 
         // Execute Claude SDK query
         // deno-lint-ignore no-await-in-loop
-        const summary = await this.queryExecutor.executeQuery({
+        const queryExecutor = await this.ensureQueryExecutor();
+        // deno-lint-ignore no-await-in-loop
+        const summary = await queryExecutor.executeQuery({
           prompt,
           systemPrompt,
           plugins,

@@ -4,7 +4,7 @@
  * Runner config hierarchy mirrors runtime ownership:
  * - flow: FlowOrchestrator (prompts, schemas, system prompt, defaultModel, askUserAutoResponse)
  * - verdict: VerdictManager (type, config)
- * - boundaries: QueryExecutor (tools, permissions, sandbox)
+ * - boundaries: QueryExecutor (sandbox only; tools/permissions moved to `.agent/climpt/config/claude.settings.climpt.agents.*.json`)
  * - integrations: external service configs (github)
  * - actions: ActionDetector (detection, types, handlers)
  * - execution: run-agent.ts (worktree, finalize)
@@ -36,7 +36,7 @@ export interface AgentDefinition {
 export interface RunnerConfig {
   flow: RunnerFlowConfig;
   verdict: RunnerVerdictConfig;
-  boundaries: RunnerBoundariesConfig;
+  boundaries?: RunnerBoundariesConfig;
   integrations?: RunnerIntegrationsConfig;
   actions?: ActionConfig;
   execution?: RunnerExecutionConfig;
@@ -81,8 +81,6 @@ export interface RunnerVerdictConfig {
 }
 
 export interface RunnerBoundariesConfig {
-  allowedTools: string[];
-  permissionMode: PermissionMode;
   sandbox?: SandboxConfig;
 }
 

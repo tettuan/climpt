@@ -89,28 +89,28 @@ step 定義と出力 schema の対応。
 
 基本的な型制約と必須フィールド。
 
-| ID    | ルール                                                                                                  | 検証内容                       | Schema 表現                 |
-| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------- |
-| R-F1  | `agent.name` は `^[a-z][a-z0-9-]*$`                                                                     | kebab-case                     | pattern                     |
-| R-F2  | `agent.version` は `^\d+\.\d+\.\d+$`                                                                    | semver                         | pattern                     |
-| R-F3  | `agent.runner.verdict.type` ∈ VerdictType enum (8値)                                                    | 有効な verdict type            | enum                        |
-| R-F4  | `agent.runner.boundaries.permissionMode` ∈ {default, plan, acceptEdits, bypassPermissions}              | 有効な permission mode         | enum                        |
-| R-F5  | `agent.parameters[*].type` ∈ {string, number, boolean, array}                                           | パラメータ型が有効             | enum                        |
-| R-F6  | `agent.parameters[*].cli` は `^--[a-z][a-z0-9-]*$`                                                      | CLI flag 形式                  | pattern                     |
-| R-F7  | `step.uvVariables` は array                                                                             | 型制約                         | type: array                 |
-| R-F8  | `step.usesStdin` は boolean                                                                             | 型制約                         | type: boolean               |
-| R-F9  | `step.name`, `step.c2`, `step.c3`, `step.edition` は非空文字列                                          | 必須フィールド                 | minLength: 1                |
-| R-F10 | `outputSchemaRef` は `file` (string) + `schema` (string)                                                | 構造制約                       | properties                  |
-| R-F11 | `entryStep` XOR `entryStepMapping` (少なくとも一方必須)                                                 | エントリポイント存在           | oneOf                       |
-| R-F12 | verdict config は type に応じた必須フィールドを持つ (下表参照)                                          | strategy-dependent validation  | if/then discriminated union |
-| R-F13 | `step.model` (存在時) ∈ {sonnet, opus, haiku}                                                           | 有効なモデル名                 | enum                        |
-| R-F14 | `structuredGate.targetMode` (存在時) ∈ {explicit, dynamic, conditional}                                 | 有効な target mode             | enum                        |
-| R-F15 | `meta:composite` verdict の `config.conditions[*].type` ∈ VerdictType (meta:composite 自身を除く)       | 再帰防止 + 有効な verdict type | enum                        |
-| R-F16 | `agent.parameters[*].validation` のキー ∈ {min, max, pattern, enum}                                     | 有効な validation キーワード   | enum                        |
-| R-F17 | `agent.parameters[*].required` は boolean                                                               | 型制約                         | type: boolean               |
-| R-F18 | `agent.runner.logging.format` (存在時) ∈ {jsonl, text}                                                  | 有効なログ形式                 | enum                        |
-| R-F19 | `agent.runner.integrations.github.defaultClosureAction` (存在時) ∈ {close, label-only, label-and-close} | 有効な closure action          | enum                        |
-| R-F20 | `step.priority` (存在時) は正の整数                                                                     | 優先度の有効性                 | type: integer, minimum: 1   |
+| ID    | ルール                                                                                                                                               | 検証内容                       | Schema 表現                 |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------- |
+| R-F1  | `agent.name` は `^[a-z][a-z0-9-]*$`                                                                                                                  | kebab-case                     | pattern                     |
+| R-F2  | `agent.version` は `^\d+\.\d+\.\d+$`                                                                                                                 | semver                         | pattern                     |
+| R-F3  | `agent.runner.verdict.type` ∈ VerdictType enum (8値)                                                                                                 | 有効な verdict type            | enum                        |
+| R-F4  | ~~`agent.runner.boundaries.permissionMode`~~ → 廃止。`.agent/climpt/config/claude.settings.climpt.agents.*.json` の `permissions.defaultMode` へ移動 | n/a                            | n/a                         |
+| R-F5  | `agent.parameters[*].type` ∈ {string, number, boolean, array}                                                                                        | パラメータ型が有効             | enum                        |
+| R-F6  | `agent.parameters[*].cli` は `^--[a-z][a-z0-9-]*$`                                                                                                   | CLI flag 形式                  | pattern                     |
+| R-F7  | `step.uvVariables` は array                                                                                                                          | 型制約                         | type: array                 |
+| R-F8  | `step.usesStdin` は boolean                                                                                                                          | 型制約                         | type: boolean               |
+| R-F9  | `step.name`, `step.c2`, `step.c3`, `step.edition` は非空文字列                                                                                       | 必須フィールド                 | minLength: 1                |
+| R-F10 | `outputSchemaRef` は `file` (string) + `schema` (string)                                                                                             | 構造制約                       | properties                  |
+| R-F11 | `entryStep` XOR `entryStepMapping` (少なくとも一方必須)                                                                                              | エントリポイント存在           | oneOf                       |
+| R-F12 | verdict config は type に応じた必須フィールドを持つ (下表参照)                                                                                       | strategy-dependent validation  | if/then discriminated union |
+| R-F13 | `step.model` (存在時) ∈ {sonnet, opus, haiku}                                                                                                        | 有効なモデル名                 | enum                        |
+| R-F14 | `structuredGate.targetMode` (存在時) ∈ {explicit, dynamic, conditional}                                                                              | 有効な target mode             | enum                        |
+| R-F15 | `meta:composite` verdict の `config.conditions[*].type` ∈ VerdictType (meta:composite 自身を除く)                                                    | 再帰防止 + 有効な verdict type | enum                        |
+| R-F16 | `agent.parameters[*].validation` のキー ∈ {min, max, pattern, enum}                                                                                  | 有効な validation キーワード   | enum                        |
+| R-F17 | `agent.parameters[*].required` は boolean                                                                                                            | 型制約                         | type: boolean               |
+| R-F18 | `agent.runner.logging.format` (存在時) ∈ {jsonl, text}                                                                                               | 有効なログ形式                 | enum                        |
+| R-F19 | `agent.runner.integrations.github.defaultClosureAction` (存在時) ∈ {close, label-only, label-and-close}                                              | 有効な closure action          | enum                        |
+| R-F20 | `step.priority` (存在時) は正の整数                                                                                                                  | 優先度の有効性                 | type: integer, minimum: 1   |
 
 ## R-F12: Verdict Config 必須フィールド一覧
 

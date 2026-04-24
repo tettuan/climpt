@@ -124,7 +124,8 @@ export interface PromptStepDefinition {
 
   /**
    * Override SDK permissionMode for this step.
-   * When set, takes priority over the agent-level boundaries.permissionMode.
+   * When set, takes priority over `permissions.defaultMode` from
+   * `.agent/climpt/config/claude.settings.climpt.agents.*.json`.
    */
   permissionMode?: PermissionMode;
 

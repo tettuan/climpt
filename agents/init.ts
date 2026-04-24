@@ -88,10 +88,6 @@ export async function initAgent(
           verdictKeyword: "TASK_COMPLETE",
         },
       },
-      boundaries: {
-        allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-        permissionMode: "acceptEdits",
-      },
       integrations: {
         github: {
           enabled: false,

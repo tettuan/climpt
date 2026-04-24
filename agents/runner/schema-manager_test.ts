@@ -44,7 +44,6 @@ function createStubDefinition(): AgentDefinition {
         prompts: { registry: "steps_registry.json", fallbackDir: "./prompts" },
       },
       verdict: { type: "poll:state", config: { maxIterations: 5 } },
-      boundaries: { allowedTools: [], permissionMode: "plan" },
     },
   };
 }

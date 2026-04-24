@@ -25,17 +25,6 @@
         "maxIterations": 6
       }
     },
-    "boundaries": {
-      "allowedTools": [
-        "Read",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task",
-        "WebFetch"
-      ],
-      "permissionMode": "bypassPermissions"
-    },
     "logging": {
       "directory": "tmp/logs/agents/considerer",
       "format": "jsonl",

@@ -53,7 +53,7 @@
 
   "$defs": {
     "AgentSection": {
-      "description": "The agent definition section. Mirrors agent.json structure. Enforces: R-F1 (name pattern), R-F2 (version semver), R-F3 (verdict type enum), R-F4 (permissionMode enum), R-F5 (parameter type enum), R-F6 (cli pattern), R-F12 (verdict config per type), R-F16 (validation keys), R-F17 (required boolean), R-F18 (logging format enum), R-F19 (closureAction enum).",
+      "description": "The agent definition section. Mirrors agent.json structure. Enforces: R-F1 (name pattern), R-F2 (version semver), R-F3 (verdict type enum), R-F5 (parameter type enum), R-F6 (cli pattern), R-F12 (verdict config per type), R-F16 (validation keys), R-F17 (required boolean), R-F18 (logging format enum), R-F19 (closureAction enum).",
       "type": "object",
       "required": ["name", "version", "displayName", "description", "runner"],
       "properties": {
@@ -148,9 +148,9 @@
     },
 
     "RunnerConfig": {
-      "description": "Runner configuration. Requires flow, verdict, boundaries.",
+      "description": "Runner configuration. Requires flow and verdict; boundaries is optional (sandbox-only).",
       "type": "object",
-      "required": ["flow", "verdict", "boundaries"],
+      "required": ["flow", "verdict"],
       "properties": {
         "flow": {
           "$ref": "#/$defs/RunnerFlowConfig"
@@ -481,31 +481,9 @@
     },
 
     "RunnerBoundariesConfig": {
-      "description": "Boundary constraints for the runner. Enforces: R-F4 (permissionMode enum).",
+      "description": "Sandbox constraints only; allowedTools/permissionMode moved to `.agent/climpt/config/claude.settings.climpt.agents.*.json`.",
       "type": "object",
-      "required": ["allowedTools", "permissionMode"],
       "properties": {
-        "allowedTools": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Tools the agent is allowed to use"
-        },
-        "permissionMode": {
-          "type": "string",
-          "oneOf": [
-            { "const": "default", "title": "Standard permission prompts" },
-            {
-              "const": "plan",
-              "title": "Require plan approval before execution"
-            },
-            { "const": "acceptEdits", "title": "Auto-accept file edits" },
-            {
-              "const": "bypassPermissions",
-              "title": "Skip all permission prompts"
-            }
-          ],
-          "description": "Claude permission mode. R-F4."
-        },
         "sandbox": {
           "$ref": "#/$defs/SandboxConfig"
         }
@@ -889,7 +867,7 @@
         "permissionMode": {
           "type": "string",
           "enum": ["default", "plan", "acceptEdits", "bypassPermissions"],
-          "description": "Permission mode override for this step. Falls back to stepKind default, then agent-level boundaries.permissionMode."
+          "description": "Permission mode override for this step. Falls back to stepKind default, then `permissions.defaultMode` from `.agent/climpt/config/claude.settings.climpt.agents.*.json`."
         },
         "priority": {
           "type": "integer",
