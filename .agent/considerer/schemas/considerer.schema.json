@@ -3,6 +3,78 @@
   "$id": "considerer.schema.json",
   "description": "Considerer agent step schemas. Closure emits verdict in {done, handoff-detail} for outputPhases routing (workflow.json). Optional deferred_items[] carves out out-of-scope tasks as new issues before close.",
 
+  "closure.consider.doc-scan": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-scan. Intent enum must mirror the step's allowedIntents exactly (validateIntentSchemaEnums).",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.doc-verify": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-verify. Adds handoff intent for the RC4 short-circuit to closure.consider.emit-handoff-detail.",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat", "handoff"]
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.precheck-kind-read": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.precheck-kind-read (RC6 K1).",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.precheck-kind-scope": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.precheck-kind-scope (RC6 K2).",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      }
+    }
+  },
+
   "closure.consider": {
     "type": "object",
     "description": "Consider closure response — answer the issue and emit a verdict that routes phase transition.",

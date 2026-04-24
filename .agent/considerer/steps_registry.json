@@ -99,7 +99,7 @@
       "description": "Extract every doc path mentioned in issue body + comments (docs/**, **/design*.md, agents/docs/**). Read-only; single artifact = doc_paths_required.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
-        "schema": "closure.consider"
+        "schema": "closure.consider.doc-scan"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -133,16 +133,16 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "For each required doc path, run `git diff --name-only <base>..HEAD -- <path>`. If any diffed=false, short-circuit to handoff-detail verdict via closing intent; otherwise proceed to consider.",
+      "description": "For each required doc path, run `git diff --name-only <base>..HEAD -- <path>`. If any diffed=false, emit handoff to emit-handoff-detail stub (which echoes verdict=handoff-detail verbatim to terminal output); otherwise proceed to precheck-kind-read.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
-        "schema": "closure.consider"
+        "schema": "closure.consider.doc-verify"
       },
       "structuredGate": {
         "allowedIntents": [
           "next",
           "repeat",
-          "closing"
+          "handoff"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
@@ -150,7 +150,8 @@
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
-          "verdict"
+          "verdict",
+          "final_summary"
         ]
       },
       "transitions": {
@@ -160,8 +161,48 @@
         "repeat": {
           "target": "closure.consider.doc-scan"
         },
+        "handoff": {
+          "target": "closure.consider.emit-handoff-detail"
+        }
+      }
+    },
+    "closure.consider.emit-handoff-detail": {
+      "stepId": "closure.consider.emit-handoff-detail",
+      "name": "Emit Handoff-Detail Verdict From Doc-Verify Short-Circuit",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "emit-handoff-detail",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Short-circuit terminal for the doc-path-missing case. Surfaces the handed-off verdict=handoff-detail + final_summary verbatim to the agent's terminal output. No issue reading, no research, no comment posting, no re-judgment. RC4 preservation is structural: this step's sole purpose is echo.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": [
+          "verdict",
+          "final_summary",
+          "doc_paths_required",
+          "doc_diff_results"
+        ]
+      },
+      "transitions": {
         "closing": {
           "target": null
+        },
+        "repeat": {
+          "target": "closure.consider.emit-handoff-detail"
         }
       }
     },
@@ -179,7 +220,7 @@
       "description": "RC6 K1: read .agent/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first).",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
-        "schema": "closure.consider"
+        "schema": "closure.consider.precheck-kind-read"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -218,7 +259,7 @@
       "description": "RC6 K2: apply kind:* scope rule to this run's changed paths. Violations handed off; validator kind-boundary-clean enforces.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
-        "schema": "closure.consider"
+        "schema": "closure.consider.precheck-kind-scope"
       },
       "structuredGate": {
         "allowedIntents": [
