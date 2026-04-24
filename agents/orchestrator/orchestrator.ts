@@ -23,7 +23,12 @@ import {
   resolvePhase,
   resolveTerminalOrBlocking,
 } from "./label-resolver.ts";
-import { computeLabelChanges, computeTransition } from "./phase-transition.ts";
+import {
+  computeLabelChanges,
+  computeTransition,
+  hasPhaseLabel,
+  resolvePhaseLabel,
+} from "./phase-transition.ts";
 import { HandoffManager } from "./handoff-manager.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 import type { SubjectStore } from "./subject-store.ts";
@@ -948,18 +953,42 @@ export class Orchestrator {
 
           // T6.eval: Project completion check (issue #491).
           // After closing an issue, check if the issue belongs to any project.
-          // If all non-sentinel items in the project have `done` label, trigger
-          // the evaluator by removing `done` from sentinel and adding `kind:eval`.
+          // When every non-sentinel item resolves to projectBinding.donePhase,
+          // trigger the evaluator by stripping the done-phase label from the
+          // sentinel and adding the evalPhase label. All three identifiers
+          // (donePhase / evalPhase / sentinelLabel) come from projectBinding,
+          // and labelMapping (+ labelPrefix) converts phases to the actual
+          // GitHub label — so prefixed workflows (e.g. labelPrefix: "docs")
+          // naturally resolve to "docs:done" / "docs:kind:eval".
+          //
+          // Invariant: workflow-loader enforces that donePhase has a
+          // labelMapping entry (WF-PROJECT-007) and evalPhase likewise
+          // (WF-PROJECT-006), so resolvePhaseLabel cannot return null here.
           if (issueClosed && this.#config.projectBinding) {
+            const binding = this.#config.projectBinding;
             try {
               // deno-lint-ignore no-await-in-loop
               const projects = await this.#github.getIssueProjects(
                 Number(subjectId),
               );
+              const doneLabel = resolvePhaseLabel(
+                this.#config,
+                binding.donePhase,
+              );
+              const evalLabel = resolvePhaseLabel(
+                this.#config,
+                binding.evalPhase,
+              );
+              if (doneLabel === null || evalLabel === null) {
+                // Loader invariant violated — treat as unrecoverable config drift.
+                throw new Error(
+                  `Internal invariant: projectBinding.donePhase / evalPhase ` +
+                    `resolved to null despite WF-PROJECT-006/007 checks.`,
+                );
+              }
               for (const project of projects) {
                 // deno-lint-ignore no-await-in-loop
                 const items = await this.#github.listProjectItems(project);
-                // For each item, check labels to find sentinel and done status.
                 let sentinelNumber: number | null = null;
                 let allNonSentinelDone = true;
                 let nonSentinelCount = 0;
@@ -968,11 +997,17 @@ export class Orchestrator {
                   const itemLabels = await this.#github.getIssueLabels(
                     item.issueNumber,
                   );
-                  if (itemLabels.includes("project-sentinel")) {
+                  if (itemLabels.includes(binding.sentinelLabel)) {
                     sentinelNumber = item.issueNumber;
                   } else {
                     nonSentinelCount++;
-                    if (!itemLabels.includes("done")) {
+                    if (
+                      !hasPhaseLabel(
+                        itemLabels,
+                        this.#config,
+                        binding.donePhase,
+                      )
+                    ) {
                       allNonSentinelDone = false;
                     }
                   }
@@ -984,8 +1019,8 @@ export class Orchestrator {
                   // deno-lint-ignore no-await-in-loop
                   await this.#github.updateIssueLabels(
                     sentinelNumber,
-                    ["done"],
-                    ["kind:eval"],
+                    [doneLabel],
+                    [evalLabel],
                   );
                   // deno-lint-ignore no-await-in-loop
                   await log.info(
@@ -997,6 +1032,8 @@ export class Orchestrator {
                       project: `${project.owner}/${project.number}`,
                       sentinelNumber,
                       nonSentinelCount,
+                      doneLabel,
+                      evalLabel,
                     },
                   );
                 }

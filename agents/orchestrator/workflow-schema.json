@@ -275,8 +275,16 @@
     },
     "projectBinding": {
       "type": "object",
-      "description": "Project-level orchestration binding. When absent, all project-related features are disabled — preserving v1.13.x behavior (Invariant I1).",
+      "description": "Project-level orchestration binding. When absent, all project-related features are disabled — preserving v1.13.x behavior (Invariant I1). When present, donePhase / evalPhase / planPhase / sentinelLabel are required so both the T6.eval trigger and the project:init bootstrap are fully config-driven (no implicit label or phase names in code).",
       "additionalProperties": false,
+      "required": [
+        "injectGoalIntoPromptContext",
+        "inheritProjectsForCreateIssue",
+        "donePhase",
+        "evalPhase",
+        "planPhase",
+        "sentinelLabel"
+      ],
       "properties": {
         "injectGoalIntoPromptContext": {
           "type": "boolean",
@@ -285,6 +293,22 @@
         "inheritProjectsForCreateIssue": {
           "type": "boolean",
           "description": "Inherit parent project membership when creating child issues"
+        },
+        "donePhase": {
+          "type": "string",
+          "description": "Phase ID that signals per-item completion for T6.eval. Must reference a phase with type=terminal. Looked up via labelMapping + labelPrefix to resolve the actual GitHub label name."
+        },
+        "evalPhase": {
+          "type": "string",
+          "description": "Phase ID the sentinel transitions to when all non-sentinel items are done. Must reference an actionable phase that has an agent assigned (the evaluator). Looked up via labelMapping + labelPrefix to resolve the GitHub label to apply."
+        },
+        "planPhase": {
+          "type": "string",
+          "description": "Phase ID the sentinel issue is bootstrapped into by the project:init script. Must reference an actionable phase that has an agent assigned (the planner). Looked up via labelMapping + labelPrefix to resolve the GitHub label applied at creation."
+        },
+        "sentinelLabel": {
+          "type": "string",
+          "description": "GitHub label (bare, no labelPrefix) that identifies the project sentinel issue. Must be declared in labels with role=marker."
         }
       }
     }

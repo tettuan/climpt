@@ -240,8 +240,27 @@ class ProjectStubGitHubClient implements GitHubClient {
 // ---------------------------------------------------------------------------
 // Config factory — reviewer with closeOnComplete=true
 // ---------------------------------------------------------------------------
+/**
+ * Defaults for the three T6.eval-trigger fields that ProjectBindingConfig
+ * now requires. The hook O1/O2 tests don't exercise T6.eval, so values only
+ * need to be type-correct and reference the test config's phases/labels.
+ * `complete` is the terminal phase, `review` is an actionable phase with
+ * the reviewer agent, and `project-sentinel` is not declared in any labels
+ * section here (the fixture has none) so the loader's marker check is
+ * silently skipped.
+ */
+const TEST_T6_BINDING_FIELDS = {
+  donePhase: "complete",
+  evalPhase: "review",
+  planPhase: "implementation",
+  sentinelLabel: "project-sentinel",
+} as const;
+
 function createConfig(
-  projectBinding?: WorkflowConfig["projectBinding"],
+  projectBinding?: Pick<
+    WorkflowConfig["projectBinding"] & object,
+    "injectGoalIntoPromptContext" | "inheritProjectsForCreateIssue"
+  >,
 ): WorkflowConfig {
   return {
     version: "1.0.0",
@@ -272,7 +291,9 @@ function createConfig(
       },
     },
     rules: { maxCycles: 5, cycleDelayMs: 0 },
-    projectBinding,
+    projectBinding: projectBinding === undefined
+      ? undefined
+      : { ...projectBinding, ...TEST_T6_BINDING_FIELDS },
   };
 }
 

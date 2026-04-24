@@ -1054,6 +1054,10 @@ Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", 
   config.projectBinding = {
     injectGoalIntoPromptContext: false,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   let getIssueProjectsCalled = 0;
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
@@ -1092,6 +1096,10 @@ Deno.test("O1 hook: getIssueProjects failure skips silently and dispatch continu
   config.projectBinding = {
     injectGoalIntoPromptContext: true,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   github.getIssueProjects = (_issueNumber: number) => {
@@ -1113,6 +1121,127 @@ Deno.test("O1 hook: getIssueProjects failure skips silently and dispatch continu
   );
 });
 
+Deno.test(
+  "T6.eval: success path writes doneLabel/evalLabel resolved via labelMapping (prefix-aware)",
+  async () => {
+    // This test pins the core contract the hardcode refactor enforces:
+    // the trigger must emit labels resolved through labelMapping, not
+    // literal "done" / "kind:eval" strings. With labelPrefix="docs" the
+    // emitted labels must carry the prefix — the pre-refactor code would
+    // have written bare "done" / "kind:eval" and silently broken any
+    // prefixed workflow.
+    const config = createCloseOnCompleteConfig();
+    config.labelPrefix = "docs";
+    // Add a dedicated eval-pending phase so the evaluator label is distinct
+    // from the cycle's review label (otherwise resolvePhaseLabel picks the
+    // first labelMapping entry for the matching phase, which is the wrong
+    // thing to emit onto the sentinel).
+    config.phases = {
+      ...config.phases,
+      "eval-pending": { type: "actionable", priority: 3, agent: "reviewer" },
+    };
+    config.labelMapping = {
+      "docs-ready": "implementation",
+      "docs-review": "review",
+      "docs-done": "complete",
+      "docs-blocked": "blocked",
+      "docs-kind:eval": "eval-pending",
+    };
+    config.projectBinding = {
+      injectGoalIntoPromptContext: false,
+      inheritProjectsForCreateIssue: false,
+      donePhase: "complete",
+      evalPhase: "eval-pending",
+      planPhase: "implementation",
+      sentinelLabel: "project-sentinel",
+    };
+
+    // Main subject (#1) goes ready -> review -> done — the sequence drives
+    // the cycle loop (which ignores subjectId). After the close completes
+    // T6.eval calls getIssueLabels again per project item; at that point
+    // the sequence has been exhausted and the stub's min() clamp keeps
+    // returning the last entry, so we override the method to dispatch by
+    // subjectId for the post-close calls.
+    const github = new StubGitHubClient([
+      ["docs:docs-ready"],
+      ["docs:docs-review"],
+      ["docs:docs-done"],
+    ]);
+
+    // Track cycle-phase vs T6.eval-phase by counting non-sentinel calls.
+    // Once the orchestrator has performed its 3 cycle reads the remaining
+    // reads belong to T6.eval's per-item check.
+    let cycleCallsConsumed = 0;
+    const sequenceReads = 3;
+    const itemLabelsByIssue: Record<number, string[]> = {
+      1: ["docs:docs-done"],
+      100: ["project-sentinel", "docs:docs-done"],
+    };
+    github.getIssueLabels = (subjectId: number) => {
+      if (cycleCallsConsumed < sequenceReads) {
+        cycleCallsConsumed++;
+        const cycleLabels = [
+          ["docs:docs-ready"],
+          ["docs:docs-review"],
+          ["docs:docs-done"],
+        ][cycleCallsConsumed - 1];
+        return Promise.resolve([...cycleLabels]);
+      }
+      const itemLabels = itemLabelsByIssue[subjectId];
+      if (itemLabels === undefined) {
+        throw new Error(
+          `Test stub: no labels configured for issue #${subjectId}`,
+        );
+      }
+      return Promise.resolve([...itemLabels]);
+    };
+
+    github.getIssueProjects = (_issueNumber: number) => {
+      return Promise.resolve([{ owner: "org-a", number: 10 }]);
+    };
+    github.listProjectItems = (_project) => {
+      return Promise.resolve([
+        { id: "PVT_item_1", issueNumber: 1 },
+        { id: "PVT_item_100", issueNumber: 100 },
+      ]);
+    };
+
+    const dispatcher = new StubDispatcher({
+      iterator: "success",
+      reviewer: "approved",
+    });
+    const orchestrator = new Orchestrator(config, github, dispatcher);
+
+    await orchestrator.run(1);
+
+    // The T6.eval block calls updateIssueLabels on the sentinel with the
+    // prefix-resolved labels. Filter to sentinel updates — other updates
+    // belong to the main close-flow label transitions.
+    const sentinelUpdate = github.labelUpdates.find((u) => u.subjectId === 100);
+    assertEquals(
+      sentinelUpdate !== undefined,
+      true,
+      "T6.eval must emit an updateIssueLabels call targeting the sentinel " +
+        "(#100). Fix: verify the sentinel membership check and the " +
+        "allNonSentinelDone aggregation.",
+    );
+    assertEquals(
+      sentinelUpdate!.removed,
+      ["docs:docs-done"],
+      "Removed label must be the labelMapping entry for donePhase with " +
+        "labelPrefix applied. Fix: orchestrator.ts must route through " +
+        "resolvePhaseLabel(config, projectBinding.donePhase), not a hardcoded 'done'.",
+    );
+    assertEquals(
+      sentinelUpdate!.added,
+      ["docs:docs-kind:eval"],
+      "Added label must be the labelMapping entry for evalPhase with " +
+        "labelPrefix applied. Fix: orchestrator.ts must route through " +
+        "resolvePhaseLabel(config, projectBinding.evalPhase), not a hardcoded 'kind:eval'.",
+    );
+  },
+);
+
 Deno.test("T6.eval: getIssueProjects failure does not block close transaction", async () => {
   // Config has projectBinding — T6.eval executes after issue close.
   // getIssueProjects throws — close transaction must still complete.
@@ -1120,6 +1249,10 @@ Deno.test("T6.eval: getIssueProjects failure does not block close transaction", 
   config.projectBinding = {
     injectGoalIntoPromptContext: false,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   github.getIssueProjects = (_issueNumber: number) => {
@@ -1150,6 +1283,10 @@ Deno.test("O1 hook: issue in 2 projects injects both readmes into dispatch promp
   config.projectBinding = {
     injectGoalIntoPromptContext: true,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
 
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
@@ -1239,6 +1376,10 @@ Deno.test("O1 hook: no promptContext when membership is 0", async () => {
   config.projectBinding = {
     injectGoalIntoPromptContext: true,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   // Default stub returns empty array for getIssueProjects.
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
@@ -1264,6 +1405,10 @@ Deno.test("O1 hook: no promptContext when injectGoalIntoPromptContext is false",
   config.projectBinding = {
     injectGoalIntoPromptContext: false,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   // Even with projects available, flag=false means no injection.
@@ -1292,6 +1437,10 @@ Deno.test("O1 hook: getProject failure skips injection (§6.3 fallback)", async 
   config.projectBinding = {
     injectGoalIntoPromptContext: true,
     inheritProjectsForCreateIssue: false,
+    donePhase: "complete",
+    evalPhase: "review",
+    planPhase: "implementation",
+    sentinelLabel: "project-sentinel",
   };
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   github.getIssueProjects = (_issueNumber: number) => {
@@ -1334,6 +1483,10 @@ Deno.test(
       config.projectBinding = {
         injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: true,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
       };
       const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
 
@@ -1409,6 +1562,10 @@ Deno.test(
       config.projectBinding = {
         injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
       };
       const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
 
@@ -1470,6 +1627,10 @@ Deno.test(
       config.projectBinding = {
         injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: true,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
       };
       const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
 

@@ -850,3 +850,392 @@ Deno.test("workflow-loader: uppercase hex colors accepted", async () => {
     await Deno.remove(dir, { recursive: true });
   }
 });
+
+// =============================================================================
+// WF-PROJECT: projectBinding cross-references (T6.eval trigger)
+//
+// These conformance tests pin the contract that the orchestrator and the
+// workflow share: every identifier the T6.eval block consumes must be
+// declared in the workflow (phases, labelMapping, labels) so the code
+// never needs to fabricate a phase or label name. Each failure mode is
+// verified via its WF-PROJECT-00N error code — the same codes the
+// orchestrator comments reference at runtime.
+// =============================================================================
+
+/**
+ * Returns a config that, on its own, would load — then the caller adds a
+ * projectBinding that triggers the specific WF-PROJECT check under test.
+ * The helper adds a labels section with a declared marker sentinel so the
+ * default sentinel-role check passes; individual tests override as needed.
+ */
+function projectBindingConfig(
+  extraLabels: Record<
+    string,
+    { color: string; description: string; role?: "routing" | "marker" }
+  > = {},
+): Record<string, unknown> {
+  const cfg = validConfig();
+  cfg.labels = {
+    ready: { color: "a2eeef", description: "ready" },
+    review: { color: "fbca04", description: "review" },
+    done: { color: "0e8a16", description: "done" },
+    blocked: { color: "d93f0b", description: "blocked" },
+    "project-sentinel": {
+      color: "e6e6e6",
+      description: "sentinel",
+      role: "marker",
+    },
+    ...extraLabels,
+  };
+  return cfg;
+}
+
+Deno.test(
+  "workflow-loader: WF-PROJECT — valid projectBinding loads successfully",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const config = await loadWorkflow(dir);
+      assertEquals(
+        config.projectBinding?.donePhase,
+        "complete",
+        "projectBinding must be copied through to the loaded config so " +
+          "the orchestrator can read it (previous loader dropped it).",
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-001 — donePhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "nonexistent-phase",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-001");
+      assertStringIncludes(err.message, "nonexistent-phase");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-002 — donePhase must be terminal",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "review", // actionable, not terminal
+        evalPhase: "review",
+        planPhase: "review",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-002");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-003 — evalPhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "nonexistent-phase",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-003");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-004 — evalPhase must be actionable",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "complete", // terminal, not actionable
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-004");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-006 — evalPhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<
+          string,
+          { type: string; priority?: number; agent?: string }
+        >;
+        labelMapping: Record<string, string>;
+        labels?: Record<string, { color: string; description: string }>;
+        agents: Record<string, unknown>;
+      };
+      // Add an actionable phase that has an agent but no labelMapping entry.
+      cfg.phases["eval-orphan"] = {
+        type: "actionable",
+        priority: 3,
+        agent: "reviewer",
+      };
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "eval-orphan",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-006");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-007 — donePhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<string, { type: string; priority?: number }>;
+        labelMapping: Record<string, string>;
+      };
+      // Drop the only labelMapping entry that targets `complete`.
+      delete cfg.labelMapping["done"];
+      // Add another terminal phase to keep labelMapping.complete references sane.
+      cfg.phases["done-orphan"] = { type: "terminal" };
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "done-orphan",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "project-sentinel",
+      };
+      // labels section validator will also flag missing `done` spec; drop the
+      // labels section entirely so validateLabelsSection is bypassed and the
+      // WF-PROJECT-007 path is the one exercised.
+      delete (cfg as { labels?: unknown }).labels;
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-007");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-008 — sentinelLabel not declared in labels",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "not-declared-anywhere",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-008");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-009 — sentinelLabel must have role=marker",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      // Declare sentinel but as a routing label (the orphan check would
+      // then flag it, so also reference it from labelMapping to isolate
+      // the WF-PROJECT-009 path).
+      const cfg = projectBindingConfig({
+        "wrong-role-sentinel": {
+          color: "cccccc",
+          description: "wrong role",
+          role: "routing",
+        },
+      }) as Record<string, unknown> & {
+        labelMapping: Record<string, string>;
+      };
+      cfg.labelMapping["wrong-role-sentinel"] = "blocked";
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "implementation",
+        sentinelLabel: "wrong-role-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-009");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-010 — planPhase not declared in phases throws",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "nonexistent-phase",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-010");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-011 — planPhase must be actionable",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig();
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "complete", // terminal, not actionable
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-011");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT-013 — planPhase has no label in labelMapping",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      const cfg = projectBindingConfig() as Record<string, unknown> & {
+        phases: Record<
+          string,
+          { type: string; priority?: number; agent?: string }
+        >;
+      };
+      cfg.phases["plan-orphan"] = {
+        type: "actionable",
+        priority: 3,
+        agent: "reviewer",
+      };
+      cfg.projectBinding = {
+        injectGoalIntoPromptContext: false,
+        inheritProjectsForCreateIssue: false,
+        donePhase: "complete",
+        evalPhase: "review",
+        planPhase: "plan-orphan",
+        sentinelLabel: "project-sentinel",
+      };
+      await writeFixture(dir, cfg);
+      const err = await assertRejects(() => loadWorkflow(dir), Error);
+      assertStringIncludes(err.message, "WF-PROJECT-013");
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "workflow-loader: WF-PROJECT — absent projectBinding loads successfully (I1)",
+  async () => {
+    const dir = await Deno.makeTempDir();
+    try {
+      // No projectBinding at all — cross-ref check must short-circuit.
+      // This pins Invariant I1 (design/13_project_orchestration.md §3).
+      await writeFixture(dir, validConfig());
+      const config = await loadWorkflow(dir);
+      assertEquals(
+        config.projectBinding,
+        undefined,
+        "Loader must preserve projectBinding=undefined when absent so the " +
+          "orchestrator's I1 guard stays bitwise-equivalent to v1.13.x.",
+      );
+    } finally {
+      await Deno.remove(dir, { recursive: true });
+    }
+  },
+);

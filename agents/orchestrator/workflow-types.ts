@@ -281,13 +281,44 @@ export interface PrioritizerConfig {
  *
  * When absent from `workflow.json`, all project-related code paths
  * (T6.eval, Hook O1/O2) are no-ops — preserving v1.13.x behavior
- * (Invariant I1).
+ * (Invariant I1). When present, the three T6.eval identifiers
+ * (`donePhase`, `evalPhase`, `sentinelLabel`) are required so the
+ * orchestrator never needs to hardcode phase or label names: the
+ * workflow owns every identifier the code consumes.
  */
 export interface ProjectBindingConfig {
   /** Inject project goal into agent prompt context on dispatch */
   injectGoalIntoPromptContext: boolean;
   /** Inherit parent project membership when creating child issues */
   inheritProjectsForCreateIssue: boolean;
+  /**
+   * Phase ID signalling per-item completion for the T6.eval trigger.
+   * Must reference a phase with `type === "terminal"`. Resolved to a
+   * GitHub label via `labelMapping` (+ `labelPrefix`) at check time.
+   */
+  donePhase: string;
+  /**
+   * Phase ID the sentinel transitions to when every non-sentinel item
+   * resolves to `donePhase`. Must reference an actionable phase with
+   * an `agent` assigned (the evaluator). Resolved to a GitHub label
+   * via `labelMapping` (+ `labelPrefix`).
+   */
+  evalPhase: string;
+  /**
+   * Phase ID the sentinel issue starts in when bootstrapped via
+   * `deno task project:init`. Must reference an actionable phase
+   * with an `agent` assigned (the planner). Resolved to a GitHub
+   * label via `labelMapping` (+ `labelPrefix`) so the sentinel
+   * creation script never hardcodes `kind:plan`.
+   */
+  planPhase: string;
+  /**
+   * Bare GitHub label name identifying the project sentinel issue.
+   * Must be declared in `config.labels` with `role: "marker"` — the
+   * sentinel is consumed by `labels.includes(...)` probes, not by
+   * phase routing, so it bypasses the orphan check.
+   */
+  sentinelLabel: string;
 }
 
 /** Project reference — identifies a GitHub Project v2 by owner+number or node id. */

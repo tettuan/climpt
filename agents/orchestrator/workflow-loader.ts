@@ -25,6 +25,19 @@ import {
   wfPhaseAgentRequired,
   wfPhaseInvalidType,
   wfPhasePriorityRequired,
+  wfProjectDonePhaseNotInLabelMapping,
+  wfProjectDonePhaseNotTerminal,
+  wfProjectDonePhaseUnknown,
+  wfProjectEvalPhaseAgentMissing,
+  wfProjectEvalPhaseNotActionable,
+  wfProjectEvalPhaseNotInLabelMapping,
+  wfProjectEvalPhaseUnknown,
+  wfProjectPlanPhaseAgentMissing,
+  wfProjectPlanPhaseNotActionable,
+  wfProjectPlanPhaseNotInLabelMapping,
+  wfProjectPlanPhaseUnknown,
+  wfProjectSentinelLabelNotMarker,
+  wfProjectSentinelLabelUnknown,
   wfRefCloseConditionWithoutCloseOnComplete,
   wfRefInvalidCloseCondition,
   wfRefUnknownAgent,
@@ -99,6 +112,7 @@ export async function loadWorkflow(
     prioritizer: parsed.prioritizer as WorkflowConfig["prioritizer"],
     handoffs: parsed.handoffs as WorkflowConfig["handoffs"],
     payloadSchema: parsed.payloadSchema as WorkflowConfig["payloadSchema"],
+    projectBinding: parsed.projectBinding as WorkflowConfig["projectBinding"],
   };
 
   validateCrossReferences(config);
@@ -197,6 +211,94 @@ function validateCrossReferences(config: WorkflowConfig): void {
 
   // 6. labels[] completeness + color format
   validateLabelsSection(config);
+
+  // 7. projectBinding cross-references (T6.eval trigger)
+  validateProjectBinding(config);
+}
+
+/**
+ * Validate the `projectBinding` block when declared.
+ *
+ * When `projectBinding` is absent, T6.eval and the O1/O2 hooks are
+ * no-ops (Invariant I1 in design/13_project_orchestration.md §3), so no
+ * cross-ref check runs. When present, the three identifiers the T6.eval
+ * trigger consumes (`donePhase`, `evalPhase`, `sentinelLabel`) must
+ * resolve against the workflow — otherwise the trigger would silently
+ * no-op or write an unreachable label at runtime. All nine failure
+ * modes are enumerated as WF-PROJECT-00N so reviewers can spot drift
+ * between projectBinding and phases/labels/labelMapping up front.
+ */
+function validateProjectBinding(config: WorkflowConfig): void {
+  const binding = config.projectBinding;
+  if (binding === undefined) return;
+
+  // donePhase must reference a terminal phase that has a labelMapping entry.
+  const donePhase = config.phases[binding.donePhase];
+  if (donePhase === undefined) {
+    throw wfProjectDonePhaseUnknown(binding.donePhase);
+  }
+  if (donePhase.type !== "terminal") {
+    throw wfProjectDonePhaseNotTerminal(binding.donePhase, donePhase.type);
+  }
+  const doneHasLabel = Object.values(config.labelMapping).includes(
+    binding.donePhase,
+  );
+  if (!doneHasLabel) {
+    throw wfProjectDonePhaseNotInLabelMapping(binding.donePhase);
+  }
+
+  // evalPhase must reference an actionable phase with an agent, backed by
+  // a labelMapping entry that lets the trigger actually apply a label.
+  const evalPhase = config.phases[binding.evalPhase];
+  if (evalPhase === undefined) {
+    throw wfProjectEvalPhaseUnknown(binding.evalPhase);
+  }
+  if (evalPhase.type !== "actionable") {
+    throw wfProjectEvalPhaseNotActionable(binding.evalPhase, evalPhase.type);
+  }
+  if (evalPhase.agent === null || evalPhase.agent === undefined) {
+    throw wfProjectEvalPhaseAgentMissing(binding.evalPhase);
+  }
+  const evalHasLabel = Object.values(config.labelMapping).includes(
+    binding.evalPhase,
+  );
+  if (!evalHasLabel) {
+    throw wfProjectEvalPhaseNotInLabelMapping(binding.evalPhase);
+  }
+
+  // planPhase must reference an actionable phase with an agent, backed by
+  // a labelMapping entry so project:init can stamp a label on creation.
+  const planPhase = config.phases[binding.planPhase];
+  if (planPhase === undefined) {
+    throw wfProjectPlanPhaseUnknown(binding.planPhase);
+  }
+  if (planPhase.type !== "actionable") {
+    throw wfProjectPlanPhaseNotActionable(binding.planPhase, planPhase.type);
+  }
+  if (planPhase.agent === null || planPhase.agent === undefined) {
+    throw wfProjectPlanPhaseAgentMissing(binding.planPhase);
+  }
+  const planHasLabel = Object.values(config.labelMapping).includes(
+    binding.planPhase,
+  );
+  if (!planHasLabel) {
+    throw wfProjectPlanPhaseNotInLabelMapping(binding.planPhase);
+  }
+
+  // sentinelLabel must be a declared marker label. `config.labels` being
+  // absent means the workflow never adopted the declarative label model,
+  // so we cannot enforce the role constraint — skip silently. (Same
+  // opt-in shape as validateLabelsSection.)
+  if (config.labels !== undefined) {
+    const spec = config.labels[binding.sentinelLabel];
+    if (spec === undefined) {
+      throw wfProjectSentinelLabelUnknown(binding.sentinelLabel);
+    }
+    const role = spec.role ?? "routing";
+    if (role !== "marker") {
+      throw wfProjectSentinelLabelNotMarker(binding.sentinelLabel, role);
+    }
+  }
 }
 
 const HEX_COLOR_RE = /^[0-9a-fA-F]{6}$/;

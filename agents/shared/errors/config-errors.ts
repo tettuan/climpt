@@ -660,6 +660,158 @@ export function wfRefInvalidCloseCondition(
   );
 }
 
+// --- WF-PROJECT: projectBinding cross-references (T6.eval trigger) ---
+
+export function wfProjectDonePhaseUnknown(donePhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-001",
+    `projectBinding.donePhase "${donePhase}" is not declared in phases.`,
+    `donePhase is the per-item completion signal the T6.eval trigger consults. If the phase ID does not exist, the trigger would never fire or would silently accept any issue as done.`,
+    `Add phase "${donePhase}" to the "phases" section in workflow.json, or change projectBinding.donePhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectDonePhaseNotTerminal(
+  donePhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-002",
+    `projectBinding.donePhase "${donePhase}" must have type "terminal", got "${actualType}".`,
+    `T6.eval only makes sense when every non-sentinel item has reached a terminal phase. Pointing donePhase at an actionable or blocking phase would fire the evaluator mid-flight.`,
+    `Change phases["${donePhase}"].type to "terminal", or point projectBinding.donePhase at a different terminal phase.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseUnknown(evalPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-003",
+    `projectBinding.evalPhase "${evalPhase}" is not declared in phases.`,
+    `evalPhase is the phase the sentinel transitions to when project completion is detected. An unknown phase ID would leave the sentinel in an unreachable state.`,
+    `Add phase "${evalPhase}" to the "phases" section in workflow.json, or change projectBinding.evalPhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseNotActionable(
+  evalPhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-004",
+    `projectBinding.evalPhase "${evalPhase}" must have type "actionable", got "${actualType}".`,
+    `The sentinel is transitioned into evalPhase to trigger the evaluator agent. Non-actionable phases cannot dispatch an agent.`,
+    `Change phases["${evalPhase}"].type to "actionable" (with an agent assigned), or point projectBinding.evalPhase at an actionable phase backed by the evaluator agent.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseAgentMissing(evalPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-005",
+    `projectBinding.evalPhase "${evalPhase}" is actionable but has no agent assigned.`,
+    `The evaluator phase must dispatch an agent. An actionable phase without an agent would leave the sentinel stuck on label transition with no work performed.`,
+    `Assign an agent to phases["${evalPhase}"].agent in workflow.json, and ensure that agent is declared in the "agents" section.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectEvalPhaseNotInLabelMapping(
+  evalPhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-006",
+    `projectBinding.evalPhase "${evalPhase}" has no label in labelMapping.`,
+    `The T6.eval trigger adds a label to the sentinel so the orchestrator will pick it up and dispatch the evaluator. Without a labelMapping entry pointing at evalPhase, there is no label to add.`,
+    `Add an entry to labelMapping whose value equals "${evalPhase}" (e.g. "kind:eval": "${evalPhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectDonePhaseNotInLabelMapping(
+  donePhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-007",
+    `projectBinding.donePhase "${donePhase}" has no label in labelMapping.`,
+    `The T6.eval trigger strips the done-phase label from the sentinel. Without a labelMapping entry pointing at donePhase, there is no label to remove and project completion can never clear the sentinel.`,
+    `Add an entry to labelMapping whose value equals "${donePhase}" (e.g. "done": "${donePhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseUnknown(planPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-010",
+    `projectBinding.planPhase "${planPhase}" is not declared in phases.`,
+    `planPhase is the phase the sentinel issue is bootstrapped into by project:init. An unknown phase ID would create a sentinel in a state the orchestrator cannot route to the planner.`,
+    `Add phase "${planPhase}" to the "phases" section in workflow.json, or change projectBinding.planPhase to an existing phase ID.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseNotActionable(
+  planPhase: string,
+  actualType: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-011",
+    `projectBinding.planPhase "${planPhase}" must have type "actionable", got "${actualType}".`,
+    `The sentinel is bootstrapped into planPhase so the planner agent can run on creation. Non-actionable phases cannot dispatch an agent, so the sentinel would sit idle.`,
+    `Change phases["${planPhase}"].type to "actionable" (with an agent assigned), or point projectBinding.planPhase at an actionable phase backed by the planner agent.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseAgentMissing(planPhase: string): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-012",
+    `projectBinding.planPhase "${planPhase}" is actionable but has no agent assigned.`,
+    `The planner phase must dispatch an agent. An actionable phase without an agent would leave the sentinel stuck on the kind:plan label with no work performed.`,
+    `Assign an agent to phases["${planPhase}"].agent in workflow.json, and ensure that agent is declared in the "agents" section.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectPlanPhaseNotInLabelMapping(
+  planPhase: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-013",
+    `projectBinding.planPhase "${planPhase}" has no label in labelMapping.`,
+    `project:init applies a labelMapping label so the sentinel is picked up and dispatched to the planner. Without a labelMapping entry pointing at planPhase, there is no label to add at creation time.`,
+    `Add an entry to labelMapping whose value equals "${planPhase}" (e.g. "kind:plan": "${planPhase}") in workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectSentinelLabelUnknown(
+  sentinelLabel: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-008",
+    `projectBinding.sentinelLabel "${sentinelLabel}" is not declared in labels.`,
+    `The sentinel label is consumed by membership probes in the T6.eval trigger. It must be declared in the labels section so the pre-dispatch sync creates it with the correct color and description.`,
+    `Add "${sentinelLabel}" to the "labels" section in workflow.json with { "color": "<6-hex>", "description": "<text>", "role": "marker" }.`,
+    "workflow.json",
+  );
+}
+
+export function wfProjectSentinelLabelNotMarker(
+  sentinelLabel: string,
+  actualRole: string,
+): ConfigError {
+  return new ConfigError(
+    "WF-PROJECT-009",
+    `projectBinding.sentinelLabel "${sentinelLabel}" must have role "marker", got "${actualRole}".`,
+    `The sentinel is an identification-only label consumed by includes() probes, not by phase routing. Declaring it as a routing label would force it into labelMapping and distort phase resolution.`,
+    `Set labels["${sentinelLabel}"].role to "marker" in workflow.json.`,
+    "workflow.json",
+  );
+}
+
 // --- WF-BATCH: Batch operation errors ---
 
 export function wfBatchPrioritizeMissingConfig(): ConfigError {

@@ -9,7 +9,9 @@ import type {
 import {
   computeLabelChanges,
   computeTransition,
+  hasPhaseLabel,
   renderTemplate,
+  resolvePhaseLabel,
 } from "./phase-transition.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
 
@@ -538,6 +540,102 @@ Deno.test(
     );
   },
 );
+
+// --- resolvePhaseLabel ---
+
+Deno.test("resolvePhaseLabel - returns bare label when labelPrefix is unset", () => {
+  const config = makeConfig();
+  assertEquals(
+    resolvePhaseLabel(config, "complete"),
+    "done",
+    "labelMapping[done] -> complete must yield bare 'done' without prefix.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - prepends labelPrefix when set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    resolvePhaseLabel(config, "complete"),
+    "docs:done",
+    "labelPrefix='docs' must turn the bare 'done' label into 'docs:done'. " +
+      "Fix: phase-transition.resolvePhaseLabel must apply labelPrefix.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - returns null when no labelMapping entry targets the phase", () => {
+  const config = makeConfig();
+  assertEquals(
+    resolvePhaseLabel(config, "eval-pending"),
+    null,
+    "Phases not referenced by labelMapping must yield null so callers can no-op " +
+      "instead of fabricating a fake label.",
+  );
+});
+
+Deno.test("resolvePhaseLabel - first labelMapping entry wins on duplicate phase targets", () => {
+  const config = makeConfig({
+    "ready": "implementation",
+    "kickoff": "implementation",
+    "done": "complete",
+  });
+  assertEquals(
+    resolvePhaseLabel(config, "implementation"),
+    "ready",
+    "Insertion order is the documented tiebreaker (mirrors computeLabelChanges).",
+  );
+});
+
+// --- hasPhaseLabel ---
+
+Deno.test("hasPhaseLabel - bare label matches when labelPrefix is unset", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel(["done"], config, "complete"),
+    true,
+    "Bare 'done' must resolve to phase 'complete' under no-prefix workflow.",
+  );
+});
+
+Deno.test("hasPhaseLabel - prefixed label matches when labelPrefix is set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    hasPhaseLabel(["docs:done"], config, "complete"),
+    true,
+    "labelPrefix='docs' must accept 'docs:done' as the done-phase label. " +
+      "Fix: hasPhaseLabel must stripPrefix before consulting labelMapping.",
+  );
+});
+
+Deno.test("hasPhaseLabel - bare label is rejected when labelPrefix is set", () => {
+  const config = makeConfig();
+  config.labelPrefix = "docs";
+  assertEquals(
+    hasPhaseLabel(["done"], config, "complete"),
+    false,
+    "Without the 'docs:' prefix the label belongs to a different namespace " +
+      "and must not match. This guards against cross-workflow leakage.",
+  );
+});
+
+Deno.test("hasPhaseLabel - returns false for empty input", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel([], config, "complete"),
+    false,
+    "Empty label set must return false (non-vacuous: no label = no phase).",
+  );
+});
+
+Deno.test("hasPhaseLabel - unrelated labels are ignored", () => {
+  const config = makeConfig();
+  assertEquals(
+    hasPhaseLabel(["enhancement", "good first issue"], config, "complete"),
+    false,
+    "Labels outside labelMapping must be ignored, not matched by accident.",
+  );
+});
 
 /**
  * Finds the label whose mapping targets the given phase.
