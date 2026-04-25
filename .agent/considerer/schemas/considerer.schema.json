@@ -23,7 +23,7 @@
 
   "closure.consider.doc-verify": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.doc-verify. Adds handoff intent for the RC4 short-circuit to closure.consider.emit-handoff-detail.",
+    "description": "Work-step output schema for closure.consider.doc-verify. Always emits next; verdict authority lives in the terminal consider step.",
     "required": ["next_action"],
     "properties": {
       "next_action": {
@@ -32,7 +32,25 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["next", "repeat", "handoff"]
+            "enum": ["next", "repeat"]
+          }
+        }
+      }
+    }
+  },
+
+  "closure.consider.doc-evidence": {
+    "type": "object",
+    "description": "Work-step output schema for closure.consider.doc-evidence. Fact-gathering only: collects commit metadata for diffed paths. No verdict; always next or repeat.",
+    "required": ["next_action"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
           }
         }
       }
@@ -147,6 +165,37 @@
           "properties": {
             "path": { "type": "string", "minLength": 1 },
             "diffed": { "type": "boolean" }
+          }
+        }
+      },
+      "doc_evidence": {
+        "type": "array",
+        "description": "[RC4] Commit metadata since baseline for diffed=true paths. Populated by closure.consider.doc-evidence. Fact-only (sha/date/subject/--stat); no relevance judgment. Consumed by the terminal consider step. Additive / optional.",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed", "commits", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" },
+            "commits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sha", "date", "subject", "stat"],
+                "additionalProperties": false,
+                "properties": {
+                  "sha": { "type": "string", "minLength": 7 },
+                  "date": { "type": "string", "minLength": 1 },
+                  "subject": { "type": "string" },
+                  "stat": { "type": "string" }
+                }
+              }
+            },
+            "truncated": {
+              "type": "boolean",
+              "description": "True when commit enumeration hit the --max-count=20 cap (more commits may exist beyond the cap)."
+            }
           }
         }
       },

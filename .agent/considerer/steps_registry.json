@@ -133,7 +133,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "For each required doc path, run `git diff --name-only <base>..HEAD -- <path>`. If any diffed=false, emit handoff to emit-handoff-detail stub (which echoes verdict=handoff-detail verbatim to terminal output); otherwise proceed to precheck-kind-read.",
+      "description": "For each required doc path, record diffed (true/false) against the issue baseline. Always emits next; verdict authority lives in the terminal consider step, which receives doc_diff_results and doc_evidence as inputs.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider.doc-verify"
@@ -141,8 +141,45 @@
       "structuredGate": {
         "allowedIntents": [
           "next",
-          "repeat",
-          "handoff"
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "doc_paths_required",
+          "doc_diff_results"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.consider.doc-evidence"
+        },
+        "repeat": {
+          "target": "closure.consider.doc-scan"
+        }
+      }
+    },
+    "closure.consider.doc-evidence": {
+      "stepId": "closure.consider.doc-evidence",
+      "name": "Collect Commit Evidence For Diffed Doc Paths",
+      "stepKind": "work",
+      "c2": "closure",
+      "c3": "consider",
+      "edition": "doc-evidence",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Fact-gathering only: for each diffed=true path, enumerate up to 20 commits since baseline (sha, date, subject, --stat). No diff body, no relevance judgment. Verdict authority remains with the terminal consider step.",
+      "outputSchemaRef": {
+        "file": "considerer.schema.json",
+        "schema": "closure.consider.doc-evidence"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
@@ -150,8 +187,7 @@
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
-          "verdict",
-          "final_summary"
+          "doc_evidence"
         ]
       },
       "transitions": {
@@ -159,50 +195,7 @@
           "target": "closure.consider.precheck-kind-read"
         },
         "repeat": {
-          "target": "closure.consider.doc-scan"
-        },
-        "handoff": {
-          "target": "closure.consider.emit-handoff-detail"
-        }
-      }
-    },
-    "closure.consider.emit-handoff-detail": {
-      "stepId": "closure.consider.emit-handoff-detail",
-      "name": "Emit Handoff-Detail Verdict From Doc-Verify Short-Circuit",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "emit-handoff-detail",
-      "uvVariables": [
-        "issue"
-      ],
-      "usesStdin": false,
-      "description": "Short-circuit terminal for the doc-path-missing case. Surfaces the handed-off verdict=handoff-detail + final_summary verbatim to the agent's terminal output. No issue reading, no research, no comment posting, no re-judgment. RC4 preservation is structural: this step's sole purpose is echo.",
-      "outputSchemaRef": {
-        "file": "considerer.schema.json",
-        "schema": "closure.consider"
-      },
-      "structuredGate": {
-        "allowedIntents": [
-          "closing",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "closing",
-        "handoffFields": [
-          "verdict",
-          "final_summary",
-          "doc_paths_required",
-          "doc_diff_results"
-        ]
-      },
-      "transitions": {
-        "closing": {
-          "target": null
-        },
-        "repeat": {
-          "target": "closure.consider.emit-handoff-detail"
+          "target": "closure.consider.doc-evidence"
         }
       }
     },
@@ -233,6 +226,7 @@
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
+          "doc_evidence",
           "kind_at_triage"
         ]
       },
@@ -272,6 +266,7 @@
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
+          "doc_evidence",
           "kind_at_triage",
           "kind_boundary_violations"
         ]
@@ -316,6 +311,9 @@
           "verdict",
           "final_summary",
           "handoff_anchor",
+          "doc_paths_required",
+          "doc_diff_results",
+          "doc_evidence",
           "kind_at_triage",
           "kind_boundary_violations"
         ]

@@ -1,41 +1,46 @@
 ---
 stepId: closure.consider.doc-verify
-name: Verify Required Doc Paths Have Diffs In This Run
-description: For each required doc path, check whether the current run produced a diff.
+name: Verify Required Doc Paths Were Touched After The Issue Baseline
+description: For each required doc path, check whether it was modified after the issue baseline (run_started_sha if present, else issue createdAt).
 uvVariables:
   - issue
 ---
 
-# Goal: Verify each required doc path has a diff in the current run
+# Goal: Verify each required doc path was modified after the issue baseline
 
 ## Inputs
 - `doc_paths_required` (from prior step `closure.consider.doc-scan`)
-- `run_started_sha` (optional; if unset, use `HEAD~10` as fallback base — considerer
-  does not run polling so this value is not guaranteed)
+- `run_started_sha` (optional; considerer does not run polling so this value is not guaranteed)
 
 ## Outputs
 - `doc_diff_results: [{path: string, diffed: boolean}]` — one entry per required path,
   in the same order as `doc_paths_required`.
-- `verdict` — `"handoff-detail"` when any `diffed=false`; otherwise left unchanged
-  (downstream `consider` step decides the final verdict).
+
+This step does NOT decide a verdict. It records facts (`diffed` per path) and
+emits `next`. Downstream `closure.consider.doc-evidence` collects commit
+metadata; the terminal `consider` step decides the verdict (`done` vs
+`handoff-detail`) with full context.
 
 ## Action
-1. Let `BASE` be `run_started_sha` if present, else `HEAD~10`.
-2. For each `path` in `doc_paths_required`, run
-   `git diff --name-only ${BASE}..HEAD -- "${path}"`; set `diffed=true` iff stdout is
-   non-empty, else `diffed=false`. Collect entries into `doc_diff_results`.
-3. Decide intent:
-   - If `doc_paths_required` is empty OR every entry has `diffed=true`, emit `next`
-     (proceed to `closure.consider.precheck-kind-read`).
-   - Else, emit `handoff` with `verdict="handoff-detail"`, `final_summary`
-     containing the rationale (e.g. `"documentation work outstanding"`), and the
-     missing-path list. Control routes to the `closure.consider.emit-handoff-detail`
-     stub step, which surfaces the verdict verbatim as the agent's terminal output
-     (no re-judgment, no issue comment posted — short-circuit by design).
+1. If `run_started_sha` is present:
+   - For each `path` in `doc_paths_required`, run
+     `git diff --name-only ${run_started_sha}..HEAD -- "${path}"`;
+     `diffed=true` iff stdout is non-empty, else `diffed=false`.
+2. Else (path-specific, time-anchored fallback — removes the previous `HEAD~10` temporal drift):
+   - `BASELINE_TIME` = `gh issue view {uv-issue} --json createdAt -q .createdAt` (ISO-8601 timestamp).
+   - For each `path` in `doc_paths_required`:
+     - `PATH_TIME` = `git log --first-parent -1 --format=%cI -- "${path}"` (empty string if path never committed). `--first-parent` ensures merged-in changes are dated by the merge commit (when they landed on this branch), not by the side-branch author date — this prevents false negatives when a fix arrives via a merge whose original commit predates `BASELINE_TIME`.
+     - `diffed=true` iff `PATH_TIME` is non-empty AND `PATH_TIME >= BASELINE_TIME`; else `diffed=false`.
+3. Collect entries into `doc_diff_results` in the same order as `doc_paths_required`.
+4. Always emit `next` (proceed to `closure.consider.doc-evidence`). This step
+   never short-circuits the flow — verdict authority lives in the terminal
+   `consider` step, which receives `doc_diff_results` plus `doc_evidence` as
+   inputs and decides holistically.
 
 ## Do ONLY this
-- Do not read the doc file contents; only check their diff status via `git diff`.
-- Do not run commands other than `git diff --name-only` in Action step 2.
-- Do not emit any other artifact field beyond `doc_diff_results` (+ `verdict`,
-  `final_summary` when emitting `handoff`).
-- Do not emit intents other than `next`, `repeat` (on git failure), or `handoff`.
+- Do not read the doc file contents; only check diff status (`git diff --name-only`) or last-modification time (`git log --first-parent -1 --format=%cI ...`).
+- Do not run commands other than the `git` invocations in Action steps 1–2 and the single `gh issue view {uv-issue} --json createdAt -q .createdAt` call (only when `run_started_sha` is unset).
+- Do not emit any artifact field beyond `doc_diff_results`. In particular, do
+  not emit `verdict` or `final_summary` here — those are owned by the terminal
+  `consider` step.
+- Do not emit intents other than `next` or `repeat` (on git/gh failure).

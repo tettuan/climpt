@@ -63,6 +63,42 @@ Otherwise emit `done`. This includes:
 Record the chosen anchor (file / symbol / strategy) inside `### 次アクション` of
 the response comment so reviewers can audit the call.
 
+### Step 4a — Doc evidence MUST rule
+
+Upstream steps already collected fact-only doc evidence:
+
+- `doc_paths_required` — doc paths the issue references
+  (regex: `docs/**`, `**/design*.md`, `agents/docs/**`).
+- `doc_diff_results: [{path, diffed}]` — whether each path was last modified
+  after the issue's `createdAt` (per `closure.consider.doc-verify`).
+- `doc_evidence: [{path, diffed, commits: [{sha, date, subject, stat}], truncated}]` —
+  commit metadata since baseline for `diffed=true` paths (per
+  `closure.consider.doc-evidence`). No diff body — drill in with
+  `git show <sha> -- <path>` if you need hunks.
+
+Apply this MUST rule before deciding verdict:
+
+1. If `doc_paths_required` is empty → doc evidence is irrelevant; verdict
+   follows the standard criteria above.
+2. If any `path` has `diffed=false` → emit `verdict: "handoff-detail"` with
+   that path recorded in `handoff_anchor.file`. The doc work is unfinished;
+   do not emit `done`.
+3. If all `diffed=true` AND the commit metadata in `doc_evidence` plausibly
+   addresses the issue's stated requirement (subject lines reference this
+   issue, or `--stat` is consistent with the requested change) → `done` is
+   permitted. Cite the resolving commit's `sha` + `subject` in
+   `### 次アクション`.
+4. If all `diffed=true` BUT the commit metadata does not address this issue
+   (subjects clearly belong to a different issue, or the changes are too
+   small/large to plausibly resolve the requirement) → drill in with
+   `git show <sha> -- <path>` to confirm. If still not resolving →
+   `verdict: "handoff-detail"`, anchor to the path. If genuinely resolving
+   despite the surface signals → `done` is permitted (cite the hunks).
+
+The MUST rule overrides the abstract-only fallback in standard criteria: when
+`doc_paths_required` is non-empty, you may NOT short-circuit to `done` purely
+because no concrete anchor surfaced — the path itself is the anchor.
+
 ## Step 5 — Post response
 
 Considerer's responsibility ends at posting the response. The orchestrator
@@ -105,7 +141,10 @@ Return a JSON object matching `closure.consider` in
     "file": null,
     "symbol": null,
     "strategy": null
-  }
+  },
+  "doc_paths_required": <pass through from upstream>,
+  "doc_diff_results": <pass through from upstream>,
+  "doc_evidence": <pass through from upstream>
 }
 ```
 
@@ -114,9 +153,12 @@ Rules:
 - `verdict` MUST be `"done"` or `"handoff-detail"`.
 - For `verdict: "handoff-detail"`, at least one of `handoff_anchor.file`,
   `handoff_anchor.symbol`, `handoff_anchor.strategy` MUST be a non-empty string.
-  All three may be filled.
+  All three may be filled. When the trigger is a `diffed=false` path (Step 4a
+  rule 2), use that path as `handoff_anchor.file`.
 - For `verdict: "done"`, `handoff_anchor` fields MAY all be `null`.
 - `next_action.action` is always `"closing"` (single-iteration closure).
+- Always echo `doc_paths_required`, `doc_diff_results`, `doc_evidence` from the
+  upstream handoff so audit logs preserve the evidence basis for the verdict.
 
 ## Step 7 — Final status
 
