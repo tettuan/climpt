@@ -351,7 +351,77 @@ CYCLE 1:
 結果: #42 closed, #43 created & project tettuan/3 に登録
 ```
 
-## 8. 関連
+## 8. Plan Phase: README → Schema 変換例
+
+Project-planner agent が README goal を読み、`planner.schema.json` の structured
+output に変換する具体例。
+
+### 8.1 入力: Project README
+
+```markdown
+# v1.14 Release
+
+Goal: Ship project orchestration with GitHub Projects v2 integration.
+
+- Schema design for project-planner output
+- CLI support for --project flag
+- E2E test coverage for bind → plan → emit cycle
+```
+
+### 8.2 出力: planner.schema.json 準拠
+
+```json
+{
+  "next_action": { "action": "closing" },
+  "rationale": {
+    "goal_statement": "Ship project orchestration with GitHub Projects v2 integration.",
+    "extraction_method": "readme_heading",
+    "existing_issue_count": 2,
+    "gap_summary": "Schema design (covered by #521) and CLI --project flag (covered by #500) exist, but E2E test coverage for the bind→plan→emit cycle has no issue yet."
+  },
+  "coverage_axes": [
+    {
+      "axis": "schema",
+      "description": "Output schema for planner agent structured output",
+      "issue_indices": [0]
+    },
+    {
+      "axis": "e2e-test",
+      "description": "End-to-end test for bind → plan → emit cycle",
+      "issue_indices": [1]
+    }
+  ],
+  "proposed_issues": [
+    {
+      "title": "feat(project-planner): design schema for plan-phase output",
+      "body": "## 目的\n\nDefine planner.schema.json fields: proposed_issues[], rationale, coverage_axes.\n\n## 完了条件\n\n- Schema compatible with deferred_items (issue-emitter consumable)\n- Conversion example documented in 13_project_orchestration_flow.md",
+      "labels": ["kind:impl", "enhancement"]
+    },
+    {
+      "title": "test(project-planner): E2E bind→plan→emit cycle",
+      "body": "## 目的\n\nVerify that orchestrator can bind a project, run planner, and emit proposed_issues through outbox.\n\n## 完了条件\n\n- Test exercises full cycle with mock project README\n- Outbox files match deferred_items format",
+      "labels": ["kind:impl"]
+    }
+  ],
+  "verdict": "done",
+  "final_summary": "Identified 1 gap (E2E test) beyond existing issues. Schema issue already tracked."
+}
+```
+
+### 8.3 proposed_issues → deferred_items 互換性
+
+`proposed_issues[]` の各 item は `considerer.schema.json` の `deferred_items[]`
+と同一構造 (`title`, `body`, `labels`, `projects`) を持つ。orchestrator の
+`DeferredItemsEmitter` が変換なしで消費できる。
+
+| Field      | proposed_issues | deferred_items | 備考               |
+| ---------- | --------------- | -------------- | ------------------ |
+| `title`    | required        | required       | 同一               |
+| `body`     | required        | required       | 同一               |
+| `labels`   | required        | required       | 同一               |
+| `projects` | optional        | optional       | 三形態 (§4.2) 互換 |
+
+## 9. 関連
 
 - `13_project_orchestration.md` — Level 2 contracts (型・API・invariants)
 - `13_project_orchestration.md` §6 — Level 3 open design decisions (#500)

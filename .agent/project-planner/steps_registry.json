@@ -21,6 +21,7 @@
       ],
       "usesStdin": false,
       "description": "Read project goal (README), survey open issues, emit deferred_items for gaps, emit verdict done.",
+      "schemaRef": "schemas/planner.schema.json#/plan",
       "structuredGate": {
         "allowedIntents": [
           "closing",

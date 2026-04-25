@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Project-planner agent step schemas. The plan step reads a project README goal, surveys the issue landscape, and emits proposed_issues[] (deferred_items-compatible) to close the gap between goal and current state.",
+
+  "plan": {
+    "type": "object",
+    "description": "Closure step output for the plan phase. proposed_issues items are structurally identical to considerer deferred_items so the orchestrator issue-emitter can consume them without transformation.",
+    "required": ["next_action", "proposed_issues", "rationale", "coverage_axes"],
+    "additionalProperties": false,
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["closing", "repeat"],
+            "description": "closing = emit proposed issues and finish. repeat = re-examine (e.g. README unclear)."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "rationale": {
+        "type": "object",
+        "required": ["goal_statement", "extraction_method"],
+        "additionalProperties": false,
+        "properties": {
+          "goal_statement": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The goal text extracted verbatim (or near-verbatim) from the project README."
+          },
+          "extraction_method": {
+            "type": "string",
+            "enum": ["readme_heading", "readme_body", "readme_list"],
+            "description": "How the goal was located in the README. readme_heading = first H1/H2 sentence, readme_body = full body paragraph, readme_list = enumerated goal items."
+          },
+          "existing_issue_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of open issues already in the project at plan time."
+          },
+          "gap_summary": {
+            "type": "string",
+            "description": "Brief description of what the goal requires that existing issues do not yet cover."
+          }
+        }
+      },
+      "coverage_axes": {
+        "type": "array",
+        "minItems": 1,
+        "description": "Axes (dimensions) of the goal that proposed_issues collectively cover. Each axis maps to one or more proposed_issues by index.",
+        "items": {
+          "type": "object",
+          "required": ["axis", "description", "issue_indices"],
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Short name of the coverage dimension (e.g. 'schema', 'CLI', 'docs', 'tests')."
+            },
+            "description": {
+              "type": "string",
+              "description": "What this axis covers in the context of the project goal."
+            },
+            "issue_indices": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "description": "Zero-based indices into proposed_issues[] that address this axis."
+            }
+          }
+        }
+      },
+      "proposed_issues": {
+        "type": "array",
+        "description": "Issue candidates to close the gap between the project goal and the current issue landscape. Structurally compatible with considerer deferred_items — the orchestrator issue-emitter consumes these via the same outbox path.",
+        "default": [],
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "required": ["title", "body", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Issue title. Self-contained, no reference to the parent issue number required (the runner links it back via body)."
+            },
+            "body": {
+              "type": "string",
+              "description": "Issue body in markdown. Should restate the scope concretely so the downstream agent does not need to re-read the parent issue."
+            },
+            "labels": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Labels applied to the new issue. Usually 'kind:impl' or 'kind:consider'. Omit 'order:N' — the triager assigns it."
+            },
+            "projects": {
+              "type": "array",
+              "description": "Project bindings for the new issue. Absent = inherit parent's projects (when inheritProjectsForCreateIssue is on). Empty array = explicit opt-out (no inheritance). Non-empty array = use this explicit list, parent ignored.",
+              "items": {
+                "type": "object",
+                "oneOf": [
+                  {
+                    "required": ["owner", "number"],
+                    "properties": {
+                      "owner": { "type": "string", "minLength": 1 },
+                      "number": { "type": "integer", "minimum": 1 }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "required": ["id"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1 }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "verdict": {
+        "type": "string",
+        "enum": ["done"],
+        "default": "done",
+        "description": "Always 'done' for the plan step — the planner emits issues and finishes."
+      },
+      "final_summary": {
+        "type": "string",
+        "description": "Human-readable summary of what was planned and why."
+      }
+    }
+  }
+}
