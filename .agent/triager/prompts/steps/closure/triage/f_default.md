@@ -1,24 +1,26 @@
 ---
 stepId: triage
 name: Triage Single Issue
-description: Per-issue classification — read, classify, emit closing SO with labels.
+description: Per-issue classification — read, classify, emit closing SO with the kind label.
 uvVariables:
   - issue
   - workflow
 ---
 
-# Task: Triage one open GitHub Issue
+# Task: Classify one open GitHub Issue
 
 You are dispatched with `--issue {uv-issue}`. Classify it into one of
-`kind:impl`, `kind:consider`, `kind:design`, pick the smallest unused
-`order:N`, and emit a closing structured output. The poll:state boundary
-hook will apply both labels via `gh issue edit`. Do **not** call
-`gh issue edit` yourself.
+`kind:impl`, `kind:consider`, `kind:design`, and emit a closing structured
+output. The poll:state boundary hook applies the chosen label via
+`gh issue edit`. Do **not** call `gh issue edit` yourself. You do **not**
+assign `order:N` — that is the prioritizer's role.
 
-The triage-eligibility predicate is derived dynamically from the workflow
-JSON passed via `--workflow` ({uv-workflow}) — specifically the union of
-`labelMapping` keys and `prioritizer.labels`. Issues carrying unrelated
-labels such as `enhancement`, `bug`, `documentation` are still eligible.
+The eligibility predicate is "carries no `kind:*` label". The kind label
+set is derived from the workflow JSON passed via `--workflow`
+({uv-workflow}) — specifically the entries of `labelMapping` whose keys
+start with `kind:`. Other workflow labels (`order:*`, `done`,
+`need clearance`) and unrelated tags (`enhancement`, etc.) do not affect
+eligibility.
 
 Execute every bash block via `bash -c '...'`. zsh has divergent semantics
 for `!` negation and here-strings that cause silent failures. `set -euo
@@ -37,9 +39,10 @@ If `state` is not `OPEN`, abort: emit closure SO with `status: "failed"`
 and a summary `"issue #{uv-issue} is not open (state=<state>)"` — do not
 emit `issue.labels.add`. Stop.
 
-## Step 1 — Verify eligibility against workflow labels
+## Step 1 — Verify eligibility (no kind:* present)
 
-Compute the workflow label set, then check the target's existing labels.
+Compute the `kind:*` label set from the workflow JSON, then check the
+target's existing labels.
 
 ```bash
 bash -c '
@@ -51,46 +54,24 @@ if [ ! -f "$WORKFLOW" ]; then
   exit 1
 fi
 
-WORKFLOW_LABELS=$(jq -r "
-  [ (.labelMapping // {} | keys[]),
-    (.prioritizer.labels // [])[] ]
-  | unique[]
+KIND_LABELS=$(jq -r "
+  .labelMapping // {}
+  | keys[]
+  | select(startswith(\"kind:\"))
 " "$WORKFLOW")
 
 ISSUE_LABELS=$(gh issue view {uv-issue} --json labels | jq -r ".labels[].name")
 
-# Print intersection — non-empty means already triaged
-comm -12 <(echo "$WORKFLOW_LABELS" | sort -u) <(echo "$ISSUE_LABELS" | sort -u)
+# Print intersection — non-empty means already classified
+comm -12 <(echo "$KIND_LABELS" | sort -u) <(echo "$ISSUE_LABELS" | sort -u)
 '
 ```
 
-If the intersection is non-empty, the issue already carries a workflow
+If the intersection is non-empty, the issue already carries a `kind:*`
 label — abort: emit closure SO with `status: "failed"` and a summary
 naming the conflicting label. Do not emit `issue.labels.add`. Stop.
 
-## Step 2 — List `order:N` already in use on open issues
-
-```bash
-bash -c '
-set -euo pipefail
-gh issue list --state open --search "-label:done" --json labels \
-  | jq -r ".[] | .labels[].name" \
-  | grep -E "^order:[1-9]$" \
-  | sort -u
-'
-```
-
-Call this set `USED`. The available set is `{order:1..order:9} \ USED`,
-iterated in ascending numeric order. Pick the smallest member as
-`order:N`. If `USED` covers the full range, abort: emit closure SO with
-`status: "failed"` and `summary: "no order:N capacity available"`. Stop.
-
-The `-label:done` filter is a safety net: with `closeOnComplete` in the
-execute workflow, done issues are closed and excluded by `--state open`
-already, but the explicit filter guards against the rare case where a
-done-labeled issue remains open due to close failure.
-
-## Step 3 — Classify the issue
+## Step 2 — Classify the issue
 
 Apply the classification heuristics from the system prompt to the
 `title + body` you fetched in Step 0. Choose exactly one of:
@@ -101,7 +82,7 @@ Apply the classification heuristics from the system prompt to the
 
 When `impl` and `consider` both apply, prefer `kind:consider`.
 
-## Step 4 — Emit closing structured output
+## Step 3 — Emit closing structured output
 
 Output **only** the closure structured output as your final assistant
 message. Do not call `gh issue edit`. The boundary hook handles labels.
@@ -110,20 +91,19 @@ message. Do not call `gh issue edit`. The boundary hook handles labels.
 {
   "stepId": "triage",
   "status": "completed",
-  "summary": "classified #{uv-issue} as <kind>, <order>",
+  "summary": "classified #{uv-issue} as <kind>",
   "next_action": { "action": "closing" },
   "issue": {
     "number": {uv-issue},
     "labels": {
-      "add": ["<kind>", "<order>"]
+      "add": ["<kind>"]
     }
   }
 }
 ```
 
-Replace `<kind>` with the chosen `kind:impl|kind:consider|kind:design`
-and `<order>` with the chosen `order:N`. The `add` array MUST contain
-exactly two strings, in that order.
+Replace `<kind>` with the chosen `kind:impl|kind:consider|kind:design`.
+The `add` array MUST contain exactly one string.
 
 Do not write any files. Do not post issue comments. Do not call
 `gh issue edit` — the boundary hook owns label mutations.

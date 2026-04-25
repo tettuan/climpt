@@ -1,11 +1,11 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "triager.schema.json",
-  "description": "Triager agent step schemas. Per-issue dispatch model: one closure step (stepKind='closure') classifies a single issue and emits a closing signal whose structured output drives the poll:state boundary hook to apply labels via gh issue edit. closure_action='label-only' keeps the issue open. The orchestrator never sees triager verdicts — triager is dispatched out-of-band via .agent/triager/script/dispatch.sh.",
+  "description": "Triager agent step schemas. Per-issue dispatch model: one closure step (stepKind='closure') classifies a single issue (assigning exactly one kind:* label) and emits a closing signal whose structured output drives the poll:state boundary hook to apply the label via gh issue edit. closure_action='label-only' keeps the issue open so the prioritizer can pick it up. order:N is NOT assigned by triager — that is the prioritizer's role. The orchestrator never sees triager verdicts — triager is dispatched out-of-band via .agent/triager/script/dispatch.sh.",
 
   "triage": {
     "type": "object",
-    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into kind:impl|kind:consider|kind:design and assigns a unique order:N work-order. The boundary hook merges issue.labels.add with the agent.json github.labels.completion config and applies them via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
+    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into exactly one of kind:impl|kind:consider|kind:design. The boundary hook merges issue.labels.add (one kind:* label) with the agent.json github.labels.completion config and applies it via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
     "required": ["stepId", "status", "summary", "next_action", "issue"],
     "properties": {
       "stepId": {
@@ -18,7 +18,7 @@
       },
       "summary": {
         "type": "string",
-        "description": "One-line human-readable recap (e.g., 'classified #488 as kind:consider, order:3')."
+        "description": "One-line human-readable recap (e.g., 'classified #488 as kind:consider')."
       },
       "verdict": {
         "type": "string",
@@ -36,7 +36,7 @@
           "action": {
             "type": "string",
             "enum": ["closing", "repeat"],
-            "description": "'closing' triggers the boundary hook to apply the labels in issue.labels.add via gh issue edit, then exits the loop. 'repeat' re-runs this step (e.g., transient gh failure when listing used order:N labels)."
+            "description": "'closing' triggers the boundary hook to apply the kind:* label in issue.labels.add via gh issue edit, then exits the loop. 'repeat' re-runs this step (e.g., transient gh failure during the eligibility check)."
           },
           "reason": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
@@ -44,7 +44,7 @@
       },
       "issue": {
         "type": "object",
-        "description": "Issue mutation payload consumed by the poll:state boundary hook. The 'labels' object follows the adapter contract: add/remove arrays of label names. labels.add MUST contain exactly two entries — the kind label and the order label.",
+        "description": "Issue mutation payload consumed by the poll:state boundary hook. The 'labels' object follows the adapter contract: add/remove arrays of label names. labels.add MUST contain exactly one entry — the chosen kind:* label.",
         "required": ["number", "labels"],
         "additionalProperties": false,
         "properties": {
@@ -60,18 +60,18 @@
             "properties": {
               "add": {
                 "type": "array",
-                "minItems": 2,
-                "maxItems": 2,
+                "minItems": 1,
+                "maxItems": 1,
                 "items": {
                   "type": "string",
-                  "pattern": "^(kind:(impl|consider|design)|order:[1-9])$"
+                  "pattern": "^kind:(impl|consider|design)$"
                 },
-                "description": "Exactly two labels: one kind:impl|kind:consider|kind:design and one order:1..order:9 (smallest unused). Order is enforced by the JSON Schema regex; uniqueness is enforced by the prompt querying current open-issue order labels."
+                "description": "Exactly one label: kind:impl|kind:consider|kind:design. Triager does NOT assign order:N — that is the prioritizer's role."
               },
               "remove": {
                 "type": "array",
                 "items": { "type": "string" },
-                "description": "Optional labels to strip. Triager normally leaves this empty — pre-existing non-workflow labels (enhancement, bug, ...) are preserved."
+                "description": "Optional labels to strip. Triager normally leaves this empty — pre-existing labels (workflow or otherwise) are preserved."
               }
             }
           }

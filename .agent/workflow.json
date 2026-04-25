@@ -179,7 +179,7 @@
     }
   },
   "prioritizer": {
-    "agent": "triager",
+    "agent": "prioritizer",
     "labels": [
       "order:1",
       "order:2",

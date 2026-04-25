@@ -20,35 +20,55 @@ Changes to the runner should be validated against these configurations.
 | iterator    | Development task execution via Issues |
 | reviewer    | Code review and verification         |
 | climpt      | MCP command registry and prompts     |
-| triager     | Classify unlabeled issues (kind:* + order:N) |
+| triager     | **Classify only** — assign `kind:*` to one open issue (per-issue dispatch). Does NOT assign `order:N` |
+| prioritizer | **Order only** — assign `order:N` to the kind-labeled candidate set (batch dispatch). Reads `issue-list.json`, writes `priorities.json` |
 | triage-recovery | Per-issue: strip orphan workflow labels from one issue both triager and orchestrator skip (poll:state, label-only) |
 | considerer  | Respond to kind:consider issues and close them |
 | detailer    | Detail a kind:detail issue (spec) before iterator picks it up |
 | clarifier   | Scan need-clearance issues, apply 5-gate rubric, re-queue or record reason |
 | merger      | Deterministic PR merge closure       |
 
-## Issue handling flow (triage → execute)
+**triager / prioritizer split**: classification and prioritization are
+separated by single responsibility. Triager looks at one issue at a time
+and decides "what kind of work is this" (`kind:impl|consider|design`).
+Prioritizer looks at the entire kind-labeled candidate set at once and
+decides "in what order should these run" (`order:N`). Per-issue dispatch
+cannot rank issues — that is why the prioritizer is a separate, batch-mode
+agent. See `.agent/triager/README.md` and `.agent/prioritizer/README.md`.
 
-Two-stage pipeline for GitHub Issues:
+## Issue handling flow (classify → prioritize → execute)
 
-1. **Triage** (standalone agent, bypasses orchestrator):
+Three-stage pipeline for GitHub Issues:
+
+1. **Classify** (triager, per-issue, ad-hoc):
 
    ```bash
-   deno task agent --agent triager
-   # or with explicit downstream workflow:
-   deno task agent --agent triager --workflow .agent/workflow.json
+   deno task agent --agent triager --issue <N>
+   # or fan-out via the dispatcher shell:
+   bash .agent/triager/script/dispatch.sh
+   PROJECT=tettuan/41 bash .agent/triager/script/dispatch.sh
    ```
 
-   Triager reads the downstream workflow JSON (default
-   `.agent/workflow.json`) to derive the **workflow label
-   set** dynamically from `labelMapping` keys + `prioritizer.labels`. It
-   bootstraps any missing labels in the repo, then scans all open issues
-   that carry **none** of the workflow labels (issues with only unrelated
-   tags like `enhancement` remain eligible), classifies each as `kind:impl`
-   or `kind:consider`, and assigns a unique `order:N` (N = 1..9, lowest
-   unused) work-order label.
+   Triager reads ONE issue's `title + body` and assigns exactly one
+   `kind:*` label (`kind:impl|kind:consider|kind:design`) via the
+   poll:state boundary hook. It does NOT assign `order:N`. The per-issue
+   dispatcher skips any issue that already carries a `kind:*` label.
 
-2. **Execute** (orchestrator workflow):
+2. **Prioritize** (prioritizer, batch):
+
+   ```bash
+   deno task orchestrator --prioritize
+   # or with project scope:
+   deno task orchestrator --project tettuan/41 --prioritize
+   ```
+
+   The orchestrator's `--prioritize` mode dispatches the prioritizer agent
+   (`workflow.json#prioritizer.agent`) once with the full candidate list
+   (`issue-list.json`). The agent compares the issues globally and writes
+   `priorities.json` mapping each issue to one of `order:1..order:9`. The
+   orchestrator then applies the labels via gh.
+
+3. **Execute** (orchestrator workflow):
 
    ```bash
    deno task orchestrator
@@ -63,7 +83,7 @@ Two-stage pipeline for GitHub Issues:
 
    Single-issue mode: append `--issue <N>` to target one issue.
 
-3. **Orphan recovery** (ad-hoc, per-issue dispatch):
+4. **Orphan recovery** (ad-hoc, per-issue dispatch):
 
    Issues that carry ≥1 workflow label but **zero** actionable-phase
    labels are invisible to both triager and orchestrator. The
@@ -80,10 +100,9 @@ Two-stage pipeline for GitHub Issues:
 
 Repository labels (name, color, description) are the declarative source
 of truth in `.agent/workflow.json` under the `labels` section. The
-orchestrator reconciles them on every batch start, and the triager does
-the same via `deno task labels:sync` as its Step 1. Contributors who add
+orchestrator reconciles them on every batch start. Contributors who add
 or rename a workflow label MUST update `labels` in `workflow.json` —
-never the triager prompt (which now only invokes the syncer).
+never an agent prompt.
 
 ## Directory layout
 

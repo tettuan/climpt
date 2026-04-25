@@ -1,9 +1,9 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.14.0",
+  "version": "1.14.1",
   "name": "triager",
   "displayName": "Issue Triager Agent",
-  "description": "Per-issue dispatch: classify ONE open GitHub Issue (kind:impl|kind:consider|kind:design) and assign a unique order:N work-order label. Labels are applied via the poll:state boundary hook (gh issue edit) using the AI structured output's issue.labels.add field. Use the .agent/triager/script/dispatch.sh ad-hoc dispatcher to fan out unlabeled issues; this binary handles ONE issue per invocation.",
+  "description": "Per-issue dispatch: classify ONE open GitHub Issue (kind:impl|kind:consider|kind:design). Single responsibility — labels exactly one kind:* on the target. Does NOT assign order:N (priority is the prioritizer's role; see workflow.json#prioritizer.agent). The chosen label is applied via the poll:state boundary hook (gh issue edit) using the AI structured output's issue.labels.add field. Use .agent/triager/script/dispatch.sh to fan out kind-less issues; this binary handles ONE issue per invocation.",
   "parameters": {
     "issue": {
       "type": "number",
@@ -19,7 +19,7 @@
     },
     "workflow": {
       "type": "string",
-      "description": "Path to the downstream workflow JSON used to derive the workflow label set (labelMapping keys + prioritizer.labels). The triager refuses to label an issue that already carries any workflow label.",
+      "description": "Path to the downstream workflow JSON used to derive the kind:* label set (labelMapping keys filtered to kind:*). The triager refuses to label an issue that already carries any kind:* label — order:N, done, need clearance presence does not block re-classification of an issue that has not yet been kind-labeled.",
       "required": false,
       "default": ".agent/workflow.json",
       "cli": "--workflow"
