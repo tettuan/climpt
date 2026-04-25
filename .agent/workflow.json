@@ -198,8 +198,8 @@
     "maxConsecutivePhases": 3
   },
   "projectBinding": {
-    "injectGoalIntoPromptContext": false,
-    "inheritProjectsForCreateIssue": false,
+    "injectGoalIntoPromptContext": true,
+    "inheritProjectsForCreateIssue": true,
     "donePhase": "done",
     "evalPhase": "eval-pending",
     "planPhase": "plan-pending",
