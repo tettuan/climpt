@@ -202,7 +202,7 @@
       "kind_at_triage": {
         "type": "string",
         "enum": ["kind:impl", "kind:consider", "kind:design"],
-        "description": "[RC6] Kind label frozen at triage time, read verbatim from .agent/out/kind_at_triage/<issue>.txt. Populated by closure.consider.precheck-kind-read. Additive / optional."
+        "description": "[RC6] Kind label frozen at triage time, read verbatim from .agent/climpt/out/kind_at_triage/<issue>.txt. Populated by closure.consider.precheck-kind-read. Additive / optional."
       },
       "kind_boundary_violations": {
         "type": "array",

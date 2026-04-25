@@ -28,7 +28,7 @@ with zero `docs/**/design*.md` changes), and the only honest outcome is
 - Do not amend commits; make a new revert commit if the reverted files were
   already committed in this run.
 - Do not change the issue's `kind:*` label — the label was frozen at triage
-  and is owned by `.agent/out/kind_at_triage/<issue>.txt`.
+  and is owned by `.agent/climpt/out/kind_at_triage/<issue>.txt`.
 - Do not close the issue.
 
 Emit `repeat` to loop back into the precheck chain for re-verification.

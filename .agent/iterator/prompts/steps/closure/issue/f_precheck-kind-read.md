@@ -6,7 +6,7 @@ uvVariables:
   - issue
 ---
 
-# Goal: Read `.agent/out/kind_at_triage/{uv-issue}.txt` and output `kind_at_triage`
+# Goal: Read `.agent/climpt/out/kind_at_triage/{uv-issue}.txt` and output `kind_at_triage`
 
 ## Inputs
 
@@ -23,7 +23,7 @@ uvVariables:
 bash -c '
 set -euo pipefail
 N={uv-issue}
-FILE=".agent/out/kind_at_triage/${N}.txt"
+FILE=".agent/climpt/out/kind_at_triage/${N}.txt"
 
 if [ ! -e "$FILE" ]; then
   echo "missing: $FILE" >&2
@@ -50,7 +50,7 @@ esac
 
 ## Do ONLY this
 
-- Do not write to `.agent/out/kind_at_triage/<N>.txt`.
+- Do not write to `.agent/climpt/out/kind_at_triage/<N>.txt`.
 - Do not rename, delete, or normalize the file.
 - Do not read any other file.
 - Do not emit intents other than `next` (success) or `repeat` (missing /

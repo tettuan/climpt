@@ -210,7 +210,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "RC6 K1: read .agent/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first).",
+      "description": "RC6 K1: read .agent/climpt/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first).",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider.precheck-kind-read"
