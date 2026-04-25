@@ -8,82 +8,6 @@
   "entryStepMapping": {
     "count:iteration": "closure.consider.doc-scan"
   },
-  "failurePatterns": {
-    "doc-paths-not-diffed": {
-      "description": "Required doc paths have no diff",
-      "edition": "failed",
-      "adaptation": "doc-paths-not-diffed"
-    },
-    "kind-boundary-breach": {
-      "description": "Changed paths violate the kind:* scope frozen at triage",
-      "edition": "failed",
-      "adaptation": "kind-boundary-breach",
-      "params": [
-        "kind_at_triage",
-        "kind_boundary_violations"
-      ]
-    }
-  },
-  "validators": {
-    "doc-paths-diffed": {
-      "type": "command",
-      "phase": "postllm",
-      "command": "test -z \"${doc_paths_required}\" || for p in ${doc_paths_required}; do git log --oneline -1 -- $p | grep -q . || exit 1; done",
-      "successWhen": "exitCode:0",
-      "failurePattern": "doc-paths-not-diffed"
-    },
-    "kind-boundary-clean": {
-      "type": "command",
-      "phase": "postllm",
-      "command": "test -z \"${kind_boundary_violations}\"",
-      "successWhen": "exitCode:0",
-      "failurePattern": "kind-boundary-breach"
-    }
-  },
-  "validationSteps": {
-    "closure.consider.doc-verify": {
-      "stepId": "closure.consider.doc-verify",
-      "name": "Doc Diff Verification",
-      "c2": "retry",
-      "c3": "consider",
-      "preflightConditions": [],
-      "postLLMConditions": [
-        {
-          "validator": "doc-paths-diffed"
-        }
-      ],
-      "onFailure": {
-        "action": "retry",
-        "maxAttempts": 3
-      },
-      "outputSchemaRef": {
-        "file": "considerer.schema.json",
-        "schema": "closure.consider"
-      },
-      "description": "Runner re-checks what the LLM claimed: each required doc path must have a diff in the current run."
-    },
-    "closure.consider.precheck-kind-scope": {
-      "stepId": "closure.consider.precheck-kind-scope",
-      "name": "Kind Boundary Scope Validation",
-      "c2": "retry",
-      "c3": "consider",
-      "preflightConditions": [],
-      "postLLMConditions": [
-        {
-          "validator": "kind-boundary-clean"
-        }
-      ],
-      "onFailure": {
-        "action": "retry",
-        "maxAttempts": 3
-      },
-      "outputSchemaRef": {
-        "file": "considerer.schema.json",
-        "schema": "closure.consider"
-      },
-      "description": "RC6: assert kind_boundary_violations is empty. Non-empty → kind-boundary-breach retry, which reverts only the listed out-of-scope paths."
-    }
-  },
   "steps": {
     "closure.consider.doc-scan": {
       "stepId": "closure.consider.doc-scan",
@@ -109,6 +33,7 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
+        "failFast": false,
         "handoffFields": [
           "doc_paths_required"
         ]
@@ -146,6 +71,7 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
+        "failFast": false,
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results"
@@ -184,6 +110,7 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
+        "failFast": false,
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
@@ -222,7 +149,8 @@
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "fallbackIntent": "repeat",
+        "failFast": false,
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
@@ -241,7 +169,7 @@
     },
     "closure.consider.precheck-kind-scope": {
       "stepId": "closure.consider.precheck-kind-scope",
-      "name": "Precheck - Verify Kind Boundary Scope",
+      "name": "Precheck - Record Kind Boundary Scope Findings",
       "stepKind": "work",
       "c2": "closure",
       "c3": "consider",
@@ -250,19 +178,19 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "RC6 K2: apply kind:* scope rule to this run's changed paths. Violations handed off; validator kind-boundary-clean enforces.",
+      "description": "Apply the kind:* scope rule to this run's changed paths and record findings in kind_boundary_violations. Always emits next; verdict authority lives in the terminal consider step, which reads kind_at_triage + kind_boundary_violations and decides handoff-detail vs done.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider.precheck-kind-scope"
       },
       "structuredGate": {
         "allowedIntents": [
-          "next",
-          "repeat"
+          "next"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "next",
+        "failFast": false,
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
@@ -274,14 +202,8 @@
       "transitions": {
         "next": {
           "target": "consider"
-        },
-        "repeat": {
-          "target": "closure.consider.precheck-kind-scope"
         }
-      },
-      "validationSteps": [
-        "closure.consider.precheck-kind-scope"
-      ]
+      }
     },
     "consider": {
       "stepId": "consider",
@@ -301,12 +223,12 @@
       },
       "structuredGate": {
         "allowedIntents": [
-          "closing",
-          "repeat"
+          "closing"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
+        "failFast": false,
         "handoffFields": [
           "verdict",
           "final_summary",
@@ -321,9 +243,6 @@
       "transitions": {
         "closing": {
           "target": null
-        },
-        "repeat": {
-          "target": "consider"
         }
       }
     }

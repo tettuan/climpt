@@ -22,7 +22,7 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 6
+        "maxIterations": 12
       }
     },
     "logging": {

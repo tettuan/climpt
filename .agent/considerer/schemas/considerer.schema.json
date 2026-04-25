@@ -5,8 +5,8 @@
 
   "closure.consider.doc-scan": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.doc-scan. Intent enum must mirror the step's allowedIntents exactly (validateIntentSchemaEnums).",
-    "required": ["next_action"],
+    "description": "Work-step output schema for closure.consider.doc-scan. Must emit doc_paths_required so downstream Doc evidence MUST rule has factual basis.",
+    "required": ["next_action", "doc_paths_required"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -17,14 +17,19 @@
             "enum": ["next", "repeat"]
           }
         }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "description": "Doc paths (docs/**, **/design*.md, agents/docs/**) mentioned in the issue body + comments. Empty array if none.",
+        "items": { "type": "string" }
       }
     }
   },
 
   "closure.consider.doc-verify": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.doc-verify. Always emits next; verdict authority lives in the terminal consider step.",
-    "required": ["next_action"],
+    "description": "Work-step output schema for closure.consider.doc-verify. Must emit doc_diff_results for each required path.",
+    "required": ["next_action", "doc_paths_required", "doc_diff_results"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -33,6 +38,22 @@
           "action": {
             "type": "string",
             "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
           }
         }
       }
@@ -41,8 +62,8 @@
 
   "closure.consider.doc-evidence": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.doc-evidence. Fact-gathering only: collects commit metadata for diffed paths. No verdict; always next or repeat.",
-    "required": ["next_action"],
+    "description": "Work-step output schema for closure.consider.doc-evidence. Must emit doc_evidence array (commit metadata for diffed paths).",
+    "required": ["next_action", "doc_paths_required", "doc_diff_results", "doc_evidence"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -51,6 +72,49 @@
           "action": {
             "type": "string",
             "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "doc_paths_required": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "doc_diff_results": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" }
+          }
+        }
+      },
+      "doc_evidence": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "diffed", "commits", "truncated"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "diffed": { "type": "boolean" },
+            "commits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["sha", "date", "subject", "stat"],
+                "additionalProperties": false,
+                "properties": {
+                  "sha": { "type": "string", "minLength": 7 },
+                  "date": { "type": "string", "minLength": 1 },
+                  "subject": { "type": "string" },
+                  "stat": { "type": "string" }
+                }
+              }
+            },
+            "truncated": { "type": "boolean" }
           }
         }
       }
@@ -59,8 +123,8 @@
 
   "closure.consider.precheck-kind-read": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.precheck-kind-read (RC6 K1).",
-    "required": ["next_action"],
+    "description": "Work-step output schema for closure.consider.precheck-kind-read. Must emit kind_at_triage so closure step can detect mis-route.",
+    "required": ["next_action", "kind_at_triage"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -71,14 +135,18 @@
             "enum": ["next", "repeat"]
           }
         }
+      },
+      "kind_at_triage": {
+        "type": "string",
+        "enum": ["kind:impl", "kind:consider", "kind:design"]
       }
     }
   },
 
   "closure.consider.precheck-kind-scope": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.precheck-kind-scope (RC6 K2).",
-    "required": ["next_action"],
+    "description": "Work-step output schema for closure.consider.precheck-kind-scope. Always emits next; must emit kind_boundary_violations so closure step's Step 4-pre can detect breach.",
+    "required": ["next_action", "kind_boundary_violations"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -86,7 +154,19 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["next", "repeat"]
+            "enum": ["next"]
+          }
+        }
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
           }
         }
       }
@@ -116,7 +196,7 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["closing", "repeat"],
+            "enum": ["closing"],
             "description": "Closure intent. Always 'closing' for single-iteration considerer."
           },
           "reason": { "type": "string" },
@@ -206,7 +286,7 @@
       },
       "kind_boundary_violations": {
         "type": "array",
-        "description": "[RC6] Out-of-scope paths for the current kind_at_triage. Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry. Populated by closure.consider.precheck-kind-scope.",
+        "description": "Out-of-scope paths for the current kind_at_triage. Empty = clean. Populated by closure.consider.precheck-kind-scope; consumed by the terminal consider step's Step 4-pre to decide handoff-detail on boundary breach.",
         "items": {
           "type": "object",
           "required": ["path", "reason"],

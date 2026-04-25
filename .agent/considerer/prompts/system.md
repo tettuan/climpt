@@ -81,22 +81,13 @@ threshold is strict: one concrete anchor is the minimum.
 
 ### Doc evidence MUST rule
 
-When upstream supplies non-empty `doc_paths_required`, the closure flow also
-supplies `doc_diff_results` (per-path `diffed` flag against issue `createdAt`)
-and `doc_evidence` (commit metadata since baseline for `diffed=true` paths).
-The terminal step MUST honor:
-
-- Any `diffed=false` path → `verdict: "handoff-detail"` with that path as
-  `handoff_anchor.file`. Doc work is unfinished; abstract-only fallback to
-  `done` is forbidden.
-- All `diffed=true` AND commits plausibly resolve the issue (subject mentions
-  this issue, or `--stat` matches the requested change) → `done` is permitted.
-  Cite the resolving commit `sha` + `subject` in the response comment.
-- All `diffed=true` BUT commit metadata is ambiguous → drill in with
-  `git show <sha> -- <path>` before deciding. Do not guess from metadata alone.
-
-This rule overrides the abstract-only fallback. The path itself is the anchor
-when `doc_paths_required` is non-empty.
+When upstream supplies non-empty `doc_paths_required`, the verdict is
+constrained by the diff/evidence facts collected in the precheck chain.
+The canonical rule is defined in the closure step prompt
+(`steps/closure/consider/f_default.md` Step 4a). Summary: a `diffed=false`
+path forces `handoff-detail`; all `diffed=true` permits `done` only when the
+commit metadata plausibly resolves the issue. The closure step is the sole
+verdict authority — defer to its rule for edge cases.
 
 ## Scope splitting via `deferred_items`
 

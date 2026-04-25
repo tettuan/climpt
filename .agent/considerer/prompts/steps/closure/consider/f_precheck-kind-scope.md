@@ -1,23 +1,23 @@
 ---
 stepId: closure.consider.precheck-kind-scope
-name: Precheck - Verify Changed Paths Respect Kind Boundary
-description: Check this run's changed paths against the kind:* scope rule.
+name: Precheck - Record Kind Boundary Scope Findings
+description: Record findings about this run's changed paths under the kind:* scope rule. Always emits next; closure consider step decides verdict.
 uvVariables:
   - issue
 ---
 
-# Goal: Verify that this run's changed paths obey the boundary implied by `kind_at_triage`
+# Goal: Record findings about this run's changed paths under the boundary implied by `kind_at_triage`
 
-Considerer handles `kind:consider` issues primarily. The boundary rule forbids
-source-file edits outside `tests/` on those runs. The other two arms are
-implemented for completeness so a mis-routed issue fails fast rather than
-silently succeeds.
+This step is fact-recording, not enforcement. It populates
+`kind_boundary_violations` so the terminal `consider` step can decide the
+verdict. Never emit `repeat` — there is no validator-driven retry; a loop
+here only burns iteration budget.
 
 | kind           | Rule                                                                        |
 |----------------|-----------------------------------------------------------------------------|
 | kind:consider  | Zero source files (`*.ts`, `*.js`, `*.py`) outside `tests/` in changed_paths |
 | kind:design    | At least one `docs/**/design*.md` path in changed_paths                     |
-| kind:impl      | DISALLOWED on considerer — emit a violation so the fail-fast retry fires   |
+| kind:impl      | Mis-route. Always emit empty `kind_boundary_violations` here; the closure step detects `kind_at_triage == "kind:impl"` and emits `verdict: "handoff-detail"` |
 
 ## Inputs
 
@@ -28,7 +28,7 @@ silently succeeds.
 ## Outputs
 
 - `kind_boundary_violations: [{path: string, reason: string}]` — empty iff the
-  rule is satisfied.
+  rule is satisfied (or for `kind:impl` mis-route, regardless of paths).
 
 ## Action
 
@@ -52,21 +52,19 @@ silently succeeds.
    - **`kind:design`**: scan `ALL_PATHS` for any entry matching
      `docs/**/design*.md`. If zero matches, add one synthetic violation
      `{path: "<none>", reason: "kind:design requires at least one docs/**/design*.md change"}`.
-   - **`kind:impl`**: mis-routed. Add a synthetic violation
-     `{path: "<none>", reason: "kind:impl issue routed to considerer; revert all changes and require re-triage"}`.
+   - **`kind:impl`**: emit empty `kind_boundary_violations`. The closure
+     `consider` step recognizes the mis-route from `kind_at_triage` and
+     emits `verdict: "handoff-detail"` regardless.
 
-4. Emit `kind_boundary_violations[]`; enforcement by the `kind-boundary-clean`
-   validator (postllm).
+4. Emit `kind_boundary_violations[]` as a fact. The closure `consider` step
+   reads it together with `kind_at_triage` and decides the verdict.
 
-5. Intent:
-   - If `kind_boundary_violations` is empty, emit `next` (proceed to
-     `consider`).
-   - Otherwise emit `repeat`; the retry template
-     `retry/consider/f_failed_kind-boundary-breach.md` will instruct revert.
+5. Intent: always `next`. The transition target is `consider` (terminal
+   closure). There is no retry path on this step.
 
 ## Do ONLY this
 
 - Do not edit files, revert, or run `git restore` here.
 - Do not inspect file contents; match on path strings only.
 - Do not second-guess `kind_at_triage`; treat it as ground truth.
-- Do not emit intents other than `next` (clean) or `repeat` (violations).
+- Do not emit intents other than `next`.
