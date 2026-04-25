@@ -63,6 +63,21 @@ Two-stage pipeline for GitHub Issues:
 
    Single-issue mode: append `--issue <N>` to target one issue.
 
+3. **Orphan recovery** (ad-hoc, per-issue dispatch):
+
+   Issues that carry ≥1 workflow label but **zero** actionable-phase
+   labels are invisible to both triager and orchestrator. The
+   triage-recovery agent strips the orphan workflow labels so the
+   issue falls back to the unlabeled state and re-enters triage on
+   the next run.
+
+   ```bash
+   bash .agent/triage-recovery/script/dispatch.sh
+   ```
+
+   See `.agent/triage-recovery/script/README.md`. Discard when the
+   product orchestrator supports orphan-issue dispatch directly.
+
 Repository labels (name, color, description) are the declarative source
 of truth in `.agent/workflow.json` under the `labels` section. The
 orchestrator reconciles them on every batch start, and the triager does
