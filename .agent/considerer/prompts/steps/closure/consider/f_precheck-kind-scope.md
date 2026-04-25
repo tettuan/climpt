@@ -1,34 +1,40 @@
 ---
 stepId: closure.consider.precheck-kind-scope
-name: Precheck - Record Kind Boundary Scope Findings
-description: Record findings about this run's changed paths under the kind:* scope rule. Always emits next; closure consider step decides verdict.
+name: Precheck - Record Considerer Boundary Findings
+description: Record findings about this run's changed paths under considerer's source-edit boundary. Always emits next; closure consider step decides verdict.
 uvVariables:
   - issue
 ---
 
-# Goal: Record findings about this run's changed paths under the boundary implied by `kind_at_triage`
+# Goal: Record findings about source files this run modified outside `tests/`
 
-This step is fact-recording, not enforcement. It populates
-`kind_boundary_violations` so the terminal `consider` step can decide the
-verdict. Never emit `repeat` — there is no validator-driven retry; a loop
-here only burns iteration budget.
+Considerer is a respond-and-close agent — it must NOT edit source code as
+part of answering an issue. This step records any source-file edits in
+`kind_boundary_violations` so the terminal `consider` step can flip the
+verdict to `handoff-detail` if the boundary was breached.
 
-| kind           | Rule                                                                        |
-|----------------|-----------------------------------------------------------------------------|
-| kind:consider  | Zero source files (`*.ts`, `*.js`, `*.py`) outside `tests/` in changed_paths |
-| kind:design    | At least one `docs/**/design*.md` path in changed_paths                     |
-| kind:impl      | Mis-route. Always emit empty `kind_boundary_violations` here; the closure step detects `kind_at_triage == "kind:impl"` and emits `verdict: "handoff-detail"` |
+`kind_at_triage` is audit information only. Do NOT branch behavior on it.
+The orchestrator routed this run as considerer based on the current
+`kind:consider` label; that current routing is the authoritative ground
+truth. If `kind_at_triage` differs (label drift), trust the current
+routing and apply considerer's boundary.
+
+## Boundary rule
+
+Source files (`*.ts`, `*.js`, `*.py`) outside `tests/` MUST NOT appear in
+this run's changed paths. Test files under `tests/**` are permitted (the
+considerer may add evidence-gathering tests). Markdown / json / yaml are
+permitted (response artifacts, deferred items).
 
 ## Inputs
 
-- `kind_at_triage` (from `closure.consider.precheck-kind-read`)
 - `run_started_sha` if available (fallback `HEAD~10`) — same convention as
   `closure.consider.doc-verify`.
 
 ## Outputs
 
-- `kind_boundary_violations: [{path: string, reason: string}]` — empty iff the
-  rule is satisfied (or for `kind:impl` mis-route, regardless of paths).
+- `kind_boundary_violations: [{path: string, reason: string}]` — empty iff
+  considerer made no source-file edits outside `tests/`.
 
 ## Action
 
@@ -43,28 +49,21 @@ here only burns iteration budget.
    '
    ```
 
-3. Apply the rule for `kind_at_triage`:
+3. For each `p` in `ALL_PATHS`, if `p` matches `*.ts` / `*.js` / `*.py`
+   AND does NOT start with `tests/`, add
+   `{path: p, reason: "considerer must not modify source files outside tests/"}`
+   to violations.
 
-   - **`kind:consider`**: for each `p` in `ALL_PATHS`, if
-     `p` matches `*.ts` / `*.js` / `*.py` AND does NOT start with `tests/`, add
-     `{path: p, reason: "kind:consider must not modify source files outside tests/"}`
-     to violations.
-   - **`kind:design`**: scan `ALL_PATHS` for any entry matching
-     `docs/**/design*.md`. If zero matches, add one synthetic violation
-     `{path: "<none>", reason: "kind:design requires at least one docs/**/design*.md change"}`.
-   - **`kind:impl`**: emit empty `kind_boundary_violations`. The closure
-     `consider` step recognizes the mis-route from `kind_at_triage` and
-     emits `verdict: "handoff-detail"` regardless.
+4. Emit `kind_boundary_violations[]` as a fact. The closure `consider`
+   step reads it and emits `handoff-detail` if non-empty (Step 4-pre
+   override).
 
-4. Emit `kind_boundary_violations[]` as a fact. The closure `consider` step
-   reads it together with `kind_at_triage` and decides the verdict.
-
-5. Intent: always `next`. The transition target is `consider` (terminal
+5. Intent: always `next`. Transition target is `consider` (terminal
    closure). There is no retry path on this step.
 
 ## Do ONLY this
 
 - Do not edit files, revert, or run `git restore` here.
 - Do not inspect file contents; match on path strings only.
-- Do not second-guess `kind_at_triage`; treat it as ground truth.
+- Do not branch on `kind_at_triage` — it is audit-only.
 - Do not emit intents other than `next`.

@@ -178,7 +178,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Apply the kind:* scope rule to this run's changed paths and record findings in kind_boundary_violations. Always emits next; verdict authority lives in the terminal consider step, which reads kind_at_triage + kind_boundary_violations and decides handoff-detail vs done.",
+      "description": "Record considerer's source-edit boundary findings in kind_boundary_violations (source files *.ts/*.js/*.py outside tests/ are violations). Always emits next; verdict authority lives in the terminal consider step. kind_at_triage is audit-only and does not branch behavior here.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider.precheck-kind-scope"

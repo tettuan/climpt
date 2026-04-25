@@ -45,33 +45,24 @@ format.
 
 Before posting, decide `verdict` using the criteria in the system prompt.
 
-### Step 4-pre — Kind boundary findings override
+### Step 4-pre — Boundary breach override
 
-The upstream precheck steps record two facts before this step runs:
+The upstream precheck step records `kind_boundary_violations[]` — paths
+violating considerer's source-edit boundary, or empty
+(`closure.consider.precheck-kind-scope`).
 
-- `kind_at_triage` — kind frozen at triage (`closure.consider.precheck-kind-read`).
-- `kind_boundary_violations[]` — paths violating the kind:* scope rule, or
-  empty (`closure.consider.precheck-kind-scope`).
+If `kind_boundary_violations` is non-empty, considerer accidentally edited
+source files outside `tests/`. Emit `verdict: "handoff-detail"`. Set
+`handoff_anchor.strategy` to
+`"Boundary breach: <count> path(s) violate considerer scope — manual review required"`.
+List the violations verbatim in `### 次アクション`.
 
-Apply these rules **in order**, before Step 4 / Step 4a:
+Otherwise, fall through to Step 4 / Step 4a normally.
 
-1. **`kind_at_triage == "kind:impl"`** → mis-route. Emit
-   `verdict: "handoff-detail"`. Set `handoff_anchor.strategy` to
-   `"Re-triage required: kind_at_triage=kind:impl, mis-routed to considerer — route to detail/impl pipeline"`.
-   In `### 次アクション` write
-   `"handoff-detail (re-triage: kind_at_triage=kind:impl)"`.
-
-2. **`kind_boundary_violations` non-empty** (and rule 1 did not fire) →
-   boundary breach detected on a non-mis-route run. Emit
-   `verdict: "handoff-detail"`. Set `handoff_anchor.strategy` to
-   `"Boundary breach: <count> path(s) violate kind:<kind_at_triage> scope — manual review required"`.
-   List the violations verbatim in `### 次アクション`.
-
-3. Otherwise → fall through to Step 4 / Step 4a.
-
-These rules override Step 4 / Step 4a — do not emit `done` when a mis-route
-or boundary breach is recorded, since the substantive answer belongs
-elsewhere (detailer/iterator for mis-route; human review for breach).
+`kind_at_triage` is audit information only. Do NOT gate the verdict on it —
+the orchestrator routes by current label, and a kind_at_triage / current
+label drift is resolved by trusting the current label (this dispatch). The
+verdict you emit reflects the current `kind:consider` routing.
 
 Emit `handoff-detail` only when **both** hold:
 

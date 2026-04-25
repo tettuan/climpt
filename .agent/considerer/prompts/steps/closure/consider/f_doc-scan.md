@@ -12,10 +12,15 @@ uvVariables:
 - `{uv-issue}` — GitHub issue number
 
 ## Outputs
-- `doc_paths_required: [string]` — distinct file paths that match any of:
+- `doc_paths_required: [string]` — distinct file paths in canonical doc
+  directories. Matching prefixes:
   - `docs/**`
-  - `**/design*.md`
   - `agents/docs/**`
+
+  Working / ephemeral directories (`tmp/`, `node_modules/`, `dist/`,
+  `build/`, `.git/`) are excluded by definition — they are not permanent
+  documentation, so a `diffed=false` reference to them does not signal
+  "doc work unfinished" and must not gate the verdict.
 
 ## Action
 1. Run: `gh issue view {uv-issue} --json number,title,body,comments` once and
@@ -23,9 +28,13 @@ uvVariables:
    `--comments` flag — it triggers a `repository.issue.projectCards`
    GraphQL deprecation error in current `gh` versions and aborts the call.
    `--json comments` queries a different field set and is unaffected.
-2. Over the concatenated text of body + comments, extract every path matching the regex
-   `(?:docs/[^\s)"'`]+|[^\s)"'`]*design[^\s)"'`]*\.md|agents/docs/[^\s)"'`]+)`; deduplicate
-   while preserving first-seen order; emit the list as `doc_paths_required`.
+2. Over the concatenated text of body + comments, extract every path
+   matching the regex `(?:docs/[^\s)"'`]+|agents/docs/[^\s)"'`]+)`;
+   deduplicate while preserving first-seen order; emit the list as
+   `doc_paths_required`. **Do not include** paths starting with
+   `tmp/`, `node_modules/`, `dist/`, `build/`, or `.git/` even if they
+   contain `docs` or `design` substrings — those are working files, not
+   permanent documentation.
 
 ## Do ONLY this
 - Do not read any of the referenced files.
