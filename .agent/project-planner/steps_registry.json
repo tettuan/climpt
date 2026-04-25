@@ -1,0 +1,47 @@
+{
+  "$schema": "../../agents/schemas/steps_registry.schema.json",
+  "agentId": "project-planner",
+  "version": "1.0.0",
+  "c1": "steps",
+  "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
+  "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
+  "entryStepMapping": {
+    "count:iteration": "plan"
+  },
+  "steps": {
+    "plan": {
+      "stepId": "plan",
+      "name": "Plan Project Issues",
+      "stepKind": "closure",
+      "c2": "closure",
+      "c3": "plan",
+      "edition": "default",
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Read project goal (README), survey open issues, emit deferred_items for gaps, emit verdict done.",
+      "structuredGate": {
+        "allowedIntents": [
+          "closing",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "closing",
+        "handoffFields": [
+          "verdict",
+          "final_summary"
+        ]
+      },
+      "transitions": {
+        "closing": {
+          "target": null
+        },
+        "repeat": {
+          "target": "plan"
+        }
+      }
+    }
+  }
+}
