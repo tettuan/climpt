@@ -1,23 +1,23 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "triager",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "triage"
+    "poll:state": "triage"
   },
   "steps": {
     "triage": {
       "stepId": "triage",
-      "name": "Triage Unlabeled Issues",
-      "stepKind": "work",
+      "name": "Triage Single Issue",
+      "stepKind": "closure",
       "c2": "closure",
       "c3": "triage",
       "edition": "default",
       "uvVariables": [
-        "limit",
+        "issue",
         "workflow"
       ],
       "usesStdin": false,
@@ -27,61 +27,23 @@
       },
       "structuredGate": {
         "allowedIntents": [
-          "handoff",
-          "repeat"
-        ],
-        "intentSchemaRef": "#/properties/next_action/properties/action",
-        "intentField": "next_action.action",
-        "fallbackIntent": "handoff",
-        "handoffFields": []
-      },
-      "transitions": {
-        "handoff": {
-          "target": "closure.triage.record-kind"
-        },
-        "repeat": {
-          "target": "triage"
-        }
-      },
-      "description": "Fetch unlabeled open issues, classify each (kind:impl / kind:consider / kind:design), assign a unique order:N seq, apply both labels via gh CLI. Hands off to closure.triage.record-kind to persist the kind decision."
-    },
-    "closure.triage.record-kind": {
-      "stepId": "closure.triage.record-kind",
-      "name": "Record Kind At Triage",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "triage",
-      "edition": "record-kind",
-      "uvVariables": [
-        "limit",
-        "workflow"
-      ],
-      "usesStdin": false,
-      "outputSchemaRef": {
-        "file": "triager.schema.json",
-        "schema": "closure.triage.record-kind"
-      },
-      "structuredGate": {
-        "allowedIntents": [
           "closing",
           "repeat"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
-        "handoffFields": [
-          "kind_conflicts"
-        ]
+        "handoffFields": []
       },
       "transitions": {
         "closing": {
           "target": null
         },
         "repeat": {
-          "target": "closure.triage.record-kind"
+          "target": "triage"
         }
       },
-      "description": "RC6: persist per-issue kind labels to .agent/out/kind_at_triage/<N>.txt. Refuse to overwrite; emit repeat on conflict so human can reconcile."
+      "description": "Single-issue closure step: read issue body, classify (kind:impl|kind:consider|kind:design), pick smallest unused order:N, emit closing structured output. The poll:state boundary hook then applies the labels via gh issue edit. closure_action='label-only' keeps the issue open."
     }
   }
 }

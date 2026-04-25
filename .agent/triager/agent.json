@@ -1,20 +1,25 @@
 {
   "$schema": "../../agents/schemas/agent.schema.json",
-  "version": "1.13.26",
+  "version": "1.14.0",
   "name": "triager",
   "displayName": "Issue Triager Agent",
-  "description": "Scans unlabeled open GitHub Issues, classifies each as kind:impl or kind:consider, assigns a unique order:N work-order label, and applies both labels via gh CLI.",
+  "description": "Per-issue dispatch: classify ONE open GitHub Issue (kind:impl|kind:consider|kind:design) and assign a unique order:N work-order label. Labels are applied via the poll:state boundary hook (gh issue edit) using the AI structured output's issue.labels.add field. Use the .agent/triager/script/dispatch.sh ad-hoc dispatcher to fan out unlabeled issues; this binary handles ONE issue per invocation.",
   "parameters": {
-    "limit": {
+    "issue": {
       "type": "number",
-      "description": "Maximum number of issues to triage in one run",
+      "description": "GitHub Issue number to triage in this invocation (per-issue dispatch).",
+      "required": true,
+      "cli": "--issue"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Optional owner/repo override for gh state checks. Default: current repo (gh context).",
       "required": false,
-      "default": 9,
-      "cli": "--limit"
+      "cli": "--repository"
     },
     "workflow": {
       "type": "string",
-      "description": "Path to the downstream workflow JSON used to derive the label taxonomy (labelMapping keys + prioritizer.labels). Issues already carrying any of these labels are considered already-triaged and skipped.",
+      "description": "Path to the downstream workflow JSON used to derive the workflow label set (labelMapping keys + prioritizer.labels). The triager refuses to label an issue that already carries any workflow label.",
       "required": false,
       "default": ".agent/workflow.json",
       "cli": "--workflow"
@@ -28,9 +33,15 @@
       }
     },
     "verdict": {
-      "type": "count:iteration",
+      "type": "poll:state",
       "config": {
         "maxIterations": 3
+      }
+    },
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "defaultClosureAction": "label-only"
       }
     },
     "logging": {

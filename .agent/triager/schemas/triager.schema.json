@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "triager.schema.json",
-  "description": "Triager agent step schemas. Two-step pipeline: triage (work, stepKind=work) classifies unlabeled issues and applies kind:*/order:N labels via gh, then hands off to closure.triage.record-kind (stepKind=closure) which persists per-issue kind labels to .agent/out/kind_at_triage/<N>.txt as a durable kind-at-triage source of truth. Orchestrator never sees triager verdicts — triager bypasses the workflow loop (see .agent/CLAUDE.md).",
+  "description": "Triager agent step schemas. Per-issue dispatch model: one closure step (stepKind='closure') classifies a single issue and emits a closing signal whose structured output drives the poll:state boundary hook to apply labels via gh issue edit. closure_action='label-only' keeps the issue open. The orchestrator never sees triager verdicts — triager is dispatched out-of-band via .agent/triager/script/dispatch.sh.",
 
   "triage": {
     "type": "object",
-    "description": "Triage work step response. Classifies each open, unlabeled issue into kind:impl|kind:consider|kind:design and assigns a unique order:N work-order. Hands off to closure.triage.record-kind via the 'handoff' intent to freeze the kind decision on disk.",
-    "required": ["stepId", "status", "summary", "next_action", "assignments"],
+    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into kind:impl|kind:consider|kind:design and assigns a unique order:N work-order. The boundary hook merges issue.labels.add with the agent.json github.labels.completion config and applies them via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
+    "required": ["stepId", "status", "summary", "next_action", "issue"],
     "properties": {
       "stepId": {
         "type": "string",
@@ -18,72 +18,16 @@
       },
       "summary": {
         "type": "string",
-        "description": "One-line human-readable summary of the triage outcome."
+        "description": "One-line human-readable recap (e.g., 'classified #488 as kind:consider, order:3')."
       },
-      "next_action": {
-        "type": "object",
-        "required": ["action"],
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": ["handoff", "repeat"],
-            "description": "Work-step intent. 'handoff' transitions to closure.triage.record-kind (the canonical path after labeling). 'repeat' re-runs triage when the initial fetch/classification needs another pass (e.g., paging, transient gh failure)."
-          },
-          "reason": { "type": "string" },
-          "details": { "type": "object", "additionalProperties": true }
-        }
-      },
-      "assignments": {
-        "type": "array",
-        "description": "Per-issue classification results from this triage run. Empty array is valid (no eligible issues found). Each entry reflects a successful 'gh issue edit --add-label kind:<K>,order:<N>' application.",
-        "items": {
-          "type": "object",
-          "required": ["issue_number", "kind", "order"],
-          "additionalProperties": false,
-          "properties": {
-            "issue_number": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "GitHub issue number."
-            },
-            "kind": {
-              "type": "string",
-              "enum": ["kind:impl", "kind:consider", "kind:design"],
-              "description": "Classification outcome; drives downstream dispatch in the execute workflow."
-            },
-            "order": {
-              "type": "string",
-              "pattern": "^order:[1-9]$",
-              "description": "Assigned work-order label; unique within this triage run."
-            }
-          }
-        }
-      },
-      "remaining_capacity": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 9,
-        "description": "Unused order:N slots after this run. 0 means triage is at capacity and further triage is deferred until the execute workflow drains one."
-      }
-    }
-  },
-
-  "closure.triage.record-kind": {
-    "type": "object",
-    "description": "Record-kind closure response. Persists every (issue, kind) pair from the prior triage step into .agent/out/kind_at_triage/<N>.txt (one line per issue, refuse-to-overwrite). Non-empty kind_conflicts triggers a 'repeat' back to this step so a human can reconcile; an empty conflicts array emits 'closing' to terminate triage.",
-    "required": ["stepId", "status", "summary", "next_action", "kind_conflicts"],
-    "properties": {
-      "stepId": {
+      "verdict": {
         "type": "string",
-        "const": "closure.triage.record-kind"
+        "description": "Optional verdict tag captured by the adapter via getLastVerdict(). Free-form."
       },
-      "status": {
+      "closure_action": {
         "type": "string",
-        "enum": ["completed", "failed"]
-      },
-      "summary": {
-        "type": "string",
-        "description": "One-line recap (e.g., 'recorded 4 issues; 0 conflicts')."
+        "enum": ["label-only", "label-and-close", "close"],
+        "description": "Optional override for the boundary hook's closure action. If omitted, the agent.json defaultClosureAction ('label-only') applies. triager should rarely set this — the dispatcher's guarantee is label-only."
       },
       "next_action": {
         "type": "object",
@@ -92,34 +36,43 @@
           "action": {
             "type": "string",
             "enum": ["closing", "repeat"],
-            "description": "Closure intent. 'closing' terminates triage (all kinds recorded or already matched). 'repeat' requests another pass because kind_conflicts is non-empty and needs human reconciliation before the step can complete."
+            "description": "'closing' triggers the boundary hook to apply the labels in issue.labels.add via gh issue edit, then exits the loop. 'repeat' re-runs this step (e.g., transient gh failure when listing used order:N labels)."
           },
           "reason": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
         }
       },
-      "kind_conflicts": {
-        "type": "array",
-        "description": "Issues whose existing .agent/out/kind_at_triage/<N>.txt content disagrees with this run's classification. Empty array = no conflicts = safe to 'closing'.",
-        "items": {
-          "type": "object",
-          "required": ["issue", "recorded", "classified"],
-          "additionalProperties": false,
-          "properties": {
-            "issue": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "GitHub issue number."
-            },
-            "recorded": {
-              "type": "string",
-              "enum": ["kind:impl", "kind:consider", "kind:design"],
-              "description": "Kind already frozen on disk from a prior run."
-            },
-            "classified": {
-              "type": "string",
-              "enum": ["kind:impl", "kind:consider", "kind:design"],
-              "description": "Kind this run assigned — differs from `recorded`, hence the conflict."
+      "issue": {
+        "type": "object",
+        "description": "Issue mutation payload consumed by the poll:state boundary hook. The 'labels' object follows the adapter contract: add/remove arrays of label names. labels.add MUST contain exactly two entries — the kind label and the order label.",
+        "required": ["number", "labels"],
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "GitHub issue number being triaged. Must equal the --issue parameter."
+          },
+          "labels": {
+            "type": "object",
+            "required": ["add"],
+            "additionalProperties": false,
+            "properties": {
+              "add": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "string",
+                  "pattern": "^(kind:(impl|consider|design)|order:[1-9])$"
+                },
+                "description": "Exactly two labels: one kind:impl|kind:consider|kind:design and one order:1..order:9 (smallest unused). Order is enforced by the JSON Schema regex; uniqueness is enforced by the prompt querying current open-issue order labels."
+              },
+              "remove": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Optional labels to strip. Triager normally leaves this empty — pre-existing non-workflow labels (enhancement, bug, ...) are preserved."
+              }
             }
           }
         }
