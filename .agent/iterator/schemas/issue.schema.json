@@ -141,6 +141,134 @@
     }
   },
 
+  "closure.issue.precheck": {
+    "type": "object",
+    "description": "Issue closure precheck step response (chain-internal verification step that advances via 'next')",
+    "allOf": [{ "$ref": "common.schema.json#/$defs/stepResponse" }],
+    "required": ["stepId", "status", "summary", "issue"],
+    "additionalProperties": false,
+    "properties": {
+      "stepId": { "type": "string" },
+      "status": { "type": "string" },
+      "summary": { "type": "string" },
+      "tools_used": {
+        "type": "array",
+        "items": { "$ref": "common.schema.json#/$defs/toolUsage" }
+      },
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"],
+            "description": "Intent for closure precheck step (next=advance to next precheck, repeat=retry current)"
+          },
+          "reason": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "error": { "$ref": "common.schema.json#/$defs/errorInfo" },
+      "issue": {
+        "type": "object",
+        "description": "Issue情報",
+        "properties": {
+          "number": { "type": "integer" },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "add": { "type": "array", "items": { "type": "string" } },
+              "remove": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      },
+      "run_started_sha": {
+        "type": "string",
+        "description": "HEAD SHA recorded at run start, propagated via handoffFields"
+      },
+      "commit_list": {
+        "type": "array",
+        "description": "RC2 S1: commits in this run that reference (#<issue>)",
+        "items": {
+          "type": "object",
+          "required": ["sha", "subject"],
+          "properties": {
+            "sha": { "type": "string" },
+            "subject": { "type": "string" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "commit_verification": {
+        "type": "array",
+        "description": "RC2 S2 + RC3: per-sha existence, off-run flag, and changed_paths",
+        "items": {
+          "type": "object",
+          "required": ["sha", "exists", "off_run", "changed_paths"],
+          "properties": {
+            "sha": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "off_run": { "type": "boolean" },
+            "changed_paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "ac_list": {
+        "type": "array",
+        "description": "RC5 S1: extracted acceptance criteria bullets",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "text"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        }
+      },
+      "ac_mapping": {
+        "type": "array",
+        "description": "RC5 S2: AC to evidence path mapping",
+        "items": {
+          "type": "object",
+          "required": ["ac_id", "evidence_paths", "evidence_type"],
+          "properties": {
+            "ac_id": { "type": "string" },
+            "evidence_paths": { "type": "array", "items": { "type": "string" } },
+            "evidence_type": { "type": "string" }
+          }
+        }
+      },
+      "ac_coverage_complete": {
+        "type": "boolean",
+        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+      },
+      "missing_ac_ids": {
+        "type": "array",
+        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "items": { "type": "string" }
+      },
+      "kind_at_triage": {
+        "type": "string",
+        "enum": ["kind:impl", "kind:consider", "kind:design"],
+        "description": "RC6: kind label frozen at triage time"
+      },
+      "kind_boundary_violations": {
+        "type": "array",
+        "description": "RC6: out-of-scope paths for the current kind_at_triage",
+        "items": {
+          "type": "object",
+          "required": ["path", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  },
+
   "closure.issue": {
     "type": "object",
     "description": "Issue完了検証のレスポンス",
@@ -321,7 +449,7 @@
       "kind_at_triage": {
         "type": "string",
         "enum": ["kind:impl", "kind:consider", "kind:design"],
-        "description": "RC6: kind label frozen at triage time, read verbatim from .agent/out/kind_at_triage/<issue>.txt. Source of truth for the scope rule applied by precheck-kind-scope."
+        "description": "RC6: kind label frozen at triage time, read verbatim from .agent/climpt/out/kind_at_triage/<issue>.txt. Source of truth for the scope rule applied by precheck-kind-scope."
       },
       "kind_boundary_violations": {
         "type": "array",

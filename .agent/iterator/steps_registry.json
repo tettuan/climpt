@@ -5,7 +5,7 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "poll:state": "initial.polling",
+    "poll:state": "initial.issue",
     "count:iteration": "initial.iteration"
   },
   "failurePatterns": {
@@ -287,7 +287,7 @@
       },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "description": "RC2/RC3: verify at least one in-run commit references (#<issue>). Missing binding → commit-binding-missing retry; only off-run commits → off-run-only retry."
     },
@@ -308,7 +308,7 @@
       },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "description": "RC5: assert ac_coverage_complete=true. Incomplete coverage → ac-coverage-incomplete retry, which handles only missing_ac_ids."
     },
@@ -329,7 +329,7 @@
       },
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "description": "RC6: assert kind_boundary_violations is empty. Non-empty → kind-boundary-breach retry, which reverts only the listed out-of-scope paths."
     }
@@ -434,7 +434,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -473,7 +473,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -513,7 +513,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -552,7 +552,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -577,7 +577,7 @@
           "target": "closure.issue.precheck-kind-read"
         }
       },
-      "description": "RC6 K1: read .agent/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first)."
+      "description": "RC6 K1: read .agent/climpt/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first)."
     },
     "closure.issue.precheck-kind-scope": {
       "stepId": "closure.issue.precheck-kind-scope",
@@ -593,7 +593,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -638,7 +638,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -681,7 +681,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -725,7 +725,7 @@
       "usesStdin": false,
       "outputSchemaRef": {
         "file": "issue.schema.json",
-        "schema": "closure.issue"
+        "schema": "closure.issue.precheck"
       },
       "structuredGate": {
         "allowedIntents": [
