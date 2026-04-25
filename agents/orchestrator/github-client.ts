@@ -845,16 +845,39 @@ export class GhCliClient implements GitHubClient {
     );
     if (cached) return cached;
 
-    // Use gh issue view with GraphQL-backed projectsV2 field.
+    // `gh issue view --json projectItems` only exposes `{status, title}` per
+    // item; project owner/number are not in that schema. Fall through to a
+    // GraphQL query that explicitly resolves project owner login + number.
+    const { owner, name } = await this.#resolveCurrentRepo();
+    const query = `query($owner: String!, $name: String!, $number: Int!) {
+        repository(owner: $owner, name: $name) {
+          issue(number: $number) {
+            projectItems(first: 20) {
+              nodes {
+                project {
+                  number
+                  owner {
+                    ... on User { login }
+                    ... on Organization { login }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }`;
     const cmd = new Deno.Command("gh", {
       args: [
-        "issue",
-        "view",
-        String(issueNumber),
-        "--json",
-        "projectItems",
-        "--jq",
-        ".projectItems[].project | {owner: .owner.login, number: .number}",
+        "api",
+        "graphql",
+        "-f",
+        `query=${query}`,
+        "-f",
+        `owner=${owner}`,
+        "-f",
+        `name=${name}`,
+        "-F",
+        `number=${issueNumber}`,
       ],
       cwd: this.#cwd,
       stdout: "piped",
@@ -868,16 +891,52 @@ export class GhCliClient implements GitHubClient {
       );
     }
     const stdout = new TextDecoder().decode(output.stdout).trim();
-    if (stdout === "") return [];
-    // Each line is a JSON object; parse each one.
-    const results: Array<{ owner: string; number: number }> = [];
-    for (const line of stdout.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed === "") continue;
-      results.push(JSON.parse(trimmed) as { owner: string; number: number });
-    }
+    const parsed = JSON.parse(stdout) as {
+      data: {
+        repository: {
+          issue: {
+            projectItems: {
+              nodes: Array<{
+                project: { number: number; owner: { login: string } };
+              }>;
+            };
+          } | null;
+        } | null;
+      };
+    };
+    const nodes = parsed.data?.repository?.issue?.projectItems?.nodes ?? [];
+    const results = nodes.map((n) => ({
+      owner: n.project.owner.login,
+      number: n.project.number,
+    }));
     this.#cacheSet(cacheKey, results);
     return results;
+  }
+
+  /** Resolve `<owner>/<name>` of the current repo via gh CLI. Cached. */
+  async #resolveCurrentRepo(): Promise<{ owner: string; name: string }> {
+    const cacheKey = "resolveCurrentRepo";
+    const cached = this.#cacheGet<{ owner: string; name: string }>(cacheKey);
+    if (cached) return cached;
+    const cmd = new Deno.Command("gh", {
+      args: ["repo", "view", "--json", "owner,name"],
+      cwd: this.#cwd,
+      stdout: "piped",
+      stderr: "piped",
+    });
+    const output = await cmd.output();
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      throw new Error(`Failed to resolve current repo: ${stderr}`);
+    }
+    const stdout = new TextDecoder().decode(output.stdout).trim();
+    const data = JSON.parse(stdout) as {
+      owner: { login: string };
+      name: string;
+    };
+    const result = { owner: data.owner.login, name: data.name };
+    this.#cacheSet(cacheKey, result);
+    return result;
   }
 
   async createProjectFieldOption(

@@ -323,12 +323,17 @@ Deno.test("listProjectItems returns empty array for project with no items", asyn
 // getIssueProjects (listProjectsForIssue)
 // ===========================================================================
 
-Deno.test("getIssueProjects returns project refs from line-delimited JSON", async () => {
-  const fixture = await loadFixture("issue-view-projects.jsonl");
+Deno.test("getIssueProjects returns project refs from GraphQL response", async () => {
+  const repoFixture = await loadFixture("repo-view.json");
+  const gqlFixture = await loadFixture("graphql-issue-projects.json");
   const { restore } = stubDenoCommand([
     {
-      match: argsContain("issue", "view"),
-      response: { stdout: fixture },
+      match: argsContain("repo", "view"),
+      response: { stdout: repoFixture },
+    },
+    {
+      match: argsContain("api", "graphql"),
+      response: { stdout: gqlFixture },
     },
   ]);
   try {
@@ -342,15 +347,44 @@ Deno.test("getIssueProjects returns project refs from line-delimited JSON", asyn
 });
 
 Deno.test("getIssueProjects returns empty array when issue has no projects", async () => {
+  const repoFixture = await loadFixture("repo-view.json");
+  const gqlFixture = await loadFixture("graphql-issue-projects-empty.json");
   const { restore } = stubDenoCommand([
     {
-      match: argsContain("issue", "view"),
-      response: { stdout: "" },
+      match: argsContain("repo", "view"),
+      response: { stdout: repoFixture },
+    },
+    {
+      match: argsContain("api", "graphql"),
+      response: { stdout: gqlFixture },
     },
   ]);
   try {
     const projects = await newClient().getIssueProjects(42);
     assertEquals(projects, []);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("getIssueProjects propagates gh failure as Error", async () => {
+  const repoFixture = await loadFixture("repo-view.json");
+  const { restore } = stubDenoCommand([
+    {
+      match: argsContain("repo", "view"),
+      response: { stdout: repoFixture },
+    },
+    {
+      match: argsContain("api", "graphql"),
+      response: { stderr: "boom", success: false },
+    },
+  ]);
+  try {
+    await assertRejects(
+      () => newClient().getIssueProjects(42),
+      Error,
+      "Failed to get projects for issue #42",
+    );
   } finally {
     restore();
   }

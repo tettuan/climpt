@@ -68,7 +68,14 @@ async function main(): Promise<void> {
       "stub-dispatch",
       "project",
     ],
-    boolean: ["verbose", "dry-run", "help", "prioritize", "local"],
+    boolean: [
+      "verbose",
+      "dry-run",
+      "help",
+      "prioritize",
+      "local",
+      "all-projects",
+    ],
     alias: { h: "help", w: "workflow", v: "verbose", p: "prioritize" },
     collect: ["label"],
   });
@@ -94,7 +101,11 @@ Options:
   --label <label>        Filter issues by label (repeatable, batch mode)
   --repo <owner/repo>    Target repository (default: current repo)
   --state <state>        Issue state: open, closed, all (default: open)
-  --project <owner/number> Filter issues by GitHub Project v2 (batch mode)
+  --project <owner/number> Filter issues by GitHub Project v2 (batch mode).
+                         When omitted, only issues that belong to NO project
+                         are processed; pass --all-projects to override.
+  --all-projects         Disable the default unbound-only filter; process
+                         every matching issue regardless of project membership
   --limit <number>       Maximum issues to fetch (default: 30)
   --prioritize, -p       Run prioritizer agent only, then exit (batch mode)
   --verbose, -v          Enable verbose logging
@@ -165,6 +176,17 @@ Options:
       Deno.exit(1);
     }
     criteria.project = { owner: parts[0], number: Number(parts[1]) };
+  }
+  if (args["all-projects"]) {
+    if (criteria.project !== undefined) {
+      // deno-lint-ignore no-console
+      console.error(
+        `--all-projects cannot be combined with --project. ` +
+          `Pick one scoping mode.`,
+      );
+      Deno.exit(1);
+    }
+    criteria.allProjects = true;
   }
 
   await runBatchWorkflow(cwd, criteria, {

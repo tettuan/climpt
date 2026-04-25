@@ -330,7 +330,19 @@ export interface IssueCriteria {
   repo?: string;
   state?: "open" | "closed" | "all";
   limit?: number;
+  /**
+   * Restrict the batch to issues belonging to this Project v2.
+   * When set, only project members are processed.
+   */
   project?: ProjectRef;
+  /**
+   * Disable the default unbound-only filter. When `project` is undefined
+   * and `allProjects` is true, every matching issue is processed regardless
+   * of Project v2 membership. Default behavior (both undefined) restricts
+   * the batch to issues that belong to NO Project v2 — the "global queue"
+   * complement of any project-scoped run.
+   */
+  allProjects?: boolean;
 }
 
 // === Orchestrator Results ===

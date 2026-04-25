@@ -18,9 +18,12 @@ class StubGitHubClient implements GitHubClient {
   #issues: IssueListItem[];
   #details: Map<number, IssueDetail>;
   #projectItems: { id: string; issueNumber: number }[] = [];
+  #issueProjects: Map<number, Array<{ owner: string; number: number }>> =
+    new Map();
   labelUpdates: { number: number; remove: string[]; add: string[] }[] = [];
   listIssuesCalls: IssueCriteria[] = [];
   listProjectItemsCalls: ProjectRef[] = [];
+  getIssueProjectsCalls: number[] = [];
   commentCalls: { number: number; comment: string }[] = [];
 
   constructor(
@@ -152,10 +155,18 @@ class StubGitHubClient implements GitHubClient {
   ): Promise<{ id: string; name: string }> {
     return Promise.resolve({ id: `OPT_${name}`, name });
   }
+  setIssueProjects(
+    map: Record<number, Array<{ owner: string; number: number }>>,
+  ): void {
+    this.#issueProjects = new Map(
+      Object.entries(map).map(([k, v]) => [Number(k), v]),
+    );
+  }
   getIssueProjects(
-    _issueNumber: number,
+    issueNumber: number,
   ): Promise<Array<{ owner: string; number: number }>> {
-    return Promise.resolve([]);
+    this.getIssueProjectsCalls.push(issueNumber);
+    return Promise.resolve(this.#issueProjects.get(issueNumber) ?? []);
   }
   listUserProjects(_owner: string): Promise<Project[]> {
     return Promise.resolve([]);
@@ -364,16 +375,51 @@ Deno.test("sync with project filters to project member issues only", async () =>
   }
 });
 
-Deno.test("sync without project syncs all issues (backward compatible)", async () => {
+Deno.test("sync without project (default) keeps only unbound issues", async () => {
   const tmp = await Deno.makeTempDir();
   try {
     const github = makeStub([10, 20, 30]);
+    // Issue 20 is bound to a project; 10 and 30 are unbound.
+    github.setIssueProjects({
+      20: [{ owner: "tettuan", number: 41 }],
+    });
     const store = new SubjectStore(tmp);
     const syncer = new IssueSyncer(github, store);
 
     const result = await syncer.sync({});
 
+    // Only unbound issues (10, 30) are processed.
+    assertEquals(result, [10, 30]);
+    // listProjectItems must not be called when criteria.project is undefined.
+    assertEquals(github.listProjectItemsCalls.length, 0);
+    // getIssueProjects called once per listed issue.
+    assertEquals(github.getIssueProjectsCalls.sort((a, b) => a - b), [
+      10,
+      20,
+      30,
+    ]);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("sync with allProjects=true bypasses the unbound filter", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeStub([10, 20, 30]);
+    github.setIssueProjects({
+      20: [{ owner: "tettuan", number: 41 }],
+    });
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({ allProjects: true });
+
+    // Every listed issue is kept regardless of project membership.
     assertEquals(result, [10, 20, 30]);
+    // No project queries needed in escape-hatch mode.
+    assertEquals(github.listProjectItemsCalls.length, 0);
+    assertEquals(github.getIssueProjectsCalls.length, 0);
   } finally {
     await Deno.remove(tmp, { recursive: true });
   }

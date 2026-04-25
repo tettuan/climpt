@@ -22,8 +22,10 @@ export class IssueSyncer {
   async sync(criteria: IssueCriteria): Promise<number[]> {
     const items = await this.#github.listIssues(criteria);
 
-    // Per-project pre-filter: when criteria.project is specified,
-    // only sync issues that belong to the target project.
+    // Project scoping (three forms):
+    //   criteria.project set        → keep only members of that project
+    //   criteria.allProjects = true → keep everything (escape hatch)
+    //   neither (default)           → keep only issues with NO project membership
     let filtered: typeof items;
     if (criteria.project !== undefined) {
       const projectItems = await this.#github.listProjectItems(
@@ -33,8 +35,16 @@ export class IssueSyncer {
         projectItems.map((pi) => pi.issueNumber),
       );
       filtered = items.filter((item) => memberNumbers.has(item.number));
-    } else {
+    } else if (criteria.allProjects) {
       filtered = items;
+    } else {
+      const kept: typeof items = [];
+      for (const item of items) {
+        // deno-lint-ignore no-await-in-loop
+        const projects = await this.#github.getIssueProjects(item.number);
+        if (projects.length === 0) kept.push(item);
+      }
+      filtered = kept;
     }
 
     const numbers: number[] = [];
