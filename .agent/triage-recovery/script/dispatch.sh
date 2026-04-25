@@ -91,14 +91,15 @@ fi
 # this script is run from inside a Claude Code Bash tool). On a normal
 # terminal CLAUDECODE is unset and `env -u` is a no-op.
 #
-# Feed the loop via process substitution (not a pipe). The Claude Code
-# SDK inside `deno task agent` reads stdin; with `cmd | while read`,
-# that read drains the remaining issue numbers and the loop exits after
-# one iteration. `< <(...)` keeps the loop's `read` on its own FD and
-# leaves the agent's stdin attached to the parent terminal.
-while read -r N; do
+# Drive the loop's `read` from FD 3, not stdin. The Claude Code SDK
+# inside `deno task agent` consumes stdin (FD 0); with `cmd | while
+# read` or even `done < <(...)`, FD 0 of the inner command inherits the
+# loop's input source and the agent drains the remaining issue numbers,
+# causing the dispatcher to exit after one iteration. Binding the loop
+# to FD 3 keeps the agent's stdin attached to the parent terminal.
+while read -r N <&3; do
   echo "==> dispatching triage-recovery for #$N"
   env -u CLAUDECODE deno task agent --agent triage-recovery --issue "$N" --workflow "$WORKFLOW"
-done < <(echo "$TARGETS" | jq -r '.[]')
+done 3< <(echo "$TARGETS" | jq -r '.[]')
 
 echo "triage-recovery dispatcher: done."
