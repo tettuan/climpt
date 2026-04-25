@@ -28,37 +28,50 @@ permitted (response artifacts, deferred items).
 
 ## Inputs
 
-- `run_started_sha` if available (fallback `HEAD~10`) — same convention as
-  `closure.consider.doc-verify`.
+- (none) — boundary check is a property of the *current working tree*, not of
+  any commit history. Considerer never commits, so any source edits this
+  invocation made are uncommitted by definition.
 
 ## Outputs
 
 - `kind_boundary_violations: [{path: string, reason: string}]` — empty iff
-  considerer made no source-file edits outside `tests/`.
+  this run's working tree contains no uncommitted source-file edits outside
+  `tests/`.
 
 ## Action
 
-1. Determine `BASE`: `run_started_sha` if present, else `HEAD~10`.
-2. Collect `ALL_PATHS` from this run:
+1. Collect `ALL_PATHS` from the current working tree (uncommitted: staged,
+   unstaged, and untracked):
 
    ```bash
-   bash -c '
-   set -euo pipefail
-   BASE=${run_started_sha:-HEAD~10}
-   git diff --name-only "$BASE"..HEAD
-   '
+   git status --porcelain | sed -E 's/^.{3}//; s/.* -> //'
    ```
 
-3. For each `p` in `ALL_PATHS`, if `p` matches `*.ts` / `*.js` / `*.py`
+   The `sed` strips the 3-char porcelain status prefix and, for rename
+   entries (`R  old -> new`), keeps only the destination path so a
+   `tests/foo.ts -> src/foo.ts` rename is correctly flagged on `src/foo.ts`.
+
+   Do NOT diff against `HEAD~N` or any historical commit — that captures
+   the project's prior development work (which was authored by humans /
+   other agents in earlier runs) and produces false-positive violations
+   on every dispatch. The considerer's session boundary is the working
+   tree, not the commit graph.
+
+   If you run this prompt locally over a dirty tree (developer WIP), any
+   matching uncommitted source edits WILL be flagged. That is correct
+   behavior, not a false positive — it reflects the literal state at
+   verdict time.
+
+2. For each `p` in `ALL_PATHS`, if `p` matches `*.ts` / `*.js` / `*.py`
    AND does NOT start with `tests/`, add
    `{path: p, reason: "considerer must not modify source files outside tests/"}`
    to violations.
 
-4. Emit `kind_boundary_violations[]` as a fact. The closure `consider`
+3. Emit `kind_boundary_violations[]` as a fact. The closure `consider`
    step reads it and emits `handoff-detail` if non-empty (Step 4-pre
    override).
 
-5. Intent: always `next`. Transition target is `consider` (terminal
+4. Intent: always `next`. Transition target is `consider` (terminal
    closure). There is no retry path on this step.
 
 ## Do ONLY this
