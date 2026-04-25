@@ -85,6 +85,25 @@ the same via `deno task labels:sync` as its Step 1. Contributors who add
 or rename a workflow label MUST update `labels` in `workflow.json` —
 never the triager prompt (which now only invokes the syncer).
 
+## Directory layout
+
+The top-level convention under `.agent/` is one directory per agent
+(`.agent/{agent-name}/`). Anything that is not owned by a single agent —
+shared runtime artifacts, cross-agent handoff drops, common output state —
+MUST live under `.agent/climpt/`, never at `.agent/<top-level>/`.
+
+| Path | Owner | Purpose |
+|------|-------|---------|
+| `.agent/{agent-name}/` | one agent | source files (agent.json, prompts/, schemas/, steps_registry.json) |
+| `.agent/climpt/tmp/issues-execute/<N>/outbox/` | shared | per-issue handoff outbox, subject store |
+| `.agent/climpt/out/` | shared | shared runtime output (e.g. `kind_at_triage/<N>.txt` written by triager and read by iterator/considerer) |
+| `.agent/workflow.json` | shared | workflow definition, labels, projectBinding |
+
+When introducing a new shared artifact, place it under `.agent/climpt/` and
+reference it from the consuming agents' prompts. Do NOT create new top-level
+directories like `.agent/out/` — that violates the per-agent convention and
+makes the writer ambiguous (`.agent/out/` could be written by anyone).
+
 ## Operating contexts
 
 When working with `.agent/`, determine which context applies before acting.
