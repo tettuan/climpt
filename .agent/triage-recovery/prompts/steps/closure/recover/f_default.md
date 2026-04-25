@@ -1,36 +1,29 @@
 ---
 stepId: recover
-name: Recover Orphan Workflow-Labeled Issues
-description: Single-iteration batch recovery — fetch orphan open issues (triager-skipped ∧ orchestrator-skipped), strip their workflow labels.
+name: Recover Single Orphan Issue
+description: Per-issue closure — assess one issue's eligibility, compute orphan labels, emit issue.labels.remove. Boundary hook applies the removal.
 uvVariables:
-  - limit
+  - issue
   - workflow
 ---
 
-# Task: Strip orphan workflow labels from OPEN issues
+# Task: Strip orphan workflow labels from a single OPEN issue
 
-The recovery target is **any OPEN issue that both pipelines skip**:
+The CLI passes `--issue {uv-issue}` and `--workflow {uv-workflow}`.
+Treat issue `#{uv-issue}` as your entire scope. Do not iterate over
+other issues.
 
-1. **Triager would skip** it — it carries at least one workflow label
-   (any label in `labelMapping` keys ∪ `prioritizer.labels`).
-2. **Orchestrator would skip** it — none of its labels is mapped to an
-   actionable phase (any label whose `labelMapping[label]` phase has
-   `phases.<phase>.type == "actionable"`).
-
-Both predicates are derived **dynamically** from the workflow JSON
-(`--workflow` → `{uv-workflow}`). Do not hardcode label names. If the
-workflow JSON adds or removes a phase, this prompt adapts automatically.
-
-After stripping every workflow label from such an issue, it drops to
-the "no workflow labels" state and triager will pick it up on its next
-run.
-
-The CLI passes `{uv-limit}` as the maximum number of issues to recover
-in this run. Respect it in Step 2.
+Predicates are derived **dynamically** from the workflow JSON. Do not
+hardcode label names. The workflow set adapts automatically when phases
+are added or removed.
 
 Execute every bash block via `bash -c '...'`. zsh (the login shell on
 macOS) has divergent semantics for `!` negation and here-strings that
 cause silent failures. Use `set -euo pipefail` at the top of each block.
+
+You **never** mutate labels yourself. Emit the orphan labels under
+`issue.labels.remove` in the structured output; the poll:state boundary
+hook runs `gh issue edit --remove-label`.
 
 ## Step 0 — Derive label taxonomy from workflow JSON
 
@@ -67,24 +60,57 @@ jq -r "
 '
 ```
 
-If `ACTIONABLE_LABELS` is empty, report "workflow JSON has no
-actionable phase — nothing to recover against" and stop. If
-`WORKFLOW_LABELS \ ACTIONABLE_LABELS` is empty (every workflow label is
-actionable), no issue can be orphaned in the defined sense; also report
-and stop.
+If `ACTIONABLE_LABELS` is empty (workflow JSON has no actionable
+phase), or if `WORKFLOW_LABELS ∖ ACTIONABLE_LABELS` is empty (every
+workflow label is actionable), no issue can ever be orphaned. Emit
+`closing` with `status: "skipped"`, empty `issue.labels.remove`, and a
+reason citing the workflow shape.
 
-## Step 1 — List orphan open issues
-
-An issue is **recovery-eligible** iff its label set `L` satisfies:
-
-- `L ∩ WORKFLOW_LABELS ≠ ∅`  (triager would skip)
-- `L ∩ ACTIONABLE_LABELS = ∅` (orchestrator would skip)
+## Step 1 — Read the target issue
 
 ```bash
 bash -c '
 set -euo pipefail
+N={uv-issue}
+
+gh issue view "$N" --json number,state,labels,title
+'
+```
+
+Parse the JSON:
+
+- If `state` ≠ `"OPEN"`: emit `closing`, `status: "skipped"`, reason
+  `"issue not open (state=<X>)"`, empty `issue.labels.remove`.
+- Otherwise, capture `L = labels[].name` for Step 2.
+
+If the `gh issue view` call fails (network / 404 / permission), emit
+`repeat` once. If a second invocation also fails, emit `closing` with
+`status: "failed"` and an empty remove list.
+
+## Step 2 — Decide eligibility and compute orphan_labels
+
+Given the target's `L` and the two sets from Step 0:
+
+- `wfHit = L ∩ WORKFLOW_LABELS`
+- `acHit = L ∩ ACTIONABLE_LABELS`
+- `orphan_labels = L ∩ (WORKFLOW_LABELS ∖ ACTIONABLE_LABELS)`
+
+Decision table:
+
+| Condition                                | status     | issue.labels.remove |
+|------------------------------------------|------------|---------------------|
+| `wfHit = ∅`                              | skipped    | `[]` (triager picks up)            |
+| `wfHit ≠ ∅` AND `acHit ≠ ∅`              | skipped    | `[]` (orchestrator picks up)       |
+| `wfHit ≠ ∅` AND `acHit = ∅` AND `orphan_labels ≠ ∅` | completed  | `orphan_labels`     |
+| `wfHit ≠ ∅` AND `acHit = ∅` AND `orphan_labels = ∅` | skipped    | `[]` (defensive — should not occur) |
+
+Verify in the same bash block (no mutation):
+
+```bash
+bash -c '
+set -euo pipefail
+N={uv-issue}
 WORKFLOW="{uv-workflow}"
-LIMIT={uv-limit}
 
 WORKFLOW_LABELS_JSON=$(jq "
   [ (.labelMapping // {} | keys[]),
@@ -101,83 +127,51 @@ ACTIONABLE_LABELS_JSON=$(jq "
   | unique
 " "$WORKFLOW")
 
-gh issue list --state open --limit 200 \
-    --json number,title,labels \
+gh issue view "$N" --json number,state,labels \
   | jq --argjson wl "$WORKFLOW_LABELS_JSON" \
-       --argjson al "$ACTIONABLE_LABELS_JSON" \
-       --argjson lim "$LIMIT" "
-      [ .[]
-        | . as \$iss
-        | (\$iss.labels | map(.name)) as \$names
-        | (\$names | map(select(. as \$n | \$wl | index(\$n)))) as \$wfLabels
-        | (\$names | map(select(. as \$n | \$al | index(\$n)))) as \$acLabels
-        | select(
-            (\$wfLabels | length) > 0
-            and (\$acLabels | length) == 0
-          )
-        | { number,
-            title,
-            labels: \$names,
-            orphan_labels: \$wfLabels } ]
-      | .[:\$lim]
+       --argjson al "$ACTIONABLE_LABELS_JSON" "
+      . as \$iss
+      | (\$iss.labels | map(.name)) as \$names
+      | (\$names | map(select(. as \$n | \$wl | index(\$n)))) as \$wfHit
+      | (\$names | map(select(. as \$n | \$al | index(\$n)))) as \$acHit
+      | (\$wfHit - \$acHit) as \$orphan
+      | { number: \$iss.number,
+          state: \$iss.state,
+          labels: \$names,
+          wf_hit: \$wfHit,
+          ac_hit: \$acHit,
+          orphan_labels: \$orphan,
+          eligible: ((\$wfHit | length) > 0 and (\$acHit | length) == 0 and (\$orphan | length) > 0) }
     "
 '
 ```
 
-Each result entry's `orphan_labels` is exactly the set of labels you
-must strip from that issue — the issue's workflow-labels intersection,
-which by the predicate contains zero actionable labels.
+Use the `orphan_labels` array from this output verbatim as
+`issue.labels.remove` when `eligible == true`.
 
-If the result is an empty array, emit `closing` with `removed: []`,
-`skipped: []` and a summary saying no orphans found.
+## Step 3 — Emit closing structured output
 
-## Step 2 — For each eligible issue, strip its orphan workflow labels
+Emit a single closure structured output with:
 
-Iterate the array from Step 1. For each issue `#N` with
-`orphan_labels: [L1, L2, ...]`, run once per label:
-
-```bash
-bash -c '
-set -euo pipefail
-N=<issue>
-L=<orphan-label>
-gh issue edit "$N" --remove-label "$L"
-'
-```
-
-- On success, append `{ issue_number: N, removed_label: L }` to
-  `removed[]`.
-- On failure (permission denied, label already absent on refetch,
-  network error), append `{ issue_number: N, reason: "<msg>" }` to
-  `skipped[]` and continue to the next label/issue.
-
-Do NOT retry beyond what gh's own retry handles.
-
-## Step 3 — Final summary
-
-Output a markdown table of the actions:
-
-| Issue | Removed label | Status  |
-|-------|---------------|---------|
-| #488  | done          | removed |
-| #499  | order:4       | removed |
-| ...   | ...           | ...     |
-
-Include a trailing line:
-`Recovered: M / Skipped: K / Limit: {uv-limit}` where M = len(removed),
-K = len(skipped).
-
-Emit `next_action.action = "closing"` if Step 1 and Step 2 completed
-normally (empty `removed[]` is still `closing`). Emit `repeat` only if a
-transient error prevented Step 1's fetch from completing.
+- `stepId: "recover"`
+- `status`: per the decision table.
+- `summary`: one line, e.g.
+  - `"stripped 1 orphan label from #{uv-issue}: done"`
+  - `"#{uv-issue} skipped: already actionable (kind:impl)"`
+  - `"#{uv-issue} skipped: no workflow labels (triager picks up)"`
+- `next_action.action: "closing"` (use `"repeat"` only on transient
+  Step 1 failure).
+- `closure_action: "label-only"` — recovery never closes.
+- `issue`:
+  - `number`: `{uv-issue}`
+  - `labels.add`: `[]` (always empty)
+  - `labels.remove`: `orphan_labels` from Step 2 (or `[]` when skipping).
 
 ## Do ONLY this
 
-- Do not add any labels. Do not assign `kind:*` or `order:N`. Triager
-  owns that on its next run.
-- Do not close issues. Do not post comments. Do not reopen issues.
-- Do not remove non-workflow labels (`enhancement`, `bug`, etc.).
-  `orphan_labels` is already narrowed to workflow labels.
-- Do not touch issues where any label is in `ACTIONABLE_LABELS` —
-  orchestrator handles those.
+- Do not run `gh issue edit`, `gh issue close`, or `gh issue comment` —
+  the boundary hook owns mutations.
+- Do not assign `kind:*` or `order:N`. Triager owns that on its next run.
+- Do not strip non-workflow labels (`enhancement`, `bug`, etc.).
+- Do not iterate over other issues. Scope is `--issue {uv-issue}` only.
 - Do not emit intents other than `closing` or `repeat`.

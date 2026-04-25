@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "triage-recovery.schema.json",
-  "description": "Triage-recovery agent step schemas. Single closure step that strips orphan workflow labels from OPEN issues that both pipelines skip: triager skips any workflow-labeled issue; orchestrator skips any issue without an actionable-phase label. Eligible set and orphan labels are derived dynamically from the workflow JSON (no hardcoded label names).",
+  "description": "Triage-recovery agent step schemas. Per-issue closure step: handles ONE OPEN GitHub Issue per invocation. The agent verifies the issue is orphaned (carries ≥1 workflow label, none actionable), computes the orphan label set, and emits issue.labels.remove. The poll:state boundary hook applies the removal via gh issue edit --remove-label. WORKFLOW_LABELS and ACTIONABLE_LABELS are derived dynamically from the workflow JSON (no hardcoded label names).",
 
   "recover": {
     "type": "object",
-    "description": "Recover closure step response. Strips the terminal label from each orphan OPEN issue so triager can re-pick it on the next run.",
-    "required": ["stepId", "status", "summary", "next_action", "removed", "skipped"],
+    "description": "Recover closure step response for a single issue. Boundary hook reads issue.labels.remove and runs gh issue edit --remove-label.",
+    "required": ["stepId", "status", "summary", "next_action", "issue"],
     "properties": {
       "stepId": {
         "type": "string",
@@ -14,11 +14,12 @@
       },
       "status": {
         "type": "string",
-        "enum": ["completed", "failed"]
+        "enum": ["completed", "failed", "skipped"],
+        "description": "completed = orphan labels identified and emitted for removal; skipped = issue is not recovery-eligible (no orphan labels, or carries actionable label); failed = could not assess (e.g. issue fetch error)."
       },
       "summary": {
         "type": "string",
-        "description": "One-line human-readable summary (e.g., 'stripped workflow labels from 5 orphan issues; 0 skipped')."
+        "description": "One-line human-readable summary (e.g., 'stripped 1 orphan label from #488', 'skipped #501: already actionable (kind:impl)')."
       },
       "next_action": {
         "type": "object",
@@ -27,52 +28,56 @@
           "action": {
             "type": "string",
             "enum": ["closing", "repeat"],
-            "description": "Closure intent. 'closing' terminates the recovery pass. 'repeat' re-runs the step when the first fetch/edit needs another pass (transient gh failure, paging)."
+            "description": "'closing' terminates the recovery for this issue (the boundary hook then strips labels). 'repeat' re-runs the step on transient failure (gh fetch error)."
           },
           "reason": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
         }
       },
-      "removed": {
-        "type": "array",
-        "description": "Per-(issue, label) result of successful `gh issue edit --remove-label` application. One entry per stripped label — an issue carrying multiple orphan workflow labels yields multiple entries with the same issue_number. Empty array is valid (no orphan issues found).",
-        "items": {
-          "type": "object",
-          "required": ["issue_number", "removed_label"],
-          "additionalProperties": false,
-          "properties": {
-            "issue_number": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "GitHub issue number."
-            },
-            "removed_label": {
-              "type": "string",
-              "description": "Workflow label stripped from the issue (an orphan label: member of WORKFLOW_LABELS but not ACTIONABLE_LABELS)."
+      "issue": {
+        "type": "object",
+        "description": "Per-issue payload consumed by the poll:state boundary hook. The hook merges agent.json github.labels.completion with this object's labels.{add,remove} and runs gh issue edit accordingly.",
+        "required": ["number", "labels"],
+        "additionalProperties": false,
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "GitHub issue number this invocation targets (must equal --issue)."
+          },
+          "labels": {
+            "type": "object",
+            "description": "Label mutations for the boundary hook. For recovery, populate labels.remove with the orphan workflow labels. labels.add MUST be empty — triager owns kind:* / order:N assignment on the next run.",
+            "additionalProperties": false,
+            "properties": {
+              "add": {
+                "type": "array",
+                "maxItems": 0,
+                "description": "Always empty. Recovery never adds labels.",
+                "items": { "type": "string" }
+              },
+              "remove": {
+                "type": "array",
+                "minItems": 0,
+                "description": "Orphan workflow labels to strip. Empty when issue is not recovery-eligible (boundary hook will be a no-op).",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Label name. Must be in WORKFLOW_LABELS (labelMapping keys ∪ prioritizer.labels) AND not in ACTIONABLE_LABELS."
+                }
+              }
             }
           }
         }
       },
-      "skipped": {
-        "type": "array",
-        "description": "Issues that matched the orphan query but were not edited. Each entry records why (e.g., gh permission denied, label already absent on refetch).",
-        "items": {
-          "type": "object",
-          "required": ["issue_number", "reason"],
-          "additionalProperties": false,
-          "properties": {
-            "issue_number": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "GitHub issue number."
-            },
-            "reason": {
-              "type": "string",
-              "minLength": 1,
-              "description": "Free-form reason the issue was skipped."
-            }
-          }
-        }
+      "closure_action": {
+        "type": "string",
+        "enum": ["label-only"],
+        "description": "Recovery never closes issues. Set to 'label-only' to override the default closure_action. The boundary hook honours this and only mutates labels."
+      },
+      "verdict": {
+        "type": "string",
+        "description": "Optional free-form verdict string surfaced by the boundary hook (e.g., 'orphan-stripped', 'not-eligible')."
       }
     }
   }

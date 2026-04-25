@@ -3,18 +3,23 @@
   "version": "1.14.0",
   "name": "triage-recovery",
   "displayName": "Issue Triage Recovery Agent",
-  "description": "Standalone sweep that strips orphan workflow labels from OPEN issues that both pipelines skip: triager skips anything carrying a workflow label (labelMapping keys ∪ prioritizer.labels), orchestrator skips anything without a label mapped to an actionable phase. The intersection (orphan open issues) gets every orphan workflow label stripped so triager re-picks them on the next run. Predicates are derived dynamically from the workflow JSON — no hardcoded label names.",
+  "description": "Per-issue dispatch: strip orphan workflow labels from ONE OPEN GitHub Issue that both pipelines skip — triager skips anything carrying ≥1 workflow label (labelMapping keys ∪ prioritizer.labels); orchestrator skips anything without an actionable-phase label. The intersection is orphaned. Labels are removed via the poll:state boundary hook (gh issue edit --remove-label) using the AI structured output's issue.labels.remove field. Use the .agent/triage-recovery/script/dispatch.sh ad-hoc dispatcher to fan out orphan issues; this binary handles ONE issue per invocation.",
   "parameters": {
-    "limit": {
+    "issue": {
       "type": "number",
-      "description": "Maximum number of issues to recover in one run",
+      "description": "GitHub Issue number to recover in this invocation (per-issue dispatch).",
+      "required": true,
+      "cli": "--issue"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Optional owner/repo override for gh state checks. Default: current repo (gh context).",
       "required": false,
-      "default": 9,
-      "cli": "--limit"
+      "cli": "--repository"
     },
     "workflow": {
       "type": "string",
-      "description": "Path to the downstream workflow JSON used to derive the workflow label set and phase-type mapping. Orphan candidates are open issues whose only workflow label maps to a terminal phase.",
+      "description": "Path to the downstream workflow JSON used to derive the workflow label set (labelMapping keys ∪ prioritizer.labels) and the actionable-label set (labelMapping entries whose phase has type=='actionable'). Recovery removes only orphan workflow labels (workflow ∖ actionable).",
       "required": false,
       "default": ".agent/workflow.json",
       "cli": "--workflow"
@@ -28,9 +33,15 @@
       }
     },
     "verdict": {
-      "type": "count:iteration",
+      "type": "poll:state",
       "config": {
         "maxIterations": 3
+      }
+    },
+    "integrations": {
+      "github": {
+        "enabled": true,
+        "defaultClosureAction": "label-only"
       }
     },
     "logging": {
