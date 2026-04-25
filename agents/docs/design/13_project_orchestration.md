@@ -93,14 +93,22 @@ type ProjectFieldValue = string | number | { optionId: string } | {
 - `removeProjectItem(projectId: string, itemId: string): Promise<void>`
 - `updateProjectItemField(projectId: string, itemId: string, fieldId: string, value: ProjectFieldValue): Promise<void>`
 - `closeProject(projectId: string): Promise<void>`
+- `createProjectFieldOption(project: ProjectRef, fieldId: string, name: string, color?: string): Promise<{ id: string; name: string }>`
 
 **Intentionally NOT included** (user responsibility via direct gh CLI):
 
 - `createProject` / `editProjectReadme`
-- `createField` / `ensureFieldOption`
+- `createField`
 
-理由: project schema (field, option, readme) の design は user intent。climpt
-がこれを書き換えると境界崩壊。
+理由: project schema (field, readme) の design は user intent。climpt
+がこれを書き換えると境界崩壊。ただし field **option** の追加は例外とする (下記
+bootstrap 責務を参照)。
+
+**Status option bootstrap 責務**: orchestrator が F-d mapping 実行時に必要な
+Status option (例: "Blocked") が project field に存在しなければ、
+`createProjectFieldOption` で冪等に bootstrap する。既定 option (Todo / In
+Progress / Done) は user が GH 側で管理し、climpt 固有の追加 option のみ
+orchestrator が自動作成する。
 
 ### 2.3 OutboxAction additions
 
