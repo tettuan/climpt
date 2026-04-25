@@ -18,15 +18,18 @@ uvVariables:
   - `agents/docs/**`
 
 ## Action
-1. Run: `gh issue view {uv-issue} --json number,title,body` and capture the body text.
-2. Run: `gh issue view {uv-issue} --comments` and capture each comment body.
-3. Over the concatenated text of body + comments, extract every path matching the regex
+1. Run: `gh issue view {uv-issue} --json number,title,body,comments` once and
+   capture both `body` and each `comments[].body`. **Do not** use the bare
+   `--comments` flag — it triggers a `repository.issue.projectCards`
+   GraphQL deprecation error in current `gh` versions and aborts the call.
+   `--json comments` queries a different field set and is unaffected.
+2. Over the concatenated text of body + comments, extract every path matching the regex
    `(?:docs/[^\s)"'`]+|[^\s)"'`]*design[^\s)"'`]*\.md|agents/docs/[^\s)"'`]+)`; deduplicate
    while preserving first-seen order; emit the list as `doc_paths_required`.
 
 ## Do ONLY this
 - Do not read any of the referenced files.
-- Do not run commands other than `gh issue view` in Action steps 1 and 2.
+- Do not run commands other than the single `gh issue view --json …` call in Action step 1.
 - Do not emit any other artifact field.
 - Do not emit intents other than `next` (on successful extraction, including empty list)
   or `repeat` (only on parse / gh failure).
