@@ -5,8 +5,14 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "poll:state": "initial.issue",
-    "count:iteration": "initial.iteration"
+    "poll:state": {
+      "initial": "initial.issue",
+      "continuation": "continuation.issue"
+    },
+    "count:iteration": {
+      "initial": "initial.iteration",
+      "continuation": "continuation.iteration"
+    }
   },
   "failurePatterns": {
     "git-dirty": {

@@ -93,7 +93,7 @@ function minimalValidRegistry(): Record<string, unknown> {
       },
     },
     entryStepMapping: {
-      issue: "initial.default",
+      issue: { initial: "initial.default", continuation: "initial.default" },
     },
   };
 }

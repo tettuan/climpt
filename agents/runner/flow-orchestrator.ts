@@ -93,9 +93,10 @@ export class FlowOrchestrator {
     // For iteration 1: Use registry-based lookup
     const verdictType = this.deps.definition.runner.verdict.type;
 
-    // Try entryStepMapping first
-    if (stepsRegistry?.entryStepMapping?.[verdictType]) {
-      return stepsRegistry.entryStepMapping[verdictType];
+    // Try entryStepMapping first (object form: { initial, continuation })
+    const pair = stepsRegistry?.entryStepMapping?.[verdictType];
+    if (pair && typeof pair === "object" && typeof pair.initial === "string") {
+      return pair.initial;
     }
 
     // Try generic entryStep

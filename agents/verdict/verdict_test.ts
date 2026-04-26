@@ -31,6 +31,23 @@ import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { PromptResolutionResult } from "../common/prompt-resolver.ts";
+import { join } from "@std/path";
+
+/**
+ * Materialize a steps_registry.json into a fresh temp agentDir so that
+ * createRegistryVerdictHandler can resolve entryStepMapping. Returns the
+ * agent dir path; caller is responsible for cleanup if desired.
+ */
+async function makeAgentDirWithRegistry(
+  registry: Record<string, unknown>,
+): Promise<string> {
+  const dir = await Deno.makeTempDir({ prefix: "verdict-test-" });
+  await Deno.writeTextFile(
+    join(dir, "steps_registry.json"),
+    JSON.stringify(registry),
+  );
+  return dir;
+}
 
 // =============================================================================
 // Test Utilities
@@ -1280,10 +1297,37 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "poll:state": {
+        initial: "initial.polling",
+        continuation: "continuation.polling",
+      },
+    },
+    steps: {
+      "initial.polling": {
+        stepId: "initial.polling",
+        name: "Initial",
+        c2: "initial",
+        c3: "polling",
+        edition: "default",
+      },
+      "continuation.polling": {
+        stepId: "continuation.polling",
+        name: "Continuation",
+        c2: "continuation",
+        c3: "polling",
+        edition: "default",
+      },
+    },
+  });
   const result = await createRegistryVerdictHandler(
     definition,
     { issue: 123, repository: "owner/repo" },
-    "/tmp/claude/test-agent",
+    agentDir,
   );
   logger.debug("factory result", { type: result?.type });
 
@@ -1333,11 +1377,38 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "poll:state": {
+        initial: "initial.polling",
+        continuation: "continuation.polling",
+      },
+    },
+    steps: {
+      "initial.polling": {
+        stepId: "initial.polling",
+        name: "Initial",
+        c2: "initial",
+        c3: "polling",
+        edition: "default",
+      },
+      "continuation.polling": {
+        stepId: "continuation.polling",
+        name: "Continuation",
+        c2: "continuation",
+        c3: "polling",
+        edition: "default",
+      },
+    },
+  });
   try {
     await createRegistryVerdictHandler(
       definition,
       {},
-      "/tmp/claude/test-agent",
+      agentDir,
     );
     throw new Error("Should have thrown");
   } catch (error) {
@@ -1384,10 +1455,37 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
     },
   };
 
+  const agentDir = await makeAgentDirWithRegistry({
+    agentId: "test-agent",
+    version: "1.0.0",
+    c1: "steps",
+    entryStepMapping: {
+      "count:iteration": {
+        initial: "initial.iteration",
+        continuation: "continuation.iteration",
+      },
+    },
+    steps: {
+      "initial.iteration": {
+        stepId: "initial.iteration",
+        name: "Initial",
+        c2: "initial",
+        c3: "iteration",
+        edition: "default",
+      },
+      "continuation.iteration": {
+        stepId: "continuation.iteration",
+        name: "Continuation",
+        c2: "continuation",
+        c3: "iteration",
+        edition: "default",
+      },
+    },
+  });
   const result = await createRegistryVerdictHandler(
     definition,
     {},
-    "/tmp/claude/test-agent",
+    agentDir,
   );
 
   assertExists(result);

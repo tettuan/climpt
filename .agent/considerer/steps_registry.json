@@ -6,7 +6,10 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "closure.consider.doc-scan"
+    "count:iteration": {
+      "initial": "closure.consider.doc-scan",
+      "continuation": "closure.consider.doc-scan"
+    }
   },
   "steps": {
     "closure.consider.doc-scan": {

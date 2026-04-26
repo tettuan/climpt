@@ -49,7 +49,7 @@ function validRegistry(): Record<string, unknown> {
       },
     },
     entryStepMapping: {
-      issue: "initial.default",
+      issue: { initial: "initial.default", continuation: "initial.default" },
     },
     validators: {
       "git-clean": {
@@ -109,7 +109,9 @@ Deno.test("registry-validator - registry with only steps passes", () => {
     steps: {
       "initial.default": { stepId: "initial.default", transitions: {} },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -121,9 +123,12 @@ Deno.test("registry-validator - registry with only steps passes", () => {
 // entryStepMapping - broken references
 // =============================================================================
 
-Deno.test("registry-validator - entryStepMapping references unknown step", () => {
+Deno.test("registry-validator - entryStepMapping.initial references unknown step", () => {
   const data = validRegistry();
-  (data.entryStepMapping as Record<string, string>).issue = "initial.missing";
+  (data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >).issue = { initial: "initial.missing", continuation: "initial.default" };
 
   const result = validateCrossReferences(data);
 
@@ -141,9 +146,15 @@ Deno.test("registry-validator - entryStepMapping references unknown step", () =>
 
 Deno.test("registry-validator - multiple broken entryStepMapping entries", () => {
   const data = validRegistry();
-  const esm = data.entryStepMapping as Record<string, string>;
-  esm.issue = "initial.gone";
-  esm.externalState = "initial.also-gone";
+  const esm = data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >;
+  esm.issue = { initial: "initial.gone", continuation: "initial.default" };
+  esm.externalState = {
+    initial: "initial.also-gone",
+    continuation: "initial.default",
+  };
 
   const result = validateCrossReferences(data);
 
@@ -427,7 +438,10 @@ Deno.test("registry-validator - multiple different error types accumulate", () =
   const data = validRegistry();
 
   // Break entryStepMapping
-  (data.entryStepMapping as Record<string, string>).issue = "initial.gone";
+  (data.entryStepMapping as Record<
+    string,
+    { initial: string; continuation: string }
+  >).issue = { initial: "initial.gone", continuation: "initial.default" };
 
   // Break transition
   const steps = data.steps as Record<string, Record<string, unknown>>;
@@ -464,7 +478,9 @@ Deno.test("registry-validator - steps with no transitions is valid", () => {
     steps: {
       "initial.default": { stepId: "initial.default" },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -477,7 +493,9 @@ Deno.test("registry-validator - non-object step entry is skipped", () => {
     steps: {
       "initial.default": "not-an-object",
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);
@@ -496,7 +514,9 @@ Deno.test("registry-validator - non-object transition rule is skipped", () => {
         },
       },
     },
-    entryStepMapping: { issue: "initial.default" },
+    entryStepMapping: {
+      issue: { initial: "initial.default", continuation: "initial.default" },
+    },
   };
 
   const result = validateCrossReferences(data);

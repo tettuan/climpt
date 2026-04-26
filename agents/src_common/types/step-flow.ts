@@ -17,11 +17,16 @@ export interface StepsRegistry {
   steps: Record<string, FlowStepDefinition>;
   editions?: Record<string, string>;
   /**
-   * Mode-based entry step mapping.
-   * Allows dynamic entry step selection based on execution mode.
-   * Example: { "issue": "s_init_issue", "project": "s_init_project", "iterate": "s_init_iterate" }
+   * Verdict-type to entry step pair.
+   * Each value declares the initial and continuation step ids explicitly;
+   * the runtime never derives one from the other.
+   * Example:
+   *   {
+   *     "poll:state":     { "initial": "initial.issue",  "continuation": "continuation.issue" },
+   *     "count:iteration": { "initial": "clarify",       "continuation": "clarify" }
+   *   }
    */
-  entryStepMapping?: Record<string, string>;
+  entryStepMapping?: Record<string, { initial: string; continuation: string }>;
 }
 
 /**

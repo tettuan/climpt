@@ -6,7 +6,10 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "poll:state": "recover"
+    "poll:state": {
+      "initial": "recover",
+      "continuation": "recover"
+    }
   },
   "steps": {
     "recover": {

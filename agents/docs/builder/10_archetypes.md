@@ -42,7 +42,9 @@
 
 // steps_registry.json (抜粋)
 {
-  "entryStepMapping": { "count:iteration": "triage" },
+  "entryStepMapping": {
+    "count:iteration": { "initial": "triage", "continuation": "triage" }
+  },
   "steps": {
     "triage": {
       "stepId": "triage",

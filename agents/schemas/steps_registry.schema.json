@@ -38,9 +38,21 @@
     "entryStepMapping": {
       "type": "object",
       "additionalProperties": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "initial": {
+            "type": "string",
+            "description": "Step id used at the start of a verdict cycle (iteration 1)."
+          },
+          "continuation": {
+            "type": "string",
+            "description": "Step id used by the verdict handler's continuation prompt fallback. Set equal to 'initial' when the agent has no separate continuation step."
+          }
+        },
+        "required": ["initial", "continuation"],
+        "additionalProperties": false
       },
-      "description": "Mode-based entry step mapping (e.g., { 'issue': 'initial.issue' })"
+      "description": "Verdict-type to entry step pair. Each value declares 'initial' and 'continuation' explicitly; the runtime never derives one from the other."
     },
     "failurePatterns": {
       "type": "object",

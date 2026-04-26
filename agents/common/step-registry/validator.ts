@@ -84,13 +84,33 @@ export function validateEntryStepMapping(registry: StepRegistry): void {
     throw srEntryStepNotFound(registry.agentId, registry.entryStep);
   }
 
-  // Validate all entryStepMapping targets exist
+  // Validate all entryStepMapping pairs: each value must be { initial, continuation }
+  // and both step ids must exist in registry.steps. The legacy string form is rejected.
   if (registry.entryStepMapping) {
     const errors: string[] = [];
-    for (const [type, stepId] of Object.entries(registry.entryStepMapping)) {
-      if (!registry.steps[stepId]) {
+    for (const [type, value] of Object.entries(registry.entryStepMapping)) {
+      if (
+        typeof value !== "object" || value === null ||
+        typeof (value as { initial?: unknown }).initial !== "string" ||
+        typeof (value as { continuation?: unknown }).continuation !== "string"
+      ) {
         errors.push(
-          `entryStepMapping["${type}"] references non-existent step "${stepId}"`,
+          `entryStepMapping["${type}"] must be { initial: string, continuation: string }`,
+        );
+        continue;
+      }
+      const { initial, continuation } = value as {
+        initial: string;
+        continuation: string;
+      };
+      if (!registry.steps[initial]) {
+        errors.push(
+          `entryStepMapping["${type}"].initial references non-existent step "${initial}"`,
+        );
+      }
+      if (!registry.steps[continuation]) {
+        errors.push(
+          `entryStepMapping["${type}"].continuation references non-existent step "${continuation}"`,
         );
       }
     }

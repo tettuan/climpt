@@ -124,7 +124,10 @@ export async function initAgent(
     version: "1.0.0",
     c1: "steps",
     entryStepMapping: {
-      "detect:keyword": `${STEP_PHASE.INITIAL}.manual`,
+      "detect:keyword": {
+        initial: `${STEP_PHASE.INITIAL}.manual`,
+        continuation: `${STEP_PHASE.CONTINUATION}.manual`,
+      },
     },
     steps: {
       // System prompt: variable tracking only (resolution via flow.systemPromptPath)

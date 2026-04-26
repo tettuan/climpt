@@ -6,7 +6,10 @@
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
-    "count:iteration": "clarify"
+    "count:iteration": {
+      "initial": "clarify",
+      "continuation": "clarify"
+    }
   },
   "steps": {
     "clarify": {

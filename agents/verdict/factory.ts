@@ -36,6 +36,8 @@ import {
   acVerdict006CustomHandlerMustExportFactory,
   acVerdict007FailedToLoadCustomHandler,
   acVerdict011DetectGraphRequiresRegistry,
+  acVerdict012EntryStepPairMissing,
+  acVerdict013EntryStepPairMalformed,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -50,27 +52,38 @@ type HandlerFactory = (
 ) => VerdictHandler | Promise<VerdictHandler>;
 
 /**
- * Resolve step IDs from registry's entryStepMapping.
+ * Read the entryStepMapping pair for a verdict type.
  *
- * Derives continuation step ID by replacing "initial." prefix
- * with "continuation." in the entry step ID.
+ * The registry must declare both `initial` and `continuation` step ids
+ * explicitly under entryStepMapping[verdictType]. The runtime never derives
+ * one from the other — see design/04_step_flow_design.md §2.1.
  */
 function resolveStepIds(
   registry: ExtendedStepsRegistry,
   verdictType: string,
-  defaultInitial: string,
 ): VerdictStepIds {
-  const entryStep = registry.entryStepMapping?.[verdictType];
-  if (entryStep) {
-    const continuation = entryStep.startsWith("initial.")
-      ? "continuation." + entryStep.slice("initial.".length)
-      : "continuation." + entryStep.split(".").slice(1).join(".");
-    return { initial: entryStep, continuation };
+  const pair = registry.entryStepMapping?.[verdictType];
+  if (pair === undefined) {
+    throw acVerdict012EntryStepPairMissing(verdictType);
   }
-  const defaultContinuation = defaultInitial.startsWith("initial.")
-    ? "continuation." + defaultInitial.slice("initial.".length)
-    : defaultInitial;
-  return { initial: defaultInitial, continuation: defaultContinuation };
+  if (
+    typeof pair !== "object" || pair === null ||
+    typeof (pair as { initial?: unknown }).initial !== "string" ||
+    typeof (pair as { continuation?: unknown }).continuation !== "string" ||
+    (pair as { initial: string }).initial.length === 0 ||
+    (pair as { continuation: string }).continuation.length === 0
+  ) {
+    throw acVerdict013EntryStepPairMalformed(
+      verdictType,
+      `expected { initial: string, continuation: string }, got ${
+        JSON.stringify(pair)
+      }`,
+    );
+  }
+  return {
+    initial: (pair as { initial: string }).initial,
+    continuation: (pair as { continuation: string }).continuation,
+  };
 }
 
 /**
@@ -297,27 +310,9 @@ export async function createRegistryVerdictHandler(
     throw acVerdict005UnknownCompletionType(verdictType);
   }
 
-  // Resolve step IDs from entryStepMapping (default varies by verdict type)
-  const defaultInitialMap: Record<string, string> = {
-    "poll:state": "initial.polling",
-    "count:iteration": "initial.iteration",
-    "detect:keyword": "initial.keyword",
-    "count:check": "initial.check",
-    "detect:structured": "initial.structured",
-  };
-  const stepIds = resolveStepIds(
-    registry,
-    verdictType,
-    defaultInitialMap[verdictType] ?? "initial.default",
-  );
-
-  // Log prefix substitution when initial.* was derived to continuation.*
-  if (stepIds.initial.startsWith("initial.")) {
-    // deno-lint-ignore no-console
-    console.info(
-      `[StepFlow] Prefix substitution: ${stepIds.initial} -> ${stepIds.continuation} (verdict: ${verdictType})`,
-    );
-  }
+  // Resolve step IDs: registry must declare entryStepMapping[verdictType]
+  // as { initial, continuation }. No derivation, no defaults.
+  const stepIds = resolveStepIds(registry, verdictType);
 
   return await factory(args, promptResolver, definition, agentDir, stepIds);
 }

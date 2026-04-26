@@ -250,6 +250,19 @@ export type TransitionRule =
 export type Transitions = Record<string, TransitionRule>;
 
 /**
+ * Entry step pair declared by `entryStepMapping[verdictType]`.
+ *
+ * `initial`      - Step id used at the start of a verdict cycle (Flow Loop iteration 1).
+ * `continuation` - Step id used by the verdict handler's continuation prompt fallback
+ *                  in the Completion Loop. Set equal to `initial` when the agent has no
+ *                  separate continuation step.
+ */
+export interface EntryStepPair {
+  initial: string;
+  continuation: string;
+}
+
+/**
  * Step registry for an agent
  *
  * Contains all step definitions and metadata for the agent.
@@ -288,11 +301,18 @@ export interface StepRegistry {
   entryStep?: string;
 
   /**
-   * Mode-based entry step mapping.
-   * Allows dynamic entry step selection based on execution mode.
-   * Example: { "issue": "initial.issue", "project": "initial.project" }
+   * Verdict-type to entry step pair.
+   * Each value declares both the initial step (used by Flow Loop iteration 1)
+   * and the continuation step (used by the verdict handler's continuation
+   * prompt fallback in the Completion Loop). Set continuation = initial when
+   * the agent has no separate continuation step.
+   * Example:
+   *   {
+   *     "poll:state":    { "initial": "initial.issue",  "continuation": "continuation.issue" },
+   *     "count:iteration": { "initial": "clarify",      "continuation": "clarify" }
+   *   }
    */
-  entryStepMapping?: Record<string, string>;
+  entryStepMapping?: Record<string, EntryStepPair>;
 }
 
 /**

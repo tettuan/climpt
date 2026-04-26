@@ -333,10 +333,18 @@ export function validateFlowReachability(
   const entryPoints = new Set<string>();
   const entryStepMapping = asRecord(registry.entryStepMapping);
   if (entryStepMapping) {
-    for (const [entryKey, target] of Object.entries(entryStepMapping)) {
-      if (typeof target === "string" && allStepIds.has(target)) {
-        entryPointMap.set(entryKey, target);
-        entryPoints.add(target);
+    for (const [entryKey, value] of Object.entries(entryStepMapping)) {
+      const pair = asRecord(value);
+      if (!pair) continue;
+      const initial = pair.initial;
+      const continuation = pair.continuation;
+      if (typeof initial === "string" && allStepIds.has(initial)) {
+        entryPointMap.set(`${entryKey}.initial`, initial);
+        entryPoints.add(initial);
+      }
+      if (typeof continuation === "string" && allStepIds.has(continuation)) {
+        entryPointMap.set(`${entryKey}.continuation`, continuation);
+        entryPoints.add(continuation);
       }
     }
   }

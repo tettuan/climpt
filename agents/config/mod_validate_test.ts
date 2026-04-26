@@ -57,7 +57,10 @@ function minimalValidRegistry(): Record<string, unknown> {
     version: "1.0.0",
     c1: "steps",
     entryStepMapping: {
-      "count:iteration": "initial.default",
+      "count:iteration": {
+        initial: "initial.default",
+        continuation: "continuation.default",
+      },
     },
     steps: {
       "initial.default": {
@@ -480,7 +483,10 @@ Deno.test("validateFull - catches stepKind/intent mismatch via typed validators"
       version: "1.0.0",
       c1: "steps",
       entryStepMapping: {
-        "count:iteration": "initial.default",
+        "count:iteration": {
+          initial: "initial.default",
+          continuation: "initial.default",
+        },
       },
       steps: {
         "initial.default": {

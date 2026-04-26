@@ -3,9 +3,15 @@
   "version": "3.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "poll:state": "initial.test",
-    "count:iteration": "initial.test",
-    "detect:graph": "initial.test"
+    "poll:state": { "initial": "initial.test", "continuation": "initial.test" },
+    "count:iteration": {
+      "initial": "initial.test",
+      "continuation": "initial.test"
+    },
+    "detect:graph": {
+      "initial": "initial.test",
+      "continuation": "initial.test"
+    }
   },
   "failurePatterns": {
     "git-dirty": {

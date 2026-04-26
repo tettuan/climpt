@@ -58,13 +58,36 @@ export function validateCrossReferences(
   const failurePatternKeys = new Set(Object.keys(failurePatterns));
   const validationSteps = asRecord(registry.validationSteps) ?? {};
 
-  // 1. entryStepMapping values must exist in steps
+  // 1. entryStepMapping values must be { initial, continuation } objects
+  //    whose step ids both exist in steps. The legacy string form is rejected.
   const entryStepMapping = asRecord(registry.entryStepMapping);
   if (entryStepMapping) {
-    for (const [mode, target] of Object.entries(entryStepMapping)) {
-      if (typeof target === "string" && !stepKeys.has(target)) {
+    for (const [mode, value] of Object.entries(entryStepMapping)) {
+      const pair = asRecord(value);
+      if (!pair) {
         errors.push(
-          `entryStepMapping["${mode}"] references unknown step "${target}"`,
+          `entryStepMapping["${mode}"] must be an object { initial, continuation }; got ${typeof value}`,
+        );
+        continue;
+      }
+      const initial = pair.initial;
+      const continuation = pair.continuation;
+      if (typeof initial !== "string" || initial.length === 0) {
+        errors.push(
+          `entryStepMapping["${mode}"].initial must be a non-empty string`,
+        );
+      } else if (!stepKeys.has(initial)) {
+        errors.push(
+          `entryStepMapping["${mode}"].initial references unknown step "${initial}"`,
+        );
+      }
+      if (typeof continuation !== "string" || continuation.length === 0) {
+        errors.push(
+          `entryStepMapping["${mode}"].continuation must be a non-empty string`,
+        );
+      } else if (!stepKeys.has(continuation)) {
+        errors.push(
+          `entryStepMapping["${mode}"].continuation references unknown step "${continuation}"`,
         );
       }
     }

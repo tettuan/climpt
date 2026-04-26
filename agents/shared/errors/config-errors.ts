@@ -213,7 +213,7 @@ export function srEntryMissingConfig(agentId: string): ConfigError {
     "SR-ENTRY-001",
     `Step registry for "${agentId}" missing entry configuration.`,
     `Every registry must define either "entryStep" or "entryStepMapping" so the runner knows where to begin execution. See design/08_step_flow_design.md Section 2.`,
-    `Add "entryStep": "<stepId>" or "entryStepMapping": { "<type>": "<stepId>" } to steps_registry.json for agent "${agentId}".`,
+    `Add "entryStep": "<stepId>" or "entryStepMapping": { "<verdictType>": { "initial": "<stepId>", "continuation": "<stepId>" } } to steps_registry.json for agent "${agentId}".`,
     "steps_registry.json",
   );
 }
@@ -1232,6 +1232,31 @@ export function acVerdict011DetectGraphRequiresRegistry(
     `detect:graph verdict type requires steps_registry.json but file not found at "${registryPath}".`,
     `detect:graph uses StepMachineVerdictHandler which reads the step graph from steps_registry.json. Without it, the handler cannot determine completion. See design/02_core_architecture.md.`,
     `Create steps_registry.json at the expected path, or change runner.verdict.type to a type that does not require a registry (e.g., "count:iteration").`,
+    "steps_registry.json",
+  );
+}
+
+export function acVerdict012EntryStepPairMissing(
+  verdictType: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-VERDICT-012",
+    `Verdict handler for "${verdictType}" requires entryStepMapping["${verdictType}"] in steps_registry.json, but it is missing.`,
+    `entryStepMapping declares the initial and continuation step ids per verdict type. The runtime no longer derives one from the other; both must be declared explicitly. See design/04_step_flow_design.md.`,
+    `Add { "initial": "<stepId>", "continuation": "<stepId>" } under entryStepMapping["${verdictType}"]. Use the same step id for both fields when the agent has no separate continuation step.`,
+    "steps_registry.json",
+  );
+}
+
+export function acVerdict013EntryStepPairMalformed(
+  verdictType: string,
+  detail: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-VERDICT-013",
+    `entryStepMapping["${verdictType}"] is malformed: ${detail}`,
+    `Each entryStepMapping value must be an object with non-empty string fields "initial" and "continuation". The runtime no longer accepts the legacy string form.`,
+    `Replace the value with { "initial": "<stepId>", "continuation": "<stepId>" }. Set continuation = initial when the agent has no separate continuation step.`,
     "steps_registry.json",
   );
 }
