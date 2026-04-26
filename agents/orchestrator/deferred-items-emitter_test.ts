@@ -68,6 +68,10 @@ class SpyGitHubClient implements GitHubClient {
     body: string;
   }[] = [];
   closedIssues: number[] = [];
+  addedToProjects: {
+    project: ProjectRef;
+    issueNumber: number;
+  }[] = [];
 
   getIssueLabels(): Promise<string[]> {
     return Promise.resolve([]);
@@ -122,9 +126,10 @@ class SpyGitHubClient implements GitHubClient {
     return Promise.resolve();
   }
   addIssueToProject(
-    _project: ProjectRef,
-    _issueNumber: number,
+    project: ProjectRef,
+    issueNumber: number,
   ): Promise<string> {
+    this.addedToProjects.push({ project, issueNumber });
     return Promise.resolve("PVTI_stub");
   }
   updateProjectItemField(
@@ -802,5 +807,207 @@ Deno.test(
       "Items with different content must produce different idempotency keys. " +
         "Fix: computeIdempotencyKey hash must incorporate title/body/labels.",
     );
+  },
+);
+
+// =============================================================================
+// Hook O2 — Parent-project inheritance (issue #487, design §2.4).
+// Three-form e2e: projects field absent (inherit), empty array (opt-out),
+// explicit list (override). Each test round-trips through OutboxProcessor
+// with a spy GitHubClient to verify end-to-end create-issue + add-to-project
+// behavior including late-binding of issueNumber.
+// =============================================================================
+
+const PARENT_PROJECT_A: ProjectRef = { owner: "tettuan", number: 41 };
+
+Deno.test(
+  "Hook O2: projects undefined — child inherits parent project",
+  async () => {
+    await withTempStore(async (store) => {
+      const emitter = new DeferredItemsEmitter(store);
+      const result = await emitter.emit(
+        200,
+        {
+          deferred_items: [
+            {
+              title: "Inherit child",
+              body: "should inherit A",
+              labels: ["kind:impl"],
+            },
+          ],
+        },
+        [PARENT_PROJECT_A],
+      );
+
+      assertEquals(result.count, 1, "One create-issue must be emitted.");
+
+      // Round-trip through OutboxProcessor to verify late-binding
+      const github = new SpyGitHubClient();
+      const processor = new OutboxProcessor(github, store);
+      const outboxResults = await processor.process(200);
+
+      // Expect 2 actions: create-issue + add-to-project
+      assertEquals(
+        outboxResults.length,
+        2,
+        "Emitter must produce create-issue + add-to-project when projects " +
+          "is absent and parentProjects is provided. " +
+          "Fix: DeferredItemsEmitter.#resolveProjects must return parentProjects " +
+          "when item.projects is undefined.",
+      );
+      assertEquals(outboxResults[0].action, "create-issue");
+      assertEquals(outboxResults[1].action, "add-to-project");
+      for (const r of outboxResults) {
+        assertEquals(
+          r.success,
+          true,
+          `Action "${r.action}" failed: ${r.error}`,
+        );
+      }
+
+      // Verify createIssue was called
+      assertEquals(github.createdIssues.length, 1);
+      assertEquals(github.createdIssues[0].title, "Inherit child");
+
+      // Verify addIssueToProject was called with late-bound issueNumber
+      assertEquals(
+        github.addedToProjects.length,
+        1,
+        "One add-to-project call expected for the inherited parent project.",
+      );
+      assertEquals(
+        github.addedToProjects[0].project,
+        PARENT_PROJECT_A,
+        "Inherited project must match parent project A.",
+      );
+      assertEquals(
+        github.addedToProjects[0].issueNumber,
+        1001,
+        "Late-bound issueNumber must come from the preceding create-issue result. " +
+          "Fix: OutboxProcessor must resolve absent issueNumber from " +
+          "#lastCreatedIssueNumber.",
+      );
+    });
+  },
+);
+
+Deno.test(
+  "Hook O2: projects [] — child opts out of project inheritance",
+  async () => {
+    await withTempStore(async (store) => {
+      const emitter = new DeferredItemsEmitter(store);
+      const result = await emitter.emit(
+        201,
+        {
+          deferred_items: [
+            {
+              title: "Opt-out child",
+              body: "should have no project",
+              labels: ["kind:impl"],
+              projects: [],
+            },
+          ],
+        },
+        [PARENT_PROJECT_A],
+      );
+
+      assertEquals(result.count, 1, "One create-issue must be emitted.");
+
+      const github = new SpyGitHubClient();
+      const processor = new OutboxProcessor(github, store);
+      const outboxResults = await processor.process(201);
+
+      // Expect only create-issue, no add-to-project
+      assertEquals(
+        outboxResults.length,
+        1,
+        "Emitter must produce only create-issue when projects is []. " +
+          "Fix: DeferredItemsEmitter.#resolveProjects must return [] " +
+          "for explicit empty array (opt-out).",
+      );
+      assertEquals(outboxResults[0].action, "create-issue");
+      assertEquals(outboxResults[0].success, true);
+
+      assertEquals(github.createdIssues.length, 1);
+      assertEquals(github.createdIssues[0].title, "Opt-out child");
+      assertEquals(
+        github.addedToProjects.length,
+        0,
+        "No add-to-project calls expected when projects is [] (opt-out). " +
+          "Fix: DeferredItemsEmitter.#resolveProjects must not inherit " +
+          "parentProjects when item.projects is an empty array.",
+      );
+    });
+  },
+);
+
+Deno.test(
+  "Hook O2: projects [explicit] — child uses specified project only",
+  async () => {
+    const PROJECT_B: ProjectRef = { owner: "tettuan", number: 99 };
+
+    await withTempStore(async (store) => {
+      const emitter = new DeferredItemsEmitter(store);
+      const result = await emitter.emit(
+        202,
+        {
+          deferred_items: [
+            {
+              title: "Explicit child",
+              body: "should use project B only",
+              labels: ["kind:impl"],
+              projects: [PROJECT_B],
+            },
+          ],
+        },
+        [PARENT_PROJECT_A],
+      );
+
+      assertEquals(result.count, 1, "One create-issue must be emitted.");
+
+      const github = new SpyGitHubClient();
+      const processor = new OutboxProcessor(github, store);
+      const outboxResults = await processor.process(202);
+
+      // Expect create-issue + add-to-project for B (not A)
+      assertEquals(
+        outboxResults.length,
+        2,
+        "Emitter must produce create-issue + add-to-project(B) when " +
+          "projects is [B], ignoring parentProjects [A]. " +
+          "Fix: DeferredItemsEmitter.#resolveProjects must use " +
+          "item.projects as-is when present and non-empty.",
+      );
+      assertEquals(outboxResults[0].action, "create-issue");
+      assertEquals(outboxResults[1].action, "add-to-project");
+      for (const r of outboxResults) {
+        assertEquals(
+          r.success,
+          true,
+          `Action "${r.action}" failed: ${r.error}`,
+        );
+      }
+
+      assertEquals(github.createdIssues.length, 1);
+      assertEquals(github.createdIssues[0].title, "Explicit child");
+
+      assertEquals(
+        github.addedToProjects.length,
+        1,
+        "Exactly one add-to-project call expected for the explicit project B.",
+      );
+      assertEquals(
+        github.addedToProjects[0].project,
+        PROJECT_B,
+        "Explicit project must be B, not parent project A. " +
+          "Fix: DeferredItemsEmitter.#resolveProjects must prefer " +
+          "item.projects over parentProjects.",
+      );
+      assertEquals(
+        github.addedToProjects[0].issueNumber,
+        1001,
+        "Late-bound issueNumber must come from the preceding create-issue.",
+      );
+    });
   },
 );
