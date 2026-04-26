@@ -357,58 +357,6 @@ export class Orchestrator {
         break;
       }
 
-      // Hook O1: Project context injection (§2.4 / §6.3)
-      // When projectBinding.injectGoalIntoPromptContext is enabled,
-      // resolve project memberships and inject template variables into
-      // dispatch prompt context.  On failure, skip silently and
-      // dispatch without project context.
-      let promptContext: Record<string, string> | undefined;
-      if (this.#config.projectBinding?.injectGoalIntoPromptContext) {
-        try {
-          // deno-lint-ignore no-await-in-loop
-          const projectRefs = await this.#github.getIssueProjects(
-            Number(subjectId),
-          );
-          if (projectRefs.length > 0) {
-            // Resolve full Project details for each membership.
-            // deno-lint-ignore no-await-in-loop
-            const details = await Promise.all(
-              projectRefs.map((ref) => this.#github.getProject(ref)),
-            );
-            promptContext = {
-              project_goals: JSON.stringify(details.map((p) => p.readme)),
-              project_titles: JSON.stringify(details.map((p) => p.title)),
-              project_numbers: JSON.stringify(details.map((p) => p.number)),
-              project_ids: JSON.stringify(details.map((p) => p.id)),
-            };
-            // deno-lint-ignore no-await-in-loop
-            await log.info(
-              `Project context injected for #${subjectId}: ${
-                projectRefs.map((p) => `${p.owner}/${p.number}`).join(", ")
-              }`,
-              {
-                event: "project_context_injected",
-                subjectId,
-                projects: projectRefs.map((p) => `${p.owner}/${p.number}`),
-              },
-            );
-          }
-        } catch (o1Error) {
-          const o1Msg = o1Error instanceof Error
-            ? o1Error.message
-            : String(o1Error);
-          // deno-lint-ignore no-await-in-loop
-          await log.warn(
-            `Project goal injection skipped for #${subjectId}: ${o1Msg}`,
-            {
-              event: "project_injection_skipped",
-              subjectId,
-            },
-          );
-          // Continue dispatch without project context (§6.3).
-        }
-      }
-
       // deno-lint-ignore no-await-in-loop
       await log.info(
         `Dispatching agent "${agentId}" for subject #${subjectId}`,
@@ -433,7 +381,6 @@ export class Orchestrator {
           issueStorePath: store?.storePath,
           outboxPath: store?.getOutboxPath(subjectId),
           payload,
-          promptContext,
         },
       );
 

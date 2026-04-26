@@ -287,8 +287,6 @@ export interface PrioritizerConfig {
  * workflow owns every identifier the code consumes.
  */
 export interface ProjectBindingConfig {
-  /** Inject project goal into agent prompt context on dispatch */
-  injectGoalIntoPromptContext: boolean;
   /** Inherit parent project membership when creating child issues */
   inheritProjectsForCreateIssue: boolean;
   /**

@@ -278,7 +278,6 @@
       "description": "Project-level orchestration binding. When absent, all project-related features are disabled — preserving v1.13.x behavior (Invariant I1). When present, donePhase / evalPhase / planPhase / sentinelLabel are required so both the T6.eval trigger and the project:init bootstrap are fully config-driven (no implicit label or phase names in code).",
       "additionalProperties": false,
       "required": [
-        "injectGoalIntoPromptContext",
         "inheritProjectsForCreateIssue",
         "donePhase",
         "evalPhase",
@@ -286,10 +285,6 @@
         "sentinelLabel"
       ],
       "properties": {
-        "injectGoalIntoPromptContext": {
-          "type": "boolean",
-          "description": "Inject project goal into agent prompt context on dispatch"
-        },
         "inheritProjectsForCreateIssue": {
           "type": "boolean",
           "description": "Inherit parent project membership when creating child issues"

@@ -1,8 +1,7 @@
 /**
- * Hook O1 / O2 integration tests (issue #507).
+ * Hook O2 integration tests (issue #507).
  *
  * Validates the orchestrator's project-related hooks end-to-end:
- *   O1: Project goal injection into dispatch promptContext
  *   O2: Project membership inheritance for deferred_items
  *
  * All tests run through the Orchestrator with a stubbed GitHubClient and
@@ -10,8 +9,11 @@
  * file set written to disk.
  *
  * Invariants covered:
- *   I2: Issue with 0 projects → O1 goal injection skip, O2 inheritance no-op
+ *   I2: Issue with 0 projects → O2 inheritance no-op
  *   I7: Multi-project issue + deferred_items inherit → all projects bound
+ *
+ * Note: O1 (project goal injection) was removed in release/1.14.0 and
+ * deferred to v1.15.0 (#540).
  */
 
 import { assertEquals } from "jsr:@std/assert";
@@ -259,7 +261,7 @@ const TEST_T6_BINDING_FIELDS = {
 function createConfig(
   projectBinding?: Pick<
     WorkflowConfig["projectBinding"] & object,
-    "injectGoalIntoPromptContext" | "inheritProjectsForCreateIssue"
+    "inheritProjectsForCreateIssue"
   >,
 ): WorkflowConfig {
   return {
@@ -343,231 +345,6 @@ async function writeTestIssue(
 }
 
 // ===========================================================================
-// O1: Project goal injection into dispatch promptContext
-// ===========================================================================
-
-Deno.test("O1: issue with 0 projects — no injection, getIssueProjects called but returns empty (I2)", async () => {
-  const config = createConfig({
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-  });
-  // No projects configured — getIssueProjects returns []
-  const github = new ProjectStubGitHubClient(
-    [["ready"], ["review"], ["done"]],
-  );
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall !== undefined,
-    true,
-    "Iterator must be dispatched.",
-  );
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when issue has 0 project memberships (I2). " +
-      "Fix: orchestrator.ts O1 hook must skip injection when projectRefs is empty.",
-  );
-});
-
-Deno.test("O1: issue with 1 project — single-element arrays in promptContext", async () => {
-  const config = createConfig({
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-  });
-  const github = new ProjectStubGitHubClient(
-    [["ready"], ["review"], ["done"]],
-    [{ owner: "myorg", number: 5 }],
-  );
-  github.setProjectDetail(5, {
-    id: "PVT_single",
-    number: 5,
-    owner: "myorg",
-    title: "Alpha Release",
-    readme: "Ship the alpha milestone",
-    shortDescription: "alpha",
-    closed: false,
-  });
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  const ctx = iteratorCall!.options?.promptContext;
-  assertEquals(
-    ctx !== undefined,
-    true,
-    "promptContext must be present for issue with 1 project membership. " +
-      "Fix: orchestrator.ts O1 hook must build promptContext when projectRefs.length > 0.",
-  );
-  assertEquals(
-    ctx!.project_goals,
-    JSON.stringify(["Ship the alpha milestone"]),
-    "project_goals must be a single-element JSON array of readmes.",
-  );
-  assertEquals(
-    ctx!.project_titles,
-    JSON.stringify(["Alpha Release"]),
-    "project_titles must be a single-element JSON array.",
-  );
-  assertEquals(
-    ctx!.project_numbers,
-    JSON.stringify([5]),
-    "project_numbers must be a single-element JSON array.",
-  );
-  assertEquals(
-    ctx!.project_ids,
-    JSON.stringify(["PVT_single"]),
-    "project_ids must be a single-element JSON array.",
-  );
-});
-
-Deno.test("O1: issue with 2 projects — length-2 arrays in promptContext", async () => {
-  const config = createConfig({
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-  });
-  const github = new ProjectStubGitHubClient(
-    [["ready"], ["review"], ["done"]],
-    [{ owner: "org", number: 10 }, { owner: "org", number: 20 }],
-  );
-  github.setProjectDetail(10, {
-    id: "PVT_aaa",
-    number: 10,
-    owner: "org",
-    title: "Release v1.14",
-    readme: "Ship orchestrator hooks",
-    shortDescription: null,
-    closed: false,
-  });
-  github.setProjectDetail(20, {
-    id: "PVT_bbb",
-    number: 20,
-    owner: "org",
-    title: "Backlog Q2",
-    readme: "Clear tech debt",
-    shortDescription: null,
-    closed: false,
-  });
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  const ctx = iteratorCall!.options?.promptContext;
-  assertEquals(
-    ctx !== undefined,
-    true,
-    "promptContext must be present for issue with 2 project memberships.",
-  );
-  assertEquals(
-    ctx!.project_goals,
-    JSON.stringify(["Ship orchestrator hooks", "Clear tech debt"]),
-    "project_goals must contain both readmes as length-2 JSON array.",
-  );
-  assertEquals(
-    ctx!.project_titles,
-    JSON.stringify(["Release v1.14", "Backlog Q2"]),
-    "project_titles must contain both titles.",
-  );
-  assertEquals(
-    ctx!.project_numbers,
-    JSON.stringify([10, 20]),
-    "project_numbers must contain both numbers.",
-  );
-  assertEquals(
-    ctx!.project_ids,
-    JSON.stringify(["PVT_aaa", "PVT_bbb"]),
-    "project_ids must contain both ids.",
-  );
-});
-
-Deno.test("O1: injectGoalIntoPromptContext=false — no injection regardless of membership", async () => {
-  const config = createConfig({
-    injectGoalIntoPromptContext: false,
-    inheritProjectsForCreateIssue: false,
-  });
-  // Projects available but flag is off
-  const github = new ProjectStubGitHubClient(
-    [["ready"], ["review"], ["done"]],
-    [{ owner: "org", number: 10 }],
-  );
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when injectGoalIntoPromptContext=false. " +
-      "Fix: orchestrator.ts O1 hook must check the flag before resolving projects.",
-  );
-  // Verify getIssueProjects was NOT called for O1 (flag guard prevents it)
-  const o1GetProjectsCalls = github.methodCalls.filter(
-    (c) => c.method === "getIssueProjects",
-  );
-  // O1 guard skips the call; any calls here come from other code paths (e.g. T6.eval)
-  // but not from O1 injection.
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "No prompt context when flag is off.",
-  );
-});
-
-Deno.test("O1: projectBinding absent — no injection, no getIssueProjects call from O1", async () => {
-  const config = createConfig(undefined); // No projectBinding
-  const github = new ProjectStubGitHubClient(
-    [["ready"], ["review"], ["done"]],
-  );
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when projectBinding is absent (backward compat). " +
-      "Fix: orchestrator.ts O1 hook must guard on projectBinding existence.",
-  );
-  // getIssueProjects must not be called at all when projectBinding is absent
-  const getProjectsCalls = github.methodCalls.filter(
-    (c) => c.method === "getIssueProjects",
-  );
-  assertEquals(
-    getProjectsCalls.length,
-    0,
-    "getIssueProjects must NOT be called when projectBinding is absent. " +
-      "Fix: orchestrator.ts must skip all project code paths without projectBinding.",
-  );
-});
-
-// ===========================================================================
 // O2: Project membership inheritance on deferred_items — outbox file set
 // ===========================================================================
 
@@ -575,7 +352,6 @@ Deno.test("O2: deferred_item without projects + flag on + 1 parent project — p
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: true,
     });
     const github = new ProjectStubGitHubClient(
@@ -646,7 +422,6 @@ Deno.test("O2: projects=[] — no add-to-project emitted", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: true,
     });
     const github = new ProjectStubGitHubClient(
@@ -702,7 +477,6 @@ Deno.test("O2: projects=[ref] — emits exactly that ref, ignoring parent", asyn
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: true,
     });
     const github = new ProjectStubGitHubClient(
@@ -754,7 +528,6 @@ Deno.test("O2: parent in 2 projects + inherit — 2 add-to-project actions paire
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: true,
     });
     const github = new ProjectStubGitHubClient(
@@ -833,7 +606,6 @@ Deno.test("O2: flag off — no inheritance emission", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: false, // Flag off
     });
     const github = new ProjectStubGitHubClient(
@@ -883,14 +655,13 @@ Deno.test("O2: flag off — no inheritance emission", async () => {
 });
 
 // ===========================================================================
-// Invariant I2: Issue with 0 projects → O1 skip AND O2 no-op
+// Invariant I2: Issue with 0 projects → O2 no-op
 // ===========================================================================
 
-Deno.test("I2: 0 projects — O1 goal injection skip + O2 inheritance no-op", async () => {
+Deno.test("I2: 0 projects — O2 inheritance no-op", async () => {
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: true,
       inheritProjectsForCreateIssue: true,
     });
     // No projects
@@ -914,16 +685,6 @@ Deno.test("I2: 0 projects — O1 goal injection skip + O2 inheritance no-op", as
     const orchestrator = new Orchestrator(config, github, dispatcher);
 
     await orchestrator.run(1, {}, store);
-
-    // O1: no promptContext
-    const iteratorCall = dispatcher.calls.find(
-      (c) => c.agentId === "iterator",
-    );
-    assertEquals(
-      iteratorCall!.options?.promptContext,
-      undefined,
-      "I2 O1: promptContext must be undefined when issue has 0 projects.",
-    );
 
     // O2: create-issue emitted but no add-to-project
     const createCalls = github.methodCalls.filter(
@@ -955,7 +716,6 @@ Deno.test("I7: 2 projects + 2 deferred_items — each child bound to all parent 
   const tmpDir = await Deno.makeTempDir();
   try {
     const config = createConfig({
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: true,
     });
     const github = new ProjectStubGitHubClient(

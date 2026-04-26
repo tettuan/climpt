@@ -1052,7 +1052,6 @@ Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", 
   // Config has closeOnComplete AND projectBinding — T6.eval block must execute.
   const config = createCloseOnCompleteConfig();
   config.projectBinding = {
-    injectGoalIntoPromptContext: false,
     inheritProjectsForCreateIssue: false,
     donePhase: "complete",
     evalPhase: "review",
@@ -1087,40 +1086,6 @@ Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", 
   );
 });
 
-// === getIssueProjects failure fallback Tests (Issue #516 / §6.3) ===
-
-Deno.test("O1 hook: getIssueProjects failure skips silently and dispatch continues", async () => {
-  // Config enables injectGoalIntoPromptContext — O1 hook executes.
-  // getIssueProjects throws — dispatch must continue without project context.
-  const config = createCloseOnCompleteConfig();
-  config.projectBinding = {
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-    donePhase: "complete",
-    evalPhase: "review",
-    planPhase: "implementation",
-    sentinelLabel: "project-sentinel",
-  };
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-  github.getIssueProjects = (_issueNumber: number) => {
-    return Promise.reject(new Error("Simulated GH API transient error"));
-  };
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  const result = await orchestrator.run(1);
-
-  assertEquals(
-    result.issueClosed,
-    true,
-    "Dispatch must complete and close issue even when O1 getIssueProjects fails. " +
-      "Fix: orchestrator.ts O1 hook must catch errors and continue dispatch (§6.3)",
-  );
-});
-
 Deno.test(
   "T6.eval: success path writes doneLabel/evalLabel resolved via labelMapping (prefix-aware)",
   async () => {
@@ -1148,7 +1113,6 @@ Deno.test(
       "docs-kind:eval": "eval-pending",
     };
     config.projectBinding = {
-      injectGoalIntoPromptContext: false,
       inheritProjectsForCreateIssue: false,
       donePhase: "complete",
       evalPhase: "eval-pending",
@@ -1247,7 +1211,6 @@ Deno.test("T6.eval: getIssueProjects failure does not block close transaction", 
   // getIssueProjects throws — close transaction must still complete.
   const config = createCloseOnCompleteConfig();
   config.projectBinding = {
-    injectGoalIntoPromptContext: false,
     inheritProjectsForCreateIssue: false,
     donePhase: "complete",
     evalPhase: "review",
@@ -1274,204 +1237,6 @@ Deno.test("T6.eval: getIssueProjects failure does not block close transaction", 
   );
 });
 
-// === O1 hook: project goal injection Tests (Issue #494) ===
-
-Deno.test("O1 hook: issue in 2 projects injects both readmes into dispatch promptContext", async () => {
-  // Config enables injectGoalIntoPromptContext — O1 hook must resolve
-  // full project details and pass template variables to dispatch.
-  const config = createCloseOnCompleteConfig();
-  config.projectBinding = {
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-    donePhase: "complete",
-    evalPhase: "review",
-    planPhase: "implementation",
-    sentinelLabel: "project-sentinel",
-  };
-
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-
-  // Override getIssueProjects to return 2 project memberships.
-  github.getIssueProjects = (_issueNumber: number) => {
-    return Promise.resolve([
-      { owner: "org-a", number: 10 },
-      { owner: "org-a", number: 20 },
-    ]);
-  };
-
-  // Override getProject to return distinct Project details per ref.
-  github.getProject = (project: ProjectRef) => {
-    const num = "number" in project ? project.number : 0;
-    if (num === 10) {
-      return Promise.resolve({
-        id: "PVT_aaa",
-        number: 10,
-        owner: "org-a",
-        title: "Release v1.14",
-        readme: "Ship orchestrator hooks",
-        shortDescription: null,
-        closed: false,
-      });
-    }
-    return Promise.resolve({
-      id: "PVT_bbb",
-      number: 20,
-      owner: "org-a",
-      title: "Backlog Q2",
-      readme: "Clear tech debt",
-      shortDescription: null,
-      closed: false,
-    });
-  };
-
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  // The first dispatch (iterator) should carry promptContext.
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall !== undefined,
-    true,
-    "Iterator must be dispatched. Fix: check test label sequence.",
-  );
-
-  const ctx = iteratorCall!.options?.promptContext;
-  assertEquals(
-    ctx !== undefined,
-    true,
-    "promptContext must be present when injectGoalIntoPromptContext=true and membership>=1. " +
-      "Fix: orchestrator.ts O1 hook must build promptContext from resolved Project details.",
-  );
-
-  assertEquals(
-    ctx!.project_goals,
-    JSON.stringify(["Ship orchestrator hooks", "Clear tech debt"]),
-    "project_goals must contain both readmes as JSON array. " +
-      "Fix: orchestrator.ts O1 hook must JSON.stringify details.map(p => p.readme).",
-  );
-  assertEquals(
-    ctx!.project_titles,
-    JSON.stringify(["Release v1.14", "Backlog Q2"]),
-    "project_titles must contain both titles as JSON array.",
-  );
-  assertEquals(
-    ctx!.project_numbers,
-    JSON.stringify([10, 20]),
-    "project_numbers must contain both numbers as JSON array.",
-  );
-  assertEquals(
-    ctx!.project_ids,
-    JSON.stringify(["PVT_aaa", "PVT_bbb"]),
-    "project_ids must contain both ids as JSON array.",
-  );
-});
-
-Deno.test("O1 hook: no promptContext when membership is 0", async () => {
-  const config = createCloseOnCompleteConfig();
-  config.projectBinding = {
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-    donePhase: "complete",
-    evalPhase: "review",
-    planPhase: "implementation",
-    sentinelLabel: "project-sentinel",
-  };
-  // Default stub returns empty array for getIssueProjects.
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when issue has no project membership (I2 invariant). " +
-      "Fix: orchestrator.ts O1 hook must not set promptContext when projectRefs is empty.",
-  );
-});
-
-Deno.test("O1 hook: no promptContext when injectGoalIntoPromptContext is false", async () => {
-  const config = createCloseOnCompleteConfig();
-  config.projectBinding = {
-    injectGoalIntoPromptContext: false,
-    inheritProjectsForCreateIssue: false,
-    donePhase: "complete",
-    evalPhase: "review",
-    planPhase: "implementation",
-    sentinelLabel: "project-sentinel",
-  };
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-  // Even with projects available, flag=false means no injection.
-  github.getIssueProjects = (_issueNumber: number) => {
-    return Promise.resolve([{ owner: "org-a", number: 10 }]);
-  };
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  await orchestrator.run(1);
-
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when injectGoalIntoPromptContext=false (I2 invariant). " +
-      "Fix: orchestrator.ts O1 hook guard must check the flag.",
-  );
-});
-
-Deno.test("O1 hook: getProject failure skips injection (§6.3 fallback)", async () => {
-  const config = createCloseOnCompleteConfig();
-  config.projectBinding = {
-    injectGoalIntoPromptContext: true,
-    inheritProjectsForCreateIssue: false,
-    donePhase: "complete",
-    evalPhase: "review",
-    planPhase: "implementation",
-    sentinelLabel: "project-sentinel",
-  };
-  const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
-  github.getIssueProjects = (_issueNumber: number) => {
-    return Promise.resolve([{ owner: "org-a", number: 10 }]);
-  };
-  github.getProject = (_project: ProjectRef) => {
-    return Promise.reject(new Error("Simulated getProject failure"));
-  };
-  const dispatcher = new StubDispatcher({
-    iterator: "success",
-    reviewer: "approved",
-  });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
-
-  const result = await orchestrator.run(1);
-
-  assertEquals(
-    result.issueClosed,
-    true,
-    "Dispatch must complete when getProject fails inside O1 hook. " +
-      "Fix: orchestrator.ts O1 catch must handle getProject errors (§6.3).",
-  );
-  const iteratorCall = dispatcher.calls.find((c) => c.agentId === "iterator");
-  assertEquals(
-    iteratorCall!.options?.promptContext,
-    undefined,
-    "promptContext must be undefined when getProject fails (fallback path). " +
-      "Fix: orchestrator.ts O1 catch must leave promptContext as undefined.",
-  );
-});
-
 // === O2 Hook: Project Inheritance for Deferred Items ===
 
 Deno.test(
@@ -1481,7 +1246,6 @@ Deno.test(
     try {
       const config = createCloseOnCompleteConfig();
       config.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: true,
         donePhase: "complete",
         evalPhase: "review",
@@ -1560,7 +1324,6 @@ Deno.test(
     try {
       const config = createCloseOnCompleteConfig();
       config.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -1625,7 +1388,6 @@ Deno.test(
     try {
       const config = createCloseOnCompleteConfig();
       config.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: true,
         donePhase: "complete",
         evalPhase: "review",

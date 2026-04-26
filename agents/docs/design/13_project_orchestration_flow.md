@@ -40,13 +40,14 @@ sequenceDiagram
 ```json
 {
   "projectBinding": {
-    "injectGoalIntoPromptContext": true,
     "inheritProjectsForCreateIssue": true
   }
 }
 ```
 
-両フラグの意味は §2.4 O1 / O2 で定義。不在時は v1.13.x 互換 (I1)。
+`inheritProjectsForCreateIssue` の意味は §4 O2 で定義。不在時は v1.13.x 互換
+(I1)。`injectGoalIntoPromptContext` (旧 O1) は release/1.14.0 で削除、v1.15.0
+で再導入予定 (#540)。
 
 ## 2. Bind: Project-scoped issue 取得
 
@@ -86,83 +87,12 @@ deno task orchestrate --project tettuan/3
 `--project` は `<owner>/<number>` 形式。owner は常に明示 — 暗黙デフォルト owner
 を持たない (#500 §6.4)。
 
-## 3. Hook O1: Project Goal Injection
+## 3. (Removed) Hook O1: Project Goal Injection
 
-Agent dispatch 前に、issue が所属する project の goal (readme) を agent prompt
-context に注入する。
-
-### 3.1 シーケンス図
-
-```mermaid
-sequenceDiagram
-  participant Orch as Orchestrator
-  participant GH as GitHubClient
-  participant Cache as GhCliClient #cache
-  participant Disp as Dispatcher
-  participant Agent as Agent (Runner)
-
-  Orch->>Orch: projectBinding.injectGoalIntoPromptContext?
-  alt false or absent
-    Orch->>Disp: dispatch(issue, promptContext={})
-  else true
-    Orch->>GH: getIssueProjects(owner, issueNumber)
-    GH->>Cache: #cacheGet("issueProjects:owner:N")
-    alt cache hit (TTL 30s)
-      Cache-->>GH: cached ProjectRef[]
-    else cache miss
-      GH->>GH: gh api (GraphQL)
-      GH->>Cache: #cacheSet(key, data, 30_000)
-    end
-    GH-->>Orch: ProjectRef[]
-    alt projects.length === 0
-      Note over Orch: skip injection (I2)
-      Orch->>Disp: dispatch(issue, promptContext={})
-    else projects.length >= 1
-      loop each project
-        Orch->>GH: getProject(ref)
-        GH-->>Orch: Project (readme, title, id, number)
-      end
-      Orch->>Orch: build promptContext
-      Note over Orch: {{project_goals}}: readme[]<br>{{project_titles}}: title[]<br>{{project_numbers}}: number[]<br>{{project_ids}}: id[]
-      Orch->>Disp: dispatch(issue, promptContext)
-    end
-  end
-  Disp->>Agent: run(args + promptContext)
-  Agent-->>Disp: DispatchOutcome
-```
-
-### 3.2 エラー処理
-
-`getIssueProjects` 失敗時は dispatch を block せず skip する (#500 §6.3)。
-
-```typescript
-try {
-  const projects = await this.#github.getIssueProjects(owner, issueNumber);
-  // inject {{project_goals}} etc.
-} catch (err) {
-  await log.warn(
-    `Project goal injection skipped for #${issueNumber}: ${err.message}`,
-    { event: "project_injection_skipped", subjectId: issueNumber },
-  );
-  // continue dispatch without project context
-}
-```
-
-**理由**: Goal injection は supplementary context であり agent の必須入力
-ではない。`{{project_goals}}` が空でも agent は label-based workflow で正常
-動作する。dispatch cycle 全体を block すると transient error で全 issue
-の進行が停止し不均衡。warning log で operator 検知、次 cycle で自然リトライ。
-
-### 3.3 キャッシュ
-
-Process-lifetime `Map<string, {data, expiry}>` cache、TTL 30 秒 (#500 §6.1)。
-
-- `GhCliClient` 内 `#cache` フィールドに保持
-- 各 read メソッド先頭で `#cacheGet(key)` → hit なら即 return
-- Miss 時は GH API fetch + `#cacheSet(key, data, 30_000)`
-- P1 (Stateless) 整合: in-memory のみ、永続化しない
-- GitHub GraphQL API 5,000 pts/hr に対し典型 dispatch cycle は数十 calls
-  (ceiling 1% 未満)。O1 込みでも数百 calls/cycle で上限到達しない
+release/1.14.0 で削除。breakdown CLI の入力サニタイザが README 内の shell
+metacharacter を弾くため UV 注入境界での sanitize と consumer-prompt の syntax
+統一 (`{{project_goals}}` → `{uv-project_goals}`) を含めて再設計
+する。詳細・再導入は v1.15.0 (#540) で扱う。
 
 ## 4. Hook O2: Project Inheritance on Deferred Items
 
@@ -281,8 +211,6 @@ sequenceDiagram
 
 | 発生箇所                   | 影響                       | 対処                                            |
 | -------------------------- | -------------------------- | ----------------------------------------------- |
-| O1 `getIssueProjects`      | Goal 注入 skip             | warn log + dispatch 継続 (§3.2)                 |
-| O1 `getProject`            | 当該 project の goal 欠落  | warn log + 他 project の goal のみ注入          |
 | O2 `getIssueProjects`      | Inheritance skip           | warn log + deferred_items を project なしで起票 |
 | Outbox `addIssueToProject` | Issue が project に未登録  | outbox file 残留 → 次 cycle で再実行            |
 | Outbox `closeProject`      | Project 未 close           | outbox file 残留 → 次 cycle で再実行            |
@@ -312,11 +240,12 @@ operator が手動確認。create-issue が成功していれば、残留した 
 ### 6.4 Rate limit
 
 GitHub GraphQL API 5,000 pts/hr。30 秒 TTL cache により同一 cycle 内の
-重複呼び出しを排除。典型 dispatch (10-20 issues/cycle) で数十 calls、 O1
-込みでも数百 calls/cycle — ceiling 1% 未満 (#500 §6.1)。
+重複呼び出しを排除。典型 dispatch (10-20 issues/cycle) で数十 calls、v1.15.0 で
+goal injection (#540) が再導入されても数百 calls/cycle — ceiling 1% 未満 (#500
+§6.1)。
 
-Rate limit エラー発生時は GH CLI が 429 を返す → `GhCliClient` の呼び出し 元で
-catch → O1/O2 は §6.1 の skip ポリシー適用、outbox は file 残留 → 次 cycle
+Rate limit エラー発生時は GH CLI が 429 を返す → `GhCliClient` の呼び出し元で
+catch → O2 は §6.1 の skip ポリシー適用、outbox は file 残留 → 次 cycle
 (countdownDelay 後) で自然リトライ。
 
 ## 7. End-to-End サイクル例
@@ -328,10 +257,7 @@ Issue #42 が project `tettuan/3` に所属、agent が deferred_items を 1 件
 CYCLE 1:
 ├─ [Bind] IssueSyncer: --project tettuan/3 → #42 が対象
 ├─ [Phase] labels=[kind:impl] → impl-pending → agent=iterator
-├─ [O1] getIssueProjects(42) → [{owner:"tettuan", number:3}]
-│        getProject({owner:"tettuan",number:3}) → {readme:"Goal: ..."}
-│        promptContext: {project_goals: '["Goal: ..."]', ...}
-├─ [Dispatch] iterator.run(#42, promptContext)
+├─ [Dispatch] iterator.run(#42)
 │        → outcome: "success"
 │        → structuredOutput: {deferred_items: [{title:"Follow-up", ...}]}
 ├─ [Guard C2] terminal + closeOnComplete → emit deferred_items
@@ -425,5 +351,6 @@ Goal: Ship project orchestration with GitHub Projects v2 integration.
 
 - `13_project_orchestration.md` — Level 2 contracts (型・API・invariants)
 - `13_project_orchestration.md` §6 — Level 3 open design decisions (#500)
-- `12_orchestrator.md` §Project Orchestration Hooks — O1/O2 hook summary
+- `12_orchestrator.md` §Project Orchestration Hooks — O2 hook summary (O1 は
+  v1.15.0 #540 で再導入予定)
 - `04_step_flow_design.md` — Step flow / structured output の汎用設計

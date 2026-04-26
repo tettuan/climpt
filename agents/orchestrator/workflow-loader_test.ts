@@ -897,7 +897,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -925,7 +924,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "nonexistent-phase",
         evalPhase: "review",
@@ -949,7 +947,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "review", // actionable, not terminal
         evalPhase: "review",
@@ -972,7 +969,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "nonexistent-phase",
@@ -995,7 +991,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "complete", // terminal, not actionable
@@ -1032,7 +1027,6 @@ Deno.test(
         agent: "reviewer",
       };
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "eval-orphan",
@@ -1062,7 +1056,6 @@ Deno.test(
       // Add another terminal phase to keep labelMapping.complete references sane.
       cfg.phases["done-orphan"] = { type: "terminal" };
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "done-orphan",
         evalPhase: "review",
@@ -1089,7 +1082,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -1124,7 +1116,6 @@ Deno.test(
       };
       cfg.labelMapping["wrong-role-sentinel"] = "blocked";
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -1147,7 +1138,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -1170,7 +1160,6 @@ Deno.test(
     try {
       const cfg = projectBindingConfig();
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
@@ -1203,7 +1192,6 @@ Deno.test(
         agent: "reviewer",
       };
       cfg.projectBinding = {
-        injectGoalIntoPromptContext: false,
         inheritProjectsForCreateIssue: false,
         donePhase: "complete",
         evalPhase: "review",
