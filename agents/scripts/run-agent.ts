@@ -16,6 +16,7 @@
  * ```
  */
 
+import { join } from "@std/path";
 import { parseArgs } from "@std/cli/parse-args";
 import { listAgents } from "../runner/loader.ts";
 import { agentBundleToResolvedDefinition } from "../config/mod.ts";
@@ -26,6 +27,9 @@ import { BootValidationFailed } from "../shared/validation/boundary.ts";
 import { Orchestrator } from "../orchestrator/orchestrator.ts";
 import { RunnerDispatcher } from "../orchestrator/dispatcher.ts";
 import { SubjectPicker } from "../orchestrator/subject-picker.ts";
+import { FileGitHubClient } from "../orchestrator/file-github-client.ts";
+import { SubjectStore } from "../orchestrator/subject-store.ts";
+import { DEFAULT_SUBJECT_STORE } from "../orchestrator/workflow-types.ts";
 import {
   type FinalizeOptions,
   finalizeWorktreeBranch,
@@ -68,6 +72,11 @@ Common Options:
   --resume               Resume previous session
   --branch <name>        Working branch for worktree mode
   --base-branch <name>   Base branch for worktree mode
+  --local                Use file-based GitHub client (no GitHub API).
+                         Mirrors run-workflow.ts --local: subject metadata
+                         is read from the SubjectStore on disk and the
+                         close transport is sealed against it (no gh CLI
+                         shell-out). Requires --issue.
   --verbose, -v          Enable verbose logging (SDK I/O details)
 
 Finalize Options:
@@ -118,6 +127,7 @@ async function main(): Promise<void> {
       "help",
       "init",
       "list",
+      "local",
       "resume",
       "no-merge",
       "push",
@@ -540,11 +550,38 @@ async function main(): Promise<void> {
     // the same validate-and-freeze path used by run-workflow.ts; the
     // agent doesn't need a `.agent/workflow.json` entry to run in
     // isolation.
+    //
+    // T9 (--local plumbing): when `--local` is supplied the same
+    // FileGitHubClient + SubjectStore pair used by run-workflow.ts:280
+    // is constructed and injected so (a) `bootStandalone` seals the
+    // close transport against the local store (no gh shell-out from
+    // the close path) and (b) `Orchestrator.runOne` receives the
+    // store as the 3rd arg so the labels-read fork at
+    // orchestrator.ts:378-385 takes the `meta.labels` branch instead
+    // of the `getIssueLabels` (gh CLI) branch — fulfilling design 11
+    // §B R2b "gh API は呼ばない".
+    //
+    // The standalone WorkflowConfig synthesised by bootStandalone has
+    // no `subjectStore` field, so DEFAULT_SUBJECT_STORE.path is the
+    // single canonical location for the local fixture — matching the
+    // `--local` semantics in run-workflow.ts:281-283 when
+    // `workflow.subjectStore` is omitted.
+    const cwd = Deno.cwd();
+    const localGithubClient = args.local
+      ? new FileGitHubClient(
+        new SubjectStore(join(cwd, DEFAULT_SUBJECT_STORE.path)),
+      )
+      : undefined;
+    const subjectStore = args.local
+      ? new SubjectStore(join(cwd, DEFAULT_SUBJECT_STORE.path))
+      : undefined;
+
     // deno-lint-ignore no-console
     console.log(`\nLoading agent: ${agentName}`);
     const decision = await BootKernel.bootStandalone({
-      cwd: Deno.cwd(),
+      cwd,
       agentName,
+      githubClient: localGithubClient,
     });
     if (isReject(decision)) {
       throw new BootValidationFailed(decision.errors);
@@ -604,7 +641,7 @@ async function main(): Promise<void> {
 
     // Setup worktree if enabled in config
     // When worktree is enabled, branch name is auto-generated if not specified
-    let workingDir = Deno.cwd();
+    let workingDir = cwd;
     let worktreeResult: WorktreeSetupResult | undefined;
 
     const worktreeConfig = definition.runner.execution?.worktree;
@@ -708,10 +745,16 @@ async function main(): Promise<void> {
     // construction path did. Workflow mode reads payload from
     // `SubjectStore`; standalone mode has no store, so we hand the
     // already-projected map in directly (T5.3 cutover).
+    //
+    // T9: when `--local` is set, `subjectStore` is passed as the 3rd
+    // arg so orchestrator.ts:378-385 reads labels from `meta.json`
+    // instead of `gh issue view --json labels`. Without `--local` the
+    // store stays `undefined` and the production gh path runs (the
+    // existing behaviour).
     const orchestratorResult = await orchestrator.runOne(item, {
       verbose: args.verbose,
       initialPayload: runnerArgs,
-    });
+    }, subjectStore);
 
     const success = orchestratorResult.status === "completed" ||
       orchestratorResult.status === "dry-run";

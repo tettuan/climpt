@@ -52,6 +52,9 @@ export async function initAgent(
       "manual",
     ),
   );
+  await ensureDir(
+    join(agentDir, PATHS.PROMPTS_DIR, "steps", STEP_PHASE.CLOSURE, "summary"),
+  );
 
   // Create agent.json
   // Note: $schema uses relative path from .agent/{name}/ to project root
@@ -172,6 +175,19 @@ export async function initAgent(
           },
         },
       },
+      // Closure step: required by S5 boot rule (≥1 closure step per bundle).
+      // Minimal template — terminal step with no validators or transitions.
+      // Replace with agent-specific closure logic when wiring real flows.
+      [`${STEP_PHASE.CLOSURE}.summary`]: {
+        stepId: `${STEP_PHASE.CLOSURE}.summary`,
+        name: "Session Closure",
+        c2: STEP_PHASE.CLOSURE,
+        c3: "summary",
+        edition: "default",
+        stepKind: "closure",
+        uvVariables: [],
+        usesStdin: false,
+      },
     },
   };
 
@@ -245,6 +261,25 @@ When complete, output \`{uv-completion_keyword}\`.
     continuationPrompt,
   );
 
+  // Create closure prompt (minimal template — replace with agent-specific
+  // closure logic when wiring real flows)
+  const closurePrompt = `# Session Closure
+
+Summarize the session outcome and emit the verdict.
+`;
+
+  await Deno.writeTextFile(
+    join(
+      agentDir,
+      PATHS.PROMPTS_DIR,
+      "steps",
+      STEP_PHASE.CLOSURE,
+      "summary",
+      "f_default.md",
+    ),
+    closurePrompt,
+  );
+
   // Create breakdown configuration files for C3L prompt resolution
   // Naming convention: {agentId}-{c1}-app.yml / {agentId}-{c1}-user.yml
   //   agentId = agent name (e.g., "plan-scout")
@@ -266,14 +301,42 @@ app_schema:
 
   const userYmlPath = join(configDir, `${agentName}-steps-user.yml`);
   const userYmlContent = `# Breakdown Configuration for ${agentName}-steps
+# directiveType must include all c2 (STEP_PHASE) values used in steps_registry.json
+# layerType must include all c3 values used in steps_registry.json
 params:
   two:
     directiveType:
-      pattern: "^(initial|continuation)$"
+      pattern: "^(initial|continuation|closure)$"
     layerType:
-      pattern: "^(manual)$"
+      pattern: "^(manual|summary)$"
 `;
   await Deno.writeTextFile(userYmlPath, userYmlContent);
+
+  // Claude Agent SDK settings file (per-agent override).
+  // Blueprint R-F4 abolished `runner.boundaries.permissionMode` /
+  // `runner.boundaries.allowedTools` from agent.json; the runner now reads
+  // `permissions.allow` / `permissions.defaultMode` from this file via
+  // agents/config/settings-loader.ts.
+  //
+  // Path:  .agent/climpt/config/claude.settings.climpt.agents.{agentName}.json
+  // Shape: see agents/docs/builder/04_config_system.md §"Claude Agent SDK settings"
+  //        and the validator in agents/config/settings-loader.ts (validateSettings).
+  // Default: empty allow-list + "default" mode. Operators tighten/loosen per agent.
+  const settingsPath = join(
+    configDir,
+    `claude.settings.climpt.agents.${agentName}.json`,
+  );
+  const settingsJson = {
+    $schema: "https://json.schemastore.org/claude-code-settings.json",
+    permissions: {
+      allow: [] as string[],
+      defaultMode: "default",
+    },
+  };
+  await Deno.writeTextFile(
+    settingsPath,
+    JSON.stringify(settingsJson, null, 2),
+  );
 
   // deno-lint-ignore no-console
   console.log(`Agent '${agentName}' initialized at ${agentDir}`);
@@ -312,9 +375,24 @@ params:
     }`,
   );
   // deno-lint-ignore no-console
+  console.log(
+    `  - ${
+      join(
+        agentDir,
+        PATHS.PROMPTS_DIR,
+        "steps",
+        STEP_PHASE.CLOSURE,
+        "summary",
+        "f_default.md",
+      )
+    }`,
+  );
+  // deno-lint-ignore no-console
   console.log(`  - ${appYmlPath}`);
   // deno-lint-ignore no-console
   console.log(`  - ${userYmlPath}`);
+  // deno-lint-ignore no-console
+  console.log(`  - ${settingsPath}`);
   // deno-lint-ignore no-console
   console.log(
     `\nRun with: deno task agent --agent ${agentName} --topic "Your topic"`,

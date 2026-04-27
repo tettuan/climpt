@@ -46,7 +46,7 @@ main() {
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "detect:keyword": "initial.task"
+    "detect:keyword": { "initial": "initial.task", "continuation": "initial.task" }
   },
   "steps": {
     "system": {

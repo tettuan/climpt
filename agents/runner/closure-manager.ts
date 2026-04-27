@@ -138,17 +138,22 @@ export class ClosureManager {
       const stepsRegistry: ExtendedStepsRegistry = registry;
       this.stepsRegistry = stepsRegistry;
 
-      // Always create stepPromptResolver when registry has work steps
-      // (independent of flow routing / validation chain capabilities)
-      const hasWorkSteps = Object.values(stepsRegistry.steps).some(
-        (s) => typeof s === "object" && s !== null && "stepKind" in s,
+      // Create stepPromptResolver when registry has any non-closure step
+      // (work / verification). Closure steps resolve prompts via a different
+      // path; this gate matches resolveFlowStepPrompt's closure-only filter.
+      const hasResolvableSteps = Object.values(stepsRegistry.steps).some(
+        (s) =>
+          typeof s === "object" && s !== null && "kind" in s &&
+          s.kind !== "closure",
       );
-      if (hasWorkSteps) {
+      if (hasResolvableSteps) {
         this.stepPromptResolver = new StepPromptResolver(
           stepsRegistry as unknown as StepRegistry,
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
-        logger.debug("StepPromptResolver initialized (work steps detected)");
+        logger.debug(
+          "StepPromptResolver initialized (resolvable steps detected)",
+        );
       }
 
       if (!hasValidationChain && !hasFlowRouting) {

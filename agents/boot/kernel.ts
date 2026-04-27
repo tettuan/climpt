@@ -543,6 +543,11 @@ export class BootKernel {
       agents: synthesizedAgents,
       invocations: deriveInvocations(synthesizedPhases, synthesizedAgents),
       rules: { maxCycles: 1, cycleDelayMs: 0 },
+      // Signals the orchestrator that this workflow originated from
+      // argv-lift (`--agent <id>`), not from `.agent/workflow.json`.
+      // The orchestrator uses this to bypass label-driven phase
+      // resolution — see design 11 §B and orchestrator.ts:~430.
+      synthesized: true,
     };
 
     // 4. Policy (same loader as full boot).

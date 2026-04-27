@@ -341,6 +341,17 @@ export interface WorkflowConfig {
    * (Invariant I1, design doc §3).
    */
   projectBinding?: ProjectBindingConfig;
+
+  /**
+   * Marks a synthesised single-agent workflow produced by
+   * `Boot.bootStandalone`. The orchestrator uses this flag to bypass
+   * label-driven phase resolution (design 11 §B argv-lift = "input
+   * source switch"): the actionable phase is fixed at boot from
+   * `--agent`, so consulting `meta.labels` adds no information and
+   * fails with empty fixtures or production issues that don't carry
+   * the synthetic label. Always `undefined` for on-disk workflows.
+   */
+  synthesized?: boolean;
 }
 
 /** Subject store configuration */

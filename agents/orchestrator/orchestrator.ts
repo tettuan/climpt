@@ -321,8 +321,13 @@ export class Orchestrator {
     // lag behind the live labels. Treat that divergence as explicit retry
     // intent and drop the cycle history so `maxCycles` doesn't block the
     // new run. This is a one-way regression detection — label state wins.
+    //
+    // Synthesized (argv-lift) mode is single-shot by design (design 11 §B
+    // "queue 長 1、cycle 1 回"). It does not consult or persist
+    // workflow-state — every `--agent <id> --issue N` invocation is a
+    // fresh single-cycle run. Persistence is workflow-mode semantics.
     let tracker: CycleTracker;
-    if (store) {
+    if (store && !this.#config.synthesized) {
       const existingState = await store.readWorkflowState(subjectId, wfId);
       if (existingState) {
         const livePhaseId = await this.#resolveLivePhaseId(
@@ -426,7 +431,22 @@ export class Orchestrator {
         break;
       }
 
-      const resolved = resolvePhase(currentLabels, this.#config);
+      // argv-lift mode (design 11 §B): synthesised workflows have
+      // exactly one actionable phase, fixed at boot from `--agent`.
+      // Phase resolution does not consult issue labels — the mode
+      // differs from run-workflow only in input source, not in
+      // label-gate semantics.
+      let resolved: ReturnType<typeof resolvePhase>;
+      if (this.#config.synthesized) {
+        const actionable = Object.entries(this.#config.phases).find(
+          ([, p]) => p.type === "actionable",
+        );
+        resolved = actionable
+          ? { phaseId: actionable[0], phase: actionable[1] }
+          : null;
+      } else {
+        resolved = resolvePhase(currentLabels, this.#config);
+      }
       if (resolved === null) {
         finalPhase = "unknown";
         status = "blocked";
@@ -1166,7 +1186,10 @@ export class Orchestrator {
         void issueCloseAttemptedFailed;
 
         // T7: local persist — best-effort.
-        if (store) {
+        // Synthesized mode skips persistence (design 11 §B: single-shot,
+        // no re-run loop reads the state — symmetric with the read gate
+        // above).
+        if (store && !this.#config.synthesized) {
           const newLabels = preImage
             .filter((l) => !labelsToRemove.includes(l))
             .concat(labelsToAdd);

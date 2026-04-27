@@ -63,14 +63,35 @@ main() {
 FIXTURE
   success "Test fixture created: tmp/project-status.md"
 
+  # Seed local subject store fixture so --local mode reads labels
+  # from disk instead of `gh issue view`. Mirrors examples/49-52.
+  mkdir -p .agent/climpt/tmp/issues/1/comments
+  cat > .agent/climpt/tmp/issues/1/meta.json <<'META'
+{
+  "number": 1,
+  "title": "Analyzer smoke",
+  "labels": [],
+  "state": "open",
+  "assignees": [],
+  "milestone": null
+}
+META
+  cat > .agent/climpt/tmp/issues/1/body.md <<'BODY'
+Analyzer smoke fixture (local --issue 1).
+BODY
+
   # Run agent from examples/ as cwd
   info "Starting analyzer agent (status analysis task)..."
   show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
-    --agent "$AGENT_NAME"
+    --agent "$AGENT_NAME" \
+    --local \
+    --issue 1
 
   local exit_code=0
   output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
-    --agent "$AGENT_NAME" 2>&1) \
+    --agent "$AGENT_NAME" \
+    --local \
+    --issue 1 2>&1) \
     || exit_code=$?
 
   if [[ -z "$output" ]]; then

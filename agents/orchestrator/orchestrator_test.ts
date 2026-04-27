@@ -484,6 +484,91 @@ Deno.test("no known labels: blocked with unknown phase", async () => {
   assertEquals(result.cycleCount, 0);
 });
 
+Deno.test("synthesized workflow: empty labels dispatch via argv-lift bypass", async () => {
+  // Mirrors the shape produced by `Boot.bootStandalone` (kernel.ts):
+  // single actionable phase whose agent equals --agent, single terminal
+  // phase, and `synthesized: true`. Workflow mode would block here
+  // because resolvePhase returns null on empty labels — argv-lift mode
+  // (design 11 §B) treats the actionable phase as fixed at boot.
+  const phases = {
+    standalone: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    done: { type: "terminal" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      directory: "iterator",
+      outputPhase: "done",
+    },
+  };
+  const config: WorkflowConfig = {
+    version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
+    labelMapping: { standalone: "standalone" },
+    agents,
+    invocations: deriveInvocations(phases, agents),
+    rules: { maxCycles: 1, cycleDelayMs: 0 },
+    synthesized: true,
+  };
+  const github = new StubGitHubClient([[]]);
+  const dispatcher = new StubDispatcher({ iterator: "success" });
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(dispatcher.callCount, 1);
+  assertEquals(dispatcher.calls[0].agentId, "iterator");
+  assertEquals(result.cycleCount, 1);
+  assertEquals(result.history.length, 1);
+  assertEquals(result.history[0].from, "standalone");
+});
+
+Deno.test("synthesized=false (workflow mode): empty labels still block", async () => {
+  // Conformance: the bypass must NOT leak into workflow mode. Identical
+  // shape to the test above except `synthesized` is omitted, so the
+  // orchestrator must consult labelMapping and block on empty labels.
+  const phases = {
+    standalone: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    done: { type: "terminal" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      directory: "iterator",
+      outputPhase: "done",
+    },
+  };
+  const config: WorkflowConfig = {
+    version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
+    labelMapping: { standalone: "standalone" },
+    agents,
+    invocations: deriveInvocations(phases, agents),
+    rules: { maxCycles: 1, cycleDelayMs: 0 },
+  };
+  const github = new StubGitHubClient([[]]);
+  const dispatcher = new StubDispatcher({ iterator: "success" });
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
+
+  const result = await orchestrator.run(1);
+
+  assertEquals(dispatcher.callCount, 0);
+  assertEquals(result.status, "blocked");
+  assertEquals(result.finalPhase, "unknown");
+});
+
 Deno.test("verbose mode does not change behavior", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([["done"]]);

@@ -47,7 +47,10 @@ main() {
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "detect:structured": "initial.statuscheck"
+    "detect:structured": {
+      "initial": "initial.statuscheck",
+      "continuation": "initial.statuscheck"
+    }
   },
   "steps": {
     "system": {
