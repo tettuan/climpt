@@ -23,6 +23,11 @@ import {
   SchemaResolver,
 } from "../common/schema-resolver.ts";
 import { buildPromptFilePath } from "./c3l-path-builder.ts";
+import {
+  type Decision,
+  decisionFromLegacyMapped,
+  type ValidationErrorCode,
+} from "../shared/validation/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Error / warning message identifiers (exported for test assertions)
@@ -185,13 +190,16 @@ export async function validatePaths(
           const adaptation = typeof step.adaptation === "string"
             ? step.adaptation
             : undefined;
-          const promptPath = buildPromptFilePath(
-            promptRoot,
+          // Synthesize a C3LAddress for buildPromptFilePath. The validator
+          // works on raw disk JSON (asRecord) which still carries the 5-tuple
+          // as separate fields; c1 is unused by buildPromptFilePath itself.
+          const promptPath = buildPromptFilePath(promptRoot, {
+            c1: "",
             c2,
             c3,
             edition,
             adaptation,
-          );
+          });
           c3lChecks.push({ stepId, promptPath });
         }
 
@@ -310,4 +318,48 @@ export async function validatePaths(
     errors,
     warnings,
   };
+}
+
+/**
+ * Per-message rule-code mapper for the path validator.
+ *
+ * Covers **A5** (outputSchemaRef.file existence — dominant), **S4**
+ * (schema name pointer resolution), and **S6** (C3L prompt file
+ * resolution). The validator also covers `systemPromptPath` /
+ * `prompts.registry` paths which map to A5 (filesystem integrity of
+ * the agent bundle).
+ *
+ * TODO[T2.2]: split into native per-rule Decision-shaped sub-validators.
+ */
+function mapPathMessageToRule(
+  message: string,
+): ValidationErrorCode | undefined {
+  if (message.includes("C3L prompt file")) return "S6";
+  if (message.startsWith("[SCHEMA]")) return "S4";
+  if (message.includes("outputSchemaRef")) return "A5";
+  if (message.startsWith("[PATH]")) return "A5";
+  return undefined;
+}
+
+/**
+ * Decision-shaped sibling of {@link validatePaths}.
+ */
+export async function validatePathsAsDecision(
+  definition: AgentDefinition,
+  agentDir: string,
+  registry?: Record<string, unknown> | null,
+  promptRoot?: string | null,
+): Promise<Decision<void>> {
+  const result = await validatePaths(
+    definition,
+    agentDir,
+    registry,
+    promptRoot,
+  );
+  return decisionFromLegacyMapped(
+    result,
+    mapPathMessageToRule,
+    "A5",
+    "agent.json/steps_registry.json",
+  );
 }

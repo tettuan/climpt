@@ -22,6 +22,11 @@
 import type { ValidationResult } from "../src_common/types.ts";
 import type { StepKind } from "../common/step-registry/types.ts";
 import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
+import {
+  type Decision,
+  decisionFromLegacyMapped,
+  type ValidationErrorCode,
+} from "../shared/validation/mod.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -29,6 +34,9 @@ import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
 
 /**
  * The fixed set of valid intent names used in transition keys.
+ *
+ * Frozen 6-value ADT per design 14 §E. Mirrors `GateIntent` in
+ * `agents/common/step-registry/types.ts`.
  */
 const VALID_INTENTS: ReadonlySet<string> = new Set([
   "next",
@@ -37,7 +45,6 @@ const VALID_INTENTS: ReadonlySet<string> = new Set([
   "handoff",
   "closing",
   "escalate",
-  "abort",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -520,9 +527,11 @@ export function validateFlowReachability(
 
     // --- P1-2: allowedIntents ↔ transitions cross-validation ---
     if (declaredIntents) {
-      // Each declared intent (except repeat/abort) must have a transition rule
+      // Each declared intent (except repeat) must have a transition rule.
+      // `repeat` is exempt because it self-loops on the same step and never
+      // routes to a sibling target.
       for (const intent of declaredIntents) {
-        if (intent === "repeat" || intent === "abort") continue;
+        if (intent === "repeat") continue;
         if (!transitionKeys.includes(intent)) {
           errors.push(
             `Step '${stepId}': allowedIntents includes '${intent}' but no transition rule is defined for it`,
@@ -830,4 +839,57 @@ export function validateFlowReachability(
     errors,
     warnings,
   };
+}
+
+/**
+ * Per-message rule-code mapper for the flow validator.
+ *
+ * The flow validator covers **A3** (reachability), **A4** (boundary
+ * crossing), **S2** (dangling target), and **S3** (allowedIntents ↔
+ * transitions consistency). This mapper picks the best-fit rule per
+ * message; unmatched messages fall back to **A3** (the dominant rule
+ * for this validator).
+ *
+ * TODO[T2.2]: replace with native Decision-shaped sub-validators per
+ * rule once `BootKernel.boot` is in place.
+ */
+function mapFlowMessageToRule(
+  message: string,
+): ValidationErrorCode | undefined {
+  if (message.includes("does not exist in steps")) return "S2";
+  if (message.includes("should target")) return "A4";
+  if (
+    message.includes("not reachable") ||
+    message.includes("cannot reach") ||
+    message.includes("No closure step") ||
+    message.includes("form a cycle")
+  ) {
+    return "A3";
+  }
+  if (
+    message.includes("allowedIntents") ||
+    message.includes("not allowed for stepKind") ||
+    message.includes("only valid for verification")
+  ) {
+    return "S3";
+  }
+  return undefined;
+}
+
+/**
+ * Decision-shaped sibling of {@link validateFlowReachability}.
+ *
+ * Returns a single `Decision<void>` whose Reject errors are tagged
+ * per-message with their best-fit rule code (A3 / A4 / S2 / S3).
+ */
+export function validateFlowReachabilityAsDecision(
+  registry: Record<string, unknown>,
+): Decision<void> {
+  const result = validateFlowReachability(registry);
+  return decisionFromLegacyMapped(
+    result,
+    mapFlowMessageToRule,
+    "A3",
+    "steps_registry.json",
+  );
 }

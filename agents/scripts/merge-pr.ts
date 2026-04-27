@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-run --allow-net
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run --allow-net --allow-env
 /**
  * Deterministic PR merger CLI.
  *
@@ -41,6 +41,14 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { canMerge, type PrData, type Verdict } from "./lib/can-merge.ts";
+import {
+  bootPolicyFilePath,
+  loadPolicy,
+  readBootPolicyFile,
+} from "../boot/policy.ts";
+import type { Policy } from "../boot/policy.ts";
+import { deepFreeze } from "../boot/freeze.ts";
+import { writeMergeCloseFact } from "../channels/merge-close-adapter.ts";
 
 // -----------------------------------------------------------------------------
 // Public types
@@ -320,11 +328,72 @@ function validateVerdictShape(
 // -----------------------------------------------------------------------------
 // Default `gh` implementation (process spawn)
 // -----------------------------------------------------------------------------
+//
+// T2.4 / T6.4: `runGh` consults a {@link Policy} instance (Layer-4
+// environment) for the `gh` binary path instead of hardcoding `"gh"`.
+// When merge-pr is invoked as a subprocess from a parent boot, the
+// parent writes `tmp/boot-policy-<runId>.json` and forwards either
+// `BOOT_POLICY_FILE` (explicit path) or `CLIMPT_PARENT_RUN_ID` (path
+// derived from `cwd + runId`) via env. The merger reads + structurally
+// validates that file and freezes the resulting Policy so any leaked
+// reference is read-only. Standalone invocations (no env hint) fall
+// back to a fresh local Policy via `loadPolicy`.
+
+/**
+ * T6.4 — Resolve the {@link Policy} the merger CLI runs against.
+ *
+ * Resolution order (design 20 §E + Critique F15):
+ *  1. `BOOT_POLICY_FILE` env var — explicit path the parent process set.
+ *  2. `CLIMPT_PARENT_RUN_ID` env var — derive
+ *     `tmp/boot-policy-<runId>.json` under `cwd`.
+ *  3. Standalone — call {@link loadPolicy} for fresh defaults (no
+ *     parent boot to inherit from).
+ *
+ * If either env hint is set the read+validate must succeed — a missing
+ * or malformed file means the inheritance contract is broken and we
+ * surface the error rather than silently falling back to defaults
+ * (which would let a subprocess run with the wrong `ghBinary` / wrong
+ * transport polarity, violating R5 mode invariance).
+ *
+ * The returned Policy is `Object.freeze`d so any downstream attempt to
+ * mutate it crashes loudly.
+ */
+async function resolvePolicy(cwd: string): Promise<Policy> {
+  const explicit = readEnv("BOOT_POLICY_FILE");
+  const parentRunId = readEnv("CLIMPT_PARENT_RUN_ID");
+  if (explicit !== "") {
+    const inherited = await readBootPolicyFile(explicit);
+    return deepFreeze(inherited);
+  }
+  if (parentRunId !== "") {
+    const path = bootPolicyFilePath(cwd, parentRunId);
+    const inherited = await readBootPolicyFile(path);
+    return deepFreeze(inherited);
+  }
+  // Standalone: no parent → fresh local Policy. Frozen for symmetry.
+  return deepFreeze(loadPolicy(cwd));
+}
+
+/**
+ * Read an env var, returning `""` when the variable is unset OR when
+ * `--allow-env` permission is missing. Permission failures are
+ * intentionally treated as "no hint" — a fully sandboxed run that
+ * never had the env var set behaves identically to one that lacks the
+ * permission to read it.
+ */
+function readEnv(name: string): string {
+  try {
+    return Deno.env.get(name) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 async function runGh(
+  policy: Policy,
   args: string[],
 ): Promise<{ success: boolean; stdout: string; stderr: string }> {
-  const cmd = new Deno.Command("gh", {
+  const cmd = new Deno.Command(policy.ghBinary, {
     args,
     stdout: "piped",
     stderr: "piped",
@@ -337,57 +406,91 @@ async function runGh(
   };
 }
 
-async function defaultViewPr(prNumber: number): Promise<PrData> {
-  const res = await runGh([
-    "pr",
-    "view",
-    String(prNumber),
-    "--json",
-    "mergeable,reviewDecision,statusCheckRollup,baseRefName,headRefName",
-  ]);
-  if (!res.success) {
-    throw new Error(`gh pr view failed: ${res.stderr.trim() || res.stdout}`);
-  }
-  return JSON.parse(res.stdout) as PrData;
+function makeDefaultGhOps(policy: Policy): GhOps {
+  return {
+    async viewPr(prNumber: number): Promise<PrData> {
+      // PR4-4: include `body` so the wrapper can extract `Closes #N`
+      // and write a merge-close-fact OutboxAction after successful
+      // merge (design 44 §B). Pre-PR4-4 fixtures that omit `body`
+      // continue to work — the wrapper treats missing body as
+      // "no Closes references" (Skip_NoClosesInBody).
+      const res = await runGh(policy, [
+        "pr",
+        "view",
+        String(prNumber),
+        "--json",
+        "mergeable,reviewDecision,statusCheckRollup,baseRefName," +
+        "headRefName,body",
+      ]);
+      if (!res.success) {
+        throw new Error(
+          `gh pr view failed: ${res.stderr.trim() || res.stdout}`,
+        );
+      }
+      return JSON.parse(res.stdout) as PrData;
+    },
+    async mergePr(
+      prNumber: number,
+      method: "squash" | "merge" | "rebase",
+      deleteBranch: boolean,
+    ): Promise<void> {
+      const args = ["pr", "merge", String(prNumber), `--${method}`];
+      if (deleteBranch) args.push("--delete-branch");
+      const res = await runGh(policy, args);
+      if (!res.success) {
+        throw new Error(
+          `gh pr merge failed: ${res.stderr.trim() || res.stdout}`,
+        );
+      }
+    },
+    async setLabels(
+      prNumber: number,
+      add: string[],
+      remove: string[],
+    ): Promise<void> {
+      if (add.length === 0 && remove.length === 0) return;
+      const args = ["pr", "edit", String(prNumber)];
+      for (const a of add) args.push("--add-label", a);
+      for (const r of remove) args.push("--remove-label", r);
+      const res = await runGh(policy, args);
+      if (!res.success) {
+        // Label mutation failure is not fatal to the merge decision;
+        // surface it on stderr but do not flip the outcome.
+        const msg = res.stderr.trim() || res.stdout.trim();
+        await Deno.stderr.write(
+          new TextEncoder().encode(`warning: gh pr edit failed: ${msg}\n`),
+        );
+      }
+    },
+  };
 }
 
-async function defaultMergePr(
-  prNumber: number,
-  method: "squash" | "merge" | "rebase",
-  deleteBranch: boolean,
-): Promise<void> {
-  const args = ["pr", "merge", String(prNumber), `--${method}`];
-  if (deleteBranch) args.push("--delete-branch");
-  const res = await runGh(args);
-  if (!res.success) {
-    throw new Error(`gh pr merge failed: ${res.stderr.trim() || res.stdout}`);
-  }
-}
-
-async function defaultSetLabels(
-  prNumber: number,
-  add: string[],
-  remove: string[],
-): Promise<void> {
-  if (add.length === 0 && remove.length === 0) return;
-  const args = ["pr", "edit", String(prNumber)];
-  for (const a of add) args.push("--add-label", a);
-  for (const r of remove) args.push("--remove-label", r);
-  const res = await runGh(args);
-  if (!res.success) {
-    // Label mutation failure is not fatal to the merge decision; surface it
-    // on stderr but do not flip the outcome.
-    const msg = res.stderr.trim() || res.stdout.trim();
-    await Deno.stderr.write(
-      new TextEncoder().encode(`warning: gh pr edit failed: ${msg}\n`),
-    );
-  }
-}
-
+/**
+ * Built lazily so importing this module does not eagerly resolve a
+ * Policy (some tests stub `GhOps` and never touch the default). Tests
+ * that exercise the spawn path go through {@link main} which resolves
+ * the Policy explicitly via {@link resolvePolicy} (T6.4 inheritance).
+ *
+ * Each method re-resolves on call. In production paths
+ * {@link runWithResolvedPolicy} resolves once and threads the same
+ * Policy through, so this lazy fallback is only hit by ad-hoc imports
+ * of `defaultGhOps` outside the CLI entry point.
+ */
 export const defaultGhOps: GhOps = {
-  viewPr: defaultViewPr,
-  mergePr: defaultMergePr,
-  setLabels: defaultSetLabels,
+  viewPr: async (prNumber) =>
+    await makeDefaultGhOps(await resolvePolicy(Deno.cwd())).viewPr(prNumber),
+  mergePr: async (prNumber, method, deleteBranch) =>
+    await makeDefaultGhOps(await resolvePolicy(Deno.cwd())).mergePr(
+      prNumber,
+      method,
+      deleteBranch,
+    ),
+  setLabels: async (prNumber, add, remove) =>
+    await makeDefaultGhOps(await resolvePolicy(Deno.cwd())).setLabels(
+      prNumber,
+      add,
+      remove,
+    ),
 };
 
 // -----------------------------------------------------------------------------
@@ -399,6 +502,59 @@ export interface RunArgs {
   verdictPath: string;
   dryRun: boolean;
   mergeMethodOverride?: "squash" | "merge" | "rebase";
+  /**
+   * PR4-4 T4.5 — parent's `BootArtifacts.runId` inherited via env
+   * (`CLIMPT_PARENT_RUN_ID`) when this subprocess is launched from
+   * within an orchestrator boot. The fact-file path includes the
+   * runId so concurrent boots do not commingle their fact streams.
+   * Empty string when standalone-invoked (the parent has no
+   * MergeCloseAdapter to consume the fact, but the file is still
+   * written for diagnostic / audit purposes).
+   */
+  parentRunId?: string;
+  /**
+   * Working directory for the fact-file write. Defaults to
+   * `Deno.cwd()` when this `RunArgs` is built from the CLI; tests
+   * inject a temp dir so production `tmp/merge-close-facts/` is
+   * untouched.
+   */
+  factCwd?: string;
+}
+
+/**
+ * Extract every `Closes #N` reference from a PR body (design 44 §B
+ * `Skip_NoClosesInBody`).
+ *
+ * GitHub's auto-close keyword set is:
+ *   close, closes, closed, fix, fixes, fixed, resolve, resolves, resolved
+ * (case-insensitive, optional colon, then `#N`).
+ *
+ * Returns issue numbers in document order, deduplicated. Returns an
+ * empty array when `body` is undefined / empty / contains no
+ * references — this is the "PR body has no Closes #N" branch in the
+ * design state machine, which produces zero merge-close-facts.
+ *
+ * Exported so `merge-pr_test.ts` can exercise the parser without
+ * spinning up a stub `gh`.
+ */
+export function parseClosesReferences(body: string | undefined): number[] {
+  if (body === undefined || body.length === 0) return [];
+  const seen = new Set<number>();
+  const out: number[] = [];
+  // Keyword + optional colon + whitespace + `#` + digits. The
+  // keyword group is intentionally non-capturing to keep group [1]
+  // pointing at the issue number.
+  const re =
+    /\b(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)(?:[:]?\s+)#(\d+)\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const n = Number(m[1]);
+    if (!Number.isInteger(n) || n < 1) continue;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  return out;
 }
 
 export interface RunResult {
@@ -517,6 +673,46 @@ export async function run(
   const mergedLabels = labelDeltaFor("merged");
   await gh.setLabels(args.pr, mergedLabels.added, mergedLabels.removed);
 
+  // PR4-4 T4.5 — write one merge-close-fact per `Closes #N` in the PR
+  // body. The parent's MergeCloseAdapter consumes these and
+  // publishes `IssueClosedEvent({ channel: "M" })`. Failures here are
+  // non-fatal to the merge outcome (the merge has already happened
+  // server-side) but ARE surfaced on stderr so a flaky filesystem is
+  // observable. Standalone invocations (parentRunId === "") write
+  // facts under `standalone.jsonl` — accumulated for audit only since
+  // no parent will consume them.
+  const closesRefs = parseClosesReferences(prData.body);
+  const parentRunId = args.parentRunId ?? "";
+  const factCwd = args.factCwd ?? Deno.cwd();
+  const mergedAt = Date.now();
+  for (const subjectId of closesRefs) {
+    try {
+      // deno-lint-ignore no-await-in-loop -- sequential JSONL append preserves write order
+      await writeMergeCloseFact(
+        {
+          action: "merge-close-fact",
+          subjectId,
+          mergedAt,
+          prNumber: args.pr,
+          runId: parentRunId,
+        },
+        factCwd,
+      );
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      try {
+        // deno-lint-ignore no-await-in-loop -- best-effort warn; one per failed fact
+        await Deno.stderr.write(
+          new TextEncoder().encode(
+            `warning: writeMergeCloseFact failed for #${subjectId}: ${msg}\n`,
+          ),
+        );
+      } catch {
+        // stderr write failure is itself silent — exit code stays 0.
+      }
+    }
+  }
+
   return {
     decision: {
       ok: true,
@@ -626,6 +822,19 @@ export function parseCli(argv: string[]): CliParseOk | CliParseErr {
     };
   }
 
+  // PR4-4 T4.5: parent runId arrives via env (CLIMPT_PARENT_RUN_ID).
+  // Reading via Deno.env.get rather than argv keeps the CLI surface
+  // unchanged for users; the orchestrator (T6.4 fully) sets the env
+  // when spawning the merge-pr subprocess. Permission failures fall
+  // back to empty string — the fact is still written under
+  // `standalone.jsonl`.
+  let parentRunId = "";
+  try {
+    parentRunId = Deno.env.get("CLIMPT_PARENT_RUN_ID") ?? "";
+  } catch {
+    // --allow-env not granted; standalone fact path is used.
+  }
+
   return {
     ok: true,
     args: {
@@ -633,6 +842,7 @@ export function parseCli(argv: string[]): CliParseOk | CliParseErr {
       verdictPath,
       dryRun: Boolean(parsed["dry-run"]),
       mergeMethodOverride: method as RunArgs["mergeMethodOverride"],
+      parentRunId,
     },
   };
 }
@@ -678,8 +888,31 @@ async function main(): Promise<number> {
     return 2;
   }
 
+  // T6.4 — resolve the Policy *once* per CLI invocation. When the
+  // parent boot wrote `tmp/boot-policy-<runId>.json` and forwarded
+  // `BOOT_POLICY_FILE` / `CLIMPT_PARENT_RUN_ID`, this read fails fast
+  // (and surfaces a `Layer-4 inheritance broken` error) so a malformed
+  // inheritance is never silently downgraded to default Policy.
+  let policy: Policy;
   try {
-    const { decision } = await run(parsed.args);
+    policy = await resolvePolicy(Deno.cwd());
+  } catch (cause) {
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    emit({
+      ok: false,
+      pr_number: parsed.args.pr,
+      decision: { kind: "rejected" },
+      reason: "gh-command-failed",
+      executed: false,
+      labels: { added: [], removed: [] },
+      exit_code: 2,
+      error: msg,
+    });
+    return 2;
+  }
+
+  try {
+    const { decision } = await run(parsed.args, makeDefaultGhOps(policy));
     emit(decision);
     return decision.exit_code;
   } catch (err) {

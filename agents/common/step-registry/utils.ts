@@ -4,19 +4,17 @@
  * Helper functions for working with step registries.
  */
 
-import type { PromptStepDefinition, StepKind, StepRegistry } from "./types.ts";
-import { STEP_PHASE } from "../../shared/step-phases.ts";
-import type { StepPhase } from "../../shared/step-phases.ts";
+import type { Step, StepKind, StepRegistry } from "./types.ts";
 
 /**
  * Get a step definition by ID.
  *
- * Retrieves a PromptStepDefinition from the registry by its stepId.
+ * Retrieves a Step from the registry by its stepId.
  * Returns undefined if no step with the given ID exists.
  *
  * @param registry - The StepRegistry to search in
  * @param stepId - The unique step identifier to find (e.g., "initial.issue", "continuation.project")
- * @returns The PromptStepDefinition if found, or undefined if the step does not exist
+ * @returns The Step if found, or undefined if the step does not exist
  *
  * @example
  * ```typescript
@@ -29,7 +27,7 @@ import type { StepPhase } from "../../shared/step-phases.ts";
 export function getStepDefinition(
   registry: StepRegistry,
   stepId: string,
-): PromptStepDefinition | undefined {
+): Step | undefined {
   return registry.steps[stepId];
 }
 
@@ -90,11 +88,11 @@ export function createEmptyRegistry(
 /**
  * Add a step definition to a registry.
  *
- * Adds a new PromptStepDefinition to the registry's steps collection,
+ * Adds a new Step to the registry's steps collection,
  * indexed by its stepId. This function mutates the registry in place.
  *
  * @param registry - The StepRegistry object to modify
- * @param step - The PromptStepDefinition to add to the registry
+ * @param step - The Step to add to the registry
  * @returns void - The function modifies the registry in place
  * @throws {Error} If a step with the same stepId already exists in the registry
  *
@@ -114,7 +112,7 @@ export function createEmptyRegistry(
  */
 export function addStepDefinition(
   registry: StepRegistry,
-  step: PromptStepDefinition,
+  step: Step,
 ): void {
   if (registry.steps[step.stepId]) {
     throw new Error(`Step "${step.stepId}" already exists in registry`);
@@ -123,34 +121,15 @@ export function addStepDefinition(
 }
 
 /**
- * Infer stepKind from step definition.
+ * Return the step's `kind` discriminator.
  *
- * Priority:
- * 1. Explicit stepKind if defined
- * 2. Infer from c2 value
+ * After T1.3 the typed `Step` always has `kind` populated (the loader
+ * infers from `c2` when the on-disk JSON omits `stepKind`). This helper
+ * remains for callers that previously did the inference themselves.
  *
  * @param step - Step definition
- * @returns Inferred step kind or undefined
+ * @returns The step kind
  */
-export function inferStepKind(
-  step: PromptStepDefinition,
-): StepKind | undefined {
-  // Use explicit stepKind if defined
-  if (step.stepKind) {
-    return step.stepKind;
-  }
-
-  // Infer from c2
-  switch (step.c2 as StepPhase) {
-    case STEP_PHASE.INITIAL:
-    case STEP_PHASE.CONTINUATION:
-      return "work";
-    case STEP_PHASE.VERIFICATION:
-      return "verification";
-    case STEP_PHASE.CLOSURE:
-      return "closure";
-    default:
-      // section and other non-flow steps don't have a kind
-      return undefined;
-  }
+export function inferStepKind(step: Step): StepKind {
+  return step.kind;
 }

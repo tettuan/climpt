@@ -23,6 +23,7 @@ import {
   type FormatValidationResult,
   FormatValidator,
 } from "../loop/format-validator.ts";
+import { AgentValidationAbortError } from "../shared/errors/runner-errors.ts";
 
 /** Default maxAttempts when not configured */
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -240,10 +241,14 @@ export class ValidationChain {
   /**
    * Validate post-LLM conditions (Phase 2).
    *
-   * Reads `stepConfig.onFailure.action` and `maxAttempts` to determine
-   * the failure action. Unrecoverable failures override to "abort".
-   * Exceeding maxAttempts overrides to "abort". The retry counter is
-   * scoped to this path only.
+   * Reads `stepConfig.onFailure.action` (default `"retry"`) and `maxAttempts`
+   * to determine the next step. Unrecoverable failures (`result.recoverable
+   * === false`) and `maxAttempts` exhaustion **throw** `AgentValidationAbortError`
+   * — this is the run-time `ExecutionError` channel per design 16 §C, not an
+   * action enum value. The retry counter is scoped to this path only.
+   *
+   * @throws AgentValidationAbortError when the failure is unrecoverable or
+   *   maxAttempts is exhausted. The caller (CompletionLoop) lets it propagate.
    */
   private async validatePostLLMConditions(
     stepConfig: ValidationStepConfig,
@@ -265,18 +270,38 @@ export class ValidationChain {
 
     this.logger.warn(`Validation failed: pattern=${result.pattern}`);
 
-    // Determine action from onFailure config (default: "retry")
-    let action: FailureAction = stepConfig.onFailure?.action ?? "retry";
+    // Build retry prompt eagerly so it can be attached to the thrown error
+    // or returned with the retry result.
+    let retryPrompt: string | undefined;
+    if (this.retryHandler && result.pattern) {
+      retryPrompt = await this.retryHandler.buildRetryPrompt(
+        stepConfig,
+        result,
+      );
+    } else {
+      retryPrompt = `Validation conditions not met: ${
+        result.error ?? result.pattern
+      }`;
+    }
 
-    // Override to "abort" when failure is unrecoverable
+    // Unrecoverable failures escape the cycle as ExecutionError (16 §C).
     if (result.recoverable === false) {
       this.logger.warn(
         `[Validation] Unrecoverable failure detected, aborting: ${
           result.error ?? result.pattern
         }`,
       );
-      action = "abort";
+      throw new AgentValidationAbortError(
+        `Validation aborted for step "${stepConfig.stepId}": ${
+          retryPrompt ?? result.error ?? result.pattern ??
+            "unrecoverable failure"
+        }`,
+        { stepId: stepConfig.stepId },
+      );
     }
+
+    // Determine action from onFailure config (default: "retry")
+    const action: FailureAction = stepConfig.onFailure?.action ?? "retry";
 
     // Track retry attempts and enforce maxAttempts (post-LLM only)
     if (action === "retry") {
@@ -290,21 +315,11 @@ export class ValidationChain {
         this.logger.warn(
           `[Validation] maxAttempts (${maxAttempts}) exceeded for step "${stepConfig.stepId}", aborting`,
         );
-        action = "abort";
+        throw new AgentValidationAbortError(
+          `Validation aborted for step "${stepConfig.stepId}": maxAttempts (${maxAttempts}) exceeded`,
+          { stepId: stepConfig.stepId, iteration: currentAttempts },
+        );
       }
-    }
-
-    // Build retry prompt if RetryHandler is available
-    let retryPrompt: string | undefined;
-    if (this.retryHandler && result.pattern) {
-      retryPrompt = await this.retryHandler.buildRetryPrompt(
-        stepConfig,
-        result,
-      );
-    } else {
-      retryPrompt = `Validation conditions not met: ${
-        result.error ?? result.pattern
-      }`;
     }
 
     return { valid: false, retryPrompt, action };

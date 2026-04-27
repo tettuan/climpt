@@ -184,13 +184,16 @@ export async function validateFrontmatterRegistry(
       }
     }
 
-    const promptPath = buildPromptFilePath(
-      promptRoot,
+    // Synthesize a C3LAddress for buildPromptFilePath. The validator works
+    // on raw disk JSON (asRecord) which still carries the 5-tuple as
+    // separate fields; c1 is unused by buildPromptFilePath itself.
+    const promptPath = buildPromptFilePath(promptRoot, {
+      c1: "",
       c2,
       c3,
       edition,
-      typeof adaptation === "string" ? adaptation : undefined,
-    );
+      adaptation: typeof adaptation === "string" ? adaptation : undefined,
+    });
 
     stepsToValidate.push({
       stepId,

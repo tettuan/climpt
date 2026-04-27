@@ -11,27 +11,39 @@ import {
   type WorkflowRouterLogger,
 } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
 const logger = new BreakdownLogger("transition");
 
-// Helper to create minimal registry
+// Helper to create minimal registry. Tests pass disk-shape partials
+// (with c2/c3/edition as separate fields); makeStep aggregates them
+// into the typed Step ADT.
 function createRegistry(
-  steps: Record<string, Partial<StepRegistry["steps"][string]>> = {},
+  steps: Record<string, StepFixturePartial> = {},
 ): StepRegistry {
   const fullSteps: StepRegistry["steps"] = {};
 
   for (const [stepId, partial] of Object.entries(steps)) {
-    fullSteps[stepId] = {
+    fullSteps[stepId] = makeStep({
       stepId,
       name: partial.name ?? `Step ${stepId}`,
       c2: partial.c2 ?? "test",
       c3: partial.c3 ?? "step",
       edition: partial.edition ?? "default",
+      adaptation: partial.adaptation,
+      kind: partial.kind ?? partial.stepKind,
       uvVariables: partial.uvVariables ?? [],
       usesStdin: partial.usesStdin ?? false,
-      ...partial,
-    };
+      structuredGate: partial.structuredGate,
+      transitions: partial.transitions,
+      outputSchemaRef: partial.outputSchemaRef,
+      inputs: partial.inputs,
+      type: partial.type,
+      runner: partial.runner,
+      permissionMode: partial.permissionMode,
+      description: partial.description,
+    });
   }
 
   return {
@@ -41,6 +53,11 @@ function createRegistry(
     steps: fullSteps,
   };
 }
+
+type StepFixturePartial = Parameters<typeof makeStep>[0] extends infer P
+  ? P extends { stepId: string } ? Omit<P, "stepId">
+  : never
+  : never;
 
 // Helper to create interpretation
 function createInterpretation(
@@ -54,14 +71,18 @@ function createInterpretation(
 }
 
 Deno.test("WorkflowRouter - closing intent signals completion", () => {
+  // Closing is only valid from a closure-kind step (design 14 §B/§E).
+  // After T1.3 the typed Step has a required `kind` discriminator and
+  // the router validates intent ⊆ allowed-for-kind, so the fixture must
+  // declare a closure step here.
   const registry = createRegistry({
-    "initial.issue": {},
+    "closure.issue": { c2: "closure", c3: "issue" },
   });
   const router = new WorkflowRouter(registry);
 
-  logger.debug("route input", { stepId: "initial.issue", intent: "closing" });
+  logger.debug("route input", { stepId: "closure.issue", intent: "closing" });
   const result = router.route(
-    "initial.issue",
+    "closure.issue",
     createInterpretation({ intent: "closing", reason: "Task done" }),
   );
   logger.debug("route result", {
@@ -70,23 +91,8 @@ Deno.test("WorkflowRouter - closing intent signals completion", () => {
   });
 
   assertEquals(result.signalClosing, true);
-  assertEquals(result.nextStepId, "initial.issue");
+  assertEquals(result.nextStepId, "closure.issue");
   assertEquals(result.reason, "Task done");
-});
-
-Deno.test("WorkflowRouter - abort intent signals completion", () => {
-  const registry = createRegistry({
-    "initial.issue": {},
-  });
-  const router = new WorkflowRouter(registry);
-
-  const result = router.route(
-    "initial.issue",
-    createInterpretation({ intent: "abort" }),
-  );
-
-  assertEquals(result.signalClosing, true);
-  assertEquals(result.reason, "Intent: abort");
 });
 
 Deno.test("WorkflowRouter - repeat intent stays on current step", () => {

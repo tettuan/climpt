@@ -570,6 +570,7 @@ import type {
   PromptStepDefinition,
   StepRegistry,
 } from "../common/step-registry.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 /**
  * Creates a minimal step registry for testing structured gate flow.
@@ -580,14 +581,12 @@ function createTestStepRegistry(): StepRegistry {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
         stepId: "initial.test",
         name: "Initial Test Step",
         c2: "initial",
         c3: "test",
         edition: "default",
-        uvVariables: [],
-        usesStdin: false,
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
@@ -601,15 +600,13 @@ function createTestStepRegistry(): StepRegistry {
           next: { target: "continuation.test" },
           repeat: { target: "initial.test" },
         },
-      },
-      "continuation.test": {
+      }),
+      "continuation.test": makeStep({
         stepId: "continuation.test",
         name: "Continuation Test Step",
         c2: "continuation",
         c3: "test",
         edition: "default",
-        uvVariables: [],
-        usesStdin: false,
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
@@ -621,15 +618,13 @@ function createTestStepRegistry(): StepRegistry {
           next: { target: "continuation.test" },
           repeat: { target: "continuation.test" },
         },
-      },
-      "closure.test": {
+      }),
+      "closure.test": makeStep({
         stepId: "closure.test",
         name: "Closure Test Step",
         c2: "closure",
         c3: "test",
         edition: "default",
-        uvVariables: [],
-        usesStdin: false,
         structuredGate: {
           allowedIntents: ["closing", "repeat"],
           intentField: "next_action.action",
@@ -641,7 +636,7 @@ function createTestStepRegistry(): StepRegistry {
           closing: { target: null },
           repeat: { target: "closure.test" },
         },
-      },
+      }),
     },
   };
 }
@@ -780,14 +775,12 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.foo": {
+      "initial.foo": makeStep({
         stepId: "initial.foo",
         name: "Initial Foo",
         c2: "initial",
         c3: "foo",
         edition: "default",
-        uvVariables: [],
-        usesStdin: false,
         structuredGate: {
           allowedIntents: ["next"],
           intentField: "next_action.action",
@@ -795,16 +788,14 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
             "#/definitions/initial.foo/properties/next_action/properties/action",
         },
         // No explicit transitions - should use default (initial -> continuation)
-      },
-      "continuation.foo": {
+      }),
+      "continuation.foo": makeStep({
         stepId: "continuation.foo",
         name: "Continuation Foo",
         c2: "continuation",
         c3: "foo",
         edition: "default",
-        uvVariables: [],
-        usesStdin: false,
-      },
+      }),
     },
   };
 

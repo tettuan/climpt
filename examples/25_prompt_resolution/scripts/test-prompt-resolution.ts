@@ -93,10 +93,13 @@ app_schema:
   addStepDefinition(registry, {
     stepId: "initial.issue",
     name: "Issue Initial Prompt",
-    stepKind: "work",
-    c2: "initial",
-    c3: "issue",
-    edition: "default",
+    kind: "work",
+    address: {
+      c1: registry.c1,
+      c2: "initial",
+      c3: "issue",
+      edition: "default",
+    },
     uvVariables: ["issue"],
     usesStdin: false,
   });

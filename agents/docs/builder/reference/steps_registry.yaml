@@ -379,11 +379,13 @@ validators:
 #               the slot (R-C7).
 #
 # FailureAction:
-#   action      : (required) "retry" | "abort" | "skip"
+#   action      : (required) "retry" | "skip"
 #     "retry" — Re-run the pre-closure work step
-#     "abort" — Stop execution with an error
 #     "skip"  — Skip validation and proceed to closure
 #   maxAttempts : (optional) Max retry attempts (for "retry")
+#   Note: unrecoverable failure or maxAttempts exhaustion is thrown as
+#   ExecutionError (AgentValidationAbortError) per design 16 §C —
+#   not a configurable action value.
 # ============================================================
 validationSteps:
 
@@ -601,16 +603,17 @@ steps:
       # Description : Valid intents this step can emit.
       # Type        : array of strings
       # Options     : "next" | "repeat" | "jump" | "closing"
-      #               | "abort" | "escalate" | "handoff"
+      #               | "escalate" | "handoff"
       # Required    : yes
-      # Intent semantics:
+      # Intent semantics (frozen 6-value ADT, design 14 §E):
       #   next     — Proceed to the next step in the flow
       #   repeat   — Re-execute the current step
       #   jump     — Go to a specific step (needs targetField)
-      #   closing  — Terminal; end execution
-      #   abort    — Stop with error
+      #   closing  — Terminal; end execution (closure step only)
       #   escalate — Escalate to parent/human (verification)
       #   handoff  — Transfer to a different step with data
+      # Note: run-time fatal failure is thrown as ExecutionError
+      # (AgentValidationAbortError) per design 16 §C, not an Intent value.
       # stepKind constraints:
       #   work         — next, repeat, jump, handoff
       #   verification — next, repeat, jump, escalate

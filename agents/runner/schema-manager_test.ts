@@ -21,6 +21,7 @@ import { SchemaPointerError } from "../common/schema-resolver.ts";
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("schema");
 
@@ -81,15 +82,14 @@ function createMockLogger() {
 function createStepDef(
   overrides: Partial<PromptStepDefinition> & { stepId: string },
 ): PromptStepDefinition {
-  return {
+  return makeStep({
+    stepId: overrides.stepId,
     name: overrides.stepId,
     c2: "initial",
     c3: "test",
     edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-    ...overrides,
-  };
+    ...(overrides as Record<string, unknown>),
+  });
 }
 
 /**

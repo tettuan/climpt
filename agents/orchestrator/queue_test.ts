@@ -3,32 +3,37 @@ import { Queue } from "./queue.ts";
 import type { QueuePriorityConfig } from "./queue.ts";
 import { SubjectStore } from "./subject-store.ts";
 import type { IssueData } from "./subject-store.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 
 // === Helpers ===
 
 function makeWorkflowConfig(): WorkflowConfig {
+  const phases = {
+    ready: { type: "actionable" as const, priority: 1, agent: "writer" },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    done: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    writer: { role: "transformer" as const, outputPhase: "review" },
+    reviewer: {
+      role: "validator" as const,
+      outputPhases: { pass: "done", fail: "ready" },
+    },
+  };
   return {
     version: "1",
-    phases: {
-      ready: { type: "actionable", priority: 1, agent: "writer" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      done: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "ready",
       review: "review",
       done: "done",
       blocked: "blocked",
     },
-    agents: {
-      writer: { role: "transformer", outputPhase: "review" },
-      reviewer: {
-        role: "validator",
-        outputPhases: { pass: "done", fail: "ready" },
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: { maxCycles: 5, cycleDelayMs: 0 },
   };
 }

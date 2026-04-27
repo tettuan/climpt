@@ -109,20 +109,11 @@ export class CompletionLoopProcessor {
     });
 
     if (!validation.valid) {
+      // Unrecoverable / maxAttempts-exhausted failures throw
+      // `AgentValidationAbortError` directly from the validation chain
+      // (design 16 §C — ExecutionError propagates out of the cycle).
+      // Here we only handle the surviving 2 actions: skip and retry.
       const action = validation.action ?? "retry";
-
-      // Dispatch based on onFailure action
-      if (action === "abort") {
-        ctx.logger.error(
-          "[CompletionLoop] Validation abort: unrecoverable or maxAttempts exceeded",
-        );
-        throw new AgentValidationAbortError(
-          `Validation aborted for step "${closureStepId}": ${
-            validation.retryPrompt ?? "validation failed"
-          }`,
-          { stepId: closureStepId },
-        );
-      }
 
       if (action === "skip") {
         ctx.logger.warn(

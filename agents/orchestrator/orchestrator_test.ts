@@ -2,8 +2,13 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import { ConfigError } from "../shared/errors/config-errors.ts";
 import {
   DEFAULT_SUBJECT_STORE,
+  deriveInvocations,
   type WorkflowConfig,
 } from "./workflow-types.ts";
+import {
+  buildOrchestratorWithChannels,
+  TEST_DEFAULT_ISSUE_SOURCE,
+} from "./_test-fixtures.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -27,15 +32,38 @@ const LABEL_CALLS_PER_TRANSITION = 2;
 
 /** Minimal WorkflowConfig matching the design doc example. */
 function createTestConfig(): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 3,
+      agent: "iterator",
+    },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    revision: { type: "actionable" as const, priority: 1, agent: "iterator" },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      directory: "iterator",
+      outputPhase: "review",
+      fallbackPhase: "blocked",
+    },
+    reviewer: {
+      role: "validator" as const,
+      directory: "reviewer",
+      outputPhases: {
+        approved: "complete",
+        rejected: "revision",
+      },
+      fallbackPhase: "blocked",
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 3, agent: "iterator" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      revision: { type: "actionable", priority: 1, agent: "iterator" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       review: "review",
@@ -44,23 +72,8 @@ function createTestConfig(): WorkflowConfig {
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        directory: "iterator",
-        outputPhase: "review",
-        fallbackPhase: "blocked",
-      },
-      reviewer: {
-        role: "validator",
-        directory: "reviewer",
-        outputPhases: {
-          approved: "complete",
-          rejected: "revision",
-        },
-        fallbackPhase: "blocked",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 5,
       cycleDelayMs: 0,
@@ -307,7 +320,8 @@ Deno.test("single cycle: implementation -> review -> approved -> complete", asyn
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -354,7 +368,8 @@ Deno.test("revision cycle: rejected -> revision -> review -> approved -> complet
     },
   } as StubDispatcher & { dispatch: typeof StubDispatcher.prototype.dispatch };
 
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
   const result = await orchestrator.run(1);
 
   assertEquals(result.status, "completed");
@@ -378,7 +393,8 @@ Deno.test("cycle exceeded: always actionable -> hits maxCycles -> cycle_exceeded
     ["implementation-gap"],
   ]);
   const dispatcher = new StubDispatcher({ iterator: "success" });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -395,7 +411,8 @@ Deno.test("dry run: no dispatch, no label updates, no comments", async () => {
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1, { dryRun: true });
 
@@ -412,7 +429,8 @@ Deno.test("dry run with terminal phase: returns completed immediately", async ()
   const config = createTestConfig();
   const github = new StubGitHubClient([["done"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1, { dryRun: true });
 
@@ -426,7 +444,8 @@ Deno.test("terminal phase at start: immediate completion", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([["done"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -440,7 +459,8 @@ Deno.test("blocking phase at start: immediate blocked result", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([["blocked"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -454,7 +474,8 @@ Deno.test("no known labels: blocked with unknown phase", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([["unknown-label"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -467,7 +488,8 @@ Deno.test("verbose mode does not change behavior", async () => {
   const config = createTestConfig();
   const github = new StubGitHubClient([["done"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1, { verbose: true });
 
@@ -483,7 +505,8 @@ Deno.test("agent failure triggers fallback to blocked", async () => {
     ["blocked"],
   ]);
   const dispatcher = new StubDispatcher({ iterator: "failed" });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -506,7 +529,8 @@ Deno.test("handoff comments posted on reviewer outcomes", async () => {
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   await orchestrator.run(1);
 
@@ -535,7 +559,8 @@ Deno.test("handoff comments render handoffData variables into template", async (
     undefined,
     { summary: handoffValue },
   );
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   await orchestrator.run(1);
 
@@ -578,7 +603,8 @@ Deno.test("handoff comments preserve placeholders when handoffData is absent", a
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   await orchestrator.run(1);
 
@@ -611,7 +637,8 @@ Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition c
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -637,57 +664,68 @@ Deno.test("full cycle with labelPrefix: prefixed labels resolve and transition c
   assertEquals(github.labelUpdates[3].added, []);
 });
 
-// === closeOnComplete Tests ===
+// === closeBinding Tests ===
 
 /**
- * Test Design: Contract tests for closeOnComplete feature.
+ * Test Design: Contract tests for closeBinding feature (T6.2).
  *
  * Source of truth: orchestrator.ts terminal phase handling logic.
  * The orchestrator calls closeIssue when:
  *   1. target phase is terminal
  *   2. !dryRun
- *   3. agent.closeOnComplete === true
- *   4. agent.closeCondition is undefined OR matches outcome
+ *   3. agent.closeBinding.primary.kind === "direct"
+ *   4. agent.closeBinding.condition is undefined OR matches outcome
  *
  * Diagnosability: each assertion message identifies the violated contract
  * and which file to fix (orchestrator.ts or workflow config).
  */
 
-/** Config with closeOnComplete enabled on reviewer (validator) */
+/** Config with closeBinding enabled on reviewer (validator) */
 function createCloseOnCompleteConfig(): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      outputPhase: "review",
+      fallbackPhase: "blocked",
+    },
+    reviewer: {
+      role: "validator" as const,
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeBinding: {
+        primary: { kind: "direct" as const },
+        cascade: false,
+        condition: "approved",
+      },
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 1, agent: "iterator" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       review: "review",
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        outputPhase: "review",
-        fallbackPhase: "blocked",
-      },
-      reviewer: {
-        role: "validator",
-        outputPhases: { approved: "complete", rejected: "implementation" },
-        fallbackPhase: "blocked",
-        closeOnComplete: true,
-        closeCondition: "approved",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: { maxCycles: 5, cycleDelayMs: 0 },
   };
 }
 
-Deno.test("closeOnComplete: closes issue when outcome matches closeCondition and target is terminal", async () => {
+Deno.test("closeBinding: closes issue when outcome matches condition and target is terminal", async () => {
   const config = createCloseOnCompleteConfig();
   // Cycle 1: iterator success -> review
   // Cycle 2: reviewer approved -> complete (terminal) -> closeIssue
@@ -696,7 +734,11 @@ Deno.test("closeOnComplete: closes issue when outcome matches closeCondition and
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const { orchestrator } = buildOrchestratorWithChannels({
+    config,
+    github,
+    dispatcher,
+  });
 
   const result = await orchestrator.run(1);
 
@@ -705,15 +747,13 @@ Deno.test("closeOnComplete: closes issue when outcome matches closeCondition and
     "completed",
     "Status should be completed. Fix: orchestrator.ts terminal phase handling",
   );
-  assertEquals(
-    result.issueClosed,
-    true,
-    "issueClosed should be true when closeOnComplete fires. Fix: orchestrator.ts closeOnComplete logic",
-  );
+  // T6.2: result.issueClosed deleted; close success is observable via the
+  // close transport (closedIssues count) and the bus IssueClosedEvent.
   assertEquals(
     github.closedIssues.length,
     1,
-    "closeIssue should be called exactly once. Fix: orchestrator.ts closeOnComplete logic",
+    "closeIssue should be called exactly once via the close transport. " +
+      "Fix: DirectCloseChannel.execute must invoke closeTransport.close.",
   );
   assertEquals(
     github.closedIssues[0],
@@ -722,7 +762,7 @@ Deno.test("closeOnComplete: closes issue when outcome matches closeCondition and
   );
 });
 
-Deno.test("closeOnComplete: does NOT close when outcome does not match closeCondition", async () => {
+Deno.test("closeBinding: does NOT close when outcome does not match condition", async () => {
   const config = createCloseOnCompleteConfig();
   // reviewer rejects -> goes to implementation (not terminal) -> no close
   const github = new StubGitHubClient([["review"], ["ready"], ["ready"]]);
@@ -731,7 +771,11 @@ Deno.test("closeOnComplete: does NOT close when outcome does not match closeCond
     reviewer: "rejected",
   });
   config.rules.maxCycles = 2;
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const { orchestrator } = buildOrchestratorWithChannels({
+    config,
+    github,
+    dispatcher,
+  });
 
   const result = await orchestrator.run(1);
 
@@ -739,42 +783,47 @@ Deno.test("closeOnComplete: does NOT close when outcome does not match closeCond
     github.closedIssues.length,
     0,
     "closeIssue should not be called when outcome doesn't lead to terminal. " +
-      "Fix: orchestrator.ts closeCondition check",
+      "Fix: DirectCloseChannel.decide must return skip when isTerminal=false.",
   );
-  assertEquals(
-    result.issueClosed,
-    undefined,
-    "issueClosed should be undefined when close was not triggered",
-  );
+  // T6.2: close fact is observable via closedIssues / bus, not result.
+  // (result.issueClosed === undefined assertion deleted with the field.)
+  void result;
 });
 
-Deno.test("closeOnComplete: closes without closeCondition (any terminal outcome)", async () => {
+Deno.test("closeBinding: closes without condition (any terminal outcome)", async () => {
   const config = createCloseOnCompleteConfig();
-  // Remove closeCondition -> any terminal transition triggers close
-  delete (config.agents["reviewer"] as unknown as Record<string, unknown>)
-    .closeCondition;
+  // Remove closeBinding.condition -> any terminal transition triggers close
+  // deno-lint-ignore no-explicit-any
+  delete (config.agents["reviewer"] as any).closeBinding.condition;
 
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   const dispatcher = new StubDispatcher({
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const { orchestrator } = buildOrchestratorWithChannels({
+    config,
+    github,
+    dispatcher,
+  });
 
-  const result = await orchestrator.run(1);
+  const _result = await orchestrator.run(1);
 
-  assertEquals(result.issueClosed, true);
   assertEquals(github.closedIssues.length, 1);
 });
 
-Deno.test("closeOnComplete: does NOT close when closeOnComplete is absent", async () => {
-  const config = createTestConfig(); // no closeOnComplete
+Deno.test("closeBinding: does NOT close when closeBinding is absent", async () => {
+  const config = createTestConfig(); // no closeBinding
   const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
   const dispatcher = new StubDispatcher({
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const { orchestrator } = buildOrchestratorWithChannels({
+    config,
+    github,
+    dispatcher,
+  });
 
   const result = await orchestrator.run(1);
 
@@ -782,18 +831,22 @@ Deno.test("closeOnComplete: does NOT close when closeOnComplete is absent", asyn
   assertEquals(
     github.closedIssues.length,
     0,
-    "closeIssue should not be called when closeOnComplete is not set. " +
-      "Fix: orchestrator.ts should only close when agent.closeOnComplete is true",
+    "closeIssue should not be called when closeBinding is not set. " +
+      "Fix: DirectCloseChannel.decide must return skip when " +
+      'closeBinding.primary.kind !== "direct".',
   );
-  assertEquals(result.issueClosed, undefined);
 });
 
-Deno.test("closeOnComplete: early terminal detection does NOT trigger close", async () => {
+Deno.test("closeBinding: early terminal detection does NOT trigger close", async () => {
   const config = createCloseOnCompleteConfig();
   // Issue starts with terminal labels -> no agent dispatched -> no close
   const github = new StubGitHubClient([["done"]]);
   const dispatcher = new StubDispatcher();
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const { orchestrator } = buildOrchestratorWithChannels({
+    config,
+    github,
+    dispatcher,
+  });
 
   const result = await orchestrator.run(1);
 
@@ -802,203 +855,158 @@ Deno.test("closeOnComplete: early terminal detection does NOT trigger close", as
     github.closedIssues.length,
     0,
     "Early terminal detection should not trigger close (no agent dispatched). " +
-      "Fix: orchestrator.ts should only close after agent dispatch, not at early terminal check",
+      "Fix: orchestrator.ts should only publish TransitionComputed after " +
+      "agent dispatch, not at the early terminal check.",
   );
-  assertEquals(result.issueClosed, undefined);
+  // T6.2: result.issueClosed deleted; closedIssues count above is the
+  // observable assertion.
+  void result;
 });
 
 Deno.test(
-  "closeOnComplete: closeIssue failure triggers compensation and marks cycle blocked",
+  "closeBinding: closeIssue failure under W13 — labels stay applied, " +
+    "compensation comment posted, cycle remains completed",
   async () => {
-    // Contract (design.md §1.3 G2, §2.2 T6, §3.1 T6):
-    //   T6 close is the last irreversible op. A close failure leaves the
-    //   issue with the terminal label but still open — exactly the A↔B gap
-    //   the saga exists to close. Therefore T6 failure is *fatal to the
-    //   cycle*: scope.rollback() restores labels to preImage (via the
-    //   LIFO T4→T3 compensations), status becomes "blocked", and
-    //   issueClosed stays undefined. The next run re-reads labels from
-    //   the source of truth and retries, so no implicit success is
-    //   reported to the caller.
+    // PR4-2b — W13 contract (To-Be 41 §D, plan-revisions.md §"PR4-2 split
+    // discovery"):
+    //   Close failure is **not** fatal to the cycle. The legacy saga
+    //   rollback (LIFO T4→T3 label restoration + status="blocked") is
+    //   deleted. Replacement contract:
+    //     1. Forward labels stay committed — next cycle re-reads from
+    //        the source of truth and self-heals if needed.
+    //     2. DirectClose publishes IssueCloseFailed; the framework's
+    //        CompensationCommentChannel posts a marker-tagged comment
+    //        for operator intervention.
+    //     3. status remains "completed" because target phase is terminal
+    //        (the cycle's intent succeeded structurally; close is
+    //        out-of-band).
+    //     4. result.issueClosed is undefined / false because the close
+    //        transport actually failed — but downstream consumers MUST
+    //        observe close fact via the bus event log, not this field.
     const config = createCloseOnCompleteConfig();
-    // Cycle 1: ["ready"] -> iterator success -> "review"      (T3+T4 commit)
-    // Cycle 2: ["review"] -> reviewer approved -> "complete"
-    //          T3 add "done", T4 remove "review", T6 close throws ->
-    //          rollback runs T4 comp (re-add "review") then T3 comp
-    //          (remove "done"), restoring preImage ["review"].
     const github = new StubGitHubClient([["ready"], ["review"], ["done"]]);
     github.setCloseIssueShouldThrow(true);
     const dispatcher = new StubDispatcher({
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const { orchestrator } = buildOrchestratorWithChannels({
+      config,
+      github,
+      dispatcher,
+    });
 
     const result = await orchestrator.run(1);
 
-    // --- Cycle-level contract ---
+    // --- W13 cycle-level contract ---
     assertEquals(
       result.status,
-      "blocked",
-      "T6 failure must mark the cycle blocked so the caller does not " +
-        "treat a half-applied transition as completed. " +
-        'Fix: orchestrator.ts T6 catch must set status="blocked" and break.',
+      "completed",
+      "W13: cycle status reflects target-phase reachability, not close " +
+        'outcome. Target phase "complete" is terminal so the cycle is ' +
+        "completed; close failure is observable on the bus, not on the " +
+        'result. Fix: orchestrator must NOT set status="blocked" when ' +
+        "DirectCloseChannel.execute throws.",
     );
-    assertEquals(
-      result.issueClosed,
-      undefined,
-      "issueClosed must stay undefined when closeIssue threw — the " +
-        "OrchestratorResult contract reserves true for verified close. " +
-        "Fix: orchestrator.ts must only set issueClosed=true inside the " +
-        "T6 step action *after* closeIssue resolves.",
-    );
+    // T6.2: result.issueClosed deleted; the close-transport-failed fact
+    // is observable via the bus IssueCloseFailedEvent. closedIssues
+    // remains the structural assertion below.
     assertEquals(
       github.closedIssues.length,
       0,
-      "StubGitHubClient only records successful closes; closeIssue threw, " +
-        "so no issue number should have been appended.",
+      "StubGitHubClient only records successful closes; closeIssue threw " +
+        "so no issue number is appended.",
     );
 
-    // --- Rollback contract: preImage label restoration ---
-    // Expected labelUpdates sequence (index: side-effect):
-    //   [0] cycle 1 T3  add    ["review"]
-    //   [1] cycle 1 T4  remove ["ready"]
-    //   [2] cycle 2 T3  add    ["done"]
-    //   [3] cycle 2 T4  remove ["review"]
-    //   [4] cycle 2 rollback T4 compensation  add ["review"]
-    //   [5] cycle 2 rollback T3 compensation  remove ["done"]
-    // Assert length first so subsequent index accesses are non-vacuous.
+    // --- W13 label contract: labels stay committed (NO rollback) ---
     const labelUpdates = github.labelUpdates;
     const forwardTransitions = 2; // cycle 1 ready->review, cycle 2 review->done
-    const compensations = 2; // cycle 2 T4-comp + T3-comp (LIFO)
     assertEquals(
       labelUpdates.length,
-      forwardTransitions * LABEL_CALLS_PER_TRANSITION + compensations,
-      "Expected 2 forward transitions × 2 label calls per transition " +
-        "(design §2.2) = 4, plus 2 compensations for the cycle-2 T6 " +
-        "failure (LIFO T4-comp then T3-comp) = 6 total. " +
-        "Fix: orchestrator.ts T3/T4 must register compensations that " +
-        "invert their forward ops, and scope.rollback() must run them.",
+      forwardTransitions * LABEL_CALLS_PER_TRANSITION,
+      "W13: only forward label ops occur (2 transitions × 2 calls each " +
+        '= 4). The legacy LIFO rollback that re-added "review" and ' +
+        'removed "done" is gone. Fix: orchestrator.ts must NOT ' +
+        "register saga compensations that invert label changes.",
     );
-
-    // Forward ops — cycle 1 (no close failure here, commits normally).
     assertEquals(labelUpdates[0].added, ["review"]);
-    assertEquals(labelUpdates[0].removed, []);
-    assertEquals(labelUpdates[1].added, []);
     assertEquals(labelUpdates[1].removed, ["ready"]);
-
-    // Forward ops — cycle 2 up to the T6 throw.
-    assertEquals(labelUpdates[2].added, ["done"]);
-    assertEquals(labelUpdates[2].removed, []);
-    assertEquals(labelUpdates[3].added, []);
+    assertEquals(
+      labelUpdates[2].added,
+      ["done"],
+      "Cycle 2 must commit the terminal label even when the close " +
+        "transport will throw — labels are not rolled back under W13.",
+    );
     assertEquals(labelUpdates[3].removed, ["review"]);
 
-    // Compensations in LIFO order (T4 registered last → runs first).
-    assertEquals(
-      labelUpdates[4].added,
-      ["review"],
-      "T4 compensation must re-add the label that T4 removed so the " +
-        "issue returns to its preImage label set.",
-    );
-    assertEquals(labelUpdates[4].removed, []);
-    assertEquals(
-      labelUpdates[5].removed,
-      ["done"],
-      "T3 compensation must remove the label that T3 added so no stale " +
-        "terminal label is left on the still-open issue (G2 closure).",
-    );
-    assertEquals(labelUpdates[5].added, []);
-
-    // --- Rollback contract: T6 compensation comment is posted ---
-    // design.md §3.1 row 4 + §3.3: on T6 (close) failure the orchestrator
-    // must post a marker-tagged "自動遷移失敗" comment so a human can
-    // intervene. The marker returned by compensationMarker() (visible
-    // `<sub>` footer signature) makes the compensation idempotent across
-    // retries.
-    //
-    // Implementation note: this works because orchestrator.ts pre-registers
-    // the compensation on scope *before* invoking closeIssue (scope.record
-    // rather than scope.step's post-success factory). On success, commit()
-    // clears the stack before the compensation can run; on failure,
-    // rollback() runs it LIFO-first. The test config has no handoff, so
-    // cycle 1 never posts anything — cycle 2 is the sole source of the
-    // single expected comment.
-    // Assert length first so subsequent index access is non-vacuous.
+    // --- W13 compensation contract: comment-only ---
     assertEquals(
       github.comments.length,
       1,
-      "T6 close failed, so the pre-registered compensation comment must " +
-        "have been posted during rollback(). " +
-        "Fix: orchestrator.ts T6 must call scope.record(compCommentReg) " +
-        "before invoking closeIssue so rollback() can find the " +
-        "compensation even when the action itself threw.",
+      "CompensationCommentChannel must post exactly one marker comment " +
+        "in response to IssueCloseFailedEvent. Fix: BootKernel must " +
+        "register the channel and DirectCloseChannel.execute must " +
+        "publish IssueCloseFailed when the transport throws.",
     );
     const comp = github.comments[0];
     assertEquals(
       comp.subjectId,
       1,
-      "Compensation comment must be addressed to the same issue whose " +
-        "close failed.",
+      "Compensation comment must address the same issue whose close failed.",
     );
-    // Marker is derived from orchestrator.ts's exported factory so the
-    // test tracks the single source of truth. subjectId=1, cycleSeq=2
-    // (cycle 2 is the failing cycle).
-    const expectedMarker = compensationMarker(1, 2);
-    assertStringIncludes(
-      comp.comment,
-      expectedMarker,
-      `Compensation comment body must embed the deterministic marker ` +
-        `"${expectedMarker}" produced by compensationMarker(1, 2) so a ` +
-        `retry can detect and skip re-posting (design §3.3).`,
-    );
-    // Visible footer format: user-facing warning header + <sub> signature
-    // line. Both strings are load-bearing for the "HTML comment → visible
-    // footer" contract change; if either disappears the marker may still
-    // match but the user-visibility guarantee is lost.
     assertStringIncludes(
       comp.comment,
       "⚠️ 自動遷移失敗",
-      "Visible warning header must be present so the comment is readable " +
-        "in the GitHub UI (not hidden in an HTML comment).",
+      "Visible warning header must be present so operators see the " +
+        "comment in the GitHub UI.",
     );
     assertStringIncludes(
       comp.comment,
-      `<sub>🤖 ${expectedMarker}</sub>`,
-      "Marker must be embedded in a <sub> footer so it is visible to " +
-        "users while remaining greppable for idempotency checks.",
+      "climpt-compensation:subject-1:run-test-run-id",
+      "Marker must embed (subjectId, runId) so retries within the same " +
+        "boot dedup; cross-boot retries get a new marker.",
     );
   },
 );
 
-Deno.test("closeOnComplete: closeCondition filters even when target is terminal", async () => {
-  // Validator where both outcomes route to terminal, but closeCondition is "approved"
+Deno.test("closeBinding: condition filters even when target is terminal", async () => {
+  // Validator where both outcomes route to terminal, but condition is "approved"
+  const ccPhases = {
+    review: { type: "actionable" as const, priority: 1, agent: "reviewer" },
+    closed: { type: "terminal" as const },
+    archived: { type: "terminal" as const },
+  };
+  const ccAgents = {
+    reviewer: {
+      role: "validator" as const,
+      outputPhases: { approved: "closed", auto_closed: "archived" },
+      fallbackPhase: "review",
+      closeBinding: {
+        primary: { kind: "direct" as const },
+        cascade: false,
+        condition: "approved",
+      },
+    },
+  };
   const config: WorkflowConfig = {
     version: "1.0.0",
-    phases: {
-      review: { type: "actionable", priority: 1, agent: "reviewer" },
-      closed: { type: "terminal" },
-      archived: { type: "terminal" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases: ccPhases,
     labelMapping: {
       review: "review",
       done: "closed",
       archive: "archived",
     },
-    agents: {
-      reviewer: {
-        role: "validator",
-        outputPhases: { approved: "closed", auto_closed: "archived" },
-        fallbackPhase: "review",
-        closeOnComplete: true,
-        closeCondition: "approved",
-      },
-    },
+    agents: ccAgents,
+    invocations: deriveInvocations(ccPhases, ccAgents),
     rules: { maxCycles: 5, cycleDelayMs: 0 },
   };
 
   // outcome is "auto_closed" -> routes to terminal "archived" but closeCondition is "approved"
   const github = new StubGitHubClient([["review"], ["archive"]]);
   const dispatcher = new StubDispatcher({ reviewer: "auto_closed" });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -1007,16 +1015,17 @@ Deno.test("closeOnComplete: closeCondition filters even when target is terminal"
   assertEquals(
     github.closedIssues.length,
     0,
-    "closeIssue should NOT be called when outcome is 'auto_closed' but closeCondition is 'approved'. " +
-      "Fix: orchestrator.ts must check closeCondition against outcome, not just terminal phase",
+    "closeIssue should NOT be called when outcome is 'auto_closed' but closeBinding.condition is 'approved'. " +
+      "Fix: orchestrator.ts must check closeBinding.condition against outcome, not just terminal phase",
   );
-  assertEquals(result.issueClosed, undefined);
+  // T6.2: result.issueClosed deleted; closedIssues count is the
+  // observable assertion above.
 });
 
 // === T6.eval projectBinding guard Tests (Issue #501) ===
 
 Deno.test("T6.eval: getIssueProjects is NOT called when projectBinding is absent (BC invariant I1)", async () => {
-  // Config has closeOnComplete but no projectBinding — T6.eval block must be skipped.
+  // Config has closeBinding but no projectBinding — T6.eval block must be skipped.
   const config = createCloseOnCompleteConfig();
   // Cycle 1: iterator success -> review
   // Cycle 2: reviewer approved -> complete (terminal) -> closeIssue
@@ -1031,14 +1040,15 @@ Deno.test("T6.eval: getIssueProjects is NOT called when projectBinding is absent
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
-  const result = await orchestrator.run(1);
+  const _result = await orchestrator.run(1);
 
   assertEquals(
-    result.issueClosed,
-    true,
-    "Issue should still be closed via closeOnComplete. Fix: orchestrator.ts close logic",
+    github.closedIssues.length,
+    1,
+    "Issue should still be closed via closeBinding. Fix: orchestrator.ts close logic",
   );
   assertEquals(
     getIssueProjectsCalled,
@@ -1049,7 +1059,7 @@ Deno.test("T6.eval: getIssueProjects is NOT called when projectBinding is absent
 });
 
 Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", async () => {
-  // Config has closeOnComplete AND projectBinding — T6.eval block must execute.
+  // Config has closeBinding AND projectBinding — T6.eval block must execute.
   const config = createCloseOnCompleteConfig();
   config.projectBinding = {
     inheritProjectsForCreateIssue: false,
@@ -1069,14 +1079,15 @@ Deno.test("T6.eval: getIssueProjects IS called when projectBinding is present", 
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
-  const result = await orchestrator.run(1);
+  const _result = await orchestrator.run(1);
 
   assertEquals(
-    result.issueClosed,
-    true,
-    "Issue should be closed via closeOnComplete. Fix: orchestrator.ts close logic",
+    github.closedIssues.length,
+    1,
+    "Issue should be closed via closeBinding. Fix: orchestrator.ts close logic",
   );
   assertEquals(
     getIssueProjectsCalled,
@@ -1174,7 +1185,9 @@ Deno.test(
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1);
 
@@ -1225,13 +1238,14 @@ Deno.test("T6.eval: getIssueProjects failure does not block close transaction", 
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
-  const result = await orchestrator.run(1);
+  const _result = await orchestrator.run(1);
 
   assertEquals(
-    result.issueClosed,
-    true,
+    github.closedIssues.length,
+    1,
     "Issue must still be closed when T6.eval getIssueProjects fails. " +
       "Fix: orchestrator.ts T6.eval catch must not propagate error (§6.3)",
   );
@@ -1287,15 +1301,17 @@ Deno.test(
         body: "test",
         comments: [],
       });
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
-      const result = await orchestrator.run(1, {}, store);
+      const _result = await orchestrator.run(1, {}, store);
 
       assertEquals(
-        result.issueClosed,
-        true,
+        github.closedIssues.length,
+        1,
         "Issue must close when reviewer approves. " +
-          "Fix: orchestrator.ts closeOnComplete logic.",
+          "Fix: orchestrator.ts closeBinding logic.",
       );
       // O2 must query parent projects for issue #1 during the reviewer cycle
       // (the cycle that triggers closeIntentForDeferred).
@@ -1362,7 +1378,9 @@ Deno.test(
         body: "test",
         comments: [],
       });
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       await orchestrator.run(1, {}, store);
 
@@ -1424,13 +1442,15 @@ Deno.test(
         body: "test",
         comments: [],
       });
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
-      const result = await orchestrator.run(1, {}, store);
+      const _result = await orchestrator.run(1, {}, store);
 
       assertEquals(
-        result.issueClosed,
-        true,
+        github.closedIssues.length,
+        1,
         "Dispatch must complete even when O2 getIssueProjects fails. " +
           "Fix: orchestrator.ts O2 catch must not re-throw (§6.3 fallback).",
       );
@@ -1479,7 +1499,9 @@ Deno.test(
         body: "test",
         comments: [],
       });
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       await orchestrator.run(1, {}, store);
 
@@ -1676,21 +1698,44 @@ class BatchStubGitHubClient implements GitHubClient {
 }
 
 function createBatchTestConfig(): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 3,
+      agent: "iterator",
+    },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    revision: { type: "actionable" as const, priority: 1, agent: "iterator" },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      directory: "iterator",
+      outputPhase: "review",
+      fallbackPhase: "blocked",
+    },
+    reviewer: {
+      role: "validator" as const,
+      directory: "reviewer",
+      outputPhases: {
+        approved: "complete",
+        rejected: "revision",
+      },
+      fallbackPhase: "blocked",
+    },
+  };
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     subjectStore: DEFAULT_SUBJECT_STORE,
     prioritizer: {
       agent: "triage-agent",
       labels: ["P1", "P2", "P3"],
       defaultLabel: "P3",
     },
-    phases: {
-      implementation: { type: "actionable", priority: 3, agent: "iterator" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      revision: { type: "actionable", priority: 1, agent: "iterator" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    phases,
     labelMapping: {
       ready: "implementation",
       review: "review",
@@ -1699,23 +1744,8 @@ function createBatchTestConfig(): WorkflowConfig {
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        directory: "iterator",
-        outputPhase: "review",
-        fallbackPhase: "blocked",
-      },
-      reviewer: {
-        role: "validator",
-        directory: "reviewer",
-        outputPhases: {
-          approved: "complete",
-          rejected: "revision",
-        },
-        fallbackPhase: "blocked",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 5,
       cycleDelayMs: 0,
@@ -1814,7 +1844,9 @@ Deno.test("runBatch with prioritizeOnly dispatches prioritizer agent", async () 
     );
 
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
-    const result = await orchestrator.runBatch({}, { prioritizeOnly: true });
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE, {
+      prioritizeOnly: true,
+    });
 
     // Prioritizer agent should have been dispatched
     assertEquals(dispatchedAgents.includes("triage-agent"), true);
@@ -1887,7 +1919,7 @@ Deno.test("runBatch processes issues in priority queue order", async () => {
     });
 
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     assertEquals(result.status, "completed");
     assertEquals(result.processed.length, 2);
@@ -1948,7 +1980,7 @@ Deno.test("runBatch skips non-actionable issues", async () => {
     });
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     // Only issue 10 should be processed
     assertEquals(result.processed.length, 1);
@@ -2005,7 +2037,7 @@ Deno.test("runBatch processes outbox after each agent dispatch", async () => {
     const dispatcher = new StubDispatcher({ iterator: "success" });
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     assertEquals(result.processed.length, 1);
     // Outbox comment should have been posted to GitHub
@@ -2052,7 +2084,9 @@ Deno.test("run with store reads labels from store instead of GitHub", async () =
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2094,7 +2128,9 @@ Deno.test("run with store persists workflow state after each cycle", async () =>
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -2136,7 +2172,9 @@ Deno.test("run with store updates store meta labels after transition", async () 
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -2200,7 +2238,9 @@ Deno.test("run with store restores cycle count from persisted state", async () =
 
     const github = new StubGitHubClient([]);
     const dispatcher = new StubDispatcher({ iterator: "success" });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2277,7 +2317,9 @@ Deno.test("run resets history when persisted phase regressed via labels", async 
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2347,7 +2389,9 @@ Deno.test("run preserves history when persisted phase matches live labels", asyn
 
     const github = new StubGitHubClient([]);
     const dispatcher = new StubDispatcher({ iterator: "success" });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2367,7 +2411,7 @@ Deno.test("run preserves history when persisted phase matches live labels", asyn
 //   blocking > actionable > terminal
 // to detect regression when an actionable label coexists with a
 // terminal one. Main loop precedence (terminal-first) is preserved
-// elsewhere to honour `closeOnComplete` semantics.
+// elsewhere to honour `closeBinding` close semantics.
 
 Deno.test("run detects regression when live has [done, from-reviewer] but persisted is complete", async () => {
   // [done, from-reviewer] coexists: terminal `done` + actionable
@@ -2423,13 +2467,15 @@ Deno.test("run detects regression when live has [done, from-reviewer] but persis
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
     // Reset proof: persisted history was dropped (length 0). The main
     // loop then re-applied terminal-first precedence at iteration time
-    // (preserving `closeOnComplete` semantics) and exited cleanly on
+    // (preserving `closeBinding` close semantics) and exited cleanly on
     // `done` without dispatching. Without the reset, persisted history
     // would survive and `cycleCount` would not be zero.
     assertEquals(
@@ -2509,7 +2555,9 @@ Deno.test("run detects regression when live has [done, ready] but persisted is i
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2576,7 +2624,9 @@ Deno.test("run preserves blocking priority when [blocked, ready] coexist", async
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
 
@@ -2604,7 +2654,8 @@ Deno.test("run without store works exactly as before (backward compatibility)", 
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   // Call run() without store parameter - should work identically to original
   const result = await orchestrator.run(1);
@@ -2642,7 +2693,9 @@ Deno.test("run with store acquires issue lock", async () => {
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1, {}, store);
     assertEquals(result.status, "completed");
@@ -2678,7 +2731,9 @@ Deno.test("run with locked issue returns blocked", async () => {
     const dispatcher = new StubDispatcher({
       iterator: "success",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     // Pre-acquire the issue lock
     const holdLock = await store.acquireIssueLock("default", 1);
@@ -2730,7 +2785,10 @@ Deno.test("runBatch prioritizeOnly without prioritizer config throws ConfigError
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
     await assertRejects(
-      () => orchestrator.runBatch({}, { prioritizeOnly: true }),
+      () =>
+        orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE, {
+          prioritizeOnly: true,
+        }),
       ConfigError,
       "WF-BATCH-001",
     );
@@ -2805,7 +2863,7 @@ Deno.test("runBatch prioritizeOnly with dryRun skips store writes", async () => 
 
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
     const result = await orchestrator.runBatch(
-      {},
+      TEST_DEFAULT_ISSUE_SOURCE,
       { prioritizeOnly: true, dryRun: true },
     );
 
@@ -2873,7 +2931,7 @@ Deno.test("runBatch all-terminal issues returns completed status", async () => {
     const dispatcher = new StubDispatcher({});
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     assertEquals(result.status, "completed");
     assertEquals(result.processed.length, 0);
@@ -2901,7 +2959,7 @@ Deno.test("runBatch empty sync returns completed status", async () => {
     const dispatcher = new StubDispatcher({});
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     assertEquals(result.status, "completed");
     assertEquals(result.processed.length, 0);
@@ -2954,7 +3012,7 @@ Deno.test("runBatch with processing error returns partial status", async () => {
     };
     const orchestrator = new Orchestrator(config, github, dispatcher, tmpDir);
 
-    const result = await orchestrator.runBatch({});
+    const result = await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     assertEquals(result.status, "partial");
     assertEquals(result.processed.length, 0);
@@ -2992,7 +3050,8 @@ Deno.test("rate limit throttle: completes normally when resetsAt is in the past"
     { iterator: "success", reviewer: "approved" },
     rateLimitInfo,
   );
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -3023,7 +3082,8 @@ Deno.test("rate limit throttle: skipped when utilization is below threshold", as
     { iterator: "success" },
     rateLimitInfo,
   );
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -3044,7 +3104,8 @@ Deno.test("rate limit throttle: no rateLimitInfo proceeds without throttle", asy
 
   // No rateLimitInfo at all
   const dispatcher = new StubDispatcher({ iterator: "success" });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -3141,7 +3202,8 @@ Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", 
     { iterator: "success" },
     rateLimitInfo,
   );
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
 
   const result = await orchestrator.run(1);
 
@@ -3159,7 +3221,8 @@ Deno.test("verdict propagation: approved routes via validator outputPhases to co
     iterator: "success",
     reviewer: "approved",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
   const result = await orchestrator.run(1);
 
   assertEquals(result.status, "completed");
@@ -3183,7 +3246,8 @@ Deno.test("verdict propagation: rejected routes via validator outputPhases to re
     iterator: "success",
     reviewer: "rejected",
   });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
   const result = await orchestrator.run(1);
 
   assertEquals(result.history[1].from, "review");
@@ -3195,7 +3259,8 @@ Deno.test("verdict propagation: unknown verdict falls back to fallbackPhase", as
   const config = createTestConfig();
   const github = new StubGitHubClient([["review"], ["blocked"]]);
   const dispatcher = new StubDispatcher({ reviewer: "unknown-verdict" });
-  const orchestrator = new Orchestrator(config, github, dispatcher);
+  const orchestrator =
+    buildOrchestratorWithChannels({ config, github, dispatcher }).orchestrator;
   const result = await orchestrator.run(1);
 
   assertEquals(result.status, "blocked");

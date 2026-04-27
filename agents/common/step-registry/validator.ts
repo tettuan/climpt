@@ -359,20 +359,29 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.name !== "string" || !step.name) {
       errors.push(`Step "${stepId}": name must be a non-empty string`);
     }
-    if (typeof step.c2 !== "string" || !step.c2) {
-      errors.push(`Step "${stepId}": c2 must be a non-empty string`);
-    }
-    if (typeof step.c3 !== "string" || !step.c3) {
-      errors.push(`Step "${stepId}": c3 must be a non-empty string`);
-    } else if (!/^[a-z]+(-[a-z]+)*$/.test(step.c3)) {
-      errors.push(
-        `Step "${stepId}": c3 "${step.c3}" is invalid. ` +
-          `c3 must be lowercase kebab-case (e.g., "issue", "external-state"). ` +
-          `camelCase like "externalState" is rejected by @tettuan/breakdown LayerType validation.`,
-      );
-    }
-    if (typeof step.edition !== "string" || !step.edition) {
-      errors.push(`Step "${stepId}": edition must be a non-empty string`);
+    const address = step.address as
+      | { c2?: unknown; c3?: unknown; edition?: unknown; adaptation?: unknown }
+      | undefined;
+    if (!address || typeof address !== "object") {
+      errors.push(`Step "${stepId}": address must be a C3LAddress object`);
+    } else {
+      if (typeof address.c2 !== "string" || !address.c2) {
+        errors.push(`Step "${stepId}": address.c2 must be a non-empty string`);
+      }
+      if (typeof address.c3 !== "string" || !address.c3) {
+        errors.push(`Step "${stepId}": address.c3 must be a non-empty string`);
+      } else if (!/^[a-z]+(-[a-z]+)*$/.test(address.c3)) {
+        errors.push(
+          `Step "${stepId}": address.c3 "${address.c3}" is invalid. ` +
+            `c3 must be lowercase kebab-case (e.g., "issue", "external-state"). ` +
+            `camelCase like "externalState" is rejected by @tettuan/breakdown LayerType validation.`,
+        );
+      }
+      if (typeof address.edition !== "string" || !address.edition) {
+        errors.push(
+          `Step "${stepId}": address.edition must be a non-empty string`,
+        );
+      }
     }
     if (!Array.isArray(step.uvVariables)) {
       errors.push(`Step "${stepId}": uvVariables must be an array`);
@@ -381,17 +390,19 @@ export function validateStepRegistry(registry: StepRegistry): void {
       errors.push(`Step "${stepId}": usesStdin must be a boolean`);
     }
 
-    // Flow steps (with structuredGate) require explicit stepKind for tool permission enforcement
-    // This is a mandatory requirement per 08_step_flow_design.md
-    if (step.structuredGate && !step.stepKind) {
+    // Flow steps (with structuredGate) require an explicit kind for tool
+    // permission enforcement. After T1.3 the loader populates `kind`
+    // unconditionally (inferred from c2 when JSON omits stepKind) so this
+    // assertion is a defensive guard against malformed in-memory steps.
+    if (step.structuredGate && !step.kind) {
       errors.push(
-        `Step "${stepId}": Flow step (has structuredGate) must have explicit stepKind. ` +
-          `Tool permissions depend on stepKind. Set stepKind to "work", "verification", or "closure".`,
+        `Step "${stepId}": Flow step (has structuredGate) must have explicit kind. ` +
+          `Tool permissions depend on kind. Set kind to "work", "verification", or "closure".`,
       );
     }
 
-    // Validate stepKind and intent constraints
-    const kind = inferStepKind(step);
+    // Validate kind and intent constraints
+    const kind = step.kind;
     if (kind && step.structuredGate) {
       const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
       for (const intent of step.structuredGate.allowedIntents) {

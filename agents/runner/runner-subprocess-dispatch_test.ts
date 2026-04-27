@@ -18,6 +18,7 @@
 
 import { assertEquals } from "@std/assert";
 import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import {
   type CommandRunner,
   runSubprocessRunner,
@@ -51,7 +52,7 @@ function okRunner(stdout: string, stderr = ""): CommandRunner {
 // -----------------------------------------------------------------------------
 
 Deno.test("PromptStepDefinition - runner field is optional (non-interference)", () => {
-  const withoutRunner: PromptStepDefinition = {
+  const withoutRunner: PromptStepDefinition = makeStep({
     stepId: "closure.legacy",
     name: "Legacy closure",
     c2: "closure",
@@ -59,10 +60,10 @@ Deno.test("PromptStepDefinition - runner field is optional (non-interference)", 
     edition: "default",
     uvVariables: [],
     usesStdin: false,
-  };
+  });
   assertEquals(withoutRunner.runner, undefined);
 
-  const withRunner: PromptStepDefinition = {
+  const withRunner: PromptStepDefinition = makeStep({
     stepId: "closure.merge",
     name: "Merge closure",
     c2: "closure",
@@ -75,7 +76,7 @@ Deno.test("PromptStepDefinition - runner field is optional (non-interference)", 
       args: ["run", "script.ts", "--pr", "${context.prNumber}"],
       timeout: 30000,
     },
-  };
+  });
   assertEquals(withRunner.runner?.command, "deno");
   assertEquals(withRunner.runner?.timeout, 30000);
 });
@@ -200,7 +201,7 @@ Deno.test(
     // branch (agents/runner/runner.ts `getSubprocessRunnerStep`) returns
     // null when runner.command is falsy, causing the existing Completion
     // Loop path (runClosureIteration → LLM) to execute unchanged.
-    const legacyStep: PromptStepDefinition = {
+    const legacyStep: PromptStepDefinition = makeStep({
       stepId: "closure.legacy",
       name: "Legacy closure",
       c2: "closure",
@@ -209,7 +210,7 @@ Deno.test(
       uvVariables: [],
       usesStdin: false,
       // no runner field
-    };
+    });
 
     // Contract: getSubprocessRunnerStep returns null iff runner.command
     // is falsy. This is the non-interference guarantee for existing agents.

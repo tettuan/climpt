@@ -55,6 +55,15 @@ export interface PrData {
   }>;
   baseRefName: string;
   headRefName: string;
+  /**
+   * PR body (markdown). Used by the merge-pr wrapper to extract
+   * `Closes #N` references after a successful merge so the parent's
+   * MergeCloseAdapter can publish `IssueClosedEvent(M)` for the
+   * server-auto-closed issue (PR4-4 T4.5, design 44 §B
+   * `Skip_NoClosesInBody`). Optional because pre-PR4-4 callers and
+   * test fixtures may omit it; the merge gates do not depend on it.
+   */
+  body?: string;
 }
 
 // Verdict type is authored in agents/verdict/pr-merger-verdict.ts.

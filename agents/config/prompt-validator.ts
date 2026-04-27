@@ -142,13 +142,16 @@ export async function validatePrompts(
         const adaptation = typeof step.adaptation === "string"
           ? step.adaptation
           : undefined;
-        const mainPath = buildPromptFilePath(
-          promptRoot,
+        // Synthesize a C3LAddress for buildPromptFilePath. The validator
+        // works on raw disk JSON (asRecord) which still carries the 5-tuple
+        // as separate fields; c1 is unused by buildPromptFilePath itself.
+        const mainPath = buildPromptFilePath(promptRoot, {
+          c1: "",
           c2,
           c3,
           edition,
           adaptation,
-        );
+        });
 
         fileChecks.push({
           stepId,

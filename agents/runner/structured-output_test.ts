@@ -13,6 +13,7 @@ import { assert, assertEquals, assertExists } from "@std/assert";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import { join } from "@std/path";
 import { PATHS } from "../shared/paths.ts";
 
@@ -59,7 +60,7 @@ Deno.test("StructuredOutput - loadSchemaForStep loads schema from outputSchemaRe
       version: "1.0.0",
       c1: "steps",
       steps: {
-        "initial.test": {
+        "initial.test": makeStep({
           stepId: "initial.test",
           name: "Test Initial",
           c2: "initial",
@@ -71,7 +72,7 @@ Deno.test("StructuredOutput - loadSchemaForStep loads schema from outputSchemaRe
             file: "test.schema.json",
             schema: "initial.test",
           },
-        },
+        }),
       },
     };
 

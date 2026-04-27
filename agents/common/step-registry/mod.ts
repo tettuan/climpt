@@ -11,9 +11,13 @@
 
 // Types
 export type {
+  C3LAddress,
   GateIntent,
+  ModelRef,
   PromptStepDefinition,
   RegistryLoaderOptions,
+  RetryPolicy,
+  Step,
   StepKind,
   StepRegistry,
   StepType,
@@ -34,7 +38,7 @@ export {
 } from "./utils.ts";
 
 // Loader
-export { loadStepRegistry } from "./loader.ts";
+export { loadStepRegistry, normalizeStepRegistry } from "./loader.ts";
 
 // Validator
 export {

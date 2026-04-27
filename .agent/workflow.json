@@ -1,6 +1,10 @@
 {
   "$schema": "../agents/orchestrator/workflow-schema.json",
   "version": "1.0.0",
+  "issueSource": {
+    "kind": "ghRepoIssues",
+    "projectMembership": "unbound"
+  },
   "phases": {
     "impl-pending": {
       "type": "actionable",
@@ -27,11 +31,6 @@
       "priority": 5,
       "agent": "project-planner"
     },
-    "eval-pending": {
-      "type": "actionable",
-      "priority": 6,
-      "agent": "project-evaluator"
-    },
     "done": {
       "type": "terminal"
     }
@@ -42,8 +41,7 @@
     "kind:consider": "consider-pending",
     "done": "done",
     "need clearance": "blocked",
-    "kind:plan": "plan-pending",
-    "kind:eval": "eval-pending"
+    "kind:plan": "plan-pending"
   },
   "labels": {
     "kind:impl": {
@@ -66,49 +64,9 @@
       "color": "d93f0b",
       "description": "Blocked — requires human clearance"
     },
-    "order:1": {
-      "color": "c2e0c6",
-      "description": "Work order seq 1 (higher = sooner)"
-    },
-    "order:2": {
-      "color": "c2e0c6",
-      "description": "Work order seq 2"
-    },
-    "order:3": {
-      "color": "c2e0c6",
-      "description": "Work order seq 3"
-    },
-    "order:4": {
-      "color": "c2e0c6",
-      "description": "Work order seq 4"
-    },
-    "order:5": {
-      "color": "c2e0c6",
-      "description": "Work order seq 5"
-    },
-    "order:6": {
-      "color": "c2e0c6",
-      "description": "Work order seq 6"
-    },
-    "order:7": {
-      "color": "c2e0c6",
-      "description": "Work order seq 7"
-    },
-    "order:8": {
-      "color": "c2e0c6",
-      "description": "Work order seq 8"
-    },
-    "order:9": {
-      "color": "c2e0c6",
-      "description": "Work order seq 9"
-    },
     "kind:plan": {
       "color": "c5def5",
       "description": "Planning request (project-planner)"
-    },
-    "kind:eval": {
-      "color": "d4c5f9",
-      "description": "Evaluation request (project-evaluator)"
     },
     "project-sentinel": {
       "color": "e6e6e6",
@@ -122,7 +80,10 @@
       "directory": "iterator",
       "outputPhase": "done",
       "fallbackPhase": "blocked",
-      "closeOnComplete": true
+      "closeBinding": {
+        "primary": { "kind": "direct" },
+        "cascade": false
+      }
     },
     "considerer": {
       "role": "validator",
@@ -132,8 +93,11 @@
         "handoff-detail": "detail-pending"
       },
       "fallbackPhase": "blocked",
-      "closeOnComplete": true,
-      "closeCondition": "done"
+      "closeBinding": {
+        "primary": { "kind": "direct" },
+        "cascade": false,
+        "condition": "done"
+      }
     },
     "detailer": {
       "role": "validator",
@@ -143,7 +107,10 @@
         "blocked": "blocked"
       },
       "fallbackPhase": "blocked",
-      "closeOnComplete": false
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
     },
     "clarifier": {
       "role": "validator",
@@ -153,21 +120,20 @@
         "ready-to-consider": "consider-pending"
       },
       "fallbackPhase": "consider-pending",
-      "closeOnComplete": false
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
     },
     "project-planner": {
       "role": "transformer",
       "directory": "project-planner",
       "outputPhase": "done",
       "fallbackPhase": "blocked",
-      "closeOnComplete": false
-    },
-    "project-evaluator": {
-      "role": "transformer",
-      "directory": "project-evaluator",
-      "outputPhase": "done",
-      "fallbackPhase": "blocked",
-      "closeOnComplete": true
+      "closeBinding": {
+        "primary": { "kind": "none" },
+        "cascade": false
+      }
     }
   },
   "handoff": {
@@ -178,31 +144,10 @@
       "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}"
     }
   },
-  "prioritizer": {
-    "agent": "prioritizer",
-    "labels": [
-      "order:1",
-      "order:2",
-      "order:3",
-      "order:4",
-      "order:5",
-      "order:6",
-      "order:7",
-      "order:8",
-      "order:9"
-    ]
-  },
   "rules": {
     "maxCycles": 7,
     "cycleDelayMs": 30000,
     "maxConsecutivePhases": 3
-  },
-  "projectBinding": {
-    "inheritProjectsForCreateIssue": true,
-    "donePhase": "done",
-    "evalPhase": "eval-pending",
-    "planPhase": "plan-pending",
-    "sentinelLabel": "project-sentinel"
   },
   "subjectStore": {
     "path": ".agent/climpt/tmp/issues-execute"

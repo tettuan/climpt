@@ -40,15 +40,20 @@ export interface BaseAgentDefinition {
   /** Phase to transition to on error */
   fallbackPhase?: string;
 
-  /** Close the GitHub issue when this agent's outcome leads to a terminal phase */
-  closeOnComplete?: boolean;
-
   /**
-   * Only close the issue when the outcome matches this value.
-   * Requires closeOnComplete: true. Useful for validators that route
-   * to different terminal phases (e.g., close only on "approved").
+   * Declarative close-path binding (design 13 §F).
+   *
+   * Replaces the legacy `closeOnComplete` (bool) + `closeCondition`
+   * (string) pair. `primary.kind === "direct"` enables close on
+   * terminal-bound transitions; `"none"` disables it. Optional
+   * `condition` filters by dispatch outcome (validators that route to
+   * different terminal phases close only when the outcome equals the
+   * condition value).
+   *
+   * Absence is equivalent to
+   * `{ primary: { kind: "none" }, cascade: false }` (no close).
    */
-  closeCondition?: string;
+  closeBinding?: import("../src_common/types/agent-bundle.ts").CloseBinding;
 }
 
 /** Agent that produces a single output phase on success */
@@ -80,6 +85,70 @@ export interface ValidatorDefinition extends BaseAgentDefinition {
 
 /** Discriminated union of all agent definition types */
 export type AgentDefinition = TransformerDefinition | ValidatorDefinition;
+
+// === AgentInvocation (R2a) ===
+
+/**
+ * AgentInvocation — a single (phase, agent) binding.
+ *
+ * Realistic schema (design 12 §D) promotes the legacy
+ * `agents: Record<id, AgentDefinition>` + `phases.{id}.agent` 1:1 pair
+ * into a list of `AgentInvocation` so multi-agent dispatch (R2a) is
+ * representable. The list is uniqueness-checked under W11
+ * (phase × agent × invocationIndex) — phase versioning is the primary
+ * mechanism for "same logical phase, multiple agents" (15 §C).
+ *
+ * On disk the shape stays as `phases.{id}.agent` 1:1 today; the loader
+ * derives `WorkflowConfig.invocations` as a runtime-computed view (§D
+ * "computed bidirectional view"). Disk migration is a later phase.
+ */
+export interface AgentInvocation {
+  /** Phase id this invocation fires for. */
+  readonly phase: string;
+
+  /** Agent id (Boot frozen AgentRegistry lookup key). */
+  readonly agentId: string;
+
+  /**
+   * Position within the invocation list when the same logical phase has
+   * multiple agents bound. Absent (or `0`) for the 1:1 baseline.
+   */
+  readonly invocationIndex?: number;
+}
+
+/**
+ * Derive `WorkflowConfig.invocations` from the legacy 1:1 disk shape
+ * (`phases.{id}.agent` × `agents.{id}`).
+ *
+ * Per design 12 §D the invocation list is the single source of truth for
+ * multi-agent dispatch (R2a); the on-disk schema stays as `phases.{id}.agent`
+ * for now and this function projects it into the realistic view. Phases
+ * without an agent (terminal / blocking) and phases whose agent is not
+ * registered in `agents` are skipped — both cases surface as
+ * loader-side cross-reference errors elsewhere (W2 / W3 family). The
+ * derivation itself is total (it never throws): downstream Boot
+ * validation is responsible for rejecting malformed configurations.
+ *
+ * `invocationIndex` is omitted (defaulting to 0) for the 1:1 baseline.
+ * Once the disk schema gains per-phase invocation arrays, the index
+ * will be populated by this function.
+ *
+ * Exported so loaders, test fixtures, and synthesised workflows
+ * (e.g. `BootKernel.bootStandalone`) share the same projection.
+ */
+export function deriveInvocations(
+  phases: Record<string, PhaseDefinition>,
+  agents: Record<string, AgentDefinition>,
+): ReadonlyArray<AgentInvocation> {
+  const invocations: AgentInvocation[] = [];
+  for (const [phaseId, decl] of Object.entries(phases)) {
+    const agentId = decl.agent;
+    if (agentId === null || agentId === undefined) continue;
+    if (!Object.prototype.hasOwnProperty.call(agents, agentId)) continue;
+    invocations.push({ phase: phaseId, agentId });
+  }
+  return invocations;
+}
 
 // === Labels ===
 
@@ -196,6 +265,17 @@ export interface WorkflowConfig {
   /** Optional label namespace prefix (e.g. "docs" produces "docs:ready") */
   labelPrefix?: string;
 
+  /**
+   * Batch-mode SubjectPicker input source.
+   *
+   * Required: every `workflow.json` must declare exactly one variant of
+   * the {@link IssueSource} ADT. CLI argv (e.g. `--project`,
+   * `--all-projects`, `--label`) overrides this default per invocation
+   * (see `agents/scripts/run-workflow.ts`). See design
+   * `agents/docs/design/realistic/12-workflow-config.md` §C.
+   */
+  issueSource: IssueSource;
+
   /** Phase definitions keyed by phase ID */
   phases: Record<string, PhaseDefinition>;
 
@@ -215,6 +295,15 @@ export interface WorkflowConfig {
 
   /** Agent definitions keyed by agent ID */
   agents: Record<string, AgentDefinition>;
+
+  /**
+   * Multi-agent dispatch bindings (R2a). Computed bidirectional view of
+   * `phases.{id}.agent` × `agents.{id}` (design 12 §D). The disk schema
+   * still uses the 1:1 `phases.{id}.agent` mapping; the loader derives
+   * this list at parse time so Boot validators (W11) and the
+   * SubjectPicker can read a single source of truth.
+   */
+  readonly invocations: ReadonlyArray<AgentInvocation>;
 
   /** Execution constraints */
   rules: WorkflowRules;
@@ -322,25 +411,85 @@ export interface ProjectBindingConfig {
 /** Project reference — identifies a GitHub Project v2 by owner+number or node id. */
 export type ProjectRef = { owner: string; number: number } | { id: string };
 
-/** Criteria for fetching issues */
+/** Repository reference — `<owner>/<name>` form consumed by gh CLI `--repo`. */
+export type RepoRef = string;
+
+/**
+ * Issue identifier as ingested by the orchestrator. Numeric form is the
+ * GitHub issue number; string form preserves callers (e.g. SubjectStore)
+ * that key by stringified ids. Aligns with `subject-store` identifier shape.
+ */
+export type SubjectRef = string | number;
+
+/**
+ * State filter for `IssueSource` listing. Distinct from
+ * `agents/verdict/external-state-checker.ts`'s `IssueState` (which models
+ * runtime closed/closedAt of a single issue) — this is purely a query
+ * filter.
+ */
+export type IssueQueryState = "open" | "closed" | "all";
+
+/**
+ * `GhRepoIssues` project-membership mode.
+ *
+ * `unbound` (default for batch mode without `--project` / `--all-projects`)
+ * keeps only issues that belong to no Project v2 — the "global queue"
+ * complement of any project-scoped run. `any` (escape hatch from
+ * `--all-projects`) keeps every matching issue regardless of membership.
+ *
+ * The mode is enumerated explicitly so the discriminator is at the type
+ * level (not field-presence) — see design `12-workflow-config.md` §C.
+ */
+export type GhRepoIssuesMembership = "any" | "unbound";
+
+/**
+ * IssueSource ADT — declares where the orchestrator's batch input comes from.
+ *
+ * Replaces the implicit field-presence pattern of the legacy
+ * {@link IssueCriteria} by promoting the variant to an explicit `kind`
+ * discriminator. See `agents/docs/design/realistic/12-workflow-config.md`
+ * §C for the design intent. Layer 4 frozen prep — collection fields are
+ * `readonly`.
+ */
+export type IssueSource =
+  | {
+    readonly kind: "ghProject";
+    readonly project: ProjectRef;
+    readonly labels?: readonly string[];
+    readonly state?: IssueQueryState;
+    readonly limit?: number;
+  }
+  | {
+    readonly kind: "ghRepoIssues";
+    readonly repo?: RepoRef;
+    readonly labels?: readonly string[];
+    readonly state?: IssueQueryState;
+    readonly limit?: number;
+    /**
+     * Project-membership filter applied after the gh listing. Defaults
+     * to `"unbound"` to mirror the legacy default ("global queue"
+     * complement of any project-scoped run). `"any"` is the escape hatch
+     * formerly known as `criteria.allProjects = true`.
+     */
+    readonly projectMembership?: GhRepoIssuesMembership;
+  }
+  | {
+    readonly kind: "explicit";
+    readonly issueIds: readonly SubjectRef[];
+  };
+
+/**
+ * Internal listing-criteria shape consumed by {@link GitHubClient.listIssues}.
+ *
+ * Kept as a transport-level helper for `gh issue list` argument
+ * construction. {@link IssueSource} is the public ADT; this interface is
+ * derived from a source variant inside `IssueSyncer`.
+ */
 export interface IssueCriteria {
-  labels?: string[];
-  repo?: string;
-  state?: "open" | "closed" | "all";
+  labels?: readonly string[];
+  repo?: RepoRef;
+  state?: IssueQueryState;
   limit?: number;
-  /**
-   * Restrict the batch to issues belonging to this Project v2.
-   * When set, only project members are processed.
-   */
-  project?: ProjectRef;
-  /**
-   * Disable the default unbound-only filter. When `project` is undefined
-   * and `allProjects` is true, every matching issue is processed regardless
-   * of Project v2 membership. Default behavior (both undefined) restricts
-   * the batch to issues that belong to NO Project v2 — the "global queue"
-   * complement of any project-scoped run.
-   */
-  allProjects?: boolean;
 }
 
 // === Orchestrator Results ===
@@ -349,6 +498,37 @@ export interface IssueCriteria {
 export interface OrchestratorOptions {
   verbose?: boolean;
   dryRun?: boolean;
+  /**
+   * SubjectPicker source label for the `dispatchPlanned` event payload
+   * (T5.3, design 11 §B / 30 §B). Mirrors `SubjectQueueItem.source`:
+   *
+   *   - `"workflow"` — picker fed by `IssueSyncer` (run-workflow).
+   *   - `"argv"`     — picker fed by argv lift (run-agent standalone).
+   *   - `"prePass"`  — prioritizer pre-pass (reserved; T5 baseline N/A).
+   *
+   * Optional. Omitting it preserves the legacy `"workflow"` default so
+   * existing callers (BatchRunner, single-issue mode invoked directly
+   * via `Orchestrator.run`) keep their event payload shape unchanged.
+   * `Orchestrator.runOne` populates this from the queue item.
+   */
+  dispatchSource?: "workflow" | "argv" | "prePass";
+  /**
+   * Initial dispatch payload override (T5.3 R2b cutover for run-agent).
+   *
+   * When set, `Orchestrator` forwards this map to the dispatcher's
+   * `DispatchOptions.payload` for the **first** cycle. Used by
+   * standalone mode (`run-agent.ts`) where there is no `SubjectStore`
+   * (and therefore no persisted payload) but the user passed CLI flags
+   * that map to `definition.parameters`. The standalone caller computes
+   * the payload from CLI argv before calling `runOne`, and the
+   * orchestrator surfaces it through the same dispatcher seam workflow
+   * mode uses (R5 hard gate).
+   *
+   * Subsequent cycles (multi-cycle runs) read store payload as usual.
+   * In standalone mode `maxCycles` is 1 (synthesised workflow), so this
+   * override drives the only dispatch.
+   */
+  initialPayload?: Readonly<Record<string, unknown>>;
 }
 
 /** Final result of a single-issue workflow run. */
@@ -363,8 +543,11 @@ export interface OrchestratorResult {
     | "cycle_exceeded"
     | "phase_repetition_exceeded"
     | "dry-run";
-  /** True when closeOnComplete triggered and gh issue close succeeded */
-  issueClosed?: boolean;
+  // T6.2 (post PR4-2b): the deprecated `issueClosed?: boolean` field
+  // was deleted here. Close success/failure is observable via the bus
+  // event log (`IssueClosedEvent` / `IssueCloseFailedEvent`); under
+  // W13 a close failure leaves `status` at `"completed"`. Callers that
+  // need the close fact must subscribe to the bus.
 }
 
 /** Options for batch orchestrator execution. */

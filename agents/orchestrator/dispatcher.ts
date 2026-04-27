@@ -16,7 +16,9 @@ import type {
   RateLimitInfo,
 } from "../src_common/types/runtime.ts";
 import { AgentRunner } from "../runner/runner.ts";
-import { loadConfiguration } from "../config/mod.ts";
+import { agentBundleToResolvedDefinition } from "../config/mod.ts";
+import type { AgentRegistry } from "../boot/types.ts";
+import type { CloseEventBus } from "../events/bus.ts";
 import { getValueAtPath } from "../runner/step-gate-interpreter.ts";
 
 /**
@@ -233,16 +235,67 @@ export class StubDispatcher implements AgentDispatcher {
 /**
  * Real dispatcher that invokes AgentRunner in-process.
  *
- * Loads agent configuration and calls AgentRunner.run() directly,
- * avoiding subprocess overhead and piped stdout parsing.
+ * Resolves the agent's bundle via the frozen
+ * {@link AgentRegistry.lookup} (populated once by `BootKernel.boot`,
+ * design 10 §B input 2) — no per-dispatch disk reload — and projects
+ * to the legacy {@link ResolvedAgentDefinition} runtime shape so
+ * `AgentRunner` stays unchanged (Option A; runner-side migration is
+ * T1.4's concern).
  */
 export class RunnerDispatcher implements AgentDispatcher {
   #config: WorkflowConfig;
+  #agentRegistry: AgentRegistry;
   #cwd: string;
+  #bus: CloseEventBus | undefined;
+  #runId: string | undefined;
+  /**
+   * `BoundaryCloseChannel` reference from
+   * `BootArtifacts.boundaryClose` (PR4-3). Forwarded to AgentRunner
+   * via `RunnerOptions.boundaryClose` so the closure-step verdict
+   * adapter can delegate close-writes to the channel instead of
+   * shelling out `gh issue close` itself (T4.4c cutover).
+   */
+  #boundaryClose:
+    | import("../channels/boundary-close.ts").BoundaryCloseChannel
+    | undefined;
 
-  constructor(config: WorkflowConfig, cwd: string) {
+  /**
+   * Construct a `RunnerDispatcher`.
+   *
+   * @param config        Frozen WorkflowConfig (design 12 §B). The
+   *                      dispatcher reads `agents[agentId]` to discover
+   *                      `role` / `outputPhases` for outcome resolution
+   *                      and to validate that the requested agentId is
+   *                      declared in the workflow.
+   * @param agentRegistry Frozen `AgentRegistry` from
+   *                      `BootArtifacts.agentRegistry`. The single
+   *                      source of truth for AgentBundle lookup (T2.3).
+   * @param cwd           Working directory forwarded to `AgentRunner`.
+   * @param bus           T3.3 (shadow mode): frozen `CloseEventBus` from
+   *                      `BootArtifacts.bus`. Forwarded to
+   *                      {@link AgentRunner.run} so closure-step
+   *                      boundary hooks can publish
+   *                      `closureBoundaryReached`. Optional — legacy
+   *                      callers / StubDispatcher tests omit it.
+   * @param runId         Stable boot correlation id; paired with
+   *                      {@link bus}. Becomes `BaseEvent.runId` for
+   *                      every event the runner publishes.
+   */
+  constructor(
+    config: WorkflowConfig,
+    agentRegistry: AgentRegistry,
+    cwd: string,
+    bus?: CloseEventBus,
+    runId?: string,
+    boundaryClose?:
+      import("../channels/boundary-close.ts").BoundaryCloseChannel,
+  ) {
     this.#config = config;
+    this.#agentRegistry = agentRegistry;
     this.#cwd = cwd;
+    this.#bus = bus;
+    this.#runId = runId;
+    this.#boundaryClose = boundaryClose;
   }
 
   async dispatch(
@@ -258,9 +311,22 @@ export class RunnerDispatcher implements AgentDispatcher {
         `Unknown agent id "${agentId}": not declared in workflow.agents`,
       );
     }
-    const agentName = agent.directory ?? agentId;
 
-    const definition = await loadConfiguration(agentName, this.#cwd);
+    // The registry is exhaustive by Boot rule A1 + W11 — every workflow
+    // agent has a corresponding bundle. A miss here indicates Boot
+    // failed to validate before reaching dispatch (defensive guard).
+    const bundle = this.#agentRegistry.lookup(agentId);
+    if (!bundle) {
+      throw new Error(
+        `RunnerDispatcher: agentId "${agentId}" not present in frozen ` +
+          `AgentRegistry. The Boot kernel should have rejected this ` +
+          `workflow before dispatch (rule A1 / W11).`,
+      );
+    }
+
+    // Project bundle → ResolvedAgentDefinition for AgentRunner. Pure
+    // type-only translation, no disk I/O — the bundle is already frozen.
+    const definition = agentBundleToResolvedDefinition(bundle);
 
     // Payload is spread as the base layer; fixed orchestration keys
     // always win on collision, and unknown payload keys are forwarded
@@ -274,22 +340,35 @@ export class RunnerDispatcher implements AgentDispatcher {
       plugins: [],
       verbose: options?.verbose,
       issuePayload: options?.payload,
+      // T3.3: forward the boot bus + runId so the runner's BoundaryHooks
+      // publishes `closureBoundaryReached` against the correct boot
+      // correlation id. When the dispatcher was constructed without a
+      // bus (legacy / tests), both fields are `undefined` and the
+      // runner publishes nothing.
+      bus: this.#bus,
+      runId: this.#runId,
+      // PR4-3 (T4.4c): forward the BoundaryCloseChannel so the
+      // closure-step verdict adapter can delegate close-writes to the
+      // channel instead of shelling out `gh issue close` itself.
+      boundaryClose: this.#boundaryClose,
     });
 
     const durationMs = performance.now() - startMs;
 
-    // deno-lint-ignore no-explicit-any
-    const registry = (definition as any).__stepsRegistry as
-      | {
-        steps: Record<
-          string,
-          { stepKind?: string; structuredGate?: { handoffFields?: string[] } }
-        >;
-      }
-      | undefined;
+    // Use the typed Step list directly for handoff extraction. The legacy
+    // `__stepsRegistry` side-channel is still synthesized by
+    // `agentBundleToResolvedDefinition` for any legacy reader, but we
+    // bypass it here and walk the typed bundle.steps so the dispatcher
+    // does not depend on the projection's internal shape.
+    // TODO[T1.4]: collapse extractHandoffData onto Step / AgentBundle
+    // so the legacy `{stepKind, structuredGate}` shape is no longer
+    // needed at this site.
     const handoffData = extractHandoffData(
       result,
-      registry ? Object.values(registry.steps) : [],
+      bundle.steps.map((s) => ({
+        stepKind: s.kind,
+        structuredGate: s.structuredGate,
+      })),
     );
 
     const lastSummary = result.summaries[result.summaries.length - 1];

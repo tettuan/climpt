@@ -113,14 +113,6 @@ export class WorkflowRouter {
       };
     }
 
-    if (intent === "abort") {
-      return {
-        nextStepId: currentStepId,
-        signalClosing: true,
-        reason: interpretation.reason ?? "Intent: abort",
-      };
-    }
-
     if (intent === "repeat") {
       // Closure steps never reach the router — processed by
       // runClosureIteration → runClosureLoop (Stage 2.5).
@@ -329,11 +321,6 @@ export class WorkflowRouter {
 
     const allowedIntents = STEP_KIND_ALLOWED_INTENTS[stepKind];
 
-    // Note: abort is always allowed (emergency exit)
-    if (intent === "abort") {
-      return;
-    }
-
     // Check if intent is allowed for this step kind
     if (!allowedIntents.includes(intent as never)) {
       throw srIntentNotAllowed(intent, stepKind, stepId, allowedIntents);
@@ -358,7 +345,7 @@ export class WorkflowRouter {
     // Warn (but allow) handoff from initial steps per 08_step_flow_design.md Section 7.3:
     // "Runtime logs will warn when handoff is emitted from initial.* step"
     let initialStepWarning: string | undefined;
-    if (stepDef?.c2 === STEP_PHASE.INITIAL) {
+    if (stepDef?.address.c2 === STEP_PHASE.INITIAL) {
       initialStepWarning = `Handoff from initial step '${currentStepId}'. ` +
         `Consider using 'next' to proceed to continuation steps first. ` +
         `See design/08_step_flow_design.md Section 7.3.`;

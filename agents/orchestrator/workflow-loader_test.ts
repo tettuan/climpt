@@ -20,6 +20,8 @@ const REPO_ROOT = fromFileUrl(new URL("../../", import.meta.url));
 function validConfig(): Record<string, unknown> {
   return {
     version: "1.0.0",
+    // T1.1: required IssueSource ADT (12-workflow-config.md §C)
+    issueSource: { kind: "ghRepoIssues", projectMembership: "unbound" },
     phases: {
       implementation: { type: "actionable", priority: 1, agent: "iterator" },
       review: { type: "actionable", priority: 2, agent: "reviewer" },
@@ -88,6 +90,126 @@ Deno.test("workflow-loader: missing workflow.json throws", async () => {
       Error,
     );
     assertStringIncludes(err.message, "not found");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+// =============================================================================
+// IssueSource ADT (T1.1, design 12-workflow-config.md §C)
+// =============================================================================
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-001 — missing issueSource rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    delete (cfg as Record<string, unknown>).issueSource;
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-001");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-002 — unknown kind rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = { kind: "ghMystery" };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-002");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-003 — ghProject without project field rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = { kind: "ghProject" };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-003");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-004 — explicit with empty issueIds rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "explicit",
+      issueIds: [],
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-004");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: WF-ISSUE-SOURCE-005 — invalid projectMembership rejected", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "ghRepoIssues",
+      projectMembership: "invalid-mode",
+    };
+    await writeFixture(dir, cfg);
+    const err = await assertRejects(() => loadWorkflow(dir), Error);
+    assertStringIncludes(err.message, "WF-ISSUE-SOURCE-005");
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: ghProject variant loads with full ProjectRef", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "ghProject",
+      project: { owner: "tettuan", number: 42 },
+      labels: ["kind:impl"],
+      state: "open",
+      limit: 30,
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.issueSource.kind, "ghProject");
+    if (config.issueSource.kind === "ghProject") {
+      assertEquals(config.issueSource.project, {
+        owner: "tettuan",
+        number: 42,
+      });
+      assertEquals(config.issueSource.labels, ["kind:impl"]);
+    }
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("workflow-loader: explicit variant loads with non-empty issueIds", async () => {
+  const dir = await Deno.makeTempDir();
+  try {
+    const cfg = validConfig();
+    (cfg as Record<string, unknown>).issueSource = {
+      kind: "explicit",
+      issueIds: [11, 22, 33],
+    };
+    await writeFixture(dir, cfg);
+    const config = await loadWorkflow(dir);
+    assertEquals(config.issueSource.kind, "explicit");
+    if (config.issueSource.kind === "explicit") {
+      assertEquals(config.issueSource.issueIds, [11, 22, 33]);
+    }
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
@@ -334,10 +456,10 @@ Deno.test("workflow-loader: labelPrefix field is parsed", async () => {
 });
 
 // =============================================================================
-// Cross-reference: closeCondition validation
+// Cross-reference: closeBinding.condition validation (T6.2)
 // =============================================================================
 
-Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF-005", async () => {
+Deno.test("workflow-loader: closeBinding.condition without active primary throws WF-REF-005", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -345,7 +467,13 @@ Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeCondition: "approved", // no closeOnComplete
+      // primary=none + condition is the post-T6.2 equivalent of the
+      // legacy "closeCondition without closeOnComplete" misconfiguration.
+      closeBinding: {
+        primary: { kind: "none" },
+        cascade: false,
+        condition: "approved",
+      },
     };
     await writeFixture(dir, cfg);
     const err = await assertRejects(
@@ -359,15 +487,15 @@ Deno.test("workflow-loader: closeCondition without closeOnComplete throws WF-REF
     );
     assertStringIncludes(
       err.message,
-      "closeOnComplete",
-      "Error should mention closeOnComplete. Fix: config-errors.ts WF-REF-005",
+      "closeBinding",
+      "Error should mention closeBinding. Fix: config-errors.ts WF-REF-005",
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-REF-006", async () => {
+Deno.test("workflow-loader: closeBinding.condition with unknown outcome key throws WF-REF-006", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -375,8 +503,11 @@ Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-RE
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
-      closeCondition: "typo_approved", // not in outputPhases
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+        condition: "typo_approved", // not in outputPhases
+      },
     };
     await writeFixture(dir, cfg);
     const err = await assertRejects(
@@ -391,14 +522,14 @@ Deno.test("workflow-loader: closeCondition with unknown outcome key throws WF-RE
     assertStringIncludes(
       err.message,
       "typo_approved",
-      "Error should include the invalid closeCondition value. Fix: config-errors.ts WF-REF-006",
+      "Error should include the invalid closeBinding.condition value. Fix: config-errors.ts WF-REF-006",
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: valid closeOnComplete and closeCondition loads successfully", async () => {
+Deno.test("workflow-loader: valid closeBinding with condition loads successfully", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -406,19 +537,28 @@ Deno.test("workflow-loader: valid closeOnComplete and closeCondition loads succe
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
-      closeCondition: "approved",
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+        condition: "approved",
+      },
     };
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
-    assertEquals(config.agents["reviewer"].closeOnComplete, true);
-    assertEquals(config.agents["reviewer"].closeCondition, "approved");
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.primary.kind,
+      "direct",
+    );
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.condition,
+      "approved",
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
 });
 
-Deno.test("workflow-loader: closeOnComplete without closeCondition loads successfully", async () => {
+Deno.test("workflow-loader: closeBinding without condition loads successfully", async () => {
   const dir = await Deno.makeTempDir();
   try {
     const cfg = validConfig();
@@ -426,12 +566,21 @@ Deno.test("workflow-loader: closeOnComplete without closeCondition loads success
       role: "validator",
       outputPhases: { approved: "complete", rejected: "implementation" },
       fallbackPhase: "blocked",
-      closeOnComplete: true,
+      closeBinding: {
+        primary: { kind: "direct" },
+        cascade: false,
+      },
     };
     await writeFixture(dir, cfg);
     const config = await loadWorkflow(dir);
-    assertEquals(config.agents["reviewer"].closeOnComplete, true);
-    assertEquals(config.agents["reviewer"].closeCondition, undefined);
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.primary.kind,
+      "direct",
+    );
+    assertEquals(
+      config.agents["reviewer"].closeBinding?.condition,
+      undefined,
+    );
   } finally {
     await Deno.remove(dir, { recursive: true });
   }

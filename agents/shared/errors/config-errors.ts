@@ -628,16 +628,16 @@ export function wfRefUnknownOutputPhasesEntry(
   );
 }
 
-// --- WF-REF: closeOnComplete / closeCondition cross-reference errors ---
+// --- WF-REF: closeBinding cross-reference errors ---
 
 export function wfRefCloseConditionWithoutCloseOnComplete(
   agentId: string,
 ): ConfigError {
   return new ConfigError(
     "WF-REF-005",
-    `Agent "${agentId}" has "closeCondition" but "closeOnComplete" is not enabled.`,
-    `"closeCondition" filters which outcome triggers issue close, so it requires "closeOnComplete: true" to take effect.`,
-    `Add "closeOnComplete": true to agent "${agentId}", or remove "closeCondition".`,
+    `Agent "${agentId}" has "closeBinding.condition" but no active close primary.`,
+    `"closeBinding.condition" filters which outcome triggers issue close, so it requires "closeBinding.primary.kind" to be a non-"none" channel.`,
+    `Set "closeBinding.primary.kind" to "direct" (or another close channel) for agent "${agentId}", or remove "closeBinding.condition".`,
     "workflow.json",
   );
 }
@@ -649,11 +649,11 @@ export function wfRefInvalidCloseCondition(
 ): ConfigError {
   return new ConfigError(
     "WF-REF-006",
-    `Agent "${agentId}" closeCondition "${closeCondition}" is not a key in outputPhases.`,
-    `closeCondition must match one of the outcome keys in outputPhases so it can actually trigger. Valid keys: [${
+    `Agent "${agentId}" closeBinding.condition "${closeCondition}" is not a key in outputPhases.`,
+    `closeBinding.condition must match one of the outcome keys in outputPhases so it can actually trigger. Valid keys: [${
       validKeys.join(", ")
     }].`,
-    `Change closeCondition to one of [${
+    `Change closeBinding.condition to one of [${
       validKeys.join(", ")
     }], or add "${closeCondition}" to outputPhases.`,
     "workflow.json",
@@ -1258,5 +1258,96 @@ export function acVerdict013EntryStepPairMalformed(
     `Each entryStepMapping value must be an object with non-empty string fields "initial" and "continuation". The runtime no longer accepts the legacy string form.`,
     `Replace the value with { "initial": "<stepId>", "continuation": "<stepId>" }. Set continuation = initial when the agent has no separate continuation step.`,
     "steps_registry.json",
+  );
+}
+
+// --- WF-ISSUE-SOURCE: IssueSource ADT validation ---
+//
+// `issueSource` was promoted to a top-level required field in
+// realistic-design phase 1 (T1.1). Disk-format migration of shipped
+// `.agent/workflow.json` is tracked separately as T1.7.
+
+export function wfIssueSourceRequired(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-001",
+    `Workflow config: 'issueSource' is required and must be an object with a "kind" discriminator.`,
+    `workflow.json must declare a top-level "issueSource" object naming the batch input variant ("ghProject" / "ghRepoIssues" / "explicit"). See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Add an "issueSource" entry, e.g. { "kind": "ghRepoIssues", "projectMembership": "unbound" }, to the top level of workflow.json.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceUnknownKind(
+  kind: unknown,
+  validKinds: readonly string[],
+): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-002",
+    `Workflow config: issueSource.kind=${
+      JSON.stringify(kind)
+    } is not a known IssueSource variant.`,
+    `issueSource.kind must be one of [${
+      validKinds.join(", ")
+    }]. See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Replace issueSource.kind with one of [${validKinds.join(", ")}].`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceGhProjectMissingProject(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-003",
+    `Workflow config: issueSource.kind="ghProject" requires a "project" reference.`,
+    `The ghProject variant must carry a ProjectRef (either { owner, number } or { id }). See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Add "project": { "owner": "<owner>", "number": <n> } (or "project": { "id": "<node-id>" }) to issueSource.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceExplicitMissingIds(): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-004",
+    `Workflow config: issueSource.kind="explicit" requires a non-empty "issueIds" array.`,
+    `The explicit variant lists issue ids statically; an empty list cannot drive a batch. See agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Set "issueIds": [<id>, ...] on issueSource with at least one entry.`,
+    "workflow.json",
+  );
+}
+
+export function wfIssueSourceGhRepoInvalidMembership(
+  membership: unknown,
+  validValues: readonly string[],
+): ConfigError {
+  return new ConfigError(
+    "WF-ISSUE-SOURCE-005",
+    `Workflow config: issueSource.projectMembership=${
+      JSON.stringify(membership)
+    } is not a valid value.`,
+    `When declared, projectMembership must be one of [${
+      validValues.join(", ")
+    }]. Default (omitted) is "unbound" — see agents/docs/design/realistic/12-workflow-config.md §C.`,
+    `Set issueSource.projectMembership to one of [${
+      validValues.join(", ")
+    }] or omit the field to inherit the default.`,
+    "workflow.json",
+  );
+}
+
+// --- AC-BUNDLE: AgentBundle aggregate boot validation ---
+//
+// `AgentBundle` aggregates `agent.json` + `steps_registry.json` +
+// `workflow.json.agents.{id}` into a single declarative ADT (design
+// 13 §B). Boot rule A1 enforces unique `id` across the workflow's agent
+// map. Promoted to a `ValidationError` ADT variant by T1.4.
+
+export function acBundleDuplicateId(
+  agentId: string,
+): ConfigError {
+  return new ConfigError(
+    "AC-BUNDLE-001",
+    `AgentBundle id "${agentId}" is declared by more than one bundle in the same workflow.`,
+    `AgentBundle.id must be unique across a workflow's agent map (Boot rule A1, design 13 §G). Duplicate ids would make routing ambiguous and break the AgentRegistry lookup.`,
+    `Rename one of the duplicate agents in workflow.json.agents (and rename the matching .agent/<id>/agent.json directory + name field) so each AgentBundle id is unique.`,
+    "workflow.json",
   );
 }

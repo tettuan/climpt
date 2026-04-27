@@ -25,63 +25,94 @@ export type StepType = "prompt";
 export type StepKind = "work" | "verification" | "closure";
 
 /**
- * Step definition for external prompt resolution (C3L-based)
+ * C3LAddress — 5-tuple aggregate for prompt resolution.
  *
- * Maps a logical step identifier to a prompt file and its requirements.
- * Uses C3L path components (c2, c3, edition, adaptation) for breakdown integration.
+ * Per design 14 §C, prompt selection is *always* a 5-level address resolution:
+ *   {c1}/{c2}/{c3}/f_{edition}[_{adaptation}].md
  *
- * NOTE: This is different from FlowStepDefinition in src_common/types.ts.
- * - PromptStepDefinition (here): C3L-based prompt file resolution
- * - FlowStepDefinition (src_common): Step flow execution control
+ * The address is the *only* selector for a prompt file. CLI flags or runtime
+ * branches that override edition / adaptation are structurally forbidden
+ * (climpt §I anti-list).
+ *
+ * Fields are `readonly` to prepare for Layer 4 (Boot frozen) immutability.
  */
-export interface PromptStepDefinition {
-  /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing") */
-  stepId: string;
+export interface C3LAddress {
+  /** Registry-level constant namespace (e.g. "steps", "dev"). */
+  readonly c1: string;
+  /** Category — step grouping (e.g. "initial", "continuation", "closure"). */
+  readonly c2: string;
+  /** Classification — sub-category (e.g. "issue", "project", "iteration"). */
+  readonly c3: string;
+  /** Edition — step variant (e.g. "default", "preparation", "review"). */
+  readonly edition: string;
+  /** Adaptation — failure-specific overlay (optional). */
+  readonly adaptation?: string;
+}
 
-  /** Human-readable name for logging/debugging */
+/**
+ * RetryPolicy — per-step retry configuration (design 14 §F).
+ *
+ * Retry is expressed as a C3L address overlay: on failure, the step's
+ * `failurePatterns[patternRef]` provides a new edition/adaptation pair that
+ * the step's address is overlaid with for a different prompt file. The retry
+ * is *not* a same-prompt re-invocation.
+ *
+ * Bookkeeping fields (`postLLMConditions`, `preflightConditions`) are names
+ * of validators registered at registry top level. They migrate into
+ * `RetryPolicy` so retry semantics are localized to a single step-level field.
+ *
+ * NOTE: in T1.3 this type is declared but not yet wired to a top-level
+ * `failurePatterns` field on Step. Wiring happens in T1.7 (disk migration)
+ * along with the registry-level `validationSteps` consolidation.
+ */
+export interface RetryPolicy {
+  /** Maximum retry attempts (no exponential backoff; Layer 4 frozen). */
+  readonly maxAttempts: number;
+  /** Validator names run after the LLM response (failure → retry). */
+  readonly postLLMConditions?: readonly string[];
+  /** Validator names run before LLM call (failure → ExecutionError). */
+  readonly preflightConditions?: readonly string[];
+  /** Failure-pattern reference (resolves to registry `failurePatterns[name]`). */
+  readonly onFailure?: { readonly patternRef: string };
+}
+
+/**
+ * Step — typed in-memory shape for a registry step (design 14 §B).
+ *
+ * Required discriminator + aggregate address replaces the legacy 5-field
+ * sprawl (c1/c2/c3/edition/adaptation) of `PromptStepDefinition`. `kind` is
+ * always populated on the in-memory `Step` (the loader infers it from `c2`
+ * when the on-disk JSON omits it; see TODO[T1.7]).
+ *
+ * Disk JSON shape (the parser input) keeps the legacy field layout for now
+ * — T1.7 migrates the on-disk format. Validators that read raw JSON via
+ * `asRecord(stepDef)` continue to read the disk shape and are NOT typed by
+ * this interface.
+ */
+export interface Step {
+  /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing"). */
+  readonly stepId: string;
+
+  /** Step kind — explicit discriminator for the dual loop (R4). */
+  readonly kind: StepKind;
+
+  /** C3L 5-tuple address — single aggregate for prompt resolution. */
+  readonly address: C3LAddress;
+
+  /** Per-step optional retry overlay (design 14 §F). */
+  readonly retry?: RetryPolicy;
+
+  /** Per-step LLM model override (optional). */
+  readonly model?: ModelRef;
+
+  /** Human-readable name for logging/debugging. */
   name: string;
 
   /**
-   * Step type for categorization
-   * Default: "prompt"
+   * Step type for categorization.
+   * Default: "prompt".
    */
   type?: StepType;
-
-  /**
-   * Step kind for flow taxonomy.
-   *
-   * Determines allowed intents and validation rules:
-   * - work: next/repeat/jump/handoff (generates artifacts)
-   * - verification: next/repeat/jump/escalate (validates work)
-   * - closure: closing/repeat (final validation)
-   *
-   * If not specified, inferred from c2:
-   * - "initial", "continuation" -> "work"
-   * - "verification" -> "verification"
-   * - "closure" -> "closure"
-   */
-  stepKind?: StepKind;
-
-  /**
-   * C3L path component: c2 (e.g., "initial", "continuation", "section")
-   */
-  c2: string;
-
-  /**
-   * C3L path component: c3 (e.g., "issue", "project", "iterate")
-   */
-  c3: string;
-
-  /**
-   * C3L path component: edition (e.g., "default", "preparation", "review")
-   */
-  edition: string;
-
-  /**
-   * C3L path component: adaptation (optional, e.g., "empty", "done")
-   * Used for variant prompts
-   */
-  adaptation?: string;
 
   /**
    * List of UV (user variable) names required by this prompt
@@ -151,6 +182,24 @@ export interface PromptStepDefinition {
 }
 
 /**
+ * Reference to an LLM model (per-step override).
+ *
+ * Currently a thin alias to a model identifier string. Future ToDos may
+ * promote this to a discriminated union (e.g. `{ provider, model, version }`).
+ */
+export type ModelRef = string;
+
+/**
+ * Legacy alias retained during the T1.3 → T1.7 migration window.
+ *
+ * `PromptStepDefinition` is the previous, looser shape that exposed the 5-tuple
+ * as separate fields and treated `stepKind` as optional. The new `Step` ADT
+ * replaces this. Existing call sites get the new shape via this alias so
+ * incremental migration stays compilable.
+ */
+export type PromptStepDefinition = Step;
+
+/**
  * Subprocess runner spec for closure steps (Phase 0-c).
  *
  * Declares a command to execute instead of an LLM call. Enables closure
@@ -168,11 +217,14 @@ export interface StepSubprocessRunner {
 /**
  * Allowed intents for structured gate.
  *
+ * Frozen 6-value ADT per design 14 §E. Run-time fatal failure is expressed
+ * as a thrown `ExecutionError` (e.g. `AgentValidationAbortError`), not as
+ * an Intent value (design 16 §C).
+ *
  * - next: Proceed to next step
  * - repeat: Retry current step
  * - jump: Go to a specific step
  * - closing: Signal workflow completion (closure step only)
- * - abort: Terminate workflow with error
  * - escalate: Escalate to verification support step (verification only)
  * - handoff: Hand off to another workflow/agent (work only)
  */
@@ -181,7 +233,6 @@ export type GateIntent =
   | "repeat"
   | "jump"
   | "closing"
-  | "abort"
   | "escalate"
   | "handoff";
 

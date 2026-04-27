@@ -164,13 +164,7 @@ export class RetryHandler {
       c3lPath.c1,
     );
     if (promptRoot) {
-      return buildPromptFilePath(
-        promptRoot,
-        c3lPath.c2,
-        c3lPath.c3,
-        c3lPath.edition,
-        c3lPath.adaptation,
-      );
+      return buildPromptFilePath(promptRoot, c3lPath);
     }
     // Fallback for debug display when app.yml is unavailable
     const agentDir = `${PATHS.AGENT_DIR_PREFIX}/${this.ctx.agentId}`;

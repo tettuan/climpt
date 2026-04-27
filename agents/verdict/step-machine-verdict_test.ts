@@ -14,6 +14,7 @@
 import { assertEquals } from "@std/assert";
 import { StepMachineVerdictHandler } from "./step-machine.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 // =============================================================================
 // Helpers
@@ -28,12 +29,13 @@ function createMinimalRegistry(
     c1: "steps",
     entryStep,
     steps: {
-      [entryStep]: {
+      [entryStep]: makeStep({
+        stepId: entryStep,
         name: "Test Step",
         c2: "initial",
         c3: "review",
         edition: "default",
-      },
+      }),
     },
   } as ExtendedStepsRegistry;
 }

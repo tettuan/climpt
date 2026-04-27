@@ -10,9 +10,16 @@
  */
 
 import { BREAKDOWN_VERSION } from "../../src/version.ts";
+import type { C3LAddress } from "./step-registry/types.ts";
 
 /**
- * C3L path components
+ * C3L path components passed to {@link C3LPromptLoader.load}.
+ *
+ * Structurally compatible with the registry's `C3LAddress` aggregate but
+ * tolerates an absent `edition` (defaulting to `"default"`) for ad-hoc
+ * call sites that do not flow through the typed Step ADT (e.g. CLI
+ * smoke checks). Registry-driven callers should construct a `C3LAddress`
+ * and pass it directly.
  */
 export interface C3LPath {
   /** Command level 1 (e.g., "dev", "steps") */
@@ -26,6 +33,13 @@ export interface C3LPath {
   /** Adaptation (e.g., "empty", "done") - for variant prompts */
   adaptation?: string;
 }
+
+/**
+ * Re-export the typed registry aggregate so callers can pass either a
+ * registry-derived {@link C3LAddress} or an ad-hoc {@link C3LPath} to
+ * {@link C3LPromptLoader.load}.
+ */
+export type { C3LAddress };
 
 /**
  * Variables for prompt substitution
@@ -245,14 +259,18 @@ export class C3LPromptLoader {
   }
 
   /**
-   * Load a prompt using breakdown with return mode
+   * Load a prompt using breakdown with return mode.
    *
-   * @param path - C3L path components
+   * Accepts either a registry-derived {@link C3LAddress} (preferred — typed
+   * 5-tuple aggregate from the Step ADT) or an ad-hoc {@link C3LPath} for
+   * call sites that build the address inline.
+   *
+   * @param path - C3L address (5-tuple) or path components
    * @param variables - Variables for substitution
    * @returns Load result with content or error
    */
   async load(
-    path: C3LPath,
+    path: C3LAddress | C3LPath,
     variables: PromptVariables = {},
   ): Promise<PromptLoadResult> {
     // Build runBreakdown arguments
@@ -324,7 +342,10 @@ export class C3LPromptLoader {
   /**
    * Build runBreakdown arguments
    */
-  private buildArgs(path: C3LPath, variables: PromptVariables): string[] {
+  private buildArgs(
+    path: C3LAddress | C3LPath,
+    variables: PromptVariables,
+  ): string[] {
     const args: string[] = [];
 
     // Config argument
@@ -360,7 +381,7 @@ export class C3LPromptLoader {
    * Build C3L coordinate string for logging.
    * Runner does not resolve physical paths — that is breakdown's concern.
    */
-  private buildPromptPath(path: C3LPath): string {
+  private buildPromptPath(path: C3LAddress | C3LPath): string {
     const edition = path.edition ?? "default";
     const filename = path.adaptation
       ? `f_${edition}_${path.adaptation}.md`

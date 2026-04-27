@@ -25,7 +25,10 @@
 
 import type { GitHubClient } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
-import type { ProjectRef } from "./workflow-types.ts";
+import type { ProjectRef, SubjectRef } from "./workflow-types.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { OutboxPhase } from "../events/types.ts";
+import type { OutboxClosePreChannel } from "../channels/outbox-close-pre.ts";
 
 export type { ProjectRef };
 
@@ -51,7 +54,40 @@ export type OutboxAction =
     value: ProjectFieldValue;
   }
   | { action: "close-project"; project: ProjectRef }
-  | { action: "remove-from-project"; project: ProjectRef; itemId: string };
+  | { action: "remove-from-project"; project: ProjectRef; itemId: string }
+  /**
+   * `merge-close-fact` — IPC payload from the `merge-pr` subprocess to its
+   * parent orchestrator (PR4-4 T4.5, Critique F15).
+   *
+   * `merge-pr` writes one fact file per successful `gh pr merge`; the
+   * parent's `MergeCloseAdapter` reads + consumes the fact, then
+   * publishes `IssueClosedEvent({ channel: "M" })` so the close enters
+   * the parent bus uniformly with the other 5 channels.
+   *
+   * Fields:
+   *  - `subjectId`  — the issue auto-closed by the GitHub server
+   *                   (parsed from PR body `Closes #N`).
+   *  - `mergedAt`   — epoch ms at which `gh pr merge` returned success.
+   *  - `prNumber`   — PR number that was merged (diagnostic correlation).
+   *  - `runId`      — parent's runId (when known via env / argv) so the
+   *                   adapter only consumes facts that belong to its
+   *                   boot. Empty string when standalone-invoked.
+   *
+   * This variant is **never** processed by `OutboxProcessor` — it is
+   * delivered through a dedicated `tmp/merge-close-facts/<runId>.jsonl`
+   * channel and consumed by `MergeCloseAdapter`. It lives in the
+   * `OutboxAction` union (Typed Outbox principle, Critique F15) so the
+   * IPC surface inherits the same schema discipline as in-process
+   * outbox actions: validation goes through `validateMergeCloseFact`
+   * below; future kinds extend the same closed enum.
+   */
+  | {
+    action: "merge-close-fact";
+    subjectId: number;
+    mergedAt: number;
+    prNumber: number;
+    runId: string;
+  };
 
 /** Trigger phase for action execution. Default (absent) = pre-close. */
 export type OutboxTrigger = "post-close";
@@ -73,9 +109,75 @@ export interface OutboxResult {
   filename: string;
 }
 
+/**
+ * Narrow alias for the IPC variant used by `MergeCloseAdapter`
+ * (PR4-4 T4.5). Provided so consumers do not need to extract via
+ * `Extract<OutboxAction, ...>` at every call site.
+ */
+export type MergeCloseFactAction = Extract<
+  OutboxAction,
+  { action: "merge-close-fact" }
+>;
+
+/**
+ * Structurally validate a parsed JSON object as a `merge-close-fact`
+ * OutboxAction (PR4-4 T4.5, Critique F15 — Typed Outbox).
+ *
+ * Throws `Error` with a precise message for the missing/wrong-typed
+ * field on failure so downstream JSONL ingestion can quarantine the
+ * line and continue. Does NOT validate that `subjectId > 0` — the
+ * caller (`MergeCloseAdapter`) is the only consumer and `subjectId`
+ * is the issue number (always positive in practice but not part of
+ * the structural shape contract).
+ *
+ * Exposed at module scope (not a private OutboxProcessor method) so
+ * `MergeCloseAdapter` can call it without depending on a processor
+ * instance.
+ */
+export function validateMergeCloseFact(
+  obj: Record<string, unknown>,
+): MergeCloseFactAction {
+  if (obj.action !== "merge-close-fact") {
+    throw new Error(
+      `merge-close-fact: action field must be "merge-close-fact" ` +
+        `(got "${String(obj.action)}")`,
+    );
+  }
+  if (typeof obj.subjectId !== "number" || !Number.isInteger(obj.subjectId)) {
+    throw new Error(
+      "merge-close-fact: 'subjectId' integer is required",
+    );
+  }
+  if (typeof obj.mergedAt !== "number" || !Number.isFinite(obj.mergedAt)) {
+    throw new Error(
+      "merge-close-fact: 'mergedAt' epoch-ms number is required",
+    );
+  }
+  if (typeof obj.prNumber !== "number" || !Number.isInteger(obj.prNumber)) {
+    throw new Error(
+      "merge-close-fact: 'prNumber' integer is required",
+    );
+  }
+  if (typeof obj.runId !== "string") {
+    throw new Error(
+      "merge-close-fact: 'runId' string is required (empty string allowed)",
+    );
+  }
+  return {
+    action: "merge-close-fact",
+    subjectId: obj.subjectId,
+    mergedAt: obj.mergedAt,
+    prNumber: obj.prNumber,
+    runId: obj.runId,
+  };
+}
+
 export class OutboxProcessor {
   #github: GitHubClient;
   #store: SubjectStore;
+  #bus: CloseEventBus | undefined;
+  #runId: string | undefined;
+  #outboxClosePre: OutboxClosePreChannel | undefined;
 
   /**
    * Most recently created issue number from a succeeded `create-issue` action.
@@ -94,9 +196,43 @@ export class OutboxProcessor {
    */
   #prevResultByFamily: Map<string, ActionResult> = new Map();
 
-  constructor(github: GitHubClient, store: SubjectStore) {
+  /**
+   * Construct an `OutboxProcessor`.
+   *
+   * @param github GitHub client used to execute outbox actions.
+   * @param store  Subject store providing per-issue outbox directories.
+   * @param bus    T3.3 (shadow mode): frozen `CloseEventBus` from
+   *               `BootArtifacts.bus`. When present, the processor
+   *               publishes `outboxActionDecided` for every recognised
+   *               action and `issueClosed`/`issueCloseFailed`
+   *               (`channel: "C"`) for executed `close-issue` actions.
+   *               Optional — legacy callers omit it.
+   * @param runId  Stable boot correlation id; paired with {@link bus}.
+   * @param outboxClosePre PR4-3 (T4.4b cutover): when present, the
+   *               processor delegates `close-issue` OutboxActions to
+   *               this channel via `handleCloseAction(subjectId,
+   *               action)` instead of invoking
+   *               `github.closeIssue(subjectId)` directly. The channel
+   *               owns the `closeTransport.close` write and publishes
+   *               `IssueClosedEvent(channel: "C", outboxPhase: "pre")`
+   *               on success. Optional — legacy callers that do not
+   *               boot through `BootKernel.boot` (validate-only test
+   *               fixtures) omit it; in that case the processor refuses
+   *               to execute close-issue actions and surfaces an error
+   *               result so the bus contract stays consistent.
+   */
+  constructor(
+    github: GitHubClient,
+    store: SubjectStore,
+    bus?: CloseEventBus,
+    runId?: string,
+    outboxClosePre?: OutboxClosePreChannel,
+  ) {
     this.#github = github;
     this.#store = store;
+    this.#bus = bus;
+    this.#runId = runId;
+    this.#outboxClosePre = outboxClosePre;
   }
 
   /**
@@ -200,6 +336,24 @@ export class OutboxProcessor {
       try {
         const validated = this.#validateAction(actionObj);
         const familyId = this.#extractFamilyId(file);
+        // PR4-3 (T4.4b): publish OutboxActionDecided once the action is
+        // recognised. For `close-issue` the OutboxClose-pre channel is
+        // the publisher of `IssueClosedEvent`/`IssueCloseFailedEvent`;
+        // this processor neither shells out `gh issue close` nor
+        // publishes the close result events itself. `outboxPhase`
+        // mirrors the call site: `process()` → "pre",
+        // `processPostClose()` → "post" (event-flow §A 8/8).
+        const outboxPhase: OutboxPhase = phase === "post-close"
+          ? "post"
+          : "pre";
+        this.#bus?.publish({
+          kind: "outboxActionDecided",
+          publishedAt: Date.now(),
+          runId: this.#runId ?? "",
+          subjectId,
+          action: validated,
+          outboxPhase,
+        });
         // deno-lint-ignore no-await-in-loop
         const actionResult = await this.#execute(
           subjectId,
@@ -221,6 +375,13 @@ export class OutboxProcessor {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // PR4-3 (T4.4b): close-issue failures are published by the
+        // OutboxClose-pre channel itself when the channel is wired in
+        // (the channel sees the transport throw and emits
+        // IssueCloseFailedEvent). Non-close failures (validation
+        // errors, comment/label/project failures) surface only as
+        // `OutboxResult.success === false` — they do not emit
+        // close-fail events.
         results.push({
           sequence,
           action: actionType,
@@ -333,6 +494,13 @@ export class OutboxProcessor {
           itemId: obj.itemId,
         };
       }
+      case "merge-close-fact":
+        // Validation lives here so the closed enum stays exhaustive,
+        // but this processor never executes a merge-close-fact (it is
+        // an IPC payload consumed by MergeCloseAdapter, not by the
+        // in-process outbox loop). #execute surfaces an explicit
+        // error if one ever lands in an outbox directory.
+        return validateMergeCloseFact(obj);
       default:
         throw new Error(`Unknown outbox action: ${action}`);
     }
@@ -393,9 +561,24 @@ export class OutboxProcessor {
           action.add,
         );
         return { action: "update-labels" };
-      case "close-issue":
-        await this.#github.closeIssue(subjectId);
+      case "close-issue": {
+        // PR4-3 (T4.4b cutover): close-issue OutboxActions delegate to
+        // OutboxClose-pre channel. The channel owns the
+        // `closeTransport.close` write and publishes
+        // `IssueClosedEvent(channel: "C", outboxPhase: "pre")` /
+        // `IssueCloseFailedEvent` symmetrically. Direct
+        // `github.closeIssue` invocation from this processor is gone
+        // (W2 / F2: outbox is no longer a procedural close site).
+        if (this.#outboxClosePre === undefined) {
+          throw new Error(
+            "OutboxProcessor: close-issue action received but no " +
+              "OutboxClosePreChannel was wired (BootKernel.boot supplies " +
+              "this via BootArtifacts.outboxClosePre)",
+          );
+        }
+        await this.#outboxClosePre.handleCloseAction(subjectId, action);
         return { action: "close-issue" };
+      }
       case "add-to-project": {
         let issueNumber = action.issueNumber;
         if (issueNumber === undefined) {
@@ -430,6 +613,15 @@ export class OutboxProcessor {
       case "remove-from-project":
         await this.#github.removeProjectItem(action.project, action.itemId);
         return { action: "remove-from-project" };
+      case "merge-close-fact":
+        // Defensive: merge-close-fact is an IPC payload, not an action
+        // for in-process execution. Surface a clear error rather than
+        // silently dropping it — if one ever lands in an issue's
+        // outbox directory it indicates a mis-routed fact-file write.
+        throw new Error(
+          "merge-close-fact OutboxAction is IPC-only and must be consumed " +
+            "by MergeCloseAdapter, not by OutboxProcessor",
+        );
       default:
         throw new Error(
           `Unknown outbox action: ${

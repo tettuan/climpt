@@ -166,9 +166,14 @@ export class PromptResolver {
       throw prResolveUnknownStepId(stepId);
     }
 
-    // Apply adaptation override if provided
+    // Apply adaptation override if provided. The override targets the C3L
+    // address aggregate (`step.address.adaptation`); a shallow-spread copy
+    // of `address` keeps the rest of the address (c1/c2/c3/edition) intact.
     const effectiveStep = overrides?.adaptation
-      ? { ...step, adaptation: overrides.adaptation }
+      ? {
+        ...step,
+        address: { ...step.address, adaptation: overrides.adaptation },
+      }
       : step;
 
     // tryBreakdown returns the resolved prompt or throws. PR-C3L-004 is
@@ -179,15 +184,19 @@ export class PromptResolver {
   }
 
   /**
-   * Build C3L path from step definition
+   * Build C3L path from step definition.
+   *
+   * The step's `address: C3LAddress` already carries c1/c2/c3/edition/
+   * adaptation; we surface it as a C3LPath for the loader. The registry's
+   * top-level `c1` is the source of truth for c1 and is preserved here.
    */
   private buildC3LPath(step: PromptStepDefinition): C3LPath {
     return {
       c1: this.registry.c1,
-      c2: step.c2,
-      c3: step.c3,
-      edition: step.edition,
-      adaptation: step.adaptation,
+      c2: step.address.c2,
+      c3: step.address.c3,
+      edition: step.address.edition,
+      adaptation: step.address.adaptation,
     };
   }
 

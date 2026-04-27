@@ -11,6 +11,7 @@ import { AgentEventEmitter } from "./events.ts";
 import type { BoundaryHookPayload } from "./events.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("boundary");
 
@@ -66,7 +67,7 @@ function createClosureRegistry(): ExtendedStepsRegistry {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "closure.test": {
+      "closure.test": makeStep({
         stepId: "closure.test",
         name: "Closure Test",
         c2: "closure",
@@ -79,8 +80,8 @@ function createClosureRegistry(): ExtendedStepsRegistry {
           intentField: "next_action.action",
           intentSchemaRef: "#/test",
         },
-      },
-      "initial.test": {
+      }),
+      "initial.test": makeStep({
         stepId: "initial.test",
         name: "Initial Test",
         c2: "initial",
@@ -88,7 +89,7 @@ function createClosureRegistry(): ExtendedStepsRegistry {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 }

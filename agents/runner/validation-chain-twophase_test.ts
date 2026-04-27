@@ -20,6 +20,7 @@ import type { IterationSummary } from "../src_common/types.ts";
 import type { Logger } from "../src_common/logger.ts";
 import type { StepValidator } from "../validators/step/validator.ts";
 import type { RetryHandler } from "../retry/retry-handler.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 // =============================================================================
 // Helpers (same pattern as validation-chain_test.ts)
@@ -85,7 +86,7 @@ function createTwoPhaseRegistry(
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
         stepId: "initial.test",
         name: "Initial",
         c2: "initial",
@@ -93,7 +94,7 @@ function createTwoPhaseRegistry(
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
     validationSteps: {
       "closure.twophase": {

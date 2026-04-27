@@ -33,7 +33,8 @@ import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { BatchRunner } from "./batch-runner.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 
 // =============================================================================
 // Recording GitHub client — only label-spec methods are instrumented
@@ -203,23 +204,31 @@ class RecordingGithubClient implements GitHubClient {
 function baseConfig(
   labels?: Record<string, { color: string; description: string }>,
 ): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    complete: { type: "terminal" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      outputPhase: "complete",
+      fallbackPhase: "complete",
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 1, agent: "iterator" },
-      complete: { type: "terminal" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       done: "complete",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        outputPhase: "complete",
-        fallbackPhase: "complete",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 1,
       cycleDelayMs: 0,
@@ -254,7 +263,7 @@ Deno.test("BatchRunner: preflight creates missing labels declared in workflow.js
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     // Exactly one baseline read (one preflight invocation per batch).
     const lists = github.labelCalls.filter((c) => c.op === "list");
@@ -299,7 +308,7 @@ Deno.test("BatchRunner: preflight updates labels whose color drifted", async () 
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     const updates = github.labelCalls.filter((c) => c.op === "update");
     assertEquals(updates.length, 1);
@@ -334,7 +343,7 @@ Deno.test("BatchRunner: preflight is a no-op when workflow.json has no labels se
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({});
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE);
 
     // No label-spec API call of any kind: preflight short-circuits when
     // `labels` is absent so pre-Phase-2 configs continue to work.
@@ -368,7 +377,7 @@ Deno.test("BatchRunner: preflight dryRun skips create/update but still lists", a
       new StubDispatcher(),
       tmpDir,
     );
-    await runner.run({}, { dryRun: true });
+    await runner.run(TEST_DEFAULT_ISSUE_SOURCE, { dryRun: true });
 
     // dryRun still reads baseline (that's harmless and informs the summary).
     assertEquals(
@@ -441,7 +450,7 @@ Deno.test("Orchestrator.runBatch: preflight runs exactly once across batch + per
       new StubDispatcher({ iterator: "success" }),
       tmpDir,
     );
-    await orchestrator.runBatch({});
+    await orchestrator.runBatch(TEST_DEFAULT_ISSUE_SOURCE);
 
     // listLabelsDetailed must be called exactly once (batch preflight);
     // if Orchestrator double-syncs the count would be >1.

@@ -31,6 +31,7 @@ import type { AgentDefinition } from "../src_common/types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { PromptResolutionResult } from "../common/prompt-resolver.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import { join } from "@std/path";
 
 /**
@@ -1103,7 +1104,7 @@ function createMockStepsRegistry(
     c1: "steps",
     entryStep: "initial.test",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
         stepId: "initial.test",
         name: "Initial Test Step",
         c2: "initial",
@@ -1122,8 +1123,8 @@ function createMockStepsRegistry(
           repeat: { target: "initial.test" },
           closing: { target: "closure" },
         },
-      },
-      "continuation.test": {
+      }),
+      "continuation.test": makeStep({
         stepId: "continuation.test",
         name: "Continuation Test Step",
         c2: "continuation",
@@ -1142,7 +1143,7 @@ function createMockStepsRegistry(
           repeat: { target: "continuation.test" },
           closing: { target: "closure" },
         },
-      },
+      }),
     },
   };
 
@@ -1308,20 +1309,20 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
       },
     },
     steps: {
-      "initial.polling": {
+      "initial.polling": makeStep({
         stepId: "initial.polling",
         name: "Initial",
         c2: "initial",
         c3: "polling",
         edition: "default",
-      },
-      "continuation.polling": {
+      }),
+      "continuation.polling": makeStep({
         stepId: "continuation.polling",
         name: "Continuation",
         c2: "continuation",
         c3: "polling",
         edition: "default",
-      },
+      }),
     },
   });
   const result = await createRegistryVerdictHandler(
@@ -1388,20 +1389,20 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
       },
     },
     steps: {
-      "initial.polling": {
+      "initial.polling": makeStep({
         stepId: "initial.polling",
         name: "Initial",
         c2: "initial",
         c3: "polling",
         edition: "default",
-      },
-      "continuation.polling": {
+      }),
+      "continuation.polling": makeStep({
         stepId: "continuation.polling",
         name: "Continuation",
         c2: "continuation",
         c3: "polling",
         edition: "default",
-      },
+      }),
     },
   });
   try {
@@ -1466,20 +1467,20 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
       },
     },
     steps: {
-      "initial.iteration": {
+      "initial.iteration": makeStep({
         stepId: "initial.iteration",
         name: "Initial",
         c2: "initial",
         c3: "iteration",
         edition: "default",
-      },
-      "continuation.iteration": {
+      }),
+      "continuation.iteration": makeStep({
         stepId: "continuation.iteration",
         name: "Continuation",
         c2: "continuation",
         c3: "iteration",
         edition: "default",
-      },
+      }),
     },
   });
   const result = await createRegistryVerdictHandler(
@@ -2210,7 +2211,7 @@ Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial 
     c1: "steps",
     entryStep: "work.analyze",
     steps: {
-      "work.analyze": {
+      "work.analyze": makeStep({
         name: "Analyze",
         stepId: "work.analyze",
         c2: "work",
@@ -2218,7 +2219,7 @@ Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial 
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 

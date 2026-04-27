@@ -18,6 +18,7 @@ import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { normalizeStepRegistry } from "../common/step-registry/loader.ts";
 import type { AgentDefinition, IterationSummary } from "../src_common/types.ts";
 import type { VerdictType } from "../src_common/types/verdict.ts";
 import type { AgentDependencies } from "./builder.ts";
@@ -31,7 +32,10 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   const raw = await Deno.readTextFile(
     "agents/test-artifacts/responsibility-fixtures/test-steps-registry.json",
   );
-  return JSON.parse(raw) as ExtendedStepsRegistry;
+  // Disk JSON keeps legacy 5-tuple separate fields; normalize to the typed
+  // Step ADT (with `address` aggregate + populated `kind`) so the runner
+  // sees the same shape as `loadStepRegistry` produces.
+  return normalizeStepRegistry(JSON.parse(raw)) as ExtendedStepsRegistry;
 }
 
 function createTestDefinition(

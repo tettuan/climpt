@@ -19,10 +19,35 @@ import type { PromptStepDefinition } from "../common/step-registry.ts";
 import { inferStepKind } from "../common/step-registry.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { AgentEventEmitter } from "./events.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { SubjectRef } from "../orchestrator/workflow-types.ts";
 
 export interface BoundaryHookDeps {
   getStepsRegistry(): ExtendedStepsRegistry | null;
   getEventEmitter(): AgentEventEmitter;
+  /**
+   * T3.3 (shadow mode): optional accessor for the frozen
+   * {@link CloseEventBus} from `BootArtifacts.bus`. When undefined the
+   * boundary hook publishes nothing — the internal `eventEmitter`
+   * stays the only signal path. Production runs (run-workflow /
+   * run-agent) thread the bus through; standalone tests omit it.
+   */
+  getBus?(): CloseEventBus | undefined;
+  /** Stable boot correlation id; paired with {@link getBus}. */
+  getRunId?(): string;
+  /**
+   * Best-effort subject id resolver. Boundary hooks do not own a
+   * subject directly (the runner's `args.issue` is the canonical
+   * source); the runner injects this getter so the published event
+   * carries the subject without changing the hook signature.
+   */
+  getSubjectId?(): SubjectRef | undefined;
+  /**
+   * Agent id (from `definition.name`) — the boundary hook publishes
+   * `closureBoundaryReached` whose payload requires it. Provided as a
+   * getter so the runner can defer until `initialize` has run.
+   */
+  getAgentId?(): string | undefined;
 }
 
 export class BoundaryHooks {
@@ -65,6 +90,27 @@ export class BoundaryHooks {
       stepKind,
       structuredOutput: summary.structuredOutput,
     });
+
+    // T3.3 (shadow mode): mirror the internal emitter onto the closed
+    // {@link CloseEventBus} so subscribers (diagnostic logger today,
+    // BoundaryClose channel in P4) observe `ClosureBoundaryReached`
+    // without coupling to the legacy AgentEventEmitter shape. The
+    // publish is fire-and-forget and the bus swallows handler errors,
+    // so this branch can never fail the close path. The event is only
+    // published when every payload field is available — the bus's
+    // closed ADT forbids partial events.
+    const bus = this.deps.getBus?.();
+    const agentId = this.deps.getAgentId?.();
+    if (bus && agentId !== undefined) {
+      bus.publish({
+        kind: "closureBoundaryReached",
+        publishedAt: Date.now(),
+        runId: this.deps.getRunId?.() ?? "",
+        subjectId: this.deps.getSubjectId?.(),
+        agentId,
+        stepId,
+      });
+    }
 
     ctx.logger.info(`[BoundaryHook] Invoked for closure step: ${stepId}`);
 

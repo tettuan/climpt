@@ -57,6 +57,8 @@ import { FlowOrchestrator } from "./flow-orchestrator.ts";
 import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { SubjectRef } from "../orchestrator/workflow-types.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
 import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
 import { loadAgentSettings } from "../config/settings-loader.ts";
@@ -94,6 +96,27 @@ export interface RunnerOptions {
    * orchestrator / ArtifactEmitter boundary before this is passed down.
    */
   readonly issuePayload?: Readonly<Record<string, unknown>>;
+  /**
+   * T3.3 (shadow mode): frozen `CloseEventBus` from
+   * `BootArtifacts.bus`. When omitted (legacy callers, unit tests), the
+   * runner publishes nothing — internal lifecycle events still fire
+   * through {@link AgentEventEmitter}. T4 cutover replaces those with
+   * bus subscribers; until then the bus is purely observational.
+   */
+  readonly bus?: CloseEventBus;
+  /** Stable boot correlation id; paired with {@link bus}. */
+  readonly runId?: string;
+  /**
+   * PR4-3 (T4.4c): `BoundaryCloseChannel` from
+   * `BootArtifacts.boundaryClose`. Forwarded to the closure-step
+   * verdict adapter (`ExternalStateVerdictAdapter`) via
+   * `setBoundaryClose` so the adapter delegates close-writes to the
+   * channel instead of shelling out `gh issue close` itself. When
+   * omitted (unit tests), the adapter throws a descriptive error if a
+   * closure action requests a close.
+   */
+  readonly boundaryClose?:
+    import("../channels/boundary-close.ts").BoundaryCloseChannel;
 }
 
 // Re-export for backward compatibility
@@ -107,6 +130,21 @@ export class AgentRunner {
   private args: Record<string, unknown> = {};
   private issuePayload: Readonly<Record<string, unknown>> | undefined;
   private agentDir = "";
+  // T3.3 (shadow mode) — observational bus + correlation id. Wired from
+  // {@link RunnerOptions} on `initialize`; remain `undefined` for legacy
+  // callers and unit tests that bypass entry points.
+  private bus: CloseEventBus | undefined;
+  private runId: string | undefined;
+  /**
+   * PR4-3: `BoundaryCloseChannel` captured from
+   * {@link RunnerOptions.boundaryClose} during `initialize()`.
+   * Late-bound onto the `ExternalStateVerdictAdapter` via
+   * `setBoundaryClose`. Optional — when omitted the adapter throws if
+   * a closure action requests a close.
+   */
+  private boundaryClose:
+    | import("../channels/boundary-close.ts").BoundaryCloseChannel
+    | undefined;
 
   // Extracted module instances
   private readonly closureManager: ClosureManager;
@@ -168,6 +206,17 @@ export class AgentRunner {
     this.boundaryHooks = new BoundaryHooks({
       getStepsRegistry: () => this.closureManager.stepsRegistry,
       getEventEmitter: () => this.eventEmitter,
+      // T3.3: late-bound — `initialize()` populates `this.bus` /
+      // `this.runId` after `RunnerOptions` arrives; the hook reads via
+      // these getters so the BoundaryHooks instance can be shared
+      // across `run()` calls without re-construction.
+      getBus: () => this.bus,
+      getRunId: () => this.runId ?? "",
+      getSubjectId: () => {
+        const issue = this.args["issue"] as SubjectRef | undefined;
+        return issue;
+      },
+      getAgentId: () => this.definition.name,
     });
 
     this.closureAdapter = new ClosureAdapter({
@@ -236,6 +285,12 @@ export class AgentRunner {
     this.issuePayload = options.issuePayload;
     this.agentDir = agentDir;
     this.commandRunner = options.commandRunner;
+    // T3.3: capture the boot-scoped bus + runId so subsequent boundary
+    // hooks publish under the correct correlation id. Optional — when
+    // omitted the BoundaryHooks publish branch short-circuits.
+    this.bus = options.bus;
+    this.runId = options.runId;
+    this.boundaryClose = options.boundaryClose;
 
     // Initialize logger using injected factory
     const logger = await this.dependencies.loggerFactory.create({
@@ -255,6 +310,33 @@ export class AgentRunner {
     // Set working directory for verdict handler (required for worktree mode)
     if ("setCwd" in verdictHandler) {
       (verdictHandler as { setCwd: (cwd: string) => void }).setCwd(cwd);
+    }
+
+    // T3.3 (shadow mode): if the verdict handler exposes `setEventBus`
+    // (only `ExternalStateVerdictAdapter` does today), late-bind the
+    // boot bus + runId. Post-PR4-3 the setter is a no-op shim — the
+    // BoundaryCloseChannel owns bus + runId capture — but the call is
+    // kept for backward compat with pre-cutover handler implementations.
+    if ("setEventBus" in verdictHandler) {
+      (verdictHandler as {
+        setEventBus: (
+          bus: CloseEventBus | undefined,
+          runId: string | undefined,
+        ) => void;
+      }).setEventBus(this.bus, this.runId);
+    }
+    // PR4-3 (T4.4c): late-bind the BoundaryCloseChannel so the
+    // closure-step verdict adapter delegates close-writes to the
+    // channel. Same opt-in pattern as `setEventBus` above —
+    // non-adapter verdict handlers ignore this seam.
+    if ("setBoundaryClose" in verdictHandler) {
+      (verdictHandler as {
+        setBoundaryClose: (
+          channel:
+            | import("../channels/boundary-close.ts").BoundaryCloseChannel
+            | undefined,
+        ) => void;
+      }).setBoundaryClose(this.boundaryClose);
     }
 
     // Initialize prompt resolver using injected factory
@@ -1146,13 +1228,24 @@ export class AgentRunner {
       ...this.args,
     };
 
+    // T6.4 — Layer-4 inheritance plumbing for closure subprocesses.
+    // When the runner was booted with a runId (Boot kernel propagates
+    // it via RunnerOptions), forward `CLIMPT_PARENT_RUN_ID` so the
+    // spawned merge-pr can resolve the parent-written
+    // `tmp/boot-policy-<runId>.json` and freeze the inherited Policy
+    // (design 20 §E + Critique F15). Standalone runs (no runId) skip
+    // the overlay and the subprocess falls back to fresh defaults.
+    const subprocessEnv = this.runId !== undefined && this.runId.length > 0
+      ? { CLIMPT_PARENT_RUN_ID: this.runId }
+      : undefined;
+
     let subprocessResult;
     try {
       subprocessResult = await runSubprocessRunner(
         stepDef.runner,
         context,
         ctx.logger,
-        { commandRunner: this.commandRunner },
+        { commandRunner: this.commandRunner, env: subprocessEnv },
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

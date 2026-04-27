@@ -14,6 +14,7 @@
 
 import { join, relative } from "@std/path";
 import { BreakdownConfig } from "@tettuan/breakdownconfig";
+import type { C3LAddress } from "../common/step-registry/types.ts";
 
 // ---------------------------------------------------------------------------
 // Prompt root resolution via BreakdownConfig
@@ -58,7 +59,7 @@ export async function resolvePromptRoot(
 // ---------------------------------------------------------------------------
 
 /**
- * Build the C3L prompt file path for a step.
+ * Build the C3L prompt file path from a {@link C3LAddress}.
  *
  * Format: {promptRoot}/{c2}/{c3}/f_{edition}.md
  * or with adaptation: {promptRoot}/{c2}/{c3}/f_{edition}_{adaptation}.md
@@ -66,18 +67,19 @@ export async function resolvePromptRoot(
  * promptRoot is the resolved path from BreakdownConfig:
  *   resolve(resolve(projectRoot, working_dir), app_prompt.base_dir)
  *
- * c1 does not appear as a parameter — it is already absorbed into
+ * c1 does not appear in the resulting path — it is already absorbed into
  * the config's base_dir (e.g., base_dir: "prompts/steps" contains c1="steps").
+ *
+ * Validators that read raw disk JSON (without the typed Step ADT) can
+ * synthesize the address inline:
+ * `buildPromptFilePath(promptRoot, { c1, c2, c3, edition, adaptation })`.
  */
 export function buildPromptFilePath(
   promptRoot: string,
-  c2: string,
-  c3: string,
-  edition: string,
-  adaptation?: string,
+  address: C3LAddress,
 ): string {
-  const filename = adaptation
-    ? `f_${edition}_${adaptation}.md`
-    : `f_${edition}.md`;
-  return join(promptRoot, c2, c3, filename);
+  const filename = address.adaptation
+    ? `f_${address.edition}_${address.adaptation}.md`
+    : `f_${address.edition}.md`;
+  return join(promptRoot, address.c2, address.c3, filename);
 }

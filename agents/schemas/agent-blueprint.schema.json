@@ -1347,10 +1347,9 @@
               "const": "retry",
               "title": "Retry the step (requires maxAttempts)"
             },
-            { "const": "abort", "title": "Stop execution immediately" },
             { "const": "skip", "title": "Skip this step and continue" }
           ],
-          "description": "Failure action. R-C5."
+          "description": "Failure action. R-C5. Unrecoverable failure / maxAttempts exhaustion is thrown as ExecutionError (AgentValidationAbortError) per design 16 §C — not configurable here."
         },
         "maxAttempts": {
           "type": "integer",

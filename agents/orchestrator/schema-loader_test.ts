@@ -14,7 +14,11 @@ import {
   registerWorkflowSchemas,
 } from "./schema-loader.ts";
 import { InMemorySchemaRegistry } from "./schema-registry.ts";
-import type { HandoffDeclaration, WorkflowConfig } from "./workflow-types.ts";
+import {
+  type HandoffDeclaration,
+  type WorkflowConfig,
+} from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 
 function buildWorkflow(
   handoffs: ReadonlyArray<HandoffDeclaration>,
@@ -22,9 +26,13 @@ function buildWorkflow(
 ): WorkflowConfig {
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     phases: { "p": { type: "actionable" } },
     labelMapping: { "l": "p" },
     agents: {},
+    // The schema-loader test fixture deliberately leaves agents empty —
+    // no invocations are derivable, so this stays an empty list.
+    invocations: [],
     rules: { maxCycles: 1, cycleDelayMs: 0 },
     handoffs,
     payloadSchema,

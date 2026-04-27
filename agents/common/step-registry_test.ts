@@ -26,6 +26,7 @@ import {
   validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
+import { makeStep } from "./step-registry/test-helpers.ts";
 import { BreakdownLogger } from "@tettuan/breakdownlogger";
 
 const logger = new BreakdownLogger("step-registry");
@@ -48,7 +49,7 @@ Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {
 
 Deno.test("addStepDefinition - adds step to registry", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = {
+  const step: PromptStepDefinition = makeStep({
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -56,7 +57,7 @@ Deno.test("addStepDefinition - adds step to registry", () => {
     edition: "default",
     uvVariables: ["test_var"],
     usesStdin: false,
-  };
+  });
 
   addStepDefinition(registry, step);
 
@@ -65,7 +66,7 @@ Deno.test("addStepDefinition - adds step to registry", () => {
 
 Deno.test("addStepDefinition - throws on duplicate step", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = {
+  const step: PromptStepDefinition = makeStep({
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -73,7 +74,7 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
     edition: "default",
     uvVariables: [],
     usesStdin: false,
-  };
+  });
 
   addStepDefinition(registry, step);
 
@@ -86,7 +87,7 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
 
 Deno.test("getStepDefinition - returns step by ID", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = {
+  const step: PromptStepDefinition = makeStep({
     stepId: "initial.test",
     name: "Initial Test Step",
     c2: "initial",
@@ -94,7 +95,7 @@ Deno.test("getStepDefinition - returns step by ID", () => {
     edition: "default",
     uvVariables: [],
     usesStdin: false,
-  };
+  });
   addStepDefinition(registry, step);
 
   const result = getStepDefinition(registry, "initial.test");
@@ -112,24 +113,30 @@ Deno.test("getStepDefinition - returns undefined for unknown step", () => {
 
 Deno.test("getStepIds - returns all step IDs", () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "step1",
-    name: "Step 1",
-    c2: "initial",
-    c3: "step1",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
-  addStepDefinition(registry, {
-    stepId: "step2",
-    name: "Step 2",
-    c2: "initial",
-    c3: "step2",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      stepId: "step1",
+      name: "Step 1",
+      c2: "initial",
+      c3: "step1",
+      edition: "default",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
+  addStepDefinition(
+    registry,
+    makeStep({
+      stepId: "step2",
+      name: "Step 2",
+      c2: "initial",
+      c3: "step2",
+      edition: "default",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   const ids = getStepIds(registry);
 
@@ -138,15 +145,18 @@ Deno.test("getStepIds - returns all step IDs", () => {
 
 Deno.test("hasStep - returns true for existing step", () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "existing",
-    name: "Existing Step",
-    c2: "initial",
-    c3: "existing",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      stepId: "existing",
+      name: "Existing Step",
+      c2: "initial",
+      c3: "existing",
+      edition: "default",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   assertEquals(hasStep(registry, "existing"), true);
   assertEquals(hasStep(registry, "nonexistent"), false);
@@ -158,7 +168,7 @@ Deno.test("validateStepRegistry - validates correct registry", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
         stepId: "initial.test",
         name: "Test Step",
         c2: "initial",
@@ -166,7 +176,7 @@ Deno.test("validateStepRegistry - validates correct registry", () => {
         edition: "default",
         uvVariables: ["var1"],
         usesStdin: true,
-      },
+      }),
     },
   };
 
@@ -210,7 +220,7 @@ Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "wrong.key": {
+      "wrong.key": makeStep({
         stepId: "different.id",
         name: "Test",
         c2: "initial",
@@ -218,7 +228,7 @@ Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -239,7 +249,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'externalState'", (
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.externalState": {
+      "initial.externalState": makeStep({
         stepId: "initial.externalState",
         name: "External State Step",
         c2: "initial",
@@ -247,7 +257,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'externalState'", (
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -264,7 +274,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'structuredSignal'"
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.structuredSignal": {
+      "initial.structuredSignal": makeStep({
         stepId: "initial.structuredSignal",
         name: "Structured Signal Step",
         c2: "initial",
@@ -272,7 +282,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'structuredSignal'"
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -289,7 +299,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'checkBudget'", () 
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.checkBudget": {
+      "initial.checkBudget": makeStep({
         stepId: "initial.checkBudget",
         name: "Check Budget Step",
         c2: "initial",
@@ -297,7 +307,7 @@ Deno.test("validateStepRegistry - rejects camelCase c3 value 'checkBudget'", () 
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -314,7 +324,7 @@ Deno.test("validateStepRegistry - error message mentions kebab-case and LayerTyp
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.myStep": {
+      "initial.myStep": makeStep({
         stepId: "initial.myStep",
         name: "My Step",
         c2: "initial",
@@ -322,7 +332,7 @@ Deno.test("validateStepRegistry - error message mentions kebab-case and LayerTyp
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -346,7 +356,7 @@ Deno.test("validateStepRegistry - rejects uppercase c3", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.Issue": {
+      "initial.Issue": makeStep({
         stepId: "initial.Issue",
         name: "Issue Step",
         c2: "initial",
@@ -354,7 +364,7 @@ Deno.test("validateStepRegistry - rejects uppercase c3", () => {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -371,7 +381,7 @@ Deno.test("validateStepRegistry - accepts valid kebab-case c3", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.external-state": {
+      "initial.external-state": makeStep({
         stepId: "initial.external-state",
         name: "External State Step",
         c2: "initial",
@@ -379,7 +389,7 @@ Deno.test("validateStepRegistry - accepts valid kebab-case c3", () => {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -393,7 +403,7 @@ Deno.test("validateStepRegistry - accepts single-word lowercase c3", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.issue": {
+      "initial.issue": makeStep({
         stepId: "initial.issue",
         name: "Issue Step",
         c2: "initial",
@@ -401,7 +411,7 @@ Deno.test("validateStepRegistry - accepts single-word lowercase c3", () => {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -415,7 +425,7 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.externalState": {
+      "initial.externalState": makeStep({
         stepId: "initial.externalState",
         name: "External State",
         c2: "initial",
@@ -423,8 +433,8 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
-      "initial.checkBudget": {
+      }),
+      "initial.checkBudget": makeStep({
         stepId: "initial.checkBudget",
         name: "Check Budget",
         c2: "initial",
@@ -432,7 +442,7 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
 
@@ -451,15 +461,18 @@ Deno.test("validateStepRegistry - reports all camelCase c3 errors at once", () =
 
 Deno.test("serializeRegistry - produces valid JSON", () => {
   const registry = createEmptyRegistry("test-agent");
-  addStepDefinition(registry, {
-    stepId: "test",
-    name: "Test",
-    c2: "initial",
-    c3: "test",
-    edition: "default",
-    uvVariables: [],
-    usesStdin: false,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      stepId: "test",
+      name: "Test",
+      c2: "initial",
+      c3: "test",
+      edition: "default",
+      uvVariables: [],
+      usesStdin: false,
+    }),
+  );
 
   const json = serializeRegistry(registry);
   const parsed = JSON.parse(json);
@@ -478,7 +491,7 @@ Deno.test("loadStepRegistry - loads from file", async () => {
     c1: "steps",
     entryStep: "test.step", // Required by validateEntryStepMapping
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -486,7 +499,7 @@ Deno.test("loadStepRegistry - loads from file", async () => {
         edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
   await Deno.writeTextFile(registryPath, JSON.stringify(registry));
@@ -506,8 +519,11 @@ Deno.test("loadStepRegistry - loads from file", async () => {
 Deno.test("loadStepRegistry - normalizes null/undefined step fields", async () => {
   const tempDir = await Deno.makeTempDir();
   const registryPath = `${tempDir}/registry.json`;
-  // Simulate JSON with null uvVariables and missing usesStdin
-  const raw = {
+  // Simulate JSON with null uvVariables and missing usesStdin.
+  // Typed as `unknown` because the raw disk shape (legacy 5-tuple +
+  // null uvVariables) is *what the loader normalizes*; that
+  // normalization is the unit under test.
+  const raw: unknown = {
     agentId: "norm-agent",
     version: "1.0.0",
     c1: "steps",
@@ -575,15 +591,18 @@ Deno.test("saveStepRegistry - saves to file", async () => {
   const tempDir = await Deno.makeTempDir();
   const filePath = `${tempDir}/saved-registry.json`;
   const registry = createEmptyRegistry("save-test");
-  addStepDefinition(registry, {
-    stepId: "saved",
-    name: "Saved Step",
-    c2: "initial",
-    c3: "saved",
-    edition: "default",
-    uvVariables: ["x"],
-    usesStdin: true,
-  });
+  addStepDefinition(
+    registry,
+    makeStep({
+      stepId: "saved",
+      name: "Saved Step",
+      c2: "initial",
+      c3: "saved",
+      edition: "default",
+      uvVariables: ["x"],
+      usesStdin: true,
+    }),
+  );
 
   try {
     await saveStepRegistry(registry, filePath);
@@ -608,7 +627,7 @@ Deno.test("validateIntentSchemaRef - throws when structuredGate missing intentSc
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -622,7 +641,7 @@ Deno.test("validateIntentSchemaRef - throws when structuredGate missing intentSc
           intentField: "status",
           // intentSchemaRef is missing - testing validation
         } as StructuredGate,
-      },
+      }),
     },
   };
 
@@ -639,7 +658,7 @@ Deno.test("validateIntentSchemaRef - passes when intentSchemaRef present", () =>
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -652,7 +671,7 @@ Deno.test("validateIntentSchemaRef - passes when intentSchemaRef present", () =>
           intentField: "status",
           intentSchemaRef: "#/definitions/test.step/properties/status",
         },
-      },
+      }),
     },
   };
 
@@ -666,7 +685,7 @@ Deno.test("validateIntentSchemaRef - passes when no structuredGate", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -675,7 +694,7 @@ Deno.test("validateIntentSchemaRef - passes when no structuredGate", () => {
         uvVariables: [],
         usesStdin: false,
         // No structuredGate - should pass
-      },
+      }),
     },
   };
 
@@ -689,7 +708,7 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "step.one": {
+      "step.one": makeStep({
         stepId: "step.one",
         name: "Step One",
         c2: "initial",
@@ -702,8 +721,8 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
           allowedIntents: ["next"],
           intentField: "action",
         } as StructuredGate,
-      },
-      "step.two": {
+      }),
+      "step.two": makeStep({
         stepId: "step.two",
         name: "Step Two",
         c2: "continuation",
@@ -716,7 +735,7 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
           allowedIntents: ["next", "closing"],
           intentField: "status",
         } as StructuredGate,
-      },
+      }),
     },
   };
 
@@ -739,7 +758,7 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
 // =============================================================================
 
 Deno.test("StepDefinition - supports type field", () => {
-  const step: PromptStepDefinition = {
+  const step: PromptStepDefinition = makeStep({
     stepId: "test",
     name: "Test Step",
     type: "prompt",
@@ -748,7 +767,7 @@ Deno.test("StepDefinition - supports type field", () => {
     edition: "default",
     uvVariables: [],
     usesStdin: false,
-  };
+  });
 
   assertEquals(step.type, "prompt");
 });
@@ -763,7 +782,7 @@ Deno.test("validateIntentSchemaRef - throws on external file reference", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -778,7 +797,7 @@ Deno.test("validateIntentSchemaRef - throws on external file reference", () => {
           intentSchemaRef:
             "common.schema.json#/$defs/nextAction/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -795,7 +814,7 @@ Deno.test("validateIntentSchemaRef - throws on missing intentField", () => {
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -809,7 +828,7 @@ Deno.test("validateIntentSchemaRef - throws on missing intentField", () => {
           // intentField is missing
           intentSchemaRef: "#/properties/next_action/properties/action",
         } as StructuredGate,
-      },
+      }),
     },
   };
 
@@ -826,7 +845,7 @@ Deno.test("validateIntentSchemaRef - passes with valid internal pointer", () => 
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -839,7 +858,7 @@ Deno.test("validateIntentSchemaRef - passes with valid internal pointer", () => 
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -880,7 +899,7 @@ Deno.test("validateIntentSchemaEnums - passes when enum matches allowedIntents e
     c1: "steps",
     entryStep: "test.step",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -897,7 +916,7 @@ Deno.test("validateIntentSchemaEnums - passes when enum matches allowedIntents e
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -938,7 +957,7 @@ Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains value
     c1: "steps",
     entryStep: "test.step",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -955,7 +974,7 @@ Deno.test("validateIntentSchemaEnums - throws when allowedIntents contains value
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -1001,7 +1020,7 @@ Deno.test("validateIntentSchemaEnums - throws when schema enum is superset of al
     c1: "steps",
     entryStep: "test.step",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -1018,7 +1037,7 @@ Deno.test("validateIntentSchemaEnums - throws when schema enum is superset of al
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -1063,7 +1082,7 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
     c1: "steps",
     entryStep: "test.step",
     steps: {
-      "test.step": {
+      "test.step": makeStep({
         stepId: "test.step",
         name: "Test Step",
         c2: "initial",
@@ -1080,7 +1099,7 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      },
+      }),
     },
   };
 
@@ -1103,7 +1122,7 @@ Deno.test("validateIntentSchemaEnums - throws on mismatched casing", async () =>
 Deno.test("validateStepKindIntents - closure step with valid intents passes", () => {
   const registry: StepRegistry = createEmptyRegistry("test-agent");
   registry.steps = {
-    "closure.test": {
+    "closure.test": makeStep({
       stepId: "closure.test",
       name: "Test Closure",
       type: "prompt",
@@ -1114,7 +1133,7 @@ Deno.test("validateStepKindIntents - closure step with valid intents passes", ()
         intentField: "next_action.action",
         intentSchemaRef: "#/properties/next_action/properties/action",
       },
-    } as PromptStepDefinition,
+    }),
   };
 
   // Should not throw — ["closing", "repeat"] is valid for closure
@@ -1124,7 +1143,7 @@ Deno.test("validateStepKindIntents - closure step with valid intents passes", ()
 Deno.test("validateStepKindIntents - closure step with invalid intent throws", () => {
   const registry: StepRegistry = createEmptyRegistry("test-agent");
   registry.steps = {
-    "closure.test": {
+    "closure.test": makeStep({
       stepId: "closure.test",
       name: "Test Closure",
       type: "prompt",
@@ -1135,7 +1154,7 @@ Deno.test("validateStepKindIntents - closure step with invalid intent throws", (
         intentField: "next_action.action",
         intentSchemaRef: "#/properties/next_action/properties/action",
       },
-    } as PromptStepDefinition,
+    }),
   };
 
   assertThrows(
@@ -1168,7 +1187,7 @@ Deno.test("validateStepKindIntents - closure step rejects all non-closure intent
   for (const intent of nonClosureIntents) {
     const registry: StepRegistry = createEmptyRegistry("test-agent");
     registry.steps = {
-      "closure.test": {
+      "closure.test": makeStep({
         stepId: "closure.test",
         name: "Test Closure",
         type: "prompt",
@@ -1179,7 +1198,7 @@ Deno.test("validateStepKindIntents - closure step rejects all non-closure intent
           intentField: "next_action.action",
           intentSchemaRef: "#/properties/next_action/properties/action",
         },
-      } as PromptStepDefinition,
+      }),
     };
 
     assertThrows(
@@ -1193,7 +1212,7 @@ Deno.test("validateStepKindIntents - closure step rejects all non-closure intent
 Deno.test("validateStepKindIntents - closure step with invalid fallbackIntent throws", () => {
   const registry: StepRegistry = createEmptyRegistry("test-agent");
   registry.steps = {
-    "closure.test": {
+    "closure.test": makeStep({
       stepId: "closure.test",
       name: "Test Closure",
       type: "prompt",
@@ -1205,7 +1224,7 @@ Deno.test("validateStepKindIntents - closure step with invalid fallbackIntent th
         intentSchemaRef: "#/properties/next_action/properties/action",
         fallbackIntent: "next",
       },
-    } as PromptStepDefinition,
+    }),
   };
 
   assertThrows(

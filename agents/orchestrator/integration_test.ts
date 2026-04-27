@@ -10,9 +10,10 @@ import type {
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import { StubDispatcher } from "./dispatcher.ts";
-import { compensationMarker, Orchestrator } from "./orchestrator.ts";
+import { Orchestrator } from "./orchestrator.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
 import { SubjectStore } from "./subject-store.ts";
+import { buildOrchestratorWithChannels } from "./_test-fixtures.ts";
 
 // Design §2.2: one phase transition produces one "add" call (T3) plus
 // one "remove" call (T4).
@@ -24,6 +25,8 @@ const LABEL_CALLS_PER_TRANSITION = 2;
 function createValidWorkflowJson(): Record<string, unknown> {
   return {
     version: "1.0.0",
+    // T1.1: required IssueSource ADT (12-workflow-config.md §C)
+    issueSource: { kind: "ghRepoIssues", projectMembership: "unbound" },
     phases: {
       implementation: { type: "actionable", priority: 3, agent: "iterator" },
       review: { type: "actionable", priority: 2, agent: "reviewer" },
@@ -317,7 +320,9 @@ Deno.test("integration: default workflow path loads and runs single cycle", asyn
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -386,7 +391,9 @@ Deno.test("integration: custom workflow path loads correctly", async () => {
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -438,7 +445,9 @@ Deno.test("integration: custom path in nested directory", async () => {
     // Verify it runs correctly
     const github = new StubGitHubClient([["done"]]);
     const dispatcher = new StubDispatcher();
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -479,7 +488,9 @@ Deno.test("integration: labelPrefix correctly namespaces labels", async () => {
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -616,7 +627,9 @@ Deno.test("integration: no prefix preserves backward compatibility", async () =>
       iterator: "success",
       reviewer: "approved",
     });
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -664,7 +677,9 @@ Deno.test("integration: prefixed labels without matching prefix are ignored", as
       ["impl:ready", "bug", "ready"],
     ]);
     const dispatcher = new StubDispatcher();
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     const result = await orchestrator.run(1);
 
@@ -688,61 +703,56 @@ Deno.test("integration: prefixed labels without matching prefix are ignored", as
  *
  * Derived from `createValidWorkflowJson()` with two adjustments required
  * by the contract under test:
- *   1. `reviewer.closeOnComplete = true` so reaching `complete` fires T6
- *      (the irreversible side-effect whose failure the saga must catch).
- *   2. `reviewer.closeCondition = "approved"` so only the happy reviewer
- *      outcome triggers the close attempt — matches design §2.2 T6.
+ *   1. `reviewer.closeBinding.primary.kind = "direct"` so reaching
+ *      `complete` fires T6 (the irreversible side-effect whose failure
+ *      the saga must catch).
+ *   2. `reviewer.closeBinding.condition = "approved"` so only the happy
+ *      reviewer outcome triggers the close attempt — matches design §2.2 T6.
  */
 function createSelfHealWorkflowConfig(): WorkflowConfig {
   const json = createValidWorkflowJson() as unknown as WorkflowConfig;
   // deno-lint-ignore no-explicit-any
   const reviewer = json.agents.reviewer as any;
-  reviewer.closeOnComplete = true;
-  reviewer.closeCondition = "approved";
+  reviewer.closeBinding = {
+    primary: { kind: "direct" },
+    cascade: false,
+    condition: "approved",
+  };
   return json;
 }
 
 Deno.test(
-  "self-heal: T6 failure on cycle 2 recovers on cycle 3 with idempotent compensation comment",
+  "W13 self-heal: close failure leaves labels committed, comp comment posted; " +
+    "next run with restored close succeeds without duplicate comment",
   async () => {
-    // Scenario (design.md §3.3 idempotency + orchestrator.ts T6 block):
+    // PR4-2b — W13 contract (To-Be 41 §D):
     //
-    //   Run 1 (store-backed, so tracker state + meta labels persist):
-    //     Cycle 1  ready  -> review     (T3/T4 commit; tracker count -> 1)
-    //     Cycle 2  review -> complete   T6 closeIssue throws
-    //                                   -> scope.rollback runs T4-comp
-    //                                      (re-add "review") then T3-comp
-    //                                      (remove "done"), posts a
-    //                                      marker-tagged compensation
-    //                                      comment, status="blocked".
-    //                                   tracker.record is NOT called, so
-    //                                   cycleSeq for this failing cycle
-    //                                   is tracker.getCount(1)+1 == 2.
+    //   Run 1 (store-backed):
+    //     Cycle 1  ready  -> review              (forward only)
+    //     Cycle 2  review -> complete            T6 close throws
+    //                                            -> labels stay committed
+    //                                               (no rollback under W13)
+    //                                            -> CompensationCommentChannel
+    //                                               posts marker comment
+    //                                            -> status stays "completed"
+    //                                               (target phase is terminal)
     //
-    //   Run 2 (same stub + store, closeIssue now succeeds):
-    //     Orchestrator re-loads the persisted tracker (count=1), reads
-    //     meta labels ["review"] (rollback left them intact), and
-    //     re-enters the same review -> complete transition. cycleSeq is
-    //     again count+1 == 2 — identical to run 1's failing cycle, which
-    //     is what makes compensationMarker(1, 2) a stable dedup key.
-    //     T6 now succeeds, tracker.record fires, commit clears the
-    //     pre-registered compensation before it can post. No new
-    //     compensation comment is posted — the pre-post getRecentComments
-    //     check would have caught it anyway, but the happy path never
-    //     reaches that code. Either way: comment count stays at 1.
+    //   Run 2 (same stub + store, closeIssue succeeds):
+    //     Orchestrator re-reads meta labels ["done"] (W13 left them
+    //     committed). Early terminal detection fires — no agent
+    //     dispatched, no DirectClose invocation. Comment count remains
+    //     unchanged because no new IssueCloseFailedEvent was published.
     //
-    // Pattern classification (test-design skill):
-    //   - Contract: "T6 failure -> next run self-heals to completed".
-    //   - Invariant: "compensation comment count per (issue, cycleSeq)
-    //                 remains exactly 1 across retries".
+    // Invariants:
+    //   - I-1: Run 1 status reaches "completed" (W13 acceptance).
+    //   - I-2: Run 1 posts exactly one compensation comment with a
+    //          (subjectId, runId) marker.
+    //   - I-3: Run 2 sees no additional compensation comment.
 
     const tempDir = await Deno.makeTempDir();
     try {
       const config = createSelfHealWorkflowConfig();
 
-      // Pre-seed the store. Labels here are source-of-truth for the
-      // orchestrator when a store is wired in (it reads via
-      // store.readMeta, not github.getIssueLabels, at cycle start).
       const storePath = `${tempDir}/store`;
       const store = new SubjectStore(storePath);
       const subjectId = 1;
@@ -760,10 +770,6 @@ Deno.test(
         comments: [],
       });
 
-      // GitHub stub: closeIssue fails exactly once (run 1 cycle 2), then
-      // succeeds (run 2). Label sequence is only used as a fallback here
-      // since the store provides labels; we still supply one entry per
-      // possible read to keep the stub honest.
       const github = new StubGitHubClient([
         [initialLabel],
         ["review"],
@@ -776,110 +782,71 @@ Deno.test(
         iterator: "success",
         reviewer: "approved",
       });
-      const orchestrator = new Orchestrator(
+      const { orchestrator: orchestrator1 } = buildOrchestratorWithChannels({
         config,
         github,
         dispatcher,
-        tempDir,
-      );
+        cwd: tempDir,
+        runId: "self-heal-run-1",
+      });
 
       // =======================================================
-      // Run 1: cycle 1 succeeds, cycle 2 T6 fails -> blocked
+      // Run 1: cycle 1 succeeds, cycle 2 close fails (W13 no rollback)
       // =======================================================
-      const first = await orchestrator.run(subjectId, undefined, store);
+      const first = await orchestrator1.run(subjectId, undefined, store);
 
       assertEquals(
         first.status,
-        "blocked",
-        "Precondition: T6 must have failed in run 1 for the self-heal " +
-          "scenario to apply. IF status != blocked THEN the invariants " +
-          "below are vacuous. Fix: orchestrator.ts T6 catch must set " +
-          "blocked + break.",
+        "completed",
+        "W13: cycle status reflects target-phase reachability, not close " +
+          'outcome. Fix: orchestrator must NOT set status="blocked" when ' +
+          "DirectCloseChannel.execute throws.",
       );
-      // Note: label rollback order and closeIssue call counts are the
-      // responsibility of transaction-scope_test.ts (LIFO contract). We
-      // do not re-assert them here to keep this test aligned with its
-      // stated invariants (self-heal reach + marker idempotency).
-
-      // I-2 setup: marker is posted exactly once in run 1. failingCycleSeq
-      // is derived from first.cycleCount + 1 (source of truth: tracker
-      // only records on full T3..T6 success, so the failing cycle's seq
-      // is count+1) — no bare literal.
-      const failingCycleSeq = first.cycleCount + 1;
-      const expectedMarker = compensationMarker(subjectId, failingCycleSeq);
       assertEquals(
         github.comments.length,
         1,
-        "Run 1 must post exactly one compensation comment (T6 failure " +
-          "-> rollback posts the pre-registered marker comment). " +
-          "Fix: orchestrator.ts T6 must scope.record() the compensation " +
-          "before invoking closeIssue so rollback() finds it.",
+        "Run 1 must post exactly one compensation comment via " +
+          "CompensationCommentChannel (W13 comment-only compensation). " +
+          "Fix: BootKernel must register the channel and DirectCloseChannel " +
+          "must publish IssueCloseFailedEvent on transport throw.",
       );
+      const expectedMarker =
+        `climpt-compensation:subject-${subjectId}:run-self-heal-run-1`;
       assertStringIncludes(
         github.comments[0].comment,
         expectedMarker,
-        `Compensation comment must embed marker "${expectedMarker}" ` +
-          `(from compensationMarker(${subjectId}, ${failingCycleSeq})) ` +
-          "so a subsequent retry can detect+skip re-posting (design §3.3).",
+        `W13 marker must include (subjectId, runId): "${expectedMarker}".`,
       );
 
       // =======================================================
-      // Run 2: same issue, same stub+store -> self-heal
+      // Run 2: labels committed -> early terminal detection -> completed
       // =======================================================
-      const second = await orchestrator.run(subjectId, undefined, store);
+      const { orchestrator: orchestrator2 } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: "self-heal-run-2",
+      });
+      const second = await orchestrator2.run(subjectId, undefined, store);
 
-      // I-1: Self-heal reachability.
       assertEquals(
         second.status,
         "completed",
-        "I-1: IF the transient T6 failure has cleared THEN a second " +
-          "run on the same issue must reach completed. Fix: " +
-          "orchestrator.ts must re-read state from the store so the " +
-          "rollbacked transition is re-entered on retry.",
+        "Run 2 must reach completed via early terminal detection — labels " +
+          "were committed in run 1 and never rolled back (W13).",
       );
       assertEquals(
         second.finalPhase,
         "complete",
-        "I-1: Self-heal must land on the terminal phase.",
+        "Self-heal must land on the terminal phase (W13 cycle status).",
       );
-      // I-2: Idempotency invariant (design §3.3) — total compensation
-      // comment count across ALL runs remains 1. Run 2 must not post another
-      // marker comment even though the same phase transition is
-      // re-entered, because (a) the happy path commits the scope and
-      // clears the pre-registered compensation, and (b) even if it
-      // rolled back, getRecentComments would surface the marker and
-      // skip the duplicate post.
       assertEquals(
         github.comments.length,
         1,
-        "Compensation comment count must stay at 1 across both runs. " +
-          "IF run 2's T6 succeeds THEN scope.commit() clears the " +
-          "pre-registered compensation before it can run. " +
-          "Fix: orchestrator.ts must register T6's compensation via " +
-          "scope.record (not scope.step's post-success factory) and " +
-          "call scope.commit() on the happy path so the marker post " +
-          "is skipped exactly when we want it skipped.",
-      );
-      assertStringIncludes(
-        github.comments[0].comment,
-        expectedMarker,
-        "I-2: The surviving marker must be run 1's — identity drift " +
-          "would defeat dedup. Fix: compensationMarker must be a pure " +
-          "function of (subjectId, cycleSeq).",
-      );
-
-      // I-3: cycleSeq identity across runs — the precondition that
-      // makes marker-based dedup possible. Expressed as a relation
-      // (not specific counts) so the test exercises the invariant
-      // directly (skill: Decision Framework Q2 — relationship, not
-      // value).
-      assertEquals(
-        first.cycleCount + 1,
-        second.cycleCount,
-        "I-3: failing cycleSeq in run 1 (first.cycleCount + 1) must " +
-          "equal recovering cycleSeq in run 2 (second.cycleCount). " +
-          "Fix: tracker.record must fire only on full T3..T6 success, " +
-          "and the store must persist tracker state between runs.",
+        "Compensation comment count stays at 1 across both runs — run 2 " +
+          "does not invoke the close channel because early terminal " +
+          "detection fires before agent dispatch.",
       );
     } finally {
       await Deno.remove(tempDir, { recursive: true });

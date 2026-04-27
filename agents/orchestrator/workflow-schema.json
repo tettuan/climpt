@@ -93,13 +93,46 @@
             "type": "string",
             "description": "Phase to transition to on error"
           },
-          "closeOnComplete": {
-            "type": "boolean",
-            "description": "Close the GitHub issue when this agent's outcome leads to a terminal phase"
-          },
-          "closeCondition": {
-            "type": "string",
-            "description": "Only close the issue when the outcome matches this value (requires closeOnComplete: true)"
+          "closeBinding": {
+            "type": "object",
+            "description": "Declarative close-path binding (design 13 §F). Replaces the legacy closeOnComplete/closeCondition pair.",
+            "properties": {
+              "primary": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "direct",
+                      "boundary",
+                      "outboxPre",
+                      "custom",
+                      "none"
+                    ],
+                    "description": "Channel that decides this agent's close action. 'direct' enables close on terminal-bound transitions; 'none' disables close."
+                  },
+                  "channel": {
+                    "type": "object",
+                    "properties": {
+                      "channelId": { "type": "string" },
+                      "schemaRef": { "type": "string" }
+                    },
+                    "required": ["channelId"],
+                    "description": "Required when primary.kind == 'custom'."
+                  }
+                },
+                "required": ["kind"]
+              },
+              "cascade": {
+                "type": "boolean",
+                "description": "Whether sentinel-cascade applies to this agent's close events."
+              },
+              "condition": {
+                "type": "string",
+                "description": "Optional outcome-equality guard. When set, the close path only fires when the dispatch outcome equals this value. Replaces the legacy closeCondition field."
+              }
+            },
+            "required": ["primary"]
           },
           "outputPhase": {
             "type": "string",

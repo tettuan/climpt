@@ -42,7 +42,6 @@ const ACTION_TO_INTENT: Record<string, GateIntent> = {
   repeat: "repeat",
   jump: "jump",
   closing: "closing",
-  abort: "abort",
   escalate: "escalate",
   handoff: "handoff",
   // Common aliases from AI responses
@@ -63,7 +62,6 @@ const VALID_INTENTS: Set<GateIntent> = new Set([
   "repeat",
   "jump",
   "closing",
-  "abort",
   "escalate",
   "handoff",
 ]);
