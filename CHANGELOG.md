@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration (breaking) — `.agent/workflow.json` schema
+
+Repositories using the legacy fields below MUST rewrite `.agent/workflow.json`
+before installing this release. No backward compatibility is provided: the
+loader rejects the legacy shape at load time.
+
+#### Replacement mapping
+
+| Legacy field (removed) | New field | Hint |
+|------------------------|-----------|------|
+| `closeOnComplete: true` (per agent) | `closeBinding: { primary: { kind: "direct" } }` | `direct` = close on terminal-bound transition (default choice). |
+| `closeOnComplete: false` (per agent) or field absent | omit `closeBinding` (equivalent to `{ primary: { kind: "none" } }`) | Handoff-only agent; no close path. |
+| `closeCondition: "<outcome>"` (per agent) | `closeBinding.condition: "<outcome>"` | Outcome-equality guard; must be a key in `outputPhases`. |
+| `validationConditions: [...]` (steps_registry validators) | `preflightConditions: [...]` + `postLLMConditions: [...]` | Split per failure scope: preflight = abort-only; postLLM = retry-able. |
+| `criteria.allProjects: true` | `issueSource: { kind: "ghRepoIssues", projectMembership: "any" }` | Cross-repo label/state filter spanning any project membership. |
+| `criteria.*` field-presence pattern | `issueSource: { kind: "ghProject" \| "ghRepoIssues" \| "explicit", ... }` | Declared explicitly via `kind` (3-variant ADT). |
+| `dryRun: true` (declarative flag) | removed from schema | Use `Transport=File` at runtime instead (design 01 §D). |
+| `OrchestratorResult.issueClosed` (consumer code) | observe `IssueClosedEvent` / `IssueCloseFailedEvent` on the bus | Consumers subscribe instead of polling a result field. |
+
+> If a legacy config carries only `closeCondition` (without `closeOnComplete`),
+> migration to `closeBinding.condition` is still required: the loader rejects
+> the legacy `closeCondition` field on its own.
+
+`closeBinding.primary.kind` has 5 variants — choose by close-decision channel:
+
+- `direct` — close on terminal-bound phase transition (typical)
+- `boundary` — close at Closure-step boundary, independent of phase transition
+- `outboxPre` — close via outbox `PreClose` action
+- `custom` — user-defined channel (`channel.channelId` required)
+- `none` — no close path (handoff-only)
+
+#### Example: one agent, before / after
+
+```jsonc
+// before
+"agents": {
+  "iterator": {
+    "role": "transformer",
+    "closeOnComplete": true,
+    "closeCondition": "ok"
+  }
+}
+
+// after
+"agents": {
+  "iterator": {
+    "role": "transformer",
+    "closeBinding": {
+      "primary": { "kind": "direct" },
+      "condition": "ok"
+    }
+  }
+}
+```
+
+#### sed-pattern (best-effort)
+
+> Note: `workflow.json` is restructured, not just renamed. Mechanical
+> substitution does not complete the migration. Run `deno task ci` (or
+> the agent loader) and confirm the loader does not reject the resulting
+> shape.
+
+> The sed pattern below matches only canonical line-oriented jsonc (one
+> field per line, trailing `,`, double-quoted keys). Inline forms such as
+> `{ "closeOnComplete": true }`, alternate quoting, or blocks with inline
+> comments are silently skipped and must be migrated by hand. Final
+> verification is `deno task ci` (workflow loader rejects any remaining
+> legacy field).
+
+Starting points for grep / sed / jq:
+
+- Locate agents that need rewriting:
+  ```sh
+  grep -nE '"closeOnComplete"|"closeCondition"' .agent/workflow.json
+  ```
+- Delete the two legacy keys (manual rewrite of `closeBinding` still required):
+  ```sh
+  sed -i.bak -E '/^[[:space:]]*"closeOnComplete":[[:space:]]*(true|false),?$/d; /^[[:space:]]*"closeCondition":[[:space:]]*"[^"]*",?$/d' .agent/workflow.json
+  ```
+- Replace `criteria.allProjects: true` blocks (manual rewrite to `issueSource`):
+  ```sh
+  grep -nE '"allProjects"[[:space:]]*:[[:space:]]*true' .agent/workflow.json
+  ```
+- Locate `validationConditions` arrays for split into preflight / postLLM:
+  ```sh
+  grep -n '"validationConditions"' .agent/steps_registry.json
+  ```
+- Locate the declarative `dryRun` flag for removal:
+  ```sh
+  grep -nE '"dryRun"[[:space:]]*:[[:space:]]*true' .agent/workflow.json
+  ```
+
+#### Items NOT requiring migration
+
+- `agents: Record<string, AgentDefinition>` map — disk shape stays; the
+  loader derives the runtime `invocations` view via `deriveInvocations()`.
+- `phases.{id}.agent: string | null` — disk shape stays.
+- `outputPhase` / `outputPhases` / `fallbackPhase` / `fallbackPhases` —
+  disk shape stays.
+- `agent.role` enum on `workflow.json` — still 2-value (`"transformer"
+  | "validator"`).
+
+#### Detailed reference
+
+- `agents/docs/builder/06_workflow_setup.md` — Close binding section
+- `agents/docs/builder/09_closure_output_contract.md`
+- Internal design: `agents/docs/design/realistic/13-agent-config.md` §F
+
 ### Added
 - **Realistic-design migration (Phase 1-6 complete).** ADT-first
   rewrite of the agent runtime so the 7 MUST requirements

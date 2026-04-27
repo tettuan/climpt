@@ -182,6 +182,131 @@ Phase 遷移                 review → complete
   が再実行
 - verdict が不明な場合は `blocked` に遷移し人間の介入を待つ
 
+## Close binding (per agent)
+
+各 Agent 定義に `closeBinding` を宣言することで、その Agent の close
+イベントがどの channel で決定されるかを宣言的に指定する。
+
+### Principle
+
+Agent は **どの channel が close を決定するか** を宣言し、framework が Boot
+時に対応する subscriber を chain する。Agent ごとに channel destination が異なる
+ADT 形式のため、不要な channel が誤発火しない。
+
+### Structure
+
+`closeBinding` は `primary` (ADT) と auxiliary fields の組。
+
+```typescript
+{
+  primary: ClosePrimary;   // 5 variant の discriminated union
+  cascade?: boolean;       // sentinel cascade を許可するか (default: false)
+  condition?: string;      // outcome-equality guard (旧 closeCondition)
+}
+```
+
+`primary.kind` の 5 variant:
+
+| kind        | 追加フィールド                | when to use                                                                                 |
+| ----------- | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `direct`    | (なし)                        | verdict が terminal phase に解決した時点で close する典型ケース。旧 `closeOnComplete: true` |
+| `boundary`  | (なし)                        | Closure step boundary に到達した時点で close (phase 遷移と独立)                             |
+| `outboxPre` | (なし)                        | Outbox の `PreClose` action が発火した時点で close                                          |
+| `custom`    | `channel: ContractDescriptor` | user-defined channel (`channelId` 必須、`schemaRef?` optional) で close を decide           |
+| `none`      | (なし)                        | この Agent では close しない (handoff-only)。旧 `closeOnComplete: false` または field 省略  |
+
+`closeBinding` 自体省略時は `{ primary: { kind: "none" } }` と等価。
+
+### Mechanism
+
+Boot 時に Loader が各 Agent の `closeBinding.primary` を読み、`AgentRegistry` に
+channel id を登録する。Channel が closing event を decide し、subscribe chain
+（cascade / outbox-post 等）が後続する。`condition` が指定されている場合は
+dispatch outcome と等しい場合のみ close を発火する (`outputPhases` のキーに
+合致する文字列であること — Loader が cross-validate する)。
+
+> `outbox-post` / `cascade` は framework subscriber (Boot で auto-chain)
+> であり、 `closeBinding.primary.kind` で declare する対象ではない。kebab-case
+> (`outbox-post`) は framework subscriber 名、camelCase (`outboxPre`) は
+> ClosePrimary variant の kind 値である点に注意。
+
+> `condition` は **validator** (`outputPhases` を持つ agent) でのみ有意義。
+> transformer (`outputPhase` 単数) では loader が cross-validate する
+> `outputPhases` キーが存在しないため、`condition` を設定しても突合できず、
+> 空欄を推奨する。
+
+### Examples (5 ClosePrimary kinds)
+
+5 kind を網羅する。`handoff-only` は `kind: "none"` を明示するための追加例。
+
+```jsonc
+// agents.{id}.closeBinding に書く
+"agents": {
+  "iterator": {
+    "role": "transformer",
+    "directory": "iterator",
+    "outputPhase": "review",
+    "fallbackPhase": "blocked",
+    "closeBinding": { "primary": { "kind": "direct" } }
+  },
+  "reviewer": {
+    "role": "validator",
+    "directory": "reviewer",
+    "outputPhases": { "approved": "complete", "rejected": "revision" },
+    "fallbackPhase": "blocked",
+    "closeBinding": {
+      "primary": { "kind": "direct" },
+      "condition": "approved"
+    }
+  },
+  "boundary-closer": {
+    "role": "transformer",
+    "directory": "boundary-closer",
+    "outputPhase": "complete",
+    "fallbackPhase": "blocked",
+    "closeBinding": { "primary": { "kind": "boundary" }, "cascade": true }
+  },
+  "outbox-emitter": {
+    "role": "transformer",
+    "directory": "outbox-emitter",
+    "outputPhase": "complete",
+    "fallbackPhase": "blocked",
+    "closeBinding": { "primary": { "kind": "outboxPre" } }
+  },
+  "custom-channel-agent": {
+    "role": "transformer",
+    "directory": "custom-channel-agent",
+    "outputPhase": "complete",
+    "fallbackPhase": "blocked",
+    "closeBinding": {
+      "primary": {
+        "kind": "custom",
+        "channel": { "channelId": "user-channel-1", "schemaRef": "schemas/u.json" }
+      }
+    }
+  },
+  "handoff-only": {
+    "role": "transformer",
+    "directory": "handoff-only",
+    "outputPhase": "review",
+    "fallbackPhase": "blocked",
+    "closeBinding": { "primary": { "kind": "none" } }
+  }
+}
+```
+
+### 旧 field からの移行
+
+| 旧記述                          | 新記述                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `"closeOnComplete": true`       | `"closeBinding": { "primary": { "kind": "direct" } }`                          |
+| `"closeOnComplete": false`      | `"closeBinding": { "primary": { "kind": "none" } }` または `closeBinding` 省略 |
+| `"closeCondition": "<outcome>"` | `"closeBinding": { "primary": {...}, "condition": "<outcome>" }`               |
+
+旧 field (`closeOnComplete` / `closeCondition`) はロード時に拒否される
+(T6.2)。設計上の詳細は
+[09_closure_output_contract.md](./09_closure_output_contract.md) を参照。
+
 ## Label Mapping
 
 `labelMapping` で定義するラベルは、two-tier label model における「Orchestrator
