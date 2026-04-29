@@ -47,7 +47,7 @@ import { SubjectPicker } from "../orchestrator/subject-picker.ts";
 
 // === R3 — AgentBundle.steps + Step ADT (13 §B + 14 §B hard gate) ===
 import type { AgentBundle } from "../src_common/types/agent-bundle.ts";
-import type { Step, StepKind } from "../common/step-registry/types.ts";
+import type { StepKind } from "../common/step-registry/types.ts";
 
 // === R4 — Flow / Completion loops (16 §A hard gate) ===
 //
@@ -193,7 +193,7 @@ Deno.test(
     "{work|verification|closure} (90 §A R3 / 13 §B + 14 §B)",
   () => {
     // Compile-time witness: `AgentBundle.steps` is a typed field; `Step`
-    // is the ADT with `stepKind: StepKind`. We exercise the kind values
+    // is the ADT with `kind: StepKind`. We exercise the kind values
     // because removing one would break the closure boundary (R4).
     const allowedKinds: ReadonlyArray<StepKind> = [
       "work",
@@ -208,9 +208,12 @@ Deno.test(
         "removing 'work' / 'verification' breaks the Flow loop (16 §B).",
     );
     // Witness an AgentBundle.steps reference shape — the import path
-    // anchors R3's "1 bundle 1 概念" hard gate (13 §A).
+    // anchors R3's "1 bundle 1 概念" hard gate (13 §A). The ADT shape
+    // (`kind` discriminator + `address` C3L coordinates) is enforced by
+    // the StepKind exhaustiveness check above; an additional `Step = Step`
+    // tautology was removed (post-T50: PromptStepDefinition alias is
+    // gone, so there is no longer an alias-equality invariant to anchor).
     type _AgentBundleHasSteps = AgentBundle["steps"];
-    type _StepIsAdt = Step;
     assertEquals(true, true, "R3 type-level anchor; assertion is structural.");
   },
 );
