@@ -15,10 +15,13 @@
     "merge": {
       "stepId": "merge",
       "name": "PR Merge Closure",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "merge",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "merge",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "runner": {

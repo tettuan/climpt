@@ -235,8 +235,12 @@
     "closure.issue": {
       "stepId": "closure.issue",
       "name": "Issue Validation",
-      "c2": "retry",
-      "c3": "issue",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "default"
+      },
       "preflightConditions": [],
       "postLLMConditions": [
         {
@@ -259,8 +263,12 @@
     "closure.polling": {
       "stepId": "closure.polling",
       "name": "External State Validation",
-      "c2": "retry",
-      "c3": "issue",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "default"
+      },
       "preflightConditions": [],
       "postLLMConditions": [],
       "onFailure": {
@@ -276,8 +284,12 @@
     "closure.issue.precheck-commit-verify": {
       "stepId": "closure.issue.precheck-commit-verify",
       "name": "Commit Binding + In-Run Validation",
-      "c2": "retry",
-      "c3": "issue",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-commit-verify"
+      },
       "preflightConditions": [],
       "postLLMConditions": [
         {
@@ -300,8 +312,12 @@
     "closure.issue.precheck-ac-verify": {
       "stepId": "closure.issue.precheck-ac-verify",
       "name": "Acceptance Criteria Coverage Validation",
-      "c2": "retry",
-      "c3": "issue",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-ac-verify"
+      },
       "preflightConditions": [],
       "postLLMConditions": [
         {
@@ -321,8 +337,12 @@
     "closure.issue.precheck-kind-scope": {
       "stepId": "closure.issue.precheck-kind-scope",
       "name": "Kind Boundary Scope Validation",
-      "c2": "retry",
-      "c3": "issue",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-kind-scope"
+      },
       "preflightConditions": [],
       "postLLMConditions": [
         {
@@ -345,10 +365,13 @@
       "stepId": "initial.issue",
       "name": "Issue Initial Prompt",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -385,10 +408,13 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Continuation Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue",
         "completed_iterations"
@@ -430,10 +456,13 @@
       "stepId": "closure.issue.precheck-commit-list",
       "name": "Precheck - Enumerate In-Run Commits",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-commit-list",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-list"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -469,10 +498,13 @@
       "stepId": "closure.issue.precheck-commit-verify",
       "name": "Precheck - Verify Commit SHAs and Off-Run",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-commit-verify",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-verify"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -509,10 +541,13 @@
       "stepId": "closure.issue.remediate-commit-missing",
       "name": "Remediate - Bind Commit to Issue",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "remediate-commit-missing",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "remediate-commit-missing"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -548,10 +583,13 @@
       "stepId": "closure.issue.precheck-kind-read",
       "name": "Precheck - Read Kind At Triage Artifact",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-kind-read",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-kind-read"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -589,10 +627,13 @@
       "stepId": "closure.issue.precheck-kind-scope",
       "name": "Precheck - Verify Kind Boundary Scope",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-kind-scope",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-kind-scope"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -634,10 +675,13 @@
       "stepId": "closure.issue.precheck-ac-extract",
       "name": "Precheck - Extract Acceptance Criteria",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-ac-extract",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-extract"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -677,10 +721,13 @@
       "stepId": "closure.issue.precheck-ac-map",
       "name": "Precheck - Map AC to Evidence",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-ac-map",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-map"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -721,10 +768,13 @@
       "stepId": "closure.issue.precheck-ac-verify",
       "name": "Precheck - Verify AC Coverage",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "precheck-ac-verify",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-verify"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -767,10 +817,13 @@
       "stepId": "closure.issue",
       "name": "Issue Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -802,9 +855,13 @@
     "section.projectcontext": {
       "stepId": "section.projectcontext",
       "name": "Project Context Section",
-      "c2": "section",
-      "c3": "project",
-      "edition": "context",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "section",
+        "c3": "project",
+        "edition": "context"
+      },
       "uvVariables": [
         "project_number",
         "project_title",
@@ -818,10 +875,13 @@
     "initial.project.preparation": {
       "stepId": "initial.project.preparation",
       "name": "Project Preparation Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "preparation",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "preparation"
+      },
       "uvVariables": [
         "project_number",
         "project_title",
@@ -862,11 +922,14 @@
     "initial.project.preparationempty": {
       "stepId": "initial.project.preparationempty",
       "name": "Project Preparation (No Issues)",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "preparation",
-      "adaptation": "empty",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "preparation",
+        "adaptation": "empty"
+      },
       "uvVariables": [
         "project_number",
         "project_title",
@@ -903,11 +966,14 @@
     "initial.project.processingempty": {
       "stepId": "initial.project.processingempty",
       "name": "Project Processing (No Current Issue)",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "processing",
-      "adaptation": "empty",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "processing",
+        "adaptation": "empty"
+      },
       "uvVariables": [
         "project_number",
         "label_info",
@@ -944,10 +1010,13 @@
     "initial.project.review": {
       "stepId": "initial.project.review",
       "name": "Project Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "review",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "review"
+      },
       "uvVariables": [
         "project_number",
         "project_title",
@@ -989,10 +1058,13 @@
     "initial.project.again": {
       "stepId": "initial.project.again",
       "name": "Project Again Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "again",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "again"
+      },
       "uvVariables": [
         "project_number",
         "project_title",
@@ -1032,10 +1104,13 @@
     "initial.project.closure": {
       "stepId": "initial.project.closure",
       "name": "Project Complete Message",
-      "stepKind": "closure",
-      "c2": "initial",
-      "c3": "project",
-      "edition": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "project",
+        "edition": "closure"
+      },
       "uvVariables": [
         "project_number",
         "label_info",
@@ -1069,10 +1144,13 @@
     "continuation.project.preparation": {
       "stepId": "continuation.project.preparation",
       "name": "Project Preparation Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "preparation",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "project",
+        "edition": "preparation"
+      },
       "uvVariables": [
         "completed_iterations"
       ],
@@ -1110,11 +1188,14 @@
     "continuation.project.processingdone": {
       "stepId": "continuation.project.processingdone",
       "name": "Project Processing Done",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "processing",
-      "adaptation": "done",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "project",
+        "edition": "processing",
+        "adaptation": "done"
+      },
       "uvVariables": [
         "project_number",
         "completed_iterations",
@@ -1150,10 +1231,13 @@
     "continuation.project.review": {
       "stepId": "continuation.project.review",
       "name": "Project Review Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "review",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "project",
+        "edition": "review"
+      },
       "uvVariables": [
         "completed_iterations"
       ],
@@ -1191,10 +1275,13 @@
     "continuation.project.again": {
       "stepId": "continuation.project.again",
       "name": "Project Again Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "again",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "project",
+        "edition": "again"
+      },
       "uvVariables": [
         "completed_iterations"
       ],
@@ -1232,10 +1319,13 @@
     "continuation.project.closure": {
       "stepId": "continuation.project.closure",
       "name": "Project Complete Continuation",
-      "stepKind": "closure",
-      "c2": "continuation",
-      "c3": "project",
-      "edition": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "project",
+        "edition": "closure"
+      },
       "uvVariables": [
         "project_number"
       ],
@@ -1267,10 +1357,13 @@
     "initial.iteration": {
       "stepId": "initial.iteration",
       "name": "Iterate Initial Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "iteration",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "iteration",
+        "edition": "default"
+      },
       "uvVariables": [
         "iterations"
       ],
@@ -1305,10 +1398,13 @@
     "continuation.iteration": {
       "stepId": "continuation.iteration",
       "name": "Iterate Continuation Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "iteration",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "iteration",
+        "edition": "default"
+      },
       "uvVariables": [
         "completed_iterations",
         "remaining"
@@ -1350,10 +1446,13 @@
       "stepId": "initial.polling",
       "name": "External State Initial Prompt",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "polling",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "polling",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -1391,10 +1490,13 @@
       "stepId": "continuation.polling",
       "name": "External State Continuation Prompt",
       "type": "prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "polling",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "polling",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -1435,10 +1537,13 @@
       "stepId": "closure.polling",
       "name": "External State Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "polling",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "polling",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -1471,10 +1576,13 @@
       "stepId": "closure.iteration",
       "name": "Iterate Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "iteration",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "iteration",
+        "edition": "default"
+      },
       "uvVariables": [
         "completed_iterations"
       ],

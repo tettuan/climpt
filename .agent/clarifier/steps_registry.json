@@ -15,10 +15,13 @@
     "clarify": {
       "stepId": "clarify",
       "name": "Clarify Need-Clearance Issue",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "clarify",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "clarify",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],

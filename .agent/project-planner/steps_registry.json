@@ -15,10 +15,13 @@
     "plan": {
       "stepId": "plan",
       "name": "Plan Project Issues",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "plan",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "plan",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],

@@ -15,10 +15,13 @@
     "recover": {
       "stepId": "recover",
       "name": "Recover Single Orphan Issue",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "recover",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "recover",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue",
         "workflow"
