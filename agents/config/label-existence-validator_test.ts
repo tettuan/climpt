@@ -70,7 +70,7 @@ function fakeClient(
     listLabelsDetailed: unsupported("listLabelsDetailed"),
     createLabel: unsupported("createLabel"),
     updateLabel: unsupported("updateLabel"),
-  } as GitHubClient;
+  } as unknown as GitHubClient;
 }
 
 // ---------------------------------------------------------------------------

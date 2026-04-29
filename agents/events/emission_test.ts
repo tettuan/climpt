@@ -834,7 +834,7 @@ Deno.test('emission: IssueClosed (channel "E") fires from external-state-adapter
 
   await adapter.onBoundaryHook({
     stepId: "closure.issue",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { closure_action: "close" },
   });
 
@@ -891,7 +891,7 @@ Deno.test('emission: IssueCloseFailed (channel "E") fires when adapter close thr
 
   await adapter.onBoundaryHook({
     stepId: "closure.issue",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { closure_action: "close" },
   });
 
