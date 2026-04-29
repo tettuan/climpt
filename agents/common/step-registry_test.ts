@@ -23,6 +23,7 @@ import {
   type StructuredGate,
   validateIntentSchemaEnums,
   validateIntentSchemaRef,
+  validateRegistryShape,
   validateStepKindIntents,
   validateStepRegistry,
 } from "./step-registry.ts";
@@ -182,35 +183,83 @@ Deno.test("validateStepRegistry - validates correct registry", () => {
   validateStepRegistry(registry);
 });
 
-Deno.test("validateStepRegistry - throws on missing agentId", () => {
-  const registry = {
-    agentId: "",
-    version: "1.0.0",
-    c1: "steps",
-    steps: {},
-  } as StepRegistry;
+// T35 single-source partition (critique-6 N#2): top-level presence checks
+// (agentId / version / c1 / steps) are owned by validateRegistryShape and
+// raise SR-VALID-005. They used to be re-checked inside validateStepRegistry
+// (raising SR-VALID-004) and inside loader.ts (raising SR-LOAD-001); both
+// duplicates were removed. The contract test below pins the new owner.
+Deno.test(
+  "validateRegistryShape - throws SR-VALID-005 on empty agentId at root",
+  () => {
+    const raw = {
+      agentId: "",
+      version: "1.0.0",
+      c1: "steps",
+      steps: {},
+    };
 
-  assertThrows(
-    () => validateStepRegistry(registry),
-    Error,
-    "agentId must be a non-empty string",
-  );
-});
+    assertThrows(
+      () => validateRegistryShape(raw),
+      Error,
+      "agentId must be a non-empty string at the registry root",
+    );
+  },
+);
 
-Deno.test("validateStepRegistry - throws on missing c1", () => {
-  const registry = {
-    agentId: "test",
-    version: "1.0.0",
-    c1: "",
-    steps: {},
-  } as StepRegistry;
+Deno.test(
+  "validateRegistryShape - throws SR-VALID-005 on empty c1 at root",
+  () => {
+    const raw = {
+      agentId: "test",
+      version: "1.0.0",
+      c1: "",
+      steps: {},
+    };
 
-  assertThrows(
-    () => validateStepRegistry(registry),
-    Error,
-    "c1 must be a non-empty string",
-  );
-});
+    assertThrows(
+      () => validateRegistryShape(raw),
+      Error,
+      "c1 must be a non-empty string at the registry root",
+    );
+  },
+);
+
+Deno.test(
+  "validateRegistryShape - throws SR-VALID-005 on missing steps at root",
+  () => {
+    const raw = {
+      agentId: "test",
+      version: "1.0.0",
+      c1: "steps",
+      // steps intentionally omitted
+    };
+
+    assertThrows(
+      () => validateRegistryShape(raw),
+      Error,
+      "steps must be an object at the registry root",
+    );
+  },
+);
+
+Deno.test(
+  "validateStepRegistry - does NOT re-check top-level presence (T35 single-source)",
+  () => {
+    // After T35, validateStepRegistry assumes the raw-shape gate has run
+    // upstream. Handing it a registry with empty top-level fields directly
+    // (bypassing the gate) must NOT raise — that concern is owned by
+    // validateRegistryShape (SR-VALID-005). This test pins the dedup.
+    const registry = {
+      agentId: "",
+      version: "",
+      c1: "",
+      steps: {},
+    } as StepRegistry;
+
+    // Must not throw: validateStepRegistry only owns semantic concerns now.
+    validateStepRegistry(registry);
+  },
+);
 
 Deno.test("validateStepRegistry - throws on stepId mismatch", () => {
   const registry: StepRegistry = {
@@ -536,8 +585,13 @@ Deno.test("loadStepRegistry - loads from file", async () => {
   await Deno.writeTextFile(registryPath, JSON.stringify(registry));
 
   try {
+    // T29 / critique-5 B#2: schemasDir is type-required for the strict
+    // (default) loader variant. The test fixture has no `outputSchemaRef`,
+    // so `validateIntentSchemaEnums` iterates zero steps; supplying the
+    // tempDir itself is enough to satisfy the union narrowing.
     const loaded = await loadStepRegistry("temp-agent", tempDir, {
       registryPath,
+      schemasDir: tempDir,
     });
 
     assertEquals(loaded.agentId, "temp-agent");
@@ -548,8 +602,14 @@ Deno.test("loadStepRegistry - loads from file", async () => {
 });
 
 Deno.test("loadStepRegistry - throws on missing file", async () => {
+  // schemasDir is required by the strict variant; the directory does not
+  // need to exist because the file-not-found error fires before any
+  // validator dereferences it.
   await assertRejects(
-    () => loadStepRegistry("nonexistent", "/nonexistent/path"),
+    () =>
+      loadStepRegistry("nonexistent", "/nonexistent/path", {
+        schemasDir: "/nonexistent/path/schemas",
+      }),
     Error,
     "Step registry not found",
   );
@@ -571,6 +631,7 @@ Deno.test("loadStepRegistry - throws on agentId mismatch", async () => {
       () =>
         loadStepRegistry("expected-agent", tempDir, {
           registryPath,
+          schemasDir: tempDir,
         }),
       Error,
       "Registry agentId mismatch",

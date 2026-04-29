@@ -34,7 +34,6 @@ import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
 import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
@@ -96,16 +95,19 @@ export class ClosureManager {
 
     try {
       // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
+      //
+      // Explicit opt-out via the discriminated `RegistryLoaderOptOutOptions`
+      // variant (T29 / critique-5 B#2): closure-manager resolves
+      // `schemasDir` from cwd-rooted `.agent/<name>/schemas` *after* load
+      // and runs `validateIntentSchemaEnums` itself a few lines below.
+      // The strict variant (default) requires `schemasDir` at the type
+      // level — picking the opt-out variant here is the only way to defer
+      // enum validation to the caller without a bogus placeholder path.
       const registry = await loadStepRegistry(
         this.deps.definition.name,
         "", // Not used when registryPath is provided
         {
           registryPath,
-          // Explicit opt-out: closure-manager runs validateIntentSchemaEnums
-          // below with the caller-resolved schemasDir. The loader is strict
-          // by default (T18/B3), so we suppress the loader-side enum check
-          // to avoid double-running validation against an unresolved
-          // schemasDir.
           validateIntentEnums: false,
         },
       );
@@ -414,7 +416,7 @@ export class ClosureManager {
       return null;
     }
 
-    const stepKind = inferStepKind(stepDef);
+    const stepKind = stepDef.kind;
     if (stepKind === "closure") {
       return null;
     }

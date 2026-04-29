@@ -10,7 +10,6 @@
 
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
 import type { PromptResolver as StepPromptResolver } from "../common/prompt-resolver.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 
@@ -52,7 +51,7 @@ export class ClosureAdapter {
       return null;
     }
 
-    const stepKind = inferStepKind(stepDef);
+    const stepKind = stepDef.kind;
     if (stepKind !== "closure") {
       return null;
     }

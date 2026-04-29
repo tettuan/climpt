@@ -25,8 +25,6 @@ const logger = new BreakdownLogger("transition");
 type StepFixturePartial =
   & {
     kind?: import("../common/step-registry/types.ts").StepKind;
-    /** Legacy alias for `kind` retained only for this local adapter. */
-    stepKind?: import("../common/step-registry/types.ts").StepKind;
     c2?: string;
     c3?: string;
     edition?: string;
@@ -59,7 +57,7 @@ function createRegistry(
 
   for (const [stepId, partial] of Object.entries(steps)) {
     const c2 = partial.c2 ?? "test";
-    const kind = partial.kind ?? partial.stepKind ?? inferKindFromC2(c2);
+    const kind = partial.kind ?? inferKindFromC2(c2);
     fullSteps[stepId] = makeStep({
       kind,
       address: {
@@ -634,7 +632,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
   const registry = createRegistry({
     "initial.polling": {
       c2: "initial",
-      stepKind: "work",
+      kind: "work",
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
@@ -649,7 +647,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
     },
     "continuation.polling": {
       c2: "continuation",
-      stepKind: "work",
+      kind: "work",
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
@@ -664,7 +662,7 @@ Deno.test("WorkflowRouter - full Work -> Closure flow with handoff", () => {
     },
     "closure.polling": {
       c2: "closure",
-      stepKind: "closure",
+      kind: "closure",
       structuredGate: {
         allowedIntents: ["closing", "repeat"],
         intentField: "next_action.action",
@@ -724,7 +722,7 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
   const registry = createRegistry({
     "initial.polling": {
       c2: "initial",
-      stepKind: "work",
+      kind: "work",
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
@@ -736,7 +734,7 @@ Deno.test("WorkflowRouter - work step cannot emit closing (regression)", () => {
     },
     "closure.polling": {
       c2: "closure",
-      stepKind: "closure",
+      kind: "closure",
     },
   });
   const router = new WorkflowRouter(registry);
@@ -760,7 +758,7 @@ Deno.test("WorkflowRouter - closure repeat stays on current step (closure routin
   const registry = createRegistry({
     "continuation.polling": {
       c2: "continuation",
-      stepKind: "work",
+      kind: "work",
       structuredGate: {
         allowedIntents: ["next", "repeat", "handoff"],
         intentField: "next_action.action",
@@ -772,7 +770,7 @@ Deno.test("WorkflowRouter - closure repeat stays on current step (closure routin
     },
     "closure.polling": {
       c2: "closure",
-      stepKind: "closure",
+      kind: "closure",
       structuredGate: {
         allowedIntents: ["closing", "repeat"],
         intentField: "next_action.action",

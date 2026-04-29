@@ -14,10 +14,11 @@ import {
   validateStepKindIntents,
   validateStepRegistry,
 } from "./validator.ts";
+import { createEmptyRegistry } from "./utils.ts";
 import { PATHS } from "../../shared/paths.ts";
 import {
+  ConfigError,
   srLoadAgentIdMismatch,
-  srLoadInvalidFormat,
   srLoadNotFound,
 } from "../../shared/errors/config-errors.ts";
 
@@ -33,8 +34,8 @@ import {
  */
 export async function loadStepRegistry(
   agentId: string,
-  agentsDir = "agents",
-  options: RegistryLoaderOptions = {},
+  agentsDir: string,
+  options: RegistryLoaderOptions,
 ): Promise<StepRegistry> {
   const registryPath = options.registryPath ??
     join(agentsDir, agentId, PATHS.REGISTRY_JSON);
@@ -47,25 +48,23 @@ export async function loadStepRegistry(
     const parsed: unknown = JSON.parse(content);
 
     // Strict raw-shape validation. Throws ConfigError(SR-VALID-005) if any
-    // step uses the legacy disk shape (`stepKind` + flat C3L siblings) or
-    // is missing `kind` / `address`. After this returns, `parsed` is known
-    // to match the new-shape contract.
+    // top-level required field (agentId / version / c1 / steps) is missing,
+    // or if any step uses the legacy disk shape (`stepKind` + flat C3L
+    // siblings) or is missing `kind` / `address`. After this returns,
+    // `parsed` is known to match the new-shape contract.
+    //
+    // T35 single-source partition (critique-6 N#2): top-level presence
+    // used to be re-checked here and again inside `validateStepRegistry`
+    // (SR-VALID-004). Both copies were removed; `validateRegistryShape`
+    // is the sole owner.
     validateRegistryShape(parsed);
 
-    // Validate top-level required fields. The shape validator only checks
-    // per-step structure; agentId/version/steps presence belongs here.
-    const raw = parsed as {
-      agentId?: string;
-      version?: string;
-      c1?: string;
-      steps?: Record<string, unknown>;
-      [k: string]: unknown;
-    };
-    if (!raw.agentId || !raw.version || !raw.c1 || !raw.steps) {
-      throw srLoadInvalidFormat();
-    }
+    // Top-level fields are now proven present. Read agentId for mismatch
+    // detection (the next concern, owned here at the loader because it
+    // depends on the caller-supplied `agentId` argument).
+    const raw = parsed as { agentId: string };
 
-    // Ensure agentId matches
+    // Ensure agentId matches the caller's expectation.
     if (raw.agentId !== agentId) {
       throw srLoadAgentIdMismatch(agentId, raw.agentId);
     }
@@ -83,14 +82,17 @@ export async function loadStepRegistry(
     // Validate intentSchemaRef presence and format (fail fast per design doc Section 4)
     validateIntentSchemaRef(registry);
 
-    // Validate intent schema enum matches allowedIntents by default.
-    // Strict by default (T18 / B3): the option exists only so callers that
-    // perform their own enum validation later (with a non-default schemasDir)
-    // can opt out by passing `validateIntentEnums: false`. Default is `true`.
-    // Enum validation also requires schemasDir; when omitted the validator
-    // is skipped and the caller must run validateIntentSchemaEnums directly.
-    const wantEnumValidation = options.validateIntentEnums !== false;
-    if (wantEnumValidation && options.schemasDir) {
+    // Validate intent schema enum matches allowedIntents.
+    //
+    // Strict-by-default (T18/B3, hardened in T29/critique-5 B#2): the option
+    // shape is a discriminated union, so the silent-skip cell
+    // `(validateIntentEnums:true, schemasDir:absent)` is unrepresentable at
+    // the type level. When the caller selects the opt-out variant
+    // (`validateIntentEnums:false`) they commit to running
+    // `validateIntentSchemaEnums` themselves with a caller-resolved
+    // schemasDir (closure-manager is the only legitimate site).
+    if (options.validateIntentEnums !== false) {
+      // Strict variant — the union narrows so `schemasDir` is `string`.
       await validateIntentSchemaEnums(registry, options.schemasDir);
     }
 
@@ -109,8 +111,42 @@ export async function loadStepRegistry(
 
     return registry;
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      throw srLoadNotFound(registryPath);
+    // T38 / critique-6 N#5: SR-LOAD-003 swallow is centralized here.
+    // The loader is the single owner of the "registry file absent on
+    // disk" policy; callers express their intent declaratively via
+    // `options.allowMissing` (default `false` = loud throw).
+    //
+    // Two raise sites map onto SR-LOAD-003:
+    //   1. `Deno.errors.NotFound` from `Deno.readTextFile`.
+    //   2. ConfigError(SR-LOAD-003) re-thrown from a deeper helper (today
+    //      no other site raises it, but the check is symmetric so
+    //      future indirection through helpers stays correct).
+    //
+    // All other ConfigError codes (SR-VALID-*, SR-LOAD-002,
+    // SR-INTENT-*) and any non-ConfigError exception MUST propagate
+    // unchanged — they signal a malformed registry, not an absent one.
+    const isNotFound = error instanceof Deno.errors.NotFound ||
+      (error instanceof ConfigError && error.code === "SR-LOAD-003");
+    if (isNotFound) {
+      // T42 / critique-7 NEW#2: `allowMissing` lives only on the strict
+      // variant. Narrow the discriminated union before reading it so the
+      // type system enforces that opt-out callers cannot opt in to the
+      // SR-LOAD-003 swallow (closure-manager — the only opt-out site —
+      // requires the registry to exist).
+      const allowMissing = options.validateIntentEnums !== false &&
+        options.allowMissing === true;
+      if (allowMissing) {
+        // Caller opted in: fabricate an empty registry whose `agentId`
+        // matches the caller's expectation. `c1` defaults to "steps"
+        // (createEmptyRegistry default) so downstream PromptResolver and
+        // bundle assemblers keep operating without further branching.
+        return createEmptyRegistry(agentId);
+      }
+      // Default loud throw — replace `Deno.errors.NotFound` with the
+      // typed ConfigError so callers always see a stable code.
+      if (error instanceof Deno.errors.NotFound) {
+        throw srLoadNotFound(registryPath);
+      }
     }
     throw error;
   }

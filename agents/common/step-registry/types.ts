@@ -360,29 +360,86 @@ export interface StepRegistry {
 }
 
 /**
- * Registry loader options
+ * Registry loader options — discriminated union.
+ *
+ * The shape is split by the `validateIntentEnums` discriminator so the type
+ * system makes the silent-skip cell `(validateIntentEnums:true, schemasDir:absent)`
+ * structurally unrepresentable (T29 / critique-5 B#2).
+ *
+ * - **Strict variant (default)**: omitting `validateIntentEnums` or setting it
+ *   to `true` forces the caller to provide `schemasDir`. The loader runs
+ *   `validateIntentSchemaEnums` against that directory.
+ * - **Opt-out variant**: setting `validateIntentEnums:false` makes
+ *   `schemasDir` optional. The loader skips its own enum validation; the
+ *   caller is then *required* to run `validateIntentSchemaEnums` itself with
+ *   a caller-resolved schemasDir (closure-manager is the only legitimate
+ *   site — it loads the registry before `cwd`-rooted paths are stable, so
+ *   schemasDir resolution must wait until post-load).
+ *
+ * `allowMissing` (T38 / critique-6 N#5, T42 / critique-7 NEW#2) lives on
+ * {@link RegistryLoaderStrictOptions} only — the **single point** where the
+ * "registry file absent on disk" policy is expressed. Default = `false` =
+ * loud `SR-LOAD-003`. Set to `true` only when the caller's domain
+ * legitimately treats an absent registry as "no step graph" and is happy
+ * with an {@link createEmptyRegistry}-shaped result (the loader fabricates
+ * one with `c1 = "steps"` so downstream consumers — `PromptResolver`,
+ * `loadTypedSteps` — can keep operating). All other `ConfigError` codes
+ * (`SR-VALID-*`, `SR-LOAD-002`, `SR-INTENT-*`) propagate regardless of
+ * `allowMissing` — only the not-found case is opt-in remapped.
  */
-export interface RegistryLoaderOptions {
-  /** Custom registry file path (overrides default) */
+export type RegistryLoaderOptions =
+  | RegistryLoaderStrictOptions
+  | RegistryLoaderOptOutOptions;
+
+/**
+ * Strict (default) loader variant: enum validation runs inside the loader,
+ * so the caller MUST hand it a `schemasDir`. The unset / `true` form of the
+ * discriminator both pick this variant.
+ */
+export interface RegistryLoaderStrictOptions {
+  /** Custom registry file path (overrides default). */
   registryPath?: string;
 
   /**
-   * Validate intentSchemaRef enum matches allowedIntents.
-   *
-   * Default: true (strict-by-default per T18 / B3). Set to `false` only when
-   * the caller will perform its own enum validation later with a
-   * caller-resolved schemasDir (e.g. closure-manager); leaving the loader
-   * permissive while validating elsewhere is the only acceptable opt-out.
-   *
-   * Effective only when {@link schemasDir} is also provided. When schemasDir
-   * is omitted the loader skips enum validation regardless of this flag —
-   * the caller must run {@link validateIntentSchemaEnums} directly.
+   * Strict-by-default enum validation. Omit or set to `true`. Set to `false`
+   * only via the {@link RegistryLoaderOptOutOptions} variant.
    */
-  validateIntentEnums?: boolean;
+  validateIntentEnums?: true;
 
   /**
-   * Base directory for schema files.
-   * Required when validateIntentEnums is true.
+   * Base directory for schema files. Required for the strict variant —
+   * the type system enforces this so `(true, absent)` cannot compile.
    */
+  schemasDir: string;
+
+  /**
+   * Opt-in swallow for `SR-LOAD-003` (registry file absent on disk).
+   * Default `false` = loud throw. Set to `true` only when the caller's
+   * domain treats an absent registry as a legitimate empty-step state
+   * (`PromptResolver` factory, `loadTypedSteps`, non-`detect:graph`
+   * verdict handlers). All other error codes propagate.
+   */
+  allowMissing?: boolean;
+}
+
+/**
+ * Opt-out variant for callers that perform their own enum validation later
+ * (the only legitimate site is `closure-manager.ts`, which resolves
+ * `schemasDir` from `cwd + .agent/<name>/schemas` after load).
+ *
+ * Note: `allowMissing` is intentionally absent. The opt-out variant has zero
+ * legitimate callers for the SR-LOAD-003 swallow (closure-manager requires
+ * the registry to exist), so `allowMissing` lives only on
+ * {@link RegistryLoaderStrictOptions}. Removing it here keeps the API surface
+ * to actual demand (CLAUDE.md "fallback minimum" / "no backward-compat").
+ */
+export interface RegistryLoaderOptOutOptions {
+  /** Custom registry file path (overrides default). */
+  registryPath?: string;
+
+  /** Explicit opt-out — caller commits to running enum validation later. */
+  validateIntentEnums: false;
+
+  /** Optional in this variant; the loader will not consult it. */
   schemasDir?: string;
 }

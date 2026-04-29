@@ -7,10 +7,7 @@
 
 import type { AgentDefinition } from "../src_common/types.ts";
 import { PromptResolver } from "../common/prompt-resolver.ts";
-import {
-  createEmptyRegistry,
-  loadStepRegistry,
-} from "../common/step-registry.ts";
+import { loadStepRegistry } from "../common/step-registry.ts";
 import { join } from "@std/path";
 import type { VerdictHandler, VerdictStepIds } from "./types.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
@@ -233,19 +230,34 @@ registerHandler(
     // The loader enforces the new ADT shape (SR-VALID-005) and other invariants;
     // those errors must propagate. Only the not-found case is remapped to
     // AC-VERDICT-011 to preserve the verdict-handler-specific guidance.
+    //
+    // T38 / critique-6 N#5: detect:graph is the **only** SR-LOAD-003
+    // caller that requires the registry to exist. We therefore omit
+    // `allowMissing` (defaults to `false` = loud throw from the loader)
+    // and remap the loader's typed `SR-LOAD-003` to the domain-specific
+    // `AC-VERDICT-011` for end-user guidance. All other validation
+    // errors propagate unchanged.
     const registryPath = verdictConfig.registryPath ??
       `${agentDir}/${PATHS.STEPS_REGISTRY}`;
 
     let registry;
     try {
+      // T29 / critique-5 B#2: schemasDir is type-required for the strict
+      // (default) loader variant. detect:graph callers always live under
+      // `.agent/<name>/`, so schemasDir = `<agentDir>/schemas` is the
+      // canonical location. The loader runs validateIntentSchemaEnums
+      // against this directory; without it the registry cannot be loaded
+      // through the strict path.
       registry = await loadStepRegistry(definition.name, agentDir, {
         registryPath,
+        schemasDir: join(agentDir, PATHS.SCHEMAS_DIR),
       });
     } catch (error) {
-      // The loader wraps Deno.errors.NotFound as ConfigError(SR-LOAD-003).
-      // Remap that to the verdict-specific AC-VERDICT-011 so users get the
-      // detect:graph-aware fix message. Other ConfigErrors (SR-VALID-005,
-      // SR-LOAD-001/002, SR-INTENT, etc.) propagate unchanged.
+      // The loader's default loud throw raises ConfigError(SR-LOAD-003).
+      // Remap that to the verdict-specific AC-VERDICT-011 so users get
+      // the detect:graph-aware fix message. Other ConfigErrors
+      // (SR-VALID-005, SR-LOAD-002, SR-INTENT, etc.) propagate
+      // unchanged.
       if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
         throw acVerdict011DetectGraphRequiresRegistry(registryPath);
       }
@@ -301,23 +313,24 @@ export async function createRegistryVerdictHandler(
 
   // Create prompt resolver for handlers.
   //
-  // Only the "registry file absent" case (SR-LOAD-003) degrades to an
-  // empty registry. All other ConfigError codes — SR-VALID-005 (legacy
-  // shape), SR-LOAD-001/002 (parse / agentId mismatch), SR-INTENT-*,
-  // SR-VALID-* — and any non-ConfigError exception MUST propagate so
-  // production fails loudly. Silent degrade was the T17/N5 anti-pattern.
-  let registry;
-  try {
-    registry = await loadStepRegistry(definition.name, agentDir, {
-      registryPath: join(agentDir, definition.runner.flow.prompts.registry),
-    });
-  } catch (error) {
-    if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
-      registry = createEmptyRegistry(definition.name);
-    } else {
-      throw error;
-    }
-  }
+  // T38 / critique-6 N#5: SR-LOAD-003 swallow is owned by the loader
+  // (`allowMissing: true`). Non-`detect:graph` handlers (poll:state,
+  // count:iteration, detect:keyword, count:check, detect:structured,
+  // meta:composite, meta:custom) only need the PromptResolver; an
+  // empty registry suffices because they do not consume the step
+  // graph. All other ConfigError codes — SR-VALID-005 (legacy shape),
+  // SR-LOAD-002 (agentId mismatch), SR-INTENT-*,
+  // SR-VALID-* — propagate from the loader.
+  //
+  // T29 / critique-5 B#2: schemasDir is type-required for the strict
+  // (default) loader variant. The agent's schema directory lives under
+  // `<agentDir>/schemas`; the loader runs validateIntentSchemaEnums
+  // against it as part of strict-by-default validation.
+  const registry = await loadStepRegistry(definition.name, agentDir, {
+    registryPath: join(agentDir, definition.runner.flow.prompts.registry),
+    schemasDir: join(agentDir, PATHS.SCHEMAS_DIR),
+    allowMissing: true,
+  });
   const promptResolver = new PromptResolver(registry, {
     workingDir: Deno.cwd(),
     configSuffix: registry.c1,

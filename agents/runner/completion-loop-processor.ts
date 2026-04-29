@@ -18,7 +18,6 @@ import type {
 import { AgentStepRoutingError, AgentValidationAbortError } from "./errors.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
-import { inferStepKind } from "../common/step-registry/utils.ts";
 import type { PromptStepDefinition } from "../common/step-registry/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
 
@@ -149,7 +148,7 @@ export class CompletionLoopProcessor {
         if (action === "closing" || action === "repeat") {
           const stepDef = this.deps.closureManager.stepsRegistry
             ?.steps[stepId] as PromptStepDefinition | undefined;
-          const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+          const stepKind = stepDef?.kind;
 
           if (stepKind !== "closure") {
             throw new AgentStepRoutingError(
@@ -448,7 +447,7 @@ export class CompletionLoopProcessor {
       | PromptStepDefinition
       | undefined;
     if (!stepDef) return false;
-    return inferStepKind(stepDef) === "closure";
+    return stepDef.kind === "closure";
   }
 
   /**

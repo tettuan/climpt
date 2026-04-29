@@ -6,7 +6,6 @@
 
 import type { StepKind, StepRegistry, StructuredGate } from "./types.ts";
 import { STEP_KIND_ALLOWED_INTENTS } from "./types.ts";
-import { inferStepKind } from "./utils.ts";
 import { SchemaResolver } from "../../common/schema-resolver.ts";
 import {
   srEntryMappingInvalid,
@@ -45,19 +44,33 @@ const LEGACY_FLAT_ADDRESS_FIELDS = [
 ] as const;
 
 /**
- * Strict raw-shape validator for a single step JSON entry.
+ * Strict raw-shape validator for a single step JSON entry (Option A, T30).
  *
- * Runs on parsed JSON BEFORE any normalization. Rejects the legacy on-disk
- * shape (`stepKind` + flat c2/c3/edition/adaptation) and demands the new
- * ADT shape (`kind` + nested `address`) per
- * agents/docs/design/realistic/14-step-registry.md §B.
+ * Single source of truth for the **raw skeleton** of a step entry: kind
+ * discriminator presence + value, address aggregate presence, and per-field
+ * C3LAddress presence + non-empty type. Runs on parsed JSON BEFORE any
+ * normalization; demands the new ADT shape (`kind` + nested `address`)
+ * per agents/docs/design/realistic/14-step-registry.md §B.
  *
  * Reject conditions:
- *   1. presence of `stepKind` field (any value)
- *   2. presence of any flat `c2`/`c3`/`edition`/`adaptation` sibling
- *   3. missing `kind` discriminator
- *   4. missing `address` aggregate, or `address` missing required C3LAddress
- *      fields (`c1`, `c2`, `c3`, `edition`)
+ *   1. presence of `stepKind` field (any value) — legacy marker
+ *   2. presence of any flat `c2`/`c3`/`edition`/`adaptation` sibling —
+ *      legacy marker (those must live nested under `address`)
+ *   3. missing `kind` discriminator, or `kind` not in {work, verification,
+ *      closure}
+ *   4. missing `address` aggregate, or `address` missing required
+ *      C3LAddress fields (`c1`, `c2`, `c3`, `edition`)
+ *
+ * Boundary with peers (T30 dedup):
+ *   - Intent containment + fallbackIntent — owned by
+ *     {@link validateStepKindIntents} only (raises SR-VALID-001).
+ *   - Semantic step fields (uvVariables, usesStdin, structuredGate shape,
+ *     transitions presence, permissionMode enum, c3 kebab-case) — owned by
+ *     {@link validateStepRegistry} only (raises SR-VALID-004).
+ *
+ * Failure surfaces via {@link validateRegistryShape}, which aggregates
+ * per-step errors and throws {@link srLegacyStepShapeRejected}
+ * (`SR-VALID-005`).
  *
  * @param rawStep - Parsed JSON value for a single step entry
  * @param stepId - Step identifier (used in error messages)
@@ -163,9 +176,17 @@ export function validateStepShape(
 /**
  * Strict raw-shape validator for a parsed registry JSON object.
  *
- * Iterates each entry under `steps` and applies {@link validateStepShape}.
- * Throws {@link srLegacyStepShapeRejected} if any legacy-shape entry is
- * detected, with one diagnostic per offending step.
+ * Owns the entire raw-skeleton concern — both the top-level required
+ * fields (`agentId`, `version`, `c1`, `steps`) and the per-step shape
+ * (delegated to {@link validateStepShape}). After this returns, a direct
+ * `as StepRegistry` cast is sound: the discriminator + every required
+ * top-level slot is proven present and well-typed.
+ *
+ * Single-source partition (T35, critique-6 N#2): the top-level presence
+ * check used to live in two places — `loader.ts` (raised SR-LOAD-001)
+ * and inside `validateStepRegistry` (raised SR-VALID-004). Both copies
+ * are now removed; this function is the single owner and raises
+ * SR-VALID-005 for the unified shape concern.
  *
  * Intended call site: BEFORE any cast (no shim, no translation). The
  * loader proves the raw JSON conforms to the typed `StepRegistry` ADT
@@ -174,7 +195,9 @@ export function validateStepShape(
  * raw JSON.
  *
  * @param rawRegistry - Parsed JSON object (top-level registry shape)
- * @throws ConfigError (SR-VALID-005) when any step uses the legacy shape
+ * @throws ConfigError (SR-VALID-005) when the root is not an object,
+ *   when any required top-level field is missing/empty, or when any
+ *   step entry uses the legacy shape.
  */
 export function validateRegistryShape(rawRegistry: unknown): void {
   if (rawRegistry === null || typeof rawRegistry !== "object") {
@@ -185,24 +208,41 @@ export function validateRegistryShape(rawRegistry: unknown): void {
     ]);
   }
 
-  const root = rawRegistry as { steps?: unknown };
+  const root = rawRegistry as {
+    agentId?: unknown;
+    version?: unknown;
+    c1?: unknown;
+    steps?: unknown;
+  };
+
+  const errors: string[] = [];
+
+  // Top-level required fields (T35: single owner of presence). Each
+  // missing/empty slot is reported once with the same diagnostic shape
+  // as per-step entries so the caller sees one consolidated SR-VALID-005.
+  if (typeof root.agentId !== "string" || root.agentId.length === 0) {
+    errors.push("agentId must be a non-empty string at the registry root");
+  }
+  if (typeof root.version !== "string" || root.version.length === 0) {
+    errors.push("version must be a non-empty string at the registry root");
+  }
+  if (typeof root.c1 !== "string" || root.c1.length === 0) {
+    errors.push("c1 must be a non-empty string at the registry root");
+  }
   if (
     root.steps === undefined ||
     root.steps === null ||
     typeof root.steps !== "object"
   ) {
-    // Missing/invalid `steps` is reported by srLoadInvalidFormat at load
-    // time. The shape validator only walks present step entries.
-    return;
-  }
-
-  const errors: string[] = [];
-  for (
-    const [stepId, rawStep] of Object.entries(
-      root.steps as Record<string, unknown>,
-    )
-  ) {
-    errors.push(...validateStepShape(rawStep, stepId));
+    errors.push("steps must be an object at the registry root");
+  } else {
+    for (
+      const [stepId, rawStep] of Object.entries(
+        root.steps as Record<string, unknown>,
+      )
+    ) {
+      errors.push(...validateStepShape(rawStep, stepId));
+    }
   }
 
   if (errors.length > 0) {
@@ -211,20 +251,38 @@ export function validateRegistryShape(rawRegistry: unknown): void {
 }
 
 /**
- * Validate stepKind/allowedIntents consistency.
+ * Validate stepKind/allowedIntents consistency (Option A, T30).
  *
- * This is called by loadStepRegistry to fail fast when a step's
- * allowedIntents set is not a subset of STEP_KIND_ALLOWED_INTENTS
- * for its stepKind.
+ * Single source of truth for the `STEP_KIND_ALLOWED_INTENTS` containment
+ * rule and the matching `fallbackIntent` rule. Per the T30 partition
+ * (critique-5 B#3 dedup), this validator and only this validator owns
+ * intent-containment checks; {@link validateStepRegistry} no longer
+ * duplicates them.
  *
- * @param registry - Registry to validate
- * @throws Error if any step has invalid intent configuration
+ * Failure raises {@link srValidStepKindIntentMismatch} (`SR-VALID-001`).
+ * Note: The runtime router raises {@link srIntentNotAllowed} (`SR-INTENT-001`)
+ * for emitted-intent violations at execution time — that is a different
+ * error class from boot-time intent containment, asserted at 5 runner
+ * test sites. Boot-time containment (this validator) and runtime emission
+ * (router) intentionally use distinct codes.
+ *
+ * Boundary with peers:
+ *   - Raw skeleton (kind ∈ StepKind, address presence/types) — owned by
+ *     {@link validateStepShape} (raises SR-VALID-005).
+ *   - Semantic step fields (uvVariables, usesStdin, structuredGate shape,
+ *     transitions presence, permissionMode enum, c3 kebab-case) — owned
+ *     by {@link validateStepRegistry} (raises SR-VALID-004).
+ *
+ * @param registry - Registry to validate (already shape-gated)
+ * @throws ConfigError(SR-VALID-001) when any step has an intent not in
+ *   `STEP_KIND_ALLOWED_INTENTS[step.kind]`, or when `fallbackIntent` is
+ *   itself outside the allowed set.
  */
 export function validateStepKindIntents(registry: StepRegistry): void {
   const errors: string[] = [];
 
   for (const [stepId, step] of Object.entries(registry.steps)) {
-    const kind = inferStepKind(step);
+    const kind = step.kind;
     if (kind && step.structuredGate) {
       const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
       for (const intent of step.structuredGate.allowedIntents) {
@@ -519,29 +577,44 @@ export async function validateIntentSchemaEnums(
 }
 
 /**
- * Validate a step registry structure
+ * Validate the typed semantics of a step registry (Option A, T30).
  *
- * @param registry - Registry to validate
- * @throws Error if validation fails
+ * Responsibility (single source of truth — design 14 §G partition):
+ *   - Top-level registry fields: `agentId`, `version`, `c1`, `steps` shape
+ *   - Per-step semantic fields not covered by the raw-shape gate:
+ *       - `stepId` ↔ key parity
+ *       - `name` non-empty string
+ *       - `uvVariables: T[]` (array)
+ *       - `usesStdin: boolean`
+ *       - `structuredGate` ⇒ `kind` present, `transitions` present
+ *       - `permissionMode` enum (when present)
+ *       - `address.c3` kebab-case format (LayerType compatibility)
+ *
+ * Boundary with peers (T30 dedup, T35 top-level dedup):
+ *   - **Raw skeleton** (top-level presence of agentId/version/c1/steps,
+ *     kind ∈ StepKind union, address presence + non-empty
+ *     c1/c2/c3/edition + adaptation type) is owned by
+ *     {@link validateStepShape} / {@link validateRegistryShape} only.
+ *     `validateStepRegistry` does NOT re-check those — assume the raw-shape
+ *     gate has run upstream (loader.ts and config/mod.ts:validateFull both
+ *     call it before this validator).
+ *   - **Intent containment + fallbackIntent** (allowedIntents ⊆
+ *     STEP_KIND_ALLOWED_INTENTS[kind]) is owned by
+ *     {@link validateStepKindIntents} only. `validateStepRegistry` does NOT
+ *     re-check intent containment.
+ *
+ * Error code: throws {@link srValidRegistryFailed} (`SR-VALID-004`).
+ *
+ * @param registry - Registry to validate (already shape-gated)
+ * @throws ConfigError(SR-VALID-004) when one or more semantic checks fail
  */
 export function validateStepRegistry(registry: StepRegistry): void {
   const errors: string[] = [];
 
-  // Validate registry-level fields
-  if (typeof registry.agentId !== "string" || !registry.agentId) {
-    errors.push("agentId must be a non-empty string");
-  }
-  if (typeof registry.version !== "string" || !registry.version) {
-    errors.push("version must be a non-empty string");
-  }
-  if (typeof registry.c1 !== "string" || !registry.c1) {
-    errors.push("c1 must be a non-empty string");
-  }
-  if (typeof registry.steps !== "object" || registry.steps === null) {
-    errors.push("steps must be an object");
-  }
+  // Top-level required fields (agentId/version/c1/steps presence) are owned
+  // by validateRegistryShape (raises SR-VALID-005) per the T35 single-source
+  // partition. validateStepRegistry only checks semantic concerns.
 
-  // Validate each step definition
   for (const [stepId, step] of Object.entries(registry.steps)) {
     if (step.stepId !== stepId) {
       errors.push(
@@ -551,30 +624,25 @@ export function validateStepRegistry(registry: StepRegistry): void {
     if (typeof step.name !== "string" || !step.name) {
       errors.push(`Step "${stepId}": name must be a non-empty string`);
     }
-    const address = step.address as
-      | { c2?: unknown; c3?: unknown; edition?: unknown; adaptation?: unknown }
-      | undefined;
-    if (!address || typeof address !== "object") {
-      errors.push(`Step "${stepId}": address must be a C3LAddress object`);
-    } else {
-      if (typeof address.c2 !== "string" || !address.c2) {
-        errors.push(`Step "${stepId}": address.c2 must be a non-empty string`);
-      }
-      if (typeof address.c3 !== "string" || !address.c3) {
-        errors.push(`Step "${stepId}": address.c3 must be a non-empty string`);
-      } else if (!/^[a-z]+(-[a-z]+)*$/.test(address.c3)) {
-        errors.push(
-          `Step "${stepId}": address.c3 "${address.c3}" is invalid. ` +
-            `c3 must be lowercase kebab-case (e.g., "issue", "external-state"). ` +
-            `camelCase like "externalState" is rejected by @tettuan/breakdown LayerType validation.`,
-        );
-      }
-      if (typeof address.edition !== "string" || !address.edition) {
-        errors.push(
-          `Step "${stepId}": address.edition must be a non-empty string`,
-        );
-      }
+
+    // Address kebab-case (semantic, NOT a presence/type check). Raw-shape
+    // gate already proved `address.c3` is a non-empty string; this validator
+    // owns the format constraint imposed by @tettuan/breakdown LayerType.
+    const address = step.address as { c3?: unknown } | undefined;
+    if (
+      address &&
+      typeof address === "object" &&
+      typeof address.c3 === "string" &&
+      address.c3.length > 0 &&
+      !/^[a-z]+(-[a-z]+)*$/.test(address.c3)
+    ) {
+      errors.push(
+        `Step "${stepId}": address.c3 "${address.c3}" is invalid. ` +
+          `c3 must be lowercase kebab-case (e.g., "issue", "external-state"). ` +
+          `camelCase like "externalState" is rejected by @tettuan/breakdown LayerType validation.`,
+      );
     }
+
     if (!Array.isArray(step.uvVariables)) {
       errors.push(`Step "${stepId}": uvVariables must be an array`);
     }
@@ -583,9 +651,11 @@ export function validateStepRegistry(registry: StepRegistry): void {
     }
 
     // Flow steps (with structuredGate) require an explicit kind for tool
-    // permission enforcement. After T1.3 the loader populates `kind`
-    // unconditionally (inferred from c2 when JSON omits stepKind) so this
-    // assertion is a defensive guard against malformed in-memory steps.
+    // permission enforcement. The raw-shape gate proves `kind ∈ {work,
+    // verification, closure}` for every step, so this branch is reachable
+    // only via in-memory mutation; it stays as a defensive guard against
+    // callers that bypass the loader (e.g., test fixtures that synthesize
+    // a StepRegistry directly).
     if (step.structuredGate && !step.kind) {
       errors.push(
         `Step "${stepId}": Flow step (has structuredGate) must have explicit kind. ` +
@@ -593,39 +663,14 @@ export function validateStepRegistry(registry: StepRegistry): void {
       );
     }
 
-    // Validate kind and intent constraints
-    const kind = step.kind;
-    if (kind && step.structuredGate) {
-      const allowedForKind = STEP_KIND_ALLOWED_INTENTS[kind];
-      for (const intent of step.structuredGate.allowedIntents) {
-        if (!allowedForKind.includes(intent)) {
-          errors.push(
-            `Step "${stepId}": intent '${intent}' not allowed for stepKind '${kind}'. Allowed: ${
-              allowedForKind.join(", ")
-            }`,
-          );
-        }
-      }
-
-      // Validate fallbackIntent
-      if (
-        step.structuredGate.fallbackIntent &&
-        !allowedForKind.includes(step.structuredGate.fallbackIntent)
-      ) {
-        errors.push(
-          `Step "${stepId}": fallbackIntent '${step.structuredGate.fallbackIntent}' not allowed for stepKind '${kind}'`,
-        );
-      }
-    }
-
-    // Flow steps (with structuredGate) should have transitions
+    // Flow steps (with structuredGate) must declare transitions.
     if (step.structuredGate && !step.transitions) {
       errors.push(
         `Step "${stepId}": structuredGate defined but transitions missing`,
       );
     }
 
-    // Validate step-level permissionMode if present
+    // Step-level permissionMode enum (when present).
     if (step.permissionMode !== undefined) {
       const validModes = [
         "default",
@@ -641,6 +686,10 @@ export function validateStepRegistry(registry: StepRegistry): void {
         );
       }
     }
+
+    // NOTE: intent containment + fallbackIntent are NOT validated here.
+    // They are owned by validateStepKindIntents (SR-VALID-001). See the
+    // function-level JSDoc above for the T30 partition rationale.
   }
 
   if (errors.length > 0) {

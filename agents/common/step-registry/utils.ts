@@ -4,7 +4,7 @@
  * Helper functions for working with step registries.
  */
 
-import type { Step, StepKind, StepRegistry } from "./types.ts";
+import type { Step, StepRegistry } from "./types.ts";
 
 /**
  * Get a step definition by ID.
@@ -118,18 +118,4 @@ export function addStepDefinition(
     throw new Error(`Step "${step.stepId}" already exists in registry`);
   }
   registry.steps[step.stepId] = step;
-}
-
-/**
- * Return the step's `kind` discriminator.
- *
- * After T1.3 the typed `Step` always has `kind` populated (the loader
- * infers from `c2` when the on-disk JSON omits `stepKind`). This helper
- * remains for callers that previously did the inference themselves.
- *
- * @param step - Step definition
- * @returns The step kind
- */
-export function inferStepKind(step: Step): StepKind {
-  return step.kind;
 }

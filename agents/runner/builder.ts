@@ -179,33 +179,35 @@ export class DefaultVerdictHandlerFactory implements VerdictHandlerFactory {
 export class DefaultPromptResolverFactory implements PromptResolverFactory {
   async create(options: PromptResolverFactoryOptions): Promise<PromptResolver> {
     const { join } = await import("@std/path");
-    const { loadStepRegistry, createEmptyRegistry } = await import(
+    const { loadStepRegistry } = await import(
       "../common/step-registry.ts"
     );
     const { PromptResolver } = await import(
       "../common/prompt-resolver.ts"
     );
 
-    // Only the "registry file absent" case (SR-LOAD-003) degrades to an
-    // empty registry. All other ConfigError codes — SR-VALID-005 (legacy
-    // shape), SR-LOAD-001/002 (parse / agentId mismatch), SR-INTENT-*,
-    // SR-VALID-* — and any non-ConfigError exception MUST propagate so
-    // production fails loudly. Silent degrade was the T17/N5 anti-pattern.
-    const { ConfigError } = await import(
-      "../shared/errors/config-errors.ts"
-    );
-    let registry;
-    try {
-      registry = await loadStepRegistry(options.agentName, options.agentDir, {
+    // T38 / critique-6 N#5: the SR-LOAD-003 swallow is owned by the
+    // loader (`allowMissing: true`). The PromptResolver factory only
+    // needs `c1` for prompt path suffixing, so a fabricated empty
+    // registry is acceptable when the file is absent. All other
+    // ConfigError codes (SR-VALID-* legacy shape / field validation,
+    // SR-LOAD-002 agentId mismatch, SR-INTENT-*) and any
+    // non-ConfigError exception still propagate from the loader.
+    //
+    // T29 / critique-5 B#2: schemasDir is type-required for the strict
+    // (default) loader variant. The resolver factory operates inside an
+    // agent's directory, so schemasDir = `<agentDir>/schemas` per
+    // PATHS.SCHEMAS_DIR convention.
+    const { PATHS } = await import("../shared/paths.ts");
+    const registry = await loadStepRegistry(
+      options.agentName,
+      options.agentDir,
+      {
         registryPath: join(options.agentDir, options.registryPath),
-      });
-    } catch (error) {
-      if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
-        registry = createEmptyRegistry(options.agentName);
-      } else {
-        throw error;
-      }
-    }
+        schemasDir: join(options.agentDir, PATHS.SCHEMAS_DIR),
+        allowMissing: true,
+      },
+    );
     return new PromptResolver(registry, {
       workingDir: Deno.cwd(),
       configSuffix: registry.c1,

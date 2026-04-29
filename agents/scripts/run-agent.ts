@@ -411,11 +411,11 @@ async function main(): Promise<void> {
       } else {
         // deno-lint-ignore no-console
         console.log("  \u2717 Step Registry \u2014 Step definition errors:");
-        for (const err of result.stepRegistryValidation.errors) {
+        for (const entry of result.stepRegistryValidation.entries) {
           // deno-lint-ignore no-console
-          console.log(`    - ${err}`);
+          console.log(`    - ${entry.message}`);
         }
-        totalErrors += result.stepRegistryValidation.errors.length;
+        totalErrors += result.stepRegistryValidation.entries.length;
       }
       if (result.stepRegistryValidation.warnings.length > 0) {
         for (const warn of result.stepRegistryValidation.warnings) {

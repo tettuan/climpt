@@ -17,7 +17,6 @@
 
 import { dirname, join } from "@std/path";
 import type { PromptStepDefinition, StepKind } from "./step-registry.ts";
-import { inferStepKind } from "./step-registry.ts";
 
 /**
  * Schema errors - canonical source: shared/errors/flow-errors.ts
@@ -114,7 +113,7 @@ export class SchemaResolver {
       stepDef.outputSchemaRef.schema,
     );
 
-    const stepKind = inferStepKind(stepDef);
+    const stepKind = stepDef.kind;
 
     return { schema, stepKind };
   }

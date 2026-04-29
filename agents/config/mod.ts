@@ -49,12 +49,18 @@ import { validateHandoffInputs } from "./handoff-validator.ts";
 import { validateConfigRegistryConsistency } from "./config-registry-validator.ts";
 import {
   validateEntryStepMapping,
+  validateIntentSchemaEnums,
   validateIntentSchemaRef,
   validateRegistryShape,
   validateStepKindIntents,
   validateStepRegistry,
 } from "../common/step-registry/validator.ts";
 import type { StepRegistry } from "../common/step-registry/types.ts";
+import {
+  ConfigError,
+  srLoadAgentIdMismatch,
+} from "../shared/errors/config-errors.ts";
+import { PATHS } from "../shared/paths.ts";
 import {
   MSG_LABEL,
   MSG_LABEL_CLIENT_UNAVAILABLE,
@@ -202,6 +208,32 @@ export class ConfigurationService implements ConfigurationContract {
 // ---------------------------------------------------------------------------
 
 /**
+ * One entry in the step-registry validation accumulator.
+ *
+ * Distinct from the legacy `ValidationResult.errors: string[]` shape so
+ * `ConfigError`'s `code`/`details` survive aggregation (resolves
+ * critique-5 N6). Non-`ConfigError` exceptions surface with
+ * `code: "STEP-REG-OPAQUE"` and `details: null`.
+ */
+export interface StepRegistryValidationEntry {
+  readonly code: string;
+  readonly message: string;
+  readonly details: Record<string, unknown> | null;
+}
+
+/**
+ * Step-registry validation result. Replaces the legacy
+ * `ValidationResult` shape for this slot only — all other validators
+ * keep `ValidationResult` since their errors do not originate from
+ * `ConfigError` instances.
+ */
+export interface StepRegistryValidationResult {
+  readonly valid: boolean;
+  readonly entries: readonly StepRegistryValidationEntry[];
+  readonly warnings: readonly string[];
+}
+
+/**
  * Result of a full multi-layer validation run.
  */
 export interface FullValidationResult {
@@ -217,7 +249,7 @@ export interface FullValidationResult {
   uvReachabilityResult: ValidationResult | null;
   templateUvResult: ValidationResult | null;
   frontmatterRegistryResult: ValidationResult | null;
-  stepRegistryValidation: ValidationResult | null;
+  stepRegistryValidation: StepRegistryValidationResult | null;
   handoffInputsResult: ValidationResult | null;
   configRegistryResult: ValidationResult | null;
 }
@@ -306,53 +338,85 @@ export async function validateFull(
   }
 
   // 5c. Typed step-registry validation (stepKind/intent, intentSchemaRef, structure)
-  let stepRegistryValidation: ValidationResult | null = null;
+  //
+  // R2b parity with R1 (`agents/common/step-registry/loader.ts:53-108`):
+  // every validator the loader runs at boot must run here too, so the
+  // `--validate` CLI surfaces the same failures that would block runtime.
+  // The accumulator collects `ConfigError` instances structurally (code,
+  // message, details) so downstream tooling can branch on `code` without
+  // re-parsing the message string (resolves critique-5 N6).
+  let stepRegistryValidation: StepRegistryValidationResult | null = null;
   if (registry) {
-    // Strict raw-shape validation — proves the parsed JSON conforms to
-    // the typed Step ADT (design 14 §B/§C). After this returns, a direct
-    // cast is sound (no translation).
-    const errors: string[] = [];
+    const entries: StepRegistryValidationEntry[] = [];
+    const collect = (error: unknown): void => {
+      entries.push(toStepRegistryValidationEntry(error));
+    };
+
+    // (R2b-1) agentId mismatch (SR-LOAD-002 parity with loader.ts:69-71).
+    // The raw shape validator below does not check agentId; the loader
+    // throws SR-LOAD-002 here, so --validate must too.
+    const rawAgentId = (registry as { agentId?: unknown }).agentId;
+    if (typeof rawAgentId === "string" && rawAgentId !== agentName) {
+      collect(srLoadAgentIdMismatch(agentName, rawAgentId));
+    }
+
+    // (R2b-2) Strict raw-shape validation — proves the parsed JSON
+    // conforms to the typed Step ADT (design 14 §B/§C). After this
+    // returns, a direct cast is sound (no translation).
     let typedRegistry: StepRegistry | null = null;
     try {
       validateRegistryShape(registry);
       typedRegistry = registry as unknown as StepRegistry;
     } catch (error: unknown) {
-      errors.push(error instanceof Error ? error.message : String(error));
+      collect(error);
     }
 
     if (typedRegistry) {
       try {
         validateStepKindIntents(typedRegistry);
       } catch (error: unknown) {
-        errors.push(error instanceof Error ? error.message : String(error));
+        collect(error);
       }
 
-      // R2b parity with R1 (T19 / N4): the loader (`loadStepRegistry`)
-      // runs validateEntryStepMapping right after validateStepKindIntents,
-      // so --validate must too. Errors are accumulated (not thrown) like
-      // the surrounding validators to keep the CLI report comprehensive.
+      // (R2b-3) entryStepMapping references — loader.ts:81 parity.
       try {
         validateEntryStepMapping(typedRegistry);
       } catch (error: unknown) {
-        errors.push(error instanceof Error ? error.message : String(error));
+        collect(error);
       }
 
+      // (R2b-4) intentSchemaRef format — loader.ts:84 parity.
       try {
         validateIntentSchemaRef(typedRegistry);
       } catch (error: unknown) {
-        errors.push(error instanceof Error ? error.message : String(error));
+        collect(error);
       }
 
+      // (R2b-5) intent schema enum vs allowedIntents — loader.ts:92-95
+      // parity. Run only when the per-agent schemas/ directory exists,
+      // matching the loader's gating behavior. The validator is async,
+      // so it is awaited inline — no parallelism gain here outweighs
+      // the readability of sequential parity with the loader's order.
+      const schemasDir = join(agentDir, PATHS.SCHEMAS_DIR);
+      if (await directoryExists(schemasDir)) {
+        try {
+          await validateIntentSchemaEnums(typedRegistry, schemasDir);
+        } catch (error: unknown) {
+          collect(error);
+        }
+      }
+
+      // (R2b-6) Full ADT shape — loader.ts:108 parity.
       try {
         validateStepRegistry(typedRegistry);
       } catch (error: unknown) {
-        errors.push(error instanceof Error ? error.message : String(error));
+        collect(error);
       }
     }
 
     stepRegistryValidation = {
-      valid: errors.length === 0,
-      errors,
+      valid: entries.length === 0,
+      entries,
       warnings: [],
     };
   }
@@ -460,6 +524,73 @@ export async function validateFull(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Lift any thrown value into a {@link StepRegistryValidationEntry}.
+ *
+ * `ConfigError` instances surface their `code`, full `message`, and
+ * `toJSON` payload (minus the noisy fields). Anything else lands as
+ * `code: "STEP-REG-OPAQUE"` so the consumer can still branch on shape
+ * without losing the message.
+ */
+function toStepRegistryValidationEntry(
+  error: unknown,
+): StepRegistryValidationEntry {
+  if (error instanceof ConfigError) {
+    const json = error.toJSON();
+    // Drop fields that duplicate the entry-level shape; keep the
+    // configFile/designRule/fix/recoverable that ConfigError adds so
+    // tooling can render guidance without re-deriving it from the
+    // catalog.
+    const {
+      name: _name,
+      code: _code,
+      message: _message,
+      ...details
+    } = json;
+    return {
+      code: error.code,
+      message: error.message,
+      details,
+    };
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return { code: "STEP-REG-OPAQUE", message, details: null };
+}
+
+/**
+ * Project a {@link StepRegistryValidationResult} into the
+ * {@link LegacyValidationLike} shape consumed by `decisionFromLegacy`.
+ * The `code` is folded into the leading `[code]` of the message so
+ * downstream `Decision` consumers see no fidelity loss.
+ */
+function stepRegistryValidationToLegacy(
+  result: StepRegistryValidationResult,
+): { valid: boolean; errors: readonly string[] } {
+  return {
+    valid: result.valid,
+    errors: result.entries.map((e) => e.message),
+  };
+}
+
+/**
+ * Best-effort directory existence check. Used to gate
+ * {@link validateIntentSchemaEnums} the same way the loader does — the
+ * validator only runs when the per-agent `schemas/` directory exists.
+ *
+ * Permission/IO failures collapse to `false` because the caller's only
+ * use is "should I run the validator at all?". A permission-blocked
+ * read-on-validation will surface as a separate, more specific error
+ * inside the validator.
+ */
+async function directoryExists(path: string): Promise<boolean> {
+  try {
+    const stat = await Deno.stat(path);
+    return stat.isDirectory;
+  } catch (_error: unknown) {
+    return false;
+  }
+}
 
 /**
  * Extract `runner.flow.prompts.registry` from a raw (untyped) agent definition.
@@ -730,7 +861,7 @@ export function asDecision(
     : null;
   const stepRegistry = result.stepRegistryValidation
     ? decisionFromLegacy(
-      result.stepRegistryValidation,
+      stepRegistryValidationToLegacy(result.stepRegistryValidation),
       "S3",
       "steps_registry.json",
     )

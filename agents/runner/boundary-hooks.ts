@@ -16,7 +16,6 @@
 
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
 import type { PromptStepDefinition } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { AgentEventEmitter } from "./events.ts";
 import type { CloseEventBus } from "../events/bus.ts";
@@ -73,7 +72,7 @@ export class BoundaryHooks {
     const stepDef = stepsRegistry?.steps[stepId] as
       | PromptStepDefinition
       | undefined;
-    const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+    const stepKind = stepDef?.kind;
 
     if (stepKind !== "closure") {
       ctx.logger.debug(

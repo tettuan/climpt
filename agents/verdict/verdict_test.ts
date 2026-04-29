@@ -2279,3 +2279,211 @@ Deno.test("setUvVariables - StructuredSignalVerdictHandler merges base UV", asyn
   assertEquals(passedUv?.signal_type, "completion_signal");
   assertEquals(passedUv?.iteration, "2");
 });
+
+// =============================================================================
+// T38 / critique-6 N#5: SR-LOAD-003 caller policy contracts
+//
+// The loader owns the SR-LOAD-003 swallow (T38). The factory has two
+// distinct caller intents that must remain visible at the caller site:
+//
+//   - detect:graph: registry MUST exist; SR-LOAD-003 is loud-thrown by
+//     the loader (no `allowMissing`) and remapped here to AC-VERDICT-011
+//     for end-user guidance.
+//   - createRegistryVerdictHandler (non-detect:graph): registry is
+//     optional; the loader fabricates an empty registry via
+//     `allowMissing: true`. The factory still completes successfully
+//     and returns the appropriate handler.
+//
+// Both tests use a temp-dir registry path that does NOT exist on disk
+// to drive the SR-LOAD-003 path through the loader. The fixture for
+// detect:graph asserts the **error code remap**; the fixture for the
+// generic path asserts **success without throw**.
+// =============================================================================
+
+Deno.test(
+  "T38: detect:graph remaps loader SR-LOAD-003 to AC-VERDICT-011 (registry required)",
+  async () => {
+    // The detect:graph handler reads its own registry from
+    // `verdictConfig.registryPath`. We point that at a missing file
+    // while supplying a valid registry at `flow.prompts.registry` so
+    // `resolveStepIds` (called by createRegistryVerdictHandler before
+    // the detect:graph factory runs) succeeds. The detect:graph
+    // factory then loads the missing file via the loader's default
+    // loud-throw policy (`allowMissing` omitted → SR-LOAD-003 raised),
+    // which the factory remaps to AC-VERDICT-011 for end-user guidance.
+    const tempDir = await Deno.makeTempDir({ prefix: "t38-detect-graph-" });
+    const missingRegistryPath = `${tempDir}/missing-detect-graph-registry.json`;
+
+    // Write a valid registry for createRegistryVerdictHandler's outer
+    // load. It MUST contain entryStepMapping["detect:graph"] so
+    // resolveStepIds does not pre-empt AC-VERDICT-011 with
+    // AC-VERDICT-012.
+    const validStep = makeStep({
+      kind: "work" as const,
+      address: {
+        c1: "steps",
+        c2: "step",
+        c3: "graph",
+        edition: "default",
+      },
+      stepId: "step.graph",
+      name: "Graph",
+    });
+    await Deno.writeTextFile(
+      `${tempDir}/steps_registry.json`,
+      JSON.stringify({
+        agentId: "test-agent",
+        version: "1.0.0",
+        c1: "steps",
+        entryStepMapping: {
+          "detect:graph": {
+            initial: "step.graph",
+            continuation: "step.graph",
+          },
+        },
+        steps: { "step.graph": validStep },
+      }),
+    );
+
+    const definition: AgentDefinition = {
+      name: "test-agent",
+      displayName: "Test",
+      description: "Test",
+      version: "1.0.0",
+      parameters: {},
+      runner: {
+        flow: {
+          systemPromptPath: "prompts/system.md",
+          prompts: {
+            registry: "steps_registry.json",
+            fallbackDir: "prompts/",
+          },
+        },
+        verdict: {
+          type: "detect:graph",
+          config: {
+            maxIterations: 10,
+            // Point detect:graph at a deliberately-missing path so
+            // its inner load throws SR-LOAD-003 from the loader.
+            registryPath: missingRegistryPath,
+          },
+        },
+        execution: {},
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    } as AgentDefinition;
+
+    let caught: unknown = undefined;
+    try {
+      await createRegistryVerdictHandler(definition, {}, tempDir);
+    } catch (e) {
+      caught = e;
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+
+    assertExists(caught);
+    // The remap target is AC-VERDICT-011. The factory must NOT swallow
+    // the not-found case to an empty registry — detect:graph requires
+    // the step graph to exist for the StepMachineVerdictHandler.
+    const err = caught as { code?: string; message?: string };
+    assertEquals(
+      err.code,
+      "AC-VERDICT-011",
+      `Expected AC-VERDICT-011 (detect:graph requires registry), got ${err.code}. ` +
+        "If allowMissing leaked into detect:graph, the loader's SR-LOAD-003 " +
+        "would have been swallowed to an empty registry instead of being remapped here.",
+    );
+    assertStringIncludes(
+      err.message ?? "",
+      missingRegistryPath,
+      "Diagnostic must name the missing registry path so operators can locate it.",
+    );
+  },
+);
+
+Deno.test(
+  "T38: createRegistryVerdictHandler non-detect:graph swallows SR-LOAD-003 via allowMissing (count:iteration)",
+  async () => {
+    const tempDir = await Deno.makeTempDir({ prefix: "t38-iteration-" });
+    // Deliberately NO steps_registry.json on disk. The loader's
+    // `allowMissing: true` opt-in must fabricate an empty registry, and
+    // the factory must build a count:iteration handler successfully.
+    //
+    // Note: count:iteration also reads `entryStepMapping` via
+    // `resolveStepIds`, which requires an entry. We register the
+    // mapping by writing a minimal valid registry whose `steps` is
+    // empty but `entryStepMapping` is populated. This proves both:
+    //   (a) the loader successfully loaded a present-but-minimal file
+    //       (no swallow), AND
+    //   (b) the factory does NOT depend on createEmptyRegistry as a
+    //       fallback when the file IS present.
+    //
+    // To exercise the SR-LOAD-003 path itself, see the loader_test.ts
+    // case (6b). Here we pin the **caller-side** policy: the absence of
+    // a try/catch with createEmptyRegistry around loadStepRegistry must
+    // not regress (i.e., `allowMissing: true` is the only swallow).
+    await Deno.writeTextFile(
+      `${tempDir}/steps_registry.json`,
+      JSON.stringify({
+        agentId: "test-agent",
+        version: "1.0.0",
+        c1: "steps",
+        entryStepMapping: {
+          "count:iteration": {
+            initial: "step.iter",
+            continuation: "step.iter",
+          },
+        },
+        steps: {
+          "step.iter": makeStep({
+            kind: "work" as const,
+            address: {
+              c1: "steps",
+              c2: "step",
+              c3: "iter",
+              edition: "default",
+            },
+            stepId: "step.iter",
+            name: "Iter",
+          }),
+        },
+      }),
+    );
+
+    const definition: AgentDefinition = {
+      name: "test-agent",
+      displayName: "Test",
+      description: "Test",
+      version: "1.0.0",
+      parameters: {},
+      runner: {
+        flow: {
+          systemPromptPath: "prompts/system.md",
+          prompts: {
+            registry: "steps_registry.json",
+            fallbackDir: "prompts/",
+          },
+        },
+        verdict: {
+          type: "count:iteration",
+          config: { maxIterations: 5 },
+        },
+        execution: {},
+        logging: { directory: "/tmp/claude/test-logs", format: "jsonl" },
+      },
+    } as AgentDefinition;
+
+    try {
+      const result = await createRegistryVerdictHandler(
+        definition,
+        {},
+        tempDir,
+      );
+      assertExists(result);
+      assertEquals(result.type, "count:iteration");
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);

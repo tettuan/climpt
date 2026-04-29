@@ -307,16 +307,11 @@ export function srLegacyStepShapeRejected(errors: string[]): ConfigError {
 }
 
 // --- SR-LOAD: Registry loading ---
-
-export function srLoadInvalidFormat(): ConfigError {
-  return new ConfigError(
-    "SR-LOAD-001",
-    `Invalid registry format: missing required fields (agentId, version, steps).`,
-    `steps_registry.json must contain at minimum: agentId, version, and steps. See design/02_core_architecture.md Section 3.`,
-    `Ensure steps_registry.json has "agentId", "version", and "steps" fields at the top level.`,
-    "steps_registry.json",
-  );
-}
+//
+// SR-LOAD-001 (`srLoadInvalidFormat`) was retired in T35: the top-level
+// presence concern (agentId/version/c1/steps) is now owned exclusively by
+// `validateRegistryShape` (raises SR-VALID-005). See critique-6 N#2 and
+// `tmp/step-adt-migration/progress.md` §T35.
 
 export function srLoadAgentIdMismatch(
   expected: string,

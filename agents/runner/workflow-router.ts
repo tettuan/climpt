@@ -16,10 +16,7 @@ import type {
   StepRegistry,
   TransitionRule,
 } from "../common/step-registry.ts";
-import {
-  inferStepKind,
-  STEP_KIND_ALLOWED_INTENTS,
-} from "../common/step-registry.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
@@ -313,7 +310,7 @@ export class WorkflowRouter {
     stepDef: PromptStepDefinition,
     intent: string,
   ): void {
-    const stepKind = inferStepKind(stepDef);
+    const stepKind = stepDef.kind;
     if (!stepKind) {
       // Non-flow step (e.g., section.*), skip validation
       return;

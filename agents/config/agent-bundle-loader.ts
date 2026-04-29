@@ -41,12 +41,12 @@ import type {
 import { applyDefaults, deepFreeze } from "./defaults.ts";
 import { getAgentDir, loadRaw } from "./loader.ts";
 import { loadStepRegistry } from "../common/step-registry/loader.ts";
+import { PATHS } from "../shared/paths.ts";
 import { validate, validateComplete } from "./validator.ts";
 import {
   acBundleDuplicateId,
   acValidFailed,
   acValidIncomplete,
-  ConfigError,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -207,24 +207,28 @@ async function loadTypedSteps(
 
   const resolvedRegistryPath = join(agentDir, registryPath);
 
-  try {
-    const registry = await loadStepRegistry(definition.name, agentDir, {
-      registryPath: resolvedRegistryPath,
-    });
-    return {
-      steps: Object.values(registry.steps),
-      entryStep: registry.entryStep ?? "",
-      entryStepMapping: registry.entryStepMapping,
-    };
-  } catch (error) {
-    // Registry file absent on disk — preserve "registry not present →
-    // empty step list" semantics. All validation errors (SR-VALID-*,
-    // SR-LOAD-001/002) propagate.
-    if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
-      return { steps: [], entryStep: "" };
-    }
-    throw error;
-  }
+  // T38 / critique-6 N#5: SR-LOAD-003 swallow is centralized in the
+  // loader (`allowMissing: true`). When the referenced file is absent
+  // on disk the loader fabricates an empty registry; the projection
+  // below transparently collapses to `{ steps: [], entryStep: "" }`
+  // because an empty registry has `steps = {}` and no
+  // `entryStep`/`entryStepMapping`. All other validation errors
+  // (SR-VALID-*, SR-LOAD-002, SR-INTENT-*) propagate.
+  //
+  // T29 / critique-5 B#2: schemasDir is type-required for the strict
+  // (default) loader variant. The boot path resolves it from the agent
+  // directory's canonical schemas folder so validateIntentSchemaEnums
+  // runs as part of bundle assembly (no silent skip).
+  const registry = await loadStepRegistry(definition.name, agentDir, {
+    registryPath: resolvedRegistryPath,
+    schemasDir: join(agentDir, PATHS.SCHEMAS_DIR),
+    allowMissing: true,
+  });
+  return {
+    steps: Object.values(registry.steps),
+    entryStep: registry.entryStep ?? "",
+    entryStepMapping: registry.entryStepMapping,
+  };
 }
 
 /**

@@ -34,7 +34,6 @@ export {
   getStepDefinition,
   getStepIds,
   hasStep,
-  inferStepKind,
 } from "./utils.ts";
 
 // Loader
@@ -45,6 +44,7 @@ export {
   validateEntryStepMapping,
   validateIntentSchemaEnums,
   validateIntentSchemaRef,
+  validateRegistryShape,
   validateStepKindIntents,
   validateStepRegistry,
 } from "./validator.ts";
