@@ -584,6 +584,219 @@ Deno.test("explicit variant skips listing and syncs declared ids only", async ()
 });
 
 // ---------------------------------------------------------------------------
+// Multi-project per-project dispatch filter (e2e)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fixture layout for multi-project tests:
+ *
+ *   Issue 10 — project A only
+ *   Issue 20 — project B only
+ *   Issue 30 — both project A and project B
+ *   Issue 40 — no project (unbound)
+ *
+ * StubGitHubClient.listIssues always returns all four.
+ * Per-project filtering is exercised by varying the ghProject source.
+ */
+function makeMultiProjectStub(): StubGitHubClient {
+  const github = makeStub([10, 20, 30, 40]);
+  github.setIssueProjects({
+    10: [{ owner: "tettuan", number: 1 }],
+    20: [{ owner: "tettuan", number: 2 }],
+    30: [{ owner: "tettuan", number: 1 }, { owner: "tettuan", number: 2 }],
+  });
+  return github;
+}
+
+const PROJECT_A: { owner: string; number: number } = {
+  owner: "tettuan",
+  number: 1,
+};
+const PROJECT_B: { owner: string; number: number } = {
+  owner: "tettuan",
+  number: 2,
+};
+
+Deno.test("ghProject A dispatches only project-A members (excludes B-only and unbound)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeMultiProjectStub();
+    // Project A contains issues 10 and 30
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({
+      kind: "ghProject",
+      project: PROJECT_A,
+    });
+
+    assertEquals(result, [10, 30]);
+    // Issue 20 (B-only) must not be in the store
+    let notFound20 = false;
+    try {
+      await store.readMeta(20);
+    } catch {
+      notFound20 = true;
+    }
+    assertEquals(
+      notFound20,
+      true,
+      "Issue 20 (project-B only) must not be synced for project A",
+    );
+    // Issue 40 (unbound) must not be in the store
+    let notFound40 = false;
+    try {
+      await store.readMeta(40);
+    } catch {
+      notFound40 = true;
+    }
+    assertEquals(
+      notFound40,
+      true,
+      "Issue 40 (unbound) must not be synced for project A",
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("ghProject B dispatches only project-B members (excludes A-only and unbound)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeMultiProjectStub();
+    // Project B contains issues 20 and 30
+    github.setProjectItems([
+      { id: "PVTI_20", issueNumber: 20 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync({
+      kind: "ghProject",
+      project: PROJECT_B,
+    });
+
+    assertEquals(result, [20, 30]);
+    // Issue 10 (A-only) must not be in the store
+    let notFound10 = false;
+    try {
+      await store.readMeta(10);
+    } catch {
+      notFound10 = true;
+    }
+    assertEquals(
+      notFound10,
+      true,
+      "Issue 10 (project-A only) must not be synced for project B",
+    );
+    // Issue 40 (unbound) must not be in the store
+    let notFound40 = false;
+    try {
+      await store.readMeta(40);
+    } catch {
+      notFound40 = true;
+    }
+    assertEquals(
+      notFound40,
+      true,
+      "Issue 40 (unbound) must not be synced for project B",
+    );
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("shared issue (both A and B) appears in each project filter independently", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeMultiProjectStub();
+    // Project A contains issues 10 and 30
+    github.setProjectItems([
+      { id: "PVTI_10", issueNumber: 10 },
+      { id: "PVTI_30", issueNumber: 30 },
+    ]);
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const resultA = await syncer.sync({
+      kind: "ghProject",
+      project: PROJECT_A,
+    });
+    assertEquals(
+      resultA.includes(30),
+      true,
+      "Issue 30 must appear in project A results",
+    );
+
+    // Reset store for project B run
+    const tmpB = await Deno.makeTempDir();
+    try {
+      const githubB = makeMultiProjectStub();
+      githubB.setProjectItems([
+        { id: "PVTI_20", issueNumber: 20 },
+        { id: "PVTI_30", issueNumber: 30 },
+      ]);
+      const storeB = new SubjectStore(tmpB);
+      const syncerB = new IssueSyncer(githubB, storeB);
+
+      const resultB = await syncerB.sync({
+        kind: "ghProject",
+        project: PROJECT_B,
+      });
+      assertEquals(
+        resultB.includes(30),
+        true,
+        "Issue 30 must appear in project B results",
+      );
+    } finally {
+      await Deno.remove(tmpB, { recursive: true });
+    }
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("ghRepoIssues with projectMembership=any dispatches all issues regardless of project (regression)", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeMultiProjectStub();
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync(REPO_ISSUES_ANY);
+
+    // All four issues must be dispatched
+    assertEquals(result, [10, 20, 30, 40]);
+    // No project queries needed in escape-hatch mode
+    assertEquals(github.listProjectItemsCalls.length, 0);
+    assertEquals(github.getIssueProjectsCalls.length, 0);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+Deno.test("ghRepoIssues with unbound keeps only project-free issues in multi-project env", async () => {
+  const tmp = await Deno.makeTempDir();
+  try {
+    const github = makeMultiProjectStub();
+    const store = new SubjectStore(tmp);
+    const syncer = new IssueSyncer(github, store);
+
+    const result = await syncer.sync(REPO_ISSUES_UNBOUND);
+
+    // Only issue 40 (unbound) survives; 10, 20, 30 all have project membership
+    assertEquals(result, [40]);
+  } finally {
+    await Deno.remove(tmp, { recursive: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Prioritizer orders within project-filtered set
 // ---------------------------------------------------------------------------
 
