@@ -35,10 +35,9 @@ function twoStepRegistry(opts: {
   targetInputs?: Record<string, unknown>;
 }): Record<string, unknown> {
   const sourceStep: Record<string, unknown> = {
+    kind: "work",
+    address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
     stepId: "initial.issue",
-    c2: "initial",
-    c3: "issue",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
   };
@@ -55,10 +54,14 @@ function twoStepRegistry(opts: {
   }
 
   const targetStep: Record<string, unknown> = {
+    kind: "work",
+    address: {
+      c1: "steps",
+      c2: "continuation",
+      c3: "issue",
+      edition: "default",
+    },
     stepId: "continuation.issue",
-    c2: "continuation",
-    c3: "issue",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
   };

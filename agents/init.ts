@@ -137,9 +137,13 @@ export async function initAgent(
       system: {
         stepId: "system",
         name: "System Prompt",
-        c2: "system",
-        c3: "prompt",
-        edition: "default",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "system",
+          c3: "prompt",
+          edition: "default",
+        },
         uvVariables: ["uv-agent_name", "uv-verdict_criteria"],
         usesStdin: false,
       },
@@ -147,10 +151,13 @@ export async function initAgent(
       [`${STEP_PHASE.INITIAL}.manual`]: {
         stepId: `${STEP_PHASE.INITIAL}.manual`,
         name: "Manual Initial Prompt",
-        c2: STEP_PHASE.INITIAL,
-        c3: "manual",
-        edition: "default",
-        stepKind: "work",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: STEP_PHASE.INITIAL,
+          c3: "manual",
+          edition: "default",
+        },
         uvVariables: ["uv-topic", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
@@ -163,10 +170,13 @@ export async function initAgent(
       [`${STEP_PHASE.CONTINUATION}.manual`]: {
         stepId: `${STEP_PHASE.CONTINUATION}.manual`,
         name: "Manual Continuation Prompt",
-        c2: STEP_PHASE.CONTINUATION,
-        c3: "manual",
-        edition: "default",
-        stepKind: "work",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: STEP_PHASE.CONTINUATION,
+          c3: "manual",
+          edition: "default",
+        },
         uvVariables: ["uv-iteration", "uv-completion_keyword"],
         usesStdin: false,
         transitions: {
@@ -181,10 +191,13 @@ export async function initAgent(
       [`${STEP_PHASE.CLOSURE}.summary`]: {
         stepId: `${STEP_PHASE.CLOSURE}.summary`,
         name: "Session Closure",
-        c2: STEP_PHASE.CLOSURE,
-        c3: "summary",
-        edition: "default",
-        stepKind: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: STEP_PHASE.CLOSURE,
+          c3: "summary",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
       },

@@ -30,8 +30,8 @@ import { discoverAgents } from "../testing/discover-agents.ts";
 const CONFIG_DIR = ".agent/climpt/config";
 
 interface RegistryJson {
-  steps: Record<string, { c2: string; c3: string }>;
-  validationSteps?: Record<string, { c2: string; c3: string }>;
+  steps: Record<string, { address: { c2: string; c3: string } }>;
+  validationSteps?: Record<string, { address: { c2: string; c3: string } }>;
 }
 
 /**
@@ -47,12 +47,12 @@ function collectAllC2C3(registry: RegistryJson): {
   const c3 = new Set<string>();
 
   for (const step of Object.values(registry.steps)) {
-    c2.add(step.c2);
-    c3.add(step.c3);
+    c2.add(step.address.c2);
+    c3.add(step.address.c3);
   }
   for (const vstep of Object.values(registry.validationSteps ?? {})) {
-    c2.add(vstep.c2);
-    c3.add(vstep.c3);
+    c2.add(vstep.address.c2);
+    c3.add(vstep.address.c3);
   }
 
   return { c2, c3 };

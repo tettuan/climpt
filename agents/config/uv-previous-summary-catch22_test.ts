@@ -94,9 +94,13 @@ Deno.test("Issue 07-a — previous_summary declared: template validation passes"
     );
 
     const registry = registryWith("continuation.manual", {
-      c2: "continuation",
-      c3: "manual",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "manual",
+        edition: "default",
+      },
       uvVariables: ["previous_summary", "topic"],
     });
 
@@ -197,9 +201,13 @@ Deno.test("Issue 07-c — previous_summary NOT declared: template validation pas
     );
 
     const registry = registryWith("continuation.manual", {
-      c2: "continuation",
-      c3: "manual",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "manual",
+        edition: "default",
+      },
       uvVariables: ["topic"], // previous_summary intentionally omitted
     });
 
@@ -266,9 +274,13 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
 
     // --- Configuration A: previous_summary declared ---
     const registryA = registryWith("continuation.manual", {
-      c2: "continuation",
-      c3: "manual",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "manual",
+        edition: "default",
+      },
       uvVariables: ["previous_summary", "topic"],
     });
 
@@ -307,9 +319,13 @@ Deno.test("Issue 07-d — catch-22 resolved: both configurations pass both valid
 
     // --- Configuration B: previous_summary NOT declared ---
     const registryB = registryWith("continuation.manual", {
-      c2: "continuation",
-      c3: "manual",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "manual",
+        edition: "default",
+      },
       uvVariables: ["topic"], // previous_summary omitted
     });
 

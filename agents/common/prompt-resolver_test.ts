@@ -249,11 +249,10 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive
   addStepDefinition(
     registry,
     makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
       stepId: "initial.test",
       name: "Test Step",
-      c2: "initial",
-      c3: "test",
-      edition: "default",
       uvVariables: [],
       usesStdin: false,
     }),
@@ -275,11 +274,15 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 for step with required UV vars w
   addStepDefinition(
     registry,
     makeStep({
+      kind: "work" as const,
+      address: {
+        c1: "steps",
+        c2: "initial",
+        c3: "required",
+        edition: "default",
+      },
       stepId: "required.vars",
       name: "Required Vars",
-      c2: "initial",
-      c3: "required",
-      edition: "default",
       uvVariables: ["required_var"],
       usesStdin: false,
     }),
@@ -318,11 +321,10 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive
   addStepDefinition(
     registry,
     makeStep({
+      kind: "closure" as const,
+      address: { c1: "steps", c2: "closure", c3: "issue", edition: "default" },
       stepId: "closure.issue",
       name: "Closure Issue",
-      c2: "closure",
-      c3: "issue",
-      edition: "default",
       uvVariables: [],
       usesStdin: false,
     }),
@@ -344,11 +346,10 @@ Deno.test("PromptResolver - surfaces PR-C3L-002 when breakdown rejects directive
   addStepDefinition(
     registry,
     makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
       stepId: "initial.test",
       name: "Test",
-      c2: "initial",
-      c3: "test",
-      edition: "default",
       uvVariables: ["name"],
       usesStdin: false,
     }),
@@ -386,11 +387,10 @@ function makeResolverWithStubLoader(
   addStepDefinition(
     registry,
     makeStep({
+      kind: "work" as const,
+      address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
       stepId: "initial.test",
       name: "Test Step",
-      c2: "initial",
-      c3: "test",
-      edition: "default",
       uvVariables: [],
       usesStdin: false,
     }),

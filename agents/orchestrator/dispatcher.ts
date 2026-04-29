@@ -73,12 +73,12 @@ export function extractHandoffData(
     summaries: ReadonlyArray<{ structuredOutput?: Record<string, unknown> }>;
   },
   stepsRegistry: ReadonlyArray<
-    { stepKind?: string; structuredGate?: { handoffFields?: string[] } }
+    { kind?: string; structuredGate?: { handoffFields?: string[] } }
   >,
 ): Record<string, string> | undefined {
   // Find closure step with handoffFields
   const closureStep = stepsRegistry.find(
-    (s) => s.stepKind === "closure" && s.structuredGate?.handoffFields?.length,
+    (s) => s.kind === "closure" && s.structuredGate?.handoffFields?.length,
   );
   if (!closureStep?.structuredGate?.handoffFields?.length) return undefined;
 
@@ -355,21 +355,10 @@ export class RunnerDispatcher implements AgentDispatcher {
 
     const durationMs = performance.now() - startMs;
 
-    // Use the typed Step list directly for handoff extraction. The legacy
-    // `__stepsRegistry` side-channel is still synthesized by
-    // `agentBundleToResolvedDefinition` for any legacy reader, but we
-    // bypass it here and walk the typed bundle.steps so the dispatcher
-    // does not depend on the projection's internal shape.
-    // TODO[T1.4]: collapse extractHandoffData onto Step / AgentBundle
-    // so the legacy `{stepKind, structuredGate}` shape is no longer
-    // needed at this site.
-    const handoffData = extractHandoffData(
-      result,
-      bundle.steps.map((s) => ({
-        stepKind: s.kind,
-        structuredGate: s.structuredGate,
-      })),
-    );
+    // Use the typed Step list directly for handoff extraction.
+    // `extractHandoffData` reads `{kind, structuredGate}` straight from the
+    // typed `Step` shape — no legacy `stepKind` field, no wrapper.
+    const handoffData = extractHandoffData(result, bundle.steps);
 
     const lastSummary = result.summaries[result.summaries.length - 1];
     const structuredOutput = lastSummary?.structuredOutput;

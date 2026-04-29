@@ -176,9 +176,13 @@ export async function validatePaths(
           const step = asRecord(stepDef);
           if (!step) continue;
 
-          const c2 = step.c2;
-          const c3 = step.c3;
-          const edition = step.edition;
+          // Read C3L coordinates from the typed `address` aggregate
+          // (design 14 §C). The disk shape places C3L coordinates inside
+          // `address`, never as flat siblings on the step object.
+          const address = asRecord(step.address) ?? {};
+          const c2 = address.c2;
+          const c3 = address.c3;
+          const edition = address.edition;
           if (
             typeof c2 !== "string" || c2 === "" ||
             typeof c3 !== "string" || c3 === "" ||
@@ -187,12 +191,12 @@ export async function validatePaths(
             continue;
           }
 
-          const adaptation = typeof step.adaptation === "string"
-            ? step.adaptation
+          const adaptation = typeof address.adaptation === "string"
+            ? address.adaptation
             : undefined;
-          // Synthesize a C3LAddress for buildPromptFilePath. The validator
-          // works on raw disk JSON (asRecord) which still carries the 5-tuple
-          // as separate fields; c1 is unused by buildPromptFilePath itself.
+          // Build a C3LAddress for buildPromptFilePath directly from the
+          // disk `address` aggregate. c1 is unused by buildPromptFilePath
+          // itself, so leaving it empty is intentional.
           const promptPath = buildPromptFilePath(promptRoot, {
             c1: "",
             c2,

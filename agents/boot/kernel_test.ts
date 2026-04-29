@@ -110,19 +110,36 @@ async function scaffoldFixtureWorkspace(
       agentId: id,
       version: "1.0.0",
       c1: "steps",
-      entryStep: "initial.issue",
+      entryStepMapping: {
+        "count:iteration": {
+          initial: "initial.issue",
+          continuation: "initial.issue",
+        },
+      },
       steps: {
         "initial.issue": {
-          c2: "initial",
-          c3: "issue",
-          edition: "default",
+          stepId: "initial.issue",
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "issue",
+            edition: "default",
+          },
+          name: "Initial Issue Work",
           uvVariables: ["issue"],
           usesStdin: false,
         },
         "closure.polling": {
-          c2: "closure",
-          c3: "polling",
-          edition: "default",
+          stepId: "closure.polling",
+          kind: "closure",
+          address: {
+            c1: "steps",
+            c2: "closure",
+            c3: "polling",
+            edition: "default",
+          },
+          name: "Closure Polling",
           uvVariables: ["issue"],
           usesStdin: false,
         },

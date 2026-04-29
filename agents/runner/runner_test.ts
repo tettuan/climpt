@@ -582,11 +582,10 @@ function createTestStepRegistry(): StepRegistry {
     c1: "steps",
     steps: {
       "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Initial Test Step",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
@@ -602,11 +601,15 @@ function createTestStepRegistry(): StepRegistry {
         },
       }),
       "continuation.test": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "test",
+          edition: "default",
+        },
         stepId: "continuation.test",
         name: "Continuation Test Step",
-        c2: "continuation",
-        c3: "test",
-        edition: "default",
         structuredGate: {
           allowedIntents: ["next", "repeat", "jump", "handoff"],
           intentField: "next_action.action",
@@ -620,11 +623,10 @@ function createTestStepRegistry(): StepRegistry {
         },
       }),
       "closure.test": makeStep({
+        kind: "closure" as const,
+        address: { c1: "steps", c2: "closure", c3: "test", edition: "default" },
         stepId: "closure.test",
         name: "Closure Test Step",
-        c2: "closure",
-        c3: "test",
-        edition: "default",
         structuredGate: {
           allowedIntents: ["closing", "repeat"],
           intentField: "next_action.action",
@@ -776,25 +778,28 @@ Deno.test("Structured Gate Flow - router uses default transition for steps witho
     c1: "steps",
     steps: {
       "initial.foo": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "foo", edition: "default" },
         stepId: "initial.foo",
         name: "Initial Foo",
-        c2: "initial",
-        c3: "foo",
-        edition: "default",
         structuredGate: {
           allowedIntents: ["next"],
           intentField: "next_action.action",
           intentSchemaRef:
             "#/definitions/initial.foo/properties/next_action/properties/action",
         },
-        // No explicit transitions - should use default (initial -> continuation)
+        // No explicit transitions - should use default (initial -> continuation),
       }),
       "continuation.foo": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "foo",
+          edition: "default",
+        },
         stepId: "continuation.foo",
         name: "Continuation Foo",
-        c2: "continuation",
-        c3: "foo",
-        edition: "default",
       }),
     },
   };
@@ -1111,17 +1116,17 @@ Deno.test("R5 - Two consecutive schema failures should throw AgentSchemaResoluti
 import type { BoundaryHookPayload } from "./events.ts";
 
 Deno.test("BoundaryHook - payload has correct structure for closure step", () => {
-  // BoundaryHookPayload must have stepId, stepKind="closure", and optional structuredOutput
+  // BoundaryHookPayload must have stepId, kind="closure", and optional structuredOutput
   const payload: BoundaryHookPayload = {
     stepId: "closure.issue",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: {
       next_action: { action: "closing", reason: "Task complete" },
     },
   };
 
   assertEquals(payload.stepId, "closure.issue");
-  assertEquals(payload.stepKind, "closure");
+  assertEquals(payload.kind, "closure");
   assertEquals(
     (payload.structuredOutput?.next_action as Record<string, unknown>)?.action,
     "closing",
@@ -1135,14 +1140,14 @@ Deno.test("BoundaryHook - only closure steps can invoke boundary hook", () => {
   // Verify the closure step type constraint
   const closurePayload: BoundaryHookPayload = {
     stepId: "closure.default",
-    stepKind: "closure",
+    kind: "closure",
   };
 
-  // stepKind must be "closure" - this is enforced by TypeScript type
-  assertEquals(closurePayload.stepKind, "closure");
+  // kind must be "closure" - this is enforced by TypeScript type
+  assertEquals(closurePayload.kind, "closure");
 
   // Work step cannot create a valid BoundaryHookPayload
-  // (TypeScript prevents stepKind: "work" or stepKind: "verification")
+  // (TypeScript prevents kind: "work" or kind: "verification")
 });
 
 Deno.test("BoundaryHook - event emitter accepts boundaryHook event", async () => {
@@ -1155,7 +1160,7 @@ Deno.test("BoundaryHook - event emitter accepts boundaryHook event", async () =>
 
   await emitter.emit("boundaryHook", {
     stepId: "closure.release",
-    stepKind: "closure",
+    kind: "closure",
     structuredOutput: { release_version: "1.0.0" },
   });
 
@@ -1163,7 +1168,7 @@ Deno.test("BoundaryHook - event emitter accepts boundaryHook event", async () =>
   assertEquals(receivedPayloads.length, 1);
   const payload = receivedPayloads[0];
   assertEquals(payload.stepId, "closure.release");
-  assertEquals(payload.stepKind, "closure");
+  assertEquals(payload.kind, "closure");
   assertEquals(
     (payload.structuredOutput as Record<string, unknown>)?.release_version,
     "1.0.0",

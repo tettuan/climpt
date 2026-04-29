@@ -266,7 +266,7 @@ ${this.buildStepInstructions(stepDef, this.state.currentStepId)}
    */
   onBoundaryHook(payload: {
     stepId: string;
-    stepKind: "closure";
+    kind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
     if (payload.structuredOutput) {

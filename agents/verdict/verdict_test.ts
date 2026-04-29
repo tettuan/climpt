@@ -1105,11 +1105,10 @@ function createMockStepsRegistry(
     entryStep: "initial.test",
     steps: {
       "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Initial Test Step",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -1125,11 +1124,15 @@ function createMockStepsRegistry(
         },
       }),
       "continuation.test": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "test",
+          edition: "default",
+        },
         stepId: "continuation.test",
         name: "Continuation Test Step",
-        c2: "continuation",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {
@@ -1310,18 +1313,26 @@ Deno.test("createRegistryVerdictHandler - poll:state with args.issue returns ada
     },
     steps: {
       "initial.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "polling",
+          edition: "default",
+        },
         stepId: "initial.polling",
         name: "Initial",
-        c2: "initial",
-        c3: "polling",
-        edition: "default",
       }),
       "continuation.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "polling",
+          edition: "default",
+        },
         stepId: "continuation.polling",
         name: "Continuation",
-        c2: "continuation",
-        c3: "polling",
-        edition: "default",
       }),
     },
   });
@@ -1390,18 +1401,26 @@ Deno.test("createRegistryVerdictHandler - poll:state without args.issue throws",
     },
     steps: {
       "initial.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "polling",
+          edition: "default",
+        },
         stepId: "initial.polling",
         name: "Initial",
-        c2: "initial",
-        c3: "polling",
-        edition: "default",
       }),
       "continuation.polling": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "polling",
+          edition: "default",
+        },
         stepId: "continuation.polling",
         name: "Continuation",
-        c2: "continuation",
-        c3: "polling",
-        edition: "default",
       }),
     },
   });
@@ -1468,18 +1487,26 @@ Deno.test("createRegistryVerdictHandler - count:iteration creates handler", asyn
     },
     steps: {
       "initial.iteration": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "iteration",
+          edition: "default",
+        },
         stepId: "initial.iteration",
         name: "Initial",
-        c2: "initial",
-        c3: "iteration",
-        edition: "default",
       }),
       "continuation.iteration": makeStep({
+        kind: "work" as const,
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "iteration",
+          edition: "default",
+        },
         stepId: "continuation.iteration",
         name: "Continuation",
-        c2: "continuation",
-        c3: "iteration",
-        edition: "default",
       }),
     },
   });
@@ -2212,11 +2239,10 @@ Deno.test("setUvVariables - StepMachineVerdictHandler merges base UV in initial 
     entryStep: "work.analyze",
     steps: {
       "work.analyze": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "work", c3: "analyze", edition: "default" },
         name: "Analyze",
         stepId: "work.analyze",
-        c2: "work",
-        c3: "analyze",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
       }),

@@ -87,7 +87,7 @@ export class BoundaryHooks {
     // Emit boundaryHook event for external handlers
     await this.deps.getEventEmitter().emit("boundaryHook", {
       stepId,
-      stepKind,
+      kind: stepKind,
       structuredOutput: summary.structuredOutput,
     });
 
@@ -120,7 +120,7 @@ export class BoundaryHooks {
     if (ctx.verdictHandler.onBoundaryHook) {
       await ctx.verdictHandler.onBoundaryHook({
         stepId,
-        stepKind,
+        kind: stepKind,
         structuredOutput: summary.structuredOutput,
       });
     }

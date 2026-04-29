@@ -16,23 +16,63 @@ import type { GateInterpretation } from "./step-gate-interpreter.ts";
 
 const logger = new BreakdownLogger("transition");
 
-// Helper to create minimal registry. Tests pass disk-shape partials
-// (with c2/c3/edition as separate fields); makeStep aggregates them
-// into the typed Step ADT.
+// Local fixture adapter: this test file leans on c2/c3-style partials for
+// terse routing-table fixtures. The shared `makeStep` helper requires the
+// ADT-shape (kind + address) since T7b — this adapter aggregates the flat
+// partials into that ADT shape *locally*, then delegates. It is the only
+// place in the codebase that still accepts flat C3L fields, and it lives
+// next to its callers so no synthesis leaks into the shared helper.
+type StepFixturePartial =
+  & {
+    kind?: import("../common/step-registry/types.ts").StepKind;
+    /** Legacy alias for `kind` retained only for this local adapter. */
+    stepKind?: import("../common/step-registry/types.ts").StepKind;
+    c2?: string;
+    c3?: string;
+    edition?: string;
+    adaptation?: string;
+  }
+  & Partial<
+    Omit<
+      Parameters<typeof makeStep>[0],
+      "stepId" | "kind" | "address"
+    >
+  >;
+
+function inferKindFromC2(
+  c2: string,
+): import("../common/step-registry/types.ts").StepKind {
+  switch (c2) {
+    case "verification":
+      return "verification";
+    case "closure":
+      return "closure";
+    default:
+      return "work";
+  }
+}
+
 function createRegistry(
   steps: Record<string, StepFixturePartial> = {},
 ): StepRegistry {
   const fullSteps: StepRegistry["steps"] = {};
 
   for (const [stepId, partial] of Object.entries(steps)) {
+    const c2 = partial.c2 ?? "test";
+    const kind = partial.kind ?? partial.stepKind ?? inferKindFromC2(c2);
     fullSteps[stepId] = makeStep({
+      kind,
+      address: {
+        c1: "steps",
+        c2,
+        c3: partial.c3 ?? "step",
+        edition: partial.edition ?? "default",
+        ...(partial.adaptation !== undefined
+          ? { adaptation: partial.adaptation }
+          : {}),
+      },
       stepId,
       name: partial.name ?? `Step ${stepId}`,
-      c2: partial.c2 ?? "test",
-      c3: partial.c3 ?? "step",
-      edition: partial.edition ?? "default",
-      adaptation: partial.adaptation,
-      kind: partial.kind ?? partial.stepKind,
       uvVariables: partial.uvVariables ?? [],
       usesStdin: partial.usesStdin ?? false,
       structuredGate: partial.structuredGate,
@@ -53,11 +93,6 @@ function createRegistry(
     steps: fullSteps,
   };
 }
-
-type StepFixturePartial = Parameters<typeof makeStep>[0] extends infer P
-  ? P extends { stepId: string } ? Omit<P, "stepId">
-  : never
-  : never;
 
 // Helper to create interpretation
 function createInterpretation(

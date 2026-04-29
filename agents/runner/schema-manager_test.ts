@@ -83,11 +83,10 @@ function createStepDef(
   overrides: Partial<PromptStepDefinition> & { stepId: string },
 ): PromptStepDefinition {
   return makeStep({
+    kind: "work" as const,
+    address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
     stepId: overrides.stepId,
     name: overrides.stepId,
-    c2: "initial",
-    c3: "test",
-    edition: "default",
     ...(overrides as Record<string, unknown>),
   });
 }

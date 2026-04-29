@@ -130,10 +130,14 @@ export async function validateTemplateUvConsistency(
     const step = asRecord(stepDef);
     if (!step) continue;
 
-    const c2 = step.c2;
-    const c3 = step.c3;
-    const edition = step.edition;
-    const adaptation = step.adaptation;
+    // Read C3L coordinates from the typed `address` aggregate (design 14
+    // §C). The disk shape places C3L coordinates inside `address`, never
+    // as flat siblings on the step object.
+    const address = asRecord(step.address) ?? {};
+    const c2 = address.c2;
+    const c3 = address.c3;
+    const edition = address.edition;
+    const adaptation = address.adaptation;
     const uvVariables = step.uvVariables;
 
     if (
@@ -153,9 +157,9 @@ export async function validateTemplateUvConsistency(
       }
     }
 
-    // Synthesize a C3LAddress for buildPromptFilePath. The validator works
-    // on raw disk JSON (asRecord) which still carries the 5-tuple as
-    // separate fields; c1 is unused by buildPromptFilePath itself.
+    // Build a C3LAddress for buildPromptFilePath directly from the disk
+    // `address` aggregate (design 14 §C). c1 is unused by buildPromptFilePath
+    // itself, so leaving it empty is intentional.
     const promptPath = buildPromptFilePath(promptRoot, {
       c1: "",
       c2,

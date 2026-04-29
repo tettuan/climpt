@@ -66,10 +66,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "initial.default": {
         stepId: "initial.default",
         name: "Initial Step",
-        stepKind: "work",
-        c2: "initial",
-        c3: "default",
-        edition: "default",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -80,10 +83,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "continuation.default": {
         stepId: "continuation.default",
         name: "Continuation Step",
-        stepKind: "work",
-        c2: "continuation",
-        c3: "default",
-        edition: "default",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -95,10 +101,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "closure.default": {
         stepId: "closure.default",
         name: "Closure Step",
-        stepKind: "closure",
-        c2: "closure",
-        c3: "default",
-        edition: "default",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -159,19 +168,21 @@ async function scaffoldValidAgentDir(baseDir: string): Promise<string> {
   const registry = minimalValidRegistry();
   const steps = registry.steps as Record<
     string,
-    { c2: string; c3: string; edition: string }
+    {
+      address: { c1: "steps"; c2: string; c3: string; edition: string };
+    }
   >;
   for (const step of Object.values(steps)) {
     const c3lDir = join(
       promptsDir,
       "steps",
-      step.c2,
-      step.c3,
+      step.address.c2,
+      step.address.c3,
     );
     await Deno.mkdir(c3lDir, { recursive: true });
     await Deno.writeTextFile(
-      join(c3lDir, `f_${step.edition}.md`),
-      `# ${step.c2}.${step.c3} prompt`,
+      join(c3lDir, `f_${step.address.edition}.md`),
+      `# ${step.address.c2}.${step.address.c3} prompt`,
     );
   }
 
@@ -492,10 +503,13 @@ Deno.test("validateFull - catches stepKind/intent mismatch via typed validators"
         "initial.default": {
           stepId: "initial.default",
           name: "Initial Step",
-          stepKind: "work",
-          c2: "initial",
-          c3: "default",
-          edition: "default",
+          kind: "work",
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "default",
+            edition: "default",
+          },
           uvVariables: [],
           usesStdin: false,
           structuredGate: {
@@ -511,10 +525,13 @@ Deno.test("validateFull - catches stepKind/intent mismatch via typed validators"
         "closure.default": {
           stepId: "closure.default",
           name: "Closure Step",
-          stepKind: "closure",
-          c2: "closure",
-          c3: "default",
-          edition: "default",
+          kind: "closure",
+          address: {
+            c1: "steps",
+            c2: "closure",
+            c3: "default",
+            edition: "default",
+          },
           uvVariables: [],
           usesStdin: false,
           transitions: {
@@ -751,14 +768,21 @@ Deno.test("validateFull - uses custom registry path from agent definition", asyn
     const registry = minimalValidRegistry();
     const steps = registry.steps as Record<
       string,
-      { c2: string; c3: string; edition: string }
+      {
+        address: { c1: "steps"; c2: string; c3: string; edition: string };
+      }
     >;
     for (const step of Object.values(steps)) {
-      const c3lDir = join(promptsDir, "steps", step.c2, step.c3);
+      const c3lDir = join(
+        promptsDir,
+        "steps",
+        step.address.c2,
+        step.address.c3,
+      );
       await Deno.mkdir(c3lDir, { recursive: true });
       await Deno.writeTextFile(
-        join(c3lDir, `f_${step.edition}.md`),
-        `# ${step.c2}.${step.c3} prompt`,
+        join(c3lDir, `f_${step.address.edition}.md`),
+        `# ${step.address.c2}.${step.address.c3} prompt`,
       );
     }
 

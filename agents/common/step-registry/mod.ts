@@ -38,7 +38,7 @@ export {
 } from "./utils.ts";
 
 // Loader
-export { loadStepRegistry, normalizeStepRegistry } from "./loader.ts";
+export { loadStepRegistry } from "./loader.ts";
 
 // Validator
 export {

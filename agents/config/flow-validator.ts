@@ -178,44 +178,39 @@ function collectTransitionDetails(
 }
 
 /**
- * Extract the c2 field from a step definition, if present and a string.
+ * Extract the `address.c2` field from a step definition, if present.
+ *
+ * Reads the post-T7 ADT shape: `Step.address.c2` (see
+ * `agents/common/step-registry/types.ts` §C3LAddress). Non-flow steps
+ * (e.g., `section`) and malformed records return `undefined`.
  */
 function getC2(stepDef: Record<string, unknown>): string | undefined {
-  const c2 = stepDef.c2;
+  const address = asRecord(stepDef.address);
+  if (!address) return undefined;
+  const c2 = address.c2;
   return typeof c2 === "string" ? c2 : undefined;
 }
 
 /**
- * Infer stepKind from a step definition's explicit `stepKind` or `c2` field.
+ * Read the explicit `kind` discriminator from a step definition.
  *
- * Returns undefined for non-flow steps (e.g., section).
+ * Per design 14 §B and the post-T7 ADT (`Step.kind` in
+ * `agents/common/step-registry/types.ts`), `kind` is mandatory and is the
+ * sole source of truth for step taxonomy — no inference from `c2` is
+ * permitted. Non-flow steps (e.g., `section`) carry no `kind` and return
+ * `undefined`.
  */
 function inferStepKindFromDef(
   stepDef: Record<string, unknown>,
 ): StepKind | undefined {
-  // 1. Explicit stepKind takes priority
-  const explicit = stepDef.stepKind;
+  const kind = stepDef.kind;
   if (
-    typeof explicit === "string" &&
-    (explicit === "work" || explicit === "verification" ||
-      explicit === "closure")
+    typeof kind === "string" &&
+    (kind === "work" || kind === "verification" || kind === "closure")
   ) {
-    return explicit as StepKind;
+    return kind as StepKind;
   }
-
-  // 2. Infer from c2
-  const c2 = getC2(stepDef);
-  switch (c2) {
-    case "initial":
-    case "continuation":
-      return "work";
-    case "verification":
-      return "verification";
-    case "closure":
-      return "closure";
-    default:
-      return undefined;
-  }
+  return undefined;
 }
 
 /**

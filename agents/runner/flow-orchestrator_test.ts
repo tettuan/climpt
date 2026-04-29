@@ -25,7 +25,7 @@ import type {
   StepRegistry,
 } from "../common/step-registry.ts";
 import { makeStep } from "../common/step-registry/test-helpers.ts";
-import { normalizeStepRegistry } from "../common/step-registry/loader.ts";
+import { validateRegistryShape } from "../common/step-registry/validator.ts";
 import type {
   AgentDefinition,
   IterationSummary,
@@ -42,10 +42,12 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   const raw = await Deno.readTextFile(
     "agents/test-artifacts/responsibility-fixtures/test-steps-registry.json",
   );
-  // Disk JSON keeps legacy 5-tuple separate fields; normalize to the typed
-  // Step ADT (with `address` aggregate + populated `kind`) so the runner
-  // sees the same shape as `loadStepRegistry` produces.
-  return normalizeStepRegistry(JSON.parse(raw)) as ExtendedStepsRegistry;
+  // Disk JSON is in the typed Step ADT shape (with `address` aggregate +
+  // populated `kind`). Validate the raw shape, then cast — the same
+  // pattern `loadStepRegistry` uses (no translation).
+  const parsed: unknown = JSON.parse(raw);
+  validateRegistryShape(parsed);
+  return parsed as ExtendedStepsRegistry;
 }
 
 /** Create a minimal AgentDefinition. verdictType must be a valid VerdictType. */
@@ -171,11 +173,10 @@ Deno.test("FlowOrchestrator - entry step falls back to generic entryStep", () =>
     entryStep: "generic.entry",
     steps: {
       "generic.entry": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "generic.entry",
         name: "Generic Entry",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
       }),

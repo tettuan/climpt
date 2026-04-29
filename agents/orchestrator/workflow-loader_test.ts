@@ -1,3 +1,5 @@
+// TODO[workflow-adt-migration]: replace REPO_ROOT/.agent/workflow.json reads with framework-owned fixture (mirror agents/common/step-registry/_fixtures/ pattern).
+
 /**
  * Tests for agents/orchestrator/workflow-loader.ts
  *

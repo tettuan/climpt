@@ -20,9 +20,10 @@
  *   T6.2 deleted the legacy inline `closeOnComplete` / `closeCondition`
  *   pair from disk and from this type — `closeBinding` is the single
  *   source of truth ("後方互換性不要").
- * - `runner` embeds the existing `ResolvedRunnerConfig`. T1.4/T1.7 will
- *   redistribute these fields into the §B-pure shape (verdict → completion,
- *   etc.) and the runner-runtime config will move to a Policy ADT.
+ * - `runner` embeds the existing `ResolvedRunnerConfig`. A future
+ *   Bundle-ADT redistribution will move these fields into the §B-pure
+ *   shape (verdict → completion, etc.) and lift the runner-runtime
+ *   config into a Policy ADT.
  *
  * The aggregate is `readonly` end-to-end so it can be frozen at Boot and
  * stay immutable throughout Run (Layer 4 in design 20 §E).
@@ -245,9 +246,10 @@ export interface ParamSpec {
 /**
  * AgentBundle — root declarative aggregate for one agent (design 13 §B).
  *
- * Lifts the 3-file dispersion into 1 ADT. Disk JSON shape stays as-is
- * (T1.7 owns the on-disk migration); only the in-memory typed projection
- * changes here.
+ * Lifts the 3-file dispersion into 1 ADT. The on-disk shape of
+ * `agent.json` and `workflow.json` is owned by their respective
+ * disk-format migrations; only the in-memory typed projection changes
+ * here.
  *
  * Field-by-field origin (climpt → bundle):
  * - `id`             ← `agent.json.name`
@@ -268,9 +270,9 @@ export interface ParamSpec {
  *                      `closeOnComplete` / `closeCondition` pair has been
  *                      deleted from disk and types per "後方互換性不要").
  * - `runner`         ← `agent.json.runner` (entire ResolvedRunnerConfig).
- *                      T1.4/T1.7 redistribute these into §B-pure fields;
- *                      kept here so AgentRunner consumers are runtime-
- *                      equivalent during T1.2.
+ *                      A future Bundle-ADT redistribution will move these
+ *                      into §B-pure fields; kept here so AgentRunner
+ *                      consumers stay runtime-equivalent in the meantime.
  */
 export interface AgentBundle {
   readonly id: AgentId;

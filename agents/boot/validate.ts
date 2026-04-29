@@ -1024,7 +1024,7 @@ function validateS7(artifacts: BootArtifacts): Decision<void> {
 /**
  * Collect every failurePattern id reachable from a bundle. Reads the
  * runner payload defensively because the typed `AgentBundle` does not
- * promote this map yet (T1.7 territory).
+ * yet promote this map (the Bundle-ADT redistribution will own it).
  */
 function collectFailurePatternIds(bundle: AgentBundle): Set<string> {
   const ids = new Set<string>();

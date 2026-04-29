@@ -48,12 +48,13 @@ import { validateFrontmatterRegistry } from "./frontmatter-registry-validator.ts
 import { validateHandoffInputs } from "./handoff-validator.ts";
 import { validateConfigRegistryConsistency } from "./config-registry-validator.ts";
 import {
+  validateEntryStepMapping,
   validateIntentSchemaRef,
+  validateRegistryShape,
   validateStepKindIntents,
   validateStepRegistry,
 } from "../common/step-registry/validator.ts";
 import type { StepRegistry } from "../common/step-registry/types.ts";
-import { normalizeStepRegistry } from "../common/step-registry/loader.ts";
 import {
   MSG_LABEL,
   MSG_LABEL_CLIENT_UNAVAILABLE,
@@ -108,24 +109,21 @@ export async function loadConfiguration(
   workflowAgent?: WorkflowAgentDefinition,
 ): Promise<Readonly<ResolvedAgentDefinition>> {
   const bundle = await loadAgentBundle(agentName, baseDir, { workflowAgent });
-  return projectBundleToLegacyDefinition(bundle, agentName, baseDir);
+  return projectBundleToLegacyDefinition(bundle);
 }
 
 /**
  * Project an {@link AgentBundle} aggregate to the legacy
- * {@link ResolvedAgentDefinition} runtime shape.
+ * {@link ResolvedAgentDefinition} runtime shape consumed by `AgentRunner`
+ * and downstream modules.
  *
- * Preserves the `__stepsRegistry` side-channel that
- * `RunnerDispatcher.dispatch` reads (it walks `definition.steps` to
- * extract `handoffData`). Once T1.4 lifts the runner onto
- * `AgentBundle`, this projection (and the side-channel) collapse.
+ * TODO[T1.4]: drop this projection once `AgentRunner` consumes
+ * `AgentBundle` directly.
  */
-async function projectBundleToLegacyDefinition(
+function projectBundleToLegacyDefinition(
   bundle: AgentBundle,
-  agentName: string,
-  baseDir: string,
-): Promise<Readonly<ResolvedAgentDefinition>> {
-  const projected: ResolvedAgentDefinition & { __stepsRegistry?: unknown } = {
+): Readonly<ResolvedAgentDefinition> {
+  const projected: ResolvedAgentDefinition = {
     version: bundle.version,
     name: bundle.id,
     displayName: bundle.displayName,
@@ -134,15 +132,6 @@ async function projectBundleToLegacyDefinition(
     runner: bundle.runner,
   };
 
-  // Preserve the legacy `__stepsRegistry` side-channel
-  // (RunnerDispatcher.extractHandoffData walks it). T1.4 removes this
-  // once dispatcher consumes AgentBundle directly.
-  if (bundle.runner.flow.prompts.registry) {
-    const agentDir = getAgentDir(agentName, baseDir);
-    const registry = await loadStepsRegistry(agentDir);
-    if (registry) projected.__stepsRegistry = registry;
-  }
-
   return freeze(projected);
 }
 
@@ -150,20 +139,11 @@ async function projectBundleToLegacyDefinition(
  * Project an already-loaded {@link AgentBundle} into the legacy
  * {@link ResolvedAgentDefinition} runtime shape **without disk reads**.
  *
- * Differs from {@link projectBundleToLegacyDefinition} (private, async)
- * by deriving the `__stepsRegistry` side-channel from the bundle's
- * typed `steps` list rather than re-loading `steps_registry.json`. This
- * is the projection used by `RunnerDispatcher.dispatch` after T2.3 — the
- * frozen `AgentRegistry.lookup(id)` returns an `AgentBundle`, and the
+ * Used by `RunnerDispatcher.dispatch` after T2.3 — the frozen
+ * `AgentRegistry.lookup(id)` returns an `AgentBundle`, and the
  * dispatcher must hand a `ResolvedAgentDefinition` to `AgentRunner`
  * (Option A: keep Runner contract unchanged, runner-side migration is
  * T1.4's concern).
- *
- * The projected `__stepsRegistry.steps` keys are the typed `stepId`s
- * (not the legacy 5-tuple address), and each entry exposes only the
- * two fields `extractHandoffData` reads: `stepKind` (mapped from typed
- * `Step.kind`) and `structuredGate`. This matches the on-disk shape
- * RunnerDispatcher previously walked while staying decoupled from disk.
  *
  * TODO[T1.4]: drop this helper once `AgentRunner` consumes
  * `AgentBundle` directly and the legacy projection is no longer needed.
@@ -174,7 +154,7 @@ async function projectBundleToLegacyDefinition(
 export function agentBundleToResolvedDefinition(
   bundle: AgentBundle,
 ): Readonly<ResolvedAgentDefinition> {
-  const projected: ResolvedAgentDefinition & { __stepsRegistry?: unknown } = {
+  const projected: ResolvedAgentDefinition = {
     version: bundle.version,
     name: bundle.id,
     displayName: bundle.displayName,
@@ -182,27 +162,6 @@ export function agentBundleToResolvedDefinition(
     parameters: paramSpecsToParameterMap(bundle),
     runner: bundle.runner,
   };
-
-  // Synthesize the legacy `__stepsRegistry.steps` shape from the typed
-  // Step list so RunnerDispatcher.extractHandoffData can keep reading
-  // `step.stepKind` + `step.structuredGate.handoffFields`. Only those
-  // two fields are observed; the synthesis is intentionally minimal.
-  if (bundle.steps.length > 0) {
-    const synthesized: Record<
-      string,
-      {
-        stepKind: string;
-        structuredGate?: { handoffFields?: string[] };
-      }
-    > = {};
-    for (const step of bundle.steps) {
-      synthesized[step.stepId] = {
-        stepKind: step.kind,
-        ...(step.structuredGate ? { structuredGate: step.structuredGate } : {}),
-      };
-    }
-    projected.__stepsRegistry = { steps: synthesized };
-  }
 
   return freeze(projected);
 }
@@ -349,29 +308,46 @@ export async function validateFull(
   // 5c. Typed step-registry validation (stepKind/intent, intentSchemaRef, structure)
   let stepRegistryValidation: ValidationResult | null = null;
   if (registry) {
-    // Normalize disk-shape JSON (legacy 5-tuple separate fields) into the
-    // typed Step ADT before invoking the typed validators. The raw JSON
-    // schema validation above already covered shape; here we test the
-    // typed contract.
-    const typedRegistry = normalizeStepRegistry(registry);
+    // Strict raw-shape validation — proves the parsed JSON conforms to
+    // the typed Step ADT (design 14 §B/§C). After this returns, a direct
+    // cast is sound (no translation).
     const errors: string[] = [];
-
+    let typedRegistry: StepRegistry | null = null;
     try {
-      validateStepKindIntents(typedRegistry);
+      validateRegistryShape(registry);
+      typedRegistry = registry as unknown as StepRegistry;
     } catch (error: unknown) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
 
-    try {
-      validateIntentSchemaRef(typedRegistry);
-    } catch (error: unknown) {
-      errors.push(error instanceof Error ? error.message : String(error));
-    }
+    if (typedRegistry) {
+      try {
+        validateStepKindIntents(typedRegistry);
+      } catch (error: unknown) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
 
-    try {
-      validateStepRegistry(typedRegistry);
-    } catch (error: unknown) {
-      errors.push(error instanceof Error ? error.message : String(error));
+      // R2b parity with R1 (T19 / N4): the loader (`loadStepRegistry`)
+      // runs validateEntryStepMapping right after validateStepKindIntents,
+      // so --validate must too. Errors are accumulated (not thrown) like
+      // the surrounding validators to keep the CLI report comprehensive.
+      try {
+        validateEntryStepMapping(typedRegistry);
+      } catch (error: unknown) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      try {
+        validateIntentSchemaRef(typedRegistry);
+      } catch (error: unknown) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+
+      try {
+        validateStepRegistry(typedRegistry);
+      } catch (error: unknown) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
     }
 
     stepRegistryValidation = {

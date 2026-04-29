@@ -5,8 +5,9 @@
  * `steps_registry.json` + `workflow.json.agents.{id}`) into a single
  * frozen {@link AgentBundle} aggregate.
  *
- * Disk JSON shape stays unchanged (T1.7 owns disk migration); only the
- * in-memory typed projection is consolidated here.
+ * The on-disk JSON shapes of `agent.json` and `workflow.json` are owned
+ * by their respective disk-format migrations; only the in-memory typed
+ * projection is consolidated here.
  *
  * Boot rule A1 (id uniqueness across a workflow's agent map) is enforced
  * by {@link assertUniqueBundleIds}. T1.4 promotes the throw to a
@@ -23,7 +24,6 @@ import type {
   AgentRoleHint,
   CloseBinding,
   CompletionSpec,
-  FlowEntryStepPair,
   FlowSpec,
   ParamSpec,
   ParamType,
@@ -32,21 +32,21 @@ import type {
   AgentDefinition,
   ParameterDefinition,
 } from "../src_common/types/agent-definition.ts";
-import type { Step } from "../common/step-registry/types.ts";
+import type { EntryStepPair, Step } from "../common/step-registry/types.ts";
 import type {
   AgentDefinition as WorkflowAgentDefinition,
   WorkflowConfig,
 } from "../orchestrator/workflow-types.ts";
 
 import { applyDefaults, deepFreeze } from "./defaults.ts";
-import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
+import { getAgentDir, loadRaw } from "./loader.ts";
+import { loadStepRegistry } from "../common/step-registry/loader.ts";
 import { validate, validateComplete } from "./validator.ts";
-import { normalizeStepRegistry } from "../common/step-registry/loader.ts";
-import { PATHS } from "../shared/paths.ts";
 import {
   acBundleDuplicateId,
   acValidFailed,
   acValidIncomplete,
+  ConfigError,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -107,8 +107,11 @@ export async function loadAgentBundle(
     throw acValidIncomplete(completeValidation.errors.join(", "));
   }
 
-  // 2. steps_registry.json (typed Step list)
-  const steps = await loadTypedSteps(definition, agentDir);
+  // 2. steps_registry.json (typed Step list + entry mapping)
+  const { steps, entryStep, entryStepMapping } = await loadTypedSteps(
+    definition,
+    agentDir,
+  );
 
   // 3. workflow.json.agents.{id} (optional, supplies role / close fields)
   const workflowAgent = options?.workflowAgent;
@@ -117,7 +120,7 @@ export async function loadAgentBundle(
   // Build the declarative aggregate
   // ---------------------------------------------------------------------
 
-  const flow = buildFlowSpec(steps, agentDir);
+  const flow = buildFlowSpec(steps, entryStep, entryStepMapping);
   const completion = buildCompletionSpec(steps, definition);
   const parameters = buildParamSpecs(definition);
   const closeBinding = readCloseBinding(workflowAgent?.closeBinding);
@@ -164,51 +167,82 @@ export function assertUniqueBundleIds(
 // ---------------------------------------------------------------------------
 
 /**
+ * TypedRegistryProjection — fields of the typed StepRegistry needed to
+ * build the {@link AgentBundle} aggregate.
+ *
+ * Returning a tuple here keeps the caller (`loadAgentBundle`) free of
+ * raw-JSON re-reads: `loadStepRegistry` is invoked exactly once per
+ * Boot, the validators (R1 chain) run exactly once, and downstream
+ * helpers consume only the typed projection.
+ */
+interface TypedRegistryProjection {
+  readonly steps: readonly Step[];
+  readonly entryStep: string;
+  readonly entryStepMapping?: Readonly<Record<string, EntryStepPair>>;
+}
+
+/**
  * Resolve and normalize the `steps_registry.json` referenced by the
- * agent's `runner.flow.prompts.registry`. Returns an empty list when no
- * registry is referenced (standalone agents that do not use the step
- * graph).
+ * agent's `runner.flow.prompts.registry`. Returns an empty projection
+ * (no steps, empty entryStep, no mapping) when no registry is referenced
+ * (standalone agents that do not use the step graph) or when the
+ * referenced file is absent on disk.
+ *
+ * Delegates to the singular {@link loadStepRegistry} (R1 in
+ * tmp/step-adt-migration/investigation/stepsRegistry-consumers.md) so
+ * the codebase has a single typed entry point for `steps_registry.json`.
+ * The validator chain ({@link validateRegistryShape},
+ * {@link validateStepKindIntents}, {@link validateEntryStepMapping},
+ * {@link validateIntentSchemaRef}) runs inside `loadStepRegistry`. The
+ * typed registry's top-level `entryStep` / `entryStepMapping` are
+ * returned alongside the step list so the caller does not re-read the
+ * file (T19 / B1 — single typed reader).
  */
 async function loadTypedSteps(
   definition: AgentDefinition,
   agentDir: string,
-): Promise<readonly Step[]> {
+): Promise<TypedRegistryProjection> {
   const registryPath = definition.runner.flow.prompts.registry;
-  if (!registryPath) return [];
+  if (!registryPath) return { steps: [], entryStep: "" };
 
-  const customPath = registryPath === PATHS.STEPS_REGISTRY
-    ? undefined
-    : join(agentDir, registryPath);
+  const resolvedRegistryPath = join(agentDir, registryPath);
 
-  const raw = await loadStepsRegistry(agentDir, customPath);
-  if (raw === null || raw === undefined) return [];
-
-  const normalized = normalizeStepRegistry(
-    raw as Parameters<typeof normalizeStepRegistry>[0],
-  );
-  return Object.values(normalized.steps);
+  try {
+    const registry = await loadStepRegistry(definition.name, agentDir, {
+      registryPath: resolvedRegistryPath,
+    });
+    return {
+      steps: Object.values(registry.steps),
+      entryStep: registry.entryStep ?? "",
+      entryStepMapping: registry.entryStepMapping,
+    };
+  } catch (error) {
+    // Registry file absent on disk — preserve "registry not present →
+    // empty step list" semantics. All validation errors (SR-VALID-*,
+    // SR-LOAD-001/002) propagate.
+    if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
+      return { steps: [], entryStep: "" };
+    }
+    throw error;
+  }
 }
 
 /**
  * Build the {@link FlowSpec} projection from the agent's step list.
  *
  * Splits steps by `kind` (T1.3 typed discriminator) — the typed
- * counterpart of the legacy `c2`-string match. The disk source for
- * `entryStep` / `entryStepMapping` is the same `steps_registry.json`,
- * read here as a second pass.
+ * counterpart of the legacy `c2`-string match. `entryStep` and
+ * `entryStepMapping` are read directly from the typed StepRegistry that
+ * {@link loadTypedSteps} already validated; no second-pass disk read.
  */
 function buildFlowSpec(
   steps: readonly Step[],
-  agentDir: string,
+  entryStep: string,
+  entryStepMapping: Readonly<Record<string, EntryStepPair>> | undefined,
 ): FlowSpec {
   const workSteps = steps.filter((s) =>
     s.kind === "work" || s.kind === "verification"
   );
-
-  // entryStep / entryStepMapping live at the registry top level; the
-  // typed Step list does not carry them. Read them lazily by re-loading
-  // the disk JSON (cheap; the agent.json validation has already happened).
-  const { entryStep, entryStepMapping } = readEntryFromRegistryFile(agentDir);
 
   return {
     entryStep,
@@ -286,49 +320,4 @@ function readCloseBinding(
     return { primary: { kind: "none" }, cascade: false };
   }
   return binding;
-}
-
-/**
- * Read `entryStep` / `entryStepMapping` from the disk
- * `steps_registry.json` without re-parsing the typed Step list.
- *
- * Synchronous in spirit (the file was already opened by
- * {@link loadTypedSteps} just above), but we re-`Deno.readTextFile` so
- * the bundle loader stays a pure data dependency on `loader.ts`. The
- * loader caches at the OS-level; perf is not material here (Boot path).
- */
-function readEntryFromRegistryFile(agentDir: string): {
-  entryStep: string;
-  entryStepMapping?: Readonly<Record<string, FlowEntryStepPair>>;
-} {
-  const path = join(agentDir, PATHS.STEPS_REGISTRY);
-  let raw: unknown;
-  try {
-    raw = JSON.parse(Deno.readTextFileSync(path));
-  } catch {
-    return { entryStep: "" };
-  }
-  if (typeof raw !== "object" || raw === null) {
-    return { entryStep: "" };
-  }
-  const obj = raw as Record<string, unknown>;
-  const entryStep = typeof obj.entryStep === "string" ? obj.entryStep : "";
-  const mapping = obj.entryStepMapping;
-  if (mapping && typeof mapping === "object") {
-    const out: Record<string, FlowEntryStepPair> = {};
-    for (const [k, v] of Object.entries(mapping)) {
-      if (
-        v && typeof v === "object" &&
-        typeof (v as Record<string, unknown>).initial === "string" &&
-        typeof (v as Record<string, unknown>).continuation === "string"
-      ) {
-        out[k] = {
-          initial: (v as Record<string, string>).initial,
-          continuation: (v as Record<string, string>).continuation,
-        };
-      }
-    }
-    return { entryStep, entryStepMapping: out };
-  }
-  return { entryStep };
 }

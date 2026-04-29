@@ -38,6 +38,7 @@ import {
   acVerdict011DetectGraphRequiresRegistry,
   acVerdict012EntryStepPairMissing,
   acVerdict013EntryStepPairMalformed,
+  ConfigError,
 } from "../shared/errors/config-errors.ts";
 
 /**
@@ -228,31 +229,40 @@ registerHandler(
   async (_args, promptResolver, definition, agentDir, _stepIds) => {
     const { config: verdictConfig } = definition.runner.verdict;
 
-    // Load steps registry for step machine
+    // Load steps registry for step machine via the strict, validating loader.
+    // The loader enforces the new ADT shape (SR-VALID-005) and other invariants;
+    // those errors must propagate. Only the not-found case is remapped to
+    // AC-VERDICT-011 to preserve the verdict-handler-specific guidance.
     const registryPath = verdictConfig.registryPath ??
       `${agentDir}/${PATHS.STEPS_REGISTRY}`;
 
+    let registry;
     try {
-      const content = await Deno.readTextFile(registryPath);
-      const registry = JSON.parse(content);
-
-      // Import dynamically to avoid circular dependency at module load time
-      const { StepMachineVerdictHandler } = await import(
-        "./step-machine.ts"
-      );
-
-      const stepMachineHandler = new StepMachineVerdictHandler(
-        registry,
-        verdictConfig.entryStep,
-      );
-      stepMachineHandler.setPromptResolver(promptResolver);
-      return stepMachineHandler;
+      registry = await loadStepRegistry(definition.name, agentDir, {
+        registryPath,
+      });
     } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
+      // The loader wraps Deno.errors.NotFound as ConfigError(SR-LOAD-003).
+      // Remap that to the verdict-specific AC-VERDICT-011 so users get the
+      // detect:graph-aware fix message. Other ConfigErrors (SR-VALID-005,
+      // SR-LOAD-001/002, SR-INTENT, etc.) propagate unchanged.
+      if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
         throw acVerdict011DetectGraphRequiresRegistry(registryPath);
       }
       throw error;
     }
+
+    // Import dynamically to avoid circular dependency at module load time
+    const { StepMachineVerdictHandler } = await import(
+      "./step-machine.ts"
+    );
+
+    const stepMachineHandler = new StepMachineVerdictHandler(
+      registry,
+      verdictConfig.entryStep,
+    );
+    stepMachineHandler.setPromptResolver(promptResolver);
+    return stepMachineHandler;
   },
 );
 
@@ -289,15 +299,24 @@ export async function createRegistryVerdictHandler(
 ): Promise<VerdictHandler> {
   const { type: verdictType } = definition.runner.verdict;
 
-  // Create prompt resolver for handlers
+  // Create prompt resolver for handlers.
+  //
+  // Only the "registry file absent" case (SR-LOAD-003) degrades to an
+  // empty registry. All other ConfigError codes — SR-VALID-005 (legacy
+  // shape), SR-LOAD-001/002 (parse / agentId mismatch), SR-INTENT-*,
+  // SR-VALID-* — and any non-ConfigError exception MUST propagate so
+  // production fails loudly. Silent degrade was the T17/N5 anti-pattern.
   let registry;
   try {
     registry = await loadStepRegistry(definition.name, agentDir, {
       registryPath: join(agentDir, definition.runner.flow.prompts.registry),
-      validateIntentEnums: false,
     });
-  } catch {
-    registry = createEmptyRegistry(definition.name);
+  } catch (error) {
+    if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
+      registry = createEmptyRegistry(definition.name);
+    } else {
+      throw error;
+    }
   }
   const promptResolver = new PromptResolver(registry, {
     workingDir: Deno.cwd(),

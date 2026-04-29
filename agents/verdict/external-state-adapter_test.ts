@@ -145,7 +145,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             verdict: "approved",
             closure_action: "label-only",
@@ -172,7 +172,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: { closure_action: "label-only" },
       });
 
@@ -195,7 +195,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: 123,
           closure_action: "label-only",
@@ -221,7 +221,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "",
           closure_action: "label-only",
@@ -247,7 +247,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "approved",
           closure_action: "label-only",
@@ -256,7 +256,7 @@ Deno.test("ExternalStateVerdictAdapter - verdict extraction", async (t) => {
 
       await adapter.onBoundaryHook({
         stepId: "closure.issue",
-        stepKind: "closure",
+        kind: "closure",
         structuredOutput: {
           verdict: "rejected",
           closure_action: "label-only",
@@ -298,7 +298,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -368,7 +368,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             // no issue.labels in structured output
@@ -411,7 +411,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -463,7 +463,7 @@ Deno.test("ExternalStateVerdictAdapter - label merging", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
             issue: {
@@ -528,7 +528,7 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "close",
           },
@@ -569,7 +569,7 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-and-close",
           },
@@ -615,7 +615,7 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             // no closure_action
           },
@@ -651,7 +651,7 @@ Deno.test("ExternalStateVerdictAdapter - closure action routing", async (t) => {
 
         await adapter.onBoundaryHook({
           stepId: "closure.issue",
-          stepKind: "closure",
+          kind: "closure",
           structuredOutput: {
             closure_action: "label-only",
           },

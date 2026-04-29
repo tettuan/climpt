@@ -236,7 +236,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
    */
   async onBoundaryHook(payload: {
     stepId: string;
-    stepKind: "closure";
+    kind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
     // Extract verdict from AI structured output if present

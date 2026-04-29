@@ -599,11 +599,10 @@ function createClosureRegistry(): ExtendedStepsRegistry {
     c1: "steps",
     steps: {
       "closure.test": makeStep({
+        kind: "closure" as const,
+        address: { c1: "steps", c2: "closure", c3: "test", edition: "default" },
         stepId: "closure.test",
         name: "Closure Test",
-        c2: "closure",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
         structuredGate: {

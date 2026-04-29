@@ -69,23 +69,41 @@ async function scaffoldAgent(
     entryStep: "initial.issue",
     steps: {
       "initial.issue": {
-        c2: "initial",
-        c3: "issue",
-        edition: "default",
+        stepId: "initial.issue",
+        name: "Initial Issue",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "issue",
+          edition: "default",
+        },
         uvVariables: ["issue"],
         usesStdin: false,
       },
       "verification.review": {
-        c2: "verification",
-        c3: "review",
-        edition: "default",
+        stepId: "verification.review",
+        name: "Verification Review",
+        kind: "verification",
+        address: {
+          c1: "steps",
+          c2: "verification",
+          c3: "review",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
       },
       "closure.polling": {
-        c2: "closure",
-        c3: "polling",
-        edition: "default",
+        stepId: "closure.polling",
+        name: "Closure Polling",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "polling",
+          edition: "default",
+        },
         uvVariables: ["issue"],
         usesStdin: false,
       },
@@ -404,3 +422,113 @@ Deno.test("assertRejects placeholder for missing agent.json", async () => {
     await Deno.remove(tempDir, { recursive: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Critique-3 #8 — agentId mismatch contract enforced through Boot path.
+//
+// `agents/common/step-registry_test.ts` covers `loadStepRegistry` directly, but
+// the AgentBundle boot pipeline (loadAgentBundle → loadTypedSteps →
+// loadStepRegistry) was previously exercised only with matching agentIds. A
+// silent fixture drift (e.g., copy-paste of an `agent.json` `name` without
+// updating `steps_registry.json` `agentId`) would not be caught at CI time and
+// would only fail at first Boot in production.
+//
+// This test materializes the mismatch on disk and asserts the Boot path
+// rejects with `ConfigError(SR-LOAD-002)` — the canonical
+// `srLoadAgentIdMismatch` factory in `agents/shared/errors/config-errors.ts`.
+// ---------------------------------------------------------------------------
+
+Deno.test(
+  "loadAgentBundle - rejects with SR-LOAD-002 when agent.json.name !== steps_registry.json.agentId (Boot path)",
+  async () => {
+    // Failure diagnostic — printed alongside any assertion failure below:
+    //   agentId mismatch must be detected through Boot path; if this fails,
+    //   a future fixture drift will silently break Boot without CI signal.
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const agentName = "alice";
+      const mismatchedAgentId = "bob";
+      const agentDir = join(tempDir, ".agent", agentName);
+      await Deno.mkdir(agentDir, { recursive: true });
+
+      // agent.json: declares name "alice"
+      const agentJson = {
+        version: "1.0.0",
+        name: agentName,
+        displayName: "Alice",
+        description: "boot-path agentId mismatch fixture",
+        runner: {
+          flow: {
+            systemPromptPath: "prompts/system.md",
+            prompts: { registry: "steps_registry.json" },
+          },
+          verdict: {
+            type: "count:iteration",
+            config: { maxIterations: 1 },
+          },
+        },
+      };
+      await Deno.writeTextFile(
+        join(agentDir, "agent.json"),
+        JSON.stringify(agentJson, null, 2),
+      );
+
+      // steps_registry.json: declares agentId "bob" (intentionally mismatched)
+      const registryJson = {
+        agentId: mismatchedAgentId,
+        version: "1.0.0",
+        c1: "steps",
+        entryStep: "initial.issue",
+        steps: {
+          "initial.issue": {
+            stepId: "initial.issue",
+            name: "Initial Issue",
+            kind: "work",
+            address: {
+              c1: "steps",
+              c2: "initial",
+              c3: "issue",
+              edition: "default",
+            },
+            uvVariables: [],
+            usesStdin: false,
+          },
+          "closure.done": {
+            stepId: "closure.done",
+            name: "Closure Done",
+            kind: "closure",
+            address: {
+              c1: "steps",
+              c2: "closure",
+              c3: "done",
+              edition: "default",
+            },
+            uvVariables: [],
+            usesStdin: false,
+          },
+        },
+      };
+      await Deno.writeTextFile(
+        join(agentDir, "steps_registry.json"),
+        JSON.stringify(registryJson, null, 2),
+      );
+
+      const caught = await assertRejects(
+        () => loadAgentBundle(agentName, tempDir),
+        ConfigError,
+        "Registry agentId mismatch",
+        "agentId mismatch must be detected through Boot path; if this fails, " +
+          "a future fixture drift will silently break Boot without CI signal.",
+      );
+
+      assertEquals(
+        caught.code,
+        "SR-LOAD-002",
+        "Boot path must surface srLoadAgentIdMismatch (SR-LOAD-002), not a " +
+          "generic validation error — see agents/shared/errors/config-errors.ts.",
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);

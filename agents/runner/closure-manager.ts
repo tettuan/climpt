@@ -101,7 +101,12 @@ export class ClosureManager {
         "", // Not used when registryPath is provided
         {
           registryPath,
-          validateIntentEnums: false, // Defer enum validation
+          // Explicit opt-out: closure-manager runs validateIntentSchemaEnums
+          // below with the caller-resolved schemasDir. The loader is strict
+          // by default (T18/B3), so we suppress the loader-side enum check
+          // to avoid double-running validation against an unresolved
+          // schemasDir.
+          validateIntentEnums: false,
         },
       );
       logger.debug(

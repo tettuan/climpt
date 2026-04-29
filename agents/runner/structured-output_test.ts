@@ -61,11 +61,15 @@ Deno.test("StructuredOutput - loadSchemaForStep loads schema from outputSchemaRe
       c1: "steps",
       steps: {
         "initial.test": makeStep({
+          kind: "work" as const,
+          address: {
+            c1: "steps",
+            c2: "initial",
+            c3: "test",
+            edition: "default",
+          },
           stepId: "initial.test",
           name: "Test Initial",
-          c2: "initial",
-          c3: "test",
-          edition: "default",
           uvVariables: [],
           usesStdin: false,
           outputSchemaRef: {

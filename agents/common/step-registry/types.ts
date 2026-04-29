@@ -60,10 +60,6 @@ export interface C3LAddress {
  * Bookkeeping fields (`postLLMConditions`, `preflightConditions`) are names
  * of validators registered at registry top level. They migrate into
  * `RetryPolicy` so retry semantics are localized to a single step-level field.
- *
- * NOTE: in T1.3 this type is declared but not yet wired to a top-level
- * `failurePatterns` field on Step. Wiring happens in T1.7 (disk migration)
- * along with the registry-level `validationSteps` consolidation.
  */
 export interface RetryPolicy {
   /** Maximum retry attempts (no exponential backoff; Layer 4 frozen). */
@@ -80,14 +76,11 @@ export interface RetryPolicy {
  * Step — typed in-memory shape for a registry step (design 14 §B).
  *
  * Required discriminator + aggregate address replaces the legacy 5-field
- * sprawl (c1/c2/c3/edition/adaptation) of `PromptStepDefinition`. `kind` is
- * always populated on the in-memory `Step` (the loader infers it from `c2`
- * when the on-disk JSON omits it; see TODO[T1.7]).
- *
- * Disk JSON shape (the parser input) keeps the legacy field layout for now
- * — T1.7 migrates the on-disk format. Validators that read raw JSON via
- * `asRecord(stepDef)` continue to read the disk shape and are NOT typed by
- * this interface.
+ * sprawl (c1/c2/c3/edition/adaptation). `kind` and `address` are required
+ * both on the typed in-memory `Step` and on the on-disk JSON: the loader
+ * rejects the legacy disk shape via `validateRegistryShape` (no synthesis,
+ * no inference). Validators that still read raw JSON via `asRecord(stepDef)`
+ * navigate the same `address` aggregate and are NOT typed by this interface.
  */
 export interface Step {
   /** Unique step identifier (e.g., "initial.issue", "continuation.project.processing"). */
@@ -190,12 +183,12 @@ export interface Step {
 export type ModelRef = string;
 
 /**
- * Legacy alias retained during the T1.3 → T1.7 migration window.
+ * Legacy alias retained for callsite stability.
  *
- * `PromptStepDefinition` is the previous, looser shape that exposed the 5-tuple
- * as separate fields and treated `stepKind` as optional. The new `Step` ADT
- * replaces this. Existing call sites get the new shape via this alias so
- * incremental migration stays compilable.
+ * `PromptStepDefinition` was the previous, looser shape that exposed the
+ * 5-tuple as separate fields and treated `stepKind` as optional. The new
+ * `Step` ADT has fully replaced it; this alias only exists so existing
+ * callers compile against the new ADT without name churn.
  */
 export type PromptStepDefinition = Step;
 
@@ -373,12 +366,17 @@ export interface RegistryLoaderOptions {
   /** Custom registry file path (overrides default) */
   registryPath?: string;
 
-  /** Validate schema on load */
-  validateSchema?: boolean;
-
   /**
    * Validate intentSchemaRef enum matches allowedIntents.
-   * Requires schemasDir to be set. Default: false.
+   *
+   * Default: true (strict-by-default per T18 / B3). Set to `false` only when
+   * the caller will perform its own enum validation later with a
+   * caller-resolved schemasDir (e.g. closure-manager); leaving the loader
+   * permissive while validating elsewhere is the only acceptable opt-out.
+   *
+   * Effective only when {@link schemasDir} is also provided. When schemasDir
+   * is omitted the loader skips enum validation regardless of this flag —
+   * the caller must run {@link validateIntentSchemaEnums} directly.
    */
   validateIntentEnums?: boolean;
 

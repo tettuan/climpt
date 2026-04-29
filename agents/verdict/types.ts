@@ -238,7 +238,7 @@ export interface VerdictHandler {
    */
   onBoundaryHook?(payload: {
     stepId: string;
-    stepKind: "closure";
+    kind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void>;
 }

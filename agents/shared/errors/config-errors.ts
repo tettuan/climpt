@@ -294,6 +294,18 @@ export function srValidRegistryFailed(errors: string[]): ConfigError {
   );
 }
 
+export function srLegacyStepShapeRejected(errors: string[]): ConfigError {
+  return new ConfigError(
+    "SR-VALID-005",
+    `Step registry contains legacy-shape step entries (rejected):\n- ${
+      errors.join("\n- ")
+    }`,
+    `steps_registry.json step entries must use the new ADT shape: { kind: "work"|"verification"|"closure", address: { c1, c2, c3, edition, adaptation? } }. Legacy fields (stepKind, flat c2/c3/edition/adaptation siblings) are rejected — no on-disk translation. See agents/docs/design/realistic/14-step-registry.md §B.`,
+    `Migrate each listed step in steps_registry.json: rename "stepKind" → "kind", and move flat "c2"/"c3"/"edition"/"adaptation" into a nested "address" object alongside the registry-level "c1".`,
+    "steps_registry.json",
+  );
+}
+
 // --- SR-LOAD: Registry loading ---
 
 export function srLoadInvalidFormat(): ConfigError {
@@ -1264,8 +1276,9 @@ export function acVerdict013EntryStepPairMalformed(
 // --- WF-ISSUE-SOURCE: IssueSource ADT validation ---
 //
 // `issueSource` was promoted to a top-level required field in
-// realistic-design phase 1 (T1.1). Disk-format migration of shipped
-// `.agent/workflow.json` is tracked separately as T1.7.
+// realistic-design phase 1 (T1.1). On-disk migration of shipped
+// `.agent/workflow.json` files is owned by the workflow-ADT disk-format
+// migration (separate phase).
 
 export function wfIssueSourceRequired(): ConfigError {
   return new ConfigError(

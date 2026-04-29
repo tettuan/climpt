@@ -4,7 +4,7 @@
  * Validation functions for step registry structure and consistency.
  */
 
-import type { StepRegistry, StructuredGate } from "./types.ts";
+import type { StepKind, StepRegistry, StructuredGate } from "./types.ts";
 import { STEP_KIND_ALLOWED_INTENTS } from "./types.ts";
 import { inferStepKind } from "./utils.ts";
 import { SchemaResolver } from "../../common/schema-resolver.ts";
@@ -12,11 +12,203 @@ import {
   srEntryMappingInvalid,
   srEntryMissingConfig,
   srEntryStepNotFound,
+  srLegacyStepShapeRejected,
   srValidIntentSchemaEnumMismatch,
   srValidIntentSchemaRef,
   srValidRegistryFailed,
   srValidStepKindIntentMismatch,
 } from "../../shared/errors/config-errors.ts";
+
+/**
+ * Allowed values for `Step.kind` in the new ADT shape (design 14 §B).
+ *
+ * Kept local to {@link validateStepShape} so the strict raw validator does
+ * not depend on `STEP_KIND_ALLOWED_INTENTS` key iteration order.
+ */
+const VALID_STEP_KINDS: readonly StepKind[] = [
+  "work",
+  "verification",
+  "closure",
+] as const;
+
+/**
+ * Legacy disk fields that must NOT appear as siblings on a step entry.
+ *
+ * Per design 14 §B these belong nested inside `address: C3LAddress`. Their
+ * presence at the step root is the canonical legacy-shape marker.
+ */
+const LEGACY_FLAT_ADDRESS_FIELDS = [
+  "c2",
+  "c3",
+  "edition",
+  "adaptation",
+] as const;
+
+/**
+ * Strict raw-shape validator for a single step JSON entry.
+ *
+ * Runs on parsed JSON BEFORE any normalization. Rejects the legacy on-disk
+ * shape (`stepKind` + flat c2/c3/edition/adaptation) and demands the new
+ * ADT shape (`kind` + nested `address`) per
+ * agents/docs/design/realistic/14-step-registry.md §B.
+ *
+ * Reject conditions:
+ *   1. presence of `stepKind` field (any value)
+ *   2. presence of any flat `c2`/`c3`/`edition`/`adaptation` sibling
+ *   3. missing `kind` discriminator
+ *   4. missing `address` aggregate, or `address` missing required C3LAddress
+ *      fields (`c1`, `c2`, `c3`, `edition`)
+ *
+ * @param rawStep - Parsed JSON value for a single step entry
+ * @param stepId - Step identifier (used in error messages)
+ * @returns Array of error message strings; empty when the step passes
+ */
+export function validateStepShape(
+  rawStep: unknown,
+  stepId: string,
+): string[] {
+  const errors: string[] = [];
+
+  if (rawStep === null || typeof rawStep !== "object") {
+    errors.push(
+      `Step "${stepId}": entry must be an object, got ${
+        rawStep === null ? "null" : typeof rawStep
+      }.`,
+    );
+    return errors;
+  }
+
+  const entry = rawStep as Record<string, unknown>;
+
+  // (1) Reject legacy `stepKind` field outright. Cite design 14 §B.
+  if ("stepKind" in entry) {
+    errors.push(
+      `Step "${stepId}": legacy field "stepKind" is rejected. ` +
+        `Rename to "kind" per design 14 §B (Step ADT discriminator).`,
+    );
+  }
+
+  // (2) Reject flat C3L sibling fields. They must be nested in `address`.
+  const flatHits = LEGACY_FLAT_ADDRESS_FIELDS.filter((f) => f in entry);
+  if (flatHits.length > 0) {
+    errors.push(
+      `Step "${stepId}": flat C3L field(s) [${
+        flatHits.join(", ")
+      }] are rejected at the step root. ` +
+        `Move them into the "address" aggregate per design 14 §B / §C ` +
+        `(C3LAddress is the only address shape).`,
+    );
+  }
+
+  // (3) Require `kind` and validate its value.
+  if (!("kind" in entry)) {
+    errors.push(
+      `Step "${stepId}": required field "kind" is missing. ` +
+        `Set kind to one of [${VALID_STEP_KINDS.join(", ")}] per design 14 §B.`,
+    );
+  } else {
+    const kind = entry.kind;
+    if (
+      typeof kind !== "string" ||
+      !(VALID_STEP_KINDS as readonly string[]).includes(kind)
+    ) {
+      errors.push(
+        `Step "${stepId}": "kind" must be one of [${
+          VALID_STEP_KINDS.join(", ")
+        }], got ${JSON.stringify(kind)}.`,
+      );
+    }
+  }
+
+  // (4) Require `address` aggregate and validate C3LAddress required fields.
+  if (!("address" in entry)) {
+    errors.push(
+      `Step "${stepId}": required field "address" is missing. ` +
+        `Provide { c1, c2, c3, edition, adaptation? } per design 14 §C.`,
+    );
+  } else {
+    const address = entry.address;
+    if (address === null || typeof address !== "object") {
+      errors.push(
+        `Step "${stepId}": "address" must be a C3LAddress object, got ${
+          address === null ? "null" : typeof address
+        }.`,
+      );
+    } else {
+      const a = address as Record<string, unknown>;
+      for (const field of ["c1", "c2", "c3", "edition"] as const) {
+        if (typeof a[field] !== "string" || (a[field] as string).length === 0) {
+          errors.push(
+            `Step "${stepId}": address.${field} must be a non-empty string ` +
+              `per C3LAddress (design 14 §C).`,
+          );
+        }
+      }
+      if (
+        "adaptation" in a &&
+        a.adaptation !== undefined &&
+        (typeof a.adaptation !== "string" || a.adaptation.length === 0)
+      ) {
+        errors.push(
+          `Step "${stepId}": address.adaptation, when present, must be a ` +
+            `non-empty string (design 14 §C).`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Strict raw-shape validator for a parsed registry JSON object.
+ *
+ * Iterates each entry under `steps` and applies {@link validateStepShape}.
+ * Throws {@link srLegacyStepShapeRejected} if any legacy-shape entry is
+ * detected, with one diagnostic per offending step.
+ *
+ * Intended call site: BEFORE any cast (no shim, no translation). The
+ * loader proves the raw JSON conforms to the typed `StepRegistry` ADT
+ * and then casts directly. This validator is the public entry point for
+ * callers (loader, agent-bundle-loader, validator_test) that validate
+ * raw JSON.
+ *
+ * @param rawRegistry - Parsed JSON object (top-level registry shape)
+ * @throws ConfigError (SR-VALID-005) when any step uses the legacy shape
+ */
+export function validateRegistryShape(rawRegistry: unknown): void {
+  if (rawRegistry === null || typeof rawRegistry !== "object") {
+    throw srLegacyStepShapeRejected([
+      `registry root must be an object, got ${
+        rawRegistry === null ? "null" : typeof rawRegistry
+      }`,
+    ]);
+  }
+
+  const root = rawRegistry as { steps?: unknown };
+  if (
+    root.steps === undefined ||
+    root.steps === null ||
+    typeof root.steps !== "object"
+  ) {
+    // Missing/invalid `steps` is reported by srLoadInvalidFormat at load
+    // time. The shape validator only walks present step entries.
+    return;
+  }
+
+  const errors: string[] = [];
+  for (
+    const [stepId, rawStep] of Object.entries(
+      root.steps as Record<string, unknown>,
+    )
+  ) {
+    errors.push(...validateStepShape(rawStep, stepId));
+  }
+
+  if (errors.length > 0) {
+    throw srLegacyStepShapeRejected(errors);
+  }
+}
 
 /**
  * Validate stepKind/allowedIntents consistency.

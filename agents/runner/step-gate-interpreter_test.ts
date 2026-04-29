@@ -48,11 +48,10 @@ function createStepDef(
   overrides: Record<string, unknown> = {},
 ): PromptStepDefinition {
   return makeStep({
+    kind: "work" as const,
+    address: { c1: "steps", c2: "test", c3: "step", edition: "default" },
     stepId: "test.step",
     name: "Test Step",
-    c2: "test",
-    c3: "step",
-    edition: "default",
     ...overrides,
   });
 }

@@ -186,14 +186,25 @@ export class DefaultPromptResolverFactory implements PromptResolverFactory {
       "../common/prompt-resolver.ts"
     );
 
+    // Only the "registry file absent" case (SR-LOAD-003) degrades to an
+    // empty registry. All other ConfigError codes — SR-VALID-005 (legacy
+    // shape), SR-LOAD-001/002 (parse / agentId mismatch), SR-INTENT-*,
+    // SR-VALID-* — and any non-ConfigError exception MUST propagate so
+    // production fails loudly. Silent degrade was the T17/N5 anti-pattern.
+    const { ConfigError } = await import(
+      "../shared/errors/config-errors.ts"
+    );
     let registry;
     try {
       registry = await loadStepRegistry(options.agentName, options.agentDir, {
         registryPath: join(options.agentDir, options.registryPath),
-        validateIntentEnums: false,
       });
-    } catch {
-      registry = createEmptyRegistry(options.agentName);
+    } catch (error) {
+      if (error instanceof ConfigError && error.code === "SR-LOAD-003") {
+        registry = createEmptyRegistry(options.agentName);
+      } else {
+        throw error;
+      }
     }
     return new PromptResolver(registry, {
       workingDir: Deno.cwd(),

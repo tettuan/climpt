@@ -53,22 +53,20 @@ function okRunner(stdout: string, stderr = ""): CommandRunner {
 
 Deno.test("PromptStepDefinition - runner field is optional (non-interference)", () => {
   const withoutRunner: PromptStepDefinition = makeStep({
+    kind: "closure" as const,
+    address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
     stepId: "closure.legacy",
     name: "Legacy closure",
-    c2: "closure",
-    c3: "legacy",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
   });
   assertEquals(withoutRunner.runner, undefined);
 
   const withRunner: PromptStepDefinition = makeStep({
+    kind: "closure" as const,
+    address: { c1: "steps", c2: "closure", c3: "merge", edition: "default" },
     stepId: "closure.merge",
     name: "Merge closure",
-    c2: "closure",
-    c3: "merge",
-    edition: "default",
     uvVariables: [],
     usesStdin: false,
     runner: {
@@ -202,14 +200,13 @@ Deno.test(
     // null when runner.command is falsy, causing the existing Completion
     // Loop path (runClosureIteration → LLM) to execute unchanged.
     const legacyStep: PromptStepDefinition = makeStep({
+      kind: "closure" as const,
+      address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
       stepId: "closure.legacy",
       name: "Legacy closure",
-      c2: "closure",
-      c3: "legacy",
-      edition: "default",
       uvVariables: [],
       usesStdin: false,
-      // no runner field
+      // no runner field,
     });
 
     // Contract: getSubprocessRunnerStep returns null iff runner.command

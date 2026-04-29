@@ -113,11 +113,11 @@ export async function loadWorkflow(
     | WorkflowConfig["subjectStore"]
     | undefined;
 
-  // TODO(T1.7): the shipped `.agent/workflow.json` is migrated by the
-  // disk-config migration script (phased-plan T1.7). Until that lands,
-  // existing workflow.json files without `issueSource` will fail loading
-  // here with WF-ISSUE-SOURCE-001 by design (no backward-compat shim per
-  // CLAUDE.md "後方互換性不要").
+  // The shipped `.agent/workflow.json` files must declare `issueSource`
+  // explicitly (the workflow-ADT migration owns the on-disk rewrite).
+  // Until that on-disk migration lands, existing workflow.json files
+  // without `issueSource` fail loading here with WF-ISSUE-SOURCE-001 by
+  // design (no backward-compat shim per CLAUDE.md "後方互換性不要").
   const issueSource = parseIssueSource(parsed.issueSource);
 
   const phases = parsed.phases as WorkflowConfig["phases"];

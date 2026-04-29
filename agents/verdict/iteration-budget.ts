@@ -158,7 +158,7 @@ Work efficiently to complete your goal.
    */
   onBoundaryHook(payload: {
     stepId: string;
-    stepKind: "closure";
+    kind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
     if (payload.structuredOutput) {

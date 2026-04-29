@@ -55,9 +55,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "initial.default": {
         stepId: "initial.default",
         name: "Initial",
-        c2: "initial",
-        c3: "default",
-        edition: "default",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -68,9 +72,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "continuation.default": {
         stepId: "continuation.default",
         name: "Continuation",
-        c2: "continuation",
-        c3: "default",
-        edition: "default",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -81,9 +89,13 @@ function minimalValidRegistry(): Record<string, unknown> {
       "closure.default": {
         stepId: "closure.default",
         name: "Closure",
-        c2: "closure",
-        c3: "default",
-        edition: "default",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         uvVariables: [],
         usesStdin: false,
         transitions: {
@@ -436,10 +448,10 @@ Deno.test("schema-validator/registry - step missing stepId reports error", async
   assertEquals(error !== undefined, true);
 });
 
-Deno.test("schema-validator/registry - step missing c2 reports error", async () => {
+Deno.test("schema-validator/registry - step missing address.c2 reports error", async () => {
   const data = minimalValidRegistry();
   const steps = data.steps as Record<string, Record<string, unknown>>;
-  delete steps["initial.default"].c2;
+  delete (steps["initial.default"].address as Record<string, unknown>).c2;
 
   const result = await validateRegistrySchema(data);
 
