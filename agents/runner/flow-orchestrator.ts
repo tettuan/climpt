@@ -16,7 +16,7 @@ import type {
   RuntimeContext,
 } from "../src_common/types.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
@@ -239,7 +239,7 @@ export class FlowOrchestrator {
 
     // Get step definition
     const stepDef = stepsRegistry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.structuredGate) {
       return null;

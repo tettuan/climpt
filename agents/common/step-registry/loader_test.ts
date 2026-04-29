@@ -602,7 +602,7 @@ Deno.test(
             : typeof caught
         }`,
         "loadStepRegistry(allowMissing:true, legacy-shape fixture)",
-        "allowMissing must scope to the not-found case only; SR-VALID-* / SR-LOAD-001/002 / SR-INTENT-* MUST still propagate.",
+        "allowMissing must scope to the not-found case only; SR-VALID-* / SR-LOAD-002 / SR-INTENT-* MUST still propagate.",
       ),
     );
     assertEquals(

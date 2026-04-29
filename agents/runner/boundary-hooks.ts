@@ -15,7 +15,7 @@
  */
 
 import type { IterationSummary, RuntimeContext } from "../src_common/types.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { AgentEventEmitter } from "./events.ts";
 import type { CloseEventBus } from "../events/bus.ts";
@@ -70,14 +70,14 @@ export class BoundaryHooks {
 
     // Only invoke for closure steps
     const stepDef = stepsRegistry?.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
-    const stepKind = stepDef?.kind;
+    const kind = stepDef?.kind;
 
-    if (stepKind !== "closure") {
+    if (kind !== "closure") {
       ctx.logger.debug(
         `[BoundaryHook] Skipping: step "${stepId}" is not a closure step (kind: ${
-          stepKind ?? "unknown"
+          kind ?? "unknown"
         })`,
       );
       return;
@@ -86,7 +86,7 @@ export class BoundaryHooks {
     // Emit boundaryHook event for external handlers
     await this.deps.getEventEmitter().emit("boundaryHook", {
       stepId,
-      kind: stepKind,
+      kind,
       structuredOutput: summary.structuredOutput,
     });
 
@@ -119,7 +119,7 @@ export class BoundaryHooks {
     if (ctx.verdictHandler.onBoundaryHook) {
       await ctx.verdictHandler.onBoundaryHook({
         stepId,
-        kind: stepKind,
+        kind,
         structuredOutput: summary.structuredOutput,
       });
     }

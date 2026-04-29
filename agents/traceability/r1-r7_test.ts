@@ -47,11 +47,7 @@ import { SubjectPicker } from "../orchestrator/subject-picker.ts";
 
 // === R3 — AgentBundle.steps + Step ADT (13 §B + 14 §B hard gate) ===
 import type { AgentBundle } from "../src_common/types/agent-bundle.ts";
-import type {
-  PromptStepDefinition,
-  Step,
-  StepKind,
-} from "../common/step-registry/types.ts";
+import type { Step, StepKind } from "../common/step-registry/types.ts";
 
 // === R4 — Flow / Completion loops (16 §A hard gate) ===
 //
@@ -215,7 +211,6 @@ Deno.test(
     // anchors R3's "1 bundle 1 概念" hard gate (13 §A).
     type _AgentBundleHasSteps = AgentBundle["steps"];
     type _StepIsAdt = Step;
-    type _PromptStepIsStep = PromptStepDefinition;
     assertEquals(true, true, "R3 type-level anchor; assertion is structural.");
   },
 );

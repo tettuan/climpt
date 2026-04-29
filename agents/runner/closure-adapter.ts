@@ -51,8 +51,8 @@ export class ClosureAdapter {
       return null;
     }
 
-    const stepKind = stepDef.kind;
-    if (stepKind !== "closure") {
+    const kind = stepDef.kind;
+    if (kind !== "closure") {
       return null;
     }
 

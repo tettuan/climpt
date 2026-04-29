@@ -14,7 +14,6 @@ export type {
   C3LAddress,
   GateIntent,
   ModelRef,
-  PromptStepDefinition,
   RegistryLoaderOptions,
   RetryPolicy,
   Step,

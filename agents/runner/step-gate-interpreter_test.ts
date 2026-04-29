@@ -9,7 +9,7 @@ import {
   getValueAtPath,
   StepGateInterpreter,
 } from "./step-gate-interpreter.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 const logger = new BreakdownLogger("gate");
@@ -46,7 +46,7 @@ Deno.test("getValueAtPath - returns undefined for null intermediate", () => {
 // in the legacy disk-shape (c2/c3/edition); makeStep aggregates them.
 function createStepDef(
   overrides: Record<string, unknown> = {},
-): PromptStepDefinition {
+): Step {
   return makeStep({
     kind: "work" as const,
     address: { c1: "steps", c2: "test", c3: "step", edition: "default" },

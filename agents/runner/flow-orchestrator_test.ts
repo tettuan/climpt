@@ -20,10 +20,7 @@ const logger = new BreakdownLogger("flow");
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type {
-  PromptStepDefinition,
-  StepRegistry,
-} from "../common/step-registry.ts";
+import type { StepRegistry } from "../common/step-registry.ts";
 import { makeStep } from "../common/step-registry/test-helpers.ts";
 import { validateRegistryShape } from "../common/step-registry/validator.ts";
 import type {

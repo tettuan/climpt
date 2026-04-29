@@ -566,10 +566,7 @@ import {
   RoutingError,
   WorkflowRouter,
 } from "./workflow-router.ts";
-import type {
-  PromptStepDefinition,
-  StepRegistry,
-} from "../common/step-registry.ts";
+import type { Step, StepRegistry } from "../common/step-registry.ts";
 import { makeStep } from "../common/step-registry/test-helpers.ts";
 
 /**
@@ -646,7 +643,7 @@ function createTestStepRegistry(): StepRegistry {
 Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from structured output", () => {
   const interpreter = new StepGateInterpreter();
   const registry = createTestStepRegistry();
-  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const stepDef = registry.steps["initial.test"] as Step;
 
   const structuredOutput = {
     status: "in_progress",
@@ -671,7 +668,7 @@ Deno.test("Structured Gate Flow - interpreter extracts intent 'next' from struct
 Deno.test("Structured Gate Flow - interpreter extracts intent 'closing' from structured output", () => {
   const interpreter = new StepGateInterpreter();
   const registry = createTestStepRegistry();
-  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+  const closureStepDef = registry.steps["closure.test"] as Step;
 
   const structuredOutput = {
     status: "completed",
@@ -695,7 +692,7 @@ Deno.test("Structured Gate Flow - interpreter throws when action is missing (fai
   // Missing intent field should throw GateInterpretationError
   const interpreter = new StepGateInterpreter();
   const registry = createTestStepRegistry();
-  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const stepDef = registry.steps["initial.test"] as Step;
 
   const structuredOutput = {
     status: "unknown",
@@ -834,7 +831,7 @@ Deno.test("Structured Gate Flow - end-to-end interpreter to router flow", () => 
   };
 
   // Step 1: Interpreter extracts intent
-  const stepDef = registry.steps["initial.test"] as PromptStepDefinition;
+  const stepDef = registry.steps["initial.test"] as Step;
   logger.debug("e2e: interpret input", {
     stepId: stepDef.stepId,
     structuredOutput,
@@ -874,7 +871,7 @@ Deno.test("Structured Gate Flow - end-to-end completion flow", () => {
   };
 
   // Interpreter extracts closing intent from closure step
-  const closureStepDef = registry.steps["closure.test"] as PromptStepDefinition;
+  const closureStepDef = registry.steps["closure.test"] as Step;
   logger.debug("e2e completion: interpret input", {
     stepId: closureStepDef.stepId,
     structuredOutput,

@@ -22,10 +22,7 @@ import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
 import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type {
-  PromptStepDefinition,
-  StepKind,
-} from "../common/step-registry.ts";
+import type { Step, StepKind } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   getToolPolicy,
@@ -121,7 +118,7 @@ export class QueryExecutor {
 
       if (stepId && stepsRegistry) {
         const stepDef = stepsRegistry.steps[stepId] as
-          | PromptStepDefinition
+          | Step
           | undefined;
         if (stepDef) {
           currentKind = stepDef.kind;

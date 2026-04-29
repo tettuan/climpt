@@ -13,7 +13,7 @@
 import type { AgentDefinition, RuntimeContext } from "../src_common/types.ts";
 import { AgentSchemaResolutionError } from "./errors.ts";
 import { srGateFlowValidationFailed } from "../shared/errors/config-errors.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import type {
   ExtendedStepsRegistry,
   OutputSchemaRef,
@@ -78,7 +78,7 @@ export class SchemaManager {
         continue;
       }
 
-      const step = stepDef as PromptStepDefinition;
+      const step = stepDef as Step;
 
       if (!step.structuredGate) {
         missingGate.push(stepId);
@@ -151,7 +151,7 @@ export class SchemaManager {
     for (const [stepId, stepDef] of Object.entries(stepsRegistry.steps)) {
       if (stepId.startsWith("section.")) continue;
 
-      const step = stepDef as PromptStepDefinition;
+      const step = stepDef as Step;
 
       if (!step.structuredGate) {
         errors.push(
@@ -216,7 +216,7 @@ export class SchemaManager {
     }
 
     const stepDef = stepsRegistry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.outputSchemaRef) {
       logger.warn(

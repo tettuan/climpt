@@ -16,7 +16,7 @@
  */
 
 import { dirname, join } from "@std/path";
-import type { PromptStepDefinition, StepKind } from "./step-registry.ts";
+import type { Step, StepKind } from "./step-registry.ts";
 
 /**
  * Schema errors - canonical source: shared/errors/flow-errors.ts
@@ -98,9 +98,9 @@ export class SchemaResolver {
    * @throws MalformedSchemaIdentifierError if the identifier is malformed
    */
   async resolveForStep(
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
   ): Promise<
-    { schema: Record<string, unknown>; stepKind: StepKind | undefined }
+    { schema: Record<string, unknown>; kind: StepKind | undefined }
   > {
     if (!stepDef.outputSchemaRef) {
       throw new Error(
@@ -113,9 +113,9 @@ export class SchemaResolver {
       stepDef.outputSchemaRef.schema,
     );
 
-    const stepKind = stepDef.kind;
+    const kind = stepDef.kind;
 
-    return { schema, stepKind };
+    return { schema, kind };
   }
 
   /**

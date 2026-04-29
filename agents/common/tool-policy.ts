@@ -1,5 +1,5 @@
 /**
- * Tool Policy - StepKind-based tool permission enforcement
+ * Tool Policy - kind-based tool permission enforcement
  *
  * Defines which tools are available for each step kind.
  * This ensures Work/Verification steps cannot perform boundary actions
@@ -186,20 +186,20 @@ export interface ToolPermissionResult {
  * Check if a tool is allowed for a given step kind.
  *
  * @param tool - Tool name to check
- * @param stepKind - Current step kind
+ * @param kind - Current step kind
  * @returns Permission result with reason if denied
  */
 export function isToolAllowed(
   tool: string,
-  stepKind: StepKind,
+  kind: StepKind,
 ): ToolPermissionResult {
-  const policy = STEP_KIND_TOOL_POLICY[stepKind];
+  const policy = STEP_KIND_TOOL_POLICY[kind];
 
   // Check if explicitly denied
   if (policy.denied.includes(tool)) {
     return {
       allowed: false,
-      reason: `Tool "${tool}" is not allowed in ${stepKind} steps. ` +
+      reason: `Tool "${tool}" is not allowed in ${kind} steps. ` +
         `GitHub writes are handled by the Boundary Hook.`,
     };
   }
@@ -210,8 +210,7 @@ export function isToolAllowed(
     if (!isAllowed) {
       return {
         allowed: false,
-        reason:
-          `Tool "${tool}" is not in the allowed list for ${stepKind} steps.`,
+        reason: `Tool "${tool}" is not in the allowed list for ${kind} steps.`,
       };
     }
   }
@@ -223,14 +222,14 @@ export function isToolAllowed(
  * Check if a bash command contains boundary actions.
  *
  * @param command - Bash command to check
- * @param stepKind - Current step kind
+ * @param kind - Current step kind
  * @returns Permission result with reason if denied
  */
 export function isBashCommandAllowed(
   command: string,
-  stepKind: StepKind,
+  kind: StepKind,
 ): ToolPermissionResult {
-  const policy = STEP_KIND_TOOL_POLICY[stepKind];
+  const policy = STEP_KIND_TOOL_POLICY[kind];
 
   if (!policy.blockBoundaryBash) {
     return { allowed: true };
@@ -242,12 +241,12 @@ export function isBashCommandAllowed(
       const matched = command.match(pattern)?.[0] ?? "unknown";
       return {
         allowed: false,
-        reason: stepKind === "closure"
+        reason: kind === "closure"
           ? `Bash command contains boundary action "${matched}" ` +
             `which cannot be executed directly. ` +
             `Use the closing intent to trigger the Boundary Hook instead.`
           : `Bash command contains boundary action "${matched}" ` +
-            `which is not allowed in ${stepKind} steps. ` +
+            `which is not allowed in ${kind} steps. ` +
             `Boundary actions are handled by the Boundary Hook in closure steps.`,
       };
     }
@@ -263,14 +262,14 @@ export function isBashCommandAllowed(
  * are denied for the current step kind.
  *
  * @param configuredTools - Tools configured in agent.json
- * @param stepKind - Current step kind
+ * @param kind - Current step kind
  * @returns Filtered list of allowed tools
  */
 export function filterAllowedTools(
   configuredTools: string[],
-  stepKind: StepKind,
+  kind: StepKind,
 ): string[] {
-  const policy = STEP_KIND_TOOL_POLICY[stepKind];
+  const policy = STEP_KIND_TOOL_POLICY[kind];
 
   return configuredTools.filter((tool) => {
     // Remove explicitly denied tools
@@ -286,24 +285,24 @@ export function filterAllowedTools(
  *
  * Resolution order:
  * 1. Step-level permissionMode (explicit in steps_registry.json)
- * 2. StepKind default permissionMode (from STEP_KIND_TOOL_POLICY)
+ * 2. Kind default permissionMode (from STEP_KIND_TOOL_POLICY)
  * 3. Agent-level permissionMode (from boundaries config)
  *
  * @param stepPermissionMode - Step's explicit permissionMode (from step definition)
- * @param stepKind - Current step kind (may be undefined for simple agents)
+ * @param kind - Current step kind (may be undefined for simple agents)
  * @param agentPermissionMode - Agent-level permissionMode (from boundaries)
  * @returns Resolved permissionMode
  */
 export function resolvePermissionMode(
   stepPermissionMode: PermissionMode | undefined,
-  stepKind: StepKind | undefined,
+  kind: StepKind | undefined,
   agentPermissionMode: PermissionMode,
 ): PermissionMode {
   if (stepPermissionMode) {
     return stepPermissionMode;
   }
-  if (stepKind) {
-    const policy = STEP_KIND_TOOL_POLICY[stepKind];
+  if (kind) {
+    const policy = STEP_KIND_TOOL_POLICY[kind];
     if (policy.defaultPermissionMode) {
       return policy.defaultPermissionMode;
     }
@@ -314,21 +313,21 @@ export function resolvePermissionMode(
 /**
  * Get the tool policy for a step kind.
  *
- * @param stepKind - Step kind to get policy for
+ * @param kind - Step kind to get policy for
  * @returns Tool set definition
  */
-export function getToolPolicy(stepKind: StepKind): ToolSet {
-  return STEP_KIND_TOOL_POLICY[stepKind];
+export function getToolPolicy(kind: StepKind): ToolSet {
+  return STEP_KIND_TOOL_POLICY[kind];
 }
 
 /**
  * Check if a step kind allows boundary actions.
  *
- * @param stepKind - Step kind to check
+ * @param kind - Step kind to check
  * @returns true if boundary actions are allowed
  */
-export function allowsBoundaryActions(stepKind: StepKind): boolean {
-  return stepKind === "closure";
+export function allowsBoundaryActions(kind: StepKind): boolean {
+  return kind === "closure";
 }
 
 /**

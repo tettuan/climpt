@@ -64,7 +64,7 @@ import { CompletionLoopProcessor } from "./completion-loop-processor.ts";
 import { loadAgentSettings } from "../config/settings-loader.ts";
 import { prC3lNoPrompt } from "../shared/errors/config-errors.ts";
 import { formatIterationSummary } from "../verdict/types.ts";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
 import {
   type CommandRunner,
   runSubprocessRunner,
@@ -1183,10 +1183,10 @@ export class AgentRunner {
    */
   private getSubprocessRunnerStep(
     stepId: string,
-  ): PromptStepDefinition | null {
+  ): Step | null {
     const registry = this.closureManager.stepsRegistry;
     const stepDef = registry?.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.runner?.command) {
       return null;
@@ -1207,7 +1207,7 @@ export class AgentRunner {
   private async runSubprocessClosureIteration(
     stepId: string,
     iteration: number,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
     summaries: IterationSummary[],
     ctx: RuntimeContext,
   ): Promise<{ done: boolean; reason: string; summary: IterationSummary }> {

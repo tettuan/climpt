@@ -10,7 +10,7 @@
  * - Frontmatter removal for clean prompt content
  */
 
-import type { PromptStepDefinition, StepRegistry } from "./step-registry.ts";
+import type { Step, StepRegistry } from "./step-registry.ts";
 import {
   type BreakdownErrorKind,
   type C3LPath,
@@ -190,7 +190,7 @@ export class PromptResolver {
    * adaptation; we surface it as a C3LPath for the loader. The registry's
    * top-level `c1` is the source of truth for c1 and is preserved here.
    */
-  private buildC3LPath(step: PromptStepDefinition): C3LPath {
+  private buildC3LPath(step: Step): C3LPath {
     return {
       c1: this.registry.c1,
       c2: step.address.c2,
@@ -215,7 +215,7 @@ export class PromptResolver {
    *   non-file-not-found error
    */
   private async tryBreakdown(
-    step: PromptStepDefinition,
+    step: Step,
     variables: PromptVariables,
   ): Promise<PromptResolutionResult> {
     const c3lPath = this.buildC3LPath(step);
@@ -267,7 +267,7 @@ export class PromptResolver {
    */
   private processContent(
     rawContent: string,
-    step: PromptStepDefinition,
+    step: Step,
     variables: PromptVariables,
   ): string {
     // Strip frontmatter if enabled
@@ -296,7 +296,7 @@ export class PromptResolver {
    */
   private substituteVariables(
     content: string,
-    step: PromptStepDefinition,
+    step: Step,
     variables: PromptVariables,
   ): string {
     // Validate required UV variables

@@ -7,7 +7,7 @@
 
 import type {
   GateIntent,
-  PromptStepDefinition,
+  Step,
   StructuredGate,
 } from "../common/step-registry.ts";
 
@@ -119,7 +119,7 @@ export class StepGateInterpreter {
    */
   interpret(
     structuredOutput: Record<string, unknown>,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
   ): GateInterpretation {
     const gate = stepDef.structuredGate;
 
@@ -169,7 +169,7 @@ export class StepGateInterpreter {
   private extractIntent(
     output: Record<string, unknown>,
     gate: StructuredGate,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
   ): { intent: GateIntent; usedFallback: boolean; reason?: string } {
     const intentField = gate.intentField;
 

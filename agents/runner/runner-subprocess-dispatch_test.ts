@@ -12,12 +12,12 @@
  * AgentRunner fetches the step definition via closureManager.stepsRegistry.
  * Exercising the dispatch branch directly requires a live AgentRunner, which
  * pulls in many dependencies. Instead, we test the atomic building blocks
- * (runSubprocessRunner + PromptStepDefinition type contract) and the
+ * (runSubprocessRunner + Step type contract) and the
  * non-interference invariant via reviewing the dispatch source contract.
  */
 
 import { assertEquals } from "@std/assert";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
 import { makeStep } from "../common/step-registry/test-helpers.ts";
 import {
   type CommandRunner,
@@ -48,11 +48,11 @@ function okRunner(stdout: string, stderr = ""): CommandRunner {
 }
 
 // -----------------------------------------------------------------------------
-// PromptStepDefinition type contract — runner field is optional
+// Step type contract — runner field is optional
 // -----------------------------------------------------------------------------
 
-Deno.test("PromptStepDefinition - runner field is optional (non-interference)", () => {
-  const withoutRunner: PromptStepDefinition = makeStep({
+Deno.test("Step - runner field is optional (non-interference)", () => {
+  const withoutRunner: Step = makeStep({
     kind: "closure" as const,
     address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
     stepId: "closure.legacy",
@@ -62,7 +62,7 @@ Deno.test("PromptStepDefinition - runner field is optional (non-interference)", 
   });
   assertEquals(withoutRunner.runner, undefined);
 
-  const withRunner: PromptStepDefinition = makeStep({
+  const withRunner: Step = makeStep({
     kind: "closure" as const,
     address: { c1: "steps", c2: "closure", c3: "merge", edition: "default" },
     stepId: "closure.merge",
@@ -199,7 +199,7 @@ Deno.test(
     // branch (agents/runner/runner.ts `getSubprocessRunnerStep`) returns
     // null when runner.command is falsy, causing the existing Completion
     // Loop path (runClosureIteration → LLM) to execute unchanged.
-    const legacyStep: PromptStepDefinition = makeStep({
+    const legacyStep: Step = makeStep({
       kind: "closure" as const,
       address: { c1: "steps", c2: "closure", c3: "legacy", edition: "default" },
       stepId: "closure.legacy",

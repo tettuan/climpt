@@ -15,9 +15,9 @@ import {
   getStepIds,
   hasStep,
   loadStepRegistry,
-  type PromptStepDefinition,
   saveStepRegistry,
   serializeRegistry,
+  type Step,
   STEP_KIND_ALLOWED_INTENTS,
   type StepRegistry,
   type StructuredGate,
@@ -50,7 +50,7 @@ Deno.test("createEmptyRegistry - accepts custom c1 and version", () => {
 
 Deno.test("addStepDefinition - adds step to registry", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = makeStep({
+  const step: Step = makeStep({
     kind: "work" as const,
     address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
     stepId: "initial.test",
@@ -66,7 +66,7 @@ Deno.test("addStepDefinition - adds step to registry", () => {
 
 Deno.test("addStepDefinition - throws on duplicate step", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = makeStep({
+  const step: Step = makeStep({
     kind: "work" as const,
     address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
     stepId: "initial.test",
@@ -86,7 +86,7 @@ Deno.test("addStepDefinition - throws on duplicate step", () => {
 
 Deno.test("getStepDefinition - returns step by ID", () => {
   const registry = createEmptyRegistry("test-agent");
-  const step: PromptStepDefinition = makeStep({
+  const step: Step = makeStep({
     kind: "work" as const,
     address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
     stepId: "initial.test",
@@ -811,7 +811,7 @@ Deno.test("validateIntentSchemaRef - reports all missing intentSchemaRef steps",
 // =============================================================================
 
 Deno.test("StepDefinition - supports type field", () => {
-  const step: PromptStepDefinition = makeStep({
+  const step: Step = makeStep({
     kind: "work" as const,
     address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
     stepId: "test",

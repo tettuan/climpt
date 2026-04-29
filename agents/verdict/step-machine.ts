@@ -9,7 +9,7 @@
 
 import type { PromptResolver } from "../common/prompt-resolver.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import {
   BaseVerdictHandler,
   type IterationSummary,
@@ -126,8 +126,8 @@ export class StepMachineVerdictHandler extends BaseVerdictHandler {
   /**
    * Get step definition from registry
    */
-  private getStepDefinition(stepId: string): PromptStepDefinition | undefined {
-    return this.registry.steps[stepId] as PromptStepDefinition | undefined;
+  private getStepDefinition(stepId: string): Step | undefined {
+    return this.registry.steps[stepId] as Step | undefined;
   }
 
   async buildInitialPrompt(): Promise<string> {
@@ -222,7 +222,7 @@ ${this.buildStepInstructions(stepDef, this.state.currentStepId)}
    * Build step-specific instructions
    */
   private buildStepInstructions(
-    stepDef: PromptStepDefinition | undefined,
+    stepDef: Step | undefined,
     stepId?: string,
   ): string {
     if (!stepDef) {

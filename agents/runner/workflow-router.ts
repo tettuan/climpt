@@ -12,7 +12,7 @@
  */
 
 import type {
-  PromptStepDefinition,
+  Step,
   StepRegistry,
   TransitionRule,
 } from "../common/step-registry.ts";
@@ -79,7 +79,7 @@ export class WorkflowRouter {
    * Route to next step based on interpretation.
    *
    * Validates intent rules:
-   * - Intent must be allowed for the step's stepKind
+   * - Intent must be allowed for the step's kind
    * - `closing` intent can only come from closure steps
    * - `escalate` routes to verification support steps
    *
@@ -289,7 +289,7 @@ export class WorkflowRouter {
   /**
    * Get step definition from registry.
    */
-  private getStepDefinition(stepId: string): PromptStepDefinition | undefined {
+  private getStepDefinition(stepId: string): Step | undefined {
     return this.registry.steps[stepId];
   }
 
@@ -307,20 +307,20 @@ export class WorkflowRouter {
    */
   private validateIntentForStepKind(
     stepId: string,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
     intent: string,
   ): void {
-    const stepKind = stepDef.kind;
-    if (!stepKind) {
+    const kind = stepDef.kind;
+    if (!kind) {
       // Non-flow step (e.g., section.*), skip validation
       return;
     }
 
-    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[stepKind];
+    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[kind];
 
     // Check if intent is allowed for this step kind
     if (!allowedIntents.includes(intent as never)) {
-      throw srIntentNotAllowed(intent, stepKind, stepId, allowedIntents);
+      throw srIntentNotAllowed(intent, kind, stepId, allowedIntents);
     }
   }
 

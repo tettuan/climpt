@@ -13,7 +13,7 @@
 import { resolve } from "@std/path";
 import { SchemaResolver } from "../../agents/common/schema-resolver.ts";
 import { StepGateInterpreter } from "../../agents/runner/step-gate-interpreter.ts";
-import type { PromptStepDefinition } from "../../agents/common/step-registry.ts";
+import type { Step } from "../../agents/common/step-registry.ts";
 
 // --- Config interfaces ---
 
@@ -101,7 +101,7 @@ export async function validateSchemaForAgent(
     return { passed: 0, failed: 1, errors };
   }
 
-  const steps = registry.steps as Record<string, PromptStepDefinition> ??
+  const steps = registry.steps as Record<string, Step> ??
     {};
 
   // --- Level 1: File existence ---

@@ -183,16 +183,6 @@ export interface Step {
 export type ModelRef = string;
 
 /**
- * Legacy alias retained for callsite stability.
- *
- * `PromptStepDefinition` was the previous, looser shape that exposed the
- * 5-tuple as separate fields and treated `stepKind` as optional. The new
- * `Step` ADT has fully replaced it; this alias only exists so existing
- * callers compile against the new ADT without name churn.
- */
-export type PromptStepDefinition = Step;
-
-/**
  * Subprocess runner spec for closure steps (Phase 0-c).
  *
  * Declares a command to execute instead of an LLM call. Enables closure
@@ -337,7 +327,7 @@ export interface StepRegistry {
   pathTemplateNoAdaptation?: string;
 
   /** All step definitions indexed by stepId */
-  steps: Record<string, PromptStepDefinition>;
+  steps: Record<string, Step>;
 
   /**
    * Entry step ID for starting execution

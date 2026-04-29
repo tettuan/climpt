@@ -33,7 +33,6 @@ import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
-import type { StepRegistry } from "../common/step-registry.ts";
 import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
@@ -112,7 +111,7 @@ export class ClosureManager {
         },
       );
       logger.debug(
-        "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
+        "Registry validation passed (kind, entryStep, intentSchemaRef format)",
       );
 
       const schemasDir = join(
@@ -155,7 +154,7 @@ export class ClosureManager {
       );
       if (hasResolvableSteps) {
         this.stepPromptResolver = new StepPromptResolver(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
         logger.debug(
@@ -228,7 +227,7 @@ export class ClosureManager {
 
         this.stepGateInterpreter = new StepGateInterpreter();
         this.workflowRouter = new WorkflowRouter(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           logger,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
@@ -410,14 +409,13 @@ export class ClosureManager {
       return null;
     }
 
-    const stepDef = (this.stepsRegistry as unknown as StepRegistry)
-      .steps?.[stepId];
+    const stepDef = this.stepsRegistry.steps?.[stepId];
     if (!stepDef) {
       return null;
     }
 
-    const stepKind = stepDef.kind;
-    if (stepKind === "closure") {
+    const kind = stepDef.kind;
+    if (kind === "closure") {
       return null;
     }
 

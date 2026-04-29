@@ -128,12 +128,10 @@ export async function loadStepRegistry(
     const isNotFound = error instanceof Deno.errors.NotFound ||
       (error instanceof ConfigError && error.code === "SR-LOAD-003");
     if (isNotFound) {
-      // T42 / critique-7 NEW#2: `allowMissing` lives only on the strict
-      // variant. Narrow the discriminated union before reading it so the
-      // type system enforces that opt-out callers cannot opt in to the
-      // SR-LOAD-003 swallow (closure-manager — the only opt-out site —
-      // requires the registry to exist).
-      const allowMissing = options.validateIntentEnums !== false &&
+      // `allowMissing` exists only on the strict variant (T42); structural
+      // narrowing keeps opt-out callers' undefined field from coercing to
+      // true without an extra discriminator branch.
+      const allowMissing = "allowMissing" in options &&
         options.allowMissing === true;
       if (allowMissing) {
         // Caller opted in: fabricate an empty registry whose `agentId`
