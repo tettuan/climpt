@@ -10,7 +10,7 @@
 
 ## 必須手順
 
-1. 比較を口頭で始める前に `/option-scoring` skill を実行する
+1. 比較を口頭で始める前に `/option-scoring` skill を実行する (skill は opus sub-agent fork で動くため、呼び出し時に option sketches と derived-axes citations を引数で必ず渡す — fork 側に会話履歴は無い)
 2. Fixed spine (全域性 / Core-first / No backward-compat / Fallback / Reviewer precision) に加え、関連 design doc から derived axes を 2–3 個引用する
 3. matrix で weighted total と fit % を提示し、DQ (w=2 で score 0) は明示する
 4. 最高 fit % (non-DQ) を recommendation として単一理由で宣言する
