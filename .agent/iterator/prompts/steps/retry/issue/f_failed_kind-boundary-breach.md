@@ -1,7 +1,8 @@
 ## Kind boundary breach
 
-Current issue is `${kind_at_triage}`. Your run modified files outside that
-scope. The validator `kind-boundary-clean` failed with:
+Your run modified files outside the iterator scope rule for this issue's
+**current** `kind:*` label. The validator `kind-boundary-clean` failed
+with:
 
 ```
 ${kind_boundary_violations}
@@ -27,8 +28,9 @@ with zero `docs/**/design*.md` changes), and the only honest outcome is
 - Do not modify files other than reverting the listed paths.
 - Do not amend commits; make a new revert commit if the reverted files were
   already committed in this run.
-- Do not change the issue's `kind:*` label — the label was frozen at triage
-  and is owned by `.agent/climpt/out/kind_at_triage/<issue>.txt`.
+- Do not change the issue's `kind:*` label — boundary breach is detected
+  against the issue's live label and working tree, not against a frozen
+  artifact. Re-labeling to fit the breach is not a remedy.
 - Do not close the issue.
 
 Emit `repeat` to loop back into the precheck chain for re-verification.

@@ -249,13 +249,13 @@
         "items": { "type": "string" }
       },
       "kind_at_triage": {
-        "type": "string",
-        "enum": ["kind:impl", "kind:consider", "kind:design"],
-        "description": "RC6: kind label frozen at triage time"
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null) when the artifact does not exist; do not branch behavior on this field."
       },
       "kind_boundary_violations": {
         "type": "array",
-        "description": "RC6: out-of-scope paths for the current kind_at_triage",
+        "description": "Out-of-scope paths for the current kind:* label (live label, not kind_at_triage)",
         "items": {
           "type": "object",
           "required": ["path", "reason"],
@@ -447,13 +447,13 @@
         "items": { "type": "string" }
       },
       "kind_at_triage": {
-        "type": "string",
-        "enum": ["kind:impl", "kind:consider", "kind:design"],
-        "description": "RC6: kind label frozen at triage time, read verbatim from .agent/climpt/out/kind_at_triage/<issue>.txt. Source of truth for the scope rule applied by precheck-kind-scope."
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null). Populated best-effort by closure.issue.precheck-kind-read; do not gate verdict on this field."
       },
       "kind_boundary_violations": {
         "type": "array",
-        "description": "RC6: out-of-scope paths for the current kind_at_triage. Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry.",
+        "description": "Out-of-scope paths for the issue's current kind:* label (live label, not kind_at_triage). Empty = clean. Non-empty triggers kind-boundary-clean validator failure → kind-boundary-breach retry.",
         "items": {
           "type": "object",
           "required": ["path", "reason"],

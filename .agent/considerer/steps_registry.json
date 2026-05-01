@@ -152,33 +152,28 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "RC6 K1: read .agent/climpt/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first).",
+      "description": "Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt (audit-only). Missing/invalid → kind_at_triage:null and emit next; never repeats. The live kind:* label is authoritative; kind_at_triage is not propagated downstream.",
       "outputSchemaRef": {
         "file": "considerer.schema.json",
         "schema": "closure.consider.precheck-kind-read"
       },
       "structuredGate": {
         "allowedIntents": [
-          "next",
-          "repeat"
+          "next"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "repeat",
+        "fallbackIntent": "next",
         "failFast": false,
         "handoffFields": [
           "doc_paths_required",
           "doc_diff_results",
-          "doc_evidence",
-          "kind_at_triage"
+          "doc_evidence"
         ]
       },
       "transitions": {
         "next": {
           "target": "closure.consider.precheck-kind-scope"
-        },
-        "repeat": {
-          "target": "closure.consider.precheck-kind-read"
         }
       }
     },
@@ -213,7 +208,6 @@
           "doc_paths_required",
           "doc_diff_results",
           "doc_evidence",
-          "kind_at_triage",
           "kind_boundary_violations"
         ]
       },
@@ -257,7 +251,6 @@
           "doc_paths_required",
           "doc_diff_results",
           "doc_evidence",
-          "kind_at_triage",
           "kind_boundary_violations"
         ]
       },

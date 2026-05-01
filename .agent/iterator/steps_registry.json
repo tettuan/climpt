@@ -114,11 +114,10 @@
       ]
     },
     "kind-boundary-breach": {
-      "description": "Changed paths violate the kind:* scope frozen at triage",
+      "description": "Changed paths violate the iterator scope rule for the issue's current kind:* label",
       "edition": "failed",
       "adaptation": "kind-boundary-breach",
       "params": [
-        "kind_at_triage",
         "kind_boundary_violations"
       ]
     }
@@ -609,8 +608,7 @@
         "handoffFields": [
           "run_started_sha",
           "commit_list",
-          "commit_verification",
-          "kind_at_triage"
+          "commit_verification"
         ]
       },
       "transitions": {
@@ -621,7 +619,7 @@
           "target": "closure.issue.precheck-kind-read"
         }
       },
-      "description": "RC6 K1: read .agent/climpt/out/kind_at_triage/<issue>.txt and emit kind_at_triage. Missing/invalid file → repeat (triager must record first)."
+      "description": "Best-effort read of .agent/climpt/out/kind_at_triage/<issue>.txt (audit-only). Missing/invalid → kind_at_triage:null and emit next; never repeats. The live kind:* label is authoritative for routing/boundary; kind_at_triage is not propagated downstream."
     },
     "closure.issue.precheck-kind-scope": {
       "stepId": "closure.issue.precheck-kind-scope",
@@ -654,7 +652,6 @@
           "run_started_sha",
           "commit_list",
           "commit_verification",
-          "kind_at_triage",
           "kind_boundary_violations"
         ]
       },
@@ -669,7 +666,7 @@
       "validationSteps": [
         "closure.issue.precheck-kind-scope"
       ],
-      "description": "RC6 K2: apply kind:* scope rule to commit_verification.changed_paths. Violations handed off; validator kind-boundary-clean enforces."
+      "description": "Apply iterator's kind:* scope rule to commit_verification.changed_paths using the issue's live kind:* label. Violations handed off; validator kind-boundary-clean enforces."
     },
     "closure.issue.precheck-ac-extract": {
       "stepId": "closure.issue.precheck-ac-extract",
@@ -702,7 +699,6 @@
           "run_started_sha",
           "commit_list",
           "commit_verification",
-          "kind_at_triage",
           "kind_boundary_violations",
           "ac_list"
         ]
@@ -748,7 +744,6 @@
           "run_started_sha",
           "commit_list",
           "commit_verification",
-          "kind_at_triage",
           "kind_boundary_violations",
           "ac_list",
           "ac_mapping"
@@ -795,7 +790,6 @@
           "run_started_sha",
           "commit_list",
           "commit_verification",
-          "kind_at_triage",
           "kind_boundary_violations",
           "ac_list",
           "ac_mapping",

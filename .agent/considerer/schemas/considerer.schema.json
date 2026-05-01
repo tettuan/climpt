@@ -123,8 +123,8 @@
 
   "closure.consider.precheck-kind-read": {
     "type": "object",
-    "description": "Work-step output schema for closure.consider.precheck-kind-read. Must emit kind_at_triage so closure step can detect mis-route.",
-    "required": ["next_action", "kind_at_triage"],
+    "description": "Work-step output schema for closure.consider.precheck-kind-read. Best-effort audit read; kind_at_triage is optional/nullable when the artifact is absent or invalid. The terminal consider step does not branch on this field — current label is authoritative.",
+    "required": ["next_action"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -132,13 +132,13 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["next", "repeat"]
+            "enum": ["next"]
           }
         }
       },
       "kind_at_triage": {
-        "type": "string",
-        "enum": ["kind:impl", "kind:consider", "kind:design"]
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null]
       }
     }
   },
@@ -280,13 +280,13 @@
         }
       },
       "kind_at_triage": {
-        "type": "string",
-        "enum": ["kind:impl", "kind:consider", "kind:design"],
-        "description": "[RC6] Kind label frozen at triage time, read verbatim from .agent/climpt/out/kind_at_triage/<issue>.txt. Populated by closure.consider.precheck-kind-read. Additive / optional."
+        "type": ["string", "null"],
+        "enum": ["kind:impl", "kind:consider", "kind:design", null],
+        "description": "[RC6] Audit-only — orchestrator's current kind:* label is the authoritative ground truth. May be absent (null) when the artifact does not exist. Populated best-effort by closure.consider.precheck-kind-read. Additive / optional. Do NOT branch behavior on this field."
       },
       "kind_boundary_violations": {
         "type": "array",
-        "description": "Out-of-scope paths for the current kind_at_triage. Empty = clean. Populated by closure.consider.precheck-kind-scope; consumed by the terminal consider step's Step 4-pre to decide handoff-detail on boundary breach.",
+        "description": "Out-of-scope paths under considerer's source-edit boundary (live label). Empty = clean. Populated by closure.consider.precheck-kind-scope; consumed by the terminal consider step's Step 4-pre to decide handoff-detail on boundary breach.",
         "items": {
           "type": "object",
           "required": ["path", "reason"],

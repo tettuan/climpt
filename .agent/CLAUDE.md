@@ -115,7 +115,7 @@ MUST live under `.agent/climpt/`, never at `.agent/<top-level>/`.
 |------|-------|---------|
 | `.agent/{agent-name}/` | one agent | source files (agent.json, prompts/, schemas/, steps_registry.json) |
 | `.agent/climpt/tmp/issues-execute/<N>/outbox/` | shared | per-issue handoff outbox, subject store |
-| `.agent/climpt/out/` | shared | shared runtime output (e.g. `kind_at_triage/<N>.txt` written by triager and read by iterator/considerer) |
+| `.agent/climpt/out/` | shared | shared runtime output drop (currently unused; reserved for future cross-agent artifacts) |
 | `.agent/workflow.json` | shared | workflow definition, labels, projectBinding |
 | `.agent/recovery-procedures.md` | shared | exception-only manual recovery steps for poisoned workflow state (cycle reset 等) |
 
