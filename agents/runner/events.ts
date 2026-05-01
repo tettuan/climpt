@@ -32,7 +32,7 @@ export type AgentEvent =
  */
 export interface BoundaryHookPayload {
   stepId: string;
-  stepKind: "closure";
+  kind: "closure";
   structuredOutput?: Record<string, unknown>;
 }
 

@@ -95,9 +95,13 @@ export async function validatePrompts(
     const step = asRecord(stepDef);
     if (!step) continue;
 
-    // 1. C3L path components must be non-empty strings
-    const c2 = step.c2;
-    const c3 = step.c3;
+    // 1. C3L path components must be non-empty strings.
+    // Read from the typed `address` aggregate per design 14 §C — the disk
+    // shape places C3L coordinates inside `address`, never as flat
+    // `step.c2` / `step.c3` siblings.
+    const address = asRecord(step.address) ?? {};
+    const c2 = address.c2;
+    const c3 = address.c3;
 
     if (typeof c2 !== "string" || c2 === "") {
       errors.push(
@@ -136,19 +140,23 @@ export async function validatePrompts(
 
       // 3. Prepare file existence check (only when promptRoot is provided)
       if (promptRoot) {
-        const edition = typeof step.edition === "string" && step.edition !== ""
-          ? step.edition
-          : "default";
-        const adaptation = typeof step.adaptation === "string"
-          ? step.adaptation
+        const edition =
+          typeof address.edition === "string" && address.edition !== ""
+            ? address.edition
+            : "default";
+        const adaptation = typeof address.adaptation === "string"
+          ? address.adaptation
           : undefined;
-        const mainPath = buildPromptFilePath(
-          promptRoot,
+        // Build a C3LAddress for buildPromptFilePath directly from the raw
+        // disk-shape `address` aggregate (design 14 §C). c1 is unused by
+        // buildPromptFilePath itself, so leaving it empty is intentional.
+        const mainPath = buildPromptFilePath(promptRoot, {
+          c1: "",
           c2,
           c3,
           edition,
           adaptation,
-        );
+        });
 
         fileChecks.push({
           stepId,

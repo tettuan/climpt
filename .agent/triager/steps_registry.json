@@ -15,10 +15,13 @@
     "triage": {
       "stepId": "triage",
       "name": "Triage Single Issue",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "triage",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "triage",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue",
         "workflow"

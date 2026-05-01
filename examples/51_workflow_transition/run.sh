@@ -34,6 +34,13 @@ METAEOF
   jq ".rules.maxCycles = ${max_cycles}" "$FIXTURES/workflow.json" \
     > "$tmp/.agent/workflow.json"
 
+  # Copy iterator and reviewer agent bundles required by boot eager-load
+  mkdir -p "$tmp/.agent/iterator" "$tmp/.agent/reviewer"
+  cp "$EXAMPLES_DIR/.agent/iterator/agent.json" "$tmp/.agent/iterator/agent.json"
+  cp "$EXAMPLES_DIR/.agent/iterator/steps_registry.json" "$tmp/.agent/iterator/steps_registry.json"
+  cp "$EXAMPLES_DIR/.agent/reviewer/agent.json" "$tmp/.agent/reviewer/agent.json"
+  cp "$EXAMPLES_DIR/.agent/reviewer/steps_registry.json" "$tmp/.agent/reviewer/steps_registry.json"
+
   echo "$tmp"
 }
 

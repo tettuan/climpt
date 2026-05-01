@@ -7,6 +7,7 @@
  */
 
 import { ClimptError } from "./base.ts";
+import type { RateLimitInfo } from "../../src_common/types/runtime.ts";
 
 /**
  * Environment information
@@ -80,12 +81,19 @@ export class AgentRateLimitError extends ClimptError {
   readonly recoverable = true;
   readonly retryAfterMs: number;
   readonly attempts: number;
+  /**
+   * Rate-limit reset signal carried with the error so the orchestrator's
+   * Step 7c throttle hook can wait until the next reset even when no SDK
+   * `rate_limit_event` was streamed before the actual 429.
+   */
+  readonly rateLimitInfo?: RateLimitInfo;
 
   constructor(
     message: string,
     options: {
       retryAfterMs?: number;
       attempts?: number;
+      rateLimitInfo?: RateLimitInfo;
       cause?: Error;
       iteration?: number;
     } = {},
@@ -93,6 +101,7 @@ export class AgentRateLimitError extends ClimptError {
     super(message, { cause: options.cause, iteration: options.iteration });
     this.retryAfterMs = options.retryAfterMs ?? 0;
     this.attempts = options.attempts ?? 0;
+    this.rateLimitInfo = options.rateLimitInfo;
   }
 
   override toJSON(): Record<string, unknown> {
@@ -100,6 +109,7 @@ export class AgentRateLimitError extends ClimptError {
       ...super.toJSON(),
       retryAfterMs: this.retryAfterMs,
       attempts: this.attempts,
+      ...(this.rateLimitInfo && { rateLimitInfo: this.rateLimitInfo }),
     };
   }
 }

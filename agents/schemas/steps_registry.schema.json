@@ -86,7 +86,7 @@
   "definitions": {
     "StepDefinition": {
       "type": "object",
-      "required": ["stepId", "name", "c2", "c3"],
+      "required": ["stepId", "name", "kind", "address"],
       "properties": {
         "stepId": {
           "type": "string",
@@ -102,27 +102,14 @@
           "default": "prompt",
           "description": "Step type for categorization"
         },
-        "stepKind": {
+        "kind": {
           "type": "string",
           "enum": ["work", "verification", "closure"],
           "description": "Step kind for flow taxonomy. Determines allowed intents: work (next/repeat/jump/handoff), verification (next/repeat/jump/escalate), closure (closing/repeat)"
         },
-        "c2": {
-          "type": "string",
-          "description": "C3L Category (e.g., 'initial', 'continuation')"
-        },
-        "c3": {
-          "type": "string",
-          "description": "C3L Classification (e.g., 'issue', 'project')"
-        },
-        "edition": {
-          "type": "string",
-          "default": "default",
-          "description": "Edition variant (f_{edition}.md)"
-        },
-        "adaptation": {
-          "type": "string",
-          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        "address": {
+          "$ref": "#/definitions/C3LAddress",
+          "description": "C3L 5-tuple address (design 14 §C). Single aggregate for prompt resolution."
         },
         "uvVariables": {
           "type": "array",
@@ -157,13 +144,38 @@
         }
       }
     },
+    "C3LAddress": {
+      "type": "object",
+      "required": ["c1", "c2", "c3", "edition"],
+      "properties": {
+        "c1": {
+          "type": "string",
+          "description": "Registry-level constant namespace (e.g., 'steps')"
+        },
+        "c2": {
+          "type": "string",
+          "description": "C3L Category (e.g., 'initial', 'continuation')"
+        },
+        "c3": {
+          "type": "string",
+          "description": "C3L Classification (e.g., 'issue', 'project')"
+        },
+        "edition": {
+          "type": "string",
+          "description": "Edition variant (f_{edition}.md)"
+        },
+        "adaptation": {
+          "type": "string",
+          "description": "Adaptation variant (f_{edition}_{adaptation}.md)"
+        }
+      }
+    },
     "ValidationStep": {
       "type": "object",
       "required": [
         "stepId",
         "name",
-        "c2",
-        "c3",
+        "address",
         "preflightConditions",
         "postLLMConditions"
       ],
@@ -176,13 +188,9 @@
           "type": "string",
           "description": "Human-readable name"
         },
-        "c2": {
-          "type": "string",
-          "description": "C3L Category"
-        },
-        "c3": {
-          "type": "string",
-          "description": "C3L Classification"
+        "address": {
+          "$ref": "#/definitions/C3LAddress",
+          "description": "C3L 5-tuple address (design 14 §C)."
         },
         "preflightConditions": {
           "type": "array",
@@ -239,7 +247,6 @@
               "repeat",
               "jump",
               "closing",
-              "abort",
               "escalate",
               "handoff"
             ]
@@ -392,8 +399,8 @@
       "properties": {
         "action": {
           "type": "string",
-          "enum": ["retry", "abort", "skip"],
-          "description": "Action to take on failure"
+          "enum": ["retry", "skip"],
+          "description": "Action to take on failure. Unrecoverable failure / maxAttempts exhaustion is thrown as ExecutionError (AgentValidationAbortError) per design 16 §C — not configurable here."
         },
         "maxAttempts": {
           "type": "integer",

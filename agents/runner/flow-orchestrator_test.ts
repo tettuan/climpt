@@ -20,10 +20,9 @@ const logger = new BreakdownLogger("flow");
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type {
-  PromptStepDefinition,
-  StepRegistry,
-} from "../common/step-registry.ts";
+import type { StepRegistry } from "../common/step-registry.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
+import { validateRegistryShape } from "../common/step-registry/validator.ts";
 import type {
   AgentDefinition,
   IterationSummary,
@@ -40,7 +39,12 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   const raw = await Deno.readTextFile(
     "agents/test-artifacts/responsibility-fixtures/test-steps-registry.json",
   );
-  return JSON.parse(raw) as ExtendedStepsRegistry;
+  // Disk JSON is in the typed Step ADT shape (with `address` aggregate +
+  // populated `kind`). Validate the raw shape, then cast — the same
+  // pattern `loadStepRegistry` uses (no translation).
+  const parsed: unknown = JSON.parse(raw);
+  validateRegistryShape(parsed);
+  return parsed as ExtendedStepsRegistry;
 }
 
 /** Create a minimal AgentDefinition. verdictType must be a valid VerdictType. */
@@ -165,15 +169,14 @@ Deno.test("FlowOrchestrator - entry step falls back to generic entryStep", () =>
     c1: "steps",
     entryStep: "generic.entry",
     steps: {
-      "generic.entry": {
+      "generic.entry": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "generic.entry",
         name: "Generic Entry",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: [],
         usesStdin: false,
-      },
+      }),
     },
   };
   const deps = buildDeps(registry, { verdictType: "meta:custom" });

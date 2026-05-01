@@ -169,9 +169,15 @@ export interface ValidationCondition {
 }
 
 /**
- * Action on failure
+ * Action on failure.
+ *
+ * Per design 16 §C the run-time error 3 classification splits failures into
+ * ConfigurationError / ExecutionError / ConnectionError. An unrecoverable
+ * post-LLM failure (formerly `"abort"`) is now thrown as an `ExecutionError`
+ * (`AgentValidationAbortError`) — it is not a configurable action value.
+ * The remaining 2 values are the only retry-policy choices left to config.
  */
-export type FailureAction = "retry" | "abort" | "skip";
+export type FailureAction = "retry" | "skip";
 
 /**
  * On-failure action configuration

@@ -18,8 +18,7 @@ import type {
 import { AgentStepRoutingError, AgentValidationAbortError } from "./errors.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
-import { inferStepKind } from "../common/step-registry/utils.ts";
-import type { PromptStepDefinition } from "../common/step-registry/types.ts";
+import type { Step } from "../common/step-registry/types.ts";
 import { isRecord } from "../src_common/type-guards.ts";
 
 // Extracted module types
@@ -109,20 +108,11 @@ export class CompletionLoopProcessor {
     });
 
     if (!validation.valid) {
+      // Unrecoverable / maxAttempts-exhausted failures throw
+      // `AgentValidationAbortError` directly from the validation chain
+      // (design 16 §C — ExecutionError propagates out of the cycle).
+      // Here we only handle the surviving 2 actions: skip and retry.
       const action = validation.action ?? "retry";
-
-      // Dispatch based on onFailure action
-      if (action === "abort") {
-        ctx.logger.error(
-          "[CompletionLoop] Validation abort: unrecoverable or maxAttempts exceeded",
-        );
-        throw new AgentValidationAbortError(
-          `Validation aborted for step "${closureStepId}": ${
-            validation.retryPrompt ?? "validation failed"
-          }`,
-          { stepId: closureStepId },
-        );
-      }
 
       if (action === "skip") {
         ctx.logger.warn(
@@ -157,12 +147,12 @@ export class CompletionLoopProcessor {
         const action = (nextAction as Record<string, unknown>).action;
         if (action === "closing" || action === "repeat") {
           const stepDef = this.deps.closureManager.stepsRegistry
-            ?.steps[stepId] as PromptStepDefinition | undefined;
-          const stepKind = stepDef ? inferStepKind(stepDef) : undefined;
+            ?.steps[stepId] as Step | undefined;
+          const kind = stepDef?.kind;
 
-          if (stepKind !== "closure") {
+          if (kind !== "closure") {
             throw new AgentStepRoutingError(
-              `Non-closure step "${stepId}" (kind: ${stepKind ?? "unknown"}) ` +
+              `Non-closure step "${stepId}" (kind: ${kind ?? "unknown"}) ` +
                 `emitted closing signal "${action}". ` +
                 `Only closure steps may emit closing/repeat signals.`,
               { stepId },
@@ -447,17 +437,17 @@ export class CompletionLoopProcessor {
   }
 
   /**
-   * Check if a step is a closure step (stepKind: "closure").
+   * Check if a step is a closure step (kind: "closure").
    * Closure steps are processed by the Completion Loop, not the Flow Loop.
    */
   public isClosureStep(stepId: string): boolean {
     const registry = this.deps.closureManager.stepsRegistry;
     if (!registry?.steps) return false;
     const stepDef = registry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef) return false;
-    return inferStepKind(stepDef) === "closure";
+    return stepDef.kind === "closure";
   }
 
   /**

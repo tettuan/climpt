@@ -15,10 +15,13 @@
     "closure.consider.doc-scan": {
       "stepId": "closure.consider.doc-scan",
       "name": "Scan Issue For Required Doc Paths",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "doc-scan",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-scan"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -53,10 +56,13 @@
     "closure.consider.doc-verify": {
       "stepId": "closure.consider.doc-verify",
       "name": "Verify Required Doc Paths Have Diffs",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "doc-verify",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-verify"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -92,10 +98,13 @@
     "closure.consider.doc-evidence": {
       "stepId": "closure.consider.doc-evidence",
       "name": "Collect Commit Evidence For Diffed Doc Paths",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "doc-evidence",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "doc-evidence"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -132,10 +141,13 @@
     "closure.consider.precheck-kind-read": {
       "stepId": "closure.consider.precheck-kind-read",
       "name": "Precheck - Read Kind At Triage Artifact",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "precheck-kind-read",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "precheck-kind-read"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -173,10 +185,13 @@
     "closure.consider.precheck-kind-scope": {
       "stepId": "closure.consider.precheck-kind-scope",
       "name": "Precheck - Record Kind Boundary Scope Findings",
-      "stepKind": "work",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "precheck-kind-scope",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "precheck-kind-scope"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -211,10 +226,13 @@
     "consider": {
       "stepId": "consider",
       "name": "Consider Implementation Request",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "consider",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "consider",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],

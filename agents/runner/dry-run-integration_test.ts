@@ -24,6 +24,7 @@ import { WorkflowRouter } from "./workflow-router.ts";
 import { ValidationChain } from "./validation-chain.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { StepRegistry } from "../common/step-registry.ts";
+import { validateRegistryShape } from "../common/step-registry/validator.ts";
 import type {
   AgentDefinition,
   IterationSummary,
@@ -40,7 +41,12 @@ async function loadFixtureRegistry(): Promise<ExtendedStepsRegistry> {
   const raw = await Deno.readTextFile(
     "agents/test-artifacts/responsibility-fixtures/test-steps-registry.json",
   );
-  return JSON.parse(raw) as ExtendedStepsRegistry;
+  // Disk JSON is in the typed Step ADT shape (with `address` aggregate +
+  // populated `kind`). Validate the raw shape, then cast — the same
+  // pattern `loadStepRegistry` uses (no translation).
+  const parsed: unknown = JSON.parse(raw);
+  validateRegistryShape(parsed);
+  return parsed as ExtendedStepsRegistry;
 }
 
 function createTestDefinition(

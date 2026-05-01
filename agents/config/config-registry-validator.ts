@@ -197,10 +197,13 @@ export async function validateConfigRegistryConsistency(
     }
   }
 
-  // Validate each step's c2 and c3
+  // Validate each step's c2 and c3 (read from the typed `address` aggregate
+  // per design 14 §C — the disk shape places C3L coordinates inside
+  // `address`, never as flat siblings on the step object).
   for (const { sectionName, stepId, step } of allSteps) {
-    const c2 = step.c2;
-    const c3 = step.c3;
+    const address = asRecord(step.address) ?? {};
+    const c2 = address.c2;
+    const c3 = address.c3;
 
     if (typeof c2 === "string" && !dtRegex.test(c2)) {
       errors.push(

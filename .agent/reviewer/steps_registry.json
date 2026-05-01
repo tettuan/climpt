@@ -84,8 +84,12 @@
     "closure.review": {
       "stepId": "closure.review",
       "name": "Review Validation",
-      "c2": "retry",
-      "c3": "review",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "review",
+        "edition": "default"
+      },
       "preflightConditions": [],
       "postLLMConditions": [
         {
@@ -113,10 +117,13 @@
     "initial.issue": {
       "stepId": "initial.issue",
       "name": "Issue Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -157,10 +164,13 @@
     "continuation.issue": {
       "stepId": "continuation.issue",
       "name": "Issue Review Continuation",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "issue",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "issue",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],
@@ -199,10 +209,13 @@
     "initial.default": {
       "stepId": "initial.default",
       "name": "Initial Review Prompt",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "default",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "default",
+        "edition": "default"
+      },
       "uvVariables": [
         "project",
         "requirements_label",
@@ -245,10 +258,13 @@
     "continuation.default": {
       "stepId": "continuation.default",
       "name": "Continuation Review Prompt",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "default",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "default",
+        "edition": "default"
+      },
       "uvVariables": [
         "iteration"
       ],
@@ -288,10 +304,13 @@
       "stepId": "closure.review",
       "name": "Review Closure Prompt",
       "type": "prompt",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "review",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "review",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "outputSchemaRef": {

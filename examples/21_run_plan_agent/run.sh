@@ -28,6 +28,24 @@ main() {
   rm -f "$SENTINEL"
   info "Sentinel cleared: ${SENTINEL}"
 
+  # Seed local subject store fixture so --local mode reads labels
+  # from disk instead of `gh issue view`. Mirrors the fixture shape
+  # used by examples/49-52 (DEFAULT_SUBJECT_STORE.path).
+  mkdir -p .agent/climpt/tmp/issues/1/comments
+  cat > .agent/climpt/tmp/issues/1/meta.json <<'META'
+{
+  "number": 1,
+  "title": "Plan agent smoke",
+  "labels": [],
+  "state": "open",
+  "assignees": [],
+  "milestone": null
+}
+META
+  cat > .agent/climpt/tmp/issues/1/body.md <<'BODY'
+Plan agent smoke fixture (local --issue 1).
+BODY
+
   # Show what we're testing
   info "  permissionMode: plan"
   info "  allowedTools includes Write/Edit (intentional)"
@@ -37,11 +55,15 @@ main() {
 
   show_cmd deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
     --agent "$AGENT_NAME" \
+    --local \
+    --issue 1 \
     --topic "Create /tmp/claude/plan-mode-test.txt"
 
   local exit_code=0
   output=$(deno run --allow-all "$REPO_ROOT/agents/scripts/run-agent.ts" \
     --agent "$AGENT_NAME" \
+    --local \
+    --issue 1 \
     --topic "Create /tmp/claude/plan-mode-test.txt" 2>&1) \
     || exit_code=$?
 

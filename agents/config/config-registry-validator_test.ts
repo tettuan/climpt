@@ -42,14 +42,14 @@ function makeRegistry(
     c1: overrides?.c1 ?? "steps",
     steps: overrides?.steps ?? {
       "initial.issue": {
+        kind: "work",
+        address: { c1: "steps", c2: "initial", c3: "issue" },
         stepId: "initial.issue",
-        c2: "initial",
-        c3: "issue",
       },
       "continuation.issue": {
+        kind: "work",
+        address: { c1: "steps", c2: "continuation", c3: "issue" },
         stepId: "continuation.issue",
-        c2: "continuation",
-        c3: "issue",
       },
     },
     validationSteps: overrides?.validationSteps ?? {},
@@ -124,21 +124,21 @@ Deno.test("config-registry-validator - all c2/c3 from steps and validationSteps 
     const registry = makeRegistry({
       steps: {
         "initial.issue": {
+          kind: "work",
+          address: { c1: "steps", c2: "initial", c3: "issue" },
           stepId: "initial.issue",
-          c2: "initial",
-          c3: "issue",
         },
         "closure.project": {
+          kind: "closure",
+          address: { c1: "steps", c2: "closure", c3: "project" },
           stepId: "closure.project",
-          c2: "closure",
-          c3: "project",
         },
       },
       validationSteps: {
         "continuation.issue": {
+          kind: "work",
+          address: { c1: "steps", c2: "continuation", c3: "issue" },
           stepId: "continuation.issue",
-          c2: "continuation",
-          c3: "issue",
         },
       },
     });
@@ -220,9 +220,9 @@ Deno.test("config-registry-validator - c2 not matching directiveType pattern rep
     const registry = makeRegistry({
       steps: {
         "unknown.issue": {
+          kind: "work",
+          address: { c1: "steps", c2: "nonexistent-phase", c3: "issue" },
           stepId: "unknown.issue",
-          c2: "nonexistent-phase",
-          c3: "issue",
         },
       },
     });
@@ -260,9 +260,9 @@ Deno.test("config-registry-validator - c3 not matching layerType pattern reports
     const registry = makeRegistry({
       steps: {
         "initial.unknown": {
+          kind: "work",
+          address: { c1: "steps", c2: "initial", c3: "nonexistent-layer" },
           stepId: "initial.unknown",
-          c2: "initial",
-          c3: "nonexistent-layer",
         },
       },
     });
@@ -405,9 +405,9 @@ Deno.test("config-registry-validator - validationSteps c2 mismatch detected", as
     const registry = makeRegistry({
       validationSteps: {
         "badphase.issue": {
+          kind: "work",
+          address: { c1: "steps", c2: "badphase", c3: "issue" },
           stepId: "badphase.issue",
-          c2: "badphase",
-          c3: "issue",
         },
       },
     });

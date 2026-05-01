@@ -6,6 +6,9 @@ source "${SCRIPT_DIR}/../common_functions.sh"
 
 AGENT_NAME="plan-scout"
 AGENT_DIR="${EXAMPLES_DIR}/.agent/${AGENT_NAME}"
+# Plan Z source of truth for permissionMode / allowedTools.
+# Same path as agents/config/settings-loader.ts:resolveSettingsPaths().
+SETTINGS_FILE="${EXAMPLES_DIR}/.agent/climpt/config/claude.settings.climpt.agents.${AGENT_NAME}.json"
 
 main() {
   info "=== Verify Plan Mode Contract (no LLM) ==="
@@ -16,25 +19,30 @@ main() {
     error "  Run steps 16-20 first"
     return 1
   fi
+  if [[ ! -f "${SETTINGS_FILE}" ]]; then
+    error "FAIL: ${SETTINGS_FILE} not found"
+    error "  Run steps 16-20 first"
+    return 1
+  fi
 
-  # Contract 1: permissionMode must be "plan"
+  # Contract 1: permissions.defaultMode must be "plan"
   local perm_mode
-  perm_mode=$(jq -r '.runner.boundaries.permissionMode' "${AGENT_DIR}/agent.json")
+  perm_mode=$(jq -r '.permissions.defaultMode' "${SETTINGS_FILE}")
   if [[ "$perm_mode" != "plan" ]]; then
-    error "FAIL: permissionMode is '${perm_mode}', expected 'plan'"
+    error "FAIL: permissions.defaultMode is '${perm_mode}', expected 'plan'"
     return 1
   fi
-  success "PASS: permissionMode is 'plan'"
+  success "PASS: permissions.defaultMode is 'plan'"
 
-  # Contract 2: allowedTools includes Write (intentional trap for plan mode)
+  # Contract 2: permissions.allow includes Write (intentional trap for plan mode)
   local has_write
-  has_write=$(jq '[.runner.boundaries.allowedTools[] | select(. == "Write" or . == "write")] | length' "${AGENT_DIR}/agent.json")
+  has_write=$(jq '[.permissions.allow[]? | select(. == "Write" or . == "write")] | length' "${SETTINGS_FILE}")
   if [[ "$has_write" -lt 1 ]]; then
-    error "FAIL: allowedTools does not include Write"
-    error "  Plan mode test requires Write in allowedTools to verify blocking"
+    error "FAIL: permissions.allow does not include Write"
+    error "  Plan mode test requires Write in allow-list to verify blocking"
     return 1
   fi
-  success "PASS: allowedTools includes Write (intentional for plan mode test)"
+  success "PASS: permissions.allow includes Write (intentional for plan mode test)"
 
   # Contract 3: plan-scout must NOT be a step flow agent
   # The runner determines step flow via hasFlowRoutingSupport(), which checks

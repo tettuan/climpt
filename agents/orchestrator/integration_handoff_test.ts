@@ -31,11 +31,13 @@ import {
 } from "./artifact-emitter.ts";
 import { InMemorySchemaRegistry } from "./schema-registry.ts";
 import { SubjectStore } from "./subject-store.ts";
-import type {
-  HandoffDeclaration,
-  SubjectPayload,
-  WorkflowConfig,
+import {
+  deriveInvocations,
+  type HandoffDeclaration,
+  type SubjectPayload,
+  type WorkflowConfig,
 } from "./workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "./_test-fixtures.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -288,28 +290,32 @@ const DEFAULT_AGENTS: Readonly<Record<string, WorkflowAgentInfo>> = {
 function makeWorkflow(
   handoffs: ReadonlyArray<HandoffDeclaration>,
 ): WorkflowConfig {
+  const phases = {
+    ready: { type: "actionable" as const, priority: 1, agent: "sampleAgent" },
+    done: { type: "terminal" as const },
+  };
+  const agents = {
+    sampleAgent: {
+      role: "transformer" as const,
+      directory: "sampleAgent",
+      outputPhase: "done",
+      fallbackPhase: "done",
+    },
+  };
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     // `labelPrefix` sets Orchestrator.workflowId, which becomes the suffix
     // of the workflow-state / workflow-payload file names. Tests assert
     // against "test" (the workflowId) when reading/writing payloads.
     labelPrefix: "test",
-    phases: {
-      ready: { type: "actionable", priority: 1, agent: "sampleAgent" },
-      done: { type: "terminal" },
-    },
+    phases,
     labelMapping: {
       ready: "ready",
       done: "done",
     },
-    agents: {
-      sampleAgent: {
-        role: "transformer",
-        directory: "sampleAgent",
-        outputPhase: "done",
-        fallbackPhase: "done",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: {
       maxCycles: 3,
       cycleDelayMs: 0,

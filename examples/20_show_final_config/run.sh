@@ -9,6 +9,8 @@ source "${EXAMPLES_DIR}/common_functions.sh"
 AGENT_NAME="plan-scout"
 AGENT_DIR=".agent/${AGENT_NAME}"
 AGENT_JSON="${AGENT_DIR}/agent.json"
+# Plan Z source of truth for permissionMode / allowedTools.
+SETTINGS_FILE=".agent/climpt/config/claude.settings.climpt.agents.${AGENT_NAME}.json"
 
 main() {
   info "=== Show Final Agent Configuration: ${AGENT_NAME} ==="
@@ -18,6 +20,11 @@ main() {
   # Verify agent exists
   if [[ ! -f "$AGENT_JSON" ]]; then
     error ".agent/${AGENT_NAME}/agent.json not found"
+    error "Run 16-19 steps first"
+    return 1
+  fi
+  if [[ ! -f "$SETTINGS_FILE" ]]; then
+    error "${SETTINGS_FILE} not found"
     error "Run 16-19 steps first"
     return 1
   fi
@@ -33,13 +40,18 @@ main() {
   echo "$runner"
   echo ""
 
-  # Verify permissionMode exists
+  # Show the per-agent settings file
+  info "${SETTINGS_FILE}:"
+  jq '.' "$SETTINGS_FILE"
+  echo ""
+
+  # Verify permissions.defaultMode exists in the settings file
   local perm_mode
-  perm_mode=$(jq -r '.runner.boundaries.permissionMode // empty' "$AGENT_JSON" 2>&1)
+  perm_mode=$(jq -r '.permissions.defaultMode // empty' "$SETTINGS_FILE" 2>&1)
   if [[ -z "$perm_mode" ]]; then
-    error "FAIL: .runner.boundaries.permissionMode is missing or null"; return 1
+    error "FAIL: permissions.defaultMode is missing or null in ${SETTINGS_FILE}"; return 1
   fi
-  success "PASS: runner.boundaries.permissionMode = ${perm_mode}"
+  success "PASS: permissions.defaultMode = ${perm_mode}"
 
   # Show system prompt
   local system_md="${AGENT_DIR}/prompts/system.md"

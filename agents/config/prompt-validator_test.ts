@@ -61,7 +61,8 @@ async function createTempAgentDir(
 
 Deno.test("validatePrompts - step missing c2 produces an error", async () => {
   const registry = registryWith("initial.issue", {
-    c3: "issue",
+    kind: "work",
+    address: { c1: "steps", c3: "issue" },
     // c2 is missing
   });
   assert(
@@ -83,7 +84,8 @@ Deno.test("validatePrompts - step missing c2 produces an error", async () => {
 
 Deno.test("validatePrompts - step missing c3 produces an error", async () => {
   const registry = registryWith("initial.issue", {
-    c2: "initial",
+    kind: "work",
+    address: { c1: "steps", c2: "initial" },
     // c3 is missing
   });
   assert(
@@ -129,8 +131,9 @@ Deno.test("validatePrompts - step missing both c2 and c3 produces two errors", a
 
 Deno.test("validatePrompts - mismatched c2 vs stepId prefix produces a warning", async () => {
   const registry = registryWith("initial.issue", {
-    c2: "continuation", // mismatch: stepId prefix is "initial"
-    c3: "issue",
+    kind: "work",
+    // mismatch: stepId prefix is "initial"
+    address: { c1: "steps", c2: "continuation", c3: "issue" },
   });
   assert(
     Object.keys(registry.steps as Record<string, unknown>).length > 0,
@@ -154,8 +157,8 @@ Deno.test("validatePrompts - mismatched c2 vs stepId prefix produces a warning",
 
 Deno.test("validatePrompts - mismatched c3 vs stepId second part produces a warning", async () => {
   const registry = registryWith("initial.issue", {
-    c2: "initial",
-    c3: "project", // mismatch: stepId second part is "issue"
+    kind: "work",
+    address: { c1: "steps", c2: "initial", c3: "project" }, // mismatch: stepId second part is "issue"
   });
   assert(
     Object.keys(registry.steps as Record<string, unknown>).length > 0,
@@ -198,8 +201,8 @@ Deno.test("validatePrompts - missing steps key produces no errors", async () => 
 
 Deno.test("validatePrompts - no file checks without agentDir", async () => {
   const registry = registryWith("initial.issue", {
-    c2: "initial",
-    c3: "issue",
+    kind: "work",
+    address: { c1: "steps", c2: "initial", c3: "issue" },
   });
   assert(
     Object.keys(registry.steps as Record<string, unknown>).length > 0,
@@ -240,9 +243,8 @@ Deno.test("validatePrompts - existing main C3L file produces no file warning", a
 
   try {
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
     });
     assert(
       Object.keys(registry.steps as Record<string, unknown>).length > 0,
@@ -270,9 +272,13 @@ Deno.test("validatePrompts - missing C3L file produces warning", async () => {
 
   try {
     const registry = registryWith("continuation.review", {
-      c2: "continuation",
-      c3: "review",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "review",
+        edition: "default",
+      },
     });
     const stepCount = Object.keys(registry.steps as Record<string, unknown>)
       .length;
@@ -316,8 +322,8 @@ Deno.test("validatePrompts - edition defaults to 'default' when not specified", 
   try {
     // Step without explicit edition -- should default to "default"
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue" },
       // no edition field
     });
     assert(

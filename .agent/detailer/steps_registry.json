@@ -15,10 +15,13 @@
     "detail": {
       "stepId": "detail",
       "name": "Detail Implementation Spec",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "detail",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "detail",
+        "edition": "default"
+      },
       "uvVariables": [
         "issue"
       ],

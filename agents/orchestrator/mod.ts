@@ -12,8 +12,11 @@ export type {
   BatchOptions,
   BatchResult,
   DispatchResult,
+  GhRepoIssuesMembership,
   HandoffConfig,
   IssueCriteria,
+  IssueQueryState,
+  IssueSource,
   IssueWorkflowState,
   LabelSpec,
   OrchestratorOptions,
@@ -22,6 +25,8 @@ export type {
   PhaseTransitionRecord,
   PhaseType,
   PrioritizerConfig,
+  RepoRef,
+  SubjectRef,
   SubjectStoreConfig,
   TransformerDefinition,
   TransitionResult,
@@ -31,7 +36,7 @@ export type {
 } from "./workflow-types.ts";
 
 // Workflow loader
-export { loadWorkflow } from "./workflow-loader.ts";
+export { loadWorkflow, loadWorkflowAsDecision } from "./workflow-loader.ts";
 
 // Label resolver
 export {

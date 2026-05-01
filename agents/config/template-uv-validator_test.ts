@@ -75,9 +75,8 @@ Deno.test("template-uv-validator - matching UV usage and declaration is valid", 
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -138,9 +137,8 @@ Deno.test("template-uv-validator - undeclared UV usage produces error", async ()
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: [],
     });
 
@@ -198,9 +196,8 @@ Deno.test("template-uv-validator - unused UV declaration produces warning", asyn
     );
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["repo"],
     });
 
@@ -250,9 +247,8 @@ Deno.test("template-uv-validator - missing prompt file produces warning", async 
   try {
     // Do NOT create any prompt file
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: ["issue"],
     });
 
@@ -313,9 +309,8 @@ Deno.test("template-uv-validator - missing C3L prompt produces skip warning", as
   const dir = await Deno.makeTempDir();
   try {
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: [],
     });
 
@@ -467,9 +462,13 @@ Deno.test("template-uv-validator - multiple UV variables all declared is valid",
     );
 
     const registry = registryWith("continuation.issue", {
-      c2: "continuation",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "issue",
+        edition: "default",
+      },
       uvVariables: ["issue", "previous_summary", "iteration"],
     });
 
@@ -534,9 +533,13 @@ Deno.test("template-uv-validator - mixed undeclared and unused produces both err
     );
 
     const registry = registryWith("initial.project", {
-      c2: "initial",
-      c3: "project",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "initial",
+        c3: "project",
+        edition: "default",
+      },
       uvVariables: declaredUvNames,
     });
 
@@ -611,10 +614,14 @@ Deno.test("template-uv-validator - adaptation path resolves correctly", async ()
     );
 
     const registry = registryWith("initial.issue.label_only", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
-      adaptation: "label_only",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "initial",
+        c3: "issue",
+        edition: "default",
+        adaptation: "label_only",
+      },
       uvVariables: ["issue"],
     });
 
@@ -676,9 +683,8 @@ Deno.test("template-uv-validator - only C3L file UVs are checked", async () => {
     ).length; // 1: "issue"
 
     const registry = registryWith("initial.issue", {
-      c2: "initial",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: { c1: "steps", c2: "initial", c3: "issue", edition: "default" },
       uvVariables: declaredUvNames,
     });
 
@@ -723,9 +729,13 @@ Deno.test("template-uv-validator - missing C3L prompt skips UV check with warnin
   const dir = await Deno.makeTempDir();
   try {
     const registry = registryWith("continuation.issue", {
-      c2: "continuation",
-      c3: "issue",
-      edition: "default",
+      kind: "work",
+      address: {
+        c1: "steps",
+        c2: "continuation",
+        c3: "issue",
+        edition: "default",
+      },
       uvVariables: ["issue"],
     });
 
@@ -787,9 +797,10 @@ Deno.test("template-uv-validator - step with missing c2 is skipped", async () =>
   const dir = await Deno.makeTempDir();
   try {
     const registry = registryWith("initial.issue", {
+      kind: "work",
+      address: { c1: "steps", edition: "default" },
       // c2 missing
       c3: "issue",
-      edition: "default",
       uvVariables: ["issue"],
     });
 

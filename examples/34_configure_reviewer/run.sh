@@ -46,7 +46,7 @@ main() {
   "version": "1.0.0",
   "c1": "steps",
   "entryStepMapping": {
-    "detect:keyword": "initial.review"
+    "detect:keyword": { "initial": "initial.review", "continuation": "initial.review" }
   },
   "steps": {
     "system": {

@@ -1,6 +1,10 @@
 {
   "$schema": "../agents/orchestrator/workflow-schema.json",
   "version": "1.0.0",
+  "issueSource": {
+    "kind": "ghRepoIssues",
+    "projectMembership": "unbound"
+  },
   "labelPrefix": "merge",
   "phases": {
     "merge-ready": {

@@ -13,6 +13,7 @@ import type {
   VerdictType,
 } from "../src_common/types.ts";
 import { ALL_VERDICT_TYPES } from "../src_common/types.ts";
+import { type Decision, decisionFromLegacy } from "../shared/validation/mod.ts";
 
 /**
  * Type guard to check if a string is a valid VerdictType
@@ -476,4 +477,34 @@ export function validateComplete(
   }
 
   return result;
+}
+
+/**
+ * Decision-shaped sibling of {@link validate}.
+ *
+ * Returns `Decision<void>` keyed to design rule **A2** (agent.json
+ * SemVer + structural integrity, design 13 §G). Errors are accumulated
+ * — first-error-wins is not preserved.
+ *
+ * Note: T1.4 maps `validate`'s checks (required fields, naming
+ * convention, parameters, verdict config, runner) to the closest-fit
+ * code A2; finer per-rule split is deferred to T2.2.
+ */
+export function validateAsDecision(
+  definition: unknown,
+): Decision<void> {
+  const result = validate(definition);
+  return decisionFromLegacy(result, "A2", "agent.json");
+}
+
+/**
+ * Decision-shaped sibling of {@link validateComplete}.
+ *
+ * Same code mapping as {@link validateAsDecision}.
+ */
+export function validateCompleteAsDecision(
+  definition: AgentDefinition,
+): Decision<void> {
+  const result = validateComplete(definition);
+  return decisionFromLegacy(result, "A2", "agent.json");
 }

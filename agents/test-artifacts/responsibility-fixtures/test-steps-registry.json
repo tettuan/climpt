@@ -71,10 +71,13 @@
     "initial.test": {
       "stepId": "initial.test",
       "name": "Test Initial Step",
-      "stepKind": "work",
-      "c2": "initial",
-      "c3": "test",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
@@ -101,10 +104,13 @@
     "continuation.test": {
       "stepId": "continuation.test",
       "name": "Test Continuation Step",
-      "stepKind": "work",
-      "c2": "continuation",
-      "c3": "test",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "continuation",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {
@@ -135,10 +141,13 @@
     "closure.test": {
       "stepId": "closure.test",
       "name": "Test Closure Step",
-      "stepKind": "closure",
-      "c2": "closure",
-      "c3": "test",
-      "edition": "default",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "test",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "structuredGate": {

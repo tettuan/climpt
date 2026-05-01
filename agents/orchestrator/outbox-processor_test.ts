@@ -9,6 +9,32 @@ import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
 import type { Project, ProjectField } from "./github-client.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { OutboxProcessor } from "./outbox-processor.ts";
+import { OutboxClosePreChannel } from "../channels/outbox-close-pre.ts";
+import { createCloseEventBus } from "../events/bus.ts";
+import { createRealCloseTransport } from "../transports/close-transport.ts";
+
+/**
+ * Build the OutboxClose-pre channel wired against a real CloseTransport
+ * delegating to the supplied stub GitHubClient. Tests that exercise the
+ * `close-issue` OutboxAction must pass this channel into the processor
+ * (PR4-3 / T4.4b cutover): direct `github.closeIssue` invocation from
+ * the processor was deleted, so the channel is the only path that
+ * reaches the GitHubClient seam.
+ */
+function buildOutboxClosePre(
+  github: GitHubClient,
+): OutboxClosePreChannel {
+  const bus = createCloseEventBus();
+  const transport = createRealCloseTransport(github);
+  const channel = new OutboxClosePreChannel({
+    closeTransport: transport,
+    bus,
+    runId: "test-run-outbox",
+  });
+  channel.register(bus);
+  bus.freeze();
+  return channel;
+}
 
 /** Stub GitHubClient that records calls and can be configured to fail. */
 class StubGitHubClient implements GitHubClient {
@@ -283,7 +309,13 @@ Deno.test("process multiple actions in sequence order", async () => {
     });
 
     const github = new StubGitHubClient();
-    const processor = new OutboxProcessor(github, store);
+    const processor = new OutboxProcessor(
+      github,
+      store,
+      undefined,
+      undefined,
+      buildOutboxClosePre(github),
+    );
     const results = await processor.process(5);
 
     assertEquals(results.length, 3);
@@ -363,13 +395,23 @@ Deno.test("process close-issue action", async () => {
     });
 
     const github = new StubGitHubClient();
-    const processor = new OutboxProcessor(github, store);
+    const processor = new OutboxProcessor(
+      github,
+      store,
+      undefined,
+      undefined,
+      buildOutboxClosePre(github),
+    );
     const results = await processor.process(40);
 
     assertEquals(results.length, 1);
     assertEquals(results[0].action, "close-issue");
     assertEquals(results[0].success, true);
 
+    // PR4-3 (T4.4b cutover): the processor delegates close-issue to the
+    // OutboxClose-pre channel which routes through the
+    // `createRealCloseTransport(github)` seam → `github.closeIssue(40)`.
+    // The transport call surfaces as `closeIssue` on the stub client.
     assertEquals(github.calls[0].method, "closeIssue");
     assertEquals(github.calls[0].args, [40]);
   } finally {
@@ -414,7 +456,13 @@ Deno.test("partial failure: results reflect both success and failure", async () 
     const github = new StubGitHubClient();
     github.failOn("closeIssue");
 
-    const processor = new OutboxProcessor(github, store);
+    const processor = new OutboxProcessor(
+      github,
+      store,
+      undefined,
+      undefined,
+      buildOutboxClosePre(github),
+    );
     const results = await processor.process(60);
 
     assertEquals(results.length, 2);

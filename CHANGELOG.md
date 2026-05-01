@@ -7,13 +7,162 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Migration (breaking) — `.agent/workflow.json` schema
+
+Repositories using the legacy fields below MUST rewrite `.agent/workflow.json`
+before installing this release. No backward compatibility is provided: the
+loader rejects the legacy shape at load time.
+
+#### Replacement mapping
+
+| Legacy field (removed) | New field | Hint |
+|------------------------|-----------|------|
+| `closeOnComplete: true` (per agent) | `closeBinding: { primary: { kind: "direct" } }` | `direct` = close on terminal-bound transition (default choice). |
+| `closeOnComplete: false` (per agent) or field absent | omit `closeBinding` (equivalent to `{ primary: { kind: "none" } }`) | Handoff-only agent; no close path. |
+| `closeCondition: "<outcome>"` (per agent) | `closeBinding.condition: "<outcome>"` | Outcome-equality guard; must be a key in `outputPhases`. |
+| `validationConditions: [...]` (steps_registry validators) | `preflightConditions: [...]` + `postLLMConditions: [...]` | Split per failure scope: preflight = abort-only; postLLM = retry-able. |
+| `criteria.allProjects: true` | `issueSource: { kind: "ghRepoIssues", projectMembership: "any" }` | Cross-repo label/state filter spanning any project membership. |
+| `criteria.*` field-presence pattern | `issueSource: { kind: "ghProject" \| "ghRepoIssues" \| "explicit", ... }` | Declared explicitly via `kind` (3-variant ADT). |
+| `dryRun: true` (declarative flag) | removed from schema | Use `Transport=File` at runtime instead (design 01 §D). |
+| `OrchestratorResult.issueClosed` (consumer code) | observe `IssueClosedEvent` / `IssueCloseFailedEvent` on the bus | Consumers subscribe instead of polling a result field. |
+
+> If a legacy config carries only `closeCondition` (without `closeOnComplete`),
+> migration to `closeBinding.condition` is still required: the loader rejects
+> the legacy `closeCondition` field on its own.
+
+`closeBinding.primary.kind` has 5 variants — choose by close-decision channel:
+
+- `direct` — close on terminal-bound phase transition (typical)
+- `boundary` — close at Closure-step boundary, independent of phase transition
+- `outboxPre` — close via outbox `PreClose` action
+- `custom` — user-defined channel (`channel.channelId` required)
+- `none` — no close path (handoff-only)
+
+#### Example: one agent, before / after
+
+```jsonc
+// before
+"agents": {
+  "iterator": {
+    "role": "transformer",
+    "closeOnComplete": true,
+    "closeCondition": "ok"
+  }
+}
+
+// after
+"agents": {
+  "iterator": {
+    "role": "transformer",
+    "closeBinding": {
+      "primary": { "kind": "direct" },
+      "condition": "ok"
+    }
+  }
+}
+```
+
+#### sed-pattern (best-effort)
+
+> Note: `workflow.json` is restructured, not just renamed. Mechanical
+> substitution does not complete the migration. Run `deno task ci` (or
+> the agent loader) and confirm the loader does not reject the resulting
+> shape.
+
+> The sed pattern below matches only canonical line-oriented jsonc (one
+> field per line, trailing `,`, double-quoted keys). Inline forms such as
+> `{ "closeOnComplete": true }`, alternate quoting, or blocks with inline
+> comments are silently skipped and must be migrated by hand. Final
+> verification is `deno task ci` (workflow loader rejects any remaining
+> legacy field).
+
+Starting points for grep / sed / jq:
+
+- Locate agents that need rewriting:
+  ```sh
+  grep -nE '"closeOnComplete"|"closeCondition"' .agent/workflow.json
+  ```
+- Delete the two legacy keys (manual rewrite of `closeBinding` still required):
+  ```sh
+  sed -i.bak -E '/^[[:space:]]*"closeOnComplete":[[:space:]]*(true|false),?$/d; /^[[:space:]]*"closeCondition":[[:space:]]*"[^"]*",?$/d' .agent/workflow.json
+  ```
+- Replace `criteria.allProjects: true` blocks (manual rewrite to `issueSource`):
+  ```sh
+  grep -nE '"allProjects"[[:space:]]*:[[:space:]]*true' .agent/workflow.json
+  ```
+- Locate `validationConditions` arrays for split into preflight / postLLM:
+  ```sh
+  grep -n '"validationConditions"' .agent/steps_registry.json
+  ```
+- Locate the declarative `dryRun` flag for removal:
+  ```sh
+  grep -nE '"dryRun"[[:space:]]*:[[:space:]]*true' .agent/workflow.json
+  ```
+
+#### Items NOT requiring migration
+
+- `agents: Record<string, AgentDefinition>` map — disk shape stays; the
+  loader derives the runtime `invocations` view via `deriveInvocations()`.
+- `phases.{id}.agent: string | null` — disk shape stays.
+- `outputPhase` / `outputPhases` / `fallbackPhase` / `fallbackPhases` —
+  disk shape stays.
+- `agent.role` enum on `workflow.json` — still 2-value (`"transformer"
+  | "validator"`).
+
+#### Detailed reference
+
+- `agents/docs/builder/06_workflow_setup.md` — Close binding section
+- `agents/docs/builder/09_closure_output_contract.md`
+- Internal design: `agents/docs/design/realistic/13-agent-config.md` §F
+
 ### Added
+- **Realistic-design migration (Phase 1-6 complete).** ADT-first
+  rewrite of the agent runtime so the 7 MUST requirements
+  (R1..R6 + Layer-4 inheritance) are each anchored by a structural
+  hard gate. Highlights:
+  - `agents/boot/` — `BootKernel` + 27 boot rules (W1..W11 / A1..A8 /
+    S1..S8) + deepFreeze of the assembled `BootArtifacts` tree
+    (Critique F1 single-freeze invariant)
+  - `agents/events/` — `CloseEventBus` with 8 events, frozen
+    subscriber set, diagnostic JSONL subscriber
+  - `agents/channels/` — 6 close channels (DirectClose / OutboxClose-pre /
+    OutboxClose-post / BoundaryClose / CascadeClose / MergeClose) +
+    `CompensationCommentChannel` (W13 contract: comment-only
+    compensation on close failure, no label rollback) +
+    `CustomCloseChannel` skeleton + `MergeCloseAdapter` bridging
+    merge-pr facts onto the bus
+  - `agents/orchestrator/subject-picker.ts` — R2b mode unification:
+    run-agent now flows through the same `SubjectPicker` instance as
+    the orchestrator, with input source switched to argv (no
+    bypass picker)
+  - `GateIntent` reduced to 6 values (`abort` removed; reclassified
+    as `error-recovery` per design 16 §F)
+  - `AgentBundle.closeBinding` is the single declarative source of
+    truth for close-path declaration (legacy on-disk
+    `runner.verdict.handoff` removed from the active path)
+  - `Policy.applyToSubprocess` honoured: `BootKernel.boot` writes
+    `tmp/boot-policy-<runId>.json`; `merge-pr` reads + freezes the
+    inherited Policy via `BOOT_POLICY_FILE` / `CLIMPT_PARENT_RUN_ID`
+    env (design 20 §E + Critique F15 inheritance contract)
+  - `tools/lint-anti-list.ts` + `tools/lint-inline-schema.ts` enforce
+    the design's anti-list invariants at lint time
+  - `agents/traceability/r1-r7_test.ts` — 7-MUST × design-element
+    structural matrix asserts each hard gate is reachable
 - Considerer `deferred_items[]` carves roadmap-scale scope into
   follow-up issues: schema field + prompt branch. Orchestrator
   (`DeferredItemsEmitter`) expands each entry into an outbox
   `create-issue` action before the current issue closes in T6,
   so residual tasks are discoverable via the label trail instead
   of close-comment prose (#480)
+
+### Removed
+- `GateIntent.abort` variant: the 12 historical sites are
+  reclassified to `error-recovery`. Routing collapses through the
+  remaining 6-value enum so the closure boundary stays exhaustive.
+- Legacy procedural close paths in `orchestrator.ts`,
+  `outbox-processor.ts`, and `verdict/external-state-adapter.ts`:
+  every close now flows through a declarative `Channel.execute` —
+  the orchestrator no longer calls `closeIssue` directly.
 
 ## [1.13.26] - 2026-04-18
 

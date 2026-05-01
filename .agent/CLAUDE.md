@@ -117,6 +117,7 @@ MUST live under `.agent/climpt/`, never at `.agent/<top-level>/`.
 | `.agent/climpt/tmp/issues-execute/<N>/outbox/` | shared | per-issue handoff outbox, subject store |
 | `.agent/climpt/out/` | shared | shared runtime output (e.g. `kind_at_triage/<N>.txt` written by triager and read by iterator/considerer) |
 | `.agent/workflow.json` | shared | workflow definition, labels, projectBinding |
+| `.agent/recovery-procedures.md` | shared | exception-only manual recovery steps for poisoned workflow state (cycle reset 等) |
 
 When introducing a new shared artifact, place it under `.agent/climpt/` and
 reference it from the consuming agents' prompts. Do NOT create new top-level

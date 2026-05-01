@@ -161,10 +161,14 @@ export async function validateFrontmatterRegistry(
     const step = asRecord(stepDef);
     if (!step) continue;
 
-    const c2 = step.c2;
-    const c3 = step.c3;
-    const edition = step.edition;
-    const adaptation = step.adaptation;
+    // Read C3L coordinates from the typed `address` aggregate (design 14
+    // §C). The disk shape places C3L coordinates inside `address`, never
+    // as flat siblings on the step object.
+    const address = asRecord(step.address) ?? {};
+    const c2 = address.c2;
+    const c3 = address.c3;
+    const edition = address.edition;
+    const adaptation = address.adaptation;
     const uvVariables = step.uvVariables;
 
     if (
@@ -184,13 +188,16 @@ export async function validateFrontmatterRegistry(
       }
     }
 
-    const promptPath = buildPromptFilePath(
-      promptRoot,
+    // Build a C3LAddress for buildPromptFilePath directly from the disk
+    // `address` aggregate (design 14 §C). c1 is unused by buildPromptFilePath
+    // itself, so leaving it empty is intentional.
+    const promptPath = buildPromptFilePath(promptRoot, {
+      c1: "",
       c2,
       c3,
       edition,
-      typeof adaptation === "string" ? adaptation : undefined,
-    );
+      adaptation: typeof adaptation === "string" ? adaptation : undefined,
+    });
 
     stepsToValidate.push({
       stepId,

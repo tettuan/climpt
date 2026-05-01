@@ -19,14 +19,14 @@ import type {
 import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
 import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
-import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
+import {
+  calculateBackoff,
+  isRateLimitError,
+  parseResetTime,
+} from "./error-classifier.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
-import type {
-  PromptStepDefinition,
-  StepKind,
-} from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import type { Step, StepKind } from "../common/step-registry.ts";
 import {
   filterAllowedTools,
   getToolPolicy,
@@ -106,7 +106,7 @@ export class QueryExecutor {
         "@anthropic-ai/claude-agent-sdk"
       );
 
-      // Apply stepKind-based tool gating if we have step info
+      // Apply kind-based tool gating if we have step info
       // Append GitHubRead MCP tool when GitHub integration is enabled.
       const githubEnabled =
         this.deps.definition.runner.integrations?.github?.enabled !== false;
@@ -116,21 +116,21 @@ export class QueryExecutor {
         ),
         ...(githubEnabled ? [GITHUB_READ_TOOL_NAME] : []),
       ];
-      let currentStepKind: StepKind | undefined;
+      let currentKind: StepKind | undefined;
       let stepPermissionMode: PermissionMode | undefined;
       const stepsRegistry = this.deps.getStepsRegistry();
 
       if (stepId && stepsRegistry) {
         const stepDef = stepsRegistry.steps[stepId] as
-          | PromptStepDefinition
+          | Step
           | undefined;
         if (stepDef) {
-          currentStepKind = inferStepKind(stepDef);
+          currentKind = stepDef.kind;
           stepPermissionMode = stepDef.permissionMode;
-          if (currentStepKind) {
-            allowedTools = filterAllowedTools(allowedTools, currentStepKind);
+          if (currentKind) {
+            allowedTools = filterAllowedTools(allowedTools, currentKind);
             ctx.logger.info(
-              `[ToolPolicy] Step "${stepId}" (${currentStepKind}): tools filtered to ${allowedTools.length} allowed`,
+              `[ToolPolicy] Step "${stepId}" (${currentKind}): tools filtered to ${allowedTools.length} allowed`,
             );
           }
         }
@@ -142,7 +142,7 @@ export class QueryExecutor {
         allowedTools,
         permissionMode: resolvePermissionMode(
           stepPermissionMode,
-          currentStepKind,
+          currentKind,
           narrowAgentPermissionMode(
             this.deps.settings.settings.permissions?.defaultMode,
           ),
@@ -255,9 +255,9 @@ export class QueryExecutor {
       }
 
       // Configure PreToolUse hooks for boundary bash blocking
-      if (currentStepKind && getToolPolicy(currentStepKind).blockBoundaryBash) {
+      if (currentKind && getToolPolicy(currentKind).blockBoundaryBash) {
         const boundaryBashBlockingHook = this.createBoundaryBashBlockingHook(
-          currentStepKind,
+          currentKind,
           ctx,
         );
         queryOptions.hooks = {
@@ -269,7 +269,7 @@ export class QueryExecutor {
           ],
         };
         ctx.logger.info(
-          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (stepKind: ${currentStepKind})`,
+          `[ToolPolicy] PreToolUse hooks enabled for boundary bash blocking (kind: ${currentKind})`,
         );
       }
 
@@ -391,10 +391,32 @@ export class QueryExecutor {
         this.rateLimitRetryCount++;
 
         if (this.rateLimitRetryCount >= QueryExecutor.MAX_RATE_LIMIT_RETRIES) {
+          // Synthesize a RateLimitInfo so the orchestrator's Step 7c hook
+          // can wait until reset even when no SDK rate_limit_event was
+          // streamed before the actual 429. Priority: explicit
+          // "resets <H>am|pm" parsed from the error message → most-recent
+          // SDK event already on the summary → undefined (orchestrator
+          // treats it as a regular failure).
+          const parsedResetsAt = parseResetTime(errorMessage);
+          let rateLimitInfo = summary.rateLimitInfo;
+          if (parsedResetsAt !== null) {
+            rateLimitInfo = {
+              utilization: 1,
+              resetsAt: parsedResetsAt,
+              rateLimitType: "claude_code_message",
+            };
+          } else if (rateLimitInfo !== undefined) {
+            rateLimitInfo = { ...rateLimitInfo, utilization: 1 };
+          }
+          if (rateLimitInfo !== undefined) {
+            summary.rateLimitInfo = rateLimitInfo;
+          }
+
           const rateLimitError = new AgentRateLimitError(
             `Rate limit exceeded after ${this.rateLimitRetryCount} retries`,
             {
               attempts: this.rateLimitRetryCount,
+              ...(rateLimitInfo && { rateLimitInfo }),
               cause: error instanceof Error ? error : undefined,
               iteration,
             },
@@ -403,6 +425,7 @@ export class QueryExecutor {
           ctx.logger.error("Rate limit retries exhausted", {
             error: rateLimitError.message,
             attempts: this.rateLimitRetryCount,
+            rateLimitInfo,
           });
           throw rateLimitError;
         }
@@ -522,14 +545,14 @@ export class QueryExecutor {
    * Delegates to the module-level function.
    */
   private createBoundaryBashBlockingHook(
-    stepKind: StepKind,
+    kind: StepKind,
     ctx: RuntimeContext,
   ): (
     input: { tool_name: string; tool_input: Record<string, unknown> },
     toolUseId: string | undefined,
     options: { signal: AbortSignal },
   ) => Promise<Record<string, unknown>> {
-    return createBoundaryBashBlockingHook(stepKind, ctx);
+    return createBoundaryBashBlockingHook(kind, ctx);
   }
 }
 
@@ -616,7 +639,7 @@ export function tryParseJsonFromText(
  * @internal Exported for testing. Used by QueryExecutor.createBoundaryBashBlockingHook.
  */
 export function createBoundaryBashBlockingHook(
-  stepKind: StepKind,
+  kind: StepKind,
   ctx: RuntimeContext,
 ): (
   input: { tool_name: string; tool_input: Record<string, unknown> },
@@ -635,11 +658,11 @@ export function createBoundaryBashBlockingHook(
     }
 
     // Check if command is allowed for this step kind
-    const result = isBashCommandAllowed(command, stepKind);
+    const result = isBashCommandAllowed(command, kind);
 
     if (!result.allowed) {
       ctx.logger.warn(
-        `[ToolPolicy] Boundary bash command blocked in ${stepKind} step`,
+        `[ToolPolicy] Boundary bash command blocked in ${kind} step`,
         {
           command: command.substring(0, TRUNCATION.BASH_COMMAND),
           reason: result.reason,

@@ -1,8 +1,42 @@
 {
-  "agentId": "test-graph",
+  "agentId": "test-agent",
   "version": "1.0.0",
   "c1": "steps",
   "entryStep": "initial.analysis",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "count:iteration": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "count:check": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "detect:keyword": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "detect:structured": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "detect:graph": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "meta:composite": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    },
+    "meta:custom": {
+      "initial": "initial.analysis",
+      "continuation": "closure.review"
+    }
+  },
   "steps": {
     "initial.analysis": {
       "stepId": "initial.analysis",

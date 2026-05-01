@@ -25,7 +25,11 @@
  */
 
 import { assert, assertEquals } from "jsr:@std/assert";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import {
+  buildOrchestratorWithChannels,
+  TEST_DEFAULT_ISSUE_SOURCE,
+} from "./_test-fixtures.ts";
 import type {
   GitHubClient,
   IssueCriteria,
@@ -219,36 +223,47 @@ class OrderingStubGitHubClient implements GitHubClient {
 }
 
 // =============================================================================
-// Config: modeled after considerer (validator with closeOnComplete).
+// Config: modeled after considerer (validator with closeBinding direct).
 // Source of truth: considerer's config contract (done → complete → close).
 // =============================================================================
 
 function createConsidererLikeConfig(): WorkflowConfig {
+  const phases = {
+    consider: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "considerer",
+    },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    considerer: {
+      role: "validator" as const,
+      directory: "considerer",
+      outputPhases: {
+        done: "complete",
+        "handoff-detail": "complete",
+      },
+      fallbackPhase: "blocked",
+      closeBinding: {
+        primary: { kind: "direct" as const },
+        cascade: false,
+        condition: "done",
+      },
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      consider: { type: "actionable", priority: 1, agent: "considerer" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       "kind:consider": "consider",
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      considerer: {
-        role: "validator",
-        directory: "considerer",
-        outputPhases: {
-          done: "complete",
-          "handoff-detail": "complete",
-        },
-        fallbackPhase: "blocked",
-        closeOnComplete: true,
-        closeCondition: "done",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: { maxCycles: 2, cycleDelayMs: 0 },
   };
 }
@@ -453,14 +468,17 @@ Deno.test(
         undefined,
         structuredOutput,
       );
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       const result = await orchestrator.run(SUBJECT_ID, {}, store);
 
       // Cycle outcome — preconditions for invariant checks.
       assertEquals(result.status, "completed");
       assertEquals(result.finalPhase, "complete");
-      assertEquals(result.issueClosed, true);
+      // T6.2: result.issueClosed deleted; closeIssue presence is asserted
+      // via INV-TARGET (assertCloseTargets) below.
       assertEquals(result.cycleCount, 1);
 
       // Invariant checks — each property independently diagnosable.
@@ -515,11 +533,14 @@ Deno.test(
         undefined,
         structuredOutput,
       );
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       const result = await orchestrator.run(SUBJECT_ID, {}, store);
 
-      assertEquals(result.issueClosed, true);
+      // T6.2: result.issueClosed deleted; closeIssue presence is asserted
+      // via INV-TARGET (assertCloseTargets) below.
       assertEquals(
         indicesOfKind(github.log, "createIssue").length,
         0,
@@ -574,11 +595,14 @@ Deno.test(
         undefined,
         structuredOutput,
       );
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       const result = await orchestrator.run(SUBJECT_ID, {}, store);
 
-      assertEquals(result.issueClosed, true);
+      // T6.2: result.issueClosed deleted; closeIssue presence is asserted
+      // via INV-TARGET (assertCloseTargets) below.
       assertEquals(
         github.createdIssueNumbers.length,
         0,
@@ -647,14 +671,16 @@ Deno.test(
       };
 
       // outcome = "blocked" → fallbackPhase → "blocked" (type: blocking)
-      // closeCondition = "done" !== "blocked" → closeIntent = false
+      // closeBinding.condition = "done" !== "blocked" → closeIntent = false
       const dispatcher = new StubDispatcher(
         { considerer: "blocked" },
         undefined,
         undefined,
         structuredOutput,
       );
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       const result = await orchestrator.run(SUBJECT_ID, {}, store);
 
@@ -665,10 +691,15 @@ Deno.test(
         `Expected status "blocked", got "${result.status}". ` +
           `Blocked verdict must transition to blocking phase.`,
       );
-      assert(
-        !result.issueClosed,
+      // T6.2: result.issueClosed deleted. Verify no close via the spy log.
+      const closeCallsBlocked = github.log.filter((e) =>
+        e.kind === "closeIssue"
+      );
+      assertEquals(
+        closeCallsBlocked.length,
+        0,
         `Issue must NOT be closed on blocked verdict, ` +
-          `got issueClosed=${result.issueClosed}.`,
+          `got ${closeCallsBlocked.length} closeIssue calls.`,
       );
 
       // C2 invariant: zero createIssue despite non-empty deferred_items.
@@ -749,12 +780,15 @@ Deno.test(
         undefined,
         structuredOutput,
       );
-      const orchestrator = new Orchestrator(config, github, dispatcher);
+      const orchestrator =
+        buildOrchestratorWithChannels({ config, github, dispatcher })
+          .orchestrator;
 
       const result = await orchestrator.run(SUBJECT_ID, {}, store);
 
       assertEquals(result.status, "completed");
-      assertEquals(result.issueClosed, true);
+      // T6.2: result.issueClosed deleted; closeIssue presence is asserted
+      // via INV-TARGET (assertCloseTargets) below.
 
       // C2 regression: deferred_items must still be emitted on close path.
       const createCalls = createCallsInOrder(github.log);

@@ -31,7 +31,13 @@ function validFlowRegistry(): Record<string, unknown> {
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "continuation.issue" },
           repeat: { target: "initial.issue" },
@@ -39,7 +45,13 @@ function validFlowRegistry(): Record<string, unknown> {
       },
       "continuation.issue": {
         stepId: "continuation.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
           repeat: { target: "continuation.issue" },
@@ -47,7 +59,13 @@ function validFlowRegistry(): Record<string, unknown> {
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.issue" },
@@ -81,7 +99,8 @@ Deno.test("flow-validator - orphan step produces warning not error", () => {
   // Add a disconnected step
   steps["orphan.step"] = {
     stepId: "orphan.step",
-    c2: "initial",
+    kind: "work",
+    address: { c1: "steps", c2: "initial", c3: "default", edition: "default" },
     transitions: {},
   };
 
@@ -104,7 +123,7 @@ Deno.test("flow-validator - section step is not flagged as orphan", () => {
   // Add a section step (not connected to transitions)
   steps["section.context"] = {
     stepId: "section.context",
-    c2: "section",
+    address: { c1: "steps", c2: "section", c3: "default", edition: "default" },
     transitions: {},
   };
 
@@ -132,7 +151,13 @@ Deno.test("flow-validator - unreachable closure produces error", () => {
   // Make continuation.issue terminal (no path to closure)
   steps["continuation.issue"] = {
     stepId: "continuation.issue",
-    c2: "continuation",
+    kind: "work",
+    address: {
+      c1: "steps",
+      c2: "continuation",
+      c3: "default",
+      edition: "default",
+    },
     transitions: {
       next: { target: null },
     },
@@ -152,7 +177,13 @@ Deno.test("flow-validator - closure exists but unreachable produces error", () =
   // Disconnect continuation from closure -- make it only self-loop
   steps["continuation.issue"] = {
     stepId: "continuation.issue",
-    c2: "continuation",
+    kind: "work",
+    address: {
+      c1: "steps",
+      c2: "continuation",
+      c3: "default",
+      edition: "default",
+    },
     transitions: {
       next: { target: "continuation.issue" },
       repeat: { target: "continuation.issue" },
@@ -216,7 +247,13 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
     steps: {
       "step.work": {
         stepId: "step.work",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "step.verification" },
           repeat: { target: "step.work" },
@@ -226,7 +263,13 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
       },
       "step.verification": {
         stepId: "step.verification",
-        c2: "verification",
+        kind: "verification",
+        address: {
+          c1: "steps",
+          c2: "verification",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "step.closure" },
           repeat: { target: "step.verification" },
@@ -236,7 +279,13 @@ Deno.test("flow-validator - all valid intents produce no unknown-intent warnings
       },
       "step.closure": {
         stepId: "step.closure",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "step.closure" },
@@ -300,28 +349,52 @@ Deno.test("flow-validator - multiple entry points reaching different closures", 
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
       },
       "initial.project": {
         stepId: "initial.project",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.project" },
         },
       },
       "closure.project": {
         stepId: "closure.project",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -345,14 +418,26 @@ Deno.test("flow-validator - entryStep (singular) reaches closure", () => {
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -372,14 +457,26 @@ Deno.test("flow-validator - entryStep pointing to non-existent step is skipped",
     steps: {
       "initial.issue": {
         stepId: "initial.issue",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -411,7 +508,13 @@ Deno.test("flow-validator/P1-1 - work step with closing transition produces erro
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -443,7 +546,13 @@ Deno.test("flow-validator/P1-1 - closure step with next transition produces erro
     steps: {
       "close.step": {
         stepId: "close.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "close.step" },
           closing: { target: null },
@@ -476,7 +585,13 @@ Deno.test("flow-validator/P1-1 - valid work step with next and repeat produces n
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "work.step2" },
           repeat: { target: "work.step" },
@@ -485,14 +600,26 @@ Deno.test("flow-validator/P1-1 - valid work step with next and repeat produces n
       },
       "work.step2": {
         stepId: "work.step2",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.step" },
@@ -517,7 +644,13 @@ Deno.test("flow-validator/P1-1 - valid closure step with closing and repeat prod
     steps: {
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
           repeat: { target: "closure.step" },
@@ -545,7 +678,13 @@ Deno.test("flow-validator/P1-2 - allowedIntents has handoff but no handoff trans
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat", "handoff"],
           intentSchemaRef: "#/test",
@@ -559,7 +698,13 @@ Deno.test("flow-validator/P1-2 - allowedIntents has handoff but no handoff trans
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -591,7 +736,13 @@ Deno.test("flow-validator/P1-2 - transition defined but not in allowedIntents pr
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat"],
           intentSchemaRef: "#/test",
@@ -605,7 +756,13 @@ Deno.test("flow-validator/P1-2 - transition defined but not in allowedIntents pr
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -638,7 +795,13 @@ Deno.test("flow-validator/P1-2 - aligned allowedIntents and transitions produce 
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat", "handoff"],
           intentSchemaRef: "#/test",
@@ -652,7 +815,13 @@ Deno.test("flow-validator/P1-2 - aligned allowedIntents and transitions produce 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -685,7 +854,13 @@ Deno.test("flow-validator/P1-3 - work step with escalate transition produces err
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
           escalate: { target: "work.step" },
@@ -693,7 +868,13 @@ Deno.test("flow-validator/P1-3 - work step with escalate transition produces err
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -729,7 +910,13 @@ Deno.test("flow-validator/P1-4 - initial step with handoff produces warning ment
     steps: {
       "init.step": {
         stepId: "init.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "init.step" },
           handoff: { target: "closure.step" },
@@ -737,7 +924,13 @@ Deno.test("flow-validator/P1-4 - initial step with handoff produces warning ment
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -801,7 +994,13 @@ Deno.test("flow-validator/P2-2 - transition target that does not exist produces 
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "nonexistent.step" },
           handoff: { target: "closure.step" },
@@ -809,7 +1008,13 @@ Deno.test("flow-validator/P2-2 - transition target that does not exist produces 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -840,7 +1045,13 @@ Deno.test("flow-validator/P2-2 - all targets exist produces no dangling target e
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "work.step" },
           handoff: { target: "closure.step" },
@@ -848,7 +1059,13 @@ Deno.test("flow-validator/P2-2 - all targets exist produces no dangling target e
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -885,21 +1102,39 @@ Deno.test("flow-validator/P2-1 - entry point that cannot reach closure produces 
     steps: {
       "work.issue": {
         stepId: "work.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.issue" },
         },
       },
       "closure.issue": {
         stepId: "closure.issue",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
       },
       "work.project": {
         stepId: "work.project",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // Only self-loop, no path to any closure step
           next: { target: "work.project" },
@@ -943,21 +1178,39 @@ Deno.test("flow-validator/P2-1 - both entry points reach closure produces no per
     steps: {
       "work.issue": {
         stepId: "work.issue",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.shared" },
         },
       },
       "work.project": {
         stepId: "work.project",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.shared" },
         },
       },
       "closure.shared": {
         stepId: "closure.shared",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -992,14 +1245,26 @@ Deno.test("flow-validator/P2-5 - orphan step with structuredGate produces error"
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1007,7 +1272,13 @@ Deno.test("flow-validator/P2-5 - orphan step with structuredGate produces error"
       // Orphan step with structuredGate -> should be error
       "orphan.gated": {
         stepId: "orphan.gated",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         structuredGate: {
           allowedIntents: ["next", "repeat"],
           intentSchemaRef: "#/test",
@@ -1044,14 +1315,26 @@ Deno.test("flow-validator/P2-5 - orphan step without structuredGate produces war
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1059,7 +1342,13 @@ Deno.test("flow-validator/P2-5 - orphan step without structuredGate produces war
       // Orphan step without structuredGate -> should be warning only
       "orphan.simple": {
         stepId: "orphan.simple",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {},
       },
     },
@@ -1102,7 +1391,13 @@ Deno.test("flow-validator/P2-3 - work step next targeting closure step produces 
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // next from work should target work/verification, NOT closure
           next: { target: "closure.step" },
@@ -1111,7 +1406,13 @@ Deno.test("flow-validator/P2-3 - work step next targeting closure step produces 
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1144,7 +1445,13 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting work step produces 
     steps: {
       "work.a": {
         stepId: "work.a",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // handoff from work should target closure, NOT work
           handoff: { target: "work.b" },
@@ -1152,14 +1459,26 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting work step produces 
       },
       "work.b": {
         stepId: "work.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1191,7 +1510,13 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting closure step produc
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           handoff: { target: "closure.step" },
           repeat: { target: "work.step" },
@@ -1199,7 +1524,13 @@ Deno.test("flow-validator/P2-3 - work step handoff targeting closure step produc
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1234,7 +1565,13 @@ Deno.test("flow-validator/P2-4a - next self-loop produces warning", () => {
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // next targeting self is suspicious
           next: { target: "work.step" },
@@ -1243,7 +1580,13 @@ Deno.test("flow-validator/P2-4a - next self-loop produces warning", () => {
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1274,7 +1617,13 @@ Deno.test("flow-validator/P2-4a - repeat self-loop produces no warning", () => {
     steps: {
       "work.step": {
         stepId: "work.step",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // repeat targeting self is by design (retry pattern)
           repeat: { target: "work.step" },
@@ -1283,7 +1632,13 @@ Deno.test("flow-validator/P2-4a - repeat self-loop produces no warning", () => {
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1319,7 +1674,13 @@ Deno.test("flow-validator/P2-4b - cycle without closure path produces error", ()
     steps: {
       "entry.step": {
         stepId: "entry.step",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           // Entry can reach closure directly (per-entry check passes)
           handoff: { target: "closure.step" },
@@ -1329,21 +1690,39 @@ Deno.test("flow-validator/P2-4b - cycle without closure path produces error", ()
       },
       "cycle.a": {
         stepId: "cycle.a",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.b" },
         },
       },
       "cycle.b": {
         stepId: "cycle.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.a" },
         },
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },
@@ -1376,14 +1755,26 @@ Deno.test("flow-validator/P2-4b - cycle with closure path produces no cycle erro
     steps: {
       "cycle.a": {
         stepId: "cycle.a",
-        c2: "initial",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "initial",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.b" },
         },
       },
       "cycle.b": {
         stepId: "cycle.b",
-        c2: "continuation",
+        kind: "work",
+        address: {
+          c1: "steps",
+          c2: "continuation",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           next: { target: "cycle.a" },
           handoff: { target: "closure.step" },
@@ -1391,7 +1782,13 @@ Deno.test("flow-validator/P2-4b - cycle with closure path produces no cycle erro
       },
       "closure.step": {
         stepId: "closure.step",
-        c2: "closure",
+        kind: "closure",
+        address: {
+          c1: "steps",
+          c2: "closure",
+          c3: "default",
+          edition: "default",
+        },
         transitions: {
           closing: { target: null },
         },

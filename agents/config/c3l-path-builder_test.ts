@@ -171,12 +171,12 @@ Deno.test("resolvePromptRoot — no config dir at all returns null", async () =>
 // =============================================================================
 
 Deno.test("buildPromptFilePath — without adaptation", () => {
-  const result = buildPromptFilePath(
-    "/root/prompts/steps",
-    "initial",
-    "issue",
-    "default",
-  );
+  const result = buildPromptFilePath("/root/prompts/steps", {
+    c1: "steps",
+    c2: "initial",
+    c3: "issue",
+    edition: "default",
+  });
 
   assertEquals(
     result,
@@ -186,13 +186,13 @@ Deno.test("buildPromptFilePath — without adaptation", () => {
 });
 
 Deno.test("buildPromptFilePath — with adaptation", () => {
-  const result = buildPromptFilePath(
-    "/root/prompts/steps",
-    "initial",
-    "issue",
-    "default",
-    "label_only",
-  );
+  const result = buildPromptFilePath("/root/prompts/steps", {
+    c1: "steps",
+    c2: "initial",
+    c3: "issue",
+    edition: "default",
+    adaptation: "label_only",
+  });
 
   assertEquals(
     result,
@@ -207,12 +207,12 @@ Deno.test("buildPromptFilePath — with adaptation", () => {
 });
 
 Deno.test("buildPromptFilePath — custom edition", () => {
-  const result = buildPromptFilePath(
-    "/root/prompts/steps",
-    "continuation",
-    "review",
-    "processing",
-  );
+  const result = buildPromptFilePath("/root/prompts/steps", {
+    c1: "steps",
+    c2: "continuation",
+    c3: "review",
+    edition: "processing",
+  });
 
   assertEquals(
     result,

@@ -104,7 +104,6 @@ export {
   srGateNoStructuredGateSteps,
   srIntentNotAllowed,
   srLoadAgentIdMismatch,
-  srLoadInvalidFormat,
   srLoadNotFound,
   srTransEscalateInvalid,
   srTransEscalateNoTransition,

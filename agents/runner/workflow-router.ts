@@ -12,14 +12,11 @@
  */
 
 import type {
-  PromptStepDefinition,
+  Step,
   StepRegistry,
   TransitionRule,
 } from "../common/step-registry.ts";
-import {
-  inferStepKind,
-  STEP_KIND_ALLOWED_INTENTS,
-} from "../common/step-registry.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry.ts";
 import type { GateInterpretation } from "./step-gate-interpreter.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
@@ -82,7 +79,7 @@ export class WorkflowRouter {
    * Route to next step based on interpretation.
    *
    * Validates intent rules:
-   * - Intent must be allowed for the step's stepKind
+   * - Intent must be allowed for the step's kind
    * - `closing` intent can only come from closure steps
    * - `escalate` routes to verification support steps
    *
@@ -110,14 +107,6 @@ export class WorkflowRouter {
         nextStepId: currentStepId,
         signalClosing: true,
         reason: interpretation.reason ?? "Intent: closing",
-      };
-    }
-
-    if (intent === "abort") {
-      return {
-        nextStepId: currentStepId,
-        signalClosing: true,
-        reason: interpretation.reason ?? "Intent: abort",
       };
     }
 
@@ -300,7 +289,7 @@ export class WorkflowRouter {
   /**
    * Get step definition from registry.
    */
-  private getStepDefinition(stepId: string): PromptStepDefinition | undefined {
+  private getStepDefinition(stepId: string): Step | undefined {
     return this.registry.steps[stepId];
   }
 
@@ -318,25 +307,20 @@ export class WorkflowRouter {
    */
   private validateIntentForStepKind(
     stepId: string,
-    stepDef: PromptStepDefinition,
+    stepDef: Step,
     intent: string,
   ): void {
-    const stepKind = inferStepKind(stepDef);
-    if (!stepKind) {
+    const kind = stepDef.kind;
+    if (!kind) {
       // Non-flow step (e.g., section.*), skip validation
       return;
     }
 
-    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[stepKind];
-
-    // Note: abort is always allowed (emergency exit)
-    if (intent === "abort") {
-      return;
-    }
+    const allowedIntents = STEP_KIND_ALLOWED_INTENTS[kind];
 
     // Check if intent is allowed for this step kind
     if (!allowedIntents.includes(intent as never)) {
-      throw srIntentNotAllowed(intent, stepKind, stepId, allowedIntents);
+      throw srIntentNotAllowed(intent, kind, stepId, allowedIntents);
     }
   }
 
@@ -358,7 +342,7 @@ export class WorkflowRouter {
     // Warn (but allow) handoff from initial steps per 08_step_flow_design.md Section 7.3:
     // "Runtime logs will warn when handoff is emitted from initial.* step"
     let initialStepWarning: string | undefined;
-    if (stepDef?.c2 === STEP_PHASE.INITIAL) {
+    if (stepDef?.address.c2 === STEP_PHASE.INITIAL) {
       initialStepWarning = `Handoff from initial step '${currentStepId}'. ` +
         `Consider using 'next' to proceed to continuation steps first. ` +
         `See design/08_step_flow_design.md Section 7.3.`;

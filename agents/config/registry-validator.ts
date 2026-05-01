@@ -12,6 +12,12 @@
  * @module
  */
 
+import {
+  type Decision,
+  decisionFromLegacyMapped,
+  type ValidationErrorCode,
+} from "../shared/validation/mod.ts";
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -221,4 +227,45 @@ export function validateCrossReferences(
   }
 
   return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Per-message rule-code mapper for the cross-reference validator.
+ *
+ * Covers **S1** (stepId unique implicit), **S2** (transition target /
+ * entryStepMapping target valid — dominant), **S7** (validators ↔
+ * failurePatterns refs), and **S8** (entryStepMapping target valid).
+ *
+ * TODO[T2.2]: split into native per-rule Decision-shaped sub-validators.
+ */
+function mapCrossRefMessageToRule(
+  message: string,
+): ValidationErrorCode | undefined {
+  if (message.includes("entryStepMapping")) return "S8";
+  if (message.includes("failurePattern")) return "S7";
+  if (
+    message.includes("references unknown step") ||
+    message.includes("references unknown validator") ||
+    message.includes(".target") ||
+    message.includes(".fallback") ||
+    message.includes(".targets[")
+  ) {
+    return "S2";
+  }
+  return undefined;
+}
+
+/**
+ * Decision-shaped sibling of {@link validateCrossReferences}.
+ */
+export function validateCrossReferencesAsDecision(
+  registry: Record<string, unknown>,
+): Decision<void> {
+  const result = validateCrossReferences(registry);
+  return decisionFromLegacyMapped(
+    { valid: result.valid, errors: result.errors },
+    mapCrossRefMessageToRule,
+    "S2",
+    "steps_registry.json",
+  );
 }

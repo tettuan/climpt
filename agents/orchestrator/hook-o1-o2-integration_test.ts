@@ -27,7 +27,11 @@ import type {
   ProjectField,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
-import type { WorkflowConfig } from "./workflow-types.ts";
+import { deriveInvocations, type WorkflowConfig } from "./workflow-types.ts";
+import {
+  buildOrchestratorWithChannels,
+  TEST_DEFAULT_ISSUE_SOURCE,
+} from "./_test-fixtures.ts";
 import { StubDispatcher } from "./dispatcher.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { SubjectStore } from "./subject-store.ts";
@@ -240,7 +244,7 @@ class ProjectStubGitHubClient implements GitHubClient {
 }
 
 // ---------------------------------------------------------------------------
-// Config factory — reviewer with closeOnComplete=true
+// Config factory — reviewer with closeBinding.primary=direct
 // ---------------------------------------------------------------------------
 /**
  * Defaults for the three T6.eval-trigger fields that ProjectBindingConfig
@@ -264,34 +268,45 @@ function createConfig(
     "inheritProjectsForCreateIssue"
   >,
 ): WorkflowConfig {
+  const phases = {
+    implementation: {
+      type: "actionable" as const,
+      priority: 1,
+      agent: "iterator",
+    },
+    review: { type: "actionable" as const, priority: 2, agent: "reviewer" },
+    complete: { type: "terminal" as const },
+    blocked: { type: "blocking" as const },
+  };
+  const agents = {
+    iterator: {
+      role: "transformer" as const,
+      outputPhase: "review",
+      fallbackPhase: "blocked",
+    },
+    reviewer: {
+      role: "validator" as const,
+      outputPhases: { approved: "complete", rejected: "implementation" },
+      fallbackPhase: "blocked",
+      closeBinding: {
+        primary: { kind: "direct" as const },
+        cascade: false,
+        condition: "approved",
+      },
+    },
+  };
   return {
     version: "1.0.0",
-    phases: {
-      implementation: { type: "actionable", priority: 1, agent: "iterator" },
-      review: { type: "actionable", priority: 2, agent: "reviewer" },
-      complete: { type: "terminal" },
-      blocked: { type: "blocking" },
-    },
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
+    phases,
     labelMapping: {
       ready: "implementation",
       review: "review",
       done: "complete",
       blocked: "blocked",
     },
-    agents: {
-      iterator: {
-        role: "transformer",
-        outputPhase: "review",
-        fallbackPhase: "blocked",
-      },
-      reviewer: {
-        role: "validator",
-        outputPhases: { approved: "complete", rejected: "implementation" },
-        fallbackPhase: "blocked",
-        closeOnComplete: true,
-        closeCondition: "approved",
-      },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: { maxCycles: 5, cycleDelayMs: 0 },
     projectBinding: projectBinding === undefined
       ? undefined
@@ -371,7 +386,9 @@ Deno.test("O2: deferred_item without projects + flag on + 1 parent project — p
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -446,7 +463,9 @@ Deno.test("O2: projects=[] — no add-to-project emitted", async () => {
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -501,7 +520,9 @@ Deno.test("O2: projects=[ref] — emits exactly that ref, ignoring parent", asyn
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -550,7 +571,9 @@ Deno.test("O2: parent in 2 projects + inherit — 2 add-to-project actions paire
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -625,7 +648,9 @@ Deno.test("O2: flag off — no inheritance emission", async () => {
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -682,7 +707,9 @@ Deno.test("I2: 0 projects — O2 inheritance no-op", async () => {
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 
@@ -739,7 +766,9 @@ Deno.test("I7: 2 projects + 2 deferred_items — each child bound to all parent 
     );
     const store = new SubjectStore(`${tmpDir}/store`);
     await writeTestIssue(store, 1);
-    const orchestrator = new Orchestrator(config, github, dispatcher);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
 
     await orchestrator.run(1, {}, store);
 

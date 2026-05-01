@@ -20,6 +20,8 @@ import {
 } from "./types.ts";
 import type { IssueVerdictHandler } from "./issue.ts";
 import { STEP_PHASE } from "../shared/step-phases.ts";
+import type { CloseEventBus } from "../events/bus.ts";
+import type { BoundaryCloseChannel } from "../channels/boundary-close.ts";
 
 /**
  * Configuration for the adapter, extracted from AgentDefinition and args.
@@ -60,6 +62,20 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   private currentSummary?: IterationSummary;
   private readonly stepIds: VerdictStepIds;
   #lastVerdict?: string;
+  /**
+   * `BoundaryCloseChannel` reference from
+   * `BootArtifacts.boundaryClose` (PR4-3). When present, the adapter
+   * invokes `handleBoundary(subjectId, agentId, stepId)` on the channel
+   * instead of shelling out to `gh issue close` itself. The channel
+   * owns the `closeTransport.close` write and publishes
+   * `IssueClosedEvent(channel: "E")` / `IssueCloseFailedEvent`.
+   *
+   * The legacy `setEventBus(bus, runId)` setter (T3.3 shadow-mode)
+   * survives only as an API shim — the bus + runId are now captured by
+   * the channel itself at boot time, so the setter no longer wires
+   * anything. Callers that pre-date PR4-3 still call it without harm.
+   */
+  #boundaryClose?: BoundaryCloseChannel;
 
   constructor(
     private readonly handler: IssueVerdictHandler,
@@ -71,6 +87,30 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
       initial: "initial.polling",
       continuation: "continuation.polling",
     };
+  }
+
+  /**
+   * Legacy late-bind shim — the bus + runId are now captured by the
+   * BoundaryClose channel directly (PR4-3 / T4.4c). Retained as a
+   * no-op so callers that pre-date the cutover (T3.3 shadow-mode
+   * tests) keep compiling.
+   */
+  setEventBus(
+    _bus: CloseEventBus | undefined,
+    _runId: string | undefined,
+  ): void {
+    // No-op after PR4-3. BoundaryClose owns the bus+runId capture.
+  }
+
+  /**
+   * Late-bind the BoundaryClose channel (PR4-3 / T4.4c). Called by the
+   * runner factory after the adapter is constructed so the existing
+   * constructor signature (used by tests) need not change. When
+   * omitted, the close path throws a clear error explaining the
+   * missing wiring (no silent fallback to direct gh CLI).
+   */
+  setBoundaryClose(channel: BoundaryCloseChannel | undefined): void {
+    this.#boundaryClose = channel;
   }
 
   /**
@@ -196,7 +236,7 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
    */
   async onBoundaryHook(payload: {
     stepId: string;
-    stepKind: "closure";
+    kind: "closure";
     structuredOutput?: Record<string, unknown>;
   }): Promise<void> {
     // Extract verdict from AI structured output if present
@@ -355,23 +395,48 @@ export class ExternalStateVerdictAdapter extends BaseVerdictHandler {
   }
 
   /**
-   * Close a GitHub issue.
-   * Non-fatal: failures are silently caught to avoid stopping the agent.
+   * Close a GitHub issue (PR4-3 / T4.4c cutover).
+   *
+   * The actual close-write is now delegated to
+   * {@link BoundaryCloseChannel.handleBoundary} — the channel owns the
+   * `closeTransport.close` invocation and publishes
+   * `IssueClosedEvent(channel: "E")` / `IssueCloseFailedEvent` (W2:
+   * direct gh CLI from a verdict adapter is forbidden). The legacy
+   * `Deno.Command("gh", ["issue", "close", ...])` shell-out has been
+   * deleted.
+   *
+   * Non-fatal: failures inside the channel are caught here so the
+   * agent's closure step does not abort. The channel still publishes
+   * the failure event before throwing.
    */
   private async closeIssue(
     issueNumber: number,
-    repo: string | undefined,
+    _repo: string | undefined,
   ): Promise<void> {
-    const args = ["issue", "close", String(issueNumber)];
-    if (repo) args.push("--repo", repo);
+    if (this.#boundaryClose === undefined) {
+      throw new Error(
+        "ExternalStateVerdictAdapter: closeIssue invoked but no " +
+          "BoundaryCloseChannel was wired. The runner factory must call " +
+          "setBoundaryClose(BootArtifacts.boundaryClose) before the " +
+          "closure step boundary hook fires (PR4-3 T4.4c cutover).",
+      );
+    }
     try {
-      await new Deno.Command("gh", {
-        args,
-        stdout: "piped",
-        stderr: "piped",
-      }).output();
+      await this.#boundaryClose.handleBoundary(
+        issueNumber,
+        // The verdict adapter does not carry the dispatching agent id
+        // verbatim; pass a stable diagnostic label instead so the
+        // event log carries an identifying string.
+        "external-state-adapter",
+        // The verdict adapter likewise lacks the closure stepId at
+        // this site (the boundary hook payload is the source); pass a
+        // stable label so the event log carries one.
+        "closure.external-state",
+      );
     } catch {
-      // Non-fatal: issue close failure should not stop the agent
+      // Non-fatal: issue close failure should not stop the agent. The
+      // channel already published `IssueCloseFailedEvent(channel: "E")`
+      // before throwing, so the bus carries the failure trace.
     }
   }
 }

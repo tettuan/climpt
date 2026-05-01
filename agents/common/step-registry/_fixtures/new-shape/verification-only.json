@@ -1,0 +1,36 @@
+{
+  "agentId": "fixture-verification",
+  "version": "1.0.0",
+  "c1": "steps",
+  "entryStepMapping": {
+    "poll:state": {
+      "initial": "verification.review",
+      "continuation": "verification.review"
+    }
+  },
+  "steps": {
+    "verification.review": {
+      "stepId": "verification.review",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "verification",
+        "c3": "review",
+        "edition": "default"
+      },
+      "name": "Verification Review",
+      "uvVariables": [],
+      "usesStdin": false,
+      "structuredGate": {
+        "allowedIntents": ["next", "repeat", "escalate"],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action"
+      },
+      "transitions": {
+        "next": { "target": null },
+        "repeat": { "target": "verification.review" },
+        "escalate": { "target": null }
+      }
+    }
+  }
+}

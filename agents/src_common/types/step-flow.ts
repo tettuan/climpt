@@ -32,9 +32,9 @@ export interface StepsRegistry {
 /**
  * Step definition for step flow execution control.
  *
- * NOTE: This is different from PromptStepDefinition in common/step-registry.ts.
+ * NOTE: This is different from Step in common/step-registry.ts.
  * - FlowStepDefinition (here): Step flow execution and state machine control
- * - PromptStepDefinition (common): C3L-based prompt file resolution
+ * - Step (common/step-registry): C3L-based prompt file resolution
  */
 export interface FlowStepDefinition {
   id: string;
@@ -109,7 +109,7 @@ export interface IterationConfig {
 /**
  * Check definition for step completion
  *
- * @deprecated Use structuredGate/transitions in PromptStepDefinition instead.
+ * @deprecated Use structuredGate/transitions in Step instead.
  * See agents/common/step-registry.ts for the new approach.
  */
 export interface CheckDefinition {

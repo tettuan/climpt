@@ -16,8 +16,7 @@ import type {
   RuntimeContext,
 } from "../src_common/types.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
-import type { PromptStepDefinition } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
+import type { Step } from "../common/step-registry.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import { StepContextImpl } from "../loop/step-context.ts";
 import type { StepContext } from "../src_common/contracts.ts";
@@ -240,14 +239,14 @@ export class FlowOrchestrator {
 
     // Get step definition
     const stepDef = stepsRegistry.steps[stepId] as
-      | PromptStepDefinition
+      | Step
       | undefined;
     if (!stepDef?.structuredGate) {
       return null;
     }
 
     // Get step kind for logging
-    const stepKind = inferStepKind(stepDef);
+    const kind = stepDef.kind;
 
     // Interpret structured output through the gate
     const interpretation = stepGateInterpreter.interpret(
@@ -257,7 +256,7 @@ export class FlowOrchestrator {
 
     ctx.logger.info(`[StepFlow] Interpreted intent: ${interpretation.intent}`, {
       stepId,
-      stepKind,
+      kind,
       target: interpretation.target,
       usedFallback: interpretation.usedFallback,
       reason: interpretation.reason,
@@ -282,7 +281,7 @@ export class FlowOrchestrator {
     ctx.logger.info(
       `[StepFlow] Routing decision: ${stepId} -> ${routing.nextStepId}`,
       {
-        stepKind,
+        kind,
         intent: interpretation.intent,
         signalClosing: routing.signalClosing,
         reason: routing.reason,

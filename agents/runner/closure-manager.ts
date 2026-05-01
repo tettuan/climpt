@@ -33,8 +33,6 @@ import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
-import type { StepRegistry } from "../common/step-registry.ts";
-import { inferStepKind } from "../common/step-registry.ts";
 import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
@@ -96,16 +94,24 @@ export class ClosureManager {
 
     try {
       // Use loadStepRegistry for unified validation (fail-fast per design/08_step_flow_design.md)
+      //
+      // Explicit opt-out via the discriminated `RegistryLoaderOptOutOptions`
+      // variant (T29 / critique-5 B#2): closure-manager resolves
+      // `schemasDir` from cwd-rooted `.agent/<name>/schemas` *after* load
+      // and runs `validateIntentSchemaEnums` itself a few lines below.
+      // The strict variant (default) requires `schemasDir` at the type
+      // level — picking the opt-out variant here is the only way to defer
+      // enum validation to the caller without a bogus placeholder path.
       const registry = await loadStepRegistry(
         this.deps.definition.name,
         "", // Not used when registryPath is provided
         {
           registryPath,
-          validateIntentEnums: false, // Defer enum validation
+          validateIntentEnums: false,
         },
       );
       logger.debug(
-        "Registry validation passed (stepKind, entryStep, intentSchemaRef format)",
+        "Registry validation passed (kind, entryStep, intentSchemaRef format)",
       );
 
       const schemasDir = join(
@@ -138,17 +144,22 @@ export class ClosureManager {
       const stepsRegistry: ExtendedStepsRegistry = registry;
       this.stepsRegistry = stepsRegistry;
 
-      // Always create stepPromptResolver when registry has work steps
-      // (independent of flow routing / validation chain capabilities)
-      const hasWorkSteps = Object.values(stepsRegistry.steps).some(
-        (s) => typeof s === "object" && s !== null && "stepKind" in s,
+      // Create stepPromptResolver when registry has any non-closure step
+      // (work / verification). Closure steps resolve prompts via a different
+      // path; this gate matches resolveFlowStepPrompt's closure-only filter.
+      const hasResolvableSteps = Object.values(stepsRegistry.steps).some(
+        (s) =>
+          typeof s === "object" && s !== null && "kind" in s &&
+          s.kind !== "closure",
       );
-      if (hasWorkSteps) {
+      if (hasResolvableSteps) {
         this.stepPromptResolver = new StepPromptResolver(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           { workingDir: cwd, configSuffix: stepsRegistry.c1 },
         );
-        logger.debug("StepPromptResolver initialized (work steps detected)");
+        logger.debug(
+          "StepPromptResolver initialized (resolvable steps detected)",
+        );
       }
 
       if (!hasValidationChain && !hasFlowRouting) {
@@ -216,7 +227,7 @@ export class ClosureManager {
 
         this.stepGateInterpreter = new StepGateInterpreter();
         this.workflowRouter = new WorkflowRouter(
-          stepsRegistry as unknown as StepRegistry,
+          stepsRegistry,
           logger,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
@@ -398,14 +409,13 @@ export class ClosureManager {
       return null;
     }
 
-    const stepDef = (this.stepsRegistry as unknown as StepRegistry)
-      .steps?.[stepId];
+    const stepDef = this.stepsRegistry.steps?.[stepId];
     if (!stepDef) {
       return null;
     }
 
-    const stepKind = inferStepKind(stepDef);
-    if (stepKind === "closure") {
+    const kind = stepDef.kind;
+    if (kind === "closure") {
       return null;
     }
 

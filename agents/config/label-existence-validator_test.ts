@@ -18,7 +18,11 @@ import type {
   GitHubLabelsConfig,
 } from "../src_common/types.ts";
 import type { GitHubClient } from "../orchestrator/github-client.ts";
-import type { WorkflowConfig } from "../orchestrator/workflow-types.ts";
+import {
+  deriveInvocations,
+  type WorkflowConfig,
+} from "../orchestrator/workflow-types.ts";
+import { TEST_DEFAULT_ISSUE_SOURCE } from "../orchestrator/_test-fixtures.ts";
 import {
   extractLabelsFromGitHubConfig,
   MSG_LABEL,
@@ -66,7 +70,7 @@ function fakeClient(
     listLabelsDetailed: unsupported("listLabelsDetailed"),
     createLabel: unsupported("createLabel"),
     updateLabel: unsupported("updateLabel"),
-  } as GitHubClient;
+  } as unknown as GitHubClient;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,17 +104,21 @@ function makeWorkflow(
   labelMapping: Record<string, string>,
   labelPrefix?: string,
 ): WorkflowConfig {
+  const phases = {
+    plan: { type: "actionable" as const, priority: 1, agent: "planner" },
+    done: { type: "terminal" as const },
+  };
+  const agents = {
+    planner: { role: "transformer" as const, outputPhase: "done" },
+  };
   return {
     version: "1.0.0",
+    issueSource: TEST_DEFAULT_ISSUE_SOURCE,
     labelPrefix,
-    phases: {
-      plan: { type: "actionable", priority: 1, agent: "planner" },
-      done: { type: "terminal" },
-    },
+    phases,
     labelMapping,
-    agents: {
-      planner: { role: "transformer", outputPhase: "done" },
-    },
+    agents,
+    invocations: deriveInvocations(phases, agents),
     rules: { maxCycles: 5, cycleDelayMs: 0 },
   };
 }

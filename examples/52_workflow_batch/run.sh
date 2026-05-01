@@ -21,6 +21,13 @@ setup_workdir() {
     cp "$FIXTURES/issues/$n/body.md" "$tmp/.agent/climpt/tmp/issues/$n/body.md"
   done
 
+  # Copy iterator and reviewer agent bundles required by boot eager-load
+  mkdir -p "$tmp/.agent/iterator" "$tmp/.agent/reviewer"
+  cp "$EXAMPLES_DIR/.agent/iterator/agent.json" "$tmp/.agent/iterator/agent.json"
+  cp "$EXAMPLES_DIR/.agent/iterator/steps_registry.json" "$tmp/.agent/iterator/steps_registry.json"
+  cp "$EXAMPLES_DIR/.agent/reviewer/agent.json" "$tmp/.agent/reviewer/agent.json"
+  cp "$EXAMPLES_DIR/.agent/reviewer/steps_registry.json" "$tmp/.agent/reviewer/steps_registry.json"
+
   echo "$tmp"
 }
 
@@ -41,6 +48,10 @@ main() {
   output=$(cd "$tmp" && $WORKFLOW_CMD --local \
     --stub-dispatch '{"iterator":"success","reviewer":"approved"}' 2>&1) || exit_code=$?
 
+  # Strip orchestrator banner line(s) before the JSON body so jq can parse it.
+  local output_json
+  output_json=$(echo "$output" | sed -n '/^{/,$p')
+
   # Check exit code: should be 0
   if [[ "$exit_code" -ne 0 ]]; then
     error "Scenario 1: FAIL - expected exit code 0, got $exit_code"
@@ -50,7 +61,7 @@ main() {
 
   # Check status: should be "completed"
   local batch_status
-  batch_status=$(echo "$output" | jq -r '.status' 2>/dev/null) || batch_status="?"
+  batch_status=$(echo "$output_json" | jq -r '.status' 2>/dev/null) || batch_status="?"
   if [[ "$batch_status" != "completed" ]]; then
     error "Scenario 1: FAIL - expected status 'completed', got $batch_status"
     echo "$output"
@@ -59,7 +70,7 @@ main() {
 
   # Check processed count: should be 2
   local processed_count
-  processed_count=$(echo "$output" | jq '.processed | length' 2>/dev/null) || processed_count="?"
+  processed_count=$(echo "$output_json" | jq '.processed | length' 2>/dev/null) || processed_count="?"
   if [[ "$processed_count" != "2" ]]; then
     error "Scenario 1: FAIL - expected 2 processed, got $processed_count"
     echo "$output"
@@ -68,7 +79,7 @@ main() {
 
   # Check skipped count: should be 1
   local skipped_count
-  skipped_count=$(echo "$output" | jq '.skipped | length' 2>/dev/null) || skipped_count="?"
+  skipped_count=$(echo "$output_json" | jq '.skipped | length' 2>/dev/null) || skipped_count="?"
   if [[ "$skipped_count" != "1" ]]; then
     error "Scenario 1: FAIL - expected 1 skipped, got $skipped_count"
     echo "$output"

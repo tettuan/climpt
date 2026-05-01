@@ -19,8 +19,6 @@ const log = console.log;
 // deno-lint-ignore no-console
 const logErr = console.error;
 
-const repoRoot = resolve(import.meta.dirname ?? ".", "../../../");
-
 const fixturesDir = resolve(
   import.meta.dirname ?? ".",
   "../fixtures",
@@ -124,10 +122,12 @@ const errorCases: {
   {
     name: "detect:graph with missing registry",
     verdictType: "detect:graph",
-    verdictConfig: {},
+    verdictConfig: {
+      registryPath: resolve(fixturesDir, "__nonexistent_registry__.json"),
+    },
     args: {},
     expectedError: "AC-VERDICT-011",
-    agentDirOverride: resolve(repoRoot, ".agent/__nonexistent_agent__"),
+    agentDirOverride: fixturesDir,
   },
 ];
 
@@ -177,8 +177,7 @@ log("--- Handler Creation Tests ---");
 for (const tc of testCases) {
   try {
     const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
-    const agentDir = tc.agentDirOverride ??
-      resolve(repoRoot, ".agent/iterator");
+    const agentDir = tc.agentDirOverride ?? fixturesDir;
     // deno-lint-ignore no-await-in-loop
     const handler = await createRegistryVerdictHandler(
       def,
@@ -241,8 +240,7 @@ log("\n--- Error Handling Tests ---");
 for (const tc of errorCases) {
   try {
     const def = createTestDefinition(tc.verdictType, tc.verdictConfig);
-    const agentDir = tc.agentDirOverride ??
-      resolve(repoRoot, ".agent/iterator");
+    const agentDir = tc.agentDirOverride ?? fixturesDir;
     // deno-lint-ignore no-await-in-loop
     await createRegistryVerdictHandler(def, tc.args, agentDir);
     logErr(`FAIL: ${tc.name} - expected error but succeeded`);

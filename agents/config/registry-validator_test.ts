@@ -12,6 +12,7 @@ import { BreakdownLogger } from "@tettuan/breakdownlogger";
 import { validateCrossReferences } from "./registry-validator.ts";
 import { validateStepRegistry } from "../common/step-registry/validator.ts";
 import type { StepRegistry } from "../common/step-registry/types.ts";
+import { makeStep } from "../common/step-registry/test-helpers.ts";
 import { discoverAgents } from "../testing/discover-agents.ts";
 
 const logger = new BreakdownLogger("registry-validator");
@@ -576,16 +577,15 @@ function validTypedRegistry(
     version: "1.0.0",
     c1: "steps",
     steps: {
-      "initial.test": {
+      "initial.test": makeStep({
+        kind: "work" as const,
+        address: { c1: "steps", c2: "initial", c3: "test", edition: "default" },
         stepId: "initial.test",
         name: "Test Step",
-        c2: "initial",
-        c3: "test",
-        edition: "default",
         uvVariables: ["var1"],
         usesStdin: false,
         ...stepOverrides,
-      },
+      }),
     },
   };
 }
