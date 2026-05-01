@@ -19,7 +19,11 @@ import type {
 import type { PermissionMode } from "../src_common/types/agent-definition.ts";
 import { isRecord, isString } from "../src_common/type-guards.ts";
 import { AgentQueryError, AgentRateLimitError } from "./errors.ts";
-import { calculateBackoff, isRateLimitError } from "./error-classifier.ts";
+import {
+  calculateBackoff,
+  isRateLimitError,
+  parseResetTime,
+} from "./error-classifier.ts";
 import { mergeSandboxConfig, toSdkSandboxConfig } from "./sandbox-defaults.ts";
 import type { ExtendedStepsRegistry } from "../common/validation-types.ts";
 import type { Step, StepKind } from "../common/step-registry.ts";
@@ -387,10 +391,32 @@ export class QueryExecutor {
         this.rateLimitRetryCount++;
 
         if (this.rateLimitRetryCount >= QueryExecutor.MAX_RATE_LIMIT_RETRIES) {
+          // Synthesize a RateLimitInfo so the orchestrator's Step 7c hook
+          // can wait until reset even when no SDK rate_limit_event was
+          // streamed before the actual 429. Priority: explicit
+          // "resets <H>am|pm" parsed from the error message → most-recent
+          // SDK event already on the summary → undefined (orchestrator
+          // treats it as a regular failure).
+          const parsedResetsAt = parseResetTime(errorMessage);
+          let rateLimitInfo = summary.rateLimitInfo;
+          if (parsedResetsAt !== null) {
+            rateLimitInfo = {
+              utilization: 1,
+              resetsAt: parsedResetsAt,
+              rateLimitType: "claude_code_message",
+            };
+          } else if (rateLimitInfo !== undefined) {
+            rateLimitInfo = { ...rateLimitInfo, utilization: 1 };
+          }
+          if (rateLimitInfo !== undefined) {
+            summary.rateLimitInfo = rateLimitInfo;
+          }
+
           const rateLimitError = new AgentRateLimitError(
             `Rate limit exceeded after ${this.rateLimitRetryCount} retries`,
             {
               attempts: this.rateLimitRetryCount,
+              ...(rateLimitInfo && { rateLimitInfo }),
               cause: error instanceof Error ? error : undefined,
               iteration,
             },
@@ -399,6 +425,7 @@ export class QueryExecutor {
           ctx.logger.error("Rate limit retries exhausted", {
             error: rateLimitError.message,
             attempts: this.rateLimitRetryCount,
+            rateLimitInfo,
           });
           throw rateLimitError;
         }

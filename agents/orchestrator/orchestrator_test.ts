@@ -18,9 +18,19 @@ import type {
   ProjectField,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
-import type { DispatchOutcome } from "./dispatcher.ts";
+import type {
+  AgentDispatcher,
+  DispatchOptions,
+  DispatchOutcome,
+  StubDispatcherCall,
+} from "./dispatcher.ts";
 import { StubDispatcher } from "./dispatcher.ts";
-import { compensationMarker, Orchestrator } from "./orchestrator.ts";
+import type { RateLimitInfo } from "../src_common/types/runtime.ts";
+import {
+  compensationMarker,
+  MAX_RATE_LIMIT_WAITS_PER_RUN,
+  Orchestrator,
+} from "./orchestrator.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { CycleTracker } from "./cycle-tracker.ts";
 
@@ -3296,6 +3306,248 @@ Deno.test("rate limit throttle: invalid resetsAt (0) skips wait without error", 
   assertEquals(result.finalPhase, "complete");
   assertEquals(result.cycleCount, 1);
 });
+
+// === Reactive rate-limit retry tests (Step 7c.1) ===
+
+/**
+ * Dispatcher that returns outcomes from a pre-configured sequence (one
+ * outcome per call) so tests can simulate "fail first, succeed on retry".
+ * `rateLimitInfo` is attached to every dispatch so the orchestrator's
+ * Step 7c hook always runs.
+ */
+class SequenceDispatcher implements AgentDispatcher {
+  #outcomes: string[];
+  #rateLimitInfo: RateLimitInfo;
+  #calls: StubDispatcherCall[] = [];
+  #callIndex = 0;
+
+  constructor(outcomes: string[], rateLimitInfo: RateLimitInfo) {
+    this.#outcomes = outcomes;
+    this.#rateLimitInfo = rateLimitInfo;
+  }
+
+  get callCount(): number {
+    return this.#callIndex;
+  }
+
+  get calls(): ReadonlyArray<StubDispatcherCall> {
+    return this.#calls;
+  }
+
+  dispatch(
+    agentId: string,
+    subjectId: string | number,
+    options?: DispatchOptions,
+  ): Promise<DispatchOutcome> {
+    const idx = this.#callIndex;
+    this.#callIndex++;
+    this.#calls.push({ agentId, subjectId, options });
+    const outcome = this.#outcomes[Math.min(idx, this.#outcomes.length - 1)];
+    return Promise.resolve({
+      outcome,
+      durationMs: 0,
+      rateLimitInfo: this.#rateLimitInfo,
+    });
+  }
+}
+
+// Helper: a `resetsAt` value already in the past so `RateLimiter` exits
+// its wait loop on the first poll (keeps the test wall-clock fast).
+function expiredResetsAt(): number {
+  return Math.floor(Date.now() / 1000) - 1;
+}
+
+Deno.test(
+  "rate limit retry: fails once then succeeds — re-dispatches same phase",
+  async () => {
+    const config = createTestConfig();
+    config.rules.rateLimitThreshold = 0.90;
+    config.rules.cycleDelayMs = 0;
+
+    // Labels stay on "ready" while the iterator is being retried (Step 9
+    // is skipped on retry), then move to "review" after success, then
+    // "done".
+    const github = new StubGitHubClient([
+      ["ready"], // cycle 1: dispatch fails → retry skips label change
+      ["ready"], // cycle 2 (retry): dispatch succeeds → labels move
+      ["review"], // cycle 3: reviewer
+      ["done"], // cycle 4: terminal
+    ]);
+
+    const rateLimitInfo: RateLimitInfo = {
+      utilization: 1,
+      resetsAt: expiredResetsAt(),
+      rateLimitType: "claude_code_message",
+    };
+    // Sequence: iterator (failed) → iterator (success retry) → reviewer (approved).
+    const dispatcher = new SequenceDispatcher(
+      ["failed", "success", "approved"],
+      rateLimitInfo,
+    );
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
+
+    const result = await orchestrator.run(1);
+
+    // Derived expectation: 1 failed iterator dispatch + 1 retry of the
+    // same iterator + 1 forward dispatch to the reviewer.
+    const ITERATOR_FAIL_DISPATCHES = 1;
+    const ITERATOR_RETRY_DISPATCHES = 1;
+    const REVIEWER_FORWARD_DISPATCHES = 1;
+    const expectedDispatchCount = ITERATOR_FAIL_DISPATCHES +
+      ITERATOR_RETRY_DISPATCHES + REVIEWER_FORWARD_DISPATCHES;
+
+    assertEquals(
+      result.status,
+      "completed",
+      `Run status: expected "completed" after rate-limit retry succeeded, ` +
+        `got "${result.status}". Fix: orchestrator.ts Step 7c.1 may be ` +
+        `failing to advance after the retry.`,
+    );
+    assertEquals(
+      result.finalPhase,
+      "complete",
+      `Final phase: expected "complete" (terminal phase from createTestConfig), ` +
+        `got "${result.finalPhase}".`,
+    );
+    assertEquals(
+      dispatcher.callCount,
+      expectedDispatchCount,
+      `Dispatcher invocation count: expected ${expectedDispatchCount} ` +
+        `(${ITERATOR_FAIL_DISPATCHES} fail + ${ITERATOR_RETRY_DISPATCHES} retry + ` +
+        `${REVIEWER_FORWARD_DISPATCHES} reviewer), got ${dispatcher.callCount}. ` +
+        `Fix: check orchestrator.ts Step 7c.1 retry condition or SequenceDispatcher outcomes.`,
+    );
+    // Same-phase re-dispatch invariant: the first two calls must be the
+    // same agent (iterator), proving Step 9 (label change) was skipped.
+    assertEquals(
+      dispatcher.calls[0].agentId,
+      "iterator",
+      `Call[0].agentId: expected "iterator" (initial dispatch for "ready" phase).`,
+    );
+    assertEquals(
+      dispatcher.calls[1].agentId,
+      "iterator",
+      `Call[1].agentId: expected "iterator" again (rate-limit retry must not transition phase). ` +
+        `Got "${
+          dispatcher.calls[1].agentId
+        }". Fix: Step 7c.1 must \`continue\` ` +
+        `before Step 8 (transition) and Step 9 (label change).`,
+    );
+  },
+);
+
+Deno.test(
+  "rate limit retry: aborts run with status=blocked when budget exhausted",
+  async () => {
+    const config = createTestConfig();
+    config.rules.rateLimitThreshold = 0.90;
+    config.rules.cycleDelayMs = 0;
+    // Plenty of cycles so the abort comes from the rate-limit budget, not
+    // maxCycles.
+    config.rules.maxCycles = 20;
+
+    const github = new StubGitHubClient([
+      ["ready"],
+      ["ready"],
+      ["ready"],
+      ["ready"],
+      ["ready"],
+    ]);
+
+    const rateLimitInfo: RateLimitInfo = {
+      utilization: 1,
+      resetsAt: expiredResetsAt(),
+      rateLimitType: "claude_code_message",
+    };
+    // Iterator always fails — drives the orchestrator to exhaust its
+    // rate-limit retry budget.
+    const dispatcher = new SequenceDispatcher(["failed"], rateLimitInfo);
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
+
+    const result = await orchestrator.run(1);
+
+    // Derived from the exported constant: 1 initial attempt plus
+    // MAX_RATE_LIMIT_WAITS_PER_RUN allowed retries; the (max+1)-th
+    // failure increments the counter past the budget and aborts.
+    const expectedDispatchCount = 1 + MAX_RATE_LIMIT_WAITS_PER_RUN;
+
+    assertEquals(
+      result.status,
+      "blocked",
+      `Run status: expected "blocked" after rate-limit budget exhaustion ` +
+        `(MAX_RATE_LIMIT_WAITS_PER_RUN=${MAX_RATE_LIMIT_WAITS_PER_RUN}), ` +
+        `got "${result.status}". Fix: orchestrator.ts Step 7c.1 budget check.`,
+    );
+    assertEquals(
+      dispatcher.callCount,
+      expectedDispatchCount,
+      `Dispatcher invocation count: expected ${expectedDispatchCount} ` +
+        `(1 initial + ${MAX_RATE_LIMIT_WAITS_PER_RUN} retries before abort), ` +
+        `got ${dispatcher.callCount}. Fix: verify MAX_RATE_LIMIT_WAITS_PER_RUN ` +
+        `in orchestrator.ts matches the budget you intend to enforce.`,
+    );
+  },
+);
+
+Deno.test(
+  "rate limit retry: success outcome with throttle does not skip transition",
+  async () => {
+    const config = createTestConfig();
+    config.rules.rateLimitThreshold = 0.90;
+    config.rules.cycleDelayMs = 0;
+
+    // Single successful cycle; the throttle hook waits but the outcome is
+    // success so transition proceeds normally.
+    const github = new StubGitHubClient([
+      ["ready"],
+      ["review"],
+      ["done"],
+    ]);
+
+    const rateLimitInfo: RateLimitInfo = {
+      utilization: 0.95,
+      resetsAt: expiredResetsAt(),
+      rateLimitType: "seven_day",
+    };
+    const dispatcher = new SequenceDispatcher(
+      ["success", "approved"],
+      rateLimitInfo,
+    );
+    const orchestrator =
+      buildOrchestratorWithChannels({ config, github, dispatcher })
+        .orchestrator;
+
+    const result = await orchestrator.run(1);
+
+    // Two normal forward dispatches: iterator (success) and reviewer
+    // (approved). No retry inflation because the success outcome must
+    // not trigger Step 7c.1's reactive-retry branch even though the
+    // throttle hook itself waited.
+    const ITERATOR_FORWARD_DISPATCHES = 1;
+    const REVIEWER_FORWARD_DISPATCHES = 1;
+    const expectedDispatchCount = ITERATOR_FORWARD_DISPATCHES +
+      REVIEWER_FORWARD_DISPATCHES;
+
+    assertEquals(
+      result.status,
+      "completed",
+      `Run status: expected "completed" after a normal two-phase run with ` +
+        `predictive throttle, got "${result.status}".`,
+    );
+    assertEquals(
+      dispatcher.callCount,
+      expectedDispatchCount,
+      `Dispatcher invocation count: expected ${expectedDispatchCount} ` +
+        `(iterator + reviewer, no retry), got ${dispatcher.callCount}. ` +
+        `Fix: orchestrator.ts Step 7c.1 must gate on outcome === "failed"; ` +
+        `success outcomes must fall through to Step 8 (transition).`,
+    );
+  },
+);
 
 // === Verdict propagation tests ===
 

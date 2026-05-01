@@ -22,12 +22,18 @@ export class RateLimiter {
     return rateLimitInfo.utilization >= this.#threshold;
   }
 
-  /** If utilization exceeds threshold, polls until the reset timestamp passes. */
+  /**
+   * If utilization meets the threshold, polls until the reset timestamp
+   * passes. Returns `true` when an actual wait occurred, `false` when
+   * throttling was skipped (utilization below threshold or invalid
+   * `resetsAt`). The boolean lets the orchestrator distinguish
+   * predictive throttle ticks from reactive 429-driven retries.
+   */
   async checkAndThrottle(
     rateLimitInfo: RateLimitInfo,
     log: OrchestratorLogger,
-  ): Promise<void> {
-    if (!this.shouldThrottle(rateLimitInfo)) return;
+  ): Promise<boolean> {
+    if (!this.shouldThrottle(rateLimitInfo)) return false;
 
     // Guard: reject invalid timestamps to prevent infinite loop
     if (
@@ -37,7 +43,7 @@ export class RateLimiter {
         `Rate limit throttle: invalid resetsAt (${rateLimitInfo.resetsAt}), skipping wait`,
         { event: "rate_limit_invalid_reset", resetsAt: rateLimitInfo.resetsAt },
       );
-      return;
+      return false;
     }
 
     await log.warn(
@@ -76,6 +82,7 @@ export class RateLimiter {
     await log.info("Rate limit reset, resuming orchestrator", {
       event: "rate_limit_resumed",
     });
+    return true;
   }
 
   #delay(ms: number): Promise<void> {

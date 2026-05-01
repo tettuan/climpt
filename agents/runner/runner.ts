@@ -32,6 +32,7 @@ import type {
 import {
   AgentMaxIterationsError,
   AgentNotInitializedError,
+  AgentRateLimitError,
   AgentStepRoutingError,
   isAgentError,
   normalizeToAgentError,
@@ -987,9 +988,14 @@ export class AgentRunner {
       const lastCostSummaryOnError = [...summaries].reverse().find((s) =>
         s.totalCostUsd !== undefined
       );
-      const lastRateLimitInfoOnError = [...summaries].reverse().find((s) =>
-        s.rateLimitInfo !== undefined
-      )?.rateLimitInfo;
+      // Prefer rateLimitInfo carried with AgentRateLimitError because the
+      // summary that caused the throw is not appended to `summaries`
+      // (executeQuery throws before the caller can push). Fall back to the
+      // most recent summary that observed an SDK rate_limit_event.
+      const lastRateLimitInfoOnError =
+        (error instanceof AgentRateLimitError && error.rateLimitInfo) ||
+        [...summaries].reverse().find((s) => s.rateLimitInfo !== undefined)
+          ?.rateLimitInfo;
       const sessionLogPathOnError = ctx.logger.getLogPath();
       return {
         success: false,

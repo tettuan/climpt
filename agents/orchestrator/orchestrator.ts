@@ -55,6 +55,16 @@ export type { OrchestratorOptions, OrchestratorResult };
  * `orchestrator_test.ts` import statements compile until the test files
  * are migrated; PR4-3 deletes it.
  */
+/**
+ * Maximum number of rate-limit-driven re-dispatches a single
+ * `Orchestrator.runOne` invocation may absorb. Each re-dispatch waits
+ * until the next reset window, so a permanently throttled account cannot
+ * pin an orchestrator run indefinitely. Exported so tests can derive
+ * expected dispatch counts from the same constant the orchestrator
+ * enforces.
+ */
+export const MAX_RATE_LIMIT_WAITS_PER_RUN = 2;
+
 export const compensationMarker = (
   subjectId: string | number,
   cycleSeq: number,
@@ -373,6 +383,14 @@ export class Orchestrator {
     let finalPhase = "unknown";
     let status: OrchestratorResult["status"] = "blocked";
     let issueClosed = false;
+
+    // Reactive rate-limit retries do not consume the `maxCycles` budget
+    // (the failed cycle is rolled back via `continue` before
+    // `tracker.record` runs). The exported `MAX_RATE_LIMIT_WAITS_PER_RUN`
+    // caps how many reset-window waits a single `runOne` invocation may
+    // absorb so a permanently throttled account cannot pin an
+    // orchestrator run indefinitely.
+    let rateLimitWaitsThisRunOne = 0;
 
     // Each cycle depends on the previous: labels are read, agent dispatched,
     // labels updated, then re-read. Awaits must be sequential.
@@ -886,16 +904,66 @@ export class Orchestrator {
       }
 
       // Step 7c: Rate limit throttle check
+      let rateLimitThrottled = false;
       if (dispatchResult.rateLimitInfo) {
         const rateLimiter = new RateLimiter(
           this.#config.rules.rateLimitThreshold ?? 0.95,
           this.#config.rules.rateLimitPollIntervalMs ?? 300_000,
         );
         // deno-lint-ignore no-await-in-loop
-        await rateLimiter.checkAndThrottle(
+        rateLimitThrottled = await rateLimiter.checkAndThrottle(
           dispatchResult.rateLimitInfo,
           log,
         );
+      }
+
+      // Step 7c.1: Reactive rate-limit retry. When the dispatch produced
+      // the canonical "failed" outcome (resolveOutcome's mapping for
+      // `result.success === false` on a transformer — the only path
+      // AgentRateLimitError can take to the orchestrator without
+      // throwing through dispatch) *and* the throttle hook actually
+      // waited for a reset, treat the dispatch as a transient API
+      // outage rather than a phase-failing outcome. Skip Steps 8–13
+      // (transition, label change, tracker.record, cycle countdown)
+      // and re-enter the loop so the next iteration re-dispatches the
+      // same phase. Bounded by MAX_RATE_LIMIT_WAITS_PER_RUN to prevent
+      // an indefinite hold on permanently throttled accounts.
+      if (rateLimitThrottled && dispatchResult.outcome === "failed") {
+        rateLimitWaitsThisRunOne++;
+        if (rateLimitWaitsThisRunOne > MAX_RATE_LIMIT_WAITS_PER_RUN) {
+          // deno-lint-ignore no-await-in-loop
+          await log.warn(
+            `Rate-limit retry budget exhausted (${rateLimitWaitsThisRunOne}/${MAX_RATE_LIMIT_WAITS_PER_RUN}); ` +
+              `aborting run for subject #${subjectId}`,
+            {
+              event: "rate_limit_budget_exhausted",
+              subjectId,
+              agent: agentId,
+              attempts: rateLimitWaitsThisRunOne,
+              max: MAX_RATE_LIMIT_WAITS_PER_RUN,
+            },
+          );
+          status = "blocked";
+          break;
+        }
+        // deno-lint-ignore no-await-in-loop
+        await log.warn(
+          `Rate-limit driven failure for agent "${agentId}" on subject ` +
+            `#${subjectId}; skipping transition and re-dispatching ` +
+            `(attempt ${rateLimitWaitsThisRunOne}/${MAX_RATE_LIMIT_WAITS_PER_RUN})`,
+          {
+            event: "rate_limit_failure_throttle",
+            subjectId,
+            agent: agentId,
+            phase: phaseId,
+            outcome: dispatchResult.outcome,
+            attempt: rateLimitWaitsThisRunOne,
+            max: MAX_RATE_LIMIT_WAITS_PER_RUN,
+            resetsAt: dispatchResult.rateLimitInfo?.resetsAt,
+            rateLimitType: dispatchResult.rateLimitInfo?.rateLimitType,
+          },
+        );
+        continue;
       }
 
       // Step 8: Compute transition
