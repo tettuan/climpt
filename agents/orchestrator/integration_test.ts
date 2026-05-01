@@ -9,11 +9,20 @@ import type {
   ProjectField,
 } from "./github-client.ts";
 import type { ProjectFieldValue, ProjectRef } from "./outbox-processor.ts";
-import { StubDispatcher } from "./dispatcher.ts";
+import {
+  type AgentDispatcher,
+  type DispatchOutcome,
+  StubDispatcher,
+} from "./dispatcher.ts";
 import { Orchestrator } from "./orchestrator.ts";
 import { loadWorkflow } from "./workflow-loader.ts";
 import { SubjectStore } from "./subject-store.ts";
 import { buildOrchestratorWithChannels } from "./_test-fixtures.ts";
+import { ClimptError, isExecutionError } from "../shared/errors/base.ts";
+import { AgentAdaptationChainExhaustedError } from "../shared/errors/flow-errors.ts";
+import { AgentQueryError } from "../shared/errors/runner-errors.ts";
+import { srEntryNotConfigured } from "../shared/errors/config-errors.ts";
+import type { ChannelId, IssueCloseFailedEvent } from "../events/types.ts";
 
 // Design §2.2: one phase transition produces one "add" call (T3) plus
 // one "remove" call (T4).
@@ -847,6 +856,531 @@ Deno.test(
         "Compensation comment count stays at 1 across both runs — run 2 " +
           "does not invoke the close channel because early terminal " +
           "detection fires before agent dispatch.",
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// F4 — Orchestrator catch+route for ExecutionError-class throws from dispatch
+// (framework-design/02-orchestrator-catch-route.md §4 + design 16 §C +
+// `agents/shared/errors/base.ts` ExecutionErrorMarker)
+// ---------------------------------------------------------------------------
+
+/**
+ * Test dispatcher that rejects every dispatch with the supplied error.
+ * Local to integration_test because the throw scenario is F4-specific —
+ * `StubDispatcher` is the canonical happy-path fixture and must stay
+ * non-throwing for every other test that uses it.
+ */
+class ThrowingDispatcher implements AgentDispatcher {
+  constructor(readonly error: unknown) {}
+  dispatch(
+    _agentId: string,
+    _subjectId: string | number,
+  ): Promise<DispatchOutcome> {
+    return Promise.reject(this.error);
+  }
+}
+
+/**
+ * Workflow config sized for a single dispatch cycle.
+ *
+ * The throwing-dispatcher tests need exactly one phase resolution → one
+ * dispatch attempt → catch path. Reuses the self-heal config because it
+ * already declares `iterator` and `reviewer` and a `direct` close binding;
+ * the close binding is irrelevant here (the throw stops execution before
+ * the close decision is reached) but keeps fixture surface stable.
+ */
+function createF4WorkflowConfig(): WorkflowConfig {
+  return createSelfHealWorkflowConfig();
+}
+
+/**
+ * Mapping from `ClosePrimary.kind` to `ChannelId`. Mirrors the production
+ * mapping that channel modules use (`agents/channels/direct-close.ts:184`
+ * publishes channel="D" when primary.kind==="direct"; etc.). Test
+ * fixtures derive expected channel ids through this helper so a change
+ * to the production mapping surfaces here as a contract drift, rather
+ * than letting hardcoded literals mask the drift.
+ *
+ * `none` is intentionally unmapped — it means the agent has no close
+ * primary so no channel publish should occur.
+ */
+function closePrimaryToChannelId(
+  kind: "direct" | "boundary" | "outboxPre" | "custom" | "none",
+): ChannelId {
+  switch (kind) {
+    case "direct":
+      return "D";
+    case "boundary":
+      return "E";
+    case "outboxPre":
+      return "C";
+    case "custom":
+      return "U";
+    case "none":
+      throw new Error(
+        `closePrimaryToChannelId: "none" has no associated ChannelId. ` +
+          `Test fixture must declare a close primary to assert channel id.`,
+      );
+  }
+}
+
+Deno.test(
+  "F4 positive: dispatcher throws AgentAdaptationChainExhaustedError → " +
+    "IssueCloseFailedEvent published, status=blocked, no retry",
+  async () => {
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const config = createF4WorkflowConfig();
+      const subjectId = 42;
+      const expectedRunId = "f4-positive-run-id";
+
+      // Source-of-truth: construct the real error to read .code from the
+      // class itself rather than hardcoding the SCREAMING_SNAKE_CASE
+      // literal in the assertion.
+      const err = new AgentAdaptationChainExhaustedError(
+        "closure-step",
+        3,
+        "narrow-scope",
+      );
+      const expectedReason = err.code;
+      // Source-of-truth: derive the expected channel from the same
+      // (closeBinding.primary.kind → ChannelId) mapping the orchestrator
+      // catch uses. The F4 catch publishes channel="D" because the
+      // closure-step primary is "direct" (matching the production
+      // mapping in `agents/channels/direct-close.ts`). If the workflow
+      // changes its primary, this derivation surfaces the drift instead
+      // of letting a hardcoded literal mask it.
+      const reviewerBinding = config.agents.reviewer.closeBinding;
+      assertEquals(
+        reviewerBinding?.primary.kind,
+        "direct",
+        `F4 setup: workflow's reviewer agent must declare ` +
+          `closeBinding.primary.kind="direct" so the F4 channel mapping ` +
+          `resolves to "D". Fix: createSelfHealWorkflowConfig must set ` +
+          `primary.kind to "direct".`,
+      );
+      const expectedChannel = closePrimaryToChannelId(
+        reviewerBinding!.primary.kind,
+      );
+
+      const dispatcher = new ThrowingDispatcher(err);
+      const github = new StubGitHubClient([["ready"]]);
+      const collected: IssueCloseFailedEvent[] = [];
+
+      const { orchestrator } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: expectedRunId,
+        subscribe: (bus) => {
+          bus.subscribe<IssueCloseFailedEvent>(
+            { kind: "issueCloseFailed" },
+            (event) => {
+              collected.push(event);
+            },
+          );
+        },
+      });
+
+      const result = await orchestrator.run(subjectId);
+
+      // Invariant 1: exactly one IssueCloseFailedEvent published.
+      // What: cardinality of issueCloseFailed events.
+      // Where: agents/orchestrator/orchestrator.ts dispatch catch block.
+      // How-to-fix: ensure publish runs exactly once on the catch branch.
+      assertEquals(
+        collected.length,
+        1,
+        `F4 positive: orchestrator must publish IssueCloseFailedEvent ` +
+          `exactly once when dispatcher throws ` +
+          `AgentAdaptationChainExhaustedError ` +
+          `(observed=${collected.length}, channel=${expectedChannel}, ` +
+          `phase=${result.finalPhase}). ` +
+          `Fix: agents/orchestrator/orchestrator.ts catch block must ` +
+          `publish before the cycle break.`,
+      );
+
+      // Invariant 2: payload field mapping per spec §3.3.
+      const evt = collected[0];
+      assertEquals(
+        evt.channel,
+        expectedChannel,
+        `F4 positive: channel must be "${expectedChannel}" (DirectClose, ` +
+          `closure-step primary). Observed=${evt.channel}. ` +
+          `Fix: catch block publish hardcodes channel "D".`,
+      );
+      assertEquals(
+        evt.reason,
+        expectedReason,
+        `F4 positive: reason must be ClimptError.code, not message. ` +
+          `Expected=${expectedReason}, observed=${evt.reason}. ` +
+          `Fix: orchestrator catch publishes \`reason: error.code\`.`,
+      );
+      assertEquals(
+        evt.subjectId,
+        subjectId,
+        `F4 positive: subjectId must round-trip from the cycle. ` +
+          `Expected=${subjectId}, observed=${String(evt.subjectId)}. ` +
+          `Fix: catch block forwards the loop-local subjectId.`,
+      );
+      assertEquals(
+        evt.runId,
+        expectedRunId,
+        `F4 positive: runId must match the orchestrator's bound runId. ` +
+          `Expected=${expectedRunId}, observed=${evt.runId}. ` +
+          `Fix: catch block publishes \`runId: this.#runId ?? ""\`.`,
+      );
+
+      // Invariant 3: phase transitions to blocked.
+      assertEquals(
+        result.status,
+        "blocked",
+        `F4 positive: OrchestratorResult.status must be "blocked" when ` +
+          `dispatcher throws non-recoverable ClimptError. ` +
+          `Observed=${result.status}, phase=${result.finalPhase}, ` +
+          `code=${expectedReason}. ` +
+          `Fix: catch block must \`status = "blocked"; break\`.`,
+      );
+
+      // Invariant 4: no retry / no re-dispatch in same cycle. The catch
+      // breaks before tracker.record runs, so cycleCount and history
+      // stay zero — this is the dead-letter assertion.
+      assertEquals(
+        result.cycleCount,
+        0,
+        `F4 positive: dead-letter — no cycle is recorded after the throw ` +
+          `(observed=${result.cycleCount}). ` +
+          `Fix: ensure \`break\` exits before \`tracker.record\`.`,
+      );
+      assertEquals(
+        result.history.length,
+        0,
+        `F4 positive: dead-letter — no transition history ` +
+          `(observed=${result.history.length}). ` +
+          `Fix: ensure cycle exits before transition records.`,
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "F4 negative: dispatcher throws non-ClimptError → catch is selective, " +
+    "error propagates, no IssueCloseFailedEvent published",
+  async () => {
+    // Contradiction-verification: prove the catch is selective. Plain
+    // Error is not ClimptError, so the discriminator fails and the catch
+    // rethrows. BatchRunner's generic catch (skipped[]) is the
+    // downstream sink for this case; here we observe the rethrow at the
+    // orchestrator boundary and the absence of the F4 event.
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const config = createF4WorkflowConfig();
+      const subjectId = 43;
+      const expectedRunId = "f4-negative-run-id";
+
+      const dispatcher = new ThrowingDispatcher(
+        new Error("not a ClimptError"),
+      );
+      const github = new StubGitHubClient([["ready"]]);
+      const collected: IssueCloseFailedEvent[] = [];
+
+      const { orchestrator } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: expectedRunId,
+        subscribe: (bus) => {
+          bus.subscribe<IssueCloseFailedEvent>(
+            { kind: "issueCloseFailed" },
+            (event) => {
+              collected.push(event);
+            },
+          );
+        },
+      });
+
+      await assertRejects(
+        () => orchestrator.run(subjectId),
+        Error,
+        "not a ClimptError",
+        `F4 negative: non-ClimptError throws must NOT be absorbed by ` +
+          `the F4 catch. They escape so BatchRunner can record skipped[]. ` +
+          `Fix: discriminator must be ` +
+          `\`instanceof ClimptError && !recoverable\` (selective).`,
+      );
+
+      assertEquals(
+        collected.length,
+        0,
+        `F4 negative: no IssueCloseFailedEvent must be published for ` +
+          `non-ClimptError throws (observed=${collected.length}). ` +
+          `Fix: tighten the catch discriminator so non-ClimptError ` +
+          `bypasses the publish branch.`,
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "F4 negative 2: dispatcher throws recoverable ClimptError → catch is " +
+    "selective on !recoverable, error propagates, no IssueCloseFailedEvent",
+  async () => {
+    // Contradiction-verification: prove the `!recoverable` half of the
+    // discriminator is selective. `AgentQueryError` is a real concrete
+    // ClimptError subclass with `recoverable = true`. The catch matches
+    // `instanceof ClimptError` but the !recoverable guard rejects, so
+    // the error rethrows verbatim and no F4 event is published.
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const config = createF4WorkflowConfig();
+      const subjectId = 44;
+      const expectedRunId = "f4-negative-2-run-id";
+
+      const recoverableErr: ClimptError = new AgentQueryError(
+        "transient SDK query failure",
+      );
+      // Sanity: source-of-truth check — the pin only holds while the
+      // class stays recoverable. If a future refactor flips this, the
+      // test surfaces the regression here rather than in the assertions.
+      assertEquals(
+        recoverableErr.recoverable,
+        true,
+        `F4 negative 2 setup: AgentQueryError must be recoverable for ` +
+          `this contradiction-verification case; observed=${recoverableErr.recoverable}.`,
+      );
+
+      const dispatcher = new ThrowingDispatcher(recoverableErr);
+      const github = new StubGitHubClient([["ready"]]);
+      const collected: IssueCloseFailedEvent[] = [];
+
+      const { orchestrator } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: expectedRunId,
+        subscribe: (bus) => {
+          bus.subscribe<IssueCloseFailedEvent>(
+            { kind: "issueCloseFailed" },
+            (event) => {
+              collected.push(event);
+            },
+          );
+        },
+      });
+
+      await assertRejects(
+        () => orchestrator.run(subjectId),
+        AgentQueryError,
+        "transient SDK query failure",
+        `F4 negative 2: recoverable ClimptError must NOT be absorbed by ` +
+          `the F4 catch (only \`!recoverable\` lands there). ` +
+          `Fix: discriminator must include \`!error.recoverable\`.`,
+      );
+
+      assertEquals(
+        collected.length,
+        0,
+        `F4 negative 2: no IssueCloseFailedEvent must be published for ` +
+          `recoverable ClimptError throws (observed=${collected.length}). ` +
+          `Fix: tighten the catch discriminator with \`!recoverable\`.`,
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "F4 negative 3: dispatcher throws non-recoverable ConfigError → catch is " +
+    "selective on ExecutionError marker, error propagates, no event",
+  async () => {
+    // P0-2 contract: per design 16 §C lines 175-177 ("Boot 段階で reject ...
+    // AgentRuntime は起動しない"), ConfigurationError MUST NOT reach the
+    // F4 channel-D egress. The marker-interface discriminator
+    // `isExecutionError(err)` rejects ConfigError even though it is
+    // `recoverable=false`. This is the regression case for the previous
+    // broad `instanceof ClimptError && !recoverable` discriminator,
+    // which would have wrongly absorbed ConfigError into channel="D".
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const config = createF4WorkflowConfig();
+      const subjectId = 45;
+      const expectedRunId = "f4-negative-3-run-id";
+
+      // Source-of-truth: a real ConfigError factory, so the test
+      // exercises the actual ConfigError class shape.
+      const configErr = srEntryNotConfigured();
+      // Pin invariants: ConfigError must be non-recoverable AND must
+      // NOT carry the ExecutionError marker. If a future refactor flips
+      // either, this surfaces it before the assertions below.
+      assertEquals(
+        configErr.recoverable,
+        false,
+        `F4 negative 3 setup: ConfigError must be recoverable=false for ` +
+          `this case to test the marker discriminator (broad discriminator ` +
+          `would absorb it). Observed=${configErr.recoverable}.`,
+      );
+      assertEquals(
+        isExecutionError(configErr),
+        false,
+        `F4 negative 3 setup: ConfigError must NOT carry the ` +
+          `ExecutionErrorMarker (design 16 §C: ConfigurationError reject ` +
+          `at Boot, never runtime). Fix: do not tag ConfigError with ` +
+          `\`executionFailure: true\`.`,
+      );
+
+      const dispatcher = new ThrowingDispatcher(configErr);
+      const github = new StubGitHubClient([["ready"]]);
+      const collected: IssueCloseFailedEvent[] = [];
+
+      const { orchestrator } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: expectedRunId,
+        subscribe: (bus) => {
+          bus.subscribe<IssueCloseFailedEvent>(
+            { kind: "issueCloseFailed" },
+            (event) => {
+              collected.push(event);
+            },
+          );
+        },
+      });
+
+      // The error escapes the F4 catch (BatchRunner sink is the
+      // canonical recorder for ConfigurationError that erroneously
+      // reaches runtime — operator gets a stack trace, not a
+      // compensation comment).
+      await assertRejects(
+        () => orchestrator.run(subjectId),
+        ClimptError,
+        configErr.code,
+        `F4 negative 3: non-recoverable ConfigError must NOT be absorbed ` +
+          `by the F4 catch (design 16 §C — Boot reject category). ` +
+          `Fix: discriminator must use isExecutionError, not ` +
+          `\`instanceof ClimptError && !recoverable\`.`,
+      );
+      assertEquals(
+        collected.length,
+        0,
+        `F4 negative 3: no IssueCloseFailedEvent must be published for ` +
+          `ConfigError throws (observed=${collected.length}). ` +
+          `Fix: marker-interface discriminator rejects ConfigError.`,
+      );
+    } finally {
+      await Deno.remove(tempDir, { recursive: true });
+    }
+  },
+);
+
+Deno.test(
+  "F4 idempotence: re-running orchestrator after F4 break re-dispatches " +
+    "and re-emits the event (no durable state recorded)",
+  async () => {
+    // P2-8 contract: F4 catch breaks before `tracker.record` runs
+    // (consistent with rate-limit retry at orchestrator.ts:946 and T3-T5
+    // failure paths at :1075/:1103/:1134, all of which also skip
+    // record-before-break). So a second `orchestrator.run(subjectId)`
+    // call is NOT short-circuited by durable state — the dispatcher is
+    // invoked again and the same throw produces a second
+    // IssueCloseFailedEvent. This test pins that behavior so any future
+    // change to the F4 break path's durability surfaces here, rather
+    // than as a downstream symptom.
+    const tempDir = await Deno.makeTempDir();
+    try {
+      const config = createF4WorkflowConfig();
+      const subjectId = 46;
+      const expectedRunId = "f4-idempotence-run-id";
+
+      const err = new AgentAdaptationChainExhaustedError(
+        "closure-step",
+        2,
+        "narrow-scope",
+      );
+      const dispatcher = new ThrowingDispatcher(err);
+      const github = new StubGitHubClient([["ready"], ["ready"]]);
+      const collected: IssueCloseFailedEvent[] = [];
+
+      const { orchestrator } = buildOrchestratorWithChannels({
+        config,
+        github,
+        dispatcher,
+        cwd: tempDir,
+        runId: expectedRunId,
+        subscribe: (bus) => {
+          bus.subscribe<IssueCloseFailedEvent>(
+            { kind: "issueCloseFailed" },
+            (event) => {
+              collected.push(event);
+            },
+          );
+        },
+      });
+
+      const first = await orchestrator.run(subjectId);
+      const second = await orchestrator.run(subjectId);
+
+      // Both runs MUST end with status=blocked.
+      assertEquals(
+        first.status,
+        "blocked",
+        `F4 idempotence run 1: status must be "blocked" ` +
+          `(observed=${first.status}). Fix: ensure F4 catch sets ` +
+          `status="blocked" before break.`,
+      );
+      assertEquals(
+        second.status,
+        "blocked",
+        `F4 idempotence run 2: status must be "blocked" again — F4 ` +
+          `break does not record durable state, so the same dispatch ` +
+          `re-runs and the same throw is caught (observed=${second.status}). ` +
+          `Fix: see comment in F4 catch block at orchestrator.ts; ` +
+          `record-before-break would change this contract.`,
+      );
+
+      // Each run published EXACTLY one IssueCloseFailedEvent.
+      assertEquals(
+        collected.length,
+        2,
+        `F4 idempotence: re-running orchestrator after F4 must dispatch ` +
+          `again and emit a SECOND IssueCloseFailedEvent ` +
+          `(observed=${collected.length}). Fix: confirm F4 catch does ` +
+          `not call tracker.record (design intent — consistent with ` +
+          `rate-limit retry and T3-T5 failure paths).`,
+      );
+      assertEquals(
+        collected[0].reason,
+        err.code,
+        `F4 idempotence run 1 reason field`,
+      );
+      assertEquals(
+        collected[1].reason,
+        err.code,
+        `F4 idempotence run 2 reason field`,
+      );
+
+      // history/cycleCount stay zero across both runs (the throw kills
+      // the cycle before tracker.record).
+      assertEquals(
+        first.cycleCount + second.cycleCount,
+        0,
+        `F4 idempotence: cycleCount must be zero across both runs ` +
+          `(observed=${first.cycleCount + second.cycleCount}). ` +
+          `Fix: verify tracker.record is never reached in F4 catch.`,
       );
     } finally {
       await Deno.remove(tempDir, { recursive: true });

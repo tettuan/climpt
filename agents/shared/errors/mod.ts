@@ -40,6 +40,7 @@ export type { SdkErrorCategoryType as RunnerSdkErrorCategoryType } from "./runne
 
 // Flow errors
 export {
+  AgentAdaptationChainExhaustedError,
   AgentSchemaResolutionError,
   AgentStepIdMismatchError,
   AgentStepRoutingError,

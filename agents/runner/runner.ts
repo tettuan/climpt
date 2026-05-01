@@ -58,6 +58,7 @@ import { FlowOrchestrator } from "./flow-orchestrator.ts";
 import { SchemaManager } from "./schema-manager.ts";
 import { ClosureManager } from "./closure-manager.ts";
 import { BoundaryHooks } from "./boundary-hooks.ts";
+import { AdaptationCursor } from "./adaptation-cursor.ts";
 import type { CloseEventBus } from "../events/bus.ts";
 import type { SubjectRef } from "../orchestrator/workflow-types.ts";
 import { ClosureAdapter } from "./closure-adapter.ts";
@@ -166,6 +167,31 @@ export class AgentRunner {
   // Verdict validation
   private pendingRetryPrompt: string | null = null;
 
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.1).
+   *
+   * One instance per `AgentRunner` lifecycle (Q4 = run-scope owner). Tracks
+   * `intent === "repeat"` advances over each step's `adaptationChain` so the
+   * framework can throw `AgentAdaptationChainExhaustedError` instead of
+   * looping unbounded. Shared with `CompletionLoopProcessor` (closure
+   * `action === "repeat"`) and `WorkflowRouter` (non-closure
+   * `intent === "repeat"`) so a single chain advance is observed across
+   * both procedural paths.
+   */
+  private readonly adaptationCursor = new AdaptationCursor();
+
+  /**
+   * Adaptation override resolved by the cursor on the prior iteration's
+   * repeat detection. Consumed by the next iteration's prompt resolution
+   * (Flow Loop or Completion Loop) and then cleared. Scoped to a stepId so
+   * a stale entry from a previous step never leaks into a different step's
+   * resolve call. Forward-progress intents reset the cursor for the
+   * outgoing stepId, and they also clear this slot when the stepId no
+   * longer matches on consume.
+   */
+  private pendingAdaptation: { stepId: string; adaptation: string } | null =
+    null;
+
   // Verbose logging for SDK I/O debugging
   private verboseLogger: VerboseLogger | null = null;
 
@@ -187,6 +213,11 @@ export class AgentRunner {
     this.closureManager = new ClosureManager({
       definition: this.definition,
       dependencies: this.dependencies,
+      // Forward the run-scoped self-route cursor so WorkflowRouter shares
+      // the same instance as CompletionLoopProcessor — closure and
+      // non-closure repeats observe one cursor advance per stepId
+      // (design 01-self-route-termination §3.2).
+      adaptationCursor: this.adaptationCursor,
     });
 
     this.schemaManager = new SchemaManager({
@@ -236,6 +267,20 @@ export class AgentRunner {
     handler: AgentEventHandler<E>,
   ): () => void {
     return this.eventEmitter.on(event, handler);
+  }
+
+  /**
+   * Test seam (P1-3 contract): exposes whether `initialize()` wired the
+   * §2.5 telemetry sink onto the run-scoped `AdaptationCursor`. The
+   * runner calls `adaptationCursor.setLogSink(logger, this.runId)`
+   * inside `initialize()` so any future refactor that drops this wiring
+   * makes this getter return `false` and breaks the contract test.
+   *
+   * Production code does not branch on this — it exists solely as a
+   * diagnosability surface for the wiring contract.
+   */
+  get adaptationCursorHasLogSink(): boolean {
+    return this.adaptationCursor.hasLogSink;
   }
 
   /**
@@ -384,6 +429,14 @@ export class AgentRunner {
       promptLogger,
     };
 
+    // Late-bind §2.5 telemetry on the run-scoped self-route cursor. The
+    // cursor is created at field-init time (before logger is ready), so we
+    // wire the sink + agentRunId here once both are available. `runId` is
+    // `undefined` for standalone runs — the cursor's structured event
+    // carries the field as `string | undefined` (design 01-self-route-
+    // termination §2.5).
+    this.adaptationCursor.setLogSink(logger, this.runId);
+
     // Completion Loop processor — extracted from runner for dual-loop separation
     this.completionLoopProcessor = new CompletionLoopProcessor({
       closureManager: this.closureManager,
@@ -401,6 +454,18 @@ export class AgentRunner {
         get: () => this.pendingRetryPrompt,
         set: (v: string | null) => {
           this.pendingRetryPrompt = v;
+        },
+      },
+      // Self-route cursor + pending-adaptation slot (design 01 §3.2). The
+      // cursor instance is the single one owned by `AgentRunner` so closure
+      // and non-closure repeats share state. `pendingAdaptation` is the
+      // same field consumed by the Flow Loop's prompt resolve site —
+      // single source of truth across both loops.
+      adaptationCursor: this.adaptationCursor,
+      pendingAdaptation: {
+        get: (stepId) => this.consumePendingAdaptation(stepId),
+        set: (stepId, adaptation) => {
+          this.pendingAdaptation = { stepId, adaptation };
         },
       },
       resolveSystemPromptForIteration: (ctx) =>
@@ -624,9 +689,22 @@ export class AgentRunner {
           const uvVars = this.buildUvVariables(iteration);
           ctx.verdictHandler.setUvVariables?.(uvVars);
           this.enrichWithChannel3Variables(uvVars, iteration, summaries);
+          // Consume pending self-route adaptation (design 01 §3.2). Set
+          // by `WorkflowRouter` on the previous iteration's
+          // `intent === "repeat"`; cleared after one consume so a stale
+          // value never leaks into a different stepId. Mismatched stepId
+          // is also cleared (defensive — forward-progress reset is the
+          // primary guard).
+          const adaptationOverride = this.consumePendingAdaptation(stepId);
           // deno-lint-ignore no-await-in-loop
           const flowPrompt = await this.closureManager
-            .resolveFlowStepPrompt(stepId, uvVars);
+            .resolveFlowStepPrompt(
+              stepId,
+              uvVars,
+              adaptationOverride !== undefined
+                ? { adaptation: adaptationOverride }
+                : undefined,
+            );
           if (flowPrompt) {
             prompt = flowPrompt.content;
             promptSource = flowPrompt.source;
@@ -736,6 +814,19 @@ export class AgentRunner {
           summary,
           ctx,
         );
+
+        // Capture self-route adaptation for the next iteration (design 01
+        // §3.2). When `intent === "repeat"`, WorkflowRouter advanced the
+        // cursor and surfaces the resolved chain element here. The
+        // adaptation is keyed by `stepId` so a forward-progress reset on a
+        // different step (cursor.reset in router) plus the consume-time
+        // stepId match in `consumePendingAdaptation` jointly prevent leak.
+        if (routingResult?.repeatAdaptation !== undefined) {
+          this.pendingAdaptation = {
+            stepId,
+            adaptation: routingResult.repeatAdaptation,
+          };
+        }
 
         // Warn if structured output was expected but not returned
         if (
@@ -1180,6 +1271,31 @@ export class AgentRunner {
    */
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Consume the pending self-route adaptation for `stepId`.
+   *
+   * Returns the queued adaptation when it was set on the previous
+   * iteration's `intent === "repeat"` AND its stepId matches the current
+   * one. The slot is cleared on every call (consume-once), and a stepId
+   * mismatch also clears it so a stale entry can never silently apply to
+   * a different step. Returns `undefined` when nothing is queued.
+   *
+   * Forward-progress resets in `WorkflowRouter`/`CompletionLoopProcessor`
+   * are the primary guard against stale state; this stepId check is the
+   * structural backstop.
+   */
+  private consumePendingAdaptation(stepId: string): string | undefined {
+    const pending = this.pendingAdaptation;
+    if (pending === null) {
+      return undefined;
+    }
+    this.pendingAdaptation = null;
+    if (pending.stepId !== stepId) {
+      return undefined;
+    }
+    return pending.adaptation;
   }
 
   /**

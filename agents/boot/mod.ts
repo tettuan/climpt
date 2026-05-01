@@ -30,4 +30,11 @@ export type { LoadPolicyOpts, Policy, TransportPolicy } from "./policy.ts";
 
 export { deepFreeze } from "./freeze.ts";
 
-export { RULE_CODES, RULE_COUNT, validateBootArtifacts } from "./validate.ts";
+export {
+  collectBootWarnings,
+  REJECT_RULE_CODES,
+  RULE_CODES,
+  RULE_COUNT,
+  validateBootArtifacts,
+  WARN_RULE_CODES,
+} from "./validate.ts";

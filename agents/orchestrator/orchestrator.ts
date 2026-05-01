@@ -15,7 +15,7 @@ import type {
   WorkflowConfig,
 } from "./workflow-types.ts";
 import type { GitHubClient } from "./github-client.ts";
-import type { AgentDispatcher } from "./dispatcher.ts";
+import type { AgentDispatcher, DispatchOutcome } from "./dispatcher.ts";
 import type { ArtifactEmitter } from "./artifact-emitter.ts";
 import type { AgentRegistry } from "../boot/types.ts";
 import type { CloseEventBus } from "../events/bus.ts";
@@ -23,6 +23,7 @@ import type { DirectCloseChannel } from "../channels/direct-close.ts";
 import type { OutboxClosePostChannel } from "../channels/outbox-close-post.ts";
 import type { OutboxClosePreChannel } from "../channels/outbox-close-pre.ts";
 import type { TransitionComputedEvent } from "../events/types.ts";
+import { isExecutionError } from "../shared/errors/base.ts";
 import { RateLimiter } from "./rate-limiter.ts";
 import {
   resolveAgent,
@@ -588,24 +589,63 @@ export class Orchestrator {
         source: options?.dispatchSource ?? "workflow",
       });
 
-      // deno-lint-ignore no-await-in-loop
-      const dispatchResult = await this.#dispatcher.dispatch(
-        agentId,
-        subjectId,
-        {
-          verbose: options?.verbose ?? false,
-          issueStorePath: store?.storePath,
-          outboxPath: store?.getOutboxPath(subjectId),
-          payload,
-        },
-      );
+      let dispatchResult: DispatchOutcome;
+      try {
+        // deno-lint-ignore no-await-in-loop
+        dispatchResult = await this.#dispatcher.dispatch(
+          agentId,
+          subjectId,
+          {
+            verbose: options?.verbose ?? false,
+            issueStorePath: store?.storePath,
+            outboxPath: store?.getOutboxPath(subjectId),
+            payload,
+          },
+        );
+      } catch (error) {
+        // ExecutionError-class only (design 16 §C lines 173-184). The
+        // marker interface tag (`ExecutionErrorMarker.executionFailure`)
+        // discriminates Run-time SO/Verdict failures from
+        // ConfigurationError (Boot-time reject — must NOT reach here),
+        // ConnectionError (Transport-owned), and arbitrary throws (which
+        // escape so BatchRunner records `skipped[]` with a stack trace).
+        // Adding a new ExecutionError class only requires tagging it;
+        // this catch needs no edit.
+        if (isExecutionError(error)) {
+          this.#bus?.publish({
+            kind: "issueCloseFailed",
+            publishedAt: Date.now(),
+            runId: this.#runId ?? "",
+            subjectId,
+            channel: "D",
+            reason: error.code,
+          });
+          // deno-lint-ignore no-await-in-loop
+          await log.error(
+            `Dispatcher threw ExecutionError for subject ` +
+              `#${subjectId} (agent="${agentId}", code="${error.code}"): ` +
+              `${error.message}`,
+            {
+              event: "dispatch_execution_error",
+              subjectId,
+              agent: agentId,
+              code: error.code,
+              message: error.message,
+            },
+          );
+          status = "blocked";
+          finalPhase = phaseId;
+          break;
+        }
+        throw error;
+      }
 
       // T3.3 (shadow mode): publish DispatchCompleted on the success
-      // path. A dispatcher exception escapes the cycle entirely (no
-      // catch around `dispatch`); F7 keeps this publish symmetric
-      // because failures surface elsewhere (issueCloseFailed, log
-      // events). T4 channels can subscribe and reason about successful
-      // dispatches without inspecting the error path.
+      // path. Non-recoverable ClimptError throws from `dispatch` are
+      // intercepted above and surfaced as `IssueCloseFailedEvent`; other
+      // exceptions escape the cycle. T4 channels can subscribe and
+      // reason about successful dispatches without inspecting the error
+      // path.
       this.#bus?.publish({
         kind: "dispatchCompleted",
         publishedAt: Date.now(),

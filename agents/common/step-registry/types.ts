@@ -147,6 +147,22 @@ export interface Step {
   transitions?: Transitions;
 
   /**
+   * `intent: "repeat"` 時に進む C3L adaptation の宣言順列。
+   * cursor は initial 0、`intent=repeat` で +1 し chain[cursor] を読む。
+   * cursor == chain.length に到達した repeat は exhausted となり
+   * AgentAdaptationChainExhaustedError で throw する。
+   *
+   * 未指定時 default: ["default"]
+   *   = 1 要素 = repeat 不可 (cursor=0 で 1 回 default を読み、
+   *     次の repeat で即 exhaust)。
+   *
+   * chain 要素は prompt-resolver が C3L file
+   * (`{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md`) を解決できる識別子で
+   * なければならない (Boot validation S9)。
+   */
+  adaptationChain?: readonly string[];
+
+  /**
    * Override SDK permissionMode for this step.
    * When set, takes priority over `permissions.defaultMode` from
    * `.agent/climpt/config/claude.settings.climpt.agents.*.json`.

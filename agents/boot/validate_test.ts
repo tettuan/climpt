@@ -17,7 +17,15 @@
 
 import { assert, assertEquals } from "@std/assert";
 
-import { __internals, RULE_CODES, validateBootArtifacts } from "./validate.ts";
+import {
+  __internals,
+  collectBootWarnings,
+  REJECT_RULE_CODES,
+  RULE_CODES,
+  validateBootArtifacts,
+  WARN_RULE_CODES,
+} from "./validate.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
 import type { BootArtifacts } from "./types.ts";
 import type { Policy, TransportPolicy } from "./policy.ts";
 import type { AgentRegistry } from "./types.ts";
@@ -239,10 +247,10 @@ function makeArtifacts(
 }
 
 // ---------------------------------------------------------------------------
-// Happy path — synthetic artifact passes all 27 rules
+// Happy path — synthetic artifact passes the Reject-tier rules
 // ---------------------------------------------------------------------------
 
-Deno.test("validateBootArtifacts — synthetic happy-path passes all 27 rules", () => {
+Deno.test("validateBootArtifacts — synthetic happy-path accepts (no Reject-tier violations)", () => {
   const decision = validateBootArtifacts(makeArtifacts());
   assert(
     isAccept(decision),
@@ -255,21 +263,43 @@ Deno.test("validateBootArtifacts — synthetic happy-path passes all 27 rules", 
 });
 
 // ---------------------------------------------------------------------------
-// Coverage — RULE_CODES enumerates 27 rules, no duplicates
+// Coverage — RULE_CODES enumerates Reject ∪ Warn rules, no duplicates
 // ---------------------------------------------------------------------------
 
-Deno.test("validateBootArtifacts — RULE_CODES covers exactly 27 rules without duplicates", () => {
-  assertEquals(RULE_CODES.length, 27, "27-rule contract");
+Deno.test("validateBootArtifacts — RULE_CODES = REJECT_RULE_CODES ∪ WARN_RULE_CODES, no duplicates", () => {
+  assertEquals(
+    RULE_CODES.length,
+    REJECT_RULE_CODES.length + WARN_RULE_CODES.length,
+    "RULE_CODES is the disjoint union of Reject and Warn tiers",
+  );
   const seen = new Set(RULE_CODES);
   assertEquals(seen.size, RULE_CODES.length, "no duplicate rule codes");
+  // The two tiers must be disjoint (a rule cannot be both blocking and advisory).
+  const rejectSet = new Set<string>(REJECT_RULE_CODES);
+  for (const w of WARN_RULE_CODES) {
+    assert(
+      !rejectSet.has(w),
+      `Warn-tier code "${w}" must not appear in REJECT_RULE_CODES`,
+    );
+  }
 });
 
-Deno.test("validateBootArtifacts — every rule code has a per-rule helper exported via __internals", () => {
-  for (const code of RULE_CODES) {
+Deno.test("validateBootArtifacts — every Reject rule code has a `validate<code>` helper exported via __internals", () => {
+  for (const code of REJECT_RULE_CODES) {
     const fnName = `validate${code}` as keyof typeof __internals;
     assert(
       typeof __internals[fnName] === "function",
       `Missing per-rule helper for ${code} (expected __internals.${fnName})`,
+    );
+  }
+});
+
+Deno.test("validateBootArtifacts — every Warn rule code has a `collect<code>Warnings` helper exported via __internals", () => {
+  for (const code of WARN_RULE_CODES) {
+    const fnName = `collect${code}Warnings` as keyof typeof __internals;
+    assert(
+      typeof __internals[fnName] === "function",
+      `Missing warn helper for ${code} (expected __internals.${fnName})`,
     );
   }
 });
@@ -618,4 +648,283 @@ Deno.test("W3 — phase referencing unregistered agent rejects with W3", () => {
       }`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// S9 (NEW, self-route §4.4) — adaptationChain element resolvability
+// ---------------------------------------------------------------------------
+//
+// Both-sides invariant verification (per `contradiction-verification`):
+//   silence ⇔ structurally valid chain element
+//   error   ⇔ at least one element fails the C3L `adaptation` segment shape
+//
+// Source of truth for the structural rule lives in
+// `agents/boot/validate.ts:adaptationChainElementViolation` (the resolver-side
+// path template `f_{edition}_{adaptation}.md` — see `prompt-resolver.ts:formatC3LPath`).
+// On-disk file existence is delegated to the loader's path-validator (matching
+// the S6 / A5 split documented in `validate.ts` §"Coverage policy") so that
+// `validateBootArtifacts` stays a pure synchronous function.
+
+Deno.test("S9 (silence) — declared adaptationChain with structurally valid elements emits no S9", () => {
+  const bundle = makeBundle({
+    steps: [
+      makeStep({ adaptationChain: ["default"] }),
+      makeClosureStep({ adaptationChain: ["default", "git-dirty"] }),
+    ],
+    flow: {
+      entryStep: "initial.work",
+      workSteps: [makeStep({ adaptationChain: ["default"] })],
+    },
+    completion: {
+      closureSteps: [
+        makeClosureStep({ adaptationChain: ["default", "git-dirty"] }),
+      ],
+      verdictKind: "count:iteration",
+    },
+  });
+  const decision = validateBootArtifacts(makeArtifacts({ bundles: [bundle] }));
+  if (isReject(decision)) {
+    const s9 = decision.errors.filter((e) => e.code === "S9");
+    assertEquals(
+      s9.length,
+      0,
+      `Expected no S9 errors, got: ${s9.map((e) => e.message).join("\n")}`,
+    );
+  }
+  // Accept-or-no-S9 is the contract; full Accept also acceptable.
+  assert(
+    isAccept(decision) ||
+      (isReject(decision) &&
+        decision.errors.every((e) => e.code !== "S9")),
+  );
+});
+
+Deno.test("S9 (error) — adaptationChain with empty-string element rejects with S9", () => {
+  const bundle = makeBundle({
+    steps: [
+      makeStep({ adaptationChain: ["default", ""] }),
+      makeClosureStep({ adaptationChain: ["default"] }),
+    ],
+    flow: {
+      entryStep: "initial.work",
+      workSteps: [makeStep({ adaptationChain: ["default", ""] })],
+    },
+    completion: {
+      closureSteps: [makeClosureStep({ adaptationChain: ["default"] })],
+      verdictKind: "count:iteration",
+    },
+  });
+  const decision = validateBootArtifacts(makeArtifacts({ bundles: [bundle] }));
+  assert(isReject(decision), "expected Reject for empty chain element");
+  if (isReject(decision)) {
+    assert(
+      decision.errors.some((e) => e.code === "S9"),
+      `expected S9 in errors, got: ${
+        decision.errors.map((e) => e.code).join(", ")
+      }`,
+    );
+  }
+});
+
+Deno.test("S9 (error) — adaptationChain element containing a path separator rejects with S9", () => {
+  // A path separator would let the resolver escape `f_{edition}_{adaptation}.md`
+  // and target an arbitrary file — the same class of violation the existing A5
+  // schemaRef check rejects. Surface as S9 here so the diagnostic is local to
+  // the chain element.
+  const bundle = makeBundle({
+    steps: [
+      makeStep({ adaptationChain: ["default", "../escape"] }),
+      makeClosureStep({ adaptationChain: ["default"] }),
+    ],
+    flow: {
+      entryStep: "initial.work",
+      workSteps: [
+        makeStep({ adaptationChain: ["default", "../escape"] }),
+      ],
+    },
+    completion: {
+      closureSteps: [makeClosureStep({ adaptationChain: ["default"] })],
+      verdictKind: "count:iteration",
+    },
+  });
+  const decision = validateBootArtifacts(makeArtifacts({ bundles: [bundle] }));
+  assert(isReject(decision));
+  if (isReject(decision)) {
+    assert(
+      decision.errors.some((e) => e.code === "S9"),
+      `expected S9, got: ${decision.errors.map((e) => e.code).join(", ")}`,
+    );
+  }
+});
+
+Deno.test("S9 (silence) — empty adaptationChain emits no S9 (no element to validate)", () => {
+  // Whether `[]` is itself an allowed declaration is a separate concern (a
+  // future S11 could ban it); S9 only fires per element, so an empty chain
+  // has nothing to flag. This guards against an over-eager S9 implementation.
+  const bundle = makeBundle({
+    steps: [
+      makeStep({ adaptationChain: [] }),
+      makeClosureStep({ adaptationChain: [] }),
+    ],
+    flow: {
+      entryStep: "initial.work",
+      workSteps: [makeStep({ adaptationChain: [] })],
+    },
+    completion: {
+      closureSteps: [makeClosureStep({ adaptationChain: [] })],
+      verdictKind: "count:iteration",
+    },
+  });
+  const decision = validateBootArtifacts(makeArtifacts({ bundles: [bundle] }));
+  if (isReject(decision)) {
+    const s9 = decision.errors.filter((e) => e.code === "S9");
+    assertEquals(
+      s9.length,
+      0,
+      `Expected no S9 errors on empty chain, got: ${
+        s9.map((e) => e.message).join("\n")
+      }`,
+    );
+  }
+});
+
+Deno.test("S9 (silence) — undeclared adaptationChain emits no S9 (S10 covers undeclared)", () => {
+  // S9 fires only on declared chains; undeclared chains are S10's domain
+  // (advisory warn). The default fixture leaves adaptationChain undefined.
+  const decision = validateBootArtifacts(makeArtifacts());
+  if (isReject(decision)) {
+    const s9 = decision.errors.filter((e) => e.code === "S9");
+    assertEquals(
+      s9.length,
+      0,
+      `Expected no S9 errors when chain is undeclared, got: ${
+        s9.map((e) => e.message).join("\n")
+      }`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// S10 (NEW, self-route §4.4) — kind-allows-repeat ∧ adaptationChain undeclared
+// ---------------------------------------------------------------------------
+//
+// Both-sides invariant verification (per `contradiction-verification`):
+//   silence ⇔ adaptationChain declared (any value, even [] or ["default"])
+//   warn    ⇔ adaptationChain undeclared AND step.kind admits "repeat"
+//
+// Source of truth for the kind→intent mapping is
+// `STEP_KIND_ALLOWED_INTENTS` (imported above) — tests must NOT hard-code
+// the per-kind allowed-intent list.
+
+Deno.test("S10 (silence) — step with declared adaptationChain emits no S10", () => {
+  const bundle = makeBundle({
+    steps: [
+      makeStep({ adaptationChain: ["default"] }),
+      makeClosureStep({ adaptationChain: ["default"] }),
+    ],
+    flow: {
+      entryStep: "initial.work",
+      workSteps: [makeStep({ adaptationChain: ["default"] })],
+    },
+    completion: {
+      closureSteps: [makeClosureStep({ adaptationChain: ["default"] })],
+      verdictKind: "count:iteration",
+    },
+  });
+  const warnings = collectBootWarnings(makeArtifacts({ bundles: [bundle] }));
+  const s10 = warnings.filter((w) => w.code === "S10");
+  assertEquals(
+    s10.length,
+    0,
+    `Expected no S10 warns when chain is declared, got:\n${
+      s10.map((w) => `  ${w.message}`).join("\n")
+    }`,
+  );
+});
+
+Deno.test("S10 (warn) — repeat-allowing kind with undeclared adaptationChain emits S10", () => {
+  // Pick a kind that admits "repeat" via the source-of-truth table — using
+  // the table directly avoids hard-coding the per-kind set in this test.
+  const repeatAllowingKinds = (Object.keys(STEP_KIND_ALLOWED_INTENTS) as Array<
+    keyof typeof STEP_KIND_ALLOWED_INTENTS
+  >).filter((k) => STEP_KIND_ALLOWED_INTENTS[k].includes("repeat"));
+  assert(
+    repeatAllowingKinds.length > 0,
+    "STEP_KIND_ALLOWED_INTENTS must declare at least one repeat-allowing kind",
+  );
+
+  // The default fixture leaves adaptationChain undeclared and uses kind="work"
+  // (which admits "repeat" per the table). The fixture therefore exercises
+  // exactly the warn pre-condition.
+  const warnings = collectBootWarnings(makeArtifacts());
+  const s10 = warnings.filter((w) => w.code === "S10");
+  assert(
+    s10.length > 0,
+    `Expected at least one S10 warn for the default fixture (kind=work, chain undeclared), got none`,
+  );
+});
+
+Deno.test("S10 (smoke) — multi-step registry without adaptationChain warns once per repeat-allowing step", () => {
+  // Documents the design's "intentional high firing rate" as a test
+  // invariant: every repeat-allowing step that pre-dates the rule fires
+  // S10 exactly once. The count is not hard-coded — it is derived from
+  // `STEP_KIND_ALLOWED_INTENTS` (source of truth) and the bundle shape.
+  const stepA = makeStep({ stepId: "initial.a" });
+  const stepB = makeStep({
+    stepId: "initial.b",
+    transitions: { next: { target: "closure.done" } },
+  });
+  const closure = makeClosureStep();
+  const bundle = makeBundle({
+    steps: [stepA, stepB, closure],
+    flow: {
+      entryStep: "initial.a",
+      workSteps: [stepA, stepB],
+    },
+    completion: {
+      closureSteps: [closure],
+      verdictKind: "count:iteration",
+    },
+  });
+
+  const expectedWarns = bundle.steps.filter(
+    (s) =>
+      s.adaptationChain === undefined &&
+      STEP_KIND_ALLOWED_INTENTS[s.kind].includes("repeat"),
+  ).length;
+  assert(
+    expectedWarns >= 1,
+    "fixture must include at least one repeat-allowing step without adaptationChain",
+  );
+
+  const warnings = collectBootWarnings(makeArtifacts({ bundles: [bundle] }));
+  const s10 = warnings.filter((w) => w.code === "S10");
+  assertEquals(
+    s10.length,
+    expectedWarns,
+    `S10 must fire once per repeat-allowing step lacking adaptationChain (expected ${expectedWarns}, got ${s10.length})`,
+  );
+});
+
+Deno.test("S10 — warns do NOT block validateBootArtifacts (Boot still accepts)", () => {
+  // The Boot fail-fast invariant: warns are advisory; Reject is reserved
+  // for gate-relevant violations. Even when S10 fires (default fixture
+  // does), the orchestrator returns Accept.
+  const artifacts = makeArtifacts();
+  const warnings = collectBootWarnings(artifacts);
+  const s10 = warnings.filter((w) => w.code === "S10");
+  assert(
+    s10.length > 0,
+    "fixture must trigger at least one S10 to make this test meaningful",
+  );
+
+  const decision = validateBootArtifacts(artifacts);
+  assert(
+    isAccept(decision),
+    `Boot must accept despite ${s10.length} S10 warn(s); got Reject:\n${
+      isReject(decision)
+        ? decision.errors.map((e) => `  [${e.code}] ${e.message}`).join("\n")
+        : ""
+    }`,
+  );
 });

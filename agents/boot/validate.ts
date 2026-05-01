@@ -1,7 +1,7 @@
 /**
  * Central Boot validation orchestrator (design 12 §F + 13 §G + 14 §G).
  *
- * Runs all 26 Boot validation rules over an assembled
+ * Runs every Boot validation rule over an assembled
  * {@link BootArtifacts} aggregate. Each rule helper returns a
  * `Decision<void>`; the aggregate is combined via
  * {@link combineDecisions} so a single Boot pass surfaces every
@@ -10,7 +10,11 @@
  * Rule families (file-prefix taxonomy, see `errors.ts`):
  *  - **W1..W11** — workflow.json invariants (12 §F).
  *  - **A1..A8**  — agent bundle invariants (13 §G).
- *  - **S1..S8**  — step registry invariants (14 §G).
+ *  - **S1..S9**  — step registry invariants (14 §G + self-route §4.4).
+ *  - **S10**     — advisory `adaptationChain` migration warn, surfaced
+ *                  via the sibling collector {@link collectBootWarnings}
+ *                  (warns are non-blocking; `validateBootArtifacts`
+ *                  remains the Run-start gate).
  *
  * `W11` ((phase, agentId, invocationIndex) unique over
  * `invocations: AgentInvocation[]`) is enforced in T5.2 once the
@@ -46,6 +50,7 @@
 
 import type { AgentBundle } from "../src_common/types/agent-bundle.ts";
 import type { Step } from "../common/step-registry/types.ts";
+import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
 import type {
   AgentDefinition as WorkflowAgentDefinition,
   WorkflowConfig,
@@ -65,11 +70,11 @@ import type { BootArtifacts } from "./types.ts";
 import type { TransportPolicy } from "./policy.ts";
 
 // ---------------------------------------------------------------------------
-// Public entry — orchestrate all 26 rules.
+// Public entry — orchestrate all Reject-tier rules (Warn-tier sibling below).
 // ---------------------------------------------------------------------------
 
 /**
- * Run every Boot validation rule (26 total) over `artifacts`.
+ * Run every Boot Reject-tier validation rule over `artifacts`.
  *
  * Aggregates per-rule `Decision<void>` results into a single
  * `Decision<void>` whose `Reject` lists every accumulated
@@ -78,6 +83,10 @@ import type { TransportPolicy } from "./policy.ts";
  * Order of evaluation is **W → A → S**, matching the design
  * documents' §F / §G ordering, but the result aggregate is order-
  * independent (no early exit).
+ *
+ * Advisory rules (S10) are emitted via the sibling
+ * {@link collectBootWarnings}; they do NOT participate in the Reject
+ * gate so a Boot can succeed with non-empty warnings.
  */
 export function validateBootArtifacts(
   artifacts: BootArtifacts,
@@ -113,6 +122,7 @@ export function validateBootArtifacts(
     validateS6(artifacts),
     validateS7(artifacts),
     validateS8(artifacts),
+    validateS9(artifacts),
   ];
 
   const combined = combineDecisions(decisions);
@@ -1082,6 +1092,157 @@ function validateS8(artifacts: BootArtifacts): Decision<void> {
   return decideFromErrors(errors);
 }
 
+/**
+ * **S9 (NEW, self-route §4.4)** — `adaptationChain` element is a structurally
+ * valid C3L `adaptation` segment.
+ *
+ * Per `prompt-resolver.ts:formatC3LPath`, an adaptation element becomes the
+ * trailing segment of `f_{edition}_{adaptation}.md`. The element MUST
+ * therefore be a non-empty string with no path separators or `..` traversal,
+ * mirroring the `c3` / `edition` shape that S6 already enforces structurally.
+ *
+ * On-disk file existence (the `.md` file actually present under
+ * `<agentRoot>/prompts/{c1}/{c2}/{c3}/`) is delegated to the loader's
+ * path-validator (matching the S6 / A5 split documented in this module's
+ * §"Coverage policy"). `validateBootArtifacts` is contracted as a pure
+ * synchronous function — surfacing a real disk check would require either
+ * an async path-resolver here or an `agentRoot` field on `BootArtifacts`,
+ * neither of which exists today. The structural gate keeps the synthetic
+ * fixture surface decidable and matches every other Boot invariant.
+ *
+ * @see tmp/audit-precheck-kind-loop/framework-design/01-self-route-termination.md §4.4
+ */
+function validateS9(artifacts: BootArtifacts): Decision<void> {
+  const errors: ValidationError[] = [];
+  for (const b of bundles(artifacts)) {
+    for (const s of b.steps) {
+      const chain = s.adaptationChain;
+      if (chain === undefined) continue; // S9 only fires on declared chains
+      for (let i = 0; i < chain.length; i++) {
+        const element = chain[i];
+        const violation = adaptationChainElementViolation(element);
+        if (violation !== null) {
+          errors.push(
+            validationError(
+              "S9",
+              `AgentBundle "${b.id}" step "${s.stepId}" adaptationChain[${i}] (${
+                JSON.stringify(element)
+              }) is not a structurally resolvable C3L adaptation segment: ${violation}`,
+              {
+                context: {
+                  agentId: b.id,
+                  stepId: s.stepId,
+                  index: i,
+                  element,
+                },
+              },
+            ),
+          );
+        }
+      }
+    }
+  }
+  return decideFromErrors(errors);
+}
+
+/**
+ * Validate that an `adaptationChain` element can be substituted into
+ * `prompt-resolver.formatC3LPath`'s `f_{edition}_{adaptation}.md` template.
+ *
+ * Returns a human-readable rule violation when the element is not usable,
+ * or `null` when the element is structurally valid.
+ */
+function adaptationChainElementViolation(value: unknown): string | null {
+  if (typeof value !== "string") return "not a string";
+  if (value.length === 0) return "empty string";
+  if (value.trim().length === 0) return "whitespace-only";
+  if (value.includes("/") || value.includes("\\")) {
+    return "contains a path separator";
+  }
+  if (value.includes("..")) return "contains '..' (path traversal)";
+  // C3L adaptation segments live inside a filename; reject any character
+  // that would break the `f_<edition>_<adaptation>.md` template at the
+  // resolver's regex boundary (`[A-Za-z0-9_-]` is the safe set per the
+  // `templates.<name>` regex in `validateW9`).
+  if (!/^[A-Za-z0-9._-]+$/.test(value)) {
+    return "non-identifier characters present (allowed: A–Z, a–z, 0–9, '.', '_', '-')";
+  }
+  return null;
+}
+
+/**
+ * **S10 (NEW, self-route §4.4) — ADVISORY** — `kind`-allows-`repeat` ∧
+ * `adaptationChain` undeclared.
+ *
+ * For every step whose `kind` admits `"repeat"` (per the source-of-truth
+ * {@link STEP_KIND_ALLOWED_INTENTS} table), absence of `adaptationChain`
+ * means the framework will implicitly substitute `["default"]` at runtime.
+ * S10 surfaces this implicit substitution to the registry author so they
+ * can declare it explicitly if intentional.
+ *
+ * **Intentional high firing rate** — every existing repeat-allowing step
+ * that pre-dates this rule fires S10 once. This is the migration signal
+ * the design calls for; authors silence it by declaring `adaptationChain`
+ * (even just `["default"]`). The signal is *not* a defect.
+ *
+ * Severity: **warn** (advisory). Emitted via {@link collectBootWarnings},
+ * not `validateBootArtifacts` — Boot still succeeds with non-empty warns.
+ *
+ * @see tmp/audit-precheck-kind-loop/framework-design/01-self-route-termination.md §4.4
+ */
+function collectS10Warnings(
+  artifacts: BootArtifacts,
+): readonly ValidationError[] {
+  const warnings: ValidationError[] = [];
+  for (const b of bundles(artifacts)) {
+    for (const s of b.steps) {
+      if (s.adaptationChain !== undefined) continue;
+      if (!stepKindAllowsRepeat(s)) continue;
+      warnings.push(
+        validationError(
+          "S10",
+          `AgentBundle "${b.id}" step "${s.stepId}" (kind="${s.kind}") allows "repeat" intent but adaptationChain is undeclared — framework will implicitly substitute ["default"]; declare adaptationChain explicitly to silence this warn`,
+          {
+            context: {
+              agentId: b.id,
+              stepId: s.stepId,
+              kind: s.kind,
+            },
+          },
+        ),
+      );
+    }
+  }
+  return warnings;
+}
+
+/**
+ * Predicate sourced from {@link STEP_KIND_ALLOWED_INTENTS} (the single
+ * source of truth for kind → allowed-intent mapping). Avoids hard-coded
+ * "repeat-allowing kinds" lists that could drift from the registry types.
+ */
+function stepKindAllowsRepeat(step: Step): boolean {
+  const allowed = STEP_KIND_ALLOWED_INTENTS[step.kind];
+  return allowed.includes("repeat");
+}
+
+/**
+ * Collect every advisory (warn-tier) Boot signal for `artifacts`.
+ *
+ * Mirror of {@link validateBootArtifacts}'s contract (pure, synchronous,
+ * `BootArtifacts → readonly ValidationError[]`) but for non-blocking
+ * signals only. Callers (kernel boundary / log surfaces) decide how to
+ * route the returned `ValidationError[]` — the typical destination is the
+ * structured-log JSONL stream.
+ *
+ * Currently surfaces **S10** only. Future advisory rules append here.
+ */
+export function collectBootWarnings(
+  artifacts: BootArtifacts,
+): readonly ValidationError[] {
+  return collectS10Warnings(artifacts);
+}
+
 // ---------------------------------------------------------------------------
 // Test surface — exported helpers for `validate_test.ts` only.
 //
@@ -1119,14 +1280,23 @@ export const __internals = {
   validateS6,
   validateS7,
   validateS8,
+  validateS9,
+  /**
+   * S10 helper: returns the advisory-tier `ValidationError[]` for the
+   * single S10 rule. Tests reach in via this slot to exercise the warn
+   * path independently of the full {@link collectBootWarnings} surface.
+   */
+  collectS10Warnings,
 } as const;
 
 /**
- * Type-level coverage table — names every rule code the orchestrator
- * dispatches. Used by `validate_test.ts` to assert no rule is silently
- * skipped from {@link validateBootArtifacts}.
+ * Reject-tier rule codes — every rule whose violation surfaces through
+ * {@link validateBootArtifacts}'s `Decision = Reject`.
+ *
+ * Used by `validate_test.ts` to assert no Reject rule is silently
+ * skipped from the orchestrator chain.
  */
-export const RULE_CODES = [
+export const REJECT_RULE_CODES = [
   "W1",
   "W2",
   "W3",
@@ -1154,7 +1324,31 @@ export const RULE_CODES = [
   "S6",
   "S7",
   "S8",
+  "S9",
 ] as const;
 
-/** Sanity: ensure {@link RULE_CODES} covers exactly 27 rules. */
+/**
+ * Warn-tier (advisory) rule codes — every rule whose violation surfaces
+ * through {@link collectBootWarnings} as a non-blocking
+ * `ValidationError`. Boot still succeeds with non-empty warnings.
+ *
+ * S10 is the migration-signal advisory for `adaptationChain` undeclared
+ * on a `repeat`-allowing kind (self-route §4.4).
+ */
+export const WARN_RULE_CODES = ["S10"] as const;
+
+/**
+ * Total rule-code coverage — Reject ∪ Warn. Used by `validate_test.ts`
+ * to assert the Boot validation surface covers exactly the documented
+ * `ValidationErrorCode` union.
+ */
+export const RULE_CODES = [
+  ...REJECT_RULE_CODES,
+  ...WARN_RULE_CODES,
+] as const;
+
+/**
+ * Sanity: ensure {@link RULE_CODES} covers exactly 29 rules
+ * (28 Reject — W1..W11 + A1..A8 + S1..S9 — plus 1 Warn S10).
+ */
 export const RULE_COUNT = RULE_CODES.length;

@@ -1118,3 +1118,80 @@ Deno.test("AgentRunner.run - normal LLM response with handler done=true returns 
     "No error field when everything succeeds",
   );
 });
+
+// =============================================================================
+// P1-3 Contract: AgentRunner.initialize wires AdaptationCursor.setLogSink
+// =============================================================================
+
+Deno.test(
+  "P1-3: AgentRunner.initialize wires AdaptationCursor.setLogSink (telemetry contract)",
+  async () => {
+    // P1-3 contract: `runner.ts` calls
+    // `this.adaptationCursor.setLogSink(logger, this.runId)` inside
+    // `initialize()` so §2.5 telemetry events carry the bound `agentRunId`
+    // (which may be `undefined` for standalone runs). If a future refactor
+    // deletes that line, the cursor stays unwired and emitted events have
+    // no log sink — log aggregation breaks system-wide.
+    //
+    // Behavioral assertion: drive `initialize()` (via `run()`) on a
+    // minimal runner harness, then read the public `adaptationCursorHasLogSink`
+    // test seam. `false` proves the wiring was dropped.
+    const mockLog = createMockLogger();
+    const verdictHandler = createMockVerdictHandler({
+      finishedSequence: [true],
+      verdictDescription: "P1-3 contract test",
+    });
+    const deps = createFakeDependencies(mockLog, verdictHandler);
+    const definition = createTestDefinition({ maxIterations: 1 });
+    const runner = new AgentRunner(definition, deps);
+
+    // Pre-condition: cursor is constructed at field-init time, BEFORE
+    // initialize runs. If `hasLogSink` returns true here, the contract
+    // is degenerate (initialize-side wiring is no longer needed). We
+    // pin the false→true transition explicitly.
+    assertEquals(
+      runner.adaptationCursorHasLogSink,
+      false,
+      `P1-3 pre: AdaptationCursor must NOT have a log sink before ` +
+        `initialize() runs. Observed=true. Fix: AdaptationCursor field ` +
+        `init must leave #logSink undefined; setLogSink is called from ` +
+        `runner.initialize.`,
+    );
+
+    stubInitializeValidation(runner);
+    stubSystemPromptResolution(runner);
+    // deno-lint-ignore no-explicit-any
+    (runner as any).closureManager.stepPromptResolver = {
+      resolve: () =>
+        Promise.resolve({
+          content: "stub flow prompt",
+          source: "user" as const,
+          promptPath: "stub",
+        }),
+    };
+    stubExecuteQuery(runner, () => {
+      return createSummary({
+        iteration: 1,
+        sessionId: "sess-p1-3",
+        assistantResponses: ["done"],
+      });
+    });
+
+    await runner.run({
+      args: {},
+      cwd: "/tmp/claude/test-p1-3-cursor-wiring",
+    });
+
+    // Post-condition: initialize must have set the sink.
+    assertEquals(
+      runner.adaptationCursorHasLogSink,
+      true,
+      `P1-3 post: AdaptationCursor must have a log sink after ` +
+        `initialize() (driven via run()) so §2.5 events carry the bound ` +
+        `agentRunId. Observed=false — the runner skipped ` +
+        `\`adaptationCursor.setLogSink(logger, this.runId)\`. ` +
+        `Fix: keep the setLogSink call in agents/runner/runner.ts ` +
+        `inside initialize().`,
+    );
+  },
+);

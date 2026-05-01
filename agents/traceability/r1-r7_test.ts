@@ -303,17 +303,18 @@ Deno.test(
 // ---------------------------------------------------------------------------
 
 Deno.test(
-  "R6 hard gate — Boot validates exactly 27 rules across W / A / S families " +
-    "(90 §A R6 / 12 §F + 13 §G + 14 §G)",
+  "R6 hard gate — Boot validates exactly 29 rules across W / A / S families " +
+    "(90 §A R6 / 12 §F + 13 §G + 14 §G + self-route §4.4)",
   () => {
-    // R6 hard gate: 27-rule combined coverage (W1..W11 / A1..A8 / S1..S8).
-    // RULE_COUNT is sourced from validate.ts so a future re-numbering
-    // propagates here automatically.
+    // R6 hard gate: 29-rule combined coverage
+    // (W1..W11 + A1..A8 + S1..S10 = 11+8+10 = 29; S9/S10 added by
+    // self-route §4.4). RULE_COUNT is sourced from validate.ts so a
+    // future re-numbering propagates here automatically.
     assertEquals(
       RULE_COUNT,
-      27,
-      `R6: validateBootArtifacts must enforce exactly 27 rules ` +
-        `(W1..W11 + A1..A8 + S1..S8 = 11+8+8=27). Got ${RULE_COUNT}. ` +
+      29,
+      `R6: validateBootArtifacts surface must cover exactly 29 rules ` +
+        `(W1..W11 + A1..A8 + S1..S10 = 11+8+10=29). Got ${RULE_COUNT}. ` +
         `Per 90 §A R6, the 3-file rule split is the structural realisation ` +
         `of "verifiable config"; under-coverage means a Boot input shape ` +
         `is not validated and R6 fails.`,

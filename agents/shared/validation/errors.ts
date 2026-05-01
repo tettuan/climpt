@@ -19,7 +19,7 @@
  *
  * - `W1..W11` — workflow.json (12 §F).
  * - `A1..A8`  — agent bundle (13 §G).
- * - `S1..S8`  — step registry (14 §G).
+ * - `S1..S10` — step registry (14 §G; S9 / S10 added by self-route §4.4).
  */
 export type ValidationErrorCode =
   // ---- W: workflow.json (12 §F) ------------------------------------------
@@ -51,7 +51,9 @@ export type ValidationErrorCode =
   | "S5" //  ≥1 closure step exists
   | "S6" //  address → prompt file resolves (two-tier)
   | "S7" //  retry.patternRef ∈ failurePatterns (TODO[T2.2] — partial)
-  | "S8"; //  entryStepMapping.* ∈ steps
+  | "S8" //  entryStepMapping.* ∈ steps
+  | "S9" //  adaptationChain element resolves to C3L file (structural)
+  | "S10"; // adaptationChain undeclared on repeat-allowing kind (warn)
 
 /**
  * Single validation failure record.

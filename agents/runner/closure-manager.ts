@@ -33,6 +33,7 @@ import type { AgentDependencies } from "./builder.ts";
 import { isInitializable } from "./builder.ts";
 import { StepGateInterpreter } from "./step-gate-interpreter.ts";
 import { WorkflowRouter } from "./workflow-router.ts";
+import type { AdaptationCursor } from "./adaptation-cursor.ts";
 import {
   type PromptResolutionResult,
   PromptResolver as StepPromptResolver,
@@ -42,6 +43,15 @@ import type { SchemaManager } from "./schema-manager.ts";
 export interface ClosureManagerDeps {
   readonly definition: AgentDefinition;
   readonly dependencies: AgentDependencies;
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.2).
+   * Forwarded to `WorkflowRouter` on construction so non-closure
+   * `intent === "repeat"` advances the chain. Optional — when omitted,
+   * `WorkflowRouter` runs with cursor disabled (legacy/test path); the
+   * closure-step path that lives in `CompletionLoopProcessor` continues
+   * to enforce termination via its own cursor reference.
+   */
+  readonly adaptationCursor?: AdaptationCursor;
 }
 
 export interface ClosureManagerState {
@@ -229,6 +239,7 @@ export class ClosureManager {
         this.workflowRouter = new WorkflowRouter(
           stepsRegistry,
           logger,
+          this.deps.adaptationCursor,
         );
         logger.debug("StepGateInterpreter and WorkflowRouter initialized");
 
@@ -404,6 +415,7 @@ export class ClosureManager {
   async resolveFlowStepPrompt(
     stepId: string,
     variables: Record<string, string>,
+    overrides?: { adaptation?: string },
   ): Promise<PromptResolutionResult | null> {
     if (!this.stepPromptResolver || !this.stepsRegistry) {
       return null;
@@ -419,10 +431,16 @@ export class ClosureManager {
       return null;
     }
 
-    // Flow Loop: C3L-only, errors propagate
+    // Flow Loop: C3L-only, errors propagate. `overrides.adaptation` is the
+    // entry point for self-route adaptation (design 01-self-route-
+    // termination §3.2) — when WorkflowRouter advanced the cursor on the
+    // previous iteration's `intent === "repeat"`, the runner threads the
+    // resolved chain element here so the C3L address `f_{edition}_
+    // {adaptation}.md` materializes the declared variant.
     return await this.stepPromptResolver.resolve(
       stepId,
       { uv: variables },
+      overrides,
     );
   }
 

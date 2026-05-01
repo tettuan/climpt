@@ -176,9 +176,26 @@ export interface IssueClosedEvent extends BaseEvent {
 }
 
 /**
- * 6/8 — `IssueCloseFailedEvent`: a Channel.execute attempted to close an
- * issue but the transport reported failure. Publisher: Channel.execute
- * (Transport.Failed branch, design 30 §B / §D Failure).
+ * 6/8 — `IssueCloseFailedEvent`: an issue close attempt or close-bound
+ * cycle failed. Two authorized publishers:
+ *
+ * 1. **Transport-failure branch** — `Channel.execute` (`DirectClose`,
+ *    `BoundaryClose`, `OutboxClose-pre`) on `transport.close` throw
+ *    (design 30 §B / §D Failure). `reason` carries the transport error
+ *    message (free-form string).
+ * 2. **Framework-failure branch** — `Orchestrator.#runInner` F4 catch
+ *    when `dispatcher.dispatch` throws an `ExecutionError`-class
+ *    `ClimptError(recoverable=false)` (design 16 §C; framework-design
+ *    `02-orchestrator-catch-route.md` §3). No transport call was made;
+ *    `channel` reports the agent's closure-step primary channel
+ *    (typically `"D"` for `closeBinding.primary.kind === "direct"`).
+ *    `reason` carries `error.code` (SCREAMING_SNAKE_CASE token).
+ *
+ * The two branches are disambiguated structurally on `reason`: transport
+ * failures emit free-form messages, framework failures emit
+ * `ClimptError.code` tokens. Subscribers (`CompensationCommentChannel`)
+ * forward `reason` verbatim to comment bodies, so operators can grep for
+ * `_` (underscore) or specific `*_ERROR` codes to filter.
  */
 export interface IssueCloseFailedEvent extends BaseEvent {
   readonly kind: "issueCloseFailed";

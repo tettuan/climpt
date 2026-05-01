@@ -10,7 +10,7 @@
  * - Schema pointer/identifier errors
  */
 
-import { ClimptError } from "./base.ts";
+import { ClimptError, type ExecutionErrorMarker } from "./base.ts";
 
 /**
  * Schema resolution failed
@@ -19,9 +19,11 @@ import { ClimptError } from "./base.ts";
  * resolved. The Flow loop should halt immediately - schema failures are fatal
  * because StepGate cannot interpret intents without structured output.
  */
-export class AgentSchemaResolutionError extends ClimptError {
+export class AgentSchemaResolutionError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "FAILED_SCHEMA_RESOLUTION";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly stepId: string;
   readonly schemaRef: string;
   readonly consecutiveFailures: number;
@@ -60,9 +62,11 @@ export class AgentSchemaResolutionError extends ClimptError {
  * that should be fixed immediately - the schema may be missing a "const"
  * constraint or the LLM is returning the wrong step name.
  */
-export class AgentStepIdMismatchError extends ClimptError {
+export class AgentStepIdMismatchError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "AGENT_STEP_ID_MISMATCH";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly expectedStepId: string;
   readonly actualStepId: string;
 
@@ -98,9 +102,11 @@ export class AgentStepIdMismatchError extends ClimptError {
  *
  * @see agents/docs/design/08_step_flow_design.md Section 6
  */
-export class AgentStepRoutingError extends ClimptError {
+export class AgentStepRoutingError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "FAILED_STEP_ROUTING";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly stepId: string;
 
   constructor(
@@ -129,9 +135,11 @@ export class AgentStepRoutingError extends ClimptError {
  * This error is thrown by StepGateInterpreter when it cannot determine
  * intent from the structured output. Now extends ClimptError.
  */
-export class GateInterpretationError extends ClimptError {
+export class GateInterpretationError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "GATE_INTERPRETATION_ERROR";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly stepId: string;
   readonly extractedValue?: unknown;
 
@@ -161,9 +169,10 @@ export class GateInterpretationError extends ClimptError {
  * This error is thrown by WorkflowRouter when step routing fails.
  * Now extends ClimptError.
  */
-export class RoutingError extends ClimptError {
+export class RoutingError extends ClimptError implements ExecutionErrorMarker {
   readonly code = "ROUTING_ERROR";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly stepId: string;
   readonly intent: string;
 
@@ -191,9 +200,11 @@ export class RoutingError extends ClimptError {
  * Error thrown when a JSON Pointer path cannot be resolved in a schema.
  * This is a fatal error that should halt the Flow loop.
  */
-export class SchemaPointerError extends ClimptError {
+export class SchemaPointerError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "SCHEMA_POINTER_ERROR";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly pointer: string;
   readonly file: string;
 
@@ -224,9 +235,11 @@ export class SchemaPointerError extends ClimptError {
  * must be corrected — silently returning an empty object would produce
  * an invalid schema that passes StepGate without proper validation.
  */
-export class SchemaCircularReferenceError extends ClimptError {
+export class SchemaCircularReferenceError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "SCHEMA_CIRCULAR_REFERENCE";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly refKey: string;
   readonly visitedPath: string[];
 
@@ -253,12 +266,56 @@ export class SchemaCircularReferenceError extends ClimptError {
 }
 
 /**
+ * Error thrown when a step's `adaptationChain` is exhausted.
+ *
+ * Per design doc `tmp/audit-precheck-kind-loop/framework-design/01-self-route-termination.md`
+ * §2.4, this is the framework's structural guarantee that self-route
+ * (`intent === "repeat"`) terminates. When the `AdaptationCursor` reaches
+ * `chain.length`, the runner throws this error so the orchestrator can
+ * transition the issue phase to `blocked` via the `IssueCloseFailedEvent`
+ * path (design 16 §C, ExecutionError category).
+ *
+ * This is parallel to `AgentValidationAbortError` (validation-chain channel
+ * exhaustion) — both are runtime-execution errors rooted at `ClimptError`,
+ * but trigger entries differ (validator-driven vs LLM-driven `intent=repeat`).
+ */
+export class AgentAdaptationChainExhaustedError extends ClimptError
+  implements ExecutionErrorMarker {
+  readonly code = "AGENT_ADAPTATION_CHAIN_EXHAUSTED";
+  readonly recoverable = false;
+  readonly executionFailure = true;
+
+  constructor(
+    public readonly stepId: string,
+    public readonly chainLength: number,
+    public readonly lastAdaptation: string,
+    options?: { cause?: Error; iteration?: number },
+  ) {
+    super(
+      `Step "${stepId}" exhausted adaptation chain (length ${chainLength}, last: "${lastAdaptation}"). Self-route limit reached.`,
+      options,
+    );
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      ...super.toJSON(),
+      stepId: this.stepId,
+      chainLength: this.chainLength,
+      lastAdaptation: this.lastAdaptation,
+    };
+  }
+}
+
+/**
  * Error thrown when a schema identifier is malformed.
  * Examples: "##/definitions/foo" (double hash), "//" (empty path segment)
  */
-export class MalformedSchemaIdentifierError extends ClimptError {
+export class MalformedSchemaIdentifierError extends ClimptError
+  implements ExecutionErrorMarker {
   readonly code = "MALFORMED_SCHEMA_IDENTIFIER";
   readonly recoverable = false;
+  readonly executionFailure = true;
   readonly identifier: string;
 
   constructor(identifier: string, reason: string) {

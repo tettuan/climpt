@@ -205,7 +205,7 @@ stateDiagram-v2
 
     state "Intent ADT (closed enum)" as I {
         I_n : next     — 次 step に進む (work / verification の通常遷移)
-        I_r : repeat   — 同 step を再実行 (retry とは別、同 address 再 LLM)
+        I_r : repeat   — 同 step の adaptationChain[cursor] adaptation を読み再 LLM
         I_h : handoff  — 別 agent に dispatch を渡す (OutboxAction経由)
         I_c : closing  — Closure step に進む / Closure step 自身が完了宣言
         I_j : jump     — 任意 step に飛ぶ (graph 内 declarative に列挙された target のみ)
@@ -240,8 +240,66 @@ C3)。Realistic で variant 追加・削除は行わない。
 next step を選ぶことで TransitionRule (To-Be 15) を pure function
 に保てる。`Terminal` を `closure` と区別する点は §H の re-anchoring と対応 —
 「step.kind == Closure」と「transition target == Terminal」は **直交** する 2
-軸で、Closure step 内部にも `repeat` (再検証) や `handoff` (別 agent 起動)
-が定義され得る。
+軸で、Closure step 内部にも `repeat` (次 adaptation で再 LLM) や `handoff` (別
+agent 起動) が定義され得る。
+
+### §E.1 `repeat` semantics 拡張 (adaptation chain)
+
+GateIntent ADT は **6 値 frozen**
+(`next | repeat | jump | closing | escalate
+| handoff`) のまま不変。新 intent
+は追加しない。`repeat` 値の **semantics だけ** を以下のとおり拡張する (§B
+`Step.adaptationChain` field がこの semantics の declarative surface)。
+
+**runtime contract**:
+
+- `intent === "repeat"` は **同 prompt
+  の再実行ではない**。`Step.adaptationChain` (型 `string[]`) の `chain[cursor]`
+  adaptation を読み、prompt-resolver の `overrides.adaptation` に渡して別 prompt
+  を解決する。
+- cursor の状態遷移 (stepId 単位、intent は key に含めない):
+
+  | 事象                                            | cursor                   |
+  | ----------------------------------------------- | ------------------------ |
+  | `intent === "repeat"` 発生                      | +1                       |
+  | 異 step に遷移 (`next` / `jump` / `handoff` 等) | reset to 0 (該当 stepId) |
+  | 同 step だが異 intent (`repeat` → `next` 等)    | reset to 0               |
+  | 新 run (新 dispatch)                            | 全 reset                 |
+
+- cursor が `chain.length` に到達した状態で更に `intent === "repeat"` が
+  来た場合、framework は `AgentAdaptationChainExhaustedError`
+  (`agents/shared/errors/flow-errors.ts`、`ClimptError` 直系) を throw する。
+  egress は design 16 §C の `ExecutionError` channel。
+- `adaptationChain` 未指定時の framework default は **`["default"]`** (1 要素
+  chain)。意味: cursor=0 で `default` adaptation を 1 回読み、次の
+  `intent === "repeat"` で即 exhaust。**unbounded `repeat` を構造的に許さない**
+  safe-by-default。registry author が明示的に長い chain を declare した場合 だけ
+  recovery が伸びる (opt-in)。
+- 明示的な `adaptationChain: []` (空配列) も **構造的に有効**。type は
+  `string[]` であり length=0 を排除しない。意味: 最初の `intent === "repeat"` で
+  **adaptation を 1 つも読まずに即 exhaust** — 「self-route を一切許さない
+  step」を declare できる
+  (`AgentAdaptationChainExhaustedError.chainLength === 0`,
+  `lastAdaptation === "default"` placeholder)。`未指定 (default ["default"])`
+  との違いは「default adaptation を 1 度試すか / 0 度試すか」のみで、 exhaust
+  後の egress (`AgentAdaptationChainExhaustedError`) は同一。
+
+**§F (RetryPolicy) との関係**: §F の `RetryPolicy.maxAttempts` は
+`postLLMConditions` validator retry **専用** であり、本拡張とは
+**直交した別概念**。trigger / reset / egress いずれも別 channel で動き、
+混同しない。
+
+| 観点       | §F `RetryPolicy.maxAttempts`     | §E.1 `adaptationChain`               |
+| ---------- | -------------------------------- | ------------------------------------ |
+| trigger    | postLLMConditions validator 失敗 | LLM が `intent === "repeat"` を emit |
+| reset 条件 | validator pass                   | 異 step / 異 intent 遷移             |
+| egress     | `AgentValidationAbortError`      | `AgentAdaptationChainExhaustedError` |
+
+**詳細 mechanism** (cursor 所有者 `AgentRunner`, `AdaptationCursor` 実装, Boot
+validation S9/S10, `failurePatterns` channel との合流規則 K1, logging event
+形式) は
+`tmp/audit-precheck-kind-loop/framework-design/01-self-route-termination.md`
+を参照。
 
 ---
 

@@ -16,6 +16,9 @@ import type {
   RuntimeContext,
 } from "../src_common/types.ts";
 import { AgentStepRoutingError, AgentValidationAbortError } from "./errors.ts";
+// Note: `AgentAdaptationChainExhaustedError` is thrown via the
+// `advanceClosureAdaptation` helper (`adaptation-cursor.ts`). Direct
+// import removed — the helper is the only call site.
 import { STEP_PHASE } from "../shared/step-phases.ts";
 
 import type { Step } from "../common/step-registry/types.ts";
@@ -30,6 +33,10 @@ import type { BoundaryHooks } from "./boundary-hooks.ts";
 import type { ClosureAdapter } from "./closure-adapter.ts";
 import type { AgentEventEmitter } from "./events.ts";
 import type { VerboseLogger } from "./verbose-logger.ts";
+import {
+  type AdaptationCursor,
+  advanceClosureAdaptation,
+} from "./adaptation-cursor.ts";
 
 export interface CompletionLoopDeps {
   readonly closureManager: ClosureManager;
@@ -54,6 +61,28 @@ export interface CompletionLoopDeps {
   readonly pendingRetryPrompt: {
     get(): string | null;
     set(value: string | null): void;
+  };
+  /**
+   * Self-route termination cursor (design 01-self-route-termination §3.2).
+   * Shared with `AgentRunner` and `WorkflowRouter` so closure and
+   * non-closure repeats observe one cursor advance per stepId. Used by
+   * `runClosureLoop` on the closure-step `action === "repeat"` path:
+   * advances the chain, throws `AgentAdaptationChainExhaustedError` on
+   * overflow, otherwise queues the resolved adaptation for the next
+   * iteration's prompt resolve via `pendingAdaptation`.
+   */
+  readonly adaptationCursor: AdaptationCursor;
+  /**
+   * Pending self-route adaptation queued for the next iteration's
+   * `closureAdapter.tryClosureAdaptation` call. Set after a successful
+   * cursor advance; consumed once by the next `runClosureIteration` and
+   * cleared. Owned by `AgentRunner` so the runner-level prompt-resolve
+   * site (Flow Loop) and the closure-loop prompt-resolve site share one
+   * slot — there is at most one pending adaptation per run.
+   */
+  readonly pendingAdaptation: {
+    get(stepId: string): string | undefined;
+    set(stepId: string, adaptation: string): void;
   };
   resolveSystemPromptForIteration(ctx: RuntimeContext): Promise<{
     type: "preset";
@@ -163,6 +192,10 @@ export class CompletionLoopProcessor {
             ctx.logger.info(
               `[CompletionLoop] Closure step structured signal: closing`,
             );
+            // Forward progress (closure -> close). Reset the self-route
+            // cursor for this stepId so a future re-entry starts a fresh
+            // chain (design 01-self-route-termination §2.2).
+            this.deps.adaptationCursor.reset(stepId);
             await this.deps.boundaryHooks.invokeBoundaryHook(
               stepId,
               summary,
@@ -174,9 +207,27 @@ export class CompletionLoopProcessor {
               reason: "Closure step emitted closing signal",
             };
           }
-          // action === "repeat"
+          // action === "repeat" — delegate to the shared
+          // closure-path advance helper so cursor++/exhaustion shape
+          // matches the test's contract assertion (P1-5 fix).
+          // The helper handles: (i) Q1 = B default `["default"]` when
+          // `adaptationChain` is undefined, (ii) §2.5 `chain_exhausted`
+          // emit before throw on overflow, (iii) throw of
+          // `AgentAdaptationChainExhaustedError` with stable field
+          // shape. Co-located with `AdaptationCursor` (single source
+          // of truth — production and test both call this function).
+          const advance = advanceClosureAdaptation(
+            this.deps.adaptationCursor,
+            stepId,
+            stepDef?.adaptationChain,
+          );
+          // Queue the resolved adaptation for the next iteration's
+          // closure prompt resolve (`closureAdapter.tryClosureAdaptation`
+          // → `prompt-resolver.resolve(..., { adaptation })`).
+          this.deps.pendingAdaptation.set(stepId, advance.adaptation);
           ctx.logger.info(
             `[CompletionLoop] Closure step structured signal: repeat`,
+            { adaptation: advance.adaptation },
           );
           ctx.logger.info("[CompletionLoop] Exit", { stepId, done: false });
           return { done: false, reason: "Closure step requested repeat" };
@@ -273,12 +324,20 @@ export class CompletionLoopProcessor {
         "[CompletionLoop] Using retry prompt from validation",
       );
     } else {
+      // Consume the pending self-route adaptation (design 01-self-route-
+      // termination §3.2). When the previous iteration emitted
+      // `action === "repeat"`, the cursor advance queued the resolved
+      // chain element here. Consume-once: a stepId mismatch yields
+      // undefined so a stale entry never leaks into a different step's
+      // resolve call.
+      const adaptationOverride = this.deps.pendingAdaptation.get(stepId);
       // Try C3L closure prompt via closureAdapter
       const closurePrompt = await this.deps.closureAdapter
         .tryClosureAdaptation(
           stepId,
           ctx,
           this.deps.buildUvVariables(iteration),
+          adaptationOverride,
         );
       if (closurePrompt) {
         prompt = closurePrompt.content;
