@@ -18,11 +18,7 @@
 import { assertEquals } from "@std/assert";
 import { join } from "@std/path";
 
-import {
-  FORBIDDEN_FLAGS,
-  lintAntiList,
-  scanSource,
-} from "./lint-anti-list.ts";
+import { FORBIDDEN_FLAGS, lintAntiList, scanSource } from "./lint-anti-list.ts";
 
 Deno.test("lint-anti-list: clean source produces zero violations", () => {
   const src = [

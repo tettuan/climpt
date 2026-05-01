@@ -160,7 +160,9 @@ async function main(): Promise<number> {
   if (hits.length === 0) {
     // deno-lint-ignore no-console
     console.log(
-      `lint-inline-schema: 0 inline schemas across [${parsed.roots.join(", ")}]`,
+      `lint-inline-schema: 0 inline schemas across [${
+        parsed.roots.join(", ")
+      }]`,
     );
     return 0;
   }
