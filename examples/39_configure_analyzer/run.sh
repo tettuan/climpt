@@ -56,19 +56,26 @@ main() {
     "system": {
       "stepId": "system",
       "name": "System Prompt",
-      "c2": "system",
-      "c3": "prompt",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "system",
+        "c3": "prompt",
+        "edition": "default"
+      },
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
     "initial.statuscheck": {
       "stepId": "initial.statuscheck",
       "name": "Status Check",
-      "c2": "initial",
-      "c3": "statuscheck",
-      "edition": "default",
-      "stepKind": "work",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "statuscheck",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -80,10 +87,13 @@ main() {
     "closure.analysis": {
       "stepId": "closure.analysis",
       "name": "Analysis Closure",
-      "c2": "closure",
-      "c3": "analysis",
-      "edition": "default",
-      "stepKind": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "analysis",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}

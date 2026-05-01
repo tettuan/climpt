@@ -52,19 +52,26 @@ main() {
     "system": {
       "stepId": "system",
       "name": "System Prompt",
-      "c2": "system",
-      "c3": "prompt",
-      "edition": "default",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "system",
+        "c3": "prompt",
+        "edition": "default"
+      },
       "uvVariables": ["uv-agent_name", "uv-verdict_criteria"],
       "usesStdin": false
     },
     "initial.task": {
       "stepId": "initial.task",
       "name": "Fix Bug Task",
-      "c2": "initial",
-      "c3": "task",
-      "edition": "default",
-      "stepKind": "work",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "initial",
+        "c3": "task",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {
@@ -76,10 +83,13 @@ main() {
     "closure.task": {
       "stepId": "closure.task",
       "name": "Task Closure",
-      "c2": "closure",
-      "c3": "task",
-      "edition": "default",
-      "stepKind": "closure",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "task",
+        "edition": "default"
+      },
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}

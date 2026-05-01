@@ -65,16 +65,16 @@ main() {
   fi
 
   info "Before: steps_registry.json work steps"
-  show_cmd jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
-  jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
+  show_cmd jq '[.steps | to_entries[] | select(.value.kind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
+  jq '[.steps | to_entries[] | select(.value.kind == "work") | {(.key): .value.permissionMode}]' "$STEPS_JSON"
 
-  # Add permissionMode: "plan" to every step with stepKind == "work"
-  jq '.steps |= with_entries(if .value.stepKind == "work" then .value.permissionMode = "plan" else . end)' \
+  # Add permissionMode: "plan" to every step with kind == "work"
+  jq '.steps |= with_entries(if .value.kind == "work" then .value.permissionMode = "plan" else . end)' \
     "$STEPS_JSON" > "${STEPS_JSON}.tmp" && mv "${STEPS_JSON}.tmp" "$STEPS_JSON"
 
   info "After: steps_registry.json work steps"
-  show_cmd jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
-  jq '[.steps | to_entries[] | select(.value.stepKind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
+  show_cmd jq '[.steps | to_entries[] | select(.value.kind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
+  jq '[.steps | to_entries[] | select(.value.kind == "work") | {(.key): {permissionMode: .value.permissionMode}}]' "$STEPS_JSON"
 
   success "permissionMode set to 'plan' in steps_registry.json"
 }
