@@ -55,7 +55,8 @@ release/1.14.0 で削除、v1.15.0 で再導入予定 (#540)。
 
 ## 2. Bind: Project-scoped issue 取得
 
-Orchestrator が dispatch 対象の issue を project 単位で絞り込む。
+Orchestrator が dispatch 対象の issue を project 単位で絞り込む。旧
+`IssueCriteria.project` は `IssueSource` ADT に昇格済み (§13 Level 2 §2.6)。
 
 ### 2.1 フロー
 
@@ -65,27 +66,32 @@ sequenceDiagram
   participant Syncer as IssueSyncer
   participant GH as GitHubClient
 
-  CLI->>Syncer: sync(criteria={project: {owner, number}})
+  CLI->>Syncer: sync(source={kind:"ghProject", project:{owner, number}})
   Syncer->>GH: listIssues(criteria)
   GH-->>Syncer: issues[] (label/state filter済)
   Syncer->>GH: listProjectItems(project)
-  GH-->>Syncer: projectItems[] (issueNumber list)
+  GH-->>Syncer: projectItems[] ({id, issueNumber} list)
   Note over Syncer: issues ∩ projectItems で intersection
   Syncer-->>CLI: filteredIssueNumbers[]
 ```
 
 ### 2.2 条件分岐
 
-| `IssueCriteria.project` | 動作                                               |
-| ----------------------- | -------------------------------------------------- |
-| 未指定                  | 従来通り全 repo issue から label/state filter (I6) |
-| 指定                    | `listProjectItems` で集合取得後に intersection     |
+| `IssueSource.kind`       | 動作                                                         |
+| ------------------------ | ------------------------------------------------------------ |
+| `ghProject`              | `listProjectItems` で project member 集合取得後 intersection |
+| `ghRepoIssues` (default) | project 未所属 issue のみ (unbound filter, I6 互換)          |
+| `ghRepoIssues` (any)     | 全 issue (escape hatch, `--all-projects`)                    |
+| `explicit`               | listing skip、指定 issue のみ sync                           |
 
 ### 2.3 CLI
 
 ```bash
 deno task orchestrate --project tettuan/3
-# → IssueCriteria.project = { owner: "tettuan", number: 3 }
+# → IssueSource { kind: "ghProject", project: { owner: "tettuan", number: 3 } }
+
+deno task orchestrate --all-projects
+# → IssueSource { kind: "ghRepoIssues", projectMembership: "any" }
 ```
 
 `--project` は `<owner>/<number>` 形式。owner は常に明示 — 暗黙デフォルト owner
@@ -115,7 +121,7 @@ sequenceDiagram
   Note over Orch: Guard C2: terminal + closeOnComplete + closeCondition match
   Orch->>Orch: projectBinding.inheritProjectsForCreateIssue?
   alt true
-    Orch->>GH: getIssueProjects(owner, issueNumber)
+    Orch->>GH: getIssueProjects(issueNumber)
     GH-->>Orch: parentProjects[]
   else false or absent
     Note over Orch: parentProjects = []
@@ -210,8 +216,8 @@ sequenceDiagram
 
     alt 全 non-sentinel done
       Cascade->>Bus: publish(SiblingsAllClosedEvent)
-      Cascade->>GH: updateIssueLabels(sentinel, +doneLabel, -evalLabel)
-      Note over Cascade: sentinel が evalPhase → donePhase に flip
+      Cascade->>GH: updateIssueLabels(sentinel, -doneLabel, +evalLabel)
+      Note over Cascade: sentinel が donePhase → evalPhase に flip
     end
   end
 ```
@@ -223,9 +229,10 @@ Channel は event bus 経由で非同期に動作し、失敗は non-fatal (clos
 
 ### 5.2 Evaluator agent dispatch
 
-Sentinel の label が `evalPhase` に切り替わると、次の orchestrator cycle で
-`evalPhase` に割り当てられた agent が dispatch される。Agent は project 全体の
-完了を評価し、必要に応じて `close-project` outbox action を emit する。
+CascadeCloseChannel が sentinel を `donePhase` → `evalPhase` に flip した後、
+次の orchestrator cycle で `evalPhase` に割り当てられた agent が dispatch
+される。 Agent は project 全体の完了を評価し、必要に応じて `close-project`
+outbox action を emit する。
 
 ```mermaid
 sequenceDiagram
@@ -310,22 +317,22 @@ CYCLE 0 (Bootstrap):
 └─ Exit: sentinel bootstrapped
 
 CYCLE 1 (Plan):
-├─ [Bind] IssueSyncer: --project tettuan/3 → #40 が対象
+├─ [Bind] IssueSyncer: source={kind:"ghProject", project:tettuan/3} → #40 が対象
 ├─ [Phase] labels=[planPhase] → plan-pending → agent=project-planner
 ├─ [Dispatch] project-planner.run(#40)
 │        → structuredOutput: {proposed_issues: [{title:"Impl task", ...}]}
 ├─ [O2] getIssueProjects(40) → [{owner:"tettuan", number:3}]
 │        item.projects = undefined → inherit [{owner:"tettuan", number:3}]
 │        write: 000-deferred-000.json (create-issue)
-│        write: 000-deferred-000-000.json (add-to-project)
+│        write: 000-deferred-001.json (add-to-project)
 ├─ [Outbox] process:
 │        000-deferred-000.json → createIssue() → #42
-│        000-deferred-000-000.json → late-bind #42 → addIssueToProject(tettuan/3, #42)
-├─ [Transition] sentinel: planPhase → evalPhase (agent 完了)
-└─ Exit: sentinel は evalPhase で待機
+│        000-deferred-001.json → late-bind #42 → addIssueToProject(tettuan/3, #42)
+├─ [Transition] sentinel: planPhase → donePhase (planner outputPhase)
+└─ Exit: sentinel は donePhase で待機
 
 CYCLE 2 (Execute):
-├─ [Bind] IssueSyncer: --project tettuan/3 → #42 が対象
+├─ [Bind] IssueSyncer: source={kind:"ghProject", project:tettuan/3} → #42 が対象
 ├─ [Phase] labels=[kind:impl] → impl-pending → agent=iterator
 ├─ [Dispatch] iterator.run(#42)
 │        → outcome: "success"
@@ -335,12 +342,12 @@ CYCLE 2 (Execute):
 │        getIssueProjects(42) → [{owner:"tettuan", number:3}]
 │        listProjectItems(tettuan/3) → [#40(sentinel), #42(done)]
 │        全 non-sentinel done → publish(SiblingsAllClosedEvent)
-│        updateIssueLabels(#40, +doneLabel, -evalLabel)
-└─ Exit: #42 closed, sentinel #40 flipped to donePhase
+│        updateIssueLabels(#40, -doneLabel, +evalLabel)
+└─ Exit: #42 closed, sentinel #40 flipped to evalPhase
 
 CYCLE 3 (Evaluate):
-├─ [Bind] IssueSyncer: --project tettuan/3 → #40 が対象
-├─ [Phase] labels=[donePhase] → (terminal) → evaluator agent dispatch
+├─ [Bind] IssueSyncer: source={kind:"ghProject", project:tettuan/3} → #40 が対象
+├─ [Phase] labels=[evalPhase] → eval-pending → evaluator agent dispatch
 ├─ [Dispatch] evaluator.run(#40)
 │        → structuredOutput: {outbox: [{action:"close-project", project:{...}}]}
 ├─ [Outbox] process:

@@ -76,23 +76,25 @@ type ProjectFieldValue = string | number | { optionId: string } | {
 
 ### 2.2 GitHubClient extensions (additive)
 
-既存 interface は不変。以下を追加。全て live GH query (gh CLI wrap)。
+既存 interface は不変。以下を追加。全て live GH query (gh CLI wrap)。全 project
+メソッドは `ProjectRef` (`{ owner, number } | { id }`) を受け取り、`GhCliClient`
+は `owner + number` 形式のみサポートする (`{ id }` は throw)。
 
 **Read**
 
 - `listUserProjects(owner: string): Promise<Project[]>`
-- `getProject(ref: ProjectRef): Promise<Project>`
-- `getIssueProjects(owner: string, issueNumber: number): Promise<Project[]>`
-- `listProjectItems(projectId: string): Promise<ProjectItem[]>`
-- `getProjectFields(projectId: string): Promise<ProjectField[]>`
-- `getProjectItemIdForIssue(projectId: string, issueNumber: number): Promise<string | null>`
+- `getProject(project: ProjectRef): Promise<Project>`
+- `getIssueProjects(issueNumber: number): Promise<Array<{ owner: string; number: number }>>`
+- `listProjectItems(project: ProjectRef): Promise<{ id: string; issueNumber: number }[]>`
+- `getProjectFields(project: ProjectRef): Promise<ProjectField[]>`
+- `getProjectItemIdForIssue(project: ProjectRef, issueNumber: number): Promise<string | null>`
 
 **Write**
 
-- `addIssueToProject(projectId: string, issueNodeId: string): Promise<string /* itemId */>`
-- `removeProjectItem(projectId: string, itemId: string): Promise<void>`
-- `updateProjectItemField(projectId: string, itemId: string, fieldId: string, value: ProjectFieldValue): Promise<void>`
-- `closeProject(projectId: string): Promise<void>`
+- `addIssueToProject(project: ProjectRef, issueNumber: number): Promise<string /* itemId */>`
+- `removeProjectItem(project: ProjectRef, itemId: string): Promise<void>`
+- `updateProjectItemField(project: ProjectRef, itemId: string, fieldId: string, value: ProjectFieldValue): Promise<void>`
+- `closeProject(project: ProjectRef): Promise<void>`
 - `createProjectFieldOption(project: ProjectRef, fieldId: string, name: string, color?: string): Promise<{ id: string; name: string }>`
 
 **Intentionally NOT included** (user responsibility via direct gh CLI):
@@ -117,12 +119,17 @@ orchestrator が自動作成する。
 
 ```ts
 type OutboxAction =
-  | /* existing 4 types unchanged */
+  | /* existing 4 types unchanged (comment, create-issue, update-labels, close-issue) */
   | { action: "add-to-project"; project: ProjectRef; issueNumber?: number }
   | { action: "remove-from-project"; project: ProjectRef; itemId: string }
   | { action: "update-project-item-field"; project: ProjectRef; itemId: string; fieldId: string; value: ProjectFieldValue }
-  | { action: "close-project"; project: ProjectRef };
+  | { action: "close-project"; project: ProjectRef }
+  | { action: "merge-close-fact"; subjectId: number; mergedAt: number; prNumber: number; runId: string };
 ```
+
+`merge-close-fact` は `OutboxProcessor` では処理されない IPC ペイロード。
+`merge-pr` サブプロセスが書き込み、親 orchestrator の `MergeCloseAdapter` が
+`IssueClosedEvent({ channel: "M" })` として bus に publish する (PR4-4)。
 
 **Late-binding contract (new in OutboxProcessor)**:
 
@@ -195,30 +202,47 @@ label。違反時は `WF-PROJECT-001` 〜 `WF-PROJECT-010` エラー。Boot vali
 **三形式**: `projectBinding` は不在 / 全 field 指定 / opt-out (`projects: []`)
 の三形態で運用される (§2.8 DeferredItem schema 参照)。
 
-### 2.6 IssueCriteria extension (project-scoped execution)
+### 2.6 IssueSource ADT (project-scoped execution)
 
-既存 `IssueCriteria` に 1 field 追加:
+旧 `IssueCriteria.project` は `IssueSource` ADT に昇格済み。`IssueCriteria` は
+`gh issue list` 引数構築用の transport-level helper に縮退し、project field を
+持たない。
 
 ```ts
-type IssueCriteria = {
-  labels?: string[];
-  repo?: string;
-  state?: "open" | "closed";
-  limit?: number;
-  project?: ProjectRef; // NEW
-};
+type IssueSource =
+  | {
+    kind: "ghProject";
+    project: ProjectRef;
+    labels?: string[];
+    state?: IssueQueryState;
+    limit?: number;
+  }
+  | {
+    kind: "ghRepoIssues";
+    repo?: RepoRef;
+    labels?: string[];
+    state?: IssueQueryState;
+    limit?: number;
+    projectMembership?: "any" | "unbound";
+  }
+  | { kind: "explicit"; issueIds: SubjectRef[] };
 ```
 
 Resolution:
 
-- `project` 未指定 → 従来通り全 repo issue から label/state filter
-- `project` 指定 → `listProjectItems(projectId)` で issue 集合取得後 label/state
-  filter
+- `ghProject` → `listProjectItems(project)` で project member 集合を取得し、
+  `listIssues` 結果と intersection
+- `ghRepoIssues` (default `projectMembership: "unbound"`) → project 未所属 issue
+  のみ (project-scoped run の補完)
+- `ghRepoIssues` (`projectMembership: "any"`) → 全 issue (escape hatch)
+- `explicit` → listing skip、指定 issue のみ sync
 
 CLI:
 
-- `deno task orchestrate --project <owner>/<number>` → `IssueCriteria.project`
-  に展開
+- `deno task orchestrate --project <owner>/<number>` →
+  `IssueSource { kind: "ghProject" }`
+- `deno task orchestrate --all-projects` →
+  `IssueSource { kind: "ghRepoIssues", projectMembership: "any" }`
 - prioritizer (`order:1..9`) はこの filter 後の集合に対して作用
   (既存ロジック不変)
 
@@ -297,7 +321,8 @@ dispatch される。
 - `evalPhase` に割り当てられた agent が evaluator として動作する
 - trigger: `CascadeCloseChannel` (`agents/channels/cascade-close.ts`) が
   `IssueClosedEvent` を受信し、project 内の全 non-sentinel item が `donePhase`
-  に到達したとき sentinel の label を `evalPhase` → `donePhase` に flip
+  に到達したとき sentinel の label を `donePhase` → `evalPhase` に flip
+  (doneLabel を remove し evalLabel を add)
 - 責務: project 全体の完了を確認し、必要なら `close-project` outbox action を
   emit
 - 境界: 完了判定と close 指示は evaluator agent の責務。CascadeCloseChannel は
@@ -317,7 +342,7 @@ Channel は event bus の `IssueClosedEvent` を subscribe し、非同期に si
 | I3 | `add-to-project` の late-bind `issueNumber` は同 outbox cycle の直前 `create-issue` 結果のみ参照可       |
 | I4 | climpt は project の `readme` / field schema / option を書き換えない (write primitive 非提供)            |
 | I5 | climpt は Status field を自動更新しない (user の明示 outbox action でのみ変化)                           |
-| I6 | `IssueCriteria.project` 未指定 → 従来 dispatch behavior                                                  |
+| I6 | `IssueSource.kind` が `ghRepoIssues` (unbound) → 従来 dispatch behavior                                  |
 | I7 | 複数 project 所属 issue で deferred_items を継承した場合、継承先 issue は同一の全 project に bind される |
 
 ## 4. BC Matrix
