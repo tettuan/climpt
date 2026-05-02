@@ -23,12 +23,28 @@
   "allowedIntents": ["closing", "repeat"],   // この step が出してよい intent 集合
   "intentField":   "next_action.action",     // SO 中の唯一の hinge field の JsonPath
   "intentSchemaRef": { ... },                // hinge を enum で守る schema
-  "fallbackIntent": "closing",               // hinge 未充足/unknown 時の安全 fallback
+  "fallbackIntent": "closing",               // hinge 未充足/unknown 時の安全 fallback (rule は下記)
   "handoffFields": ["verdict", "summary"]    // 次 agent / 後続 step に渡す SO subpath
 }
 ```
 
 **single hinge 原則**: LLM ↔ orchestrator 間の state transition は必ず「1 つの schema の 1 つの宣言済み field」を経由する。自由文 parsing / hidden text-pattern routing は禁止。`fallbackIntent` を必ず宣言し、AI が verdict を欠落しても deterministic に閉じる。
+
+**`fallbackIntent` の選び方** (LLM output が ambiguous な時に進む先):
+
+> **Rule**: fallback は **workflow を recovery 不能 phase へ進めない intent** を選ぶ。
+
+判定:
+
+- **work / verification step** で `next` の target が **同 phase 内** (work→work / verification→verification) → fallback=`next` 可
+- **work / verification step** で `next` の target が **次 phase** (work→verification / verification→closure) → fallback=**`repeat`** (self-loop)。ambiguous 出力を理由に phase を進めると、戻り路が無くなる
+- **closure step** → fallback=`closing` (terminal が canonical。closure phase 内で repeat に戻すのも可だが、最終結論を下す場面なので closing 推奨)
+
+例 (`.agent/iterator/`):
+- `continuation.issue` (kind:work, next の target は precheck-commit-list = verification): fallback=`repeat` (work loop に留保)
+- `closure.issue.precheck-commit-list` (kind:verification, next の target は precheck-commit-verify = verification): fallback=`next` (同 phase 内 advance)
+- `closure.issue.precheck-ac-verify` (kind:verification, next の target は closure.issue = closure): fallback=`repeat` (verification loop に留保)
+- `closure.issue` (kind:closure): fallback=`closing`
 
 ## C3LAddress (prompt 解決の 5-tuple)
 
