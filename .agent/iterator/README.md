@@ -4,7 +4,9 @@ Iterator Agent のプロンプト外部化設定。
 
 ## 概要
 
-Iterator Agent は GitHub Issue や Project を自動処理するエージェント。プロンプトは `.agent/iterator/prompts/` に外部化され、カスタマイズ可能。
+Iterator Agent は `kind:impl` ラベルが付いた GitHub Issue を 1 件ずつ end-to-end で実装するエージェント。`closure.issue` に到達する前に 6 ステップの precheck チェーンを通り、commit binding (RC2/RC3) / kind boundary scope (RC6) / Acceptance Criteria coverage (RC5) を検証する。
+
+プロンプトは `.agent/iterator/prompts/` に外部化され、`steps_registry.json` 経由で解決される。
 
 ## 設計意図
 
@@ -17,6 +19,16 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
 ### climpt から見た視点
 
 - `climpt-<c1> <c2> <c3>` とは分離した `iterator-<c1> <c2> <c3>` として、C3L の体系に基づいて設計
+
+## 起動
+
+`--issue <N>` で対象 Issue を 1 件指定する per-issue dispatch のみ。verdict type は `poll:state` 単独。
+
+```bash
+deno task agent --agent iterator --issue 123
+```
+
+worktree 実行が有効 (`runner.execution.worktree.enabled: true`)。`--branch` / `--base-branch` で worktree のブランチ名と merge target を指定できる。
 
 ## ディレクトリ構成
 
@@ -31,153 +43,81 @@ Iterator Agent は GitHub Issue や Project を自動処理するエージェン
 └── prompts/
     ├── system.md          # システムプロンプト
     ├── dev/               # 開発用プロンプト
-    │   ├── start/project/ # --mode project
-    │   ├── start/issue/   # --mode issue
-    │   └── start/default/ # --mode iterate
-    └── steps/             # ステップ別プロンプト
-        ├── initial/       # 初期フェーズ
-        │   ├── issue/     # Issue モード
-        │   └── project/   # Project モード
-        ├── continuation/  # 継続フェーズ
-        │   ├── issue/
-        │   ├── project/
-        │   └── iteration/
-        └── section/       # セクション
-            └── project/   # プロジェクトコンテキスト
+    └── steps/
+        ├── initial/issue/      # 初期フェーズ
+        ├── continuation/issue/ # 継続フェーズ
+        ├── closure/issue/      # 終端 + precheck チェーン
+        └── retry/issue/        # failurePattern 別 adaptation
 ```
 
 ## ステップ一覧
 
-### Issue モード
+| Step ID | 種別 | 役割 |
+|---------|------|------|
+| `initial.issue` | work | Issue 処理開始。要件解析と着手宣言 |
+| `continuation.issue` | work | 実装ループ。`handoff` 遷移で precheck チェーンへ |
+| `closure.issue.precheck-commit-list` | verification | RC2 S1: in-run commit (`(#<issue>)`) 列挙 |
+| `closure.issue.precheck-commit-verify` | verification | RC2 S2 / RC3: commit SHA 検証 + off-run 判定 |
+| `closure.issue.precheck-kind-read` | verification | `kind_at_triage` 監査値読み取り (audit-only) |
+| `closure.issue.precheck-kind-scope` | verification | RC6: 変更パスが kind:* スコープ内か検証 |
+| `closure.issue.precheck-ac-extract` | verification | RC5 S1: Issue 本文から AC 箇条書きを抽出 |
+| `closure.issue.precheck-ac-map` | verification | RC5 S2: AC ごとに changed_paths を evidence マップ化 |
+| `closure.issue.precheck-ac-verify` | verification | RC5 S3: `ac_coverage_complete=true` を表明 |
+| `closure.issue` | closure | 終端ステップ。closure action を確定 |
 
-| Step ID | ファイル | 説明 |
-|---------|----------|------|
-| `initial.issue` | `steps/initial/issue/f_default.md` | Issue 処理開始 |
-| `continuation.issue` | `steps/continuation/issue/f_default.md` | Issue 継続処理 |
+`entryStepMapping`: `poll:state` のみ (`initial.issue` / `continuation.issue`)。
 
-### Project モード
+## バリデーション
 
-| Step ID | ファイル | 説明 |
-|---------|----------|------|
-| `initial.project.preparation` | `steps/initial/project/f_preparation.md` | 準備フェーズ |
-| `initial.project.preparationempty` | `steps/initial/project/f_preparation_empty.md` | Issue なし時 |
-| `initial.project.review` | `steps/initial/project/f_review.md` | レビューフェーズ |
-| `initial.project.complete` | `steps/initial/project/f_complete.md` | 完了メッセージ |
-| `section.projectcontext` | `steps/section/project/f_context.md` | コンテキスト挿入 |
+`steps_registry.json#validators` は全て `phase: "postllm"` の `command` 型。LLM 出力を受領した後に shell コマンドの exit code / stdout を判定し、失敗パターンへ遷移させる。
 
-### Iterate モード
+`validationSteps` でステップに紐づくのは以下の 3 つ。
 
-| Step ID | ファイル | 説明 |
-|---------|----------|------|
-| `initial.iteration` | `steps/initial/iteration/f_default.md` | イテレーション開始 |
-| `continuation.iteration` | `steps/continuation/iteration/f_default.md` | イテレーション継続 |
+| Step | Validator | RC |
+|------|-----------|-----|
+| `closure.issue.precheck-commit-verify` | `commit-binding-nonempty`, `commit-in-run` | RC2 / RC3 |
+| `closure.issue.precheck-kind-scope` | `kind-boundary-clean` | RC6 |
+| `closure.issue.precheck-ac-verify` | `ac-coverage-complete` | RC5 |
+
+`onFailure.action: "retry"`, `maxAttempts: 3`。
+
+## 失敗パターンと recovery
+
+`failurePatterns` に 12 種が登録されている (git-dirty / test-failed / type-error / lint-error / format-error / file-not-exists / branch-not-pushed / branch-not-merged / commit-binding-missing / off-run-only / ac-coverage-incomplete / kind-boundary-breach)。各パターンは `prompts/steps/retry/issue/f_failed_<adaptation>.md` の adaptation file に解決され、リトライ時にそのファイルが LLM へ渡される。
 
 ## 変数置換
 
-プロンプトは breakdown の uv- システムで変数展開:
-
-### UV 変数
-
-| 変数 | モード | 用途 |
-|-----|--------|------|
-| `{uv-issue}` | Issue | GitHub Issue 番号 |
-| `{uv-project_number}` | Project | GitHub Project 番号 |
-| `{uv-project_title}` | Project | プロジェクト名 |
-| `{uv-label_info}` | Project | ラベル情報 |
-| `{uv-label_filter}` | Project | ラベルフィルタ |
-| `{uv-total_issues}` | Project | Issue 総数 |
-| `{uv-current_index}` | Project | 現在の Issue インデックス |
-| `{uv-issues_completed}` | Project | 完了 Issue 数 |
-| `{uv-completed_iterations}` | All | 完了イテレーション数 |
-| `{uv-iterations}` | Iterate | 目標イテレーション数 |
-| `{uv-remaining}` | Iterate | 残りイテレーション数 |
-
-### カスタム変数
+プロンプトは breakdown の uv- システムで変数展開する。
 
 | 変数 | 用途 |
 |-----|------|
-| `{project_context_section}` | プロジェクトコンテキスト挿入 |
-| `{issue_content}` | GitHub Issue 本文 |
+| `{uv-issue}` | 対象 Issue 番号 (`--issue` から) |
+| `{uv-completed_iterations}` | 完了済みイテレーション数 |
+| `{issue_content}` | gh で取得した Issue 本文 |
 | `{cross_repo_note}` | クロスリポジトリ注意書き |
+| `{input_text}` | STDIN からの入力 (該当ステップのみ) |
 
-### STDIN 入力
+ステップ間の handoff は `structuredGate.handoffFields` 経由で `run_started_sha` / `commit_list` / `commit_verification` / `kind_boundary_violations` / `ac_list` / `ac_mapping` / `ac_coverage_complete` / `missing_ac_ids` を受け渡す。
 
-| 変数 | 用途 |
-|-----|------|
-| `{input_text}` | STDIN からの入力テキスト |
+## Closure
 
-## Closure Options
-
-完了時のアクションを `agent.json` で設定:
-
-```json
-{
-  "github": {
-    "labels": {
-      "completion": {
-        "add": ["done"],
-        "remove": ["in-progress"]
-      }
-    },
-    "defaultClosureAction": "label-only"
-  }
-}
-```
-
-### defaultClosureAction
+`agent.json#runner.integrations.github.defaultClosureAction` で完了時動作を指定する。
 
 | 値 | 動作 |
 |----|------|
-| `close` | Issue をクローズ（デフォルト） |
-| `label-only` | ラベル変更のみ、Issue は OPEN のまま |
+| `close` | Issue をクローズ |
+| `label-only` | ラベル変更のみ、Issue は OPEN のまま (現行デフォルト) |
 | `label-and-close` | ラベル変更後にクローズ |
 
-### AI からのオーバーライド
-
-AI は structured output で closure action を指定可能:
-
-```json
-{
-  "closure": {
-    "action": "close",
-    "issue": {
-      "labels": {
-        "add": ["done"],
-        "remove": ["in-progress"]
-      }
-    }
-  }
-}
-```
-
-優先順位: AI structured output > agent.json 設定 > デフォルト値
+LLM が structured output で `closure.action` を返した場合はそちらが優先される。優先順位: AI structured output > agent.json 設定 > デフォルト値。
 
 ## カスタマイズ
 
-プロンプトをカスタマイズするには:
+プロンプトを差し替える手順:
 
-1. 対象のステップを `steps_registry.json` で確認
-2. 対応するパスにファイルを作成/編集
-3. UV 変数を使用して動的コンテンツを挿入
-
-例: Issue 初期プロンプトのカスタマイズ
-
-```markdown
----
-stepId: initial.issue
-name: Custom Issue Prompt
----
-
-## Issue #{uv-issue} の処理
-
-{issue_content}
-
-### 私のワークフロー
-
-1. 要件を分析
-2. TodoWrite でタスク分解
-3. 順次実装
-```
+1. `steps_registry.json` で対象 Step ID を確認
+2. `address` (c1/c2/c3/edition) からファイルパスを導出 (`{c1}/{c2}/{c3}/f_{edition}.md`)
+3. UV 変数を使って動的コンテンツを挿入
 
 ## 参照
 
