@@ -3,7 +3,7 @@
   "version": "1.14.1",
   "name": "triager",
   "displayName": "Issue Triager Agent",
-  "description": "Per-issue dispatch: classify ONE open GitHub Issue (kind:impl|kind:consider|kind:design). Single responsibility — labels exactly one kind:* on the target. Does NOT assign order:N (priority is the prioritizer's role; see workflow.json#prioritizer.agent). The chosen label is applied via the poll:state boundary hook (gh issue edit) using the AI structured output's issue.labels.add field. Use .agent/triager/script/dispatch.sh to fan out kind-less issues; this binary handles ONE issue per invocation.",
+  "description": "Per-issue dispatch: classify ONE open GitHub Issue into the kind:* subset of workflow.json#labelMapping (kind:impl|kind:detail|kind:consider|kind:plan). Single responsibility — labels exactly one kind:* on the target. Does NOT assign order:N (priority is the prioritizer's role; see workflow.json#prioritizer.agent). The chosen label is applied via the poll:state boundary hook (gh issue edit) using the AI structured output's issue.labels.add field. Use .agent/triager/script/dispatch.sh to fan out kind-less issues; this binary handles ONE issue per invocation.",
   "parameters": {
     "issue": {
       "type": "number",

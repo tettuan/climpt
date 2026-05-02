@@ -49,7 +49,7 @@
           "target": "triage"
         }
       },
-      "description": "Single-issue closure step: read issue body, classify (kind:impl|kind:consider|kind:design), pick smallest unused order:N, emit closing structured output. The poll:state boundary hook then applies the labels via gh issue edit. closure_action='label-only' keeps the issue open."
+      "description": "Single-issue closure step: read issue body, classify exactly one kind label (kind:impl|kind:detail|kind:consider|kind:plan) per workflow.json#labelMapping, emit closing structured output. The poll:state boundary hook then applies the label via gh issue edit. closure_action='label-only' keeps the issue open. Does NOT assign order:N — that is prioritizer's responsibility (.agent/CLAUDE.md)."
     }
   }
 }

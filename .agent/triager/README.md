@@ -4,8 +4,11 @@ Single responsibility: **classify** one open GitHub Issue into a `kind:*`
 phase label. Per-issue dispatch via `--issue <N>`.
 
 ```
-triager(issue) → adds kind:impl | kind:consider | kind:design
+triager(issue) → adds kind:impl | kind:detail | kind:consider | kind:plan
 ```
+
+The four kinds are the `kind:*` subset of
+`.agent/workflow.json#labelMapping` keys. Triager never invents another.
 
 ## What triager IS
 
@@ -70,7 +73,7 @@ what triager itself owns.
   "issue": {
     "number": <N>,
     "labels": {
-      "add": ["kind:<impl|consider|design>"]
+      "add": ["kind:<impl|detail|consider|plan>"]
     }
   }
 }

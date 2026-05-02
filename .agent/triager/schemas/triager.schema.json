@@ -5,7 +5,7 @@
 
   "triage": {
     "type": "object",
-    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into exactly one of kind:impl|kind:consider|kind:design. The boundary hook merges issue.labels.add (one kind:* label) with the agent.json github.labels.completion config and applies it via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
+    "description": "Single-issue triage closure response. Classifies the issue passed via --issue into exactly one of kind:impl|kind:detail|kind:consider|kind:plan (workflow.json#labelMapping). The boundary hook merges issue.labels.add (one kind:* label) with the agent.json github.labels.completion config and applies it via gh issue edit. closure_action='label-only' is the expected default (set in agent.json) and may be omitted from the SO.",
     "required": ["stepId", "status", "summary", "next_action", "issue"],
     "properties": {
       "stepId": {
@@ -64,9 +64,9 @@
                 "maxItems": 1,
                 "items": {
                   "type": "string",
-                  "pattern": "^kind:(impl|consider|design)$"
+                  "pattern": "^kind:(impl|detail|consider|plan)$"
                 },
-                "description": "Exactly one label: kind:impl|kind:consider|kind:design. Triager does NOT assign order:N — that is the prioritizer's role."
+                "description": "Exactly one label: kind:impl|kind:detail|kind:consider|kind:plan (must be a key of workflow.json#labelMapping starting with 'kind:'). Triager does NOT assign order:N — that is the prioritizer's role."
               },
               "remove": {
                 "type": "array",
