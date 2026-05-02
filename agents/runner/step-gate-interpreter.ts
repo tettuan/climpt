@@ -36,7 +36,7 @@ export { GateInterpretationError };
 /**
  * Mapping from common AI response action values to GateIntent.
  */
-const ACTION_TO_INTENT: Record<string, GateIntent> = {
+export const ACTION_TO_INTENT: Record<string, GateIntent> = {
   // Standard mappings
   next: "next",
   repeat: "repeat",
