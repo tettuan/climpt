@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-05-02
+
 ### Migration (breaking) — `.agent/workflow.json` schema
 
 Repositories using the legacy fields below MUST rewrite `.agent/workflow.json`
@@ -154,6 +156,25 @@ Starting points for grep / sed / jq:
   `create-issue` action before the current issue closes in T6,
   so residual tasks are discoverable via the label trail instead
   of close-comment prose (#480)
+- **Project orchestration loop (O1/O2/T6.eval).** `projectBinding`
+  hook enables orchestrator-level project awareness:
+  - Hook O2 inherits parent-project membership on `create-issue`
+    outbox actions (`agents/orchestrator/hook-o1-o2-integration_test.ts`)
+  - T6.eval sentinel label flip chain for project-scoped evaluation
+    (`agents/channels/` e2e tests)
+- **Project v2 primitives.** `issueSource` ADT on `WorkflowConfig`
+  (`agents/orchestrator/workflow-types.ts`) with 3 variants:
+  `ghProject`, `ghRepoIssues`, `explicit` — replacing the legacy
+  `criteria.*` field-presence pattern
+- **Project CLI commands:**
+  - `project:init` (`agents/scripts/project-init.ts`) — bootstrap
+    sentinel issue for project-planner routing
+  - `project:list` (`agents/scripts/project-list.ts`) — list GitHub
+    Projects v2 for a given owner
+  - `project:items` (`agents/scripts/project-items.ts`) — list items
+    in a GitHub Project v2 with field values
+- **Project-planner agent** (`.agent/project-planner/`) for
+  project-scoped planning via sentinel issue dispatch
 
 ### Removed
 - `GateIntent.abort` variant: the 12 historical sites are
