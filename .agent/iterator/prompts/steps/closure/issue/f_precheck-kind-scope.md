@@ -41,8 +41,8 @@ the current label — the orchestrator already routed this run based on it.
   dispatched iterator without one, so this fallback only matters in
   manual / off-orchestrator runs.
 
-- `commit_verification` (from `closure.issue.precheck-commit-verify`),
-  with each entry carrying `changed_paths`.
+- `commit_verification` (finalized by `closure.issue.precheck-commit-in-run`;
+  `changed_paths` emitted by `closure.issue.precheck-commit-exists`).
 
 ## Outputs
 

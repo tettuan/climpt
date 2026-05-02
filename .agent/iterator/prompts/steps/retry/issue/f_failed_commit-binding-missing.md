@@ -28,7 +28,7 @@ Emit `repeat` to loop back into the precheck chain once remediation is applied.
 
 ## Allowed `next_action.action` values
 
-This retry prompt is fed back into `closure.issue.precheck-commit-verify` (the
+This retry prompt is fed back into `closure.issue.precheck-commit-exists` (the
 validator `commit-binding-nonempty` runs there). Your structured JSON response
 MUST satisfy that step's `next_action.action` enum:
 

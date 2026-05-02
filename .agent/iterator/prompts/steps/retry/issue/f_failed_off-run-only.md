@@ -24,7 +24,7 @@ All commits referencing `(#{uv-issue})` predate the current run (older than
 
 ## Allowed `next_action.action` values
 
-This retry prompt is fed back into `closure.issue.precheck-commit-verify` (the
+This retry prompt is fed back into `closure.issue.precheck-commit-in-run` (the
 validator `commit-in-run` runs there). Your structured JSON response MUST
 satisfy that step's `next_action.action` enum:
 

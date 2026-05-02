@@ -57,12 +57,14 @@ worktree 実行が有効 (`runner.execution.worktree.enabled: true`)。`--branch
 | `initial.issue` | work | Issue 処理開始。要件解析と着手宣言 |
 | `continuation.issue` | work | 実装ループ。`handoff` 遷移で precheck チェーンへ |
 | `closure.issue.precheck-commit-list` | verification | RC2 S1: in-run commit (`(#<issue>)`) 列挙 |
-| `closure.issue.precheck-commit-verify` | verification | RC2 S2 / RC3: commit SHA 検証 + off-run 判定 |
+| `closure.issue.precheck-commit-exists` | verification | RC2 S2a: per-SHA existence + capture changed_paths |
+| `closure.issue.precheck-commit-in-run` | verification | RC3: per-SHA off-run flag (`git merge-base --is-ancestor`) |
 | `closure.issue.precheck-kind-read` | verification | `kind_at_triage` 監査値読み取り (audit-only) |
 | `closure.issue.precheck-kind-scope` | verification | RC6: 変更パスが kind:* スコープ内か検証 |
 | `closure.issue.precheck-ac-extract` | verification | RC5 S1: Issue 本文から AC 箇条書きを抽出 |
 | `closure.issue.precheck-ac-map` | verification | RC5 S2: AC ごとに changed_paths を evidence マップ化 |
-| `closure.issue.precheck-ac-verify` | verification | RC5 S3: `ac_coverage_complete=true` を表明 |
+| `closure.issue.precheck-ac-evidence-nonempty` | verification | RC5 S3a: 全 AC が ≥1 evidence_path を持つか検証 |
+| `closure.issue.precheck-ac-typed-prefix` | verification | RC5 S3b: typed AC が prefix と `ls` を満たすか検証 |
 | `closure.issue` | closure | 終端ステップ。closure action を確定 |
 
 `entryStepMapping`: `poll:state` のみ (`initial.issue` / `continuation.issue`)。
@@ -75,15 +77,17 @@ worktree 実行が有効 (`runner.execution.worktree.enabled: true`)。`--branch
 
 | Step | Validator | RC |
 |------|-----------|-----|
-| `closure.issue.precheck-commit-verify` | `commit-binding-nonempty`, `commit-in-run` | RC2 / RC3 |
+| `closure.issue.precheck-commit-exists` | `commit-binding-nonempty` | RC2 |
+| `closure.issue.precheck-commit-in-run` | `commit-in-run` | RC3 |
 | `closure.issue.precheck-kind-scope` | `kind-boundary-clean` | RC6 |
-| `closure.issue.precheck-ac-verify` | `ac-coverage-complete` | RC5 |
+| `closure.issue.precheck-ac-evidence-nonempty` | `ac-evidence-nonempty` | RC5 S3a |
+| `closure.issue.precheck-ac-typed-prefix` | `ac-typed-prefix-ok` | RC5 S3b |
 
 `onFailure.action: "retry"`, `maxAttempts: 3`。
 
 ## 失敗パターンと recovery
 
-`failurePatterns` に 12 種が登録されている (git-dirty / test-failed / type-error / lint-error / format-error / file-not-exists / branch-not-pushed / branch-not-merged / commit-binding-missing / off-run-only / ac-coverage-incomplete / kind-boundary-breach)。各パターンは `prompts/steps/retry/issue/f_failed_<adaptation>.md` の adaptation file に解決され、リトライ時にそのファイルが LLM へ渡される。
+`failurePatterns` に 13 種が登録されている (git-dirty / test-failed / type-error / lint-error / format-error / file-not-exists / branch-not-pushed / branch-not-merged / commit-binding-missing / off-run-only / ac-evidence-missing / ac-typed-prefix-violated / kind-boundary-breach)。各パターンは `prompts/steps/retry/issue/f_failed_<adaptation>.md` の adaptation file に解決され、リトライ時にそのファイルが LLM へ渡される。
 
 ## 変数置換
 
@@ -97,7 +101,7 @@ worktree 実行が有効 (`runner.execution.worktree.enabled: true`)。`--branch
 | `{cross_repo_note}` | クロスリポジトリ注意書き |
 | `{input_text}` | STDIN からの入力 (該当ステップのみ) |
 
-ステップ間の handoff は `structuredGate.handoffFields` 経由で `run_started_sha` / `commit_list` / `commit_verification` / `kind_boundary_violations` / `ac_list` / `ac_mapping` / `ac_coverage_complete` / `missing_ac_ids` を受け渡す。
+ステップ間の handoff は `structuredGate.handoffFields` 経由で `run_started_sha` / `commit_list` / `commit_verification` / `kind_boundary_violations` / `ac_list` / `ac_mapping` / `ac_evidence_all_nonempty` / `missing_ac_ids` / `ac_typed_all_ok` / `violating_ac_ids` を受け渡す。
 
 ## Closure
 

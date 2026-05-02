@@ -101,12 +101,20 @@
         "run_started_sha"
       ]
     },
-    "ac-coverage-incomplete": {
-      "description": "Acceptance Criteria coverage is incomplete",
+    "ac-evidence-missing": {
+      "description": "One or more ACs have empty evidence_paths",
       "edition": "failed",
-      "adaptation": "ac-coverage-incomplete",
+      "adaptation": "ac-evidence-missing",
       "params": [
         "missing_ac_ids"
+      ]
+    },
+    "ac-typed-prefix-violated": {
+      "description": "Typed ACs reference paths that fail prefix or ls check",
+      "edition": "failed",
+      "adaptation": "ac-typed-prefix-violated",
+      "params": [
+        "violating_ac_ids"
       ]
     },
     "kind-boundary-breach": {
@@ -211,12 +219,19 @@
       "successWhen": "non-empty",
       "failurePattern": "off-run-only"
     },
-    "ac-coverage-complete": {
+    "ac-evidence-nonempty": {
       "type": "command",
       "phase": "postllm",
-      "command": "test \"${ac_coverage_complete}\" = \"true\"",
+      "command": "test \"${ac_evidence_all_nonempty}\" = \"true\"",
       "successWhen": "exitCode:0",
-      "failurePattern": "ac-coverage-incomplete"
+      "failurePattern": "ac-evidence-missing"
+    },
+    "ac-typed-prefix-ok": {
+      "type": "command",
+      "phase": "postllm",
+      "command": "test \"${ac_typed_all_ok}\" = \"true\"",
+      "successWhen": "exitCode:0",
+      "failurePattern": "ac-typed-prefix-violated"
     },
     "kind-boundary-clean": {
       "type": "command",
@@ -227,20 +242,42 @@
     }
   },
   "validationSteps": {
-    "closure.issue.precheck-commit-verify": {
-      "stepId": "closure.issue.precheck-commit-verify",
-      "name": "Commit Binding + In-Run Validation",
+    "closure.issue.precheck-commit-exists": {
+      "stepId": "closure.issue.precheck-commit-exists",
+      "name": "Commit Binding Existence Validation",
       "address": {
         "c1": "steps",
         "c2": "retry",
         "c3": "issue",
-        "edition": "precheck-commit-verify"
+        "edition": "precheck-commit-exists"
       },
       "preflightConditions": [],
       "postLLMConditions": [
         {
           "validator": "commit-binding-nonempty"
-        },
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "description": "RC2 S2a: verify each commit_list SHA exists and capture changed_paths. Missing binding → commit-binding-missing retry."
+    },
+    "closure.issue.precheck-commit-in-run": {
+      "stepId": "closure.issue.precheck-commit-in-run",
+      "name": "Commit In-Run Ancestry Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-commit-in-run"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
         {
           "validator": "commit-in-run"
         }
@@ -253,21 +290,21 @@
         "file": "issue.schema.json",
         "schema": "closure.issue.precheck"
       },
-      "description": "RC2/RC3: verify at least one in-run commit references (#<issue>). Missing binding → commit-binding-missing retry; only off-run commits → off-run-only retry."
+      "description": "RC3: per-SHA off-run flag via git merge-base --is-ancestor against run_started_sha. Off-run only → off-run-only retry."
     },
-    "closure.issue.precheck-ac-verify": {
-      "stepId": "closure.issue.precheck-ac-verify",
-      "name": "Acceptance Criteria Coverage Validation",
+    "closure.issue.precheck-ac-evidence-nonempty": {
+      "stepId": "closure.issue.precheck-ac-evidence-nonempty",
+      "name": "AC Evidence Non-Empty Validation",
       "address": {
         "c1": "steps",
         "c2": "retry",
         "c3": "issue",
-        "edition": "precheck-ac-verify"
+        "edition": "precheck-ac-evidence-nonempty"
       },
       "preflightConditions": [],
       "postLLMConditions": [
         {
-          "validator": "ac-coverage-complete"
+          "validator": "ac-evidence-nonempty"
         }
       ],
       "onFailure": {
@@ -278,7 +315,32 @@
         "file": "issue.schema.json",
         "schema": "closure.issue.precheck"
       },
-      "description": "RC5: assert ac_coverage_complete=true. Incomplete coverage → ac-coverage-incomplete retry, which handles only missing_ac_ids."
+      "description": "RC5 S3a: assert every ac_id has at least one evidence_path. Empty → ac-evidence-missing retry."
+    },
+    "closure.issue.precheck-ac-typed-prefix": {
+      "stepId": "closure.issue.precheck-ac-typed-prefix",
+      "name": "AC Typed Path Prefix Validation",
+      "address": {
+        "c1": "steps",
+        "c2": "retry",
+        "c3": "issue",
+        "edition": "precheck-ac-typed-prefix"
+      },
+      "preflightConditions": [],
+      "postLLMConditions": [
+        {
+          "validator": "ac-typed-prefix-ok"
+        }
+      ],
+      "onFailure": {
+        "action": "retry",
+        "maxAttempts": 3
+      },
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "description": "RC5 S3b: typed ACs (fixture/prompt/template/schema) respect required prefix and `ls` succeeds. Violation → ac-typed-prefix-violated retry."
     },
     "closure.issue.precheck-kind-scope": {
       "stepId": "closure.issue.precheck-kind-scope",
@@ -428,7 +490,7 @@
       },
       "transitions": {
         "next": {
-          "target": "closure.issue.precheck-commit-verify"
+          "target": "closure.issue.precheck-commit-exists"
         },
         "repeat": {
           "target": "closure.issue.precheck-commit-list"
@@ -436,16 +498,62 @@
       },
       "description": "RC2 S1: enumerate in-run commits referencing (#<issue>). Pre: run_started_sha (recorded at run start, propagated from continuation.issue handoff). Verdict: next on enumeration OK; repeat if git log fails or run_started_sha unreadable."
     },
-    "closure.issue.precheck-commit-verify": {
-      "stepId": "closure.issue.precheck-commit-verify",
-      "name": "Precheck - Verify Commit SHAs and Off-Run",
+    "closure.issue.precheck-commit-exists": {
+      "stepId": "closure.issue.precheck-commit-exists",
+      "name": "Precheck - Verify Commit SHAs Exist",
       "type": "prompt",
       "kind": "verification",
       "address": {
         "c1": "steps",
         "c2": "closure",
         "c3": "issue",
-        "edition": "precheck-commit-verify"
+        "edition": "precheck-commit-exists"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-commit-in-run"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-commit-exists"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-commit-exists"
+      ],
+      "description": "RC2 S2a: per-SHA existence + capture changed_paths. Pre: run_started_sha, commit_list. Verdict: next on every SHA exists (validator commit-binding-nonempty passes); repeat on commit-binding-missing (recovered via f_failed_commit-binding-missing.md adaptation)."
+    },
+    "closure.issue.precheck-commit-in-run": {
+      "stepId": "closure.issue.precheck-commit-in-run",
+      "name": "Precheck - Verify Commits Are In-Run",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-commit-in-run"
       },
       "uvVariables": [
         "issue"
@@ -474,10 +582,13 @@
           "target": "closure.issue.precheck-kind-read"
         },
         "repeat": {
-          "target": "closure.issue.precheck-commit-verify"
+          "target": "closure.issue.precheck-commit-in-run"
         }
       },
-      "description": "RC2 S2 + RC3: verify commit SHAs exist, capture changed_paths, flag off-run commits. Pre: run_started_sha, commit_list. Verdict: next on all SHAs verified and not all off-run; repeat on commit-binding-missing or off-run-only failure (recovered via f_failed_commit-binding-missing.md adaptation)."
+      "validationSteps": [
+        "closure.issue.precheck-commit-in-run"
+      ],
+      "description": "RC3: per-SHA off-run flag via git merge-base --is-ancestor against run_started_sha. Pre: commit_verification (with exists). Verdict: next on at least one in-run commit (validator commit-in-run passes); repeat on off-run-only (recovered via f_failed_off-run-only.md adaptation)."
     },
     "closure.issue.precheck-kind-read": {
       "stepId": "closure.issue.precheck-kind-read",
@@ -648,7 +759,7 @@
       },
       "transitions": {
         "next": {
-          "target": "closure.issue.precheck-ac-verify"
+          "target": "closure.issue.precheck-ac-evidence-nonempty"
         },
         "repeat": {
           "target": "closure.issue.precheck-ac-map"
@@ -656,16 +767,67 @@
       },
       "description": "RC5 S2: map each AC to evidence paths drawn from commit_verification.changed_paths. Pre: ac_list, commit_verification.changed_paths. Verdict: next on ac_mapping populated for each ac_id; repeat if mapping cannot be produced (e.g. ac_list missing)."
     },
-    "closure.issue.precheck-ac-verify": {
-      "stepId": "closure.issue.precheck-ac-verify",
-      "name": "Precheck - Verify AC Coverage",
+    "closure.issue.precheck-ac-evidence-nonempty": {
+      "stepId": "closure.issue.precheck-ac-evidence-nonempty",
+      "name": "Precheck - Verify AC Evidence Non-Empty",
       "type": "prompt",
       "kind": "verification",
       "address": {
         "c1": "steps",
         "c2": "closure",
         "c3": "issue",
-        "edition": "precheck-ac-verify"
+        "edition": "precheck-ac-evidence-nonempty"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "outputSchemaRef": {
+        "file": "issue.schema.json",
+        "schema": "closure.issue.precheck"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "handoffFields": [
+          "run_started_sha",
+          "commit_list",
+          "commit_verification",
+          "kind_boundary_violations",
+          "ac_list",
+          "ac_mapping",
+          "ac_evidence_all_nonempty",
+          "missing_ac_ids"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.issue.precheck-ac-typed-prefix"
+        },
+        "repeat": {
+          "target": "closure.issue.precheck-ac-evidence-nonempty"
+        }
+      },
+      "validationSteps": [
+        "closure.issue.precheck-ac-evidence-nonempty"
+      ],
+      "description": "RC5 S3a: every ac_id has ≥1 evidence_path. Pre: ac_list, ac_mapping. Verdict: next on ac_evidence_all_nonempty=true (validator ac-evidence-nonempty passes); repeat on ac-evidence-missing (recovered via f_failed_ac-evidence-missing.md adaptation)."
+    },
+    "closure.issue.precheck-ac-typed-prefix": {
+      "stepId": "closure.issue.precheck-ac-typed-prefix",
+      "name": "Precheck - Verify AC Typed Path Prefix",
+      "type": "prompt",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "issue",
+        "edition": "precheck-ac-typed-prefix"
       },
       "uvVariables": [
         "issue"
@@ -690,8 +852,10 @@
           "kind_boundary_violations",
           "ac_list",
           "ac_mapping",
-          "ac_coverage_complete",
-          "missing_ac_ids"
+          "ac_evidence_all_nonempty",
+          "missing_ac_ids",
+          "ac_typed_all_ok",
+          "violating_ac_ids"
         ]
       },
       "transitions": {
@@ -699,10 +863,13 @@
           "target": "closure.issue"
         },
         "repeat": {
-          "target": "closure.issue.precheck-ac-verify"
+          "target": "closure.issue.precheck-ac-typed-prefix"
         }
       },
-      "description": "RC5 S3: verify every AC has non-empty evidence; typed ACs require specific path prefixes. Pre: ac_list, ac_mapping. Verdict: next on ac_coverage_complete=true and missing_ac_ids empty (validator ac-coverage-complete passes); repeat on ac-coverage-incomplete (missing_ac_ids must be remediated)."
+      "validationSteps": [
+        "closure.issue.precheck-ac-typed-prefix"
+      ],
+      "description": "RC5 S3b: typed ACs (fixture/prompt/template/schema) respect required path prefix and `ls` succeeds. Pre: ac_mapping (with evidence_type). Verdict: next on ac_typed_all_ok=true (validator ac-typed-prefix-ok passes); repeat on ac-typed-prefix-violated (recovered via f_failed_ac-typed-prefix-violated.md adaptation). fallbackIntent=repeat: next advances to closure phase, ambiguous output stays in verification loop."
     },
     "closure.issue": {
       "stepId": "closure.issue",

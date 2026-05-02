@@ -320,13 +320,22 @@
           }
         }
       },
-      "ac_coverage_complete": {
+      "ac_evidence_all_nonempty": {
         "type": "boolean",
-        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
       },
       "missing_ac_ids": {
         "type": "array",
-        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
         "items": { "type": "string" }
       },
       "kind_at_triage": {
@@ -518,13 +527,22 @@
           }
         }
       },
-      "ac_coverage_complete": {
+      "ac_evidence_all_nonempty": {
         "type": "boolean",
-        "description": "RC5 S3: true iff every ac_id has non-empty evidence_paths passing type check"
+        "description": "RC5 S3a: true iff every ac_id has at least one entry in evidence_paths"
+      },
+      "ac_typed_all_ok": {
+        "type": "boolean",
+        "description": "RC5 S3b: true iff every typed AC's evidence_paths satisfy the required prefix and `ls` succeeds"
       },
       "missing_ac_ids": {
         "type": "array",
-        "description": "RC5: list of ac_id values still uncovered after ac_mapping",
+        "description": "RC5 S3a: list of ac_id values whose evidence_paths is empty",
+        "items": { "type": "string" }
+      },
+      "violating_ac_ids": {
+        "type": "array",
+        "description": "RC5 S3b: list of typed ac_id values failing prefix or `ls` check",
         "items": { "type": "string" }
       },
       "kind_at_triage": {
