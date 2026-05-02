@@ -1,0 +1,187 @@
+---
+name: agent-step-design
+description: Design step registries and prompts for a new agent under .agent/<name>/. Use when defining steps_registry.json, planning step transitions, sizing intermediate deliverables, choosing handoff fields, or laying out C3L prompt files for a fresh agent. Triggers - 'agent を新規作成', 'steps_registry を設計', 'step を分割', 'intermediate deliverable', 'handoff 設計', 'design new agent', 'design step registry', 'partial verification step', 'agent flow を線形化'
+---
+
+# Agent Step Design
+
+`.agent/<name>/` 配下の新規 agent を設計する skill。Role と goal を一致させ、start から goal までを線形 step に分解し、各 step の中間成果物・handoff・部分検証を定義し、最後に runner の `--validate` で構造整合を検証する。
+
+## When to Use / When NOT to Use
+
+| Use this skill | Skip |
+|---|---|
+| 新規 agent (`.agent/<name>/`) を立ち上げる | 既存 agent の prompt 文面だけ修正 |
+| `steps_registry.json` の step 構成を初めて切る / 大幅に再設計する | 1 step の `uvVariables` 1 個追加など軽微な edit |
+| step 数や transitions を増減し flow shape が変わる | workflow.json (`.agent/workflow.json`) の phase graph 設計 (= agent 間遷移は別レイヤ) |
+| Handoff field / intermediate deliverable 形を決める | breakdown wrapper / C3L prompt 解決ロジック (`agents/common/prompt-resolver.ts`) |
+
+agent の **archetype 判定** (Single-Step / Multi-Step Linear / Branching+Validator) は [`references/archetypes.md`](references/archetypes.md) を先に開く。本 skill は archetype を入力として受け取り、step 内部設計に集中する。
+
+## Decision Rules (絶対)
+
+| # | Rule | 違反時の症状 |
+|---|------|--------------|
+| R1 | **Role == Goal**: agent の役割 = ゴール = 単一目的。1 agent に 2 目的を持たせない | step 内で intent が際限なく増え、prompt が IF-THEN ルーティングに腐る |
+| R2 | **Linear only**: step 列は単線。分岐させたい時は別 agent にする (workflow.json で phase 分割) | gate transitions が多 target に膨れ、failure 経路の検証が指数化 |
+| R3 | **Length is fine**: 線形が長くなることは許容。短くするために責務を混ぜない | 1 step が「scan + verify + emit」を兼任、中間成果物が消失 |
+| R4 | **Start condition explicit**: 初期 step は前提 (ラベル / 入力 UV / artifact) を `description` と prompt 冒頭で明示し、未充足を検知して fail-fast する | 上流が壊れた時に silent に進行し、結果が空のまま closing |
+| R5 | **3-mirror invariant**: 1 step の `description` 文 / `outputSchemaRef` の enum / prompt の verdict 列挙は同一 role の 3 つの鏡。1 つを変えたら 3 つ全てを書き換え手で diff する。`--validate` は prose を読まないので silent drift する | description に旧 enum / 役割外の動詞が残り、schema と乖離。runtime まで気付かない |
+
+R2 の根拠: 1 directory = 1 agent = 1 purpose という per-agent convention (`.agent/CLAUDE.md`) と、validator 化 (= 多分岐) は **agent 単位** で行うべきという責務分離原則。本 skill では「分岐は agent を分けて workflow.json で繋ぐ」と扱う。
+
+R5 の根拠: registry の `description` 文は free comment ではなく **role 宣言の text 鏡**。schema enum を変えたら description / prompt の verdict 列挙も同期させないと、reader が registry を読んだ時に「description は X、enum は Y」のどちらが authoritative か判定できない。`--validate` の 13 check (§Validation) は schema / cross-reference / path / handoff の構造整合のみ見て、prose 内容は読まない。
+
+## Process Flow
+
+Role 定義は **step subdivide の出力** で確定する。Phase 1 は暫定 goal を立てるだけで、subdivide した step 列に名前を付け直すことで「この agent の role scope」が見える。`.agent/CLAUDE.md` の per-agent purpose 文は input の 1 つだが **絶対ではなく書き換え対象**。enumeration が source of truth。
+
+```mermaid
+flowchart TD
+    A[Step 1: 暫定 Goal を 1 文] --> B[Step 2: Start→Goal を 1 列]
+    B --> C[Step 3: 中間点を step に subdivide]
+    C --> R[Step 3.5: Role を subdivide から再導出]
+    R -->|scope shift| A
+    R --> D[Step 4: 各 step の deliverable + ToDo]
+    D --> E[Step 5: Handoff + folder fallback]
+    E --> F[Step 6: Partial verification step]
+    F --> M[Step 6.5: 3-mirror diff: description / schema enum / prompt]
+    M -->|drift| D
+    M --> G[Step 7: deno task agent --validate]
+    G -->|fail| C
+    G -->|pass| H[Done]
+```
+
+| Phase | 入力 | 出力 | 失敗の見え方 |
+|-------|------|------|--------------|
+| 1. 暫定 Goal | 要件 + 既存 purpose 文 (`.agent/CLAUDE.md` 等の input、絶対ではない) | 暫定 1 文 (`<agent> の役割は <goal> である`) | 「と」「および」が含まれていたら R1 違反。Phase 3.5 で再導出するため確定ではない |
+| 2. Linear path | 暫定 Goal | start step → ... → terminal step の列 | 矢印が分岐する → 別 agent へ切り出す (R2) |
+| 3. Subdivide | 線形列 | step ID 列 (各 step は 1 deliverable) | 1 step が複数 deliverable を出す → 分割 |
+| **3.5. Role 再導出** | subdivide した step 列 | **scope 文 (= 役割境界)** + 「この agent が扱わない作業」negative list | step 列に含まれない動詞 (例: `assign order:N`) が暫定 Goal に残っている → Goal を絞るか、step を増やすか判断。`.agent/CLAUDE.md` purpose 表と diff し drift があれば table 側 / agent 側どちらを直すかを明示的に decide |
+| 4. Deliverable + ToDo | step ID 列 + 確定 Role | step ごとの `description` / `outputSchemaRef` / ToDo 一覧 | deliverable 名と step stem (`c3` + edition) が揃っていない。`description` 文に Phase 3.5 の negative list 動詞が混入 → R5 違反 |
+| 5. Handoff design | step ごとの deliverable | `structuredGate.handoffFields` 列 + folder layout (`.agent/climpt/tmp/.../<step-stem>/`) | handoff field に空配列、または folder 名が step stem と乖離 |
+| 6. Partial verification | step 列 | 検証 step (例: `verify-design-only`, `verify-impl-only`) | system 全体検証の 1 step に集約されている → R3 違反 (混在) |
+| **6.5. 3-mirror diff** | step ごとの `description` / `outputSchemaRef` enum / prompt 内 verdict 列挙 | 1 step ごとに 3 mirror が同一 verdict 集合を語ることを目視確認 | description に旧 enum 残存、prompt と schema が同期しているのに description だけ drift → R5 違反。`--validate` は prose を読まないため Phase 7 で捕まらない |
+| 7. Validate | 完成した `steps_registry.json` | `Validation passed.` | 下記 §Validation 節 |
+
+step record / `structuredGate` / C3LAddress (5-tuple) の field 定義は [`references/registry-shape.md`](references/registry-shape.md) を参照。
+
+## Intermediate Deliverable Contract
+
+各 step は **1 つの中間成果物** を出す。形は次の 2 路で運ばれる:
+
+| Channel | 媒体 | いつ使う | 制約 |
+|---------|------|----------|------|
+| Handoff (primary) | `structuredGate.handoffFields` で宣言した structured output の subtree | 後続 step が *必ず* 必要とする情報 | schema validation を通る (`outputSchemaRef`) |
+| Folder (fallback) | `.agent/climpt/tmp/.../{step-stem}/` 配下のファイル | handoff に乗せると重い、または後続 step が *条件付きで掘り下げる* 場合 | folder 名 = step stem (`{c3}` または `{c3}.{edition}`) |
+
+`.agent/CLAUDE.md` の directory layout convention により:
+
+- shared なドロップ場所は `.agent/climpt/` 配下のみ。`.agent/<agent>/tmp/` を勝手に作らない
+- folder 名 = step stem。step を rename したら folder 名も同期する (registry validation の path check が捕まえる)
+
+**設計の決め手**:
+
+1. 後続 step が「必ず」読むなら handoff
+2. 「探索的に必要なら掘る」なら folder fallback
+3. 両方に同じ情報を duplicate しない (drift の温床)
+
+## Partial Verification Steps
+
+Verification step は **scope を限定** して挿入する。設計のみ検証 / 実装のみ検証 / artifact 単位の検証を、それぞれ独立 step に分ける (R3)。
+
+| Verification の粒度 | 例 | 配置 |
+|----------------------|-----|------|
+| Per-deliverable | `verify-doc-paths` (doc-scan の出力だけを検証) | 該当 step の直後 |
+| Per-artifact-class | `verify-design`, `verify-impl` | 関連 step 群の末尾 |
+| End-of-flow | `closure` (全成果物を集約して closing intent を emit) | terminal step |
+
+System 全体を 1 つの verification step に詰め込まない: 失敗時に「どの deliverable が壊れたか」を localize できなくなる。`.agent/considerer/steps_registry.json` の `doc-scan → doc-verify → doc-evidence → consider` 列が partial verification の実例 (各 step が 1 軸の検証を担う)。
+
+## 3-Mirror Invariant (R5 の applier-driven check)
+
+`--validate` は registry の prose (description / 自由文) を読まない。verdict 集合の drift は applier が手で diff する必要がある。1 step ごとに次の **3 つの鏡が同じ role を語っているか** を目視確認する:
+
+| Mirror | 場所 | 何を語る |
+|--------|------|----------|
+| (a) Schema enum | `outputSchemaRef` が指す JSON Schema の `enum` | runtime が emit を許す verdict 集合 |
+| (b) Prompt verdict 列挙 | step 用 C3L prompt (`prompts/steps/<c2>/<c3>/f_<edition>.md`) 内の verdict 列挙 / heuristics 表 | LLM に提示される verdict 集合 |
+| (c) Step description | `steps_registry.json` の step record の `description` 文字列 | reader が registry を読んだ時に見る role 説明 |
+
+**Diff 手順** (Phase 6.5):
+
+1. 各 step について (a) (b) (c) を並べ、verdict 集合が完全一致するか確認する
+2. 一致しなければ 3 つ全てを Phase 3.5 で確定した role 表現に揃える (一方だけ更新しない)
+3. (c) に **step が扱わない動詞** (= Phase 3.5 で出した negative list の語) が混入していないか確認する。例: triager は分類のみ → description に "pick smallest unused order:N" が入っていれば R5 違反
+
+**典型的な silent drift パターン**:
+
+- schema enum を変更したが description が旧 enum のまま → reader が `description` を信じると runtime と齟齬
+- 別 agent からコピーして作った step record の description が前の agent の役割表現を残している
+- prompt 内の verdict heuristics 表は更新したが description は touch しなかった
+
+これらは `--validate` の Cross-references / Schema check では補足できない (prose vs structured field の比較ではないため)。3-mirror diff が完了するまで Phase 7 (`--validate`) に進まない。
+
+## Validation (registry 検証)
+
+設計が完成したら必ず runner の `--validate` を実行する。**ただし `--validate` は構造整合のみを検証する** — schema / cross-reference / path / handoff / UV reachability は捕まるが、registry 内の **prose (description / 自由文) の意味整合は読まない**。R5 (3-mirror invariant) は §3-Mirror Invariant の手 diff で先に潰す。
+
+```bash
+deno task agent --validate --agent <agent-name>
+```
+
+実装位置: `agents/scripts/run-agent.ts:168-507` (`if (args.validate)` ブロック)。`agents/config/mod.ts` の `validateFull(agent, cwd)` を呼び、以下を逐次チェックする (同 ts:188-481):
+
+| Check | 失敗が示すもの |
+|-------|---------------|
+| `agent.json` Schema | agent.json の構造不正 |
+| `agent.json` Configuration | 値の整合性 (`verdict.type` 等) |
+| `steps_registry.json` Schema | registry JSON の構造不正 |
+| Cross-references | step の `outputSchemaRef` / transition target の解決失敗 |
+| Paths | C3L prompt ファイル / schema ファイルの不在 |
+| Labels | workflow.json で宣言した label が repo に存在しない |
+| Flow | reachability (`entryStepMapping` から terminal までの到達可能性) |
+| Prompts | 各 step の prompt 設定不正 |
+| UV Reachability | UV 変数の supply source 不在 |
+| Template UV | prompt 内 placeholder と宣言の整合 |
+| Step Registry | step 定義レベルの ADT 整合 |
+| Handoff Inputs | step A の handoff field が step B の input 期待と互換 |
+| Config Registry | `.agent/climpt/config/*.yml` と registry の pattern 整合 |
+
+`Validation passed.` が出るまで step 設計は完了していない。Sub-agent から実行する場合は二重 sandbox に注意 (Bash tool sandbox + SDK sandbox)。Claude Code の Bash から `deno task agent` を呼ぶ際は `dangerouslyDisableSandbox: true` を付ける、またはターミナルから直接実行する。
+
+## Anti-Patterns
+
+| Anti-pattern | なぜダメか | 直し方 |
+|--------------|------------|--------|
+| **Branching steps** within 1 agent | R2 違反。failure 経路が指数化し、validator 検証が表現しきれない | 分岐の先端を別 agent にし、workflow.json の phase 遷移で結ぶ |
+| **Role drift** ("分類 + 順序付け" を 1 agent で) | R1 違反。1 agent に 2 goal が同居 | 例: `.agent/triager` (classify) と `.agent/prioritizer` (order) のように責務ごとに agent を分ける |
+| **Implicit start condition** (前提 label / artifact を prompt にも `description` にも書かない) | R4 違反。上流壊れた時に silent fail | step `description` に前提を明文化し、prompt 冒頭で前提チェック → 不一致なら handoff field で `verdict: "blocked"` を emit |
+| **Whole-system verification** (1 step が design + impl + integration を全部検証) | partial verification の原則違反 (R3 解釈) | verification を deliverable ごとに切り、各 step に partial verifier を 1 つだけ持たせる |
+| **Handoff/folder duplication** (同じ情報を両方に置く) | drift の温床、registry validation も両方の整合まで保証しない | primary は handoff、folder は「重い / 探索的」な場合のみ。両方に書かない |
+| **Folder name ≠ step stem** | 他 step から folder fallback を引く時に referent が解決できない | folder 名を `{c3}` または `{c3}.{edition}` に揃え、step rename と同時に rename |
+| **Description text drift** (schema enum を更新したが step record の `description` 文字列に旧 enum / 役割外動詞が残る) | R5 違反。`--validate` は prose を読まないので silent drift する。reader が `description` を信じると runtime と齟齬 | §3-Mirror Invariant の手 diff を Phase 6.5 で実施。schema / prompt / description を 1 つの role 表現に揃える |
+| **Role を input 文 (`.agent/CLAUDE.md` purpose 表 等) で確定したつもりになる** | input 文は revisable な参考文。subdivide 結果と diff せずに採用すると、step 列に存在しない動詞が role に残る | Phase 3.5 で **subdivide した step 列から role を再導出** し、negative list (扱わない動詞) を明示してから input 文と diff する |
+| **`--validate` 結果だけで設計完成を宣言** | R5 違反を見逃す。`--validate` は構造整合のみで prose を読まない | Phase 6.5 (3-mirror diff) を通してから `--validate` を実行し、両方が pass した時だけ Done |
+
+## References (intra-skill)
+
+archetype を確定したら本 skill ディレクトリの該当 reference を開く:
+
+| Archetype | Reference | 対応する `.agent/` 実例 |
+|-----------|-----------|--------------------------|
+| 原型 A: Single-Step (Triage 系: 分類して route) | [`references/triage.md`](references/triage.md) | `.agent/clarifier/`, `.agent/triager/` |
+| 原型 B: Multi-Step Linear (Architecture / Design 系: 設計 doc を出す) | [`references/architecture-design.md`](references/architecture-design.md) | `.agent/considerer/`, `.agent/detailer/` |
+| 原型 C: Branching+Validator (Implement 系: 作業して artifact を出す) | [`references/implement.md`](references/implement.md) | `.agent/iterator/`, `.agent/merger/` |
+
+Shape の正典 (本 skill 内):
+
+- [`references/archetypes.md`](references/archetypes.md) — 3 原型 taxonomy + 判定フロー
+- [`references/registry-shape.md`](references/registry-shape.md) — Step record / structuredGate / C3LAddress / failurePatterns
+
+Code citation (runtime contract — skill 外側に必須):
+
+- `agents/scripts/run-agent.ts:168-507` — `--validate` 実装
+- `agents/config/mod.ts` — `validateFull(agent, cwd)` 本体
+
+Further reading (optional, may be stale): `agents/docs/builder/` 配下の guide 群は scheme drift の可能性があるため、本 skill の reference と矛盾した場合は **本 skill 側を優先** する。
