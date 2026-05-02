@@ -23,7 +23,8 @@ DO NOT perform work outside implementation:
 - DO NOT write reviews or evaluate code quality (Reviewer Agent's job)
 - DO NOT redesign architecture beyond the issue scope
 - DO NOT work on issues or tasks not assigned to you
-- If you complete the implementation, return structured output immediately - DO NOT continue with additional unassigned work
+- If you complete the implementation, return structured output immediately - DO
+  NOT continue with additional unassigned work
 
 ---
 
@@ -72,13 +73,40 @@ changes.
 - Boundary Hook adds `done` label
 - Issue stays **OPEN** for reviewer
 
+The `issue-action` block below is a side-channel for the boundary hook. It is
+independent from `next_action.action` in your structured JSON output — see
+"Allowed `next_action.action` values" below for the schema-level intent.
+
 ```issue-action
 {"action":"closing","issue":{uv-issue},"body":"## Implementation Complete\n- Implementation summary\n- Verification done\n- Tasks: N completed\n\nReady for reviewer."}
 ```
 
+## Allowed `next_action.action` values
+
+This step (`continuation.issue`) is a **work** step. Its `next_action.action`
+MUST be exactly one of:
+
+- `next` — continue iterating; loop back into `continuation.issue` for the next
+  task
+- `repeat` — re-execute this iteration (e.g. retry after a partial failure
+  within the same task scope)
+- `handoff` — implementation work is complete; transition out of the work loop
+  into the closure precheck chain (`closure.issue.precheck-commit-list`). Use
+  this only AFTER the pre-handoff git-clean checklist passes
+
+Do NOT emit `closing`, `close`, `done`, or any other value at this step. The
+literal string `closing` appears only inside the `issue-action` side-channel
+block above and MUST NOT leak into `next_action.action`. Any value outside
+`["next","repeat","handoff"]` triggers `GATE_INTERPRETATION_ERROR` (failFast)
+and aborts the run. Canonical schema:
+`.agent/iterator/schemas/issue.schema.json` →
+`continuation.issue.properties.next_action.properties.action.enum`.
+
 ## CRITICAL: Return Structured JSON
 
-Your response MUST be valid JSON matching the step's schema. DO NOT return natural language text, summaries, or explanations as your final response. The system requires structured JSON output to proceed.
+Your response MUST be valid JSON matching the step's schema. DO NOT return
+natural language text, summaries, or explanations as your final response. The
+system requires structured JSON output to proceed.
 
 ---
 

@@ -27,7 +27,8 @@ DO NOT perform work outside implementation:
 - DO NOT write reviews or evaluate code quality (Reviewer Agent's job)
 - DO NOT redesign architecture beyond the issue scope
 - DO NOT work on issues or tasks not assigned to you
-- If you complete the implementation, return structured output immediately - DO NOT continue with additional unassigned work
+- If you complete the implementation, return structured output immediately - DO
+  NOT continue with additional unassigned work
 
 ## Current Task: Issue #{uv-issue}
 
@@ -39,10 +40,9 @@ Before anything else, decide which input is the **authoritative spec**:
 
 - Run `gh issue view {uv-issue} --json labels,comments` once.
 - If labels contain `kind:detail`, **OR** any issue comment body starts with
-  `## Implementation Spec`, this issue came through the detailer stage.
-  The **latest `## Implementation Spec` comment** is the spec. Earlier
-  considerer comments are background only; on conflict, follow the
-  detailer comment.
+  `## Implementation Spec`, this issue came through the detailer stage. The
+  **latest `## Implementation Spec` comment** is the spec. Earlier considerer
+  comments are background only; on conflict, follow the detailer comment.
 - Otherwise, the **issue body** is the spec (direct `kind:impl` path).
 
 ## Context Reference Rule
@@ -106,17 +106,18 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 {"action":"progress","issue":{uv-issue},"body":"## Progress\n- [x] Task 1 done\n- [x] Task 2 done\n- [ ] Task 3 in progress"}
 ```
 
-### Hand Off to Reviewer (REQUIRED when done)
+### Hand Off to Reviewer (when implementation is complete)
 
-> **⚠️ MANDATORY PRE-COMPLETION CHECKLIST ⚠️**
+> **MANDATORY PRE-HANDOFF CHECKLIST**
 >
-> **You MUST complete ALL of these steps before hand off:**
+> **Complete ALL of these steps before signaling completion:**
 >
-> 1. **Run `git status`** - Check for uncommitted changes
-> 2. **If changes exist**: Run `git add .` then `git commit -m "..."`
-> 3. **Verify clean state**: Run `git status` again to confirm "nothing to
+> 1. **Run `git status`** — check for uncommitted changes
+> 2. **If changes exist**: run `git add .` then `git commit -m "..."`
+> 3. **Verify clean state**: run `git status` again to confirm "nothing to
 >    commit"
-> 4. **Only then**: Use the closing action below
+> 4. **Only then**: emit the issue-action below AND set `next_action.action` per
+>    the rule in "Allowed `next_action.action` values" below
 >
 > **NEVER hand off with uncommitted changes. This is a hard requirement.**
 >
@@ -127,6 +128,11 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 
 - Add `done` label to signal completion
 - Keep the issue **OPEN** for reviewer to verify
+
+The `issue-action` block below is a side-channel for the boundary hook (it
+carries the closure body and label intent). It is independent from
+`next_action.action` in your structured JSON output — see the "Allowed
+`next_action.action` values" section below for the schema-level intent.
 
 ```issue-action
 {"action":"closing","issue":{uv-issue},"body":"## Implementation Complete\n- What was implemented\n- How it was verified\n- Git status: clean (all changes committed)\n- Tasks completed: N\n\nReady for reviewer."}
@@ -144,9 +150,30 @@ Use these structured outputs. **Do NOT run `gh` commands directly.**
 {"action":"blocked","issue":{uv-issue},"body":"Cannot proceed because...","label":"need clearance"}
 ```
 
+## Allowed `next_action.action` values
+
+This step (`initial.issue`) is a **work** step, not a closure step. Its
+`next_action.action` MUST be exactly one of:
+
+- `next` — implementation finished this iteration; advance to
+  `continuation.issue` (handoff to reviewer is performed by the boundary hook on
+  a later closure step, NOT by this step)
+- `repeat` — more work is needed in the initial-analysis phase; loop back into
+  `initial.issue`
+
+Do NOT emit `handoff`, `closing`, `close`, `done`, or any other value at this
+step. Any value outside `["next","repeat"]` triggers `GATE_INTERPRETATION_ERROR`
+(failFast) and aborts the run. The literal string `closing` appears only inside
+the `issue-action` side-channel block above and MUST NOT leak into
+`next_action.action`. Canonical schema:
+`.agent/iterator/schemas/issue.schema.json` →
+`initial.issue.properties.next_action.properties.action.enum`.
+
 ## CRITICAL: Return Structured JSON
 
-Your response MUST be valid JSON matching the step's schema. DO NOT return natural language text, summaries, or explanations as your final response. The system requires structured JSON output to proceed.
+Your response MUST be valid JSON matching the step's schema. DO NOT return
+natural language text, summaries, or explanations as your final response. The
+system requires structured JSON output to proceed.
 
 ---
 
