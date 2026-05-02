@@ -40,14 +40,18 @@ sequenceDiagram
 ```json
 {
   "projectBinding": {
-    "inheritProjectsForCreateIssue": true
+    "inheritProjectsForCreateIssue": true,
+    "donePhase": "impl-done",
+    "evalPhase": "eval-pending",
+    "planPhase": "plan-pending",
+    "sentinelLabel": "project:sentinel"
   }
 }
 ```
 
-`inheritProjectsForCreateIssue` の意味は §4 O2 で定義。不在時は v1.13.x 互換
-(I1)。`injectGoalIntoPromptContext` (旧 O1) は release/1.14.0 で削除、v1.15.0
-で再導入予定 (#540)。
+`projectBinding` 不在時は v1.13.x 互換 (I1)。存在時は全 5 field が required。 各
+field の意味は §13 Level 2 §2.5 を参照。`injectGoalIntoPromptContext` (旧 O1) は
+release/1.14.0 で削除、v1.15.0 で再導入予定 (#540)。
 
 ## 2. Bind: Project-scoped issue 取得
 
@@ -178,29 +182,73 @@ cross-family の late-bind 汚染が発生しない。
 
 ## 5. Project Completion
 
-User agent が project の完了を判断し、outbox action で close する。
+Project 完了は 2 段階で進む: (1) CascadeCloseChannel が sentinel label を flip、
+(2) evaluator agent が project close を判断・実行。
 
-### 5.1 フロー
+### 5.1 T6.eval: Sentinel label flip (CascadeCloseChannel)
 
 ```mermaid
 sequenceDiagram
-  participant Agent as User Agent (.agent/<name>/)
   participant Orch as Orchestrator
+  participant Bus as EventBus
+  participant Cascade as CascadeCloseChannel
+  participant GH as GitHubClient
+
+  Note over Orch: 子 issue が close → DirectClose 実行
+  Orch->>Bus: publish(IssueClosedEvent)
+  Bus->>Cascade: onIssueClosed(event)
+
+  Cascade->>Cascade: projectBinding 存在チェック (I1)
+  Cascade->>GH: getIssueProjects(closedIssueNumber)
+  GH-->>Cascade: projects[]
+
+  loop each project
+    Cascade->>GH: listProjectItems(project)
+    GH-->>Cascade: items[]
+    Cascade->>Cascade: sentinel 特定 (sentinelLabel)
+    Cascade->>Cascade: 全 non-sentinel が donePhase か判定
+
+    alt 全 non-sentinel done
+      Cascade->>Bus: publish(SiblingsAllClosedEvent)
+      Cascade->>GH: updateIssueLabels(sentinel, +doneLabel, -evalLabel)
+      Note over Cascade: sentinel が evalPhase → donePhase に flip
+    end
+  end
+```
+
+v1.14.0 で orchestrator.ts の inline ロジックから `CascadeCloseChannel`
+(`agents/channels/cascade-close.ts`) に移行済み (PR4-3 / T4.4b cutover)。
+Channel は event bus 経由で非同期に動作し、失敗は non-fatal (close は
+既に完了済み)。
+
+### 5.2 Evaluator agent dispatch
+
+Sentinel の label が `evalPhase` に切り替わると、次の orchestrator cycle で
+`evalPhase` に割り当てられた agent が dispatch される。Agent は project 全体の
+完了を評価し、必要に応じて `close-project` outbox action を emit する。
+
+```mermaid
+sequenceDiagram
+  participant Orch as Orchestrator
+  participant Agent as Evaluator Agent (evalPhase)
   participant Outbox as OutboxProcessor
   participant GH as GitHubClient
 
-  Note over Agent: Goal 達成度を評価 (agent の責務)
-  Agent->>Agent: structuredOutput に close-project action を emit
-  Agent-->>Orch: DispatchOutcome (deferred_items / outbox actions)
+  Note over Orch: sentinel の label = evalPhase → agent dispatch
+  Orch->>Agent: run(sentinel issue)
+  Agent->>Agent: Goal 達成度を評価 (agent の責務)
+  Agent-->>Orch: structuredOutput に close-project action を emit
 
-  Orch->>Outbox: process(subjectId)
+  Orch->>Outbox: process(sentinelId)
   Outbox->>GH: closeProject({owner, number})
   GH-->>Outbox: success
 ```
 
-### 5.2 責務境界
+### 5.3 責務境界
 
-- **判断**: user agent の責務。climpt は project 完了を自動判定しない
+- **Sentinel label flip**: climpt `CascadeCloseChannel` の責務 (自動)
+- **Project 完了判断**: evaluator agent の責務。climpt は project 完了を
+  自動判定しない
 - **実行**: climpt outbox が `close-project` action を処理
 - **Status field 更新**: user agent が `update-project-item-field` で明示 emit
   (climpt は Status を自動更新しない — I5)
@@ -250,31 +298,58 @@ catch → O2 は §6.1 の skip ポリシー適用、outbox は file 残留 → 
 
 ## 7. End-to-End サイクル例
 
-Issue #42 が project `tettuan/3` に所属、agent が deferred_items を 1 件 emit
-する場合の完全な実行フロー:
+Project `tettuan/3` で plan → execute → evaluate → close の完全な lifecycle
+を示す。Sentinel #40 が project:sentinel label を持ち、impl issue #42 が project
+に所属する。
 
 ```
-CYCLE 1:
+CYCLE 0 (Bootstrap):
+├─ [project:init] deno task project:init tettuan/3
+│        → sentinel #40 created (labels: [planPhase, project:sentinel])
+│        → addIssueToProject(tettuan/3, #40)
+└─ Exit: sentinel bootstrapped
+
+CYCLE 1 (Plan):
+├─ [Bind] IssueSyncer: --project tettuan/3 → #40 が対象
+├─ [Phase] labels=[planPhase] → plan-pending → agent=project-planner
+├─ [Dispatch] project-planner.run(#40)
+│        → structuredOutput: {proposed_issues: [{title:"Impl task", ...}]}
+├─ [O2] getIssueProjects(40) → [{owner:"tettuan", number:3}]
+│        item.projects = undefined → inherit [{owner:"tettuan", number:3}]
+│        write: 000-deferred-000.json (create-issue)
+│        write: 000-deferred-000-000.json (add-to-project)
+├─ [Outbox] process:
+│        000-deferred-000.json → createIssue() → #42
+│        000-deferred-000-000.json → late-bind #42 → addIssueToProject(tettuan/3, #42)
+├─ [Transition] sentinel: planPhase → evalPhase (agent 完了)
+└─ Exit: sentinel は evalPhase で待機
+
+CYCLE 2 (Execute):
 ├─ [Bind] IssueSyncer: --project tettuan/3 → #42 が対象
 ├─ [Phase] labels=[kind:impl] → impl-pending → agent=iterator
 ├─ [Dispatch] iterator.run(#42)
 │        → outcome: "success"
-│        → structuredOutput: {deferred_items: [{title:"Follow-up", ...}]}
-├─ [Guard C2] terminal + closeOnComplete → emit deferred_items
-├─ [O2] getIssueProjects(42) → [{owner:"tettuan", number:3}]
-│        item.projects = undefined → inherit [{owner:"tettuan", number:3}]
-│        write: 000-deferred-000.json (create-issue)
-│        write: 000-deferred-000-000.json (add-to-project, issueNumber absent)
-├─ [Outbox] process:
-│        000-deferred-000.json → createIssue() → #43
-│        000-deferred-000-000.json → late-bind #43 → addIssueToProject(tettuan/3, #43)
-├─ [Confirm] confirmEmitted(42, [key-of-follow-up])
 ├─ [Transition] T3: add [done], T4: remove [kind:impl]
 ├─ [T6] closeIssue(42)
-├─ [T6.post] processPostClose → (none)
-└─ Exit: terminal → completed
+├─ [T6.post] CascadeCloseChannel:
+│        getIssueProjects(42) → [{owner:"tettuan", number:3}]
+│        listProjectItems(tettuan/3) → [#40(sentinel), #42(done)]
+│        全 non-sentinel done → publish(SiblingsAllClosedEvent)
+│        updateIssueLabels(#40, +doneLabel, -evalLabel)
+└─ Exit: #42 closed, sentinel #40 flipped to donePhase
 
-結果: #42 closed, #43 created & project tettuan/3 に登録
+CYCLE 3 (Evaluate):
+├─ [Bind] IssueSyncer: --project tettuan/3 → #40 が対象
+├─ [Phase] labels=[donePhase] → (terminal) → evaluator agent dispatch
+├─ [Dispatch] evaluator.run(#40)
+│        → structuredOutput: {outbox: [{action:"close-project", project:{...}}]}
+├─ [Outbox] process:
+│        closeProject(tettuan/3)
+├─ [T6] closeIssue(40)
+└─ Exit: project tettuan/3 closed, sentinel #40 closed
+
+結果: plan→execute→evaluate→close 完了。
+      #42 impl done, #40 sentinel closed, project tettuan/3 closed
 ```
 
 ## 8. Plan Phase: README → Schema 変換例
@@ -350,7 +425,10 @@ Goal: Ship project orchestration with GitHub Projects v2 integration.
 ## 9. 関連
 
 - `13_project_orchestration.md` — Level 2 contracts (型・API・invariants)
+- `13_project_orchestration.md` §2.10 — Planner / Evaluator agent 責務境界
 - `13_project_orchestration.md` §6 — Level 3 open design decisions (#500)
 - `12_orchestrator.md` §Project Orchestration Hooks — O2 hook summary (O1 は
   v1.15.0 #540 で再導入予定)
+- `agents/channels/cascade-close.ts` — T6.eval sentinel label flip 実装
+- `agents/scripts/project-init.ts` — Sentinel bootstrap
 - `04_step_flow_design.md` — Step flow / structured output の汎用設計

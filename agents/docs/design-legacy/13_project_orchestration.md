@@ -164,15 +164,36 @@ metacharacter を弾くため、UV 注入境界での sanitize と consumer-prom
 
 ### 2.5 workflow.json extension
 
-optional block 1 個のみ追加 (不在 → v1.13.x 完全互換):
+optional block 1 個のみ追加 (不在 → v1.13.x 完全互換)。存在時は全 5 field が
+required:
 
 ```json
 {
   "projectBinding": {
-    "inheritProjectsForCreateIssue": true
+    "inheritProjectsForCreateIssue": true,
+    "donePhase": "impl-done",
+    "evalPhase": "eval-pending",
+    "planPhase": "plan-pending",
+    "sentinelLabel": "project:sentinel"
   }
 }
 ```
+
+| Field                           | 型      | 意味                                                                 |
+| ------------------------------- | ------- | -------------------------------------------------------------------- |
+| `inheritProjectsForCreateIssue` | boolean | O2 hook で parent project を deferred_items に継承するか             |
+| `donePhase`                     | string  | Per-item 完了を示す phase ID (terminal phase でなければならない)     |
+| `evalPhase`                     | string  | Sentinel が全子 issue 完了後に遷移する phase ID (actionable + agent) |
+| `planPhase`                     | string  | Sentinel が bootstrap 時に付与される phase ID (actionable + agent)   |
+| `sentinelLabel`                 | string  | Project sentinel issue を識別する GitHub label                       |
+
+**Validation (workflow-loader)**: `donePhase` は terminal、`evalPhase` /
+`planPhase` は actionable かつ agent 割当あり、`sentinelLabel` は marker role
+label。違反時は `WF-PROJECT-001` 〜 `WF-PROJECT-010` エラー。Boot validation
+(W6) で phase 存在を追加検証。
+
+**三形式**: `projectBinding` は不在 / 全 field 指定 / opt-out (`projects: []`)
+の三形態で運用される (§2.8 DeferredItem schema 参照)。
 
 ### 2.6 IssueCriteria extension (project-scoped execution)
 
@@ -250,6 +271,43 @@ signal。
 で完結しており、Status field は orthogonal な observability layer として user
 に委ねる。
 
+### 2.10 Planner / Evaluator agent 責務境界
+
+Project lifecycle は sentinel issue を軸に plan → execute → evaluate → close の
+4 段階で回る。planner と evaluator は専用 agent ではなく、通常の phase dispatch
+で呼び出される。
+
+**Bootstrap**: `deno task project:init` (`agents/scripts/project-init.ts`) が
+sentinel issue を作成し、`planPhase` label + `sentinelLabel` を付与。次の
+orchestrator cycle で `planPhase` に割り当てられた agent (= project-planner) が
+dispatch される。
+
+**Planner** (`.agent/project-planner/`):
+
+- 入力: sentinel issue body + project README (v1.15.0 #540 で prompt 注入予定)
+- 出力: `planner.schema.json` 準拠の structured output。`proposed_issues[]` は
+  `deferred_items[]` と同一構造 (§2.8) で `DeferredItemsEmitter`
+  が変換なしで消費
+- 責務: project goal を分解し、必要な issue を `proposed_issues` として列挙
+- 境界: 起票の実行は planner agent ではなく orchestrator の outbox が行う
+
+**Evaluator** (phase dispatch):
+
+- 専用の `.agent/project-evaluator/` ディレクトリは存在しない
+- `evalPhase` に割り当てられた agent が evaluator として動作する
+- trigger: `CascadeCloseChannel` (`agents/channels/cascade-close.ts`) が
+  `IssueClosedEvent` を受信し、project 内の全 non-sentinel item が `donePhase`
+  に到達したとき sentinel の label を `evalPhase` → `donePhase` に flip
+- 責務: project 全体の完了を確認し、必要なら `close-project` outbox action を
+  emit
+- 境界: 完了判定と close 指示は evaluator agent の責務。CascadeCloseChannel は
+  sentinel label flip のみ行い、project close は行わない
+
+**T6.eval migration**: v1.14.0 で inline sentinel-cascade 検出ロジックは
+orchestrator.ts から `CascadeCloseChannel` に移行済み (PR4-3 / T4.4b cutover)。
+Channel は event bus の `IssueClosedEvent` を subscribe し、非同期に sibling
+集計 → sentinel label transition を実行する。
+
 ## 3. Invariants
 
 | ID | Invariant                                                                                                |
@@ -292,6 +350,8 @@ v1.14.x の新機能は **user が explicit に on にしかつ issue を projec
 | 起票すべき追加 issue の判断         | **user `.agent/<name>/`** (`deferred_items` emission)          |
 | Status field 更新                   | **user `.agent/<name>/`** (outbox `update-project-item-field`) |
 | Project 完了判断 / close            | **user `.agent/<name>/`** (outbox `close-project`)             |
+| Sentinel label flip (T6.eval)       | **climpt** (`CascadeCloseChannel` — event bus 経由)            |
+| Sentinel bootstrap (project:init)   | **climpt** (`deno task project:init`)                          |
 | Release PR 作成                     | **user** (manual, `/release-procedure`)                        |
 
 ## 6. Level 3: Open design decisions
