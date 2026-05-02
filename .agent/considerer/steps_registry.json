@@ -180,16 +180,14 @@
     "closure.consider.precheck-kind-scope": {
       "stepId": "closure.consider.precheck-kind-scope",
       "name": "Precheck - Record Kind Boundary Scope Findings",
-      "kind": "work",
+      "kind": "verification",
       "address": {
         "c1": "steps",
         "c2": "closure",
         "c3": "consider",
         "edition": "precheck-kind-scope"
       },
-      "uvVariables": [
-        "issue"
-      ],
+      "uvVariables": [],
       "usesStdin": false,
       "description": "Record considerer's source-edit boundary findings in kind_boundary_violations (source files *.ts/*.js/*.py outside tests/ are violations). Always emits next; verdict authority lives in the terminal consider step. kind_at_triage is audit-only and does not branch behavior here.",
       "outputSchemaRef": {

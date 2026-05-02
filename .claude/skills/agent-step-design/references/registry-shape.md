@@ -84,6 +84,8 @@ prompt は **address (5-tuple) で決まる**。CLI flag や runtime 条件で e
 
 failure ごとに `f_failed_<adaptation>.md` を 1 ファイル用意する。recovery 用に新 step を生やさず、**同じ step を edition `failed` で再実行**する (skill rule I3)。
 
+> **R10 (Adaptation prompt diff necessity)**: 各 `f_failed_<adaptation>.md` は同 step の `f_default.md` (または `f_<edition>.md`) と意味的に異なる Action を持つ。frontmatter だけ差し替えた byte-near-identical adaptation は禁止。詳細は [`../SKILL.md`](../SKILL.md) §Decision Rules R10 / §Anti-Patterns 行 "f_failed_<adaptation>.md byte-identical to f_default.md aside from frontmatter" を参照。
+
 ## Boot validation (registry は frozen)
 
 registry は Boot 時に validate され、Run 中は immutable。step graph の動的変更は禁止。`deno task agent --validate` の各 check (Schema / Cross-references / Paths / Handoff Inputs / UV Reachability) は本 shape の整合を逐次検証する。

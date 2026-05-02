@@ -2,8 +2,6 @@
 stepId: closure.consider.precheck-kind-scope
 name: Precheck - Record Considerer Boundary Findings
 description: Record findings about this run's changed paths under considerer's source-edit boundary. Always emits next; closure consider step decides verdict.
-uvVariables:
-  - issue
 ---
 
 # Goal: Record findings about source files this run modified outside `tests/`

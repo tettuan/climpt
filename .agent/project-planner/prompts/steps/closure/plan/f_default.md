@@ -12,7 +12,7 @@ issue, then:
 
 ## Input
 
-- **Sentinel issue**: `{{issue}}` — the trigger issue for this planning cycle.
+- **Sentinel issue**: `{uv-issue}` — the trigger issue for this planning cycle.
 - **Project goals**: injected via `{{project_goals}}` prompt context variable
   (project README content).
 - **Project metadata**: `{{project_titles}}`, `{{project_numbers}}`,
