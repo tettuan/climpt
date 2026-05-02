@@ -90,6 +90,7 @@ main() {
         "c3": "task",
         "edition": "default"
       },
+      "adaptationChain": ["default", "retry-1", "retry-2"],
       "uvVariables": [],
       "usesStdin": false,
       "transitions": {}
@@ -146,6 +147,25 @@ PROMPT
 Verify the bug fix was applied correctly. Read `tmp/iterator-fixture.ts` and confirm the `add` function returns `a + b`.
 
 Output TASK_COMPLETE when verified.
+PROMPT
+
+  # Adaptation-chain variants for repeat-driven retries.
+  # Boot S9 enforces structural validity; runtime resolver loads the file
+  # matching the cursor position (default → retry-1 → retry-2).
+  cat > "${AGENT_DIR}/prompts/steps/closure/task/f_default_retry-1.md" << 'PROMPT'
+# Task Closure (retry 1)
+
+Previous closure did not converge. Re-read `tmp/iterator-fixture.ts` carefully and re-check whether the `add` function returns `a + b`.
+
+On retry, focus on what the previous attempt missed. Output TASK_COMPLETE when verified.
+PROMPT
+
+  cat > "${AGENT_DIR}/prompts/steps/closure/task/f_default_retry-2.md" << 'PROMPT'
+# Task Closure (retry 2)
+
+Final retry. Read `tmp/iterator-fixture.ts` line by line and confirm the body of `add` returns `a + b`.
+
+Be exhaustive. Output TASK_COMPLETE when verified.
 PROMPT
   success "Prompt files written"
 

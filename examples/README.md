@@ -128,7 +128,7 @@ export ANTHROPIC_API_KEY="sk-ant-..."  # required for LLM steps
 >
 > ```bash
 > # From terminal (not Claude Code Bash tool)
-> for f in examples/[0-5][0-9]_*/run.sh; do bash "$f"; done
+> for f in examples/[0-9][0-9]_*/run.sh; do bash "$f"; done
 > ```
 
 ## Execution Tiers
@@ -231,9 +231,9 @@ for f in examples/{31,36,41}_*/run.sh; do bash "$f"; done
 | 50 | 50_workflow_resolution/           | Label → phase resolution (CLI E2E, --local)      | —                    | —                             | ready/done/blocked/unknown → correct status        |
 | 51 | 51_workflow_transition/           | Phase transition via file I/O (CLI E2E, --local) | —                    | —                             | label changes in meta.json after transitions       |
 | 52 | 52_workflow_batch/                | Batch processing (CLI E2E, --local)              | —                    | —                             | processed/skipped counts, file system changes      |
-| 53 | 53_clean/                         | Cleanup all artifacts                            | all of the above     | —                             |                                                    |
 | 54 | 54_handoff_e2e/                   | Handoff E2E data path verification               | —                    | —                             | StepContext toUV namespace, collision prevention   |
 | 55 | 55_dualloop_log_analysis/         | Dual-loop log boundary analysis                  | —                    | —                             | FlowLoop + CompletionLoop marker pairing, sequence |
+| 99 | 99_clean/                         | Cleanup all artifacts                            | all of the above     | —                             |                                                    |
 
 ## How to Run
 
@@ -282,7 +282,7 @@ cat tmp/logs/examples/{datetime}/{step_name}.log
 bash examples/05_echo_test/run.sh
 
 # Run all examples in order (from terminal, NOT from Claude Code)
-for f in examples/[0-5][0-9]_*/run.sh; do
+for f in examples/[0-9][0-9]_*/run.sh; do
   bash "$f"
 done
 
@@ -295,7 +295,7 @@ done
 for f in examples/{32,37,45}_*/run.sh; do bash "$f"; done
 
 # Clean up afterwards
-bash examples/53_clean/run.sh
+bash examples/99_clean/run.sh
 ```
 
 ## Shared Functions
@@ -319,4 +319,4 @@ outputs/
 └── registry/     # Generated registry snapshots
 ```
 
-This directory is removed by `53_clean/run.sh`.
+This directory is removed by `99_clean/run.sh`.
