@@ -70,7 +70,7 @@
     "check": "deno check agents/**/*.ts src/**/*.ts examples/**/*.ts",
     "test": "deno test --allow-read --allow-write --allow-env --allow-net tests/",
     "test:common": "deno test --allow-all agents/common/",
-    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/ && deno test --allow-all agents/orchestrator/ && deno test --allow-all agents/runner/",
+    "test:all": "deno test --allow-read --allow-write --allow-env --allow-net tests/ && deno test --allow-all agents/common/ && deno test --allow-all agents/orchestrator/ && deno test --allow-all agents/runner/ && deno test --allow-all agents/channels/",
     "check-version": "deno run --allow-read --allow-run scripts/check-version.ts",
     "ci": "deno run --allow-read --allow-run scripts/check-version.ts && deno run --allow-all jsr:@aidevtool/ci",
     "generate-registry": "deno run --allow-read --allow-write --allow-env scripts/generate-registry.ts",
