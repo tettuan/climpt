@@ -10,6 +10,7 @@ uvVariables:
 
 ## Inputs
 
+- `{uv-issue}` - GitHub issue number (context only)
 - `ac_list` (from closure.issue.precheck-ac-extract)
 - `ac_mapping` (from closure.issue.precheck-ac-map)
 

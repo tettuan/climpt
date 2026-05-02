@@ -10,6 +10,7 @@ uvVariables:
 
 ## Inputs
 
+- `{uv-issue}` - GitHub issue number (context only)
 - `ac_list` (from closure.issue.precheck-ac-extract)
 - `commit_list` with `changed_paths` (from closure.issue.precheck-commit-verify)
 
