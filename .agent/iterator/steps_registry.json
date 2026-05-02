@@ -682,7 +682,7 @@
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
-        "fallbackIntent": "next",
+        "fallbackIntent": "repeat",
         "handoffFields": [
           "run_started_sha",
           "commit_list",
