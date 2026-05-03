@@ -26,6 +26,14 @@ uvVariables:
   `null` (forces `verdict: "blocked"`).
 - `issue_acceptance_criteria` — from `closure.detail.scan-considerer`. Empty
   array allowed.
+- `iterator_failure_context` — from `closure.detail.scan-considerer`. May
+  be `null`. When non-null, this is the differentiating signal from the
+  1st-pass spec; the spec MUST address `pattern` directly (e.g.
+  `ac-evidence-missing` → tighten Acceptance Criteria with concrete
+  `evidence_paths`; `kind-boundary-breach` → narrow Changes section to
+  the kind:* boundary; `test-failed` / `type-error` → name the failing
+  symbol/file in Changes + Test Plan). Never re-emit a byte-identical
+  spec on the 2nd pass — that is the iterator-grind anti-pattern.
 - `anchor_verification_results: [{anchor, kind, exists}]` — from
   `closure.detail.verify-anchors`.
 - `missing_anchors: string[]` — from `closure.detail.verify-anchors`.
@@ -51,6 +59,7 @@ Schema: `closure.detail.compose-and-post` in `schemas/detailer.schema.json`.
   "blocked_reason": null,
   "considerer_comment_body": "<echo>",
   "issue_acceptance_criteria": ["<echo>"],
+  "iterator_failure_context": null,
   "anchor_verification_results": ["<echo>"],
   "missing_anchors": []
 }
@@ -66,8 +75,9 @@ Output rules:
   and `blocked_reason` MUST be `null`.
 - For `verdict: "blocked"`, `blocked_reason` MUST be a non-empty string.
 - Always echo `considerer_comment_body`, `issue_acceptance_criteria`,
-  `anchor_verification_results`, `missing_anchors` from upstream so audit logs
-  preserve the evidence basis for the verdict.
+  `iterator_failure_context`, `anchor_verification_results`,
+  `missing_anchors` from upstream so audit logs preserve the evidence
+  basis for the verdict.
 
 ## Action
 

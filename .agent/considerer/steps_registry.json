@@ -91,7 +91,7 @@
           "target": "closure.consider.doc-evidence"
         },
         "repeat": {
-          "target": "closure.consider.doc-scan"
+          "target": "closure.consider.doc-verify"
         }
       }
     },

@@ -17,6 +17,16 @@ apply the 5-gate rubric, post a verdict comment, emit a verdict string.
 - `{uv-issue}` — GitHub Issue number (uvVariable, required). The
   orchestrator has already dispatched this agent for one specific
   `need clearance` issue.
+- `iterator_failure_context` (handoff from
+  `closure.clarify.scan-iterator-failure`) — `object | null`. When
+  non-null, it carries `{pattern, evidence_summary, missing_acs?,
+  kind_boundary?}` from the most recent iterator-failure-anchored
+  comment. Null means either no prior iterator failure exists on this
+  issue, or the failure comment could not be parsed. **When non-null,
+  this is the differentiating signal from the 1st-pass rubric** —
+  Gate 4 (acceptance) and Gate 3 (scope) MUST account for the named
+  pattern; do not re-emit the same verdict as if no failure had been
+  observed.
 - Source-of-truth docs (read-only, for Gate 1 / 2 rationales):
   - `.agent/workflow-issue-states.md` (state machine, responsibility matrix)
   - `/CLAUDE.md` (tenets: 全域性 / Core-first / No BC / fallback 最小限 / reviewer precision)
@@ -128,6 +138,32 @@ comments, or the codebase via Grep/Glob/Read.
 - Use `Read` on `.agent/workflow-issue-states.md` and `/CLAUDE.md`
   for Gate 1 / 2 rationales.
 - Do NOT read other docs for judgment (source-of-truth discipline).
+
+**When `iterator_failure_context` is non-null** (revision pass after a
+prior iterator failure):
+
+- Read `iterator_failure_context.pattern` and
+  `iterator_failure_context.evidence_summary` first. These are facts
+  the orchestrator carried forward; do not re-derive them from logs.
+- Map the pattern to the gate it most directly affects:
+  - `ac-evidence-missing` / `ac-typed-prefix-violated` → Gate 4
+    (acceptance). Inspect `iterator_failure_context.missing_acs` and
+    name them in the comment.
+  - `kind-boundary-breach` → Gate 3 (scope). Inspect
+    `iterator_failure_context.kind_boundary.violations`.
+  - `test-failed` / `type-error` / `lint-error` / `format-error` /
+    `git-dirty` → Gate 4 (acceptance machine-checkability) plus Gate 3
+    if a specific path is named in `evidence_summary`.
+  - `commit-binding-missing` / `off-run-only` /
+    `branch-not-pushed` / `branch-not-merged` /
+    `file-not-exists` → Gate 5 (dependency) — environment / commit
+    state precondition.
+  - `unspecified` → no automatic mapping; treat as 1st-pass behavior
+    but record the failure existence in the comment.
+- The 2nd-pass verdict MUST differ from a 1st-pass run: either
+  refine the named gate (with stricter `note`) or escalate the
+  failing-gate selection. Returning a byte-identical verdict is a
+  R10-style livelock.
 
 ### Step 3 — Apply the 5-gate rubric
 

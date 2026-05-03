@@ -562,6 +562,64 @@
             "reason": { "type": "string", "minLength": 1 }
           }
         }
+      },
+      "iterator_last_failure": {
+        "type": ["object", "null"],
+        "description": "Failure context propagated to revision agents (clarifier / detailer) when the closure verdict ends the run with status=failed (transformer outcome maps to 'failed'). Null when the run completed cleanly. The orchestrator surfaces this via commentTemplates.iteratorFailed using a stable comment anchor so downstream agents can read failure-specific evidence.",
+        "additionalProperties": false,
+        "required": ["pattern", "evidence_summary"],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "enum": [
+              "git-dirty",
+              "test-failed",
+              "type-error",
+              "lint-error",
+              "format-error",
+              "file-not-exists",
+              "branch-not-pushed",
+              "branch-not-merged",
+              "commit-binding-missing",
+              "off-run-only",
+              "ac-evidence-missing",
+              "ac-typed-prefix-violated",
+              "kind-boundary-breach",
+              "unspecified"
+            ],
+            "description": "failurePatterns key from steps_registry.json#failurePatterns. 'unspecified' when the failure mode was not classified (best-effort). Mirrors validators[].failurePattern."
+          },
+          "evidence_summary": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Human-readable 1-3 sentence summary of what failed. Captured at end-of-run; not parsed downstream beyond display in the failure comment."
+          },
+          "missing_acs": {
+            "type": "array",
+            "description": "ac_id values lacking evidence (only when pattern=ac-evidence-missing or ac-typed-prefix-violated).",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "kind_boundary": {
+            "type": "object",
+            "description": "Out-of-scope path violations (only when pattern=kind-boundary-breach).",
+            "additionalProperties": false,
+            "required": ["violations"],
+            "properties": {
+              "violations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "reason"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "reason": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

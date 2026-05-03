@@ -16,6 +16,9 @@ step decides `handoff-impl` vs `blocked` with full context.
 
 - `considerer_comment_body` — from `closure.detail.scan-considerer`. May be `null`.
 - `issue_acceptance_criteria` — from `closure.detail.scan-considerer`. Pass-through.
+- `iterator_failure_context` — from `closure.detail.scan-considerer`. May be `null`.
+  Pass-through; not consumed by this step. The terminal `compose-and-post`
+  step uses it to differentiate the 2nd-pass spec from the 1st pass.
 - `{uv-issue}` — GitHub issue number.
 
 ## Outputs

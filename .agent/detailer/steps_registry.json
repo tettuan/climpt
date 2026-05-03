@@ -14,7 +14,7 @@
   "steps": {
     "closure.detail.scan-considerer": {
       "stepId": "closure.detail.scan-considerer",
-      "name": "Scan Issue Body And Considerer Comment",
+      "name": "Scan Issue Body, Considerer And Iterator-Failure Comments",
       "kind": "work",
       "address": {
         "c1": "steps",
@@ -26,7 +26,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Read-only scan: gh issue view to extract issue body, acceptance criteria, and the latest considerer comment that begins with '## 検討結果'. Single artifact = considerer_comment_body + issue_acceptance_criteria. No anchor verification; no comment posting; no verdict.",
+      "description": "Read-only scan from a single `gh issue view`: extract issue body, acceptance criteria, the latest considerer comment that begins with '## 検討結果', AND the latest iterator-failure-anchored comment (`<!-- iterator-failure-v1 -->`). Single artifact tuple = considerer_comment_body + issue_acceptance_criteria + iterator_failure_context. No anchor verification; no comment posting; no verdict.",
       "outputSchemaRef": {
         "file": "detailer.schema.json",
         "schema": "closure.detail.scan-considerer"
@@ -42,7 +42,8 @@
         "failFast": false,
         "handoffFields": [
           "considerer_comment_body",
-          "issue_acceptance_criteria"
+          "issue_acceptance_criteria",
+          "iterator_failure_context"
         ]
       },
       "transitions": {
@@ -85,6 +86,7 @@
         "handoffFields": [
           "considerer_comment_body",
           "issue_acceptance_criteria",
+          "iterator_failure_context",
           "anchor_verification_results",
           "missing_anchors"
         ]
@@ -133,6 +135,7 @@
           "blocked_reason",
           "considerer_comment_body",
           "issue_acceptance_criteria",
+          "iterator_failure_context",
           "anchor_verification_results",
           "missing_anchors"
         ]

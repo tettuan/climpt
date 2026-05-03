@@ -119,7 +119,7 @@
         "ready-to-impl": "impl-pending",
         "ready-to-consider": "consider-pending"
       },
-      "fallbackPhase": "consider-pending",
+      "fallbackPhase": "blocked",
       "closeBinding": {
         "primary": { "kind": "none" },
         "cascade": false
@@ -141,11 +141,12 @@
       "considererHandoffDetail": "## Specification Requested\n\n{final_summary}",
       "detailerHandoffImpl": "## Implementation Spec\n\n{detail_summary}",
       "clarifierReadyToImpl": "## Clarifier: ready-to-impl\n\n{final_summary}",
-      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}"
+      "clarifierReadyToConsider": "## Clarifier: ready-to-consider\n\n{final_summary}",
+      "iteratorFailed": "<!-- iterator-failure-v1 -->\n## Iterator: failed\n\n{iterator_last_failure}"
     }
   },
   "rules": {
-    "maxCycles": 7,
+    "maxCycles": 11,
     "cycleDelayMs": 30000,
     "maxConsecutivePhases": 3
   },

@@ -1,7 +1,59 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "clarifier.schema.json",
-  "description": "Clarifier agent step schemas. Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration.",
+  "description": "Clarifier agent step schemas. Two-step linear flow: scan-iterator-failure (work) → clarify (closure). Closure emits verdict in {ready-to-impl, ready-to-consider} for outputPhases routing (workflow.json). The orchestrator owns label mutations via labelMapping + computeLabelChanges — this agent MUST NOT edit labels directly. Rubric gate failure routes to ready-to-consider (considerer absorbs ambiguity); blocked self-loop is removed to prevent vibration.",
+
+  "closure.clarify.scan-iterator-failure": {
+    "type": "object",
+    "description": "Work-step output schema for closure.clarify.scan-iterator-failure. Read-only scan of the latest issue comment carrying the iterator-failure anchor. Emits handoff (advance to closure clarify step) or repeat. Per StepKind boundary rules, work→closure transitions use the 'handoff' intent.",
+    "required": ["next_action", "iterator_failure_context"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["handoff", "repeat"]
+          },
+          "reason": { "type": "string" }
+        }
+      },
+      "iterator_failure_context": {
+        "type": ["object", "null"],
+        "description": "Parsed payload from the latest comment whose first line is the anchor `<!-- iterator-failure-v1 -->`. Null when no such comment exists (first clarify on this issue, or iterator never failed). Mirrors iterator's iterator_last_failure shape.",
+        "additionalProperties": false,
+        "required": ["pattern", "evidence_summary"],
+        "properties": {
+          "pattern": { "type": "string", "minLength": 1 },
+          "evidence_summary": { "type": "string", "minLength": 1 },
+          "missing_acs": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "kind_boundary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["violations"],
+            "properties": {
+              "violations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "reason"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": { "type": "string", "minLength": 1 },
+                    "reason": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
 
   "closure.clarify": {
     "type": "object",

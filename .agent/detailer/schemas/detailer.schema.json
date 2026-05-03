@@ -3,10 +3,46 @@
   "$id": "detailer.schema.json",
   "description": "Detailer agent step schemas. Linear 3-step flow: scan-considerer (work) → verify-anchors (verification) → compose-and-post (closure). Closure emits verdict in {handoff-impl, blocked} for outputPhases routing (workflow.json).",
 
+  "$defs": {
+    "iteratorFailureContext": {
+      "type": ["object", "null"],
+      "description": "Parsed payload from the latest issue comment whose first line is `<!-- iterator-failure-v1 -->`. Null when no such comment exists. Mirrors iterator's iterator_last_failure shape.",
+      "additionalProperties": false,
+      "required": ["pattern", "evidence_summary"],
+      "properties": {
+        "pattern": { "type": "string", "minLength": 1 },
+        "evidence_summary": { "type": "string", "minLength": 1 },
+        "missing_acs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "kind_boundary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["violations"],
+          "properties": {
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["path", "reason"],
+                "additionalProperties": false,
+                "properties": {
+                  "path": { "type": "string", "minLength": 1 },
+                  "reason": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+
   "closure.detail.scan-considerer": {
     "type": "object",
-    "description": "Work-step output schema for closure.detail.scan-considerer. Read-only scan of issue body and considerer comment. Always emits next or repeat (no verdict).",
-    "required": ["next_action", "considerer_comment_body", "issue_acceptance_criteria"],
+    "description": "Work-step output schema for closure.detail.scan-considerer. Read-only scan of issue body, considerer comment, and iterator-failure anchored comment. Always emits next or repeat (no verdict).",
+    "required": ["next_action", "considerer_comment_body", "issue_acceptance_criteria", "iterator_failure_context"],
     "properties": {
       "next_action": {
         "type": "object",
@@ -29,7 +65,8 @@
           "type": "string",
           "minLength": 1
         }
-      }
+      },
+      "iterator_failure_context": { "$ref": "#/$defs/iteratorFailureContext" }
     }
   },
 
@@ -40,6 +77,7 @@
       "next_action",
       "considerer_comment_body",
       "issue_acceptance_criteria",
+      "iterator_failure_context",
       "anchor_verification_results",
       "missing_anchors"
     ],
@@ -64,6 +102,7 @@
           "minLength": 1
         }
       },
+      "iterator_failure_context": { "$ref": "#/$defs/iteratorFailureContext" },
       "anchor_verification_results": {
         "type": "array",
         "description": "One entry per file path / symbol mentioned in the considerer comment. exists=true means Glob/Grep located the artifact; exists=false means it could not be located.",
@@ -194,6 +233,7 @@
         "description": "Echo from upstream handoff (closure.detail.scan-considerer).",
         "items": { "type": "string", "minLength": 1 }
       },
+      "iterator_failure_context": { "$ref": "#/$defs/iteratorFailureContext" },
       "anchor_verification_results": {
         "type": "array",
         "description": "Echo from upstream handoff (closure.detail.verify-anchors).",

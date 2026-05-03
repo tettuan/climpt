@@ -898,7 +898,9 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
-        "handoffFields": []
+        "handoffFields": [
+          "iterator_last_failure"
+        ]
       },
       "transitions": {
         "closing": {
@@ -908,7 +910,7 @@
           "target": "closure.issue"
         }
       },
-      "description": "Completion prompt for issue (terminal step)"
+      "description": "Completion prompt for issue (terminal step). On run failure (validation gate fails), populate iterator_last_failure {pattern, evidence_summary, missing_acs?, kind_boundary?} so revision agents (clarifier / detailer) receive the failure context via commentTemplates.iteratorFailed."
     }
   }
 }
