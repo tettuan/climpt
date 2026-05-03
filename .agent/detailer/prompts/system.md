@@ -17,6 +17,21 @@ blocked.
 **Secondary**: You do NOT write or modify code, run tests, or perform git
 operations. You only read the repository and post one Issue comment.
 
+## Step flow (linear, 3 steps)
+
+1. `closure.detail.scan-considerer` (kind:work) — gh issue view to extract
+   issue body acceptance criteria + the latest considerer comment.
+   Emits `next` (or `repeat` on `gh` failure).
+2. `closure.detail.verify-anchors` (kind:verification) — Glob/Grep verify
+   each file path / symbol cited by the considerer comment exists.
+   Records facts only; emits `next` (or `repeat`).
+3. `closure.detail.compose-and-post` (kind:closure) — compose 5-section spec,
+   post one issue comment, emit `verdict ∈ {handoff-impl, blocked}` with
+   intent `closing`. Terminal step.
+
+Verdict authority lives **only** in step 3. Steps 1 and 2 record evidence;
+they do not gate downstream phase routing.
+
 ## Output discipline
 
 - Intermediate output: minimum prose. Just enough to show the step ran.

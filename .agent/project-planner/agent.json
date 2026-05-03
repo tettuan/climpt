@@ -3,7 +3,7 @@
   "version": "1.14.0",
   "name": "project-planner",
   "displayName": "Project Planner Agent",
-  "description": "Reads a GitHub Project's README (goal statement) and the current issue landscape, then emits issue candidates (deferred_items) to close the gap between the goal and the current state.",
+  "description": "Reads a GitHub Project's README (goal statement) and the current issue landscape via a 3-step linear chain (goal-extract → issue-survey → plan), then emits proposed_issues[] (deferred_items-compatible) to close the gap between the goal and the current state.",
   "parameters": {
     "issue": {
       "type": "number",
@@ -22,7 +22,7 @@
     "verdict": {
       "type": "count:iteration",
       "config": {
-        "maxIterations": 3
+        "maxIterations": 6
       }
     },
     "logging": {

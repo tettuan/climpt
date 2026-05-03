@@ -1,35 +1,121 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "detailer",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
   "entryStepMapping": {
     "count:iteration": {
-      "initial": "detail",
-      "continuation": "detail"
+      "initial": "closure.detail.scan-considerer",
+      "continuation": "closure.detail.scan-considerer"
     }
   },
   "steps": {
-    "detail": {
-      "stepId": "detail",
-      "name": "Detail Implementation Spec",
-      "kind": "closure",
+    "closure.detail.scan-considerer": {
+      "stepId": "closure.detail.scan-considerer",
+      "name": "Scan Issue Body And Considerer Comment",
+      "kind": "work",
       "address": {
         "c1": "steps",
         "c2": "closure",
         "c3": "detail",
-        "edition": "default"
+        "edition": "scan-considerer"
       },
       "uvVariables": [
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue body + considerer comment, compose Implementation Spec (5 sections), post one comment, emit closing. Verdict {handoff-impl|blocked} routes downstream via workflow.json outputPhases.",
+      "description": "Read-only scan: gh issue view to extract issue body, acceptance criteria, and the latest considerer comment that begins with '## 検討結果'. Single artifact = considerer_comment_body + issue_acceptance_criteria. No anchor verification; no comment posting; no verdict.",
       "outputSchemaRef": {
         "file": "detailer.schema.json",
-        "schema": "closure.detail"
+        "schema": "closure.detail.scan-considerer"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "considerer_comment_body",
+          "issue_acceptance_criteria"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.detail.verify-anchors"
+        },
+        "repeat": {
+          "target": "closure.detail.scan-considerer"
+        }
+      }
+    },
+    "closure.detail.verify-anchors": {
+      "stepId": "closure.detail.verify-anchors",
+      "name": "Verify Anchors From Considerer Comment",
+      "kind": "verification",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "detail",
+        "edition": "verify-anchors"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Verification only: for each file path / symbol named in the considerer comment, check existence via Glob/Grep. Always emits next; verdict authority lives in the terminal compose-and-post step. Records anchor_verification_results and missing_anchors as facts.",
+      "outputSchemaRef": {
+        "file": "detailer.schema.json",
+        "schema": "closure.detail.verify-anchors"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "next",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "next",
+        "failFast": false,
+        "handoffFields": [
+          "considerer_comment_body",
+          "issue_acceptance_criteria",
+          "anchor_verification_results",
+          "missing_anchors"
+        ]
+      },
+      "transitions": {
+        "next": {
+          "target": "closure.detail.compose-and-post"
+        },
+        "repeat": {
+          "target": "closure.detail.verify-anchors"
+        }
+      }
+    },
+    "closure.detail.compose-and-post": {
+      "stepId": "closure.detail.compose-and-post",
+      "name": "Compose Implementation Spec And Post Comment",
+      "kind": "closure",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "detail",
+        "edition": "compose-and-post"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Single-iteration closure: compose 5-section Implementation Spec from upstream handoff (considerer comment + verified anchors), post one gh issue comment, emit verdict {handoff-impl|blocked}. Routes downstream via workflow.json outputPhases. Issue stays OPEN — orchestrator owns label/phase transitions.",
+      "outputSchemaRef": {
+        "file": "detailer.schema.json",
+        "schema": "closure.detail.compose-and-post"
       },
       "structuredGate": {
         "allowedIntents": [
@@ -38,11 +124,17 @@
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
         "fallbackIntent": "closing",
+        "failFast": false,
         "handoffFields": [
           "verdict",
+          "final_summary",
           "detail_summary",
           "spec_comment_url",
-          "blocked_reason"
+          "blocked_reason",
+          "considerer_comment_body",
+          "issue_acceptance_criteria",
+          "anchor_verification_results",
+          "missing_anchors"
         ]
       },
       "transitions": {

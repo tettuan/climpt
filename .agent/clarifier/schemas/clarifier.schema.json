@@ -26,7 +26,7 @@
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["closing", "repeat"],
+            "enum": ["closing"],
             "description": "Closure intent. Always 'closing' for single-iteration clarifier."
           },
           "reason": { "type": "string" },

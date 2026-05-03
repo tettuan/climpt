@@ -30,15 +30,16 @@
 
 ## Allowed `next_action.action` values
 
-This retry prompt is fed back into the failing step. Your structured JSON
-response MUST satisfy that step's `next_action.action` enum:
+This retry prompt is fed back into `closure.issue` (the validator `tests-pass`
+runs there). Your structured JSON response MUST satisfy that step's
+`next_action.action` enum:
 
-- `closure.issue` → `["closing","repeat"]`. Emit `repeat` after fixing the
-  failing tests so validation re-runs.
-- `closure.issue.precheck-*` → `["next","repeat"]`. Emit `repeat` after fixing
-  the failing tests.
+- Allowed values: `["closing","repeat"]`
+- After fixing the failing tests, emit `repeat` so the validator re-runs and
+  confirms `deno task test` exits with code 0.
 
-Do NOT emit `handoff`, `close`, `done`, or any other value. Any value outside
-the allowed enum for the failing step triggers `GATE_INTERPRETATION_ERROR`
-(failFast) and aborts the run. Canonical schema:
-`.agent/iterator/schemas/issue.schema.json`.
+Do NOT emit `next`, `handoff`, `close`, `done`, or any other value. Any value
+outside `["closing","repeat"]` triggers `GATE_INTERPRETATION_ERROR` (failFast)
+and aborts the run. Canonical schema:
+`.agent/iterator/schemas/issue.schema.json` →
+`closure.issue.properties.next_action.properties.action.enum`.

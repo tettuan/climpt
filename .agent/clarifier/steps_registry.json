@@ -26,15 +26,14 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue, apply 5-gate rubric, post comment, emit verdict (ready-to-impl | ready-to-consider | still-blocked). Orchestrator owns all label/phase transitions via labelMapping.",
+      "description": "Single-iteration closure: read issue, apply 5-gate rubric, post comment, emit verdict (ready-to-impl | ready-to-consider). Orchestrator owns all label/phase transitions via labelMapping.",
       "outputSchemaRef": {
         "file": "clarifier.schema.json",
         "schema": "closure.clarify"
       },
       "structuredGate": {
         "allowedIntents": [
-          "closing",
-          "repeat"
+          "closing"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
@@ -47,9 +46,6 @@
       "transitions": {
         "closing": {
           "target": null
-        },
-        "repeat": {
-          "target": "clarify"
         }
       }
     }

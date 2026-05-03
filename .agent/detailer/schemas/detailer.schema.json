@@ -1,16 +1,122 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "detailer.schema.json",
-  "description": "Detailer agent step schemas. Closure emits verdict in {handoff-impl, blocked} for outputPhases routing (workflow.json).",
+  "description": "Detailer agent step schemas. Linear 3-step flow: scan-considerer (work) → verify-anchors (verification) → compose-and-post (closure). Closure emits verdict in {handoff-impl, blocked} for outputPhases routing (workflow.json).",
 
-  "closure.detail": {
+  "closure.detail.scan-considerer": {
     "type": "object",
-    "description": "Detail closure response — convert a considerer comment into an Implementation Spec comment and emit a verdict that routes phase transition.",
-    "required": ["stepId", "status", "summary", "next_action", "verdict", "closure_action", "detail_summary"],
+    "description": "Work-step output schema for closure.detail.scan-considerer. Read-only scan of issue body and considerer comment. Always emits next or repeat (no verdict).",
+    "required": ["next_action", "considerer_comment_body", "issue_acceptance_criteria"],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "considerer_comment_body": {
+        "type": ["string", "null"],
+        "description": "Full markdown body of the latest considerer comment (the one that begins with '## 検討結果'). Null if no such comment exists."
+      },
+      "issue_acceptance_criteria": {
+        "type": "array",
+        "description": "Acceptance criteria / requirements extracted from the issue body. Empty array when none are stated.",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+
+  "closure.detail.verify-anchors": {
+    "type": "object",
+    "description": "Verification-step output schema for closure.detail.verify-anchors. Records anchor existence facts; never decides verdict (terminal compose-and-post step does).",
+    "required": [
+      "next_action",
+      "considerer_comment_body",
+      "issue_acceptance_criteria",
+      "anchor_verification_results",
+      "missing_anchors"
+    ],
+    "properties": {
+      "next_action": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["next", "repeat"]
+          }
+        }
+      },
+      "considerer_comment_body": {
+        "type": ["string", "null"]
+      },
+      "issue_acceptance_criteria": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "anchor_verification_results": {
+        "type": "array",
+        "description": "One entry per file path / symbol mentioned in the considerer comment. exists=true means Glob/Grep located the artifact; exists=false means it could not be located.",
+        "items": {
+          "type": "object",
+          "required": ["anchor", "kind", "exists"],
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The literal anchor string from the considerer comment (file path or symbol name)."
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["file", "symbol"],
+              "description": "Whether this anchor is a file path or a code symbol (function/type/class name)."
+            },
+            "exists": {
+              "type": "boolean",
+              "description": "True if Glob (kind=file) or Grep (kind=symbol) located the anchor in the repository."
+            }
+          }
+        }
+      },
+      "missing_anchors": {
+        "type": "array",
+        "description": "Subset of anchor_verification_results where exists=false. Empty array means every anchor was located.",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+
+  "closure.detail.compose-and-post": {
+    "type": "object",
+    "description": "Closure-step output schema for closure.detail.compose-and-post. Composes a 5-section Implementation Spec, posts exactly one gh issue comment, and emits the routing verdict.",
+    "required": [
+      "stepId",
+      "status",
+      "summary",
+      "next_action",
+      "verdict",
+      "closure_action",
+      "detail_summary",
+      "final_summary"
+    ],
     "properties": {
       "stepId": {
         "type": "string",
-        "const": "detail"
+        "const": "closure.detail.compose-and-post"
       },
       "status": {
         "type": "string",
@@ -27,7 +133,7 @@
           "action": {
             "type": "string",
             "enum": ["closing"],
-            "description": "Closure intent. Always 'closing' for single-iteration detailer."
+            "description": "Closure intent. Always 'closing' for terminal step."
           },
           "reason": { "type": "string" },
           "details": { "type": "object", "additionalProperties": true }
@@ -36,7 +142,7 @@
       "verdict": {
         "type": "string",
         "enum": ["handoff-impl", "blocked"],
-        "description": "Verdict propagated to orchestrator. 'handoff-impl' = all five spec sections filled (Summary / Changes / Approach / Acceptance Criteria / Test Plan). 'blocked' = specification not possible (missing considerer input, untargetable files, unmet preconditions, etc.)."
+        "description": "Verdict propagated to orchestrator. 'handoff-impl' = all five spec sections filled (Summary / Changes / Approach / Acceptance Criteria / Test Plan) AND every cited anchor exists. 'blocked' = specification not possible (missing considerer input, untargetable files, unmet preconditions, missing anchors)."
       },
       "closure_action": {
         "type": "string",
@@ -63,6 +169,10 @@
           }
         }
       },
+      "final_summary": {
+        "type": "string",
+        "description": "One-paragraph recap including verdict rationale. Mirrors detail_summary content for downstream/observability handoff parity."
+      },
       "detail_summary": {
         "type": "string",
         "description": "One-paragraph recap of the Implementation Spec. Handed off to downstream (iterator) phase on 'handoff-impl'. Required for both verdicts (empty-but-present is not acceptable)."
@@ -74,6 +184,34 @@
       "blocked_reason": {
         "type": ["string", "null"],
         "description": "Human-readable reason when verdict='blocked'. Null when verdict='handoff-impl'."
+      },
+      "considerer_comment_body": {
+        "type": ["string", "null"],
+        "description": "Echo from upstream handoff (closure.detail.scan-considerer)."
+      },
+      "issue_acceptance_criteria": {
+        "type": "array",
+        "description": "Echo from upstream handoff (closure.detail.scan-considerer).",
+        "items": { "type": "string", "minLength": 1 }
+      },
+      "anchor_verification_results": {
+        "type": "array",
+        "description": "Echo from upstream handoff (closure.detail.verify-anchors).",
+        "items": {
+          "type": "object",
+          "required": ["anchor", "kind", "exists"],
+          "additionalProperties": false,
+          "properties": {
+            "anchor": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "enum": ["file", "symbol"] },
+            "exists": { "type": "boolean" }
+          }
+        }
+      },
+      "missing_anchors": {
+        "type": "array",
+        "description": "Echo from upstream handoff (closure.detail.verify-anchors).",
+        "items": { "type": "string", "minLength": 1 }
       }
     },
     "allOf": [
@@ -86,7 +224,8 @@
           "required": ["spec_comment_url"],
           "properties": {
             "spec_comment_url": { "type": "string", "minLength": 1 },
-            "detail_summary": { "type": "string", "minLength": 1 }
+            "detail_summary": { "type": "string", "minLength": 1 },
+            "final_summary": { "type": "string", "minLength": 1 }
           }
         }
       },

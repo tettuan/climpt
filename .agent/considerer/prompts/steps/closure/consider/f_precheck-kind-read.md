@@ -14,14 +14,15 @@ is a passive record from triage time used only for drift inspection. No
 writer is guaranteed to have produced it, so this step never hangs on its
 absence.
 
-## Inputs
-
-- `{uv-issue}` — GitHub issue number
+## Inputs (handoff)
+- `{uv-issue}` — GitHub issue number.
+- `doc_paths_required`, `doc_diff_results`, `doc_evidence` — passed through
+  the handoff chain (not consumed here; preserved for downstream).
 
 ## Outputs
-
 - `kind_at_triage: string | null` — one of `kind:impl | kind:consider | kind:design`
-  when the file exists with valid content; otherwise `null`.
+  when the file exists with valid content; otherwise `null`. Schema:
+  `closure.consider.precheck-kind-read` in `schemas/considerer.schema.json`.
 
 ## Action
 
@@ -48,15 +49,18 @@ esac
 '
 ```
 
-- Empty stdout → set `kind_at_triage: null` and emit `next`.
-- Non-empty stdout (valid kind label) → set `kind_at_triage` to that value
-  and emit `next`.
-- Always emit `next`. Do NOT emit `repeat`; there is no upstream writer to
-  wait for and the live label is already authoritative.
+Map the bash output to `kind_at_triage`:
+- Empty stdout → `kind_at_triage: null`.
+- Non-empty stdout (valid kind label) → `kind_at_triage` set to that value.
+
+## Verdict
+- `next` — always emitted (success or absent file). Transitions to
+  `closure.consider.precheck-kind-scope`. There is no upstream writer to
+  wait for and the live label is already authoritative, so `repeat` is not
+  permitted.
 
 ## Do ONLY this
 
 - Do not write to `.agent/climpt/out/kind_at_triage/<N>.txt`.
 - Do not rename, delete, or normalize the file.
 - Do not read any other file.
-- Do not emit intents other than `next`.
