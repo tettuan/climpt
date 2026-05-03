@@ -159,8 +159,10 @@ Starting points for grep / sed / jq:
 - **Project orchestration loop (O1/O2/T6.eval).** `projectBinding`
   hook enables orchestrator-level project awareness:
   - Hook O2 inherits parent-project membership on `create-issue`
-    outbox actions (`agents/orchestrator/hook-o1-o2-integration_test.ts`)
-  - T6.eval sentinel label flip chain for project-scoped evaluation
+    outbox actions (`agents/orchestrator/hook-o1-o2-integration_test.ts`);
+    silent skip fallback emits `o2_project_inheritance_skipped` event
+  - T6.eval sentinel label flip (`donePhase` → `evalPhase`) with
+    `CascadeCloseChannel` delegation for evaluator loop continuation
     (`agents/channels/` e2e tests)
 - **Project v2 primitives.** `issueSource` ADT on `WorkflowConfig`
   (`agents/orchestrator/workflow-types.ts`) with 3 variants:
@@ -175,6 +177,10 @@ Starting points for grep / sed / jq:
     in a GitHub Project v2 with field values
 - **Project-planner agent** (`.agent/project-planner/`) for
   project-scoped planning via sentinel issue dispatch
+- **Fixture set** `agents/orchestrator/fixtures/v1.14-e2e/`
+  (`fixture-project-readme.md`, `fixture-workflow.json`,
+  `fixture-agent/`, `graphql-*.json`) for project orchestration
+  integration tests
 
 ### Removed
 - `GateIntent.abort` variant: the 12 historical sites are
@@ -184,6 +190,8 @@ Starting points for grep / sed / jq:
   `outbox-processor.ts`, and `verdict/external-state-adapter.ts`:
   every close now flows through a declarative `Channel.execute` —
   the orchestrator no longer calls `closeIssue` directly.
+- Hook O1 (project goal injection on dispatch) — superseded by
+  [#540](https://github.com/tettuan/climpt/issues/540) (v1.15.0)
 ## [1.13.27] - 2026-04-20
 
 ### Fixed
