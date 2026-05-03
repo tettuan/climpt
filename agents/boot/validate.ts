@@ -53,7 +53,6 @@ import type { Step } from "../common/step-registry/types.ts";
 import { STEP_KIND_ALLOWED_INTENTS } from "../common/step-registry/types.ts";
 import type {
   AgentDefinition as WorkflowAgentDefinition,
-  WorkflowConfig,
 } from "../orchestrator/workflow-types.ts";
 
 import {

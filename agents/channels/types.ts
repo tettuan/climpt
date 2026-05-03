@@ -58,7 +58,6 @@ import type {
 } from "../events/types.ts";
 import type { CloseBinding } from "../src_common/types/agent-bundle.ts";
 import type { SubjectRef } from "../orchestrator/workflow-types.ts";
-import type { CloseTransport } from "../transports/close-transport.ts";
 
 // ---------------------------------------------------------------------------
 // Decision ADT

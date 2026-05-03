@@ -14,11 +14,6 @@ import { getAgentDir, loadRaw, loadStepsRegistry } from "./loader.ts";
 import { validate, validateComplete } from "./validator.ts";
 import { applyDefaults, freeze } from "./defaults.ts";
 import { join } from "@std/path";
-import { BreakdownLogger } from "@tettuan/breakdownlogger";
-import {
-  acValidFailed,
-  acValidIncomplete,
-} from "../shared/errors/config-errors.ts";
 import {
   acceptVoid,
   BootValidationFailed,
@@ -28,7 +23,6 @@ import {
   decisionFromLegacyMapped,
   decisionFromSchema,
   reject as rejectDecision,
-  type ValidationError,
   type ValidationErrorCode,
 } from "../shared/validation/mod.ts";
 import {

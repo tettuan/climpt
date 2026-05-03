@@ -25,7 +25,7 @@
 
 import type { GitHubClient } from "./github-client.ts";
 import type { SubjectStore } from "./subject-store.ts";
-import type { ProjectRef, SubjectRef } from "./workflow-types.ts";
+import type { ProjectRef } from "./workflow-types.ts";
 import type { CloseEventBus } from "../events/bus.ts";
 import type { OutboxPhase } from "../events/types.ts";
 import type { OutboxClosePreChannel } from "../channels/outbox-close-pre.ts";

@@ -35,7 +35,6 @@ import type {
 import type { EntryStepPair, Step } from "../common/step-registry/types.ts";
 import type {
   AgentDefinition as WorkflowAgentDefinition,
-  WorkflowConfig,
 } from "../orchestrator/workflow-types.ts";
 
 import { applyDefaults, deepFreeze } from "./defaults.ts";

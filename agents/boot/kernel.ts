@@ -276,6 +276,7 @@ export class BootKernel {
     const bundleResults: Decision<AgentBundle>[] = [];
     for (const [agentId, workflowAgent] of Object.entries(workflow.agents)) {
       try {
+        // deno-lint-ignore no-await-in-loop
         const bundle = await loadAgentBundle(agentId, opts.cwd, {
           workflowAgent,
         });
