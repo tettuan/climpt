@@ -56,7 +56,10 @@
         "red": "merge-blocked",
         "timeout": "merge-blocked"
       },
-      "fallbackPhase": "ci-pending"
+      "fallbackPhase": "ci-pending",
+      "closeBinding": {
+        "primary": { "kind": "none" }
+      }
     }
   },
   "rules": {
