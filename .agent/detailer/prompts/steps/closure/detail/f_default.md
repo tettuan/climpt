@@ -1,15 +1,27 @@
 ---
 stepId: detail
 name: Detail Implementation Spec
-description: Single-iteration — read considerer comment, compose spec, post one comment.
+description: Single-iteration closure - read considerer comment, post spec comment, label-only handoff (issue stays open)
 uvVariables:
   - issue
 ---
 
 # Task: Detail issue #{uv-issue}
 
+> **CRITICAL: DO NOT RUN ISSUE STATE COMMANDS**
+>
+> You MUST NOT execute these commands directly:
+>
+> - `gh issue close` - BLOCKED
+> - `gh issue edit --add-label` / `--remove-label` - BLOCKED
+> - `gh api` for issue state mutation - BLOCKED
+>
+> The **Boundary Hook** will apply label transitions when you return `closing`
+> intent. Issue #{uv-issue} stays **OPEN** for the next agent (iterator at
+> `impl-pending`).
+
 単一反復で、考察コメントを実装仕様コメントに変換して投稿する。コードは
-変更しない。Issue のクローズ/ラベル変更は行わない。
+変更しない。Issue のクローズ/ラベル変更は orchestrator が行う。
 
 ## Step 1 — Read the issue and considerer comment
 
@@ -50,20 +62,25 @@ Extract:
 ## Implementation Spec
 
 ### Summary
+
 <1-2 行>
 
 ### Changes
+
 - **Files**: path:line 形式で具体的に
 - **Functions / Lines**: symbol at file:L始-L終
 
 ### Approach
+
 <既存パターンへの参照を含む具体的な方針>
 
 ### Acceptance Criteria
+
 - [ ] <観測可能な条件>
 - [ ] <観測可能な条件>
 
 ### Test Plan
+
 - <テスト観点と対象>
 ```
 
@@ -73,6 +90,7 @@ Extract:
 ## Implementation Spec
 
 ### Blocked
+
 <理由を 1-3 文で。不足情報と、何があれば解決できるかを明記>
 ```
 
@@ -89,12 +107,29 @@ output の `spec_comment_url` に入れる)。
 
 **禁止**:
 
-- `gh issue close` 実行禁止 — orchestrator が行う。
-- `gh issue edit --add-label` / `--remove-label` 実行禁止 — orchestrator が
-  `workflow.json` labelMapping で制御する。
+- `gh issue close` 実行禁止 — orchestrator が制御する。
+- `gh issue edit --add-label` / `--remove-label` 実行禁止 — Boundary Hook が
+  `workflow.json` labelMapping で適用する。
 - コメント投稿後の再編集 / 複数投稿禁止。
 
-## Step 5 — Emit structured output
+## Step 5 — Closure Action (Label Only)
+
+This step will **change labels only** on Issue #{uv-issue}. The issue will
+remain **OPEN** so the iterator can pick it up at `impl-pending`.
+
+When you return `closing` intent, the **Boundary Hook** will automatically:
+
+- Apply label changes based on config (`github.labels.completion`)
+- Keep Issue #{uv-issue} **OPEN**
+
+Your role is to **post the spec comment, then return the structured output
+only**. Do not perform issue state operations yourself.
+
+## Verdict
+
+- `closing` — Implementation Spec comment was posted (whether handoff-impl or blocked verdict). Single-shot agent — no retry path.
+
+## Step 6 — Emit structured output
 
 closure step の structured output として以下を返す。
 
@@ -132,7 +167,7 @@ closure step の structured output として以下を返す。
 }
 ```
 
-## Step 6 — Final status line
+## Step 7 — Final status line
 
 最後に単一行でステータスを出力する。
 
@@ -148,3 +183,8 @@ detailer: <verdict> #{uv-issue} (<spec 投稿 or blocked 理由>)
 途中のいずれかで失敗した場合は、失敗した step と `gh` コマンドの完全な
 出力を報告し、silently retry しない。`gh issue close` / ラベル変更は絶対に
 実行しない。
+
+---
+
+**This is a closure step.** Return `"closing"` to hand off to `impl-pending`
+(`handoff-impl`) or `blocked` (`blocked`) phase per workflow.json.

@@ -26,15 +26,14 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue body + considerer comment, compose Implementation Spec (Summary / Changes / Approach / Acceptance Criteria / Test Plan), post spec comment, emit verdict (handoff-impl | blocked). No code changes, no issue close.",
+      "description": "Single-iteration closure: read issue body + considerer comment, compose Implementation Spec (5 sections), post one comment, emit closing. Verdict {handoff-impl|blocked} routes downstream via workflow.json outputPhases.",
       "outputSchemaRef": {
         "file": "detailer.schema.json",
         "schema": "closure.detail"
       },
       "structuredGate": {
         "allowedIntents": [
-          "closing",
-          "repeat"
+          "closing"
         ],
         "intentSchemaRef": "#/properties/next_action/properties/action",
         "intentField": "next_action.action",
@@ -49,9 +48,6 @@
       "transitions": {
         "closing": {
           "target": null
-        },
-        "repeat": {
-          "target": "detail"
         }
       }
     }

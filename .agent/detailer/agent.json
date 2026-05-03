@@ -34,8 +34,7 @@
             "add": [],
             "remove": []
           }
-        },
-        "defaultClosureAction": "label-only"
+        }
       }
     },
     "logging": {
