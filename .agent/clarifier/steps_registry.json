@@ -1,7 +1,7 @@
 {
   "$schema": "../../agents/schemas/steps_registry.schema.json",
   "agentId": "clarifier",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "c1": "steps",
   "pathTemplate": "{c1}/{c2}/{c3}/f_{edition}_{adaptation}.md",
   "pathTemplateNoAdaptation": "{c1}/{c2}/{c3}/f_{edition}.md",
@@ -26,7 +26,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Read-only scan: gh issue view to locate the latest comment whose first line is the anchor `<!-- iterator-failure-v1 -->`. Capture pattern, evidence_summary, missing_acs, kind_boundary into iterator_failure_context. Empty/missing comment → iterator_failure_context=null. Always emits next; verdict authority lives in the terminal clarify step.",
+      "description": "Read-only scan: gh issue view to locate the latest comment whose first line is the anchor `<!-- iterator-failure-v1 -->`. Capture pattern, evidence_summary, missing_acs, kind_boundary into iterator_failure_context. Empty/missing comment → iterator_failure_context=null. Always emits handoff to scan-prior-verdicts; verdict authority lives in the terminal clarify step.",
       "outputSchemaRef": {
         "file": "clarifier.schema.json",
         "schema": "closure.clarify.scan-iterator-failure"
@@ -46,10 +46,52 @@
       },
       "transitions": {
         "handoff": {
-          "target": "clarify"
+          "target": "closure.clarify.scan-prior-verdicts"
         },
         "repeat": {
           "target": "closure.clarify.scan-iterator-failure"
+        }
+      }
+    },
+    "closure.clarify.scan-prior-verdicts": {
+      "stepId": "closure.clarify.scan-prior-verdicts",
+      "name": "Scan Prior Clarifier-Verdict Comments",
+      "kind": "work",
+      "address": {
+        "c1": "steps",
+        "c2": "closure",
+        "c3": "clarify",
+        "edition": "scan-prior-verdicts"
+      },
+      "uvVariables": [
+        "issue"
+      ],
+      "usesStdin": false,
+      "description": "Read-only scan: gh issue view to enumerate every comment whose first line is `<!-- clarifier-verdict-v1 -->`. Build prior_anchor_signatures (chronological ledger of {created_at, anchor_signature, verdict}) plus iterator_failure_timestamps (chronological list of `<!-- iterator-failure-v1 -->` createdAt). Empty result when no v1-anchored comments exist (1st-pass on this issue). Always emits handoff to clarify; verdict authority lives in the terminal clarify step. Feeds Gate 3 progress predicate.",
+      "outputSchemaRef": {
+        "file": "clarifier.schema.json",
+        "schema": "closure.clarify.scan-prior-verdicts"
+      },
+      "structuredGate": {
+        "allowedIntents": [
+          "handoff",
+          "repeat"
+        ],
+        "intentSchemaRef": "#/properties/next_action/properties/action",
+        "intentField": "next_action.action",
+        "fallbackIntent": "handoff",
+        "failFast": false,
+        "handoffFields": [
+          "prior_anchor_signatures",
+          "iterator_failure_timestamps"
+        ]
+      },
+      "transitions": {
+        "handoff": {
+          "target": "clarify"
+        },
+        "repeat": {
+          "target": "closure.clarify.scan-prior-verdicts"
         }
       }
     },
@@ -67,7 +109,7 @@
         "issue"
       ],
       "usesStdin": false,
-      "description": "Single-iteration closure: read issue, apply 5-gate rubric (informed by iterator_failure_context when present), post comment, emit verdict (ready-to-impl | ready-to-consider). Orchestrator owns all label/phase transitions via labelMapping.",
+      "description": "Single-iteration closure: read issue, apply 5-gate rubric (informed by iterator_failure_context AND prior_anchor_signatures + iterator_failure_timestamps for Gate 3 progress predicate), post comment with v1 anchor + sha256 anchor-signature header, emit verdict (ready-to-impl | ready-to-consider). Orchestrator owns all label/phase transitions via labelMapping.",
       "outputSchemaRef": {
         "file": "clarifier.schema.json",
         "schema": "closure.clarify"
@@ -81,7 +123,8 @@
         "fallbackIntent": "closing",
         "handoffFields": [
           "verdict",
-          "final_summary"
+          "final_summary",
+          "anchor_signature"
         ]
       },
       "transitions": {
