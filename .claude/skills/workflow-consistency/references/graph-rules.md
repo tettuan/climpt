@@ -90,6 +90,35 @@ source: `agents/docs/builder/07_flow_design.md` §2.3 "収束の保証", §2.4 "
 
 source: `agents/docs/builder/06_workflow_setup.md` §"Close binding (per agent)" / §"旧 field からの移行".
 
+#### R7-Exception: sentinel-reuse pattern
+
+通常 rule の唯一の例外。terminal を出力しても `closeBinding(a) = none` を許容する条件を formal に定める。
+
+**適用条件 (両方を満たすこと)**:
+
+1. `workflow.projectBinding.sentinelLabel` が定義され、agent `a` が dispatch される subject (issue) は **常に** `sentinelLabel` を保持する (= sentinel subject 専用 agent)
+2. agent `a` の prompt または README に **「sentinel reuse — must not be closed」** 趣旨の文言が記載され、reviewer が意図的省略であることを確認できる
+
+formal に書くと:
+
+```
+sentinelOnly(a) := ∀ s ∈ subjects(a). sentinelLabel ∈ labels(s)
+documented(a)   := agent a の prompt / README が sentinel reuse を明記
+
+sentinelOnly(a) ∧ documented(a) ⇒ closeBinding(a) = none を許容
+```
+
+**Justification の要件**: reviewer は exception 主張側に対し、agent prompt または `.agent/<a>/README.md` の該当箇所 (sentinel reuse 旨の記述) の path + line citation を要求する。citation が無い `kind: none` は通常 R7 違反として扱う。
+
+**False negative リスク警告**: exception を誤って主張すると、本来 close すべき issue が滞留する。具体的には sentinel でない subject 経由で agent が dispatch された場合、`{ primary: "none" }` のため `done` ラベル付きで永久に open。リスク mitigation:
+
+- exception 主張時は subject の label 制約 (sentinelLabel 必須) を steps_registry / agent.json の precondition に明文化することを推奨
+- 通常の `direct` close と sentinel `none` を **同一 agent で混在** させない (single-purpose 原則 R1 と整合)。混在が必要なら別 agent に分割する
+
+**現行 example**: `.agent/workflow.json` の `project-planner` (`outputPhase: "done"`, `closeBinding.primary.kind: "none"`) は本 exception の正例。`agents/scripts/project-init.ts:108-113` で生成される sentinel issue (body に "Do not close manually." 明記) を反復 trigger として使う設計のため、`agents/orchestrator/orchestrator.ts:1187-1224` の `DirectClose.handleTransition` を発火させない。
+
+source (exception): `agents/scripts/project-init.ts:108-113` (sentinel 生成 + "Do not close manually."), `agents/orchestrator/orchestrator.ts:1187-1224` (DirectClose semantics), commit `1a51c30` (`closeOnComplete: false` → ADT migration での `kind: "none"` 継承).
+
 ### R8: fallbackPhase coverage
 
 `∀ a ∈ A. fallbackPhase(a) ∈ P` (省略禁止)。schema 上は optional だが、`computeTransition` の throw 挙動 (`agents/orchestrator/phase-transition.ts:23-44`) を回避するため strict に要求する。

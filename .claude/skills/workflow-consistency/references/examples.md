@@ -186,3 +186,65 @@ iterator が self-cycle に閉じている結果、`reach(impl-pending)` の for
 - maxCycles は `A → recovery → A → done = 3` + 余裕で 5 程度
 
 このように **別 agent を挟む** ことで R9 を回避し、recovery agent が実体作業をすれば R5 も満たす。本 skill の R5 / R9 が同時に満たされる canonical な pattern。
+
+## Example 4: R7 sentinel-reuse exception (現行 `.agent/workflow.json` の `project-planner`)
+
+R7 通常 rule では「terminal 出力 ⇒ 実 close kind 必須」だが、sentinel-reuse pattern は唯一の exception。
+
+### 抜粋
+
+```jsonc
+{
+  "phases": {
+    "plan-pending": { "type": "actionable", "priority": 5, "agent": "project-planner" },
+    "done":         { "type": "terminal" }
+  },
+  "agents": {
+    "project-planner": {
+      "role": "transformer",
+      "directory": "project-planner",
+      "outputPhase": "done",                          // terminal を出力
+      "fallbackPhase": "blocked",
+      "closeBinding": {
+        "primary": { "kind": "none" },                // 通常なら R7 違反
+        "cascade": false
+      }
+    }
+  },
+  "projectBinding": {
+    "sentinelLabel": "project-sentinel"
+  }
+}
+```
+
+### Why R7 が満たされる (exception 適用)
+
+- **Condition (1) sentinel-only**: `project-planner` が dispatch される subject は `agents/scripts/project-init.ts:108-113` で生成される sentinel issue (label: `kind:plan` + `project-sentinel`) のみ。`projectBinding.sentinelLabel = "project-sentinel"` を満たす
+- **Condition (2) documented**: `.agent/project-planner/prompts/system.md` 等で sentinel reuse 旨が記載される (reviewer は path + line citation を要求)
+- **意図**: `agents/orchestrator/orchestrator.ts:1187-1224` の `DirectClose.handleTransition` を発火させない。sentinel issue を「再利用される長寿命 trigger」として保持する。`agents/scripts/project-init.ts:112` の "Do not close manually." がこの意図を body に明記
+
+### もし `direct` に書き換えた場合 (anti-pattern)
+
+```jsonc
+"closeBinding": { "primary": { "kind": "direct" } }   // ✗ sentinel pattern を見落とした書き換え
+```
+
+- `outputPhase: "done"` 到達時に `DirectClose.handleTransition` が `gh issue close` を発火
+- sentinel issue が closed になり、次回 batch 実行時 `kind:plan` label が付いた issue が無くなる → planner が二度と起動しない
+- `gh issue reopen` で復旧可能だが、orchestrator は閉じた issue を skip するため運用断絶
+
+### Skill report (exception 主張時の citation 例)
+
+exception を主張する PR で reviewer が確認する形式:
+
+```
+[skill:WF-CONSISTENCY-R7-EXCEPTION] sentinel-reuse exception claimed for agent "project-planner"
+- sentinel-only: workflow.projectBinding.sentinelLabel = "project-sentinel"
+                 .agent/project-planner/agent.json or steps_registry constrains dispatch to sentinel subjects
+- documented:    .agent/project-planner/prompts/system.md §<section> states "sentinel reuse — must not be closed"
+- code refs:     agents/scripts/project-init.ts:108-113 (sentinel生成 + "Do not close manually.")
+                 agents/orchestrator/orchestrator.ts:1187-1224 (DirectClose semantics)
+Verdict: closeBinding.primary.kind = "none" は意図的な R7 exception。書き換え禁止。
+```
+
+通常 R7 違反と sentinel exception を **同じ表面形** (`kind: "none"`) で運用するため、reviewer が citation 無しに `direct` へ「修正」しないよう、本 example が判別基準となる。
