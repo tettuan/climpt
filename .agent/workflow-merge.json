@@ -35,7 +35,12 @@
         "conflicts": "merge-blocked",
         "rejected": "merge-blocked"
       },
-      "fallbackPhase": "merge-blocked"
+      "fallbackPhase": "merge-blocked",
+      "closeBinding": {
+        "primary": { "kind": "outboxPre" },
+        "cascade": false,
+        "condition": "merged"
+      }
     }
   },
   "rules": {
